@@ -1,4 +1,5 @@
 {
+    "dotnet.defaultSolution": "Nova.slnx",
     "problems.exclude": {
         "**/Nova/wwwroot/lib/bootstrap/dist/css/**": true,
         "**/wwwroot/lib/bootstrap/dist/css/**": true
