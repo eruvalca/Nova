@@ -4,6 +4,7 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Project Path="Nova.AppHost/Nova.AppHost.csproj" />
   <Project Path="Nova.Client/Nova.Client.csproj" />
   <Project Path="Nova/Nova.csproj" />
 </Solution>

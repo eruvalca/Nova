@@ -8,4 +8,8 @@
     <UserSecretsId>6358ae70-73e7-4228-a6a2-d01895d1d719</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Nova\Nova.csproj" />
+  </ItemGroup>
+
 </Project>
