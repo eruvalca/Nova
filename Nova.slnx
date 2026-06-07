@@ -7,5 +7,6 @@
   <Project Path="Nova.AppHost/Nova.AppHost.csproj" />
   <Project Path="Nova.Client/Nova.Client.csproj" />
   <Project Path="Nova.ServiceDefaults/Nova.ServiceDefaults.csproj" />
+  <Project Path="Nova.Unit.Tests/Nova.Unit.Tests.csproj" />
   <Project Path="Nova/Nova.csproj" />
 </Solution>
