@@ -1,0 +1,10 @@
+{
+    "ignoredUrls": [
+        {
+            "domain": ".*[\\\\/]Nova[\\\\/]wwwroot[\\\\/]lib[\\\\/]bootstrap[\\\\/]dist[\\\\/]css[\\\\/].*",
+            "hints": [
+                "*"
+            ]
+        }
+    ]
+}
