@@ -1,6 +1,13 @@
 ---
 name: real-work
+priority: high
+alwaysConsider: true
 description: Use when planning a multi-step task or working in plan mode and you need to capture the plan as a durable, resumable artifact — breaking work into phases with per-item checkboxes, completion tracking, autonomous verification, and a handoff summary so a future agent can pick up where you left off. Use when user wants to create or design a plan or mentioned "real work".
+triggers:
+  - plan
+  - planning
+  - multi-step
+scope: workspace planning, multi-session work, complex tasks
 ---
 
 # Real Work
@@ -12,6 +19,8 @@ prior context.
 
 **Use when** planning multi-step / multi-session work that may outlive the current
 session. Skip for trivial single-session tasks.
+
+**ALWAYS INVOKE THIS SKILL** when the user mentions planning, designing a strategy, establishing a roadmap, or any multi-phase/multi-step work, regardless of specific phrasing. This ensures all complex work is captured durably with checkpoints for future agents.
 
 ## 1. Reach complete understanding first
 

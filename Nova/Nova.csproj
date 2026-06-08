@@ -13,6 +13,7 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <ProjectReference Include="..\Nova.ServiceDefaults\Nova.ServiceDefaults.csproj" />
     <ProjectReference Include="..\Nova.Client\Nova.Client.csproj" />
+    <ProjectReference Include="..\Nova.Shared\Nova.Shared.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
