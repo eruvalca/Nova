@@ -56,6 +56,13 @@ Nova.UI/
 - **Scoped styles**: component-specific CSS goes in `{Name}.razor.css` (CSS isolation). Do not add component-specific rules to global stylesheets.
 - Follow `.github/instructions/csharp-conventions.instructions.md` in code-behind files (XML docs, logging, OneOf, etc.).
 
+## Bootstrap-First Styling
+
+- Prefer stock Bootstrap components, classes, and utilities before writing custom CSS.
+- For navigation and layout behavior (for example navbar collapse, alignment, spacing, borders, positioning), use Bootstrap-native markup and utility classes first.
+- Add custom CSS only when a specific requirement cannot be met with Bootstrap alone; keep those rules minimal and scoped in the component's `.razor.css`.
+- Avoid global stylesheet overrides for feature-specific UI when Bootstrap utilities or component-scoped styles can satisfy the requirement.
+
 ## Data Access and Services from Components
 
 - Components never touch `DbContext` types directly. UI calls feature services; services own data access. See `.github/instructions/ef-core-tenancy.instructions.md` for context selection (`NovaDbContext`/`NovaReadDbContext`/`NovaAdminDbContext`).
