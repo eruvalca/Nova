@@ -9,10 +9,10 @@ Both test projects use xUnit v3 on Microsoft.Testing.Platform (MTP) with Shouldl
 Run with `dotnet test --project <project>` — do NOT pass VSTest-only flags (`--nologo`,
 `--collect`, `--logger`); MTP rejects them.
 
-| Project | Speed | Database | Use for |
-|---|---|---|---|
-| `Nova.Unit.Tests` | ~2s | Shared in-memory SQLite (`EnsureCreated()`) | Provider-agnostic logic: query-filter composition, interceptor branching, services, OneOf state |
-| `Nova.Integration.Tests` | ~20s+ (starts containers) | Real PostgreSQL 18 via the Aspire AppHost | Postgres-only behavior: production migrations, `timestamptz`/`DateOnly` mappings, filter SQL translation |
+| Project                  | Speed                     | Database                                    | Use for                                                                                                  |
+| ------------------------ | ------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `Nova.Unit.Tests`        | ~2s                       | Shared in-memory SQLite (`EnsureCreated()`) | Provider-agnostic logic: query-filter composition, interceptor branching, services, OneOf state          |
+| `Nova.Integration.Tests` | ~20s+ (starts containers) | Real PostgreSQL 18 via the Aspire AppHost   | Postgres-only behavior: production migrations, `timestamptz`/`DateOnly` mappings, filter SQL translation |
 
 Default new tests to `Nova.Unit.Tests`. Add an integration test only when the behavior depends
 on the real provider (type mappings, migrations, SQL translation, collation).
@@ -51,13 +51,19 @@ It requires a running container runtime (Docker/Podman). What it does and why:
      block in `Nova/Program.cs` is skipped.
    - Migrations are attributed `[DbContext(typeof(NovaDbContext))]` — `MigrateAsync` through
      `NovaAdminDbContext` silently finds ZERO migrations. Always migrate via `NovaDbContext`.
-   Like the unit harness, its options attach `IdentityStoreServiceProvider.Instance` so the
-   model matches the migrations (otherwise `MigrateAsync` throws `PendingModelChangesWarning`).
+     Like the unit harness, its options attach `IdentityStoreServiceProvider.Instance` so the
+     model matches the migrations (otherwise `MigrateAsync` throws `PendingModelChangesWarning`).
 
 Test-isolation pattern: the database is shared across all tests in the collection, so each test
 seeds its OWN clubs/users/players with database-generated ids (no hardcoded keys) and lets the
 tenant query filters scope queries to that test's data. Never assert on global, unfiltered counts
-in integration tests. Use `TestContext.Current.CancellationToken` in async EF calls.
+in integration tests.
+
+Prefer `Xunit.TestContext.Current.CancellationToken` over `CancellationToken.None` in tests
+whenever the async API already accepts a `CancellationToken`. This keeps test cancellation tied
+to the xUnit runner and preserves cancellation behavior during test interruption. If no token-
+accepting overload or parameter exists, leave the call as-is (or omit the token argument) rather
+than forcing unrelated refactors. Example: `await context.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken)`.
 
 ## Conventions and gotchas
 
