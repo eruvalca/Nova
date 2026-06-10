@@ -9,9 +9,11 @@ using Nova.Components;
 using Nova.Components.Account;
 using Nova.Data;
 using Nova.Data.Interceptors;
+using Nova.Data.Startup;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Shared.Security;
+using Nova.UI;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -134,50 +136,13 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(Nova.UI._Imports).Assembly)
     .AddAdditionalAssemblies(typeof(Nova.Client._Imports).Assembly);
 
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
 
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    try
-    {
-        // Migrations are attributed to NovaDbContext, so it must be the context that applies them.
-        var context = services.GetRequiredService<NovaDbContext>();
-        var roleManager = services.GetRequiredService<RoleManager<IdentityRole<long>>>();
-
-        var strategy = context.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
-        {
-            if (app.Environment.IsDevelopment())
-            {
-                await context.Database.MigrateAsync();
-            }
-
-            string[] roles = [Roles.Admin, Roles.ClubAdmin, Roles.StandardUser];
-
-            foreach (var role in roles)
-            {
-                if (!await roleManager.RoleExistsAsync(role))
-                {
-                    var roleResult = await roleManager.CreateAsync(new IdentityRole<long>(role));
-                    if (!roleResult.Succeeded)
-                    {
-                        throw new InvalidOperationException(
-                            $"Failed to create role '{role}': {string.Join("; ", roleResult.Errors.Select(e => e.Description))}");
-                    }
-                }
-            }
-        });
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while seeding the database.");
-    }
-}
+await StartupDatabaseInitializer.InitializeAsync(app.Services, app.Environment.IsDevelopment());
 
 await app.RunAsync();
 
