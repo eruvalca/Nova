@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Primitives;
 using Nova.Components.Account.Pages;
 using Nova.Components.Account.Pages.Manage;
-using Nova.Data;
 using Nova.Entities;
 
 namespace Microsoft.AspNetCore.Routing;

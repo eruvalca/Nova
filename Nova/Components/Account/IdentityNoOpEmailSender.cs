@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
-using Nova.Data;
 using Nova.Entities;
 
 namespace Nova.Components.Account;

@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
-using Nova.Data;
 using Nova.Entities;
 
 namespace Nova.Components.Account;
