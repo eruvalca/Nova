@@ -1,13 +1,6 @@
 ---
 name: real-work
-priority: high
-alwaysConsider: true
 description: Use when planning a multi-step task or working in plan mode and you need to capture the plan as a durable, resumable artifact — breaking work into phases with per-item checkboxes, completion tracking, autonomous verification, and a handoff summary so a future agent can pick up where you left off. Use when user wants to create or design a plan or mentioned "real work".
-triggers:
-  - plan
-  - planning
-  - multi-step
-scope: workspace planning, multi-session work, complex tasks
 ---
 
 # Real Work
