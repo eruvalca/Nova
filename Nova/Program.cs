@@ -3,11 +3,13 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.OpenApi;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 using Nova.Components;
 using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
+using Nova.Shared.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -108,37 +110,37 @@ app.MapRazorComponents<App>()
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
 
-// if (app.Environment.IsDevelopment())
-// {
-//     using var scope = app.Services.CreateScope();
-//     var services = scope.ServiceProvider;
-//     try
-//     {
-//         var context = services.GetRequiredService<BaseDbContext>();
-//         var roleManager = services.GetRequiredService<RoleManager<IdentityRole<long>>>();
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole<long>>>();
 
-//         var strategy = context.Database.CreateExecutionStrategy();
-//         await strategy.ExecuteAsync(async () =>
-//         {
-//             await context.Database.MigrateAsync();
+        var strategy = context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await context.Database.MigrateAsync();
 
-//             string[] roles = [Roles.Admin, Roles.ClubAdmin, Roles.StandardUser];
+            string[] roles = [Roles.Admin, Roles.ClubAdmin, Roles.StandardUser];
 
-//             foreach (var role in roles)
-//             {
-//                 if (!await roleManager.RoleExistsAsync(role))
-//                 {
-//                     await roleManager.CreateAsync(new IdentityRole<long>(role));
-//                 }
-//             }
-//         });
-//     }
-//     catch (Exception ex)
-//     {
-//         var logger = services.GetRequiredService<ILogger<Program>>();
-//         logger.LogError(ex, "An error occurred while seeding the database.");
-//     }
-// }
+            foreach (var role in roles)
+            {
+                if (!await roleManager.RoleExistsAsync(role))
+                {
+                    await roleManager.CreateAsync(new IdentityRole<long>(role));
+                }
+            }
+        });
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while seeding the database.");
+    }
+}
 
 await app.RunAsync();
 
