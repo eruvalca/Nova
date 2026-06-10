@@ -25,12 +25,6 @@ public class SeasonEntityConfiguration : IEntityTypeConfiguration<SeasonEntity>
             .HasForeignKey(e => e.ClubId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder
-            .HasMany(e => e.Campaigns)
-            .WithOne(c => c.Season)
-            .HasForeignKey(c => c.SeasonId)
-            .OnDelete(DeleteBehavior.Cascade);
-
         builder.HasIndex(e => new { e.ClubId, e.Name }).IsUnique();
     }
 }

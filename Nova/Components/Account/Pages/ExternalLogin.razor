@@ -8,6 +8,7 @@
 @using Microsoft.AspNetCore.WebUtilities
 @using Nova.Data
 @using Nova.Entities
+@using Nova.Shared.Security
 
 @inject SignInManager<NovaUserEntity> SignInManager
 @inject UserManager<NovaUserEntity> UserManager
@@ -162,6 +163,15 @@ HttpContext);
             if (result.Succeeded)
             {
                 Logger.LogInformation("User created an account using {Name} provider.", externalLoginInfo.LoginProvider);
+
+                var roleResult = await UserManager.AddToRoleAsync(user, Roles.StandardUser);
+                if (!roleResult.Succeeded)
+                {
+                    Logger.LogError(
+                        "Failed to add user to role {Role}: {Errors}",
+                        Roles.StandardUser,
+                        string.Join("; ", roleResult.Errors.Select(e => e.Description)));
+                }
 
                 var userId = await UserManager.GetUserIdAsync(user);
                 var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);

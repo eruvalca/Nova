@@ -5,7 +5,7 @@ namespace Nova.Entities;
 /// <summary>
 /// Represents the Player Campaign Assignment Entity persisted in the database.
 /// </summary>
-public class PlayerCampaignAssignmentEntity : BaseEntity
+public class PlayerCampaignAssignmentEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the Player Campaign Assignment Id.

@@ -5,7 +5,7 @@ namespace Nova.Entities;
 /// <summary>
 /// Represents the Team Entity persisted in the database.
 /// </summary>
-public class TeamEntity : BaseEntity
+public class TeamEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the Team Id.

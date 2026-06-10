@@ -18,11 +18,5 @@ public class NovaUserEntityConfiguration : IEntityTypeConfiguration<NovaUserEnti
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id)
             .ValueGeneratedOnAdd();
-
-        builder
-            .HasOne(e => e.SentJoinRequest)
-            .WithOne(r => r.RequestingUser)
-            .HasForeignKey<ClubJoinRequestEntity>(r => r.RequestingUserId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 }

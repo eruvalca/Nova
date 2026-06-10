@@ -6,6 +6,7 @@
   </Configurations>
   <Project Path="Nova.AppHost/Nova.AppHost.csproj" />
   <Project Path="Nova.Client/Nova.Client.csproj" />
+  <Project Path="Nova.Integration.Tests/Nova.Integration.Tests.csproj" />
   <Project Path="Nova.ServiceDefaults/Nova.ServiceDefaults.csproj" />
   <Project Path="Nova.Shared/Nova.Shared.csproj" />
   <Project Path="Nova.UI/Nova.UI.csproj" />

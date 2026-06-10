@@ -5,8 +5,8 @@
 @using System.Text.Encodings.Web
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
-@using Nova.Data
 @using Nova.Entities
+@using Nova.Shared.Security
 
 @inject UserManager<NovaUserEntity> UserManager
 @inject IUserStore<NovaUserEntity> UserStore
@@ -92,6 +92,15 @@ error.Description))}";
         }
 
         Logger.LogInformation("User created a new account with password.");
+
+        var roleResult = await UserManager.AddToRoleAsync(user, Roles.StandardUser);
+        if (!roleResult.Succeeded)
+        {
+            Logger.LogError(
+                "Failed to add user to role {Role}: {Errors}",
+                Roles.StandardUser,
+                string.Join("; ", roleResult.Errors.Select(e => e.Description)));
+        }
 
         var userId = await UserManager.GetUserIdAsync(user);
         var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);

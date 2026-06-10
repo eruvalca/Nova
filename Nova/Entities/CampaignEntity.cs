@@ -5,7 +5,7 @@ namespace Nova.Entities;
 /// <summary>
 /// Represents the Campaign Entity persisted in the database.
 /// </summary>
-public class CampaignEntity : BaseEntity
+public class CampaignEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the Campaign Id.

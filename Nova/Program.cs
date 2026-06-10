@@ -8,6 +8,8 @@ using Microsoft.OpenApi;
 using Nova.Components;
 using Nova.Components.Account;
 using Nova.Data;
+using Nova.Data.Interceptors;
+using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Shared.Security;
 
@@ -23,6 +25,7 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
+builder.Services.AddScoped<ClubMembershipClaimRefresher>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 
 builder.Services.AddAuthentication(options =>
@@ -32,8 +35,27 @@ builder.Services.AddAuthentication(options =>
     })
     .AddIdentityCookies();
 
-builder.AddNpgsqlDbContext<ApplicationDbContext>(connectionName: "novadb");
-builder.EnrichNpgsqlDbContext<ApplicationDbContext>();
+builder.Services.AddScoped<ICurrentUserProvider, CurrentUserProvider>();
+
+var novaDbConnectionString = builder.Configuration.GetConnectionString("novadb");
+var tenantInterceptor = new TenantSaveChangesInterceptor();
+
+// Tenant-scoped contexts. Factories are scoped so the ICurrentUserProvider dependency
+// resolves from the current request/circuit scope.
+builder.Services.AddDbContextFactory<NovaDbContext>(
+    options => options.UseNpgsql(novaDbConnectionString).AddInterceptors(tenantInterceptor),
+    ServiceLifetime.Scoped);
+builder.Services.AddDbContextFactory<NovaReadDbContext>(
+    options => options.UseNpgsql(novaDbConnectionString),
+    ServiceLifetime.Scoped);
+builder.Services.AddDbContextFactory<NovaAdminDbContext>(
+    options => options.UseNpgsql(novaDbConnectionString).AddInterceptors(tenantInterceptor),
+    ServiceLifetime.Scoped);
+
+builder.EnrichNpgsqlDbContext<NovaDbContext>();
+builder.EnrichNpgsqlDbContext<NovaReadDbContext>();
+builder.EnrichNpgsqlDbContext<NovaAdminDbContext>();
+
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentityCore<NovaUserEntity>(options =>
@@ -41,9 +63,16 @@ builder.Services.AddIdentityCore<NovaUserEntity>(options =>
         options.SignIn.RequireConfirmedAccount = true;
         options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
     })
-    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddRoles<IdentityRole<long>>()
+    .AddEntityFrameworkStores<NovaAdminDbContext>()
+    .AddClaimsPrincipalFactory<NovaUserClaimsPrincipalFactory>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
+
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(Policies.RequireAdmin, policy => policy.RequireRole(Roles.Admin))
+    .AddPolicy(Policies.RequireClubAdmin, policy => policy.RequireRole(Roles.ClubAdmin, Roles.Admin))
+    .AddPolicy(Policies.RequireClubMember, policy => policy.RequireAuthenticatedUser().RequireClaim(NovaClaimTypes.ClubId));
 
 builder.Services.AddHttpContextAccessor();
 
@@ -110,19 +139,22 @@ app.MapRazorComponents<App>()
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
 
-if (app.Environment.IsDevelopment())
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var services = scope.ServiceProvider;
     try
     {
-        var context = services.GetRequiredService<ApplicationDbContext>();
+        // Migrations are attributed to NovaDbContext, so it must be the context that applies them.
+        var context = services.GetRequiredService<NovaDbContext>();
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole<long>>>();
 
         var strategy = context.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
-            await context.Database.MigrateAsync();
+            if (app.Environment.IsDevelopment())
+            {
+                await context.Database.MigrateAsync();
+            }
 
             string[] roles = [Roles.Admin, Roles.ClubAdmin, Roles.StandardUser];
 
@@ -130,7 +162,12 @@ if (app.Environment.IsDevelopment())
             {
                 if (!await roleManager.RoleExistsAsync(role))
                 {
-                    await roleManager.CreateAsync(new IdentityRole<long>(role));
+                    var roleResult = await roleManager.CreateAsync(new IdentityRole<long>(role));
+                    if (!roleResult.Succeeded)
+                    {
+                        throw new InvalidOperationException(
+                            $"Failed to create role '{role}': {string.Join("; ", roleResult.Errors.Select(e => e.Description))}");
+                    }
                 }
             }
         });

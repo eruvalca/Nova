@@ -5,7 +5,7 @@ namespace Nova.Entities;
 /// <summary>
 /// Represents the Player Photo Entity persisted in the database.
 /// </summary>
-public class PlayerPhotoEntity : BaseEntity
+public class PlayerPhotoEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the Player Photo Id.

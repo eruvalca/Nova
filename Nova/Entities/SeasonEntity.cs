@@ -5,7 +5,7 @@ namespace Nova.Entities;
 /// <summary>
 /// Represents the Season Entity persisted in the database.
 /// </summary>
-public class SeasonEntity : BaseEntity
+public class SeasonEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the Season Id.

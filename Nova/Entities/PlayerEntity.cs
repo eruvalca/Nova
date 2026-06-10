@@ -6,7 +6,7 @@ namespace Nova.Entities;
 /// <summary>
 /// Represents the Player Entity persisted in the database.
 /// </summary>
-public class PlayerEntity : BaseEntity
+public class PlayerEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the Player Id.

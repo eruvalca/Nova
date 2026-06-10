@@ -5,7 +5,7 @@ namespace Nova.Entities;
 /// <summary>
 /// Represents the Note Entity persisted in the database.
 /// </summary>
-public class NoteEntity : BaseEntity
+public class NoteEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the Note Id.

@@ -365,3 +365,6 @@ FodyWeavers.xsd
 # Azurite storage emulator
 __azurite_db_*.json
 __blobstorage__/
+
+# Agent Plans
+plans/

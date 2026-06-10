@@ -35,7 +35,7 @@ public class PlayerCampaignAssignmentEntityConfiguration : IEntityTypeConfigurat
             .HasOne(e => e.Team)
             .WithMany(t => t.PlayerAssignments)
             .HasForeignKey(e => e.TeamId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder
             .HasOne(e => e.Club)
