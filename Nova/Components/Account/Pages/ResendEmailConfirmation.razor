@@ -6,9 +6,10 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
 @using Nova.Data
+@using Nova.Entities
 
-@inject UserManager<ApplicationUser> UserManager
-@inject IEmailSender<ApplicationUser> EmailSender
+@inject UserManager<NovaUserEntity> UserManager
+@inject IEmailSender<NovaUserEntity> EmailSender
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
@@ -24,7 +25,8 @@
             <DataAnnotationsValidator />
             <ValidationSummary class="text-danger" role="alert" />
             <div class="form-floating mb-3">
-                <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" aria-required="true" placeholder="name@example.com" />
+                <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" aria-required="true"
+                           placeholder="name@example.com" />
                 <label for="Input.Email" class="form-label">Email</label>
                 <ValidationMessage For="() => Input.Email" class="text-danger" />
             </div>
@@ -33,7 +35,8 @@
     </div>
 </div>
 
-@code {
+@code
+{
     private string? message;
 
     [SupplyParameterFromForm]

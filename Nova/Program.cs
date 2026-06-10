@@ -7,6 +7,7 @@ using Microsoft.OpenApi;
 using Nova.Components;
 using Nova.Components.Account;
 using Nova.Data;
+using Nova.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +34,7 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>(connectionName: "novadb");
 builder.EnrichNpgsqlDbContext<ApplicationDbContext>();
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddIdentityCore<ApplicationUser>(options =>
+builder.Services.AddIdentityCore<NovaUserEntity>(options =>
     {
         options.SignIn.RequireConfirmedAccount = true;
         options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
@@ -44,7 +45,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 
 builder.Services.AddHttpContextAccessor();
 
-builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+builder.Services.AddSingleton<IEmailSender<NovaUserEntity>, IdentityNoOpEmailSender>();
 
 builder.Services.AddOpenApi(options => options.AddDocumentTransformer<CookieSecuritySchemeTransformer>());
 

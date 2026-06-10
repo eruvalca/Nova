@@ -3,10 +3,11 @@
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @using Nova.Data
+@using Nova.Entities
 
-@inject UserManager<ApplicationUser> UserManager
-@inject SignInManager<ApplicationUser> SignInManager
-@inject IUserStore<ApplicationUser> UserStore
+@inject UserManager<NovaUserEntity> UserManager
+@inject SignInManager<NovaUserEntity> SignInManager
+@inject IUserStore<NovaUserEntity> UserStore
 @inject IdentityRedirectManager RedirectManager
 
 <PageTitle>Manage your external logins</PageTitle>
@@ -29,7 +30,8 @@
                                 <div>
                                     <input type="hidden" name="@nameof(LoginProvider)" value="@login.LoginProvider" />
                                     <input type="hidden" name="@nameof(ProviderKey)" value="@login.ProviderKey" />
-                                    <button type="submit" class="btn btn-primary" title="Remove this @login.ProviderDisplayName login from your account">Remove</button>
+                                    <button type="submit" class="btn btn-primary"
+                                            title="Remove this @login.ProviderDisplayName login from your account">Remove</button>
                                 </div>
                             </form>
                         }
@@ -53,7 +55,8 @@
             <p>
                 @foreach (var provider in otherLogins)
                 {
-                    <button type="submit" class="btn btn-primary" name="Provider" value="@provider.Name" title="Log in using your @provider.DisplayName account">
+                    <button type="submit" class="btn btn-primary" name="Provider" value="@provider.Name"
+                            title="Log in using your @provider.DisplayName account">
                         @provider.DisplayName
                     </button>
                 }
@@ -62,10 +65,11 @@
     </form>
 }
 
-@code {
+@code
+{
     public const string LinkLoginCallbackAction = "LinkLoginCallback";
 
-    private ApplicationUser? user;
+    private NovaUserEntity? user;
     private IList<UserLoginInfo>? currentLogins;
     private IList<AuthenticationScheme>? otherLogins;
     private bool showRemoveButton;
@@ -97,7 +101,7 @@
             .ToList();
 
         string? passwordHash = null;
-        if (UserStore is IUserPasswordStore<ApplicationUser> userPasswordStore)
+        if (UserStore is IUserPasswordStore<NovaUserEntity> userPasswordStore)
         {
             passwordHash = await userPasswordStore.GetPasswordHashAsync(user, HttpContext.RequestAborted);
         }

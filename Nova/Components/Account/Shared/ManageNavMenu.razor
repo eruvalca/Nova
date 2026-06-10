@@ -1,7 +1,8 @@
 ﻿@using Microsoft.AspNetCore.Identity
 @using Nova.Data
+@using Nova.Entities
 
-@inject SignInManager<ApplicationUser> SignInManager
+@inject SignInManager<NovaUserEntity> SignInManager
 
 <ul class="nav nav-pills flex-column">
     <li class="nav-item">
@@ -30,7 +31,8 @@
     </li>
 </ul>
 
-@code {
+@code
+{
     private bool hasExternalLogins;
 
     protected override async Task OnInitializedAsync()

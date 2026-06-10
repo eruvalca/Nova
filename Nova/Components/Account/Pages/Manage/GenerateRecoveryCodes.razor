@@ -2,8 +2,9 @@
 
 @using Microsoft.AspNetCore.Identity
 @using Nova.Data
+@using Nova.Entities
 
-@inject UserManager<ApplicationUser> UserManager
+@inject UserManager<NovaUserEntity> UserManager
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<GenerateRecoveryCodes> Logger
 
@@ -26,7 +27,8 @@ else
         </p>
         <p>
             Generating new recovery codes does not change the keys used in authenticator apps. If you wish to change the key
-            used in an authenticator app you should <a href="Account/Manage/ResetAuthenticator">reset your authenticator keys.</a>
+            used in an authenticator app you should <a href="Account/Manage/ResetAuthenticator">reset your authenticator
+            keys.</a>
         </p>
     </div>
     <div>
@@ -37,9 +39,10 @@ else
     </div>
 }
 
-@code {
+@code
+{
     private string? message;
-    private ApplicationUser? user;
+    private NovaUserEntity? user;
     private IEnumerable<string>? recoveryCodes;
 
     [CascadingParameter]
