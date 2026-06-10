@@ -366,5 +366,8 @@ FodyWeavers.xsd
 __azurite_db_*.json
 __blobstorage__/
 
+# Playwright page snapshots
+.playwright-cli/page-*.yml
+
 # Agent Plans
 plans/

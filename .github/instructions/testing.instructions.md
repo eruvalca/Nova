@@ -59,6 +59,26 @@ seeds its OWN clubs/users/players with database-generated ids (no hardcoded keys
 tenant query filters scope queries to that test's data. Never assert on global, unfiltered counts
 in integration tests.
 
+## Integration tests: HTTP-layer e2e
+
+The fixture also exposes `CreateNovaHttpClient(allowAutoRedirect: false)` — an `HttpClient`
+aimed at the running "nova" resource (https endpoint preferred, dev cert accepted) with a
+per-client `CookieContainer` and redirect-following off so tests assert on status codes and
+`Location` headers directly.
+
+Auth bootstrap (`Nova.Integration.Tests/Http/IdentityHttpClientHelper.cs`): tests register a
+real user over HTTP by GETting `/Account/Register`, scraping the hidden inputs from the Blazor
+SSR form (antiforgery token + named-form handler field), and POSTing the form. The Identity
+application cookie lands in the client's cookie container, authenticating subsequent API calls.
+Use a unique email per test (shared database). Note the profile-photo gate: a freshly registered
+user is redirected to `/Account/ProfilePhoto` on non-exempt paths until a photo is uploaded and
+the `/Account/ProfilePhoto/Complete` cookie-refresh hop has run.
+
+`Nova.Integration.Tests/Http/ProfilePhotoHttpTests.cs` covers route reachability (401-vs-404
+distinguishes auth from routing regressions), the full register → upload → fetch → complete
+flow, ProblemDetails bodies with `traceId`, ETag/304 caching, and owner-only access to
+`size=original`.
+
 Prefer `Xunit.TestContext.Current.CancellationToken` over `CancellationToken.None` in tests
 whenever the async API already accepts a `CancellationToken`. This keeps test cancellation tied
 to the xUnit runner and preserves cancellation behavior during test interruption. If no token-

@@ -1,0 +1,18 @@
+@page "/Account/ProfilePhoto"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.UI.Features.Account.Components
+
+<PageTitle>Profile photo</PageTitle>
+
+<div class="row">
+    <div class="col-lg-8">
+        <h1>Profile photo</h1>
+        <p>
+            A profile photo is required to use Nova. Choose an image and crop it to your liking —
+            it will be shown as a circular avatar.
+        </p>
+        <ProfilePhotoEditor ReturnUrl="@ReturnUrl" />
+    </div>
+</div>

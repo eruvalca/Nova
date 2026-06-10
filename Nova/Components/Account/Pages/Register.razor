@@ -29,6 +29,18 @@
             <hr />
             <ValidationSummary class="text-danger" role="alert" />
             <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.FirstName" id="Input.FirstName" class="form-control" autocomplete="given-name"
+                           aria-required="true" placeholder="First name" />
+                <label for="Input.FirstName">First name</label>
+                <ValidationMessage For="() => Input.FirstName" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.LastName" id="Input.LastName" class="form-control" autocomplete="family-name"
+                           aria-required="true" placeholder="Last name" />
+                <label for="Input.LastName">Last name</label>
+                <ValidationMessage For="() => Input.LastName" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
                 <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username"
                            aria-required="true" placeholder="name@example.com" />
                 <label for="Input.Email">Email</label>
@@ -120,22 +132,20 @@ error.Description))}";
         else
         {
             await SignInManager.SignInAsync(user, isPersistent: false);
-            RedirectManager.RedirectTo(ReturnUrl);
+
+            // A profile photo is required: send new users straight to the photo step.
+            // The ProfilePhotoGateMiddleware enforces this as a backstop.
+            RedirectManager.RedirectTo(
+                "Account/ProfilePhoto",
+                new() { ["returnUrl"] = ReturnUrl });
         }
     }
 
-    private NovaUserEntity CreateUser()
+    private NovaUserEntity CreateUser() => new()
     {
-        try
-        {
-            return Activator.CreateInstance<NovaUserEntity>();
-        }
-        catch
-        {
-            throw new InvalidOperationException($"Can't create an instance of '{nameof(NovaUserEntity)}'. " +
-                $"Ensure that '{nameof(NovaUserEntity)}' is not an abstract class and has a parameterless constructor.");
-        }
-    }
+        FirstName = Input.FirstName.Trim(),
+        LastName = Input.LastName.Trim()
+    };
 
     private IUserEmailStore<NovaUserEntity> GetEmailStore()
     {
@@ -148,6 +158,16 @@ error.Description))}";
 
     private sealed class InputModel
     {
+        [Required]
+        [StringLength(100)]
+        [Display(Name = "First name")]
+        public string FirstName { get; set; } = "";
+
+        [Required]
+        [StringLength(100)]
+        [Display(Name = "Last name")]
+        public string LastName { get; set; } = "";
+
         [Required]
         [EmailAddress]
         [Display(Name = "Email")]

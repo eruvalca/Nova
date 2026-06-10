@@ -1,6 +1,9 @@
+using Cropper.Blazor.Extensions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Nova.Client.Services;
 using Nova.Client.Telemetry;
+using Nova.Shared.Photos;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
@@ -16,5 +19,8 @@ builder.Services.AddScoped(sp =>
         BaseAddress = new Uri(navigationManager.BaseUri)
     };
 });
+
+builder.Services.AddCropper();
+builder.Services.AddScoped<IProfilePhotoService, HttpProfilePhotoService>();
 
 await builder.Build().RunAsync();

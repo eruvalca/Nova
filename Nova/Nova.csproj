@@ -9,8 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="SixLabors.ImageSharp" />
     <ProjectReference Include="..\Nova.ServiceDefaults\Nova.ServiceDefaults.csproj" />
     <ProjectReference Include="..\Nova.Client\Nova.Client.csproj" />
     <ProjectReference Include="..\Nova.Shared\Nova.Shared.csproj" />

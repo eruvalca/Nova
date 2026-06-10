@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Nova.Data;
 using Nova.Entities;
 using Shouldly;
 

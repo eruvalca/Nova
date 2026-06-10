@@ -1,8 +1,10 @@
 using System.Diagnostics;
+using Cropper.Blazor.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.OpenApi;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 using Nova.Components;
@@ -12,8 +14,9 @@ using Nova.Data.Interceptors;
 using Nova.Data.Startup;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Photos;
+using Nova.Shared.Photos;
 using Nova.Shared.Security;
-using Nova.UI;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +27,12 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents()
     .AddAuthenticationStateSerialization();
+
+// Cropper.Blazor for the profile photo editor; raise the SignalR message size limit so
+// cropped-image data URLs can flow over InteractiveServer circuits (InteractiveAuto first visit).
+builder.Services.AddCropper();
+builder.Services.Configure<HubOptions>(options =>
+    options.MaximumReceiveMessageSize = 12 * 1024 * 1024);
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
@@ -37,7 +46,40 @@ builder.Services.AddAuthentication(options =>
     })
     .AddIdentityCookies();
 
+// API routes must get real 401/403 status codes (with ProblemDetails via UseStatusCodePages)
+// instead of the cookie scheme's HTML login/access-denied redirects, which API clients would
+// otherwise follow to a 200 page and misread as success.
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+});
+
 builder.Services.AddScoped<ICurrentUserProvider, CurrentUserProvider>();
+
+// Azure Blob Storage container for profile photos (Azurite emulator locally via Aspire).
+builder.AddAzureBlobContainerClient("profile-photos");
+builder.Services.AddScoped<IProfilePhotoService, ProfilePhotoService>();
 
 var novaDbConnectionString = builder.Configuration.GetConnectionString("novadb");
 var tenantInterceptor = new TenantSaveChangesInterceptor();
@@ -62,7 +104,7 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentityCore<NovaUserEntity>(options =>
     {
-        options.SignIn.RequireConfirmedAccount = true;
+        options.SignIn.RequireConfirmedAccount = false;
         options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
     })
     .AddRoles<IdentityRole<long>>()
@@ -132,6 +174,9 @@ app.UseHttpsRedirection();
 
 app.UseAntiforgery();
 
+// Required-profile-photo gate: signed-in users without a photo are sent to the photo page.
+app.UseMiddleware<ProfilePhotoGateMiddleware>();
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
@@ -141,6 +186,9 @@ app.MapRazorComponents<App>()
 
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
+
+// Profile photo upload/retrieval endpoints and the post-save cookie refresh hop.
+app.MapProfilePhotoEndpoints();
 
 await StartupDatabaseInitializer.InitializeAsync(app.Services, app.Environment.IsDevelopment());
 

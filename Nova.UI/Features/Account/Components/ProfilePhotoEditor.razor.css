@@ -1,0 +1,23 @@
+.profile-photo-cropper-frame {
+    max-height: 480px;
+    overflow: hidden;
+}
+
+::deep .profile-photo-cropper {
+    display: block;
+    max-width: 100%;
+    max-height: 480px;
+}
+
+.profile-photo-preview {
+    width: 160px;
+    height: 160px;
+    overflow: hidden;
+    border: 1px solid var(--bs-border-color);
+}
+
+.profile-photo-current {
+    width: 160px;
+    height: 160px;
+    object-fit: cover;
+}

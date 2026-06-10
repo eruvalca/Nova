@@ -19,6 +19,12 @@ public sealed class NovaUserPhotoEntityConfiguration : IEntityTypeConfiguration<
         builder.Property(e => e.NovaUserPhotoId)
             .ValueGeneratedOnAdd();
 
+        // Each user has at most one photo row; the unique index turns the service's
+        // check-then-insert race into a DbUpdateException its catch block already handles.
+        builder
+            .HasIndex(e => e.NovaUserId)
+            .IsUnique();
+
         builder
             .HasOne(e => e.NovaUser)
             .WithMany(u => u.Photos)

@@ -1,4 +1,6 @@
+using System.Net;
 using Aspire.Hosting;
+using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Interceptors;
@@ -46,12 +48,17 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
 
     private DistributedApplication? _app;
     private string? _connectionString;
+    private BlobContainerClient? _profilePhotosContainer;
 
     /// <summary>Gets the mutable current-user provider used by all contexts created by this fixture.</summary>
     public FakeCurrentUserProvider CurrentUser { get; } = new();
 
     /// <summary>Gets the connection string for the live "novadb" PostgreSQL database.</summary>
     public string ConnectionString => _connectionString
+        ?? throw new InvalidOperationException("The AppHost has not been started.");
+
+    /// <summary>Gets the blob container client for the live "profile-photos" container (Azurite emulator).</summary>
+    public BlobContainerClient ProfilePhotosContainer => _profilePhotosContainer
         ?? throw new InvalidOperationException("The AppHost has not been started.");
 
     /// <inheritdoc />
@@ -72,6 +79,11 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
 
         _connectionString = await _app.GetConnectionStringAsync("novadb", cancellationToken)
             ?? throw new InvalidOperationException("No connection string was resolved for 'novadb'.");
+
+        var blobConnectionString = await _app.GetConnectionStringAsync("profile-photos", cancellationToken)
+            ?? throw new InvalidOperationException("No connection string was resolved for 'profile-photos'.");
+        _profilePhotosContainer = CreateBlobContainerClient(blobConnectionString);
+        await _profilePhotosContainer.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
 
         // The app only migrates at startup in the Development environment, which the testing
         // builder does not guarantee — apply the production migrations explicitly. Migrations
@@ -109,6 +121,61 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// <returns>A new admin context owned by the caller.</returns>
     public NovaAdminDbContext CreateAdminContext() =>
         new(Options<NovaAdminDbContext>(withInterceptor: true), CurrentUser);
+
+    /// <summary>
+    /// Creates an <see cref="HttpClient"/> targeting the running "nova" web resource, with a
+    /// per-client cookie container (Identity + antiforgery cookies) and redirect-following
+    /// disabled by default so tests can assert on status codes and Location headers.
+    /// </summary>
+    /// <param name="allowAutoRedirect">Whether the client should follow redirects automatically.</param>
+    /// <returns>A new client owned by the caller.</returns>
+    public HttpClient CreateNovaHttpClient(bool allowAutoRedirect = false)
+    {
+        var app = _app ?? throw new InvalidOperationException("The AppHost has not been started.");
+
+        // Prefer the https endpoint so UseHttpsRedirection does not turn every request into a 307.
+        Uri baseAddress;
+        try
+        {
+            baseAddress = app.GetEndpoint("nova", "https");
+        }
+        catch (ArgumentException)
+        {
+            baseAddress = app.GetEndpoint("nova", "http");
+        }
+
+        var handler = new HttpClientHandler
+        {
+            UseCookies = true,
+            CookieContainer = new CookieContainer(),
+            AllowAutoRedirect = allowAutoRedirect,
+            // The Aspire-launched app serves the untrusted ASP.NET Core dev certificate.
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        };
+
+        return new HttpClient(handler) { BaseAddress = baseAddress };
+    }
+
+    /// <summary>
+    /// Builds a <see cref="BlobContainerClient"/> from the Aspire container resource connection
+    /// string, which appends <c>ContainerName=...</c> to the Azurite service connection string.
+    /// </summary>
+    /// <param name="connectionString">The container resource connection string.</param>
+    /// <returns>The container client.</returns>
+    private static BlobContainerClient CreateBlobContainerClient(string connectionString)
+    {
+        var segments = connectionString
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+        var containerSegment = segments.FirstOrDefault(s => s.StartsWith("ContainerName=", StringComparison.OrdinalIgnoreCase));
+        var containerName = containerSegment?["ContainerName=".Length..] ?? "profile-photos";
+        if (containerSegment is not null)
+        {
+            segments.Remove(containerSegment);
+        }
+
+        return new BlobServiceClient(string.Join(';', segments)).GetBlobContainerClient(containerName);
+    }
 
     /// <summary>
     /// Strips data-volume mounts from container resources so test runs always start from an empty
