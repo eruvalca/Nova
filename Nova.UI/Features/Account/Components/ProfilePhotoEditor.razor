@@ -33,17 +33,9 @@
     }
     else
     {
-        <div class="row g-3">
-            <div class="col-md-8">
-                <div class="profile-photo-cropper-frame">
-                    <NovaCropperComponent @ref="cropper" Class="profile-photo-cropper" Src="@ImageDataUrl"
-                                          Options="cropperOptions" />
-                </div>
-            </div>
-            <div class="col-md-4 text-center">
-                <p class="form-label">Preview</p>
-                <div class="profile-photo-preview rounded-circle mx-auto"></div>
-            </div>
+        <div class="profile-photo-cropper-frame">
+            <NovaCropperComponent @ref="cropper" Class="profile-photo-cropper" Src="@ImageDataUrl"
+                                  Options="cropperOptions" />
         </div>
 
         <div class="mt-3 d-flex gap-2">

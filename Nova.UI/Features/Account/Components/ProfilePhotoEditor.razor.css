@@ -9,11 +9,15 @@
     max-height: 480px;
 }
 
-.profile-photo-preview {
-    width: 160px;
-    height: 160px;
-    overflow: hidden;
-    border: 1px solid var(--bs-border-color);
+::deep .cropper-view-box {
+    border-radius: 50%;
+    outline: 0;
+    box-shadow: 0 0 0 1px #39f;
+}
+
+::deep .cropper-face {
+    border-radius: 50%;
+    background-color: inherit;
 }
 
 .profile-photo-current {

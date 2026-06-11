@@ -8,19 +8,15 @@ using Nova.UI.Components;
 namespace Nova.UI.Features.Account.Components;
 
 /// <summary>
-/// Lets the user pick a photo, crop it to a square with a circular preview, and save it as
-/// their profile photo. On success, performs a full-document navigation to the cookie-refresh
-/// endpoint so the new profile photo claim takes effect.
+/// Lets the user pick a photo, crop it to a circle, and save it as their profile photo.
+/// The crop box shows a circular overlay directly in the cropper. On success, performs a
+/// full-document navigation to the cookie-refresh endpoint so the new profile photo claim
+/// takes effect.
 /// </summary>
 /// <param name="photoService">The profile photo service (server-direct or HTTP depending on render location).</param>
 /// <param name="navigationManager">The navigation manager.</param>
 public partial class ProfilePhotoEditor(IProfilePhotoService photoService, NavigationManager navigationManager) : NovaComponentBase
 {
-    /// <summary>
-    /// The CSS selector the cropper renders its live preview into.
-    /// </summary>
-    private const string PreviewSelector = ".profile-photo-preview";
-
     /// <summary>
     /// The cropper component reference used to extract the cropped canvas.
     /// </summary>
@@ -32,13 +28,12 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     private readonly List<string> errorMessages = [];
 
     /// <summary>
-    /// The cropper options: square aspect ratio with a live circular preview.
+    /// The cropper options: square aspect ratio, circular crop indicator.
     /// </summary>
     private readonly Options cropperOptions = new()
     {
         AspectRatio = 1m,
         ViewMode = ViewMode.Vm1,
-        Preview = PreviewSelector
     };
 
     /// <summary>

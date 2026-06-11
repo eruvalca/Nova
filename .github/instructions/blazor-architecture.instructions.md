@@ -62,6 +62,7 @@ Nova.UI/
 - For navigation and layout behavior (for example navbar collapse, alignment, spacing, borders, positioning), use Bootstrap-native markup and utility classes first.
 - Add custom CSS only when a specific requirement cannot be met with Bootstrap alone; keep those rules minimal and scoped in the component's `.razor.css`.
 - Avoid global stylesheet overrides for feature-specific UI when Bootstrap utilities or component-scoped styles can satisfy the requirement.
+- Use `rem` units for all custom CSS length values (font-size, spacing, padding, margin, width, height, etc.). Avoid `px` units in custom CSS; `px` is acceptable only for hairline borders (e.g., `border: 1px solid`) or when a pixel-exact value is a hard requirement.
 
 ## Data Access and Services from Components
 
