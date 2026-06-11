@@ -13,8 +13,16 @@ using Nova.Entities;
 
 namespace Microsoft.AspNetCore.Routing;
 
+/// <summary>
+/// Extension methods for registering Identity-specific minimal API endpoints.
+/// </summary>
 internal static class IdentityComponentsEndpointRouteBuilderExtensions
 {
+    /// <summary>
+    /// Registers additional Identity endpoints required by the Identity Razor components in the /Components/Account/Pages directory.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder to extend.</param>
+    /// <returns>An endpoint convention builder for the Account endpoint group.</returns>
     extension(IEndpointRouteBuilder endpoints)
     {
         // These endpoints are required by the Identity Razor components defined in the /Components/Account/Pages directory of this project.
@@ -111,6 +119,7 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             });
 
             var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
+            // Source-generated logging is not applicable here: this handler runs inside a static extension class with no DI-injected ILogger<T>. The logger is resolved from the request-scoped ILoggerFactory per the documented fallback in csharp-conventions.instructions.md.
             var downloadLogger = loggerFactory.CreateLogger("DownloadPersonalData");
 
             manageGroup.MapPost("/DownloadPersonalData", async (
