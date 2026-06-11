@@ -2,7 +2,12 @@
 name: implementer
 description: "Executes a specific implementation phase from an approved plan. Writes code to spec. Should only be invoked by the conductor — not directly by users."
 argument-hint: "Provide the phase objective, files list, method signatures, and verification command from the approved plan."
-model: ['MAI-Code-1-Flash (copilot)', 'Claude Haiku 4.5 (copilot)', 'GPT-5.4 mini (copilot)']
+model:
+  [
+    "MAI-Code-1-Flash (copilot)",
+    "Claude Haiku 4.5 (copilot)",
+    "GPT-5.4 mini (copilot)",
+  ]
 thinkingEffort: low
 user-invocable: false
 tools: [read, edit, execute, search, fileSearch, problems]
@@ -32,6 +37,7 @@ You execute one phase of a plan at a time. You write code. You run the build. Yo
 ## Step 1: Write Implementation Code
 
 Write only what is specified in the phase:
+
 1. Create the files listed in "Files to create". No other files.
 2. Modify only the files listed in "Files to modify". Nothing else.
 3. Add only the methods and signatures specified. Do not add extra methods, properties, or classes beyond what is listed.
@@ -41,6 +47,7 @@ Write only what is specified in the phase:
 ## Step 2: Self-Check Before Reporting
 
 Before emitting your STATUS block, run these checks in order. Do not skip them:
+
 1. **Build check** — run `dotnet build [ProjectName]`. Expected: zero errors, zero warnings. If errors exist, fix them before proceeding.
 2. **Diagnostics check** — use the `problems` tool. Expected: zero errors in the files you changed. If errors exist, fix them.
 3. **No unauthorized changes** — review the list of files you changed. If any file is not in the phase specification's file list, you must revert it.
@@ -68,6 +75,7 @@ Blockers (if BLOCKED or PARTIAL):
 ## Boundaries
 
 - 🚫 Never modify files that are not in the phase specification's file list
+- 🚫 Never modify any file under `Nova.Unit.Tests/` or `Nova.Integration.Tests/` — test files are owned by the test-writer agent
 - 🚫 Never skip the STATUS block — it is required every response
 - 🚫 Never refactor, rename, or "improve" code outside the scope of the phase
 - 🚫 Never add new NuGet packages or project references unless explicitly listed in the plan
