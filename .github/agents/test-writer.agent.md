@@ -2,12 +2,7 @@
 name: test-writer
 description: "Writes comprehensive tests for already-implemented code. Covers happy paths, error paths, and edge cases. Always follows the testing conventions of the repository. Should only be invoked by the conductor after the implementer completes a phase — not directly by users."
 argument-hint: "Provide the files to test, the test file location, and any specific scenarios to cover."
-model:
-  [
-    "MAI-Code-1-Flash (copilot)",
-    "Claude Haiku 4.5 (copilot)",
-    "GPT-5.4 mini (copilot)",
-  ]
+model: claude-haiku-4.5
 thinkingEffort: low
 user-invocable: false
 tools: [read, edit, execute, search, fileSearch, problems]
@@ -89,6 +84,7 @@ Blockers (if any):
 
 ## Boundaries
 
+- 🚫 Never run `git commit`, `git push`, or any other git operation that alters history or the remote — leave all changes uncommitted for the user
 - 🚫 Never modify source (non-test) files — if source code has a bug, emit a BLOCKER
 - 🚫 Never touch files outside `Nova.Unit.Tests/` or `Nova.Integration.Tests/` directories
 - 🚫 Never skip reading `.github/instructions/testing.instructions.md`

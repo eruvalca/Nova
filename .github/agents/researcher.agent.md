@@ -2,7 +2,7 @@
 name: researcher
 description: "Investigates specific questions by searching the codebase, documentation, and the web. Produces structured findings with citations. Should only be invoked by the conductor or planner — not directly by users."
 argument-hint: "State the specific question to investigate, why it matters, and what the deliverable should be."
-model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5.4 (copilot)']
+model: claude-sonnet-4.6
 thinkingEffort: high
 user-invocable: false
 tools: [read, search, web, fileSearch, usages, problems]

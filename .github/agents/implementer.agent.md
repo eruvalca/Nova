@@ -2,12 +2,7 @@
 name: implementer
 description: "Executes a specific implementation phase from an approved plan. Writes code to spec. Should only be invoked by the conductor — not directly by users."
 argument-hint: "Provide the phase objective, files list, method signatures, and verification command from the approved plan."
-model:
-  [
-    "MAI-Code-1-Flash (copilot)",
-    "Claude Haiku 4.5 (copilot)",
-    "GPT-5.4 mini (copilot)",
-  ]
+model: claude-haiku-4.5
 thinkingEffort: low
 user-invocable: false
 tools: [read, edit, execute, search, fileSearch, problems]
@@ -48,8 +43,8 @@ Write only what is specified in the phase:
 
 Before emitting your STATUS block, run these checks in order. Do not skip them:
 
-1. **Build check** — run `dotnet build [ProjectName]`. Expected: zero errors, zero warnings. If errors exist, fix them before proceeding.
-2. **Diagnostics check** — use the `problems` tool. Expected: zero errors in the files you changed. If errors exist, fix them.
+1. **Build check** — run `dotnet build [ProjectName]`. Expected: zero errors and no *new* warnings introduced by your changes. If errors exist, fix them before proceeding.
+2. **Diagnostics check** — use the `problems` tool. Expected: zero errors in the files you changed. If errors exist, fix them. If the `problems` tool is unavailable (e.g., Copilot CLI), the build output from step 1 is your diagnostics source.
 3. **No unauthorized changes** — review the list of files you changed. If any file is not in the phase specification's file list, you must revert it.
 
 If you cannot fix a build error after 2 attempts, STOP and emit a BLOCKER in your STATUS block — do not guess.
@@ -74,6 +69,7 @@ Blockers (if BLOCKED or PARTIAL):
 
 ## Boundaries
 
+- 🚫 Never run `git commit`, `git push`, or any other git operation that alters history or the remote — leave all changes uncommitted for the user
 - 🚫 Never modify files that are not in the phase specification's file list
 - 🚫 Never modify any file under `Nova.Unit.Tests/` or `Nova.Integration.Tests/` — test files are owned by the test-writer agent
 - 🚫 Never skip the STATUS block — it is required every response
