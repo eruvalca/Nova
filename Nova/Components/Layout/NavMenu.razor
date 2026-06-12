@@ -1,4 +1,6 @@
-﻿<nav class="navbar navbar-expand-md navbar-light bg-light border-top fixed-bottom">
+﻿@using Nova.Shared.Security
+
+<nav class="navbar navbar-expand-md navbar-light bg-light border-top fixed-bottom">
     <div class="container-fluid">
         <NavLink class="navbar-brand" href="" Match="NavLinkMatch.All">Nova</NavLink>
         <button class="navbar-toggler"
@@ -15,7 +17,13 @@
                 <AuthorizeView>
                     <Authorized>
                         <li class="nav-item">
-                            <NavLink class="nav-link" href="Account/Manage">Manage</NavLink>
+                            <NavLink class="nav-link d-flex align-items-center gap-2" href="Account/Manage">
+                                @if (context.User.HasClaim(c => c.Type == NovaClaimTypes.HasProfilePhoto))
+                                {
+                                    <img class="nav-avatar" src="@PhotoUrl" alt="Profile photo" />
+                                }
+                                Manage
+                            </NavLink>
                         </li>
                         <li class="nav-item">
                             <form action="Account/Logout" method="post" class="d-inline">

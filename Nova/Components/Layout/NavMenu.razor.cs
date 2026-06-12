@@ -1,12 +1,14 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
+using Nova.Data.Tenancy;
+using Nova.Shared.Photos;
 
 namespace Nova.Components.Layout;
 
 /// <summary>
 /// Renders the primary application navigation bar and tracks the current URL for logout return behavior.
 /// </summary>
-public partial class NavMenu(NavigationManager navigationManager)
+public partial class NavMenu(NavigationManager navigationManager, ICurrentUserProvider currentUserProvider)
 {
     /// <summary>
     /// Stores the current base-relative URL used as the post-logout return URL.
@@ -17,6 +19,13 @@ public partial class NavMenu(NavigationManager navigationManager)
     /// Gets the current base-relative URL used in the logout form.
     /// </summary>
     protected string? CurrentUrl => currentUrl;
+
+    /// <summary>
+    /// Gets the URL for the current user's small profile photo, or null if the user has no photo.
+    /// </summary>
+    protected string? PhotoUrl => currentUserProvider.UserId.HasValue
+        ? PhotoEndpoints.GetPhotoUrl(currentUserProvider.UserId.Value, ProfilePhotoSize.Small)
+        : null;
 
     /// <summary>
     /// Subscribes to location change notifications and initializes the current URL value.
