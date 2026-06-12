@@ -158,7 +158,10 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
             var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken);
             var etag = $"\"{properties.Value.ETag.ToString().Trim('"')}\"";
 
-            context.Response.Headers.CacheControl = "private, max-age=86400";
+            // no-cache (not max-age) so the browser revalidates with If-None-Match on every
+            // use; the photo URL is stable per user, so a freshness lifetime would keep
+            // serving the old image after a new upload. Unchanged photos still get 304s.
+            context.Response.Headers.CacheControl = "private, no-cache";
             context.Response.Headers.ETag = etag;
 
             if (context.Request.Headers.IfNoneMatch.Any(value => value == etag))
