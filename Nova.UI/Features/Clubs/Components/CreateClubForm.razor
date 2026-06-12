@@ -1,0 +1,36 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+<EditForm Model="_input" OnValidSubmit="HandleSubmitAsync">
+    <DataAnnotationsValidator />
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+
+    <div class="mb-3">
+        <label for="club-name" class="form-label">Club Name</label>
+        <InputText id="club-name" class="form-control" @bind-value="_input.Name" placeholder="e.g. Eastside FC" />
+        <ValidationMessage For="() => _input.Name" class="text-danger small" />
+    </div>
+
+    <div class="mb-3">
+        <label for="club-city" class="form-label">City</label>
+        <InputText id="club-city" class="form-control" @bind-value="_input.City" placeholder="e.g. Austin" />
+        <ValidationMessage For="() => _input.City" class="text-danger small" />
+    </div>
+
+    <div class="mb-3">
+        <label for="club-state" class="form-label">State</label>
+        <InputText id="club-state" class="form-control" @bind-value="_input.State" placeholder="e.g. TX" />
+        <ValidationMessage For="() => _input.State" class="text-danger small" />
+    </div>
+
+    <button type="submit" class="btn btn-primary" disabled="@_submitting">
+        @if (_submitting)
+        {
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+        }
+        Create Club
+    </button>
+</EditForm>

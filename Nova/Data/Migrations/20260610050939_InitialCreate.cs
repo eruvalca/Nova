@@ -669,7 +669,7 @@ namespace Nova.Data.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_Seasons_ClubId_Name",
                 table: "Seasons",
-                columns: new[] { "ClubId", "Name" },
+                columns: ["ClubId", "Name"],
                 unique: true);
 
             migrationBuilder.CreateIndex(

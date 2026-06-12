@@ -14,7 +14,9 @@ using Nova.Data.Interceptors;
 using Nova.Data.Startup;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Clubs;
 using Nova.Features.Photos;
+using Nova.Shared.Clubs;
 using Nova.Shared.Photos;
 using Nova.Shared.Security;
 
@@ -80,6 +82,9 @@ builder.Services.AddScoped<ICurrentUserProvider, CurrentUserProvider>();
 // Azure Blob Storage container for profile photos (Azurite emulator locally via Aspire).
 builder.AddAzureBlobContainerClient("profile-photos");
 builder.Services.AddScoped<IProfilePhotoService, ProfilePhotoService>();
+
+builder.Services.AddScoped<IClubService, ClubService>();
+builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();
 
 var novaDbConnectionString = builder.Configuration.GetConnectionString("novadb");
 var tenantInterceptor = new TenantSaveChangesInterceptor();
@@ -177,6 +182,9 @@ app.UseAntiforgery();
 // Required-profile-photo gate: signed-in users without a photo are sent to the photo page.
 app.UseMiddleware<ProfilePhotoGateMiddleware>();
 
+// Club onboarding gate: users with a photo but no club are sent to the club onboarding page.
+app.UseMiddleware<ClubOnboardingGateMiddleware>();
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
@@ -189,6 +197,9 @@ app.MapAdditionalIdentityEndpoints();
 
 // Profile photo upload/retrieval endpoints and the post-save cookie refresh hop.
 app.MapProfilePhotoEndpoints();
+
+// Club and club join request endpoints.
+app.MapClubEndpoints();
 
 await StartupDatabaseInitializer.InitializeAsync(app.Services, app.Environment.IsDevelopment());
 

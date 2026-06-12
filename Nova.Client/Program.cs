@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Nova.Client.Services;
 using Nova.Client.Telemetry;
+using Nova.Shared.Clubs;
 using Nova.Shared.Photos;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -22,5 +23,7 @@ builder.Services.AddScoped(sp =>
 
 builder.Services.AddCropper();
 builder.Services.AddScoped<IProfilePhotoService, HttpProfilePhotoService>();
+builder.Services.AddScoped<IClubService, HttpClubService>();
+builder.Services.AddScoped<IClubJoinRequestService, HttpClubJoinRequestService>();
 
 await builder.Build().RunAsync();

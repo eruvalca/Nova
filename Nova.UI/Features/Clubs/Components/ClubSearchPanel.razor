@@ -1,0 +1,53 @@
+<div>
+    <div class="input-group mb-3">
+        <input type="text" class="form-control" placeholder="Search by name, city, or state..."
+               @bind="_query" @bind:event="oninput" @onkeydown="HandleKeyDownAsync" />
+        <button class="btn btn-outline-secondary" type="button" @onclick="SearchAsync" disabled="@_searching">
+            @if (_searching)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            }
+            else
+            {
+                <span>Search</span>
+            }
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+
+    @if (_searched && _results.Count == 0)
+    {
+        <p class="text-muted">No clubs found. Try a different search term.</p>
+    }
+
+    @if (_results.Count > 0)
+    {
+        <ul class="list-group">
+            @foreach (var club in _results)
+            {
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-semibold">@club.Name</div>
+                        <small class="text-muted">@club.City, @club.State</small>
+                    </div>
+                    <button class="btn btn-sm btn-primary"
+                            @onclick="() => RequestJoinAsync(club)"
+                            disabled="@(_requestingClubId == club.ClubId)">
+                        @if (_requestingClubId == club.ClubId)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <span>Request to Join</span>
+                        }
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+</div>

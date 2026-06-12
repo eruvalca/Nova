@@ -2,6 +2,24 @@
 
 This file documents the patterns and conventions used in Nova's service layer for result handling, error representation, and boundary-crossing operations.
 
+## Dual-Layer Validation
+
+Validation must occur at **both** the endpoint layer and the service layer:
+
+- **Endpoint layer** (DataAnnotations + `AddValidation()`): rejects structurally invalid HTTP requests (null, empty, length violations) before the handler runs. Fast, no service allocation needed.
+- **Service layer** (explicit checks in the service method): enforces whitespace-only rejection, business rules, and length constraints as defense in depth.
+
+**Why both layers are required:** Server-side Blazor (SSR) pages can inject and call server services directly via DI without going through HTTP endpoints at all. Endpoint-level validation only runs for HTTP requests; it never fires when a service is called from an SSR page, a background job, or a test. The service is the authoritative validation boundary regardless of the call path:
+
+| Caller | Endpoint validation runs? | Service validation runs? |
+|---|---|---|
+| WASM client → HTTP endpoint → service | ✅ | ✅ |
+| SSR page → service directly | ❌ | ✅ |
+| Background job → service directly | ❌ | ✅ |
+| Integration test → service directly | ❌ | ✅ |
+
+See `.github/instructions/api-endpoints.instructions.md` → **Input Validation at the Endpoint Layer** for the endpoint-side rules.
+
 ## ServiceProblem and ServiceResult Types
 
 The service layer uses **ServiceProblem** and **ServiceResult<T>** to represent operations that cross service boundaries (HTTP endpoints, WebAssembly client calls, etc.). These types are defined in `Nova.Shared.Results`:

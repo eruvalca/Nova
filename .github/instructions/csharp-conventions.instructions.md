@@ -55,6 +55,72 @@ description: "Calcio C# coding conventions, editorconfig expectations, and loggi
 - Document extension members with XML comments explaining the receiver type they extend and the behavior they add.
 - Examples in this repo: `Nova/Features/Shared/ServiceResultExtensions.cs`, `Nova.Shared/Results/HttpResponseMessageExtensions.cs`, `Nova.ServiceDefaults/Extensions.cs`.
 
+## Entity-to-DTO Mapping
+
+Use **C# 14 extension blocks** to map domain entities to DTOs. Place one extension class per entity in `Nova/Extensions/{Feature}/`, following the naming convention `{EntityType}Extensions.cs`.
+
+- Use C# 14 extension block syntax (`extension(EntityType entity) { ... }`) rather than classic `this`-parameter methods.
+- Mark the containing static class `internal` — mapping extensions are server-only (entities live in `Nova`; DTOs live in `Nova.Shared`).
+- Name each mapping method `To{DtoType}()` and return the DTO directly from an expression body.
+- Document every method with XML comments. When a navigation property must be loaded before calling the method, state that requirement explicitly in the `<summary>`.
+- **Never call a mapping method directly in an EF LINQ query** (e.g. inside `Select` before `ToListAsync`). EF cannot translate C# extension methods to SQL. Always materialize the entity list first (`.ToListAsync()` or `.AsEnumerable()`), then project with `Select(e => e.ToDto())` in memory.
+
+### Example
+
+```csharp
+// Nova/Extensions/Clubs/ClubEntityExtensions.cs
+using Nova.Entities;
+using Nova.Shared.Clubs;
+
+namespace Nova.Extensions.Clubs;
+
+/// <summary>
+/// Provides mapping extension members for <see cref="ClubEntity"/>.
+/// </summary>
+internal static class ClubEntityExtensions
+{
+    extension(ClubEntity club)
+    {
+        /// <summary>
+        /// Maps this <see cref="ClubEntity"/> to a <see cref="ClubDto"/>.
+        /// </summary>
+        /// <returns>A <see cref="ClubDto"/> populated from this entity's fields.</returns>
+        public ClubDto ToClubDto()
+            => new(club.ClubId, club.Name, club.City, club.State);
+    }
+}
+```
+
+When the mapping requires a navigation property, document the requirement:
+
+```csharp
+// Nova/Extensions/Clubs/ClubJoinRequestEntityExtensions.cs
+internal static class ClubJoinRequestEntityExtensions
+{
+    extension(ClubJoinRequestEntity request)
+    {
+        /// <summary>
+        /// Maps this entity to a <see cref="ClubJoinRequestDto"/>.
+        /// The <see cref="ClubJoinRequestEntity.Club"/> navigation must be loaded before calling this method.
+        /// </summary>
+        public ClubJoinRequestDto ToClubJoinRequestDto()
+            => new(request.ClubJoinRequestId, request.ClubId, request.Club.Name,
+                   request.RequestingUserId, request.Status, request.CreatedAt);
+    }
+}
+```
+
+Usage in a service (materialization before mapping):
+
+```csharp
+var entities = await db.Clubs
+    .Where(c => EF.Functions.ILike(c.Name, $"%{query}%"))
+    .OrderBy(c => c.Name)
+    .ToListAsync(cancellationToken);   // ← materialize first
+
+return entities.Select(c => c.ToClubDto()).ToList();  // ← then map in memory
+```
+
 ## Documentation
 
 - Add XML documentation comments (`///`) for every C# type and member you add or modify, including `public`, `protected`, `internal`, and `private` declarations.

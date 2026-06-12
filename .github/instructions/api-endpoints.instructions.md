@@ -2,6 +2,63 @@
 
 This file documents the patterns and conventions used in Nova's HTTP endpoints for consuming service results, converting to ProblemDetails responses, and ensuring proper observability.
 
+## Route Constants
+
+**All route strings must be defined as constants in a static `*Endpoints` class in `Nova.Shared`**, never as inline string literals in the endpoint mapping code. This ensures the server and the WASM client always agree on routes, and gives a single place to update a route.
+
+### Structure
+
+Each feature gets one `*Endpoints` class in the matching `Nova.Shared/{Feature}/` folder:
+
+```
+Nova.Shared/
+  Clubs/
+    ClubEndpoints.cs       ← GroupPrefix, per-route absolute constants, Relative siblings, URL builder methods
+  Photos/
+    PhotoEndpoints.cs
+```
+
+### Naming Conventions
+
+| Constant | What it holds | Example value |
+|---|---|---|
+| `GroupPrefix` | Full absolute prefix passed to `MapGroup` | `"/api/clubs"` |
+| `{Verb}` | Full absolute URL for simple routes | `"/api/clubs/search"` |
+| `{Verb}Relative` | Relative path passed to `Map*` inside a group | `"search"` |
+| `{Verb}Template` | Full absolute URL template with `{param}` tokens | `"/api/clubs/{clubId:long}/join-requests"` |
+| `{Verb}Relative` | Relative template for parameterised routes inside a group | `"{clubId:long}/join-requests"` |
+
+For routes with dynamic segments, add a URL-builder static method rather than exposing the template directly to callers:
+
+```csharp
+public static string CreateJoinRequestUrl(long clubId) =>
+    $"/api/clubs/{clubId}/join-requests";
+```
+
+### Usage in Endpoint Mapping
+
+Always reference the constants — never write inline route strings:
+
+```csharp
+// ❌ Don't do this
+group.MapPost("{clubId:long}/join-requests", CreateJoinRequestHandler);
+group.MapDelete("join-requests/{requestId:long}", CancelJoinRequestHandler);
+
+// ✅ Do this
+group.MapPost(ClubEndpoints.CreateJoinRequestRelative, CreateJoinRequestHandler);
+group.MapDelete(ClubEndpoints.CancelJoinRequestRelative, CancelJoinRequestHandler);
+```
+
+### Usage in WASM Client Services
+
+The same constants are consumed by client-side `HttpClient` calls, guaranteeing server and client always agree:
+
+```csharp
+// Nova.Client/Services/HttpClubService.cs
+var response = await _httpClient.PostAsJsonAsync(ClubEndpoints.Create, input, cancellationToken);
+var response = await _httpClient.GetAsync(ClubEndpoints.SearchUrl(query), cancellationToken);
+```
+
 ## MapGroup Organization
 
 Use `MapGroup` to organize related endpoints under a common prefix with shared middleware (authorization, validation, etc.):
@@ -39,7 +96,7 @@ private static async Task<IResult> CreateUserHandler(
     CancellationToken cancellationToken)
 {
     var result = await userService.RegisterAsync(input, cancellationToken);
-    return result.ToHttpResult(user => TypedResults.CreatedAtRoute("GetUser", new { userId = user.Id }, user));
+    return result.ToHttpResult(user => TypedResults.CreatedAtRoute(user, "GetUser", new { userId = user.Id }));
 }
 
 private static async Task<IResult> GetUserHandler(
@@ -200,7 +257,85 @@ group.MapGet("{userId:long}", GetUserHandler)
 
 Then use the named route in redirection:
 ```csharp
+return TypedResults.CreatedAtRoute(user, "GetUser", new { userId = user.Id });
+```
+
+### CreatedAtRoute Parameter Order
+
+⚠️ The generic `TypedResults.CreatedAtRoute<TValue>` takes the **value first**: `CreatedAtRoute(value, routeName, routeValues)`. Passing the route name first compiles silently (the route name binds as `TValue`) but throws `InvalidOperationException: No route matches the supplied values` at runtime:
+
+```csharp
+// ❌ Compiles, but routeName=null and the DTO becomes routeValues — fails at runtime
 return TypedResults.CreatedAtRoute("GetUser", new { userId = user.Id }, user);
+
+// ✅ Value first, then route name, then route values
+return TypedResults.CreatedAtRoute(user, "GetUser", new { userId = user.Id });
+```
+
+Only use `CreatedAtRoute` when a matching GET route actually exists. If the resource has no canonical GET endpoint, return `TypedResults.Created((string?)null, value)` (201 without a Location header) instead of pointing Location at the POST route.
+
+## Input Validation at the Endpoint Layer
+
+Validation happens at **two layers**: the endpoint layer (fast rejection before the service runs for HTTP callers) and the service layer (authoritative validation for all callers including SSR pages). Both are always required — see `.github/instructions/service-layer.instructions.md` → **Dual-Layer Validation** for the full reasoning.
+
+### .NET 10 Automatic Validation
+
+In .NET 10, `builder.Services.AddValidation()` (registered globally in `Program.cs`) activates automatic parameter validation for **all** minimal API endpoints. There is no per-group or per-endpoint opt-in call — validation is automatic and **opt-out**. Use `DisableValidation()` on the rare endpoints that should skip it.
+
+### DataAnnotations on Input Records
+
+Annotate all input records in `Nova.Shared` with appropriate DataAnnotations. These drive both runtime enforcement and OpenAPI documentation:
+
+```csharp
+// Nova.Shared/Clubs/CreateClubInput.cs
+public sealed record CreateClubInput(
+    [Required, MaxLength(200)] string Name,
+    [Required, MaxLength(100)] string City,
+    [Required, MaxLength(100)] string State);
+```
+
+When a request body fails DataAnnotations validation the framework returns an RFC 7807 `HttpValidationProblemDetails` (HTTP 400) **before the handler is invoked**. The `AddProblemDetails` customization in `Program.cs` injects the W3C `traceId` into all problem responses, including framework-generated ones.
+
+### ProducesValidationProblem for OpenAPI Metadata
+
+Declare `.ProducesValidationProblem()` (not `.ProducesProblem(400)`) on endpoints that accept a body input. This emits the correct `ValidationProblemDetails` schema in OpenAPI, distinguishing structured field errors from generic 400s:
+
+```csharp
+group.MapPost(ClubEndpoints.CreateRelative, CreateClubHandler)
+    .Produces<ClubDto>(StatusCodes.Status201Created)
+    .ProducesValidationProblem()          // Framework automatic validation (DataAnnotations)
+    .ProducesProblem(StatusCodes.Status409Conflict)
+    .ProducesProblem(StatusCodes.Status500InternalServerError)
+    .DisableAntiforgery()
+    .WithName("CreateClub");
+```
+
+### Disabling Validation
+
+Use `DisableValidation()` to opt specific endpoints out of automatic parameter validation (e.g., streaming or multipart endpoints where model binding does not apply):
+
+```csharp
+group.MapPost(PhotoEndpoints.UploadRelative, UploadHandler)
+    .DisableValidation()     // IFormFile — validation handled manually in the handler
+    .DisableAntiforgery()
+    .RequireAuthorization();
+```
+
+### Manual Endpoint Validation for Non-Model Inputs
+
+For inputs that cannot be expressed as DataAnnotations (file size, content-type, streaming), validate manually in the handler and return `ServiceProblem.Validation().ToHttpResult()` directly:
+
+```csharp
+private static async Task<IResult> UploadHandler(IFormFile file, ...)
+{
+    if (file.Length is 0 or > ProfilePhotoConstraints.MaxBytes)
+    {
+        return ServiceProblem.Validation("file",
+            $"The photo must be between 1 byte and {ProfilePhotoConstraints.MaxBytes / (1024 * 1024)} MB.")
+            .ToHttpResult();
+    }
+    // ... delegate to service
+}
 ```
 
 ## Enum Query Parameter Binding
@@ -261,7 +396,7 @@ private static async Task<IResult> CreateUserHandler(
 {
     var result = await userService.RegisterAsync(input, cancellationToken);
     return result.ToHttpResult(
-        user => TypedResults.CreatedAtRoute("GetUser", new { userId = user.Id }, user));
+        user => TypedResults.CreatedAtRoute(user, "GetUser", new { userId = user.Id }));
 }
 
 private static async Task<IResult> GetUserHandler(

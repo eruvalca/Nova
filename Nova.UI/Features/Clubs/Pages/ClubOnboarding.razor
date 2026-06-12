@@ -1,0 +1,54 @@
+@page "/Clubs/Onboarding"
+@rendermode InteractiveAuto
+@using Nova.UI.Features.Clubs.Components
+
+<PageTitle>Club Onboarding</PageTitle>
+
+<div class="container py-4">
+    <h1 class="mb-4">Welcome to Nova</h1>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (_pendingRequest is not null)
+    {
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <p class="text-muted mb-4">You have a pending request to join a club. You can cancel it below and try again.</p>
+                <PendingJoinRequestCard Request="_pendingRequest" OnRequestCancelled="HandleRequestCancelled" />
+            </div>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Create your own club</h5>
+                        <p class="card-text text-muted">Start fresh — you'll become the club admin.</p>
+                        <CreateClubForm OnClubCreated="HandleClubCreated" />
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Join an existing club</h5>
+                        <p class="card-text text-muted">Search for a club and request to join.</p>
+                        <ClubSearchPanel OnJoinRequested="HandleJoinRequested" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
