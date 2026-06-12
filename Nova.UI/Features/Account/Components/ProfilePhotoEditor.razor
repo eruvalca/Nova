@@ -30,6 +30,12 @@
                        disabled="@IsBusy" />
             <div class="form-text">JPEG, PNG, or WebP. Maximum size 10 MB.</div>
         </div>
+        @if (!string.IsNullOrEmpty(CancelUrl))
+        {
+            <button type="button" class="btn btn-outline-secondary" @onclick="CancelPhoto" disabled="@IsBusy">
+                Cancel
+            </button>
+        }
     }
     else
     {
@@ -49,6 +55,12 @@
             <button type="button" class="btn btn-outline-secondary" @onclick="ChooseDifferentPhoto" disabled="@IsBusy">
                 Choose a different photo
             </button>
+            @if (!string.IsNullOrEmpty(CancelUrl))
+            {
+                <button type="button" class="btn btn-outline-secondary" @onclick="CancelPhoto" disabled="@IsBusy">
+                    Cancel
+                </button>
+            }
         </div>
     }
 </div>

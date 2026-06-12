@@ -43,6 +43,13 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     public string? ReturnUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets the local URL to navigate to when the user cancels the operation.
+    /// When <see langword="null"/> or empty, no cancel button is shown.
+    /// </summary>
+    [Parameter]
+    public string? CancelUrl { get; set; }
+
+    /// <summary>
     /// Gets the data URL of the selected source image, or <see langword="null"/> when no image is selected.
     /// </summary>
     private string? ImageDataUrl { get; set; }
@@ -197,5 +204,13 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     {
         errorMessages.Clear();
         ImageDataUrl = null;
+    }
+
+    /// <summary>
+    /// Navigates to the cancel URL to close the photo editor without saving.
+    /// </summary>
+    private void CancelPhoto()
+    {
+        navigationManager.NavigateTo(CancelUrl ?? "/");
     }
 }
