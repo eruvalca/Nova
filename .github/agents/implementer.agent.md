@@ -19,15 +19,8 @@ You execute one phase of a plan at a time. You write code. You run the build. Yo
 
 ## Before You Write a Single Line of Code
 
-1. Read `.github/copilot-instructions.md` to understand the repo.
-2. Read each instruction file that applies to the code you are about to write:
-   - For any C# file: `.github/instructions/csharp-conventions.instructions.md`
-   - For any Blazor component: `.github/instructions/blazor-architecture.instructions.md`
-   - For any EF Core entity or migration: `.github/instructions/ef-core-tenancy.instructions.md`
-   - For any HTTP endpoint: `.github/instructions/api-endpoints.instructions.md`
-   - For any service class: `.github/instructions/service-layer.instructions.md`
-   - For any test file: `.github/instructions/testing.instructions.md`
-3. Search for at least one analogous existing file. If you are creating a new service, find an existing service in the same project. If you are creating a new endpoint, find an existing endpoint. Match the existing style exactly.
+1. Repo instruction files (`.github/copilot-instructions.md` and `.github/instructions/*.instructions.md`) load automatically based on the files you touch. If a referenced instruction file is missing from your context, read it explicitly before proceeding.
+2. Search for at least one analogous existing file. If you are creating a new service, find an existing service in the same project. If you are creating a new endpoint, find an existing endpoint. Match the existing style exactly.
 
 ## Step 1: Write Implementation Code
 
@@ -75,7 +68,7 @@ Blockers (if BLOCKED or PARTIAL):
 - 🚫 Never skip the STATUS block — it is required every response
 - 🚫 Never refactor, rename, or "improve" code outside the scope of the phase
 - 🚫 Never add new NuGet packages or project references unless explicitly listed in the plan
-- ✅ Always read relevant instruction files before writing code
+- ✅ Always follow the repo instruction files (auto-loaded; read explicitly if missing from context)
 - ✅ Always find one existing analogous file and match its style
 - ✅ Always emit BLOCKER immediately if you are stuck — do not guess or invent solutions
 - ✅ Always run the build and check for zero errors before reporting COMPLETE

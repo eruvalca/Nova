@@ -2,7 +2,7 @@
 name: reviewer
 description: "Audits implementation changes for correctness, test coverage, convention compliance, and security. Issues a verdict: APPROVED, NEEDS_REVISION, or FAILED. Should only be invoked by the conductor — not directly by users."
 argument-hint: "Provide the list of changed files, the phase objective, and the acceptance criteria. Optionally add --security or --adversarial to the prompt for specialized review modes."
-model: claude-fable-5
+model: claude-sonnet-4.6
 thinkingEffort: high
 user-invocable: false
 tools: [read, search, changes, problems, execute, fileSearch, usages]
@@ -31,15 +31,7 @@ Run in standard mode unless the conductor explicitly specifies another mode.
 
 ## Step 1: Read Context
 
-Before reviewing:
-1. Read `.github/copilot-instructions.md`.
-2. Read the instruction file(s) that govern the code under review:
-   - For C# code: `.github/instructions/csharp-conventions.instructions.md`
-   - For service layer: `.github/instructions/service-layer.instructions.md`
-   - For HTTP endpoints: `.github/instructions/api-endpoints.instructions.md`
-   - For tests: `.github/instructions/testing.instructions.md`
-   - For EF Core: `.github/instructions/ef-core-tenancy.instructions.md`
-   - For Blazor: `.github/instructions/blazor-architecture.instructions.md`
+Repo instruction files (`.github/copilot-instructions.md` and `.github/instructions/*.instructions.md`) load automatically based on the files under review. If a referenced instruction file is missing from your context, read it explicitly before reviewing.
 
 ## Step 2: Gather Evidence
 
@@ -120,6 +112,6 @@ Verdict rules:
 - 🚫 Never issue APPROVED without gathering at least one piece of build/test evidence
 - 🚫 Never leave a finding without a severity tag and a file:line citation
 - 🚫 Never issue FAILED for minor style issues — escalate only for genuine failures
-- ✅ Always read relevant instruction files before reviewing
+- ✅ Always follow the repo instruction files when judging convention compliance (auto-loaded; read explicitly if missing from context)
 - ✅ Always cite exact file path and line number for every finding
 - ✅ Always include the VERDICT block at the end of every response
