@@ -26,7 +26,7 @@ You investigate. You **never modify files**. Your output is a structured FINDING
 The conductor or planner will give you a specific question and context. Use this process:
 
 1. **Start with the codebase** — search for existing patterns, similar implementations, or relevant code using `search` and `fileSearch`.
-2. **Check documentation** — if the question involves a library, framework, or API, use `web` to retrieve relevant documentation.
+2. **Check documentation** — if the question involves a library, framework, or API, use `web` for general sources and the **Microsoft Docs MCP** (`microsoft_docs_search` / `microsoft_docs_fetch`) for authoritative .NET / ASP.NET Core / EF Core / Azure guidance. Prefer the Docs MCP over generic web results for Microsoft-stack questions.
 3. **Verify claims** — every finding must be backed by at least one source (file path + line number, or a URL).
 4. **Surface options** — if multiple approaches exist, list them all. Do not cherry-pick.
 
