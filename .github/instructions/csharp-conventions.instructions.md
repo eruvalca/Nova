@@ -1,6 +1,6 @@
 ---
 applyTo: "**/*.cs"
-description: "Calcio C# coding conventions, editorconfig expectations, and logging rules."
+description: "Nova C# coding conventions, editorconfig expectations, and logging rules."
 ---
 
 # C# Conventions

@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.razor, **/*.razor.cs, **/*.razor.css, Nova/Program.cs, Nova.Client/Program.cs"
+applyTo: "**/*.razor,**/*.razor.cs,**/*.razor.css,Nova/Program.cs,Nova.Client/Program.cs"
 description: "Blazor architecture: component/page placement across Nova.UI/Nova/Nova.Client, SSR-first render-mode rules, feature folders, code-behind and CSS isolation conventions, and data-access rules for components."
 ---
 

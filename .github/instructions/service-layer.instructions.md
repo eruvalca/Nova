@@ -1,3 +1,8 @@
+---
+applyTo: "Nova/Features/**/*Service.cs,Nova.Shared/**/I*Service.cs,Nova.Shared/Results/**/*.cs,Nova.Client/Services/**/*.cs"
+description: "Service-layer result patterns: dual-layer validation, ServiceProblem/ServiceResult types, OneOf preference rule, validation structure, trace ID guarantees, and logging conventions."
+---
+
 # Service-Layer Result Patterns
 
 This file documents the patterns and conventions used in Nova's service layer for result handling, error representation, and boundary-crossing operations.

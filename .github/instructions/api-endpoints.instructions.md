@@ -1,3 +1,8 @@
+---
+applyTo: "Nova/Features/**/*.cs,Nova.Shared/**/*Endpoints.cs,Nova.Client/Services/**/*.cs"
+description: "HTTP endpoint patterns: route constants, MapGroup organization, handler methods, ServiceResult-to-HTTP conversion, ProblemDetails/validation structure, authorization, antiforgery, and enum binding."
+---
+
 # API Endpoint Patterns
 
 This file documents the patterns and conventions used in Nova's HTTP endpoints for consuming service results, converting to ProblemDetails responses, and ensuring proper observability.

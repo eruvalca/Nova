@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova.ServiceDefaults/**/*.cs, Nova.Client/Telemetry/**/*.cs, **/Program.cs"
+applyTo: "Nova.ServiceDefaults/**/*.cs,Nova.Client/Telemetry/**/*.cs,**/Program.cs"
 description: "Observability conventions for OpenTelemetry wiring, tracing correlation, Blazor instrumentation, and HTTP trace propagation."
 ---
 
