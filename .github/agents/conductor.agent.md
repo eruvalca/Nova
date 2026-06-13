@@ -18,7 +18,7 @@ tools:
     "playwright/*",
     todo,
   ]
-agents: ["planner", "implementer", "reviewer", "researcher", "test-writer"]
+agents: ["planner", "implementer", "reviewer", "researcher", "test-writer", "verifier"]
 handoffs:
   - label: "📋 Plan This Task"
     agent: planner
