@@ -6,25 +6,68 @@
 
 <h3>Delete Personal Data</h3>
 
-<div class="alert alert-warning" role="alert">
-    <p>
-        <strong>Deleting this data will permanently remove your account, and this cannot be recovered.</strong>
-    </p>
-</div>
+@if (_preview is null)
+{
+    <p class="text-muted">Loading…</p>
+}
+else if (_preview.Scenario == AccountDeletionScenario.SoleClubAdmin)
+{
+    <div class="alert alert-warning" role="alert">
+        <p>
+            <strong>You are the only admin of @_preview.ClubName.</strong>
+            Before you can delete your account, you must assign another club admin.
+        </p>
+    </div>
+    <AssignClubAdminPanel @rendermode="InteractiveAuto" />
+}
+else
+{
+    @* Scenario A (NoClubOrNonAdmin) and Scenario B (OnlyClubMember) both show the form *@
+    @if (_preview.Scenario == AccountDeletionScenario.OnlyClubMember)
+    {
+        <div class="alert alert-danger" role="alert">
+            <p>
+                <strong>Warning:</strong> You are the only member of <strong>@_preview.ClubName</strong>.
+                Deleting your account will permanently delete this club and all of its data — including
+                players, teams, campaigns, seasons, notes, tags, and photos.
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning" role="alert">
+            <p>
+                <strong>Deleting this data will permanently remove your account, and this cannot be recovered.</strong>
+            </p>
+        </div>
+    }
 
-<div>
-    <EditForm Model="Input" FormName="delete-user" OnValidSubmit="OnValidSubmitAsync" method="post">
-        <DataAnnotationsValidator />
-        <ValidationSummary class="text-danger" role="alert" />
-        @if (requirePassword)
-        {
-            <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control"
-                           autocomplete="current-password" aria-required="true" placeholder="Please enter your password." />
-                <label for="Input.Password" class="form-label">Password</label>
-                <ValidationMessage For="() => Input.Password" class="text-danger" />
-            </div>
-        }
-        <button class="w-100 btn btn-lg btn-danger" type="submit">Delete data and close my account</button>
-    </EditForm>
-</div>
+    <div>
+        <EditForm Model="Input" FormName="delete-user" id="delete-user" OnValidSubmit="OnValidSubmitAsync" method="post">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+            @if (requirePassword)
+            {
+                <div class="form-floating mb-3">
+                    <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control"
+                               autocomplete="current-password" aria-required="true" placeholder="Please enter your password." />
+                    <label for="Input.Password" class="form-label">Password</label>
+                    <ValidationMessage For="() => Input.Password" class="text-danger" />
+                </div>
+            }
+            @if (_preview.Scenario == AccountDeletionScenario.OnlyClubMember)
+            {
+                <button type="button" class="w-100 btn btn-lg btn-danger"
+                        data-bs-toggle="modal" data-bs-target="#confirm-delete-modal">
+                    Delete data and close my account
+                </button>
+                <ConfirmDeleteDialog @rendermode="InteractiveAuto" ClubName="@(_preview.ClubName!)" FormId="delete-user" />
+            }
+            else
+            {
+                <button class="w-100 btn btn-lg btn-danger" type="submit">Delete data and close my account</button>
+            }
+        </EditForm>
+    </div>
+}
+

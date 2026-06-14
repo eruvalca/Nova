@@ -1,0 +1,40 @@
+@if (_loading)
+{
+    <p class="text-muted">Loading club members…</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+else if (_members.Count == 0)
+{
+    <div class="alert alert-warning" role="alert">
+        No other club members are available to promote to admin.
+    </div>
+}
+else
+{
+    <div class="mb-3">
+        @foreach (var member in _members)
+        {
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="new-admin"
+                       id="member-@member.UserId" value="@member.UserId"
+                       checked="@(_selectedUserId == member.UserId)"
+                       @onchange="@(() => _selectedUserId = member.UserId)" />
+                <label class="form-check-label" for="member-@member.UserId">
+                    @member.FullName
+                </label>
+            </div>
+        }
+    </div>
+    <button type="button" class="btn btn-primary"
+            disabled="@(_selectedUserId is null || _submitting)"
+            @onclick="AssignAsync">
+        Make this person a club admin
+    </button>
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger mt-2" role="alert">@_error</div>
+    }
+}

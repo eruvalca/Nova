@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Nova.Data;
 using Nova.Entities;
+using Nova.Shared.Account;
 
 namespace Nova.Components.Account.Pages.Manage;
 
@@ -15,7 +16,8 @@ public partial class DeletePersonalData(
     UserManager<NovaUserEntity> userManager,
     SignInManager<NovaUserEntity> signInManager,
     IdentityRedirectManager redirectManager,
-    ILogger<DeletePersonalData> logger)
+    ILogger<DeletePersonalData> logger,
+    IAccountDeletionService accountDeletionService)
 {
     /// <summary>
     /// Stores the status message to display after form submission.
@@ -31,6 +33,11 @@ public partial class DeletePersonalData(
     /// Indicates whether the user has a password that must be confirmed for deletion.
     /// </summary>
     private bool requirePassword;
+
+    /// <summary>
+    /// Contains the deletion preview data, including the scenario and club name if applicable.
+    /// </summary>
+    private AccountDeletionPreviewDto? _preview;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -59,6 +66,7 @@ public partial class DeletePersonalData(
             return;
         }
         requirePassword = await userManager.HasPasswordAsync(user);
+        _preview = await accountDeletionService.GetDeletionPreviewAsync(ComponentCancellationToken);
     }
 
     /// <summary>
@@ -79,15 +87,13 @@ public partial class DeletePersonalData(
             return;
         }
 
-        var result = await userManager.DeleteAsync(user);
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException("Unexpected error occurred deleting user.");
-        }
+        // Capture the user ID before deletion as the user object may become invalid after deletion
+        var userId = await userManager.GetUserIdAsync(user);
+
+        await accountDeletionService.DeleteAccountAsync(ComponentCancellationToken);
 
         await signInManager.SignOutAsync();
 
-        var userId = await userManager.GetUserIdAsync(user);
         LogUserDeleted(userId);
 
         redirectManager.RedirectToCurrentPage();

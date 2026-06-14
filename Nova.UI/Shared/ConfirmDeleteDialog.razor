@@ -1,0 +1,30 @@
+<div class="modal fade" id="confirm-delete-modal" tabindex="-1" aria-labelledby="confirm-delete-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirm-delete-modal-label">Permanently delete your club and account?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    You are the only member of <strong>@ClubName</strong>. Deleting your account will
+                    permanently delete this club and all of its data — including players, teams, campaigns,
+                    seasons, notes, tags, and photos. <strong>This cannot be undone.</strong>
+                </p>
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="confirm-delete-checkbox"
+                           @onchange="OnConfirmChanged" />
+                    <label class="form-check-label" for="confirm-delete-checkbox">
+                        I understand this will permanently delete my club and all of its data.
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="@FormId" class="btn btn-danger" disabled="@(!_confirmed)">
+                    Delete club and account
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

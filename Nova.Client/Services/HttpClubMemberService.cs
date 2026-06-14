@@ -1,0 +1,44 @@
+using System.Net.Http.Json;
+using Nova.Shared.Account;
+using Nova.Shared.Clubs;
+using Nova.Shared.Results;
+
+namespace Nova.Client.Services;
+
+/// <summary>
+/// WebAssembly client implementation of <see cref="IClubMemberService"/> that calls the server's
+/// minimal API endpoints over HTTP.
+/// </summary>
+/// <param name="http">The HTTP client configured with the application base address.</param>
+public sealed class HttpClubMemberService(HttpClient http) : IClubMemberService
+{
+    /// <inheritdoc />
+    public async Task<ServiceResult<IReadOnlyList<ClubMemberDto>>> GetClubMembersAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync(ClubEndpoints.GetMembers, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return await response.ToServiceProblemAsync(cancellationToken);
+        }
+
+        var members = await response.Content.ReadFromJsonAsync<List<ClubMemberDto>>(cancellationToken);
+        return (members ?? []).AsReadOnly();
+    }
+
+    /// <inheritdoc />
+    public async Task<ServiceResult<bool>> AssignClubAdminAsync(
+        long targetUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var input = new AssignAdminInput(targetUserId);
+        using var response = await http.PostAsJsonAsync(ClubEndpoints.AssignAdmin, input, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return await response.ToServiceProblemAsync(cancellationToken);
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<bool>(cancellationToken);
+        return result;
+    }
+}
