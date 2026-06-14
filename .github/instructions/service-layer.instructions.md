@@ -12,7 +12,7 @@ This file documents the patterns and conventions used in Nova's service layer fo
 Validation must occur at **both** the endpoint layer and the service layer:
 
 - **Endpoint layer** (DataAnnotations + `AddValidation()`): rejects structurally invalid HTTP requests (null, empty, length violations) before the handler runs. Fast, no service allocation needed.
-- **Service layer** (explicit checks in the service method): enforces whitespace-only rejection, business rules, and length constraints as defense in depth.
+- **Service layer** (`InputValidator.Validate<T>(input)` in the service method): re-runs the same DataAnnotations declared on the input record — enforcing whitespace-only rejection (via `[NotWhitespace]`), length constraints, and required fields — plus any business rules, as the authoritative boundary. See `.github/instructions/validation.instructions.md` for the full pattern.
 
 **Why both layers are required:** Server-side Blazor (SSR) pages can inject and call server services directly via DI without going through HTTP endpoints at all. Endpoint-level validation only runs for HTTP requests; it never fires when a service is called from an SSR page, a background job, or a test. The service is the authoritative validation boundary regardless of the call path:
 
@@ -24,6 +24,7 @@ Validation must occur at **both** the endpoint layer and the service layer:
 | Integration test → service directly | ❌ | ✅ |
 
 See `.github/instructions/api-endpoints.instructions.md` → **Input Validation at the Endpoint Layer** for the endpoint-side rules.
+See `.github/instructions/validation.instructions.md` for the shared `InputValidator.Validate<T>` helper and the `[NotWhitespace]` attribute that implement this pattern.
 
 ## ServiceProblem and ServiceResult Types
 
@@ -84,19 +85,12 @@ When returning validation errors, use a structured dictionary mapping field name
 ```csharp
 public async Task<ServiceResult<UserRegistration>> RegisterAsync(UserInput input, ...)
 {
-    var errors = new Dictionary<string, string[]>();
-    
-    if (string.IsNullOrWhiteSpace(input.Email))
-        errors.TryAdd("email", []);
-    errors["email"]?.Append("Email is required.");
-    
-    if (!IsValidEmail(input.Email))
-        errors.TryAdd("email", []);
-    errors["email"]?.Append("Email format is invalid.");
-    
+    // Validation rules live on UserInput as DataAnnotations; InputValidator runs them and
+    // returns the Dictionary<string, string[]> shape that ServiceProblem.Validation expects.
+    var errors = InputValidator.Validate(input);
     if (errors.Count > 0)
         return ServiceProblem.Validation(errors, "Please correct the validation errors.");
-    
+
     // ... continue with registration
 }
 ```
@@ -130,8 +124,8 @@ public sealed partial class UserRegistrationService(
         UserRegistrationInput input,
         CancellationToken cancellationToken = default)
     {
-        // Validate input (can be validation errors or business-rule rejections)
-        var validationErrors = ValidateInput(input);
+        // Validate input against the DataAnnotations declared on UserRegistrationInput.
+        var validationErrors = InputValidator.Validate(input);
         if (validationErrors.Count > 0)
         {
             return ServiceProblem.Validation(validationErrors);
@@ -152,19 +146,6 @@ public sealed partial class UserRegistrationService(
 
         LogUserRegistered(user.Id);
         return new UserRegistration(user.Id, user.Email);
-    }
-
-    private static Dictionary<string, string[]> ValidateInput(UserRegistrationInput input)
-    {
-        var errors = new Dictionary<string, string[]>();
-
-        if (string.IsNullOrWhiteSpace(input.Email))
-            errors["email"] = ["Email is required."];
-
-        if (string.IsNullOrWhiteSpace(input.Name))
-            errors["name"] = ["Name is required."];
-
-        return errors;
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "User {UserId} registered.")]
@@ -196,3 +177,4 @@ private partial void LogRegistrationFailed(Exception exception, long userId);
 - `Nova.Shared/Results/` — ServiceProblem, ServiceResult, ServiceProblemKind, and HttpResponseMessageExtensions
 - `Nova/Features/Shared/ServiceResultExtensions.cs` — Extension methods for converting ServiceResult to HTTP responses
 - `.github/instructions/api-endpoints.instructions.md` — HTTP endpoint patterns for consuming ServiceResult
+- `.github/instructions/validation.instructions.md` — Validation conventions: `InputValidator.Validate<T>`, `[NotWhitespace]`, and the dual-layer pattern.

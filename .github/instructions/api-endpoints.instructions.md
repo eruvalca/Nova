@@ -293,11 +293,22 @@ Annotate all input records in `Nova.Shared` with appropriate DataAnnotations. Th
 
 ```csharp
 // Nova.Shared/Clubs/CreateClubInput.cs
-public sealed record CreateClubInput(
-    [Required, MaxLength(200)] string Name,
-    [Required, MaxLength(100)] string City,
-    [Required, MaxLength(100)] string State);
+using Nova.Shared.Validation;
+
+public sealed record CreateClubInput
+{
+    [Required, NotWhitespace, MaxLength(200)]
+    public required string Name { get; init; }
+
+    [Required, NotWhitespace, MaxLength(100)]
+    public required string City { get; init; }
+
+    [Required, NotWhitespace, MaxLength(100)]
+    public required string State { get; init; }
+}
 ```
+
+Pair `[Required]` with `[NotWhitespace]` (defined in `Nova.Shared/Validation/NotWhitespaceAttribute.cs`) on every string field that must contain non-blank text — `[Required]` alone treats `"   "` as valid. Use explicit init-only properties rather than positional constructor parameters so attributes land on the properties where `Validator.TryValidateObject` can reflect on them. The same attributes are re-run at the service layer via `InputValidator.Validate<T>`; see `.github/instructions/validation.instructions.md`.
 
 When a request body fails DataAnnotations validation the framework returns an RFC 7807 `HttpValidationProblemDetails` (HTTP 400) **before the handler is invoked**. The `AddProblemDetails` customization in `Program.cs` injects the W3C `traceId` into all problem responses, including framework-generated ones.
 

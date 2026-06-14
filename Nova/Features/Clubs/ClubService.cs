@@ -7,6 +7,7 @@ using Nova.Extensions.Clubs;
 using Nova.Shared.Clubs;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
+using Nova.Shared.Validation;
 
 namespace Nova.Features.Clubs;
 
@@ -23,36 +24,8 @@ public sealed partial class ClubService(
     /// <inheritdoc />
     public async Task<ServiceResult<ClubDto>> CreateClubAsync(CreateClubInput input, CancellationToken cancellationToken = default)
     {
-        // Validate input
-        var errors = new Dictionary<string, string[]>();
-
-        if (string.IsNullOrWhiteSpace(input.Name))
-        {
-            errors["Name"] = ["Club name is required."];
-        }
-        else if (input.Name.Trim().Length > 200)
-        {
-            errors["Name"] = ["Club name must be 200 characters or fewer."];
-        }
-
-        if (string.IsNullOrWhiteSpace(input.City))
-        {
-            errors["City"] = ["City is required."];
-        }
-        else if (input.City.Trim().Length > 100)
-        {
-            errors["City"] = ["City must be 100 characters or fewer."];
-        }
-
-        if (string.IsNullOrWhiteSpace(input.State))
-        {
-            errors["State"] = ["State is required."];
-        }
-        else if (input.State.Trim().Length > 100)
-        {
-            errors["State"] = ["State must be 100 characters or fewer."];
-        }
-
+        // Validate input against the DataAnnotations declared on CreateClubInput.
+        var errors = InputValidator.Validate(input);
         if (errors.Count > 0)
         {
             return ServiceProblem.Validation(errors);

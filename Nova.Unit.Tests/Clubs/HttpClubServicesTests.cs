@@ -54,7 +54,7 @@ public class HttpClubServicesTests
         var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
-        var input = new CreateClubInput("Manchester United", "Manchester", "England");
+        var input = new CreateClubInput { Name = "Manchester United", City = "Manchester", State = "England" };
 
         // Act
         var result = await service.CreateClubAsync(input, TestContext.Current.CancellationToken);
@@ -84,7 +84,7 @@ public class HttpClubServicesTests
         var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
-        var input = new CreateClubInput("Manchester United", "Manchester", "England");
+        var input = new CreateClubInput { Name = "Manchester United", City = "Manchester", State = "England" };
 
         // Act
         var result = await service.CreateClubAsync(input, TestContext.Current.CancellationToken);

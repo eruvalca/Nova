@@ -40,7 +40,7 @@ public partial class CreateClubForm(IClubService clubService)
         _error = null;
 
         var result = await clubService.CreateClubAsync(
-            new CreateClubInput(_input.Name, _input.City, _input.State),
+            new CreateClubInput { Name = _input.Name, City = _input.City, State = _input.State },
             ComponentCancellationToken);
 
         result.Switch(

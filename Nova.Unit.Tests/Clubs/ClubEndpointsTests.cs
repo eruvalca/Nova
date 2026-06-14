@@ -288,8 +288,8 @@ public class ClubEndpointsTests
     public void CreateClubInput_EqualsOtherInstance_WithSameValues()
     {
         // Arrange
-        var input1 = new CreateClubInput(Name: "Chelsea FC", City: "London", State: "Greater London");
-        var input2 = new CreateClubInput(Name: "Chelsea FC", City: "London", State: "Greater London");
+        var input1 = new CreateClubInput { Name = "Chelsea FC", City = "London", State = "Greater London" };
+        var input2 = new CreateClubInput { Name = "Chelsea FC", City = "London", State = "Greater London" };
 
         // Act & Assert
         input1.ShouldBe(input2);
@@ -300,8 +300,8 @@ public class ClubEndpointsTests
     public void CreateClubInput_NotEqualsOtherInstance_WithDifferentName()
     {
         // Arrange
-        var input1 = new CreateClubInput(Name: "Chelsea FC", City: "London", State: "Greater London");
-        var input2 = new CreateClubInput(Name: "Fulham FC", City: "London", State: "Greater London");
+        var input1 = new CreateClubInput { Name = "Chelsea FC", City = "London", State = "Greater London" };
+        var input2 = new CreateClubInput { Name = "Fulham FC", City = "London", State = "Greater London" };
 
         // Act & Assert
         input1.ShouldNotBe(input2);
@@ -312,8 +312,8 @@ public class ClubEndpointsTests
     public void CreateClubInput_NotEqualsOtherInstance_WithDifferentCity()
     {
         // Arrange
-        var input1 = new CreateClubInput(Name: "Chelsea FC", City: "London", State: "Greater London");
-        var input2 = new CreateClubInput(Name: "Chelsea FC", City: "Birmingham", State: "Greater London");
+        var input1 = new CreateClubInput { Name = "Chelsea FC", City = "London", State = "Greater London" };
+        var input2 = new CreateClubInput { Name = "Chelsea FC", City = "Birmingham", State = "Greater London" };
 
         // Act & Assert
         input1.ShouldNotBe(input2);
@@ -324,8 +324,8 @@ public class ClubEndpointsTests
     public void CreateClubInput_NotEqualsOtherInstance_WithDifferentState()
     {
         // Arrange
-        var input1 = new CreateClubInput(Name: "Chelsea FC", City: "London", State: "Greater London");
-        var input2 = new CreateClubInput(Name: "Chelsea FC", City: "London", State: "England");
+        var input1 = new CreateClubInput { Name = "Chelsea FC", City = "London", State = "Greater London" };
+        var input2 = new CreateClubInput { Name = "Chelsea FC", City = "London", State = "England" };
 
         // Act & Assert
         input1.ShouldNotBe(input2);
@@ -333,17 +333,14 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void CreateClubInput_Deconstructs_Correctly()
+    public void CreateClubInput_HasCorrectProperties()
     {
         // Arrange
-        var input = new CreateClubInput(Name: "Tottenham Hotspur", City: "London", State: "Greater London");
+        var input = new CreateClubInput { Name = "Tottenham Hotspur", City = "London", State = "Greater London" };
 
-        // Act
-        var (name, city, state) = input;
-
-        // Assert
-        name.ShouldBe("Tottenham Hotspur");
-        city.ShouldBe("London");
-        state.ShouldBe("Greater London");
+        // Act & Assert
+        input.Name.ShouldBe("Tottenham Hotspur");
+        input.City.ShouldBe("London");
+        input.State.ShouldBe("Greater London");
     }
 }
