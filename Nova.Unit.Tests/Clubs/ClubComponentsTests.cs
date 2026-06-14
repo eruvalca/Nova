@@ -375,8 +375,8 @@ public class ClubComponentsTests : BunitContext
 
         var clubs = new List<ClubDto>
         {
-            new ClubDto(ClubId: 1, Name: "Test Club 1", City: "Austin", State: "TX"),
-            new ClubDto(ClubId: 2, Name: "Test Club 2", City: "Dallas", State: "TX")
+            new(ClubId: 1, Name: "Test Club 1", City: "Austin", State: "TX"),
+            new(ClubId: 2, Name: "Test Club 2", City: "Dallas", State: "TX")
         };
 
         clubService.SearchClubsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -489,7 +489,7 @@ public class ClubComponentsTests : BunitContext
         searchInput.Input("ab");
 
         // Wait a bit to ensure no debounce is triggered
-        await Task.Delay(400);
+        await Task.Delay(400, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
         // SearchClubsAsync should not have been called
@@ -527,7 +527,7 @@ public class ClubComponentsTests : BunitContext
         // Act
         // Now clear the input
         searchInput.Input("");
-        await Task.Delay(100);
+        await Task.Delay(100, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
         // Service should still have been called only once (from the "abc" search)
@@ -559,13 +559,13 @@ public class ClubComponentsTests : BunitContext
 
         // First, trigger a successful search with "aust" (4 characters)
         searchInput.Input("aust");
-        await Task.Delay(400);
+        await Task.Delay(400, Xunit.TestContext.Current.CancellationToken);
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Austin Club"));
 
         // Act
         // Now reduce to "au" (2 characters, below threshold)
         searchInput.Input("au");
-        await Task.Delay(100);
+        await Task.Delay(100, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
         // Results should be cleared
@@ -599,7 +599,7 @@ public class ClubComponentsTests : BunitContext
         searchInput.Input("abc");
 
         // Wait for debounce to complete (300ms + buffer)
-        await Task.Delay(350);
+        await Task.Delay(350, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
         // SearchClubsAsync should have been called exactly once
@@ -636,11 +636,11 @@ public class ClubComponentsTests : BunitContext
         searchInput.Input("abc");
 
         // Before debounce completes (300ms), change input to "abcd"
-        await Task.Delay(150);
+        await Task.Delay(150, Xunit.TestContext.Current.CancellationToken);
         searchInput.Input("abcd");
 
         // Wait for both debounces to potentially complete
-        await Task.Delay(400);
+        await Task.Delay(400, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
         // SearchClubsAsync should be called exactly once (for "abcd", not "abc")
@@ -666,7 +666,7 @@ public class ClubComponentsTests : BunitContext
 
         // Type exactly 2 characters
         searchInput.Input("ab");
-        
+
         // Assert
         // The component should not display results after 2-char input
         // (implicitly testing MinAutoSearchLength >= 3)
@@ -704,7 +704,7 @@ public class ClubComponentsTests : BunitContext
         cut.Dispose();
 
         // Wait a bit to give time for the debounce to fire if it weren't cancelled
-        await Task.Delay(350);
+        await Task.Delay(350, Xunit.TestContext.Current.CancellationToken);
 
         // Assert
         // SearchClubsAsync should NOT have been called because disposal cancelled the debounce
@@ -1195,7 +1195,7 @@ public class ClubComponentsTests : BunitContext
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
         var pendingRequests = new List<ClubJoinRequestDto>
         {
-            new ClubJoinRequestDto(
+            new(
                 1,      // clubJoinRequestId
                 42,     // clubId
                 "Test Club",    // clubName
@@ -1309,11 +1309,11 @@ public class ClubComponentsTests : BunitContext
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
-        
+
         // First call returns one request, second call (after approval) returns empty list
         var initialRequests = new List<ClubJoinRequestDto>
         {
-            new ClubJoinRequestDto(
+            new(
                 1,      // clubJoinRequestId
                 42,     // clubId
                 "Test Club",    // clubName
@@ -1346,7 +1346,7 @@ public class ClubComponentsTests : BunitContext
         // Act
         var approveButton = cut.Find("button.btn-success");
         approveButton.Click();
-        
+
         // Wait for the async operation to complete
         await cut.InvokeAsync(() => Task.Delay(100));
 
@@ -1369,7 +1369,7 @@ public class ClubComponentsTests : BunitContext
 
         var initialRequests = new List<ClubJoinRequestDto>
         {
-            new ClubJoinRequestDto(
+            new(
                 1,      // clubJoinRequestId
                 42,     // clubId
                 "Test Club",    // clubName
@@ -1395,7 +1395,7 @@ public class ClubComponentsTests : BunitContext
         // Act
         var approveButton = cut.Find("button.btn-success");
         approveButton.Click();
-        
+
         await cut.InvokeAsync(() => Task.Delay(100));
 
         // Assert
@@ -1415,7 +1415,7 @@ public class ClubComponentsTests : BunitContext
 
         var initialRequests = new List<ClubJoinRequestDto>
         {
-            new ClubJoinRequestDto(
+            new(
                 1,      // clubJoinRequestId
                 42,     // clubId
                 "Test Club",    // clubName
@@ -1441,7 +1441,7 @@ public class ClubComponentsTests : BunitContext
         // Act
         var approveButton = cut.Find("button.btn-success");
         approveButton.Click();
-        
+
         await cut.InvokeAsync(() => Task.Delay(100));
 
         // Assert
@@ -1458,10 +1458,10 @@ public class ClubComponentsTests : BunitContext
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
-        
+
         var initialRequests = new List<ClubJoinRequestDto>
         {
-            new ClubJoinRequestDto(
+            new(
                 1,      // clubJoinRequestId
                 42,     // clubId
                 "Test Club",    // clubName
@@ -1494,7 +1494,7 @@ public class ClubComponentsTests : BunitContext
         // Act
         var rejectButton = cut.Find("button.btn-outline-danger");
         rejectButton.Click();
-        
+
         await cut.InvokeAsync(() => Task.Delay(100));
 
         // Assert
@@ -1515,7 +1515,7 @@ public class ClubComponentsTests : BunitContext
 
         var initialRequests = new List<ClubJoinRequestDto>
         {
-            new ClubJoinRequestDto(
+            new(
                 1,      // clubJoinRequestId
                 42,     // clubId
                 "Test Club",    // clubName
@@ -1541,7 +1541,7 @@ public class ClubComponentsTests : BunitContext
         // Act
         var rejectButton = cut.Find("button.btn-outline-danger");
         rejectButton.Click();
-        
+
         await cut.InvokeAsync(() => Task.Delay(100));
 
         // Assert
@@ -1561,7 +1561,7 @@ public class ClubComponentsTests : BunitContext
 
         var initialRequests = new List<ClubJoinRequestDto>
         {
-            new ClubJoinRequestDto(
+            new(
                 1,      // clubJoinRequestId
                 42,     // clubId
                 "Test Club",    // clubName
@@ -1587,7 +1587,7 @@ public class ClubComponentsTests : BunitContext
         // Act
         var rejectButton = cut.Find("button.btn-outline-danger");
         rejectButton.Click();
-        
+
         await cut.InvokeAsync(() => Task.Delay(100));
 
         // Assert
@@ -1607,7 +1607,7 @@ public class ClubComponentsTests : BunitContext
         var tcs = new TaskCompletionSource<ServiceResult<Success>>();
         var initialRequests = new List<ClubJoinRequestDto>
         {
-            new ClubJoinRequestDto(
+            new(
                 1,      // clubJoinRequestId
                 42,     // clubId
                 "Test Club",    // clubName
@@ -1645,7 +1645,7 @@ public class ClubComponentsTests : BunitContext
 
         // Cleanup
         tcs.SetResult(new ServiceResult<Success>(new Success()));
-        await Task.Delay(50);
+        await Task.Delay(50, Xunit.TestContext.Current.CancellationToken);
     }
 
     #endregion
