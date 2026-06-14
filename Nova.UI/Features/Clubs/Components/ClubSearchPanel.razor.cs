@@ -49,6 +49,16 @@ public partial class ClubSearchPanel(IClubService clubService, IClubJoinRequestS
     private string? _error;
 
     /// <summary>
+    /// Cancellation source for the in-flight debounce delay, or <see langword="null"/> when none is pending.
+    /// </summary>
+    private CancellationTokenSource? _debounceCts;
+
+    /// <summary>
+    /// The minimum number of characters required before an automatic (debounced) search runs.
+    /// </summary>
+    private const int MinAutoSearchLength = 3;
+
+    /// <summary>
     /// Executes the search by calling <see cref="IClubService.SearchClubsAsync"/>.
     /// </summary>
     private async Task SearchAsync()
@@ -81,6 +91,53 @@ public partial class ClubSearchPanel(IClubService clubService, IClubJoinRequestS
     }
 
     /// <summary>
+    /// Handles text input: updates the query and triggers a debounced automatic search once the
+    /// query reaches <see cref="MinAutoSearchLength"/> characters. Shorter queries cancel any
+    /// pending search and clear prior results.
+    /// </summary>
+    /// <param name="args">The input change event arguments.</param>
+    private async Task HandleInputAsync(ChangeEventArgs args)
+    {
+        _query = args.Value?.ToString() ?? string.Empty;
+
+        // Cancel any pending debounce.
+        if (_debounceCts is not null)
+        {
+            await _debounceCts.CancelAsync();
+            _debounceCts.Dispose();
+            _debounceCts = null;
+        }
+
+        if (_query.Length < MinAutoSearchLength)
+        {
+            // Below threshold: clear any previous results so stale matches do not linger.
+            if (_results.Count > 0 || _searched)
+            {
+                _results = [];
+                _searched = false;
+            }
+            return;
+        }
+
+        _debounceCts = new CancellationTokenSource();
+        var token = _debounceCts.Token;
+
+        try
+        {
+            await Task.Delay(300, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (!token.IsCancellationRequested)
+        {
+            await SearchAsync();
+        }
+    }
+
+    /// <summary>
     /// Submits a join request for the specified club.
     /// </summary>
     /// <param name="club">The club to request joining.</param>
@@ -95,5 +152,14 @@ public partial class ClubSearchPanel(IClubService clubService, IClubJoinRequestS
             problem => _error = problem.Detail ?? "Failed to submit join request. Please try again.");
 
         _requestingClubId = null;
+    }
+
+    /// <inheritdoc />
+    protected override ValueTask DisposeAsyncCore()
+    {
+        _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+        _debounceCts = null;
+        return ValueTask.CompletedTask;
     }
 }

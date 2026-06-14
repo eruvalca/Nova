@@ -21,6 +21,7 @@ internal static class ClubJoinRequestEntityExtensions
                 request.ClubId,
                 request.Club.Name,
                 request.RequestingUserId,
+                request.RequestingUser.FullName,
                 request.Status,
                 request.CreatedAt);
     }

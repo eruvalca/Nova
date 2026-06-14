@@ -1,7 +1,7 @@
 <div>
     <div class="input-group mb-3">
         <input type="text" class="form-control" placeholder="Search by name, city, or state..."
-               @bind="_query" @bind:event="oninput" @onkeydown="HandleKeyDownAsync" />
+               value="@_query" @oninput="HandleInputAsync" @onkeydown="HandleKeyDownAsync" />
         <button class="btn btn-outline-secondary" type="button" @onclick="SearchAsync" disabled="@_searching">
             @if (_searching)
             {

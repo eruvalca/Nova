@@ -57,4 +57,50 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
 
         return new Success();
     }
+
+    /// <inheritdoc />
+    public async Task<ServiceResult<IReadOnlyList<ClubJoinRequestDto>>> GetClubJoinRequestsAsync(
+        long clubId,
+        CancellationToken cancellationToken = default)
+    {
+        var url = ClubEndpoints.AdminJoinRequestsUrl(clubId);
+        using var response = await http.GetAsync(url, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return await response.ToServiceProblemAsync(cancellationToken);
+        }
+
+        var dtoList = await response.Content.ReadFromJsonAsync<List<ClubJoinRequestDto>>(cancellationToken);
+        return dtoList ?? [];
+    }
+
+    /// <inheritdoc />
+    public async Task<ServiceResult<Success>> ApproveJoinRequestAsync(
+        long requestId,
+        CancellationToken cancellationToken = default)
+    {
+        var url = ClubEndpoints.ApproveJoinRequestUrl(requestId);
+        using var response = await http.PostAsync(url, null, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return await response.ToServiceProblemAsync(cancellationToken);
+        }
+
+        return new Success();
+    }
+
+    /// <inheritdoc />
+    public async Task<ServiceResult<Success>> RejectJoinRequestAsync(
+        long requestId,
+        CancellationToken cancellationToken = default)
+    {
+        var url = ClubEndpoints.RejectJoinRequestUrl(requestId);
+        using var response = await http.PostAsync(url, null, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return await response.ToServiceProblemAsync(cancellationToken);
+        }
+
+        return new Success();
+    }
 }

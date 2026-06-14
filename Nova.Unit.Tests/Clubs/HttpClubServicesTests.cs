@@ -278,6 +278,7 @@ public class HttpClubServicesTests
             ClubId: 5,
             ClubName: "Liverpool",
             RequestingUserId: 99,
+            RequestingUserName: "Test User",
             Status: RequestStatus.Pending,
             CreatedAt: DateTimeOffset.UtcNow);
 
@@ -344,6 +345,7 @@ public class HttpClubServicesTests
             ClubId: 7,
             ClubName: "Arsenal",
             RequestingUserId: 100,
+            RequestingUserName: "Test User",
             Status: RequestStatus.Pending,
             CreatedAt: DateTimeOffset.UtcNow);
 

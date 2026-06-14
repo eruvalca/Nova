@@ -78,4 +78,14 @@ public partial class ClubOnboarding(
         _pendingRequest = null;
         _error = null;
     }
+
+    /// <summary>
+    /// Handles a "search again" request raised after a rejection. Clears the pending request state
+    /// so the create/search view is shown again.
+    /// </summary>
+    private void HandleSearchAgain()
+    {
+        _pendingRequest = null;
+        _error = null;
+    }
 }

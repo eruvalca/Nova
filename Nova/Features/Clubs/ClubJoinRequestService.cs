@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Nova.Components.Account;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
@@ -17,6 +19,8 @@ public sealed partial class ClubJoinRequestService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
+    ClubMembershipClaimRefresher clubMembershipClaimRefresher,
+    UserManager<NovaUserEntity> userManager,
     ILogger<ClubJoinRequestService> logger) : IClubJoinRequestService
 {
     /// <inheritdoc />
@@ -31,7 +35,9 @@ public sealed partial class ClubJoinRequestService(
 
         var request = await db.ClubJoinRequests
             .Include(e => e.Club)
-            .FirstOrDefaultAsync(e => e.RequestingUserId == userId && e.Status == RequestStatus.Pending, cancellationToken);
+            .Include(e => e.RequestingUser)
+            .Where(e => e.RequestingUserId == userId)
+            .FirstOrDefaultAsync(cancellationToken);
 
         return request is null
             ? ServiceProblem.NotFound()
@@ -84,9 +90,10 @@ public sealed partial class ClubJoinRequestService(
             db.ClubJoinRequests.Add(joinRequest);
             await db.SaveChangesAsync(cancellationToken);
 
-            // Reload with Club navigation
+            // Reload with Club and RequestingUser navigations
             var reloaded = await db.ClubJoinRequests
                 .Include(e => e.Club)
+                .Include(e => e.RequestingUser)
                 .FirstAsync(e => e.ClubJoinRequestId == joinRequest.ClubJoinRequestId, cancellationToken);
 
             LogJoinRequestCreated(userId, clubId, joinRequest.ClubJoinRequestId);
@@ -135,6 +142,117 @@ public sealed partial class ClubJoinRequestService(
         LogJoinRequestCancelled(userId, requestId);
         return new Success();
     }
+
+    /// <inheritdoc />
+    public async Task<ServiceResult<IReadOnlyList<ClubJoinRequestDto>>> GetClubJoinRequestsAsync(
+        long clubId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!currentUserProvider.IsClubAdmin || currentUserProvider.ClubId != clubId)
+        {
+            return ServiceProblem.Forbidden("You are not an administrator of this club.");
+        }
+
+        await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var requests = await db.ClubJoinRequests
+            .IgnoreQueryFilters()
+            .Include(e => e.Club)
+            .Include(e => e.RequestingUser)
+            .Where(e => e.ClubId == clubId && e.Status == RequestStatus.Pending)
+            .OrderBy(e => e.ClubJoinRequestId)
+            .ToListAsync(cancellationToken);
+
+        var dtos = requests.Select(r => r.ToClubJoinRequestDto()).ToList().AsReadOnly();
+        return dtos;
+    }
+
+    /// <inheritdoc />
+    public async Task<ServiceResult<Success>> ApproveJoinRequestAsync(
+        long requestId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!currentUserProvider.IsClubAdmin)
+        {
+            return ServiceProblem.Forbidden("You are not a club administrator.");
+        }
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var request = await db.ClubJoinRequests
+            .FirstOrDefaultAsync(e => e.ClubJoinRequestId == requestId, cancellationToken);
+
+        if (request is null)
+        {
+            return ServiceProblem.NotFound("The join request was not found.");
+        }
+
+        if (request.Status != RequestStatus.Pending)
+        {
+            return ServiceProblem.Conflict("Only pending join requests can be approved.");
+        }
+
+        request.Status = RequestStatus.Approved;
+        await db.SaveChangesAsync(cancellationToken);
+
+        // Re-fetch the requesting user through UserManager (its own tracked instance) to avoid
+        // an identity-map conflict, then assign them to the club and bump their security stamp.
+        var requestingUser = await userManager.FindByIdAsync(request.RequestingUserId.ToString());
+        if (requestingUser is not null)
+        {
+            requestingUser.ClubId = request.ClubId;
+            await userManager.UpdateAsync(requestingUser);
+            await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(requestingUser);
+        }
+        else
+        {
+            LogApproveRequestingUserMissing(request.RequestingUserId, requestId);
+        }
+
+        LogJoinRequestApproved(currentUserProvider.UserId ?? 0, requestId, request.RequestingUserId, request.ClubId);
+        return new Success();
+    }
+
+    /// <inheritdoc />
+    public async Task<ServiceResult<Success>> RejectJoinRequestAsync(
+        long requestId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!currentUserProvider.IsClubAdmin)
+        {
+            return ServiceProblem.Forbidden("You are not a club administrator.");
+        }
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var request = await db.ClubJoinRequests
+            .FirstOrDefaultAsync(e => e.ClubJoinRequestId == requestId, cancellationToken);
+
+        if (request is null)
+        {
+            return ServiceProblem.NotFound("The join request was not found.");
+        }
+
+        if (request.Status != RequestStatus.Pending)
+        {
+            return ServiceProblem.Conflict("Only pending join requests can be rejected.");
+        }
+
+        request.Status = RequestStatus.Rejected;
+        await db.SaveChangesAsync(cancellationToken);
+
+        LogJoinRequestRejected(currentUserProvider.UserId ?? 0, requestId, request.RequestingUserId);
+        return new Success();
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Join request approved: RequestId={RequestId} by AdminUserId={AdminUserId} for RequestingUserId={RequestingUserId} into ClubId={ClubId}.")]
+    private partial void LogJoinRequestApproved(long adminUserId, long requestId, long requestingUserId, long clubId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Join request rejected: RequestId={RequestId} by AdminUserId={AdminUserId} for RequestingUserId={RequestingUserId}.")]
+    private partial void LogJoinRequestRejected(long adminUserId, long requestId, long requestingUserId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but requesting user not found: RequestingUserId={RequestingUserId}, RequestId={RequestId}.")]
+    private partial void LogApproveRequestingUserMissing(long requestingUserId, long requestId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Join request created: RequestId={RequestId} for UserId={UserId} to ClubId={ClubId}.")]
     private partial void LogJoinRequestCreated(long userId, long clubId, long requestId);
