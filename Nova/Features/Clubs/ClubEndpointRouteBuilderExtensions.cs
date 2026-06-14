@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Shared;
+using Nova.Shared.Account;
 using Nova.Shared.Clubs;
 using Nova.Shared.Results;
 
@@ -66,6 +67,24 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .DisableAntiforgery()
                 .WithName("CancelJoinRequest");
+
+            // Get the current user's club members.
+            group.MapGet(ClubEndpoints.GetMembersRelative, GetClubMembersHandler)
+                .Produces<IReadOnlyList<ClubMemberDto>>()
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery()
+                .WithName("GetClubMembers");
+
+            // Assign ClubAdmin to a member.
+            group.MapPost(ClubEndpoints.AssignAdminRelative, AssignClubAdminHandler)
+                .Produces<bool>()
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery()
+                .WithName("AssignClubAdmin");
 
             // Cookie refresh hop after club creation: reissues auth cookie so claims take effect.
             // Mapped at its absolute path, outside the API group.
@@ -135,6 +154,36 @@ internal static class ClubEndpointRouteBuilderExtensions
     {
         var result = await joinRequestService.CancelJoinRequestAsync(requestId, cancellationToken);
         return result.ToHttpResult(_ => TypedResults.NoContent());
+    }
+
+    /// <summary>
+    /// Handles GET /api/clubs/members — returns the current user's other club members.
+    /// </summary>
+    /// <param name="clubMemberService">The club member service.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The HTTP result containing the list of club members.</returns>
+    private static async Task<IResult> GetClubMembersHandler(
+        IClubMemberService clubMemberService,
+        CancellationToken cancellationToken)
+    {
+        var result = await clubMemberService.GetClubMembersAsync(cancellationToken);
+        return result.ToHttpResult();
+    }
+
+    /// <summary>
+    /// Handles POST /api/clubs/assign-admin — promotes a member to ClubAdmin.
+    /// </summary>
+    /// <param name="input">The input containing the target user ID to promote.</param>
+    /// <param name="clubMemberService">The club member service.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The HTTP result indicating success or failure of the promotion.</returns>
+    private static async Task<IResult> AssignClubAdminHandler(
+        AssignAdminInput input,
+        IClubMemberService clubMemberService,
+        CancellationToken cancellationToken)
+    {
+        var result = await clubMemberService.AssignClubAdminAsync(input.TargetUserId, cancellationToken);
+        return result.ToHttpResult();
     }
 
     /// <summary>

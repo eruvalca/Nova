@@ -14,8 +14,10 @@ using Nova.Data.Interceptors;
 using Nova.Data.Startup;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Account;
 using Nova.Features.Clubs;
 using Nova.Features.Photos;
+using Nova.Shared.Account;
 using Nova.Shared.Clubs;
 using Nova.Shared.Photos;
 using Nova.Shared.Security;
@@ -85,6 +87,8 @@ builder.Services.AddScoped<IProfilePhotoService, ProfilePhotoService>();
 
 builder.Services.AddScoped<IClubService, ClubService>();
 builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();
+builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
+builder.Services.AddScoped<IClubMemberService, ClubMemberService>();
 
 var novaDbConnectionString = builder.Configuration.GetConnectionString("novadb");
 var tenantInterceptor = new TenantSaveChangesInterceptor();

@@ -59,8 +59,17 @@ For each changed file, verify:
 
 **Convention Compliance**
 - Does the code match the patterns in the relevant instruction file?
+- Are `[Inject]` properties replaced with primary constructor injection per `blazor-architecture.instructions.md`?
+- Are `CancellationToken.None` usages in Blazor components replaced with `ComponentCancellationToken` per `blazor-architecture.instructions.md`?
 - Does naming match existing patterns in the codebase?
 - Are there any style violations (use `problems` to catch these)?
+- Are all new C# types/members documented with XML docs per `csharp-conventions.instructions.md`?
+- Are primary constructors used for DI per `csharp-conventions.instructions.md`?
+- Are C# 14 extension blocks used for extension members and entity-to-DTO mappers per `csharp-conventions.instructions.md`?
+- Are new EF entities/relationships following multi-tenancy rules per `ef-core-tenancy.instructions.md`?
+- Are service methods returning `ServiceResult<T>` (boundary-crossing) or native OneOf (single-tier) per `service-layer.instructions.md`?
+- Are API handlers following `MapGroup` organization and `ServiceResult`-to-HTTP conversion patterns per `api-endpoints.instructions.md`?
+- Are OpenTelemetry/correlation conventions followed per `observability.instructions.md`?
 
 **Regressions**
 - Does any changed method break existing callers? (use `usages`)

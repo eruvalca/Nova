@@ -61,6 +61,26 @@ public static class ClubEndpoints
     public const string CancelJoinRequestRelative = "join-requests/{requestId:long}";
 
     /// <summary>
+    /// Relative route (within the clubs group) for listing the current club's members.
+    /// </summary>
+    public const string GetMembersRelative = "members";
+
+    /// <summary>
+    /// Absolute route for listing the current club's members.
+    /// </summary>
+    public const string GetMembers = "/api/clubs/members";
+
+    /// <summary>
+    /// Relative route (within the clubs group) for assigning ClubAdmin to a member.
+    /// </summary>
+    public const string AssignAdminRelative = "assign-admin";
+
+    /// <summary>
+    /// Absolute route for assigning ClubAdmin to a member.
+    /// </summary>
+    public const string AssignAdmin = "/api/clubs/assign-admin";
+
+    /// <summary>
     /// The full-document navigation endpoint that refreshes the auth cookie after club creation
     /// and redirects to the supplied return URL.
     /// </summary>
