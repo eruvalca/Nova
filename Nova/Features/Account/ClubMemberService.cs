@@ -100,8 +100,8 @@ public sealed partial class ClubMemberService(
         var result = await userManager.AddToRoleAsync(targetUser, Roles.ClubAdmin);
         if (!result.Succeeded)
         {
-            var errors2 = string.Join(", ", result.Errors.Select(e => e.Description));
-            return ServiceProblem.ServerError(errors2);
+            var roleErrors = string.Join(", ", result.Errors.Select(e => e.Description));
+            return ServiceProblem.ServerError(roleErrors);
         }
 
         LogAdminAssigned(input.TargetUserId, actorClubId, actorUserId);

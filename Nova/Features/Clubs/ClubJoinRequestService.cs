@@ -154,6 +154,9 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.Forbidden("You are not an administrator of this club.");
         }
 
+        // Use NovaAdminDbContext instead of the tenant-filtered read context because
+        // .Include(RequestingUser) would pull users outside the caller's tenant filter.
+        // Access is gated by RequireClubAdmin policy and the above in-method guard.
         await using var db = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var requests = await db.ClubJoinRequests
