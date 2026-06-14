@@ -11,8 +11,8 @@ public interface IClubMemberService
     Task<ServiceResult<IReadOnlyList<ClubMemberDto>>> GetClubMembersAsync(CancellationToken cancellationToken);
 
     /// <summary>Promotes the specified member of the current user's club to ClubAdmin.</summary>
-    /// <param name="targetUserId">The user to promote.</param>
+    /// <param name="input">The input containing the target user to promote.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns><see langword="true"/> on success, or a failure result.</returns>
-    Task<ServiceResult<bool>> AssignClubAdminAsync(long targetUserId, CancellationToken cancellationToken);
+    Task<ServiceResult<bool>> AssignClubAdminAsync(AssignAdminInput input, CancellationToken cancellationToken);
 }

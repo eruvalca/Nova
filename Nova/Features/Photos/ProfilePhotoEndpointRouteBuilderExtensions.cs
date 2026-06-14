@@ -34,10 +34,11 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
             // but without a Razor antiforgery token; SameSite=Lax on the Identity cookie
             // protects these JSON/multipart API posts from CSRF.
             group.MapPost(PhotoEndpoints.UploadRelative, UploadHandler)
-                .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
+                .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableValidation()
                 .DisableAntiforgery()
                 .WithName("UploadProfilePhoto");
 

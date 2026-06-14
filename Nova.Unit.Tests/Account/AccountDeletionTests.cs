@@ -222,8 +222,8 @@ public class AccountDeletionTests
     public void AssignAdminInput_EqualsOtherInstance_WithSameValues()
     {
         // Arrange
-        var input1 = new AssignAdminInput(TargetUserId: 100);
-        var input2 = new AssignAdminInput(TargetUserId: 100);
+        var input1 = new AssignAdminInput { TargetUserId = 100 };
+        var input2 = new AssignAdminInput { TargetUserId = 100 };
 
         // Act & Assert
         input1.ShouldBe(input2);
@@ -234,8 +234,8 @@ public class AccountDeletionTests
     public void AssignAdminInput_NotEqualsOtherInstance_WithDifferentTargetUserId()
     {
         // Arrange
-        var input1 = new AssignAdminInput(TargetUserId: 100);
-        var input2 = new AssignAdminInput(TargetUserId: 200);
+        var input1 = new AssignAdminInput { TargetUserId = 100 };
+        var input2 = new AssignAdminInput { TargetUserId = 200 };
 
         // Act & Assert
         input1.ShouldNotBe(input2);
@@ -243,20 +243,10 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void AssignAdminInput_PositionalConstruction_Works()
-    {
-        // Arrange & Act
-        var input = new AssignAdminInput(55);
-
-        // Assert
-        input.TargetUserId.ShouldBe(55);
-    }
-
-    [Fact]
     public void AssignAdminInput_ValidationPasses_WhenTargetUserIdIsZero_BecauseRequiredIsContractMarkerOnly()
     {
         // Arrange
-        var input = new AssignAdminInput(TargetUserId: 0);
+        var input = new AssignAdminInput { TargetUserId = 0 };
         var context = new ValidationContext(input, null, null);
         var results = new List<ValidationResult>();
 
@@ -274,7 +264,7 @@ public class AccountDeletionTests
     public void AssignAdminInput_ValidationSucceeds_WhenTargetUserIdIsNonZero()
     {
         // Arrange
-        var input = new AssignAdminInput(TargetUserId: 1);
+        var input = new AssignAdminInput { TargetUserId = 1 };
         var context = new ValidationContext(input, null, null);
         var results = new List<ValidationResult>();
 
@@ -303,7 +293,7 @@ public class AccountDeletionTests
     public void AssignAdminInput_ValidationSucceeds_WhenTargetUserIdIsLargePositive()
     {
         // Arrange
-        var input = new AssignAdminInput(TargetUserId: 9876543210);
+        var input = new AssignAdminInput { TargetUserId = 9876543210 };
         var context = new ValidationContext(input, null, null);
         var results = new List<ValidationResult>();
 

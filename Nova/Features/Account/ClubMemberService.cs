@@ -7,6 +7,7 @@ using Nova.Extensions.Account;
 using Nova.Shared.Account;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
+using Nova.Shared.Validation;
 
 namespace Nova.Features.Account;
 
@@ -50,8 +51,14 @@ public sealed partial class ClubMemberService(
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<bool>> AssignClubAdminAsync(long targetUserId, CancellationToken cancellationToken = default)
+    public async Task<ServiceResult<bool>> AssignClubAdminAsync(AssignAdminInput input, CancellationToken cancellationToken = default)
     {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
+
         // Get current user ID and club ID
         if (currentUserProvider.UserId is not long actorUserId)
         {
@@ -69,7 +76,7 @@ public sealed partial class ClubMemberService(
         }
 
         // Load target user
-        var targetUser = await userManager.FindByIdAsync(targetUserId.ToString());
+        var targetUser = await userManager.FindByIdAsync(input.TargetUserId.ToString());
         if (targetUser is null)
         {
             return ServiceProblem.NotFound("The specified member was not found.");
@@ -78,7 +85,7 @@ public sealed partial class ClubMemberService(
         // Verify target is in the same club
         if (targetUser.ClubId != actorClubId)
         {
-            LogAssignRejected(targetUserId, actorClubId);
+            LogAssignRejected(input.TargetUserId, actorClubId);
             return ServiceProblem.Forbidden("The specified user is not a member of your club.");
         }
 
@@ -93,11 +100,11 @@ public sealed partial class ClubMemberService(
         var result = await userManager.AddToRoleAsync(targetUser, Roles.ClubAdmin);
         if (!result.Succeeded)
         {
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            return ServiceProblem.ServerError(errors);
+            var roleErrors = string.Join(", ", result.Errors.Select(e => e.Description));
+            return ServiceProblem.ServerError(roleErrors);
         }
 
-        LogAdminAssigned(targetUserId, actorClubId, actorUserId);
+        LogAdminAssigned(input.TargetUserId, actorClubId, actorUserId);
         return true;
     }
 

@@ -1,12 +1,12 @@
 .profile-photo-cropper-frame {
-    max-height: 480px;
+    max-height: 30rem;
     overflow: hidden;
 }
 
 ::deep .profile-photo-cropper {
     display: block;
     max-width: 100%;
-    max-height: 480px;
+    max-height: 30rem;
 }
 
 ::deep .cropper-view-box {
@@ -21,7 +21,7 @@
 }
 
 .profile-photo-current {
-    width: 160px;
-    height: 160px;
+    width: 10rem;
+    height: 10rem;
     object-fit: cover;
 }

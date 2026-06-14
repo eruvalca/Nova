@@ -233,7 +233,7 @@ public class ClubMemberServiceTests : IDisposable
         var service = CreateService();
 
         // Act
-        var result = await service.AssignClubAdminAsync(Member1UserId, TestContext.Current.CancellationToken);
+        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
 
         // Assert
         result.IsProblem.ShouldBeTrue();
@@ -249,7 +249,7 @@ public class ClubMemberServiceTests : IDisposable
         var service = CreateService();
 
         // Act
-        var result = await service.AssignClubAdminAsync(Member1UserId, TestContext.Current.CancellationToken);
+        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
 
         // Assert
         result.IsProblem.ShouldBeTrue();
@@ -266,7 +266,7 @@ public class ClubMemberServiceTests : IDisposable
         var service = CreateService();
 
         // Act
-        var result = await service.AssignClubAdminAsync(NonExistentUserId, TestContext.Current.CancellationToken);
+        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = NonExistentUserId }, TestContext.Current.CancellationToken);
 
         // Assert
         result.IsProblem.ShouldBeTrue();
@@ -283,7 +283,7 @@ public class ClubMemberServiceTests : IDisposable
         var service = CreateService();
 
         // Act
-        var result = await service.AssignClubAdminAsync(ClubBAdminUserId, TestContext.Current.CancellationToken);
+        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = ClubBAdminUserId }, TestContext.Current.CancellationToken);
 
         // Assert
         result.IsProblem.ShouldBeTrue();
@@ -323,7 +323,7 @@ public class ClubMemberServiceTests : IDisposable
             _mockLogger);
 
         // Act
-        var result = await service.AssignClubAdminAsync(Member1UserId, TestContext.Current.CancellationToken);
+        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
@@ -365,7 +365,7 @@ public class ClubMemberServiceTests : IDisposable
             _mockLogger);
 
         // Act
-        var result = await service.AssignClubAdminAsync(Member1UserId, TestContext.Current.CancellationToken);
+        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
@@ -409,7 +409,7 @@ public class ClubMemberServiceTests : IDisposable
             _mockLogger);
 
         // Act
-        var result = await service.AssignClubAdminAsync(Member1UserId, TestContext.Current.CancellationToken);
+        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
 
         // Assert
         result.IsProblem.ShouldBeTrue();

@@ -32,7 +32,7 @@ internal static class ServiceResultExtensions
         /// </summary>
         public IResult ToHttpResult()
         {
-            var traceId = Activity.Current?.TraceId.ToString() ?? "";
+            var traceId = Activity.Current?.TraceId.ToString() ?? string.Empty;
             var extensions = string.IsNullOrEmpty(traceId) ? null : new Dictionary<string, object?> { ["traceId"] = traceId };
 
             return problem.Kind switch

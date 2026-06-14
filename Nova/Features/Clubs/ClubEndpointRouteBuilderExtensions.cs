@@ -104,7 +104,6 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .Produces<IReadOnlyList<ClubMemberDto>>()
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
-                .DisableAntiforgery()
                 .RequireAuthorization(Policies.RequireClubMember)
                 .WithName("GetClubMembers");
 
@@ -251,7 +250,7 @@ internal static class ClubEndpointRouteBuilderExtensions
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
     {
-        var result = await clubMemberService.AssignClubAdminAsync(input.TargetUserId, cancellationToken);
+        var result = await clubMemberService.AssignClubAdminAsync(input, cancellationToken);
         return result.ToHttpResult();
     }
 
