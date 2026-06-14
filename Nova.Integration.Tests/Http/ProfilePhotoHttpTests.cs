@@ -117,10 +117,13 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
                 "the complete endpoint must be reachable at /Account/ProfilePhoto/Complete");
         }
 
-        // With the refreshed cookie carrying the HasProfilePhoto claim, the gate lets the user in.
+        // The photo gate no longer applies; the club onboarding gate now redirects instead.
         using (var home = await client.GetAsync("/", cancellationToken))
         {
-            home.StatusCode.ShouldBe(HttpStatusCode.OK, "the photo gate should no longer redirect");
+            home.StatusCode.ShouldBe(HttpStatusCode.Found,
+                "the photo gate should no longer redirect, but club onboarding gate now applies");
+            home.Headers.Location.ShouldNotBeNull();
+            home.Headers.Location.OriginalString.ShouldStartWith("/Clubs/Onboarding");
         }
     }
 

@@ -63,6 +63,11 @@ public sealed partial class ClubMemberService(
             return ServiceProblem.Forbidden("You must be a club member to assign club admin roles.");
         }
 
+        if (!currentUserProvider.IsClubAdmin)
+        {
+            return ServiceProblem.Forbidden("You must be a club admin to assign club admin roles.");
+        }
+
         // Load target user
         var targetUser = await userManager.FindByIdAsync(targetUserId.ToString());
         if (targetUser is null)

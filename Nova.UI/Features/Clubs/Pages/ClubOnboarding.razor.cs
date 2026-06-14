@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Nova.Shared.Clubs;
 using Nova.Shared.Results;
+using Nova.Shared.Security;
 
 namespace Nova.UI.Features.Clubs.Pages;
 
@@ -11,9 +13,11 @@ namespace Nova.UI.Features.Clubs.Pages;
 /// </summary>
 /// <param name="clubJoinRequestService">The service for club join request operations.</param>
 /// <param name="navigationManager">The navigation manager for full-document redirects.</param>
+/// <param name="authenticationStateProvider">The authentication state provider used to check current user claims.</param>
 public partial class ClubOnboarding(
     IClubJoinRequestService clubJoinRequestService,
-    NavigationManager navigationManager)
+    NavigationManager navigationManager,
+    AuthenticationStateProvider authenticationStateProvider)
 {
     /// <summary>
     /// Whether the page is currently loading initial data.
@@ -33,6 +37,14 @@ public partial class ClubOnboarding(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        // Club members must not access the onboarding page — redirect them to the home page.
+        var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.HasClaim(c => c.Type == NovaClaimTypes.ClubId))
+        {
+            navigationManager.NavigateTo("/", replace: true);
+            return;
+        }
+
         _loading = true;
         var result = await clubJoinRequestService.GetCurrentUserPendingRequestAsync(ComponentCancellationToken);
         result.Switch(

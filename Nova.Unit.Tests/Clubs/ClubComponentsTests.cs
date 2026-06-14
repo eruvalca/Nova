@@ -1,10 +1,13 @@
+using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Nova.Shared.Clubs;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
+using Nova.Shared.Security;
 using Nova.UI.Features.Clubs.Components;
 using Nova.UI.Features.Clubs.Pages;
 using OneOf.Types;
@@ -28,7 +31,9 @@ public class ClubComponentsTests : BunitContext
 
     /// <summary>
     /// Registers default mock implementations of <see cref="IClubService"/> and
-    /// <see cref="IClubJoinRequestService"/> into the test context's service container.
+    /// <see cref="IClubJoinRequestService"/> into the test context's service container,
+    /// and sets up a fake <see cref="AuthenticationStateProvider"/> representing an
+    /// authenticated user who has not yet joined a club.
     /// </summary>
     /// <param name="joinRequestService">Optional substitute; a default mock is created when <see langword="null"/>.</param>
     /// <param name="clubService">Optional substitute; a default mock is created when <see langword="null"/>.</param>
@@ -40,6 +45,15 @@ public class ClubComponentsTests : BunitContext
 
         Services.AddSingleton(joinRequestService);
         Services.AddSingleton(clubService);
+
+        // ClubOnboarding now injects AuthenticationStateProvider to guard against club members
+        // navigating back to the onboarding page. Register a fake that returns an authenticated
+        // user without a ClubId claim so the guard does not redirect during tests.
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "test-user")], "test");
+        var authState = new AuthenticationState(new ClaimsPrincipal(identity));
+        var fakeAuthProvider = Substitute.For<AuthenticationStateProvider>();
+        fakeAuthProvider.GetAuthenticationStateAsync().Returns(Task.FromResult(authState));
+        Services.AddSingleton(fakeAuthProvider);
     }
 
     #endregion

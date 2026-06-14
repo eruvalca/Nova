@@ -262,6 +262,7 @@ public class ClubMemberServiceTests : IDisposable
         // Arrange
         _harness.CurrentUser.UserId = ClubAdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
         var service = CreateService();
 
         // Act
@@ -278,6 +279,7 @@ public class ClubMemberServiceTests : IDisposable
         // Arrange
         _harness.CurrentUser.UserId = ClubAdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
         var service = CreateService();
 
         // Act
@@ -294,6 +296,7 @@ public class ClubMemberServiceTests : IDisposable
         // Arrange
         _harness.CurrentUser.UserId = ClubAdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
 
         var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
@@ -333,6 +336,7 @@ public class ClubMemberServiceTests : IDisposable
         // Arrange
         _harness.CurrentUser.UserId = ClubAdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
 
         var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
@@ -374,6 +378,7 @@ public class ClubMemberServiceTests : IDisposable
         // Arrange
         _harness.CurrentUser.UserId = ClubAdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
 
         var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
         var store = Substitute.For<IUserStore<NovaUserEntity>>();

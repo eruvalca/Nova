@@ -105,6 +105,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .DisableAntiforgery()
+                .RequireAuthorization(Policies.RequireClubMember)
                 .WithName("GetClubMembers");
 
             // Assign ClubAdmin to a member.
@@ -115,6 +116,7 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .DisableAntiforgery()
+                .RequireAuthorization(Policies.RequireClubAdmin)
                 .WithName("AssignClubAdmin");
 
             // Cookie refresh hop after club creation: reissues auth cookie so claims take effect.
