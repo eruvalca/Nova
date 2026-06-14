@@ -12,13 +12,14 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthenticationStateDeserialization();
+builder.Services.AddTransient<TraceParentPropagatingHandler>();
 builder.Services.AddScoped(sp =>
 {
-    var navigationManager = sp.GetRequiredService<NavigationManager>();
-
-    return new HttpClient(new TraceParentPropagatingHandler { InnerHandler = new HttpClientHandler() })
+    var handler = sp.GetRequiredService<TraceParentPropagatingHandler>();
+    handler.InnerHandler = new HttpClientHandler();
+    return new HttpClient(handler)
     {
-        BaseAddress = new Uri(navigationManager.BaseUri)
+        BaseAddress = new Uri(sp.GetRequiredService<NavigationManager>().BaseUri)
     };
 });
 

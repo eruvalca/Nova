@@ -74,6 +74,10 @@ public class ClubJoinRequestServiceTests : IDisposable
         readDbFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
             .Returns(x => Task.FromResult(_harness.CreateReadContext()));
 
+        var adminDbFactory = Substitute.For<IDbContextFactory<NovaAdminDbContext>>();
+        adminDbFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
+            .Returns(x => Task.FromResult(_harness.CreateAdminContext()));
+
         // Create a minimal ClubMembershipClaimRefresher with mocked dependencies
         // Use _userManager so the test can verify UpdateSecurityStampAsync calls
         _userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
@@ -92,6 +96,7 @@ public class ClubJoinRequestServiceTests : IDisposable
         return new ClubJoinRequestService(
             dbFactory,
             readDbFactory,
+            adminDbFactory,
             _harness.CurrentUser,
             realClaimRefresher,
             _userManager,

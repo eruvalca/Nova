@@ -18,6 +18,7 @@ namespace Nova.Features.Clubs;
 public sealed partial class ClubJoinRequestService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
+    IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ClubMembershipClaimRefresher clubMembershipClaimRefresher,
     UserManager<NovaUserEntity> userManager,
@@ -49,7 +50,7 @@ public sealed partial class ClubJoinRequestService(
     {
         if (currentUserProvider.UserId is not long userId)
         {
-            return ServiceProblem.ServerError("You must be signed in to submit a join request.");
+            return ServiceProblem.Forbidden("You must be signed in to submit a join request.");
         }
 
         // Check if user already belongs to a club
@@ -153,10 +154,9 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.Forbidden("You are not an administrator of this club.");
         }
 
-        await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var db = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var requests = await db.ClubJoinRequests
-            .IgnoreQueryFilters()
             .Include(e => e.Club)
             .Include(e => e.RequestingUser)
             .Where(e => e.ClubId == clubId && e.Status == RequestStatus.Pending)

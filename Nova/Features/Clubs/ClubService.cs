@@ -40,7 +40,7 @@ public sealed partial class ClubService(
         // Get current user ID
         if (currentUserProvider.UserId is not long userId)
         {
-            return ServiceProblem.ServerError("You must be signed in to create a club.");
+            return ServiceProblem.Forbidden("You must be signed in to create a club.");
         }
 
         try

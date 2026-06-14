@@ -28,10 +28,9 @@ public sealed class HttpClubMemberService(HttpClient http) : IClubMemberService
 
     /// <inheritdoc />
     public async Task<ServiceResult<bool>> AssignClubAdminAsync(
-        long targetUserId,
+        AssignAdminInput input,
         CancellationToken cancellationToken = default)
     {
-        var input = new AssignAdminInput(targetUserId);
         using var response = await http.PostAsJsonAsync(ClubEndpoints.AssignAdmin, input, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
