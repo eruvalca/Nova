@@ -1,23 +1,60 @@
-<div class="card border-warning">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span class="fw-semibold">Pending Join Request</span>
-        <span class="badge bg-warning text-dark">Pending</span>
+@if (_isApproved)
+{
+    <div class="card border-success">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">Join Request Approved</span>
+            <span class="badge bg-success">Approved</span>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-success" role="alert">
+                Your request was approved! Click below to join @(_approvedClubName ?? "your club").
+            </div>
+            <button class="btn btn-success" @onclick="HandleCompleteOnboarding">
+                Continue to @(_approvedClubName ?? "your club")
+            </button>
+        </div>
     </div>
-    <div class="card-body">
-        <p class="card-text">
-            <strong>Club:</strong> @Request.ClubName<br />
-            <strong>Requested:</strong> @Request.CreatedAt.LocalDateTime.ToString("MMMM d, yyyy")
-        </p>
-        <button class="btn btn-outline-danger" @onclick="HandleCancelAsync" disabled="@_cancelling">
-            @if (_cancelling)
+}
+else if (_isRejected)
+{
+    <div class="card border-warning">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">Join Request Not Approved</span>
+            <span class="badge bg-secondary">Rejected</span>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning" role="alert">
+                Your request was not approved.
+            </div>
+            <button class="btn btn-primary" @onclick="HandleSearchAgainAsync">
+                Search for another club
+            </button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card border-warning">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">Pending Join Request</span>
+            <span class="badge bg-warning text-dark">Pending</span>
+        </div>
+        <div class="card-body">
+            <p class="card-text">
+                <strong>Club:</strong> @Request.ClubName<br />
+                <strong>Requested:</strong> @Request.CreatedAt.LocalDateTime.ToString("MMMM d, yyyy")
+            </p>
+            <button class="btn btn-outline-danger" @onclick="HandleCancelAsync" disabled="@_cancelling">
+                @if (_cancelling)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                }
+                Cancel Request
+            </button>
+            @if (!string.IsNullOrEmpty(_error))
             {
-                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                <div class="alert alert-danger mt-3" role="alert">@_error</div>
             }
-            Cancel Request
-        </button>
-        @if (!string.IsNullOrEmpty(_error))
-        {
-            <div class="alert alert-danger mt-3" role="alert">@_error</div>
-        }
+        </div>
     </div>
-</div>
+}

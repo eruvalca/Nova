@@ -63,6 +63,126 @@ public class ClubEndpointsTests
     }
 
     [Fact]
+    public void AdminJoinRequestsUrl_BuildsCorrectUrl_WithClubId()
+    {
+        // Arrange
+        const long clubId = 42;
+
+        // Act
+        var url = ClubEndpoints.AdminJoinRequestsUrl(clubId);
+
+        // Assert
+        url.ShouldBe("/api/clubs/42/admin/join-requests");
+    }
+
+    [Fact]
+    public void AdminJoinRequestsUrl_BuildsCorrectUrl_WithLargeClubId()
+    {
+        // Arrange
+        const long clubId = 9876543210;
+
+        // Act
+        var url = ClubEndpoints.AdminJoinRequestsUrl(clubId);
+
+        // Assert
+        url.ShouldBe("/api/clubs/9876543210/admin/join-requests");
+    }
+
+    [Fact]
+    public void ApproveJoinRequestUrl_BuildsCorrectUrl_WithRequestId()
+    {
+        // Arrange
+        const long requestId = 7;
+
+        // Act
+        var url = ClubEndpoints.ApproveJoinRequestUrl(requestId);
+
+        // Assert
+        url.ShouldBe("/api/clubs/join-requests/7/approve");
+    }
+
+    [Fact]
+    public void ApproveJoinRequestUrl_BuildsCorrectUrl_WithLargeRequestId()
+    {
+        // Arrange
+        const long requestId = 1234567890;
+
+        // Act
+        var url = ClubEndpoints.ApproveJoinRequestUrl(requestId);
+
+        // Assert
+        url.ShouldBe("/api/clubs/join-requests/1234567890/approve");
+    }
+
+    [Fact]
+    public void RejectJoinRequestUrl_BuildsCorrectUrl_WithRequestId()
+    {
+        // Arrange
+        const long requestId = 7;
+
+        // Act
+        var url = ClubEndpoints.RejectJoinRequestUrl(requestId);
+
+        // Assert
+        url.ShouldBe("/api/clubs/join-requests/7/reject");
+    }
+
+    [Fact]
+    public void RejectJoinRequestUrl_BuildsCorrectUrl_WithLargeRequestId()
+    {
+        // Arrange
+        const long requestId = 1234567890;
+
+        // Act
+        var url = ClubEndpoints.RejectJoinRequestUrl(requestId);
+
+        // Assert
+        url.ShouldBe("/api/clubs/join-requests/1234567890/reject");
+    }
+
+    [Fact]
+    public void AdminJoinRequestsRelative_HasCorrectValue()
+    {
+        // Act & Assert
+        ClubEndpoints.AdminJoinRequestsRelative.ShouldBe("{clubId:long}/admin/join-requests");
+    }
+
+    [Fact]
+    public void ApproveJoinRequestRelative_HasCorrectValue()
+    {
+        // Act & Assert
+        ClubEndpoints.ApproveJoinRequestRelative.ShouldBe("join-requests/{requestId:long}/approve");
+    }
+
+    [Fact]
+    public void RejectJoinRequestRelative_HasCorrectValue()
+    {
+        // Act & Assert
+        ClubEndpoints.RejectJoinRequestRelative.ShouldBe("join-requests/{requestId:long}/reject");
+    }
+
+    [Fact]
+    public void GroupPrefix_HasNotChanged()
+    {
+        // Act & Assert
+        ClubEndpoints.GroupPrefix.ShouldBe("/api/clubs");
+    }
+
+    [Fact]
+    public void Complete_HasNotChanged()
+    {
+        // Act & Assert
+        ClubEndpoints.Complete.ShouldBe("/Clubs/Onboarding/Complete");
+    }
+
+    [Fact]
+    public void PendingRequest_HasNotChanged()
+    {
+        // Act & Assert
+        ClubEndpoints.PendingRequest.ShouldBe("/api/clubs/join-requests/pending");
+    }
+
+    [Fact]
     public void SearchUrl_ReturnsBaseUrl_WhenQueryIsNull()
     {
         // Arrange & Act
@@ -194,6 +314,7 @@ public class ClubEndpointsTests
             ClubId: 5,
             ClubName: "Manchester City",
             RequestingUserId: 99,
+            RequestingUserName: "Test User",
             Status: RequestStatus.Pending,
             CreatedAt: createdAt);
         var request2 = new ClubJoinRequestDto(
@@ -201,6 +322,7 @@ public class ClubEndpointsTests
             ClubId: 5,
             ClubName: "Manchester City",
             RequestingUserId: 99,
+            RequestingUserName: "Test User",
             Status: RequestStatus.Pending,
             CreatedAt: createdAt);
 
@@ -219,6 +341,7 @@ public class ClubEndpointsTests
             ClubId: 5,
             ClubName: "Manchester City",
             RequestingUserId: 99,
+            RequestingUserName: "Test User",
             Status: RequestStatus.Pending,
             CreatedAt: createdAt);
         var request2 = new ClubJoinRequestDto(
@@ -226,6 +349,7 @@ public class ClubEndpointsTests
             ClubId: 5,
             ClubName: "Manchester City",
             RequestingUserId: 99,
+            RequestingUserName: "Test User",
             Status: RequestStatus.Pending,
             CreatedAt: createdAt);
 
@@ -244,6 +368,7 @@ public class ClubEndpointsTests
             ClubId: 5,
             ClubName: "Manchester City",
             RequestingUserId: 99,
+            RequestingUserName: "Test User",
             Status: RequestStatus.Pending,
             CreatedAt: createdAt);
         var request2 = new ClubJoinRequestDto(
@@ -251,6 +376,7 @@ public class ClubEndpointsTests
             ClubId: 5,
             ClubName: "Manchester City",
             RequestingUserId: 99,
+            RequestingUserName: "Test User",
             Status: RequestStatus.Approved,
             CreatedAt: createdAt);
 
@@ -269,17 +395,19 @@ public class ClubEndpointsTests
             ClubId: 7,
             ClubName: "Arsenal FC",
             RequestingUserId: 88,
+            RequestingUserName: "Test User",
             Status: RequestStatus.Rejected,
             CreatedAt: createdAt);
 
         // Act
-        var (requestId, clubId, clubName, userId, status, created) = request;
+        var (requestId, clubId, clubName, userId, userName, status, created) = request;
 
         // Assert
         requestId.ShouldBe(42);
         clubId.ShouldBe(7);
         clubName.ShouldBe("Arsenal FC");
         userId.ShouldBe(88);
+        userName.ShouldBe("Test User");
         status.ShouldBe(RequestStatus.Rejected);
         created.ShouldBe(createdAt);
     }

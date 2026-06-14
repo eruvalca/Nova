@@ -5,6 +5,7 @@ using Nova.Entities;
 using Nova.Features.Shared;
 using Nova.Shared.Clubs;
 using Nova.Shared.Results;
+using Nova.Shared.Security;
 
 namespace Nova.Features.Clubs;
 
@@ -66,6 +67,36 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .DisableAntiforgery()
                 .WithName("CancelJoinRequest");
+
+            // List a specific club's pending join requests (ClubAdmin only).
+            group.MapGet(ClubEndpoints.AdminJoinRequestsRelative, GetClubJoinRequestsHandler)
+                .Produces<IReadOnlyList<ClubJoinRequestDto>>()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .RequireAuthorization(Policies.RequireClubAdmin)
+                .WithName("GetClubJoinRequests");
+
+            // Approve a pending join request (ClubAdmin only).
+            group.MapPost(ClubEndpoints.ApproveJoinRequestRelative, ApproveJoinRequestHandler)
+                .Produces(StatusCodes.Status204NoContent)
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .DisableAntiforgery()
+                .RequireAuthorization(Policies.RequireClubAdmin)
+                .WithName("ApproveJoinRequest");
+
+            // Reject a pending join request (ClubAdmin only).
+            group.MapPost(ClubEndpoints.RejectJoinRequestRelative, RejectJoinRequestHandler)
+                .Produces(StatusCodes.Status204NoContent)
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .DisableAntiforgery()
+                .RequireAuthorization(Policies.RequireClubAdmin)
+                .WithName("RejectJoinRequest");
 
             // Cookie refresh hop after club creation: reissues auth cookie so claims take effect.
             // Mapped at its absolute path, outside the API group.
@@ -134,6 +165,42 @@ internal static class ClubEndpointRouteBuilderExtensions
         CancellationToken cancellationToken)
     {
         var result = await joinRequestService.CancelJoinRequestAsync(requestId, cancellationToken);
+        return result.ToHttpResult(_ => TypedResults.NoContent());
+    }
+
+    /// <summary>
+    /// Handles listing a club's pending join requests (ClubAdmin only).
+    /// </summary>
+    private static async Task<IResult> GetClubJoinRequestsHandler(
+        long clubId,
+        IClubJoinRequestService joinRequestService,
+        CancellationToken cancellationToken)
+    {
+        var result = await joinRequestService.GetClubJoinRequestsAsync(clubId, cancellationToken);
+        return result.ToHttpResult();
+    }
+
+    /// <summary>
+    /// Handles approving a pending join request (ClubAdmin only).
+    /// </summary>
+    private static async Task<IResult> ApproveJoinRequestHandler(
+        long requestId,
+        IClubJoinRequestService joinRequestService,
+        CancellationToken cancellationToken)
+    {
+        var result = await joinRequestService.ApproveJoinRequestAsync(requestId, cancellationToken);
+        return result.ToHttpResult(_ => TypedResults.NoContent());
+    }
+
+    /// <summary>
+    /// Handles rejecting a pending join request (ClubAdmin only).
+    /// </summary>
+    private static async Task<IResult> RejectJoinRequestHandler(
+        long requestId,
+        IClubJoinRequestService joinRequestService,
+        CancellationToken cancellationToken)
+    {
+        var result = await joinRequestService.RejectJoinRequestAsync(requestId, cancellationToken);
         return result.ToHttpResult(_ => TypedResults.NoContent());
     }
 

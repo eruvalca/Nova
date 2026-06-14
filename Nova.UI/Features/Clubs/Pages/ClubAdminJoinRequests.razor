@@ -1,0 +1,61 @@
+@page "/Clubs/{ClubId:long}/admin/join-requests"
+@rendermode InteractiveAuto
+@attribute [Authorize(Policy = Policies.RequireClubAdmin)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Security
+
+<PageTitle>Join Requests</PageTitle>
+
+<div class="container py-4">
+    <h1 class="mb-4">Join Requests</h1>
+
+    @if (_loading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+    else if (_requests is null || _requests.Count == 0)
+    {
+        <p class="text-muted">No pending requests.</p>
+    }
+    else
+    {
+        <ul class="list-group">
+            @foreach (var request in _requests)
+            {
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-semibold">@request.RequestingUserName</div>
+                        <small class="text-muted">Requested @request.CreatedAt.LocalDateTime.ToString("MMMM d, yyyy")</small>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-success"
+                                @onclick="() => HandleApproveAsync(request.ClubJoinRequestId)"
+                                disabled="@(_processingRequestId == request.ClubJoinRequestId)">
+                            @if (_processingRequestId == request.ClubJoinRequestId)
+                            {
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            }
+                            else
+                            {
+                                <span>Approve</span>
+                            }
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => HandleRejectAsync(request.ClubJoinRequestId)"
+                                disabled="@(_processingRequestId == request.ClubJoinRequestId)">
+                            Reject
+                        </button>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</div>

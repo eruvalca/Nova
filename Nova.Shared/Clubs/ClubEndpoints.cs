@@ -61,6 +61,39 @@ public static class ClubEndpoints
     public const string CancelJoinRequestRelative = "join-requests/{requestId:long}";
 
     /// <summary>
+    /// The route template for listing a specific club's pending join requests (GET, ClubAdmin only).
+    /// Use <see cref="AdminJoinRequestsUrl"/> to build the URL.
+    /// </summary>
+    public const string AdminJoinRequests = "/api/clubs/{clubId:long}/admin/join-requests";
+
+    /// <summary>
+    /// The relative path for listing a club's pending join requests within the group.
+    /// </summary>
+    public const string AdminJoinRequestsRelative = "{clubId:long}/admin/join-requests";
+
+    /// <summary>
+    /// The route template for approving a pending join request (POST, ClubAdmin only).
+    /// Use <see cref="ApproveJoinRequestUrl"/> to build the URL.
+    /// </summary>
+    public const string ApproveJoinRequest = "/api/clubs/join-requests/{requestId:long}/approve";
+
+    /// <summary>
+    /// The relative path for approving a join request within the group.
+    /// </summary>
+    public const string ApproveJoinRequestRelative = "join-requests/{requestId:long}/approve";
+
+    /// <summary>
+    /// The route template for rejecting a pending join request (POST, ClubAdmin only).
+    /// Use <see cref="RejectJoinRequestUrl"/> to build the URL.
+    /// </summary>
+    public const string RejectJoinRequest = "/api/clubs/join-requests/{requestId:long}/reject";
+
+    /// <summary>
+    /// The relative path for rejecting a join request within the group.
+    /// </summary>
+    public const string RejectJoinRequestRelative = "join-requests/{requestId:long}/reject";
+
+    /// <summary>
     /// The full-document navigation endpoint that refreshes the auth cookie after club creation
     /// and redirects to the supplied return URL.
     /// </summary>
@@ -87,4 +120,25 @@ public static class ClubEndpoints
     /// <returns>The relative URL of the search endpoint.</returns>
     public static string SearchUrl(string? query) =>
         string.IsNullOrWhiteSpace(query) ? Search : $"{Search}?q={Uri.EscapeDataString(query)}";
+
+    /// <summary>
+    /// Builds the URL for listing a club's pending join requests.
+    /// </summary>
+    /// <param name="clubId">The id of the club.</param>
+    /// <returns>The relative URL of the admin join-requests endpoint.</returns>
+    public static string AdminJoinRequestsUrl(long clubId) => $"/api/clubs/{clubId}/admin/join-requests";
+
+    /// <summary>
+    /// Builds the URL for approving a specific join request.
+    /// </summary>
+    /// <param name="requestId">The id of the join request.</param>
+    /// <returns>The relative URL of the approve endpoint.</returns>
+    public static string ApproveJoinRequestUrl(long requestId) => $"/api/clubs/join-requests/{requestId}/approve";
+
+    /// <summary>
+    /// Builds the URL for rejecting a specific join request.
+    /// </summary>
+    /// <param name="requestId">The id of the join request.</param>
+    /// <returns>The relative URL of the reject endpoint.</returns>
+    public static string RejectJoinRequestUrl(long requestId) => $"/api/clubs/join-requests/{requestId}/reject";
 }
