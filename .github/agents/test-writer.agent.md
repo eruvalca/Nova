@@ -2,7 +2,7 @@
 name: test-writer
 description: "Writes comprehensive tests for already-implemented code. Covers happy paths, error paths, and edge cases. Always follows the testing conventions of the repository. Should only be invoked by the conductor after the implementer completes a phase — not directly by users."
 argument-hint: "Provide the files to test, the test file location, and any specific scenarios to cover."
-model: claude-haiku-4.5
+model: gpt-5.4-mini
 thinkingEffort: low
 user-invocable: false
 tools: [read, edit, execute, search, fileSearch, problems]

@@ -2,7 +2,7 @@
 name: researcher
 description: "Investigates specific questions by searching the codebase, documentation, and the web. Produces structured findings with citations. Should only be invoked by the conductor or planner — not directly by users."
 argument-hint: "State the specific question to investigate, why it matters, and what the deliverable should be."
-model: claude-haiku-4.5
+model: gpt-5.4-mini
 thinkingEffort: medium
 user-invocable: false
 tools: [read, search, web, fileSearch, usages, problems]

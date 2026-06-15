@@ -2,7 +2,7 @@
 name: implementer
 description: "Executes a specific implementation phase from an approved plan. Writes code to spec. Should only be invoked by the conductor — not directly by users."
 argument-hint: "Provide the phase objective, files list, method signatures, and verification command from the approved plan."
-model: claude-haiku-4.5
+model: gpt-5.4-mini
 thinkingEffort: low
 user-invocable: false
 tools: [read, edit, execute, search, fileSearch, problems]

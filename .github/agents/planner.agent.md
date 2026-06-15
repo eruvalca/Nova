@@ -2,13 +2,17 @@
 name: planner
 description: "Reads the codebase, researches context, confirms scope with the user, and writes detailed multi-phase implementation plans to plans/<name>.md. Use when a task is complex enough to require planning before implementation. The planner never modifies files other than its plan file."
 argument-hint: "Describe the feature or change you want to plan. I will research the codebase and produce a detailed phased plan."
-model: claude-opus-4.8
+model: gemini-3.1-pro-preview
 thinkingEffort: high
 tools: [read, edit, search, web, fileSearch, usages, problems, vscode/askQuestions, todo]
 handoffs:
   - label: "↩️ Return to Conductor"
     agent: conductor
     prompt: "Plan is complete and saved under plans/. Awaiting human approval before implementation begins."
+    send: false
+  - label: "🛡️ Critique This Plan"
+    agent: plan-critic
+    prompt: "Adversarially critique the plan file I just wrote (path above) before implementation. Attack executability, soundness, and scope. Tag every finding and end with your PLAN_VERDICT block."
     send: false
   - label: "🔬 Need More Research"
     agent: researcher
@@ -148,6 +152,8 @@ After writing the plan file:
 1. Return the plan file path and a short summary of the phases (do not paste the entire plan).
 2. If you were invoked directly by the user, use `askQuestions` to request approval: "Plan is ready for review at `plans/<name>.md`. Approve to begin implementation, or tell me which phase to revise."
 3. If you were invoked by the conductor, return the path to the conductor — the **conductor** owns the human approval gate and will not start implementation until the user approves.
+
+**Note on the plan-critic hardening loop (Deep/Ultra).** When the conductor runs you, it will route your plan through the **plan-critic** (an adversarial reviewer on a different model family) before it asks the user for approval. The critic may return `PLAN_NEEDS_REVISION` with `[BLOCKER]`/`[MAJOR]` findings; the conductor will hand those back to you to revise the plan file. Treat that feedback as a normal part of planning — revise the plan to clear every BLOCKER and MAJOR, then return the updated plan path. This loop runs at most twice, so make your first revision count: address the root cause of each finding, not just its surface symptom.
 
 ## Boundaries
 
