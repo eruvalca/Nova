@@ -5,7 +5,7 @@ using Shouldly;
 namespace Nova.Unit.Tests.Clubs;
 
 /// <summary>
-/// Tests for <see cref="ClubEndpoints"/> URL builders and <see cref="ClubDto"/>, 
+/// Tests for <see cref="ClubEndpoints"/> URL builders and <see cref="ClubDto"/>,
 /// <see cref="ClubJoinRequestDto"/>, and <see cref="CreateClubInput"/> record equality.
 /// </summary>
 public class ClubEndpointsTests
@@ -141,46 +141,34 @@ public class ClubEndpointsTests
     }
 
     [Fact]
-    public void AdminJoinRequestsRelative_HasCorrectValue()
-    {
+    public void AdminJoinRequestsRelative_HasCorrectValue() =>
         // Act & Assert
         ClubEndpoints.AdminJoinRequestsRelative.ShouldBe("{clubId:long}/admin/join-requests");
-    }
 
     [Fact]
-    public void ApproveJoinRequestRelative_HasCorrectValue()
-    {
+    public void ApproveJoinRequestRelative_HasCorrectValue() =>
         // Act & Assert
         ClubEndpoints.ApproveJoinRequestRelative.ShouldBe("join-requests/{requestId:long}/approve");
-    }
 
     [Fact]
-    public void RejectJoinRequestRelative_HasCorrectValue()
-    {
+    public void RejectJoinRequestRelative_HasCorrectValue() =>
         // Act & Assert
         ClubEndpoints.RejectJoinRequestRelative.ShouldBe("join-requests/{requestId:long}/reject");
-    }
 
     [Fact]
-    public void GroupPrefix_HasNotChanged()
-    {
+    public void GroupPrefix_HasNotChanged() =>
         // Act & Assert
         ClubEndpoints.GroupPrefix.ShouldBe("/api/clubs");
-    }
 
     [Fact]
-    public void Complete_HasNotChanged()
-    {
+    public void Complete_HasNotChanged() =>
         // Act & Assert
         ClubEndpoints.Complete.ShouldBe("/Clubs/Onboarding/Complete");
-    }
 
     [Fact]
-    public void PendingRequest_HasNotChanged()
-    {
+    public void PendingRequest_HasNotChanged() =>
         // Act & Assert
         ClubEndpoints.PendingRequest.ShouldBe("/api/clubs/join-requests/pending");
-    }
 
     [Fact]
     public void SearchUrl_ReturnsBaseUrl_WhenQueryIsNull()

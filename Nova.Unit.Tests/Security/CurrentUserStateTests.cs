@@ -103,8 +103,5 @@ public sealed class CurrentUserStateTests
     /// The null provider always reports <see cref="Anonymous"/>.
     /// </summary>
     [Fact]
-    public void NullCurrentUserProvider_ReturnsAnonymous()
-    {
-        new NullCurrentUserProvider().GetCurrentUserState().Value.ShouldBeOfType<Anonymous>();
-    }
+    public void NullCurrentUserProvider_ReturnsAnonymous() => new NullCurrentUserProvider().GetCurrentUserState().Value.ShouldBeOfType<Anonymous>();
 }

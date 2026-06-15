@@ -6,7 +6,7 @@ namespace Nova.Unit.Tests.Clubs;
 
 /// <summary>
 /// Tests for <see cref="CreateClubInput"/> validation using DataAnnotations attributes.
-/// 
+///
 /// Since CreateClubInput now uses explicit property syntax with attributes applied directly
 /// to the properties, InputValidator.Validate() correctly discovers and applies all validation
 /// rules ([Required], [NotWhitespace], [MaxLength]).
@@ -14,11 +14,9 @@ namespace Nova.Unit.Tests.Clubs;
 public class CreateClubInputValidationTests
 {
     [Fact]
-    public void CreateClubInput_IsSealed()
-    {
+    public void CreateClubInput_IsSealed() =>
         // Verify the record is sealed
         typeof(CreateClubInput).IsSealed.ShouldBeTrue();
-    }
 
     [Fact]
     public void CreateClubInput_HasNameProperty()

@@ -50,10 +50,7 @@ public sealed class TraceParentPropagatingHandler : DelegatingHandler
     /// <param name="spanId">The W3C span identifier.</param>
     /// <param name="flags">The W3C trace flags value.</param>
     /// <returns>A formatted W3C <c>traceparent</c> header value.</returns>
-    private static string CreateTraceParentValue(ActivityTraceId traceId, ActivitySpanId spanId, string flags)
-    {
-        return $"00-{traceId.ToHexString()}-{spanId.ToHexString()}-{flags}";
-    }
+    private static string CreateTraceParentValue(ActivityTraceId traceId, ActivitySpanId spanId, string flags) => $"00-{traceId.ToHexString()}-{spanId.ToHexString()}-{flags}";
 
     /// <summary>
     /// Creates a fallback W3C <c>traceparent</c> value when no activity can be created.

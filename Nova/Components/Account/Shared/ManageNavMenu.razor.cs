@@ -17,8 +17,5 @@ public partial class ManageNavMenu(SignInManager<NovaUserEntity> signInManager)
     /// <summary>
     /// Initializes the component by checking if external authentication schemes are available.
     /// </summary>
-    protected override async Task OnInitializedAsync()
-    {
-        hasExternalLogins = (await signInManager.GetExternalAuthenticationSchemesAsync()).Any();
-    }
+    protected override async Task OnInitializedAsync() => hasExternalLogins = (await signInManager.GetExternalAuthenticationSchemesAsync()).Any();
 }

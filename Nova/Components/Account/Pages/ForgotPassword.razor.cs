@@ -31,10 +31,7 @@ public partial class ForgotPassword(
     /// <summary>
     /// Initializes the component, ensuring the Input model is instantiated.
     /// </summary>
-    protected override void OnInitialized()
-    {
-        Input ??= new();
-    }
+    protected override void OnInitialized() => Input ??= new();
 
     /// <summary>
     /// Handles the form submission to send a password reset email if the email address is valid.

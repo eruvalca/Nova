@@ -150,18 +150,12 @@ public partial class PendingJoinRequestCard(
     /// <summary>
     /// Navigates (full document) to the onboarding completion endpoint so the new ClubId claim takes effect.
     /// </summary>
-    private void HandleCompleteOnboarding()
-    {
-        navigationManager.NavigateTo(ClubEndpoints.Complete + "?returnUrl=/", forceLoad: true);
-    }
+    private void HandleCompleteOnboarding() => navigationManager.NavigateTo(ClubEndpoints.Complete + "?returnUrl=/", forceLoad: true);
 
     /// <summary>
     /// Raises <see cref="OnSearchAgainRequested"/> so the parent returns to the search/create view.
     /// </summary>
-    private async Task HandleSearchAgainAsync()
-    {
-        await OnSearchAgainRequested.InvokeAsync();
-    }
+    private async Task HandleSearchAgainAsync() => await OnSearchAgainRequested.InvokeAsync();
 
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()

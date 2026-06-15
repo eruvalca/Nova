@@ -30,10 +30,7 @@ public partial class ClubDetail(
     private string? _error;
 
     /// <inheritdoc />
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadClubAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadClubAsync();
 
     /// <summary>
     /// Loads the club detail payload for the current route.
@@ -61,8 +58,5 @@ public partial class ClubDetail(
     /// <summary>
     /// Navigates to the access-denied page when authorization fails at the service boundary.
     /// </summary>
-    private void NavigateToAccessDenied()
-    {
-        navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
-    }
+    private void NavigateToAccessDenied() => navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
 }

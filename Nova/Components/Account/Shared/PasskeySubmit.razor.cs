@@ -55,8 +55,5 @@ public partial class PasskeySubmit(IAntiforgery antiforgery)
     /// <summary>
     /// Initializes the component by generating antiforgery tokens for the current HTTP context.
     /// </summary>
-    protected override void OnInitialized()
-    {
-        tokens = antiforgery.GetTokens(HttpContext);
-    }
+    protected override void OnInitialized() => tokens = antiforgery.GetTokens(HttpContext);
 }

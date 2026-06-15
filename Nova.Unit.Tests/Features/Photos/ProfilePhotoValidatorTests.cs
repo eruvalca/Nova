@@ -84,24 +84,15 @@ public class ProfilePhotoValidatorTests
     [Theory]
     [InlineData(new byte[] { 0xFF, 0xD8, 0xFF }, "image/jpeg")]
     [InlineData(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, "image/png")]
-    public void SniffContentType_DetectsFormat_FromMagicBytes(byte[] content, string expected)
-    {
-        ProfilePhotoValidator.SniffContentType(content).ShouldBe(expected);
-    }
+    public void SniffContentType_DetectsFormat_FromMagicBytes(byte[] content, string expected) => ProfilePhotoValidator.SniffContentType(content).ShouldBe(expected);
 
     [Fact]
-    public void SniffContentType_DetectsWebp_FromRiffHeader()
-    {
-        ProfilePhotoValidator.SniffContentType(WebpBytes).ShouldBe("image/webp");
-    }
+    public void SniffContentType_DetectsWebp_FromRiffHeader() => ProfilePhotoValidator.SniffContentType(WebpBytes).ShouldBe("image/webp");
 
     [Theory]
     [InlineData(new byte[0])]
     [InlineData(new byte[] { 0x00, 0x01, 0x02, 0x03 })]
-    public void SniffContentType_ReturnsNull_ForUnknownContent(byte[] content)
-    {
-        ProfilePhotoValidator.SniffContentType(content).ShouldBeNull();
-    }
+    public void SniffContentType_ReturnsNull_ForUnknownContent(byte[] content) => ProfilePhotoValidator.SniffContentType(content).ShouldBeNull();
 
     [Fact]
     public void SniffContentType_ReturnsNull_ForRiffThatIsNotWebp()

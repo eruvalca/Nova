@@ -209,8 +209,5 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     /// <summary>
     /// Navigates to the cancel URL to close the photo editor without saving.
     /// </summary>
-    private void CancelPhoto()
-    {
-        navigationManager.NavigateTo(CancelUrl ?? "/");
-    }
+    private void CancelPhoto() => navigationManager.NavigateTo(CancelUrl ?? "/");
 }

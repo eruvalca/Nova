@@ -75,8 +75,5 @@ public abstract class NovaComponentBase : ComponentBase, IAsyncDisposable
     /// <returns>
     /// A task that represents the asynchronous cleanup operation.
     /// </returns>
-    protected virtual ValueTask DisposeAsyncCore()
-    {
-        return ValueTask.CompletedTask;
-    }
+    protected virtual ValueTask DisposeAsyncCore() => ValueTask.CompletedTask;
 }

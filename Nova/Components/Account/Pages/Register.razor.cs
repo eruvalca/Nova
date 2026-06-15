@@ -49,10 +49,7 @@ error.Description))}";
     /// <summary>
     /// Initializes the registration form input model.
     /// </summary>
-    protected override void OnInitialized()
-    {
-        Input ??= new();
-    }
+    protected override void OnInitialized() => Input ??= new();
 
     /// <summary>
     /// Creates a new user account with the provided credentials and sends a confirmation email.

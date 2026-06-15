@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Nova.Shared.Clubs;
 using Nova.Shared.Results;
@@ -26,17 +26,35 @@ public partial class ClubOnboarding(
 
     /// <summary>
     /// The current user's pending join request, or <see langword="null"/> if none exists.
+    /// Persisted across the prerender → interactive handoff so the API is not called twice.
     /// </summary>
-    private ClubJoinRequestDto? _pendingRequest;
+    [PersistentState]
+    public ClubJoinRequestDto? PendingRequest { get; set; }
 
     /// <summary>
     /// An error message to display at the page level, or <see langword="null"/> when no error.
+    /// Persisted across the prerender → interactive handoff.
     /// </summary>
-    private string? _error;
+    [PersistentState]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Whether initial data has already been loaded during prerendering.
+    /// Persisted to prevent a duplicate API call when the interactive runtime attaches.
+    /// </summary>
+    [PersistentState]
+    public bool Initialized { get; set; }
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        // Skip the data fetch on the interactive pass — state was already loaded during prerender.
+        if (Initialized)
+        {
+            _loading = false;
+            return;
+        }
+
         // Club members must not access the onboarding page — redirect them to the home page.
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
         if (authState.User.HasClaim(c => c.Type == NovaClaimTypes.ClubId))
@@ -48,16 +66,17 @@ public partial class ClubOnboarding(
         _loading = true;
         var result = await clubJoinRequestService.GetCurrentUserPendingRequestAsync(ComponentCancellationToken);
         result.Switch(
-            dto => _pendingRequest = dto,
+            dto => PendingRequest = dto,
             problem =>
             {
                 // NotFound means no pending request — this is the expected empty state.
                 if (problem.Kind != ServiceProblemKind.NotFound)
                 {
-                    _error = problem.Detail ?? "Failed to load your request status. Please refresh and try again.";
+                    ErrorMessage = problem.Detail ?? "Failed to load your request status. Please refresh and try again.";
                 }
-                _pendingRequest = null;
+                PendingRequest = null;
             });
+        Initialized = true;
         _loading = false;
     }
 
@@ -66,10 +85,7 @@ public partial class ClubOnboarding(
     /// cookie-refresh endpoint so the new <c>nova:club_id</c> claim takes effect.
     /// </summary>
     /// <param name="club">The newly created club.</param>
-    private void HandleClubCreated(ClubDto club)
-    {
-        navigationManager.NavigateTo(ClubEndpoints.Complete + "?returnUrl=/", forceLoad: true);
-    }
+    private void HandleClubCreated(ClubDto club) => navigationManager.NavigateTo(ClubEndpoints.Complete + "?returnUrl=/", forceLoad: true);
 
     /// <summary>
     /// Handles a successfully submitted join request. Updates page state to show the
@@ -78,8 +94,8 @@ public partial class ClubOnboarding(
     /// <param name="dto">The created join request.</param>
     private void HandleJoinRequested(ClubJoinRequestDto dto)
     {
-        _pendingRequest = dto;
-        _error = null;
+        PendingRequest = dto;
+        ErrorMessage = null;
     }
 
     /// <summary>
@@ -87,8 +103,8 @@ public partial class ClubOnboarding(
     /// </summary>
     private void HandleRequestCancelled()
     {
-        _pendingRequest = null;
-        _error = null;
+        PendingRequest = null;
+        ErrorMessage = null;
     }
 
     /// <summary>
@@ -97,7 +113,7 @@ public partial class ClubOnboarding(
     /// </summary>
     private void HandleSearchAgain()
     {
-        _pendingRequest = null;
-        _error = null;
+        PendingRequest = null;
+        ErrorMessage = null;
     }
 }

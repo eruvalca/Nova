@@ -34,10 +34,7 @@ public partial class ResendEmailConfirmation(
     /// <summary>
     /// Initializes the component, ensuring the Input model is instantiated.
     /// </summary>
-    protected override void OnInitialized()
-    {
-        Input ??= new();
-    }
+    protected override void OnInitialized() => Input ??= new();
 
     /// <summary>
     /// Handles the form submission to resend the email confirmation link if the email address is valid.

@@ -430,51 +430,41 @@ public class HttpClubServicesTests
     /// Create endpoint constant has the expected value.
     /// </summary>
     [Fact]
-    public void ClubEndpoints_Create_HasCorrectValue()
-    {
+    public void ClubEndpoints_Create_HasCorrectValue() =>
         // Assert
         ClubEndpoints.Create.ShouldBe("/api/clubs");
-    }
 
     /// <summary>
     /// Search endpoint constant has the expected value.
     /// </summary>
     [Fact]
-    public void ClubEndpoints_Search_HasCorrectValue()
-    {
+    public void ClubEndpoints_Search_HasCorrectValue() =>
         // Assert
         ClubEndpoints.Search.ShouldBe("/api/clubs/search");
-    }
 
     /// <summary>
     /// PendingRequest endpoint constant has the correct value.
     /// </summary>
     [Fact]
-    public void ClubEndpoints_PendingRequest_HasCorrectValue()
-    {
+    public void ClubEndpoints_PendingRequest_HasCorrectValue() =>
         // Assert
         ClubEndpoints.PendingRequest.ShouldBe("/api/clubs/join-requests/pending");
-    }
 
     /// <summary>
     /// CreateJoinRequestTemplate has the expected value.
     /// </summary>
     [Fact]
-    public void ClubEndpoints_CreateJoinRequestTemplate_HasCorrectValue()
-    {
+    public void ClubEndpoints_CreateJoinRequestTemplate_HasCorrectValue() =>
         // Assert
         ClubEndpoints.CreateJoinRequestTemplate.ShouldBe("/api/clubs/{clubId:long}/join-requests");
-    }
 
     /// <summary>
     /// CancelJoinRequestTemplate has the expected value.
     /// </summary>
     [Fact]
-    public void ClubEndpoints_CancelJoinRequestTemplate_HasCorrectValue()
-    {
+    public void ClubEndpoints_CancelJoinRequestTemplate_HasCorrectValue() =>
         // Assert
         ClubEndpoints.CancelJoinRequestTemplate.ShouldBe("/api/clubs/join-requests/{requestId:long}");
-    }
 
     #endregion
 

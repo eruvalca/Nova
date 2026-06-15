@@ -41,10 +41,7 @@ public partial class ClubAdmin(
     private long? _processingRequestId;
 
     /// <inheritdoc />
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadRequestsAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadRequestsAsync();
 
     /// <summary>
     /// Loads (or reloads) the pending join requests for <see cref="ClubId"/>.
@@ -162,8 +159,5 @@ public partial class ClubAdmin(
     /// <summary>
     /// Navigates to the access-denied page when authorization fails at the service boundary.
     /// </summary>
-    private void NavigateToAccessDenied()
-    {
-        navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
-    }
+    private void NavigateToAccessDenied() => navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
 }

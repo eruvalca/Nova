@@ -24,8 +24,5 @@ public partial class ExternalLoginPicker(SignInManager<NovaUserEntity> signInMan
     /// <summary>
     /// Initializes the component by fetching the list of available external authentication schemes.
     /// </summary>
-    protected override async Task OnInitializedAsync()
-    {
-        externalLogins = (await signInManager.GetExternalAuthenticationSchemesAsync()).ToArray();
-    }
+    protected override async Task OnInitializedAsync() => externalLogins = (await signInManager.GetExternalAuthenticationSchemesAsync()).ToArray();
 }
