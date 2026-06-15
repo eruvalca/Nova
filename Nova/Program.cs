@@ -86,6 +86,7 @@ builder.AddAzureBlobContainerClient("profile-photos");
 builder.Services.AddScoped<IProfilePhotoService, ProfilePhotoService>();
 
 builder.Services.AddScoped<IClubService, ClubService>();
+builder.Services.AddScoped<IClubDetailService, ClubDetailService>();
 builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();
 builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
 builder.Services.AddScoped<IClubMemberService, ClubMemberService>();

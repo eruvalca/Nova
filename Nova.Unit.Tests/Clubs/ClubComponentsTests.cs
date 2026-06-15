@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
+using Nova.Shared.Account;
 using Nova.Shared.Clubs;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
@@ -21,6 +22,7 @@ namespace Nova.Unit.Tests.Clubs;
 /// - <see cref="CreateClubForm"/> component
 /// - <see cref="ClubSearchPanel"/> component
 /// - <see cref="PendingJoinRequestCard"/> component
+/// - <see cref="ClubDetail"/> page
 ///
 /// These tests verify component rendering, state management, user interactions, and navigation.
 /// xUnit creates a new class instance per test, so each test gets a fresh <see cref="TestContext"/>.
@@ -37,14 +39,18 @@ public class ClubComponentsTests : BunitContext
     /// </summary>
     /// <param name="joinRequestService">Optional substitute; a default mock is created when <see langword="null"/>.</param>
     /// <param name="clubService">Optional substitute; a default mock is created when <see langword="null"/>.</param>
+    /// <param name="clubDetailService">Optional substitute; a default mock is created when <see langword="null"/>.</param>
     private void SetupServices(IClubJoinRequestService? joinRequestService = null,
-        IClubService? clubService = null)
+        IClubService? clubService = null,
+        IClubDetailService? clubDetailService = null)
     {
         joinRequestService ??= Substitute.For<IClubJoinRequestService>();
         clubService ??= Substitute.For<IClubService>();
+        clubDetailService ??= Substitute.For<IClubDetailService>();
 
         Services.AddSingleton(joinRequestService);
         Services.AddSingleton(clubService);
+        Services.AddSingleton(clubDetailService);
 
         // ClubOnboarding now injects AuthenticationStateProvider to guard against club members
         // navigating back to the onboarding page. Register a fake that returns an authenticated
@@ -1196,10 +1202,10 @@ public class ClubComponentsTests : BunitContext
 
     #endregion
 
-    #region Phase 7: ClubAdminJoinRequests Page Tests
+    #region Phase 8: ClubAdmin Page Tests
 
     /// <summary>
-    /// Phase 7: ClubAdminJoinRequests loads and displays pending requests.
+    /// Phase 7: ClubAdmin loads and displays pending requests.
     /// Tests that OnInitializedAsync loads requests and shows them in the UI.
     /// </summary>
     [Fact]
@@ -1226,7 +1232,7 @@ public class ClubComponentsTests : BunitContext
         SetupServices(joinRequestService);
 
         // Act
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Assert
@@ -1237,7 +1243,7 @@ public class ClubComponentsTests : BunitContext
     }
 
     /// <summary>
-    /// Phase 7: ClubAdminJoinRequests shows "No pending requests" message when list is empty.
+    /// Phase 7: ClubAdmin shows "No pending requests" message when list is empty.
     /// Tests that OnInitializedAsync correctly handles empty request list.
     /// </summary>
     [Fact]
@@ -1253,7 +1259,7 @@ public class ClubComponentsTests : BunitContext
         SetupServices(joinRequestService);
 
         // Act
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Assert
@@ -1263,38 +1269,38 @@ public class ClubComponentsTests : BunitContext
     }
 
     /// <summary>
-    /// Phase 7: ClubAdminJoinRequests shows error message when service returns Forbidden.
+    /// Phase 7: ClubAdmin shows error message when service returns Forbidden.
     /// Tests error handling for unauthorized access (not a ClubAdmin).
     /// </summary>
     [Fact]
-    public void OnInitializedAsync_ShowsError_WhenServiceReturnsForbidden()
+    public void OnInitializedAsync_NavigatesToAccessDenied_WhenServiceReturnsForbidden()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
-        const string errorMessage = "Not authorized to view join requests for this club";
 
         joinRequestService.GetClubJoinRequestsAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<ClubJoinRequestDto>>(
-                ServiceProblem.Forbidden(errorMessage))));
+                ServiceProblem.Forbidden("Not authorized to view join requests for this club"))));
 
         SetupServices(joinRequestService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        var expectedUri = navigationManager.ToAbsoluteUri("/Account/AccessDenied").ToString();
 
         // Act
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Assert
-        cut.Markup.ShouldContain("alert-danger");
-        cut.Markup.ShouldContain(errorMessage);
-        cut.Markup.ShouldNotContain("spinner-border");
+        navigationManager.Uri.ShouldBe(expectedUri);
+        cut.Markup.ShouldNotContain("alert-danger");
     }
 
     /// <summary>
-    /// Phase 7: ClubAdminJoinRequests shows fallback error message when no detail provided.
+    /// Phase 7: ClubAdmin shows fallback error message when no detail provided.
     /// Tests that error handling gracefully handles missing error details.
     /// </summary>
     [Fact]
-    public void OnInitializedAsync_ShowsErrorFallback_WhenForbiddenHasNoDetail()
+    public void OnInitializedAsync_NavigatesToAccessDenied_WhenForbiddenHasNoDetail()
     {
         // Arrange
         var joinRequestService = Substitute.For<IClubJoinRequestService>();
@@ -1304,14 +1310,16 @@ public class ClubComponentsTests : BunitContext
                 ServiceProblem.Forbidden(null))));
 
         SetupServices(joinRequestService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        var expectedUri = navigationManager.ToAbsoluteUri("/Account/AccessDenied").ToString();
 
         // Act
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Assert
-        cut.Markup.ShouldContain("alert-danger");
-        cut.Markup.ShouldContain("Failed to load join requests. Please try again.");
+        navigationManager.Uri.ShouldBe(expectedUri);
+        cut.Markup.ShouldNotContain("alert-danger");
     }
 
     /// <summary>
@@ -1351,7 +1359,7 @@ public class ClubComponentsTests : BunitContext
 
         SetupServices(joinRequestService);
 
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Verify initial state shows the request
@@ -1403,7 +1411,7 @@ public class ClubComponentsTests : BunitContext
 
         SetupServices(joinRequestService);
 
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Act
@@ -1449,7 +1457,7 @@ public class ClubComponentsTests : BunitContext
 
         SetupServices(joinRequestService);
 
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Act
@@ -1461,6 +1469,47 @@ public class ClubComponentsTests : BunitContext
         // Assert
         cut.Markup.ShouldContain("alert-danger");
         cut.Markup.ShouldContain("Failed to approve the request. Please try again.");
+    }
+
+    /// <summary>
+    /// HandleApproveAsync navigates to access denied when approval returns Forbidden.
+    /// </summary>
+    [Fact]
+    public async Task HandleApproveAsync_NavigatesToAccessDenied_WhenApprovalReturnsForbidden()
+    {
+        // Arrange
+        var joinRequestService = Substitute.For<IClubJoinRequestService>();
+        var initialRequests = new List<ClubJoinRequestDto>
+        {
+            new(
+                1,
+                42,
+                "Test Club",
+                100,
+                "Test User",
+                RequestStatus.Pending,
+                DateTimeOffset.UtcNow
+            )
+        };
+
+        joinRequestService.GetClubJoinRequestsAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<ClubJoinRequestDto>>(initialRequests)));
+        joinRequestService.ApproveJoinRequestAsync(1L, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<Success>(ServiceProblem.Forbidden("Not authorized"))));
+
+        SetupServices(joinRequestService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        var expectedUri = navigationManager.ToAbsoluteUri("/Account/AccessDenied").ToString();
+
+        var cut = Render<ClubAdmin>(parameters =>
+            parameters.Add(p => p.ClubId, 42L));
+
+        // Act
+        cut.Find("button.btn-success").Click();
+        await cut.InvokeAsync(() => Task.Delay(100));
+
+        // Assert
+        navigationManager.Uri.ShouldBe(expectedUri);
     }
 
     /// <summary>
@@ -1499,7 +1548,7 @@ public class ClubComponentsTests : BunitContext
 
         SetupServices(joinRequestService);
 
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Verify initial state shows the request
@@ -1549,7 +1598,7 @@ public class ClubComponentsTests : BunitContext
 
         SetupServices(joinRequestService);
 
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Act
@@ -1595,7 +1644,7 @@ public class ClubComponentsTests : BunitContext
 
         SetupServices(joinRequestService);
 
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Act
@@ -1610,7 +1659,48 @@ public class ClubComponentsTests : BunitContext
     }
 
     /// <summary>
-    /// Phase 7: ClubAdminJoinRequests disables both Approve and Reject buttons while a request is being processed.
+    /// HandleRejectAsync navigates to access denied when rejection returns Forbidden.
+    /// </summary>
+    [Fact]
+    public async Task HandleRejectAsync_NavigatesToAccessDenied_WhenRejectionReturnsForbidden()
+    {
+        // Arrange
+        var joinRequestService = Substitute.For<IClubJoinRequestService>();
+        var initialRequests = new List<ClubJoinRequestDto>
+        {
+            new(
+                1,
+                42,
+                "Test Club",
+                100,
+                "Test User",
+                RequestStatus.Pending,
+                DateTimeOffset.UtcNow
+            )
+        };
+
+        joinRequestService.GetClubJoinRequestsAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<ClubJoinRequestDto>>(initialRequests)));
+        joinRequestService.RejectJoinRequestAsync(1L, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<Success>(ServiceProblem.Forbidden("Not authorized"))));
+
+        SetupServices(joinRequestService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        var expectedUri = navigationManager.ToAbsoluteUri("/Account/AccessDenied").ToString();
+
+        var cut = Render<ClubAdmin>(parameters =>
+            parameters.Add(p => p.ClubId, 42L));
+
+        // Act
+        cut.Find("button.btn-outline-danger").Click();
+        await cut.InvokeAsync(() => Task.Delay(100));
+
+        // Assert
+        navigationManager.Uri.ShouldBe(expectedUri);
+    }
+
+    /// <summary>
+    /// Phase 7: ClubAdmin disables both Approve and Reject buttons while a request is being processed.
     /// Tests that _processingRequestId disables both buttons for the in-flight request.
     /// </summary>
     [Fact]
@@ -1640,7 +1730,7 @@ public class ClubComponentsTests : BunitContext
 
         SetupServices(joinRequestService);
 
-        var cut = Render<ClubAdminJoinRequests>(parameters =>
+        var cut = Render<ClubAdmin>(parameters =>
             parameters.Add(p => p.ClubId, 42L));
 
         // Act — click Approve without completing the task
@@ -1660,6 +1750,174 @@ public class ClubComponentsTests : BunitContext
         // Cleanup
         tcs.SetResult(new ServiceResult<Success>(new Success()));
         await Task.Delay(50, Xunit.TestContext.Current.CancellationToken);
+    }
+
+    #endregion
+
+    #region ClubDetail Page Tests
+
+    /// <summary>
+    /// ClubDetail renders city and state when detail load succeeds.
+    /// </summary>
+    [Fact]
+    public void ClubDetail_RendersCityAndState_WhenDetailLoads()
+    {
+        // Arrange
+        var clubDetailService = Substitute.For<IClubDetailService>();
+        var detail = new ClubDetailDto(
+            42,
+            "Test Club",
+            "Austin",
+            "TX",
+            [],
+            false);
+        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
+
+        SetupServices(clubDetailService: clubDetailService);
+
+        // Act
+        var cut = Render<ClubDetail>(parameters =>
+            parameters.Add(p => p.ClubId, 42L));
+
+        // Assert
+        cut.Markup.ShouldContain("Austin, TX");
+    }
+
+    /// <summary>
+    /// ClubDetail renders member roster and current-user indicator when roster includes current user.
+    /// </summary>
+    [Fact]
+    public void ClubDetail_RendersRosterAndCurrentUserIndicator_WhenMembersAreLoaded()
+    {
+        // Arrange
+        var clubDetailService = Substitute.For<IClubDetailService>();
+        var detail = new ClubDetailDto(
+            42,
+            "Test Club",
+            "Austin",
+            "TX",
+            [
+                new ClubRosterMemberDto(100, "Alice Admin", true),
+                new ClubRosterMemberDto(101, "Bob Member", false)
+            ],
+            false);
+        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
+
+        SetupServices(clubDetailService: clubDetailService);
+
+        // Act
+        var cut = Render<ClubDetail>(parameters =>
+            parameters.Add(p => p.ClubId, 42L));
+
+        // Assert
+        cut.Markup.ShouldContain("Alice Admin");
+        cut.Markup.ShouldContain("Bob Member");
+        cut.Markup.ShouldContain("Current user (You)");
+    }
+
+    /// <summary>
+    /// ClubDetail shows admin link when current user is club admin.
+    /// </summary>
+    [Fact]
+    public void ClubDetail_ShowsAdminLink_WhenCurrentUserIsClubAdmin()
+    {
+        // Arrange
+        var clubDetailService = Substitute.For<IClubDetailService>();
+        var detail = new ClubDetailDto(
+            42,
+            "Test Club",
+            "Austin",
+            "TX",
+            [],
+            true);
+        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
+
+        SetupServices(clubDetailService: clubDetailService);
+
+        // Act
+        var cut = Render<ClubDetail>(parameters =>
+            parameters.Add(p => p.ClubId, 42L));
+
+        // Assert
+        cut.Markup.ShouldContain("Manage Join Requests");
+        cut.Markup.ShouldContain("/Clubs/42/admin");
+    }
+
+    /// <summary>
+    /// ClubDetail hides admin link when current user is not a club admin.
+    /// </summary>
+    [Fact]
+    public void ClubDetail_HidesAdminLink_WhenCurrentUserIsNotClubAdmin()
+    {
+        // Arrange
+        var clubDetailService = Substitute.For<IClubDetailService>();
+        var detail = new ClubDetailDto(
+            42,
+            "Test Club",
+            "Austin",
+            "TX",
+            [],
+            false);
+        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
+
+        SetupServices(clubDetailService: clubDetailService);
+
+        // Act
+        var cut = Render<ClubDetail>(parameters =>
+            parameters.Add(p => p.ClubId, 42L));
+
+        // Assert
+        cut.Markup.ShouldNotContain("Manage Join Requests");
+    }
+
+    /// <summary>
+    /// ClubDetail navigates to access denied when service returns Forbidden.
+    /// </summary>
+    [Fact]
+    public void ClubDetail_NavigatesToAccessDenied_WhenServiceReturnsForbidden()
+    {
+        // Arrange
+        var clubDetailService = Substitute.For<IClubDetailService>();
+        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(ServiceProblem.Forbidden("Not authorized"))));
+
+        SetupServices(clubDetailService: clubDetailService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        var expectedUri = navigationManager.ToAbsoluteUri("/Account/AccessDenied").ToString();
+
+        // Act
+        Render<ClubDetail>(parameters =>
+            parameters.Add(p => p.ClubId, 42L));
+
+        // Assert
+        navigationManager.Uri.ShouldBe(expectedUri);
+    }
+
+    /// <summary>
+    /// ClubDetail displays non-forbidden service errors.
+    /// </summary>
+    [Fact]
+    public void ClubDetail_ShowsErrorMessage_WhenServiceReturnsNonForbiddenError()
+    {
+        // Arrange
+        var clubDetailService = Substitute.For<IClubDetailService>();
+        const string errorMessage = "Club details are unavailable right now";
+        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(ServiceProblem.ServerError(errorMessage))));
+
+        SetupServices(clubDetailService: clubDetailService);
+
+        // Act
+        var cut = Render<ClubDetail>(parameters =>
+            parameters.Add(p => p.ClubId, 42L));
+
+        // Assert
+        cut.Markup.ShouldContain("alert-danger");
+        cut.Markup.ShouldContain(errorMessage);
     }
 
     #endregion

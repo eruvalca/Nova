@@ -85,7 +85,6 @@ csharp_style_unused_value_expression_statement_preference = discard_variable:sug
 csharp_style_unused_value_assignment_preference = discard_variable:suggestion
 
 #### .NET style rules ####
-dotnet_style_require_accessibility_modifiers = always:warning
 dotnet_style_readonly_field = true:suggestion
 dotnet_style_explicit_tuple_names = true:warning
 dotnet_style_prefer_auto_properties = true:suggestion

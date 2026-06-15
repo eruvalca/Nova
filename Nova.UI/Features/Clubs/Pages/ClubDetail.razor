@@ -1,0 +1,55 @@
+@page "/Clubs/{ClubId:long}"
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Security
+
+<PageTitle>@(_club?.Name ?? "Club Details")</PageTitle>
+
+<div class="container py-4">
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+    else if (_club is null)
+    {
+        <div class="alert alert-warning" role="alert">
+            Club details are currently unavailable.
+        </div>
+    }
+    else
+    {
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+            <div>
+                <h1 class="mb-1">@_club.Name</h1>
+                <p class="text-muted mb-0">@_club.City, @_club.State</p>
+            </div>
+            @if (_club.IsCurrentUserClubAdmin)
+            {
+                <a class="btn btn-outline-primary" href="@($"/Clubs/{ClubId}/admin")">
+                    Manage Join Requests
+                </a>
+            }
+        </div>
+
+        <h2 class="h4">Members</h2>
+        @if (_club.Members.Count == 0)
+        {
+            <p class="text-muted">No members found.</p>
+        }
+        else
+        {
+            <ul class="list-group">
+                @foreach (var member in _club.Members)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>@member.FullName</span>
+                        @if (member.IsCurrentUser)
+                        {
+                            <span class="fw-semibold">Current user (You)</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    }
+</div>

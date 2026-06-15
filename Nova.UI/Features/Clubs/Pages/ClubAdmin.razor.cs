@@ -1,14 +1,18 @@
 using Microsoft.AspNetCore.Components;
 using Nova.Shared.Clubs;
+using Nova.Shared.Results;
 
 namespace Nova.UI.Features.Clubs.Pages;
 
 /// <summary>
-/// ClubAdmin page that lists the pending join requests for a club and lets the admin
-/// approve or reject each one.
+/// Club admin page that lists pending join requests for a club and lets admins approve
+/// or reject each one.
 /// </summary>
 /// <param name="clubJoinRequestService">The service for club join request operations.</param>
-public partial class ClubAdminJoinRequests(IClubJoinRequestService clubJoinRequestService)
+/// <param name="navigationManager">The navigation manager used for access-denied redirects.</param>
+public partial class ClubAdmin(
+    IClubJoinRequestService clubJoinRequestService,
+    NavigationManager navigationManager)
 {
     /// <summary>
     /// The id of the club whose pending requests are shown. Bound from the route.
@@ -45,15 +49,32 @@ public partial class ClubAdminJoinRequests(IClubJoinRequestService clubJoinReque
     /// <summary>
     /// Loads (or reloads) the pending join requests for <see cref="ClubId"/>.
     /// </summary>
+    /// <returns>A task that completes once loading has finished.</returns>
     private async Task LoadRequestsAsync()
     {
         _loading = true;
         _error = null;
 
         var result = await clubJoinRequestService.GetClubJoinRequestsAsync(ClubId, ComponentCancellationToken);
+        var shouldReturn = false;
         result.Switch(
             requests => _requests = requests,
-            problem => _error = problem.Detail ?? "Failed to load join requests. Please try again.");
+            problem =>
+            {
+                if (problem.Kind == ServiceProblemKind.Forbidden)
+                {
+                    NavigateToAccessDenied();
+                    shouldReturn = true;
+                    return;
+                }
+
+                _error = problem.Detail ?? "Failed to load join requests. Please try again.";
+            });
+
+        if (shouldReturn)
+        {
+            return;
+        }
 
         _loading = false;
     }
@@ -62,18 +83,35 @@ public partial class ClubAdminJoinRequests(IClubJoinRequestService clubJoinReque
     /// Approves the specified request, then reloads the list.
     /// </summary>
     /// <param name="requestId">The id of the request to approve.</param>
+    /// <returns>A task that completes once processing and optional reload are finished.</returns>
     private async Task HandleApproveAsync(long requestId)
     {
         _processingRequestId = requestId;
         _error = null;
 
         var succeeded = false;
+        var shouldReturn = false;
         var result = await clubJoinRequestService.ApproveJoinRequestAsync(requestId, ComponentCancellationToken);
         result.Switch(
             _ => succeeded = true,
-            problem => _error = problem.Detail ?? "Failed to approve the request. Please try again.");
+            problem =>
+            {
+                if (problem.Kind == ServiceProblemKind.Forbidden)
+                {
+                    NavigateToAccessDenied();
+                    shouldReturn = true;
+                    return;
+                }
+
+                _error = problem.Detail ?? "Failed to approve the request. Please try again.";
+            });
 
         _processingRequestId = null;
+
+        if (shouldReturn)
+        {
+            return;
+        }
 
         if (succeeded)
         {
@@ -85,22 +123,47 @@ public partial class ClubAdminJoinRequests(IClubJoinRequestService clubJoinReque
     /// Rejects the specified request, then reloads the list.
     /// </summary>
     /// <param name="requestId">The id of the request to reject.</param>
+    /// <returns>A task that completes once processing and optional reload are finished.</returns>
     private async Task HandleRejectAsync(long requestId)
     {
         _processingRequestId = requestId;
         _error = null;
 
         var succeeded = false;
+        var shouldReturn = false;
         var result = await clubJoinRequestService.RejectJoinRequestAsync(requestId, ComponentCancellationToken);
         result.Switch(
             _ => succeeded = true,
-            problem => _error = problem.Detail ?? "Failed to reject the request. Please try again.");
+            problem =>
+            {
+                if (problem.Kind == ServiceProblemKind.Forbidden)
+                {
+                    NavigateToAccessDenied();
+                    shouldReturn = true;
+                    return;
+                }
+
+                _error = problem.Detail ?? "Failed to reject the request. Please try again.";
+            });
 
         _processingRequestId = null;
+
+        if (shouldReturn)
+        {
+            return;
+        }
 
         if (succeeded)
         {
             await LoadRequestsAsync();
         }
+    }
+
+    /// <summary>
+    /// Navigates to the access-denied page when authorization fails at the service boundary.
+    /// </summary>
+    private void NavigateToAccessDenied()
+    {
+        navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
     }
 }
