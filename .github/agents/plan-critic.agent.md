@@ -2,19 +2,19 @@
 name: plan-critic
 description: "Adversarially reviews a draft implementation plan for executability gaps, hidden risks, and unsound decomposition before any code is written. Returns tagged findings and a verdict. Should only be invoked by the conductor — not directly by users."
 argument-hint: "Provide the path to the plan file to critique plus the original objective, constraints, and success criteria."
-model: gpt-5.4
+model: claude-sonnet-4.6
 thinkingEffort: high
 user-invocable: false
 tools: [read, search, fileSearch, usages, web, problems]
 handoffs:
-  - label: "↩️ Return to Planner"
-    agent: planner
-    prompt: "Plan critique complete. See my VERDICT block above. Revise the plan to clear every [BLOCKER] and [MAJOR] finding, then return the updated plan to the conductor."
-    send: false
-  - label: "↩️ Report to Conductor"
-    agent: conductor
-    prompt: "Plan critique complete. See my VERDICT block above."
-    send: false
+    - label: "↩️ Return to Planner"
+      agent: planner
+      prompt: "Plan critique complete. See my VERDICT block above. Revise the plan to clear every [BLOCKER] and [MAJOR] finding, then return the updated plan to the conductor."
+      send: false
+    - label: "↩️ Report to Conductor"
+      agent: conductor
+      prompt: "Plan critique complete. See my VERDICT block above."
+      send: false
 ---
 
 # Plan-Critic — Adversarial Plan Hardener
@@ -33,7 +33,7 @@ entire run.
 ## Operating Context: Why You Exist
 
 This workflow spends a capable planner's reasoning up front so that cheap execution agents can
-run safely against an exact spec. The single most expensive failure mode is a plan that *looks*
+run safely against an exact spec. The single most expensive failure mode is a plan that _looks_
 done but is under-specified or unsound: the cheap implementer runs it, the reviewer/verifier
 reject it, and the per-phase revision loops burn tokens. You are the gate that catches that
 **before** the spend happens. Optimize for "would a low-capability model execute this phase
@@ -84,19 +84,19 @@ the wrong change is a `[BLOCKER]`.
 ### Axis C — Scope discipline
 
 - **Gold-plating:** phases or work beyond the stated objective — flag as waste.
-- **Missing out-of-scope declarations:** the plan should state what it is deliberately *not* doing.
+- **Missing out-of-scope declarations:** the plan should state what it is deliberately _not_ doing.
 - **Dependency creep:** new NuGet packages / services not justified by the objective.
 
 ## Step 3: Tag Every Finding
 
 Use exactly these severity tags (same scheme as the reviewer):
 
-| Tag | Meaning | Blocks plan approval? |
-|-----|---------|-----------------------|
-| `[BLOCKER]` | The plan is unexecutable or unsound as written — a cheap model would produce wrong/broken work | Yes |
-| `[MAJOR]` | Missing detail, missing phase, convention conflict, or un-verifiable criterion | Yes |
-| `[MINOR]` | Clarity or robustness improvement that won't cause failure | No |
-| `[NIT]` | Trivial wording/structure preference | No |
+| Tag         | Meaning                                                                                        | Blocks plan approval? |
+| ----------- | ---------------------------------------------------------------------------------------------- | --------------------- |
+| `[BLOCKER]` | The plan is unexecutable or unsound as written — a cheap model would produce wrong/broken work | Yes                   |
+| `[MAJOR]`   | Missing detail, missing phase, convention conflict, or un-verifiable criterion                 | Yes                   |
+| `[MINOR]`   | Clarity or robustness improvement that won't cause failure                                     | No                    |
+| `[NIT]`     | Trivial wording/structure preference                                                           | No                    |
 
 Format each finding with the plan location it refers to:
 
@@ -126,6 +126,7 @@ Summary: [one sentence — the headline judgment on plan readiness]
 ```
 
 Verdict rules:
+
 - `PLAN_APPROVED` — zero BLOCKERs and zero MAJORs. MINORs and NITs are acceptable; note them.
 - `PLAN_NEEDS_REVISION` — one or more BLOCKERs or MAJORs. The planner must revise and the
   conductor will re-run you (up to the conductor's loop cap).

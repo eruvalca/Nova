@@ -2,22 +2,33 @@
 name: planner
 description: "Reads the codebase, researches context, confirms scope with the user, and writes detailed multi-phase implementation plans to plans/<name>.md. Use when a task is complex enough to require planning before implementation. The planner never modifies files other than its plan file."
 argument-hint: "Describe the feature or change you want to plan. I will research the codebase and produce a detailed phased plan."
-model: gemini-3.1-pro-preview
+model: gpt-5.4
 thinkingEffort: high
-tools: [read, edit, search, web, fileSearch, usages, problems, vscode/askQuestions, todo]
+tools:
+    [
+        read,
+        edit,
+        search,
+        web,
+        fileSearch,
+        usages,
+        problems,
+        vscode/askQuestions,
+        todo,
+    ]
 handoffs:
-  - label: "↩️ Return to Conductor"
-    agent: conductor
-    prompt: "Plan is complete and saved under plans/. Awaiting human approval before implementation begins."
-    send: false
-  - label: "🛡️ Critique This Plan"
-    agent: plan-critic
-    prompt: "Adversarially critique the plan file I just wrote (path above) before implementation. Attack executability, soundness, and scope. Tag every finding and end with your PLAN_VERDICT block."
-    send: false
-  - label: "🔬 Need More Research"
-    agent: researcher
-    prompt: "I need additional research before I can finalize the plan. Investigate the topic described above."
-    send: false
+    - label: "↩️ Return to Conductor"
+      agent: conductor
+      prompt: "Plan is complete and saved under plans/. Awaiting human approval before implementation begins."
+      send: false
+    - label: "🛡️ Critique This Plan"
+      agent: plan-critic
+      prompt: "Adversarially critique the plan file I just wrote (path above) before implementation. Attack executability, soundness, and scope. Tag every finding and end with your PLAN_VERDICT block."
+      send: false
+    - label: "🔬 Need More Research"
+      agent: researcher
+      prompt: "I need additional research before I can finalize the plan. Investigate the topic described above."
+      send: false
 ---
 
 # Planner — Implementation Plan Author
@@ -64,6 +75,7 @@ Do **not** draft the plan until scope is fully understood. Treat an unasked ques
 ## Step 3: Identify Implementation Options (If Multiple Approaches Exist)
 
 For non-trivial tasks, present 2–3 implementation options with:
+
 - One sentence description of the approach
 - Pros (1–3 bullet points)
 - Cons (1–3 bullet points)
@@ -149,6 +161,7 @@ Leave Phase Summaries, Final Recap, and Deployment Plan as placeholders — they
 ## Step 5: Pause for Approval
 
 After writing the plan file:
+
 1. Return the plan file path and a short summary of the phases (do not paste the entire plan).
 2. If you were invoked directly by the user, use `askQuestions` to request approval: "Plan is ready for review at `plans/<name>.md`. Approve to begin implementation, or tell me which phase to revise."
 3. If you were invoked by the conductor, return the path to the conductor — the **conductor** owns the human approval gate and will not start implementation until the user approves.
