@@ -29,6 +29,33 @@ namespace Nova.Unit.Tests.Clubs;
 /// </summary>
 public class ClubComponentsTests : BunitContext
 {
+    private sealed class PersistedStateClubAdmin(
+        IClubJoinRequestService clubJoinRequestService,
+        NavigationManager navigationManager)
+        : ClubAdmin(clubJoinRequestService, navigationManager)
+    {
+        [Parameter]
+        public bool StartInitialized { get; set; }
+
+        [Parameter]
+        public IReadOnlyList<ClubJoinRequestDto>? PersistedRequests { get; set; }
+
+        [Parameter]
+        public string? PersistedErrorMessage { get; set; }
+
+        protected override Task OnInitializedAsync()
+        {
+            if (StartInitialized)
+            {
+                Initialized = true;
+                Requests = PersistedRequests;
+                ErrorMessage = PersistedErrorMessage;
+            }
+
+            return base.OnInitializedAsync();
+        }
+    }
+
     #region Helper Methods
 
     /// <summary>
@@ -1320,6 +1347,86 @@ public class ClubComponentsTests : BunitContext
         // Assert
         navigationManager.Uri.ShouldBe(expectedUri);
         cut.Markup.ShouldNotContain("alert-danger");
+    }
+
+    /// <summary>
+    /// Phase 8: ClubAdmin reuses persisted requests and avoids duplicate startup fetches.
+    /// </summary>
+    [Fact]
+    public void OnInitializedAsync_UsesPersistedRequests_WithoutDuplicateFetch()
+    {
+        // Arrange
+        var joinRequestService = Substitute.For<IClubJoinRequestService>();
+        var persistedRequests = new List<ClubJoinRequestDto>
+        {
+            new(
+                1,
+                42,
+                "Test Club",
+                100,
+                "Persisted User",
+                RequestStatus.Pending,
+                DateTimeOffset.UtcNow)
+        };
+
+        SetupServices(joinRequestService);
+
+        // Act
+        var cut = Render<PersistedStateClubAdmin>(parameters => parameters
+            .Add(p => p.ClubId, 42L)
+            .Add(p => p.StartInitialized, true)
+            .Add(p => p.PersistedRequests, persistedRequests));
+
+        // Assert
+        joinRequestService.DidNotReceiveWithAnyArgs().GetClubJoinRequestsAsync(default, default);
+        cut.Markup.ShouldContain("Persisted User");
+        cut.Markup.ShouldNotContain("spinner-border");
+        cut.Markup.ShouldNotContain("No pending requests");
+    }
+
+    /// <summary>
+    /// Phase 8: ClubAdmin safely renders an empty state when persisted Requests is null.
+    /// </summary>
+    [Fact]
+    public void OnInitializedAsync_ShowsNoPendingMessage_WhenPersistedRequestsIsNull()
+    {
+        // Arrange
+        var joinRequestService = Substitute.For<IClubJoinRequestService>();
+        SetupServices(joinRequestService);
+
+        // Act
+        var cut = Render<PersistedStateClubAdmin>(parameters => parameters
+            .Add(p => p.ClubId, 42L)
+            .Add(p => p.StartInitialized, true)
+            .Add(p => p.PersistedRequests, (IReadOnlyList<ClubJoinRequestDto>?)null));
+
+        // Assert
+        joinRequestService.DidNotReceiveWithAnyArgs().GetClubJoinRequestsAsync(default, default);
+        cut.Markup.ShouldContain("No pending requests");
+        cut.Markup.ShouldNotContain("alert-danger");
+    }
+
+    /// <summary>
+    /// Phase 8: ClubAdmin preserves shared error rendering when error state is persisted.
+    /// </summary>
+    [Fact]
+    public void OnInitializedAsync_ShowsPersistedErrorMessage_WithoutDuplicateFetch()
+    {
+        // Arrange
+        var joinRequestService = Substitute.For<IClubJoinRequestService>();
+        const string persistedError = "Unable to load join requests";
+        SetupServices(joinRequestService);
+
+        // Act
+        var cut = Render<PersistedStateClubAdmin>(parameters => parameters
+            .Add(p => p.ClubId, 42L)
+            .Add(p => p.StartInitialized, true)
+            .Add(p => p.PersistedErrorMessage, persistedError));
+
+        // Assert
+        joinRequestService.DidNotReceiveWithAnyArgs().GetClubJoinRequestsAsync(default, default);
+        cut.Markup.ShouldContain("alert-danger");
+        cut.Markup.ShouldContain(persistedError);
     }
 
     /// <summary>

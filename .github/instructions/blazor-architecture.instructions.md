@@ -25,6 +25,16 @@ Build SSR-first; opt into interactivity only when functionality or UX requires i
 
 Interactive (Auto/WebAssembly) components must live in a project referenced by `Nova.Client` — i.e. `Nova.UI` or `Nova.Client` — never in `Nova`.
 
+## Prerendering and Persistent State
+
+Interactive render modes (`InteractiveAuto`, `InteractiveWebAssembly`, `InteractiveServer`) prerender by default. Plan component initialization for a prerender pass and a later interactive attach pass.
+
+- `OnInitializedAsync` runs during prerender and runs again after interactive attach unless state is restored.
+- Use `[PersistentState]` only on **public component properties** so state can be serialized/restored across prerender and attach.
+- For duplicate-fetch prevention, persist a boolean `Initialized` flag and check it at the top of `OnInitializedAsync`; if already initialized, return before loading data again.
+- Keep explicit reload/refetch helper methods for user-triggered refresh actions (button clicks, retry flows, etc.); the `Initialized` guard is only for startup duplication.
+- Keep this guidance separate from `ExcludeFromInteractiveRouting`: `ExcludeFromInteractiveRouting` controls routing/rendering behavior, not duplicate initialization or persisted component data.
+
 ## Feature Folder Organization
 
 Organize `Nova.UI` by feature, not by technical type:
@@ -53,6 +63,10 @@ Nova.UI/
 - **DI in code-behind**: prefer constructor injection with primary constructors in the `.razor.cs` file over `@inject`/`[Inject]` when possible. Constructor injection requires the component to be instantiated by DI-aware rendering (.NET 10 supports this); use `[Inject]` properties only when constructor injection is not viable (e.g., generated base-class constraints).
 - **Flow cancellation through async work**: pass `ComponentCancellationToken` to async operations (service methods, HTTP calls, EF/query calls exposed via services, delays, streams, etc.) so work stops promptly when the component is disposed.
 - **Extend disposal via `DisposeAsyncCore()`**: when component-specific async cleanup is needed, override `DisposeAsyncCore()` in the existing component inheritance chain instead of re-implementing `IAsyncDisposable` on the component.
+- **Use properties where the framework requires properties**: component `[Parameter]` members must be `public` properties with `public` setters, and `[PersistentState]` persists `public` properties.
+- **Don't mutate parameters directly for owned state**: if a child component needs to mutate parameter-derived state, do not write back to the `[Parameter]` property. Copy to private component state only on first load or when the incoming parameter value actually changes, then mutate that private state.
+- **Use fields for internal mutable UI state by default**: private fields are preferred for purely internal mutable state (`_loading`, `_error`, `_selectedId`, timers, `CancellationTokenSource`, etc.); Blazor doesn't gain reactivity from converting those values to properties.
+- **Use private/protected properties when accessors add value**: prefer properties for computed values, normalization, or when getter/setter logic improves clarity.
 - **Scoped styles**: component-specific CSS goes in `{Name}.razor.css` (CSS isolation). Do not add component-specific rules to global stylesheets.
 - Follow `.github/instructions/csharp-conventions.instructions.md` in code-behind files (XML docs, logging, OneOf, etc.).
 

@@ -1,4 +1,4 @@
-using Cropper.Blazor.Components;
+﻿using Cropper.Blazor.Components;
 using Cropper.Blazor.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -20,17 +20,17 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     /// <summary>
     /// The cropper component reference used to extract the cropped canvas.
     /// </summary>
-    private CropperComponent? cropper;
+    private CropperComponent? _cropper;
 
     /// <summary>
     /// The validation/processing error messages currently displayed.
     /// </summary>
-    private readonly List<string> errorMessages = [];
+    private readonly List<string> _errorMessages = [];
 
     /// <summary>
     /// The cropper options: square aspect ratio, circular crop indicator.
     /// </summary>
-    private readonly Options cropperOptions = new()
+    private readonly Options _cropperOptions = new()
     {
         AspectRatio = 1m,
         ViewMode = ViewMode.Vm1,
@@ -56,8 +56,17 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
 
     /// <summary>
     /// Gets the URL of the user's existing photo, or <see langword="null"/> when the user has none.
+    /// Persisted across the prerender → interactive handoff so the photo service is not called twice.
     /// </summary>
-    private string? ExistingPhotoUrl { get; set; }
+    [PersistentState]
+    public string? ExistingPhotoUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether initial data has already been loaded during prerendering.
+    /// Persisted to prevent a duplicate service call when the interactive runtime attaches.
+    /// </summary>
+    [PersistentState]
+    public bool Initialized { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether a file read or save operation is in progress.
@@ -72,10 +81,16 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        if (Initialized)
+        {
+            return;
+        }
+
         var result = await photoService.GetCurrentUserPhotoAsync(ComponentCancellationToken);
         ExistingPhotoUrl = result.Match<string?>(
             info => PhotoEndpoints.GetPhotoUrl(info.NovaUserId, ProfilePhotoSize.Medium),
             problem => null);
+        Initialized = true;
     }
 
     /// <summary>
@@ -85,18 +100,18 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     /// <returns>A task representing the operation.</returns>
     private async Task OnFileSelectedAsync(InputFileChangeEventArgs args)
     {
-        errorMessages.Clear();
+        _errorMessages.Clear();
         var file = args.File;
 
         if (file.Size > ProfilePhotoConstraints.MaxBytes)
         {
-            errorMessages.Add("The photo exceeds the maximum allowed size of 10 MB.");
+            _errorMessages.Add("The photo exceeds the maximum allowed size of 10 MB.");
             return;
         }
 
         if (!ProfilePhotoConstraints.AllowedContentTypes.Contains(file.ContentType, StringComparer.OrdinalIgnoreCase))
         {
-            errorMessages.Add("Only JPEG, PNG, and WebP images are allowed.");
+            _errorMessages.Add("Only JPEG, PNG, and WebP images are allowed.");
             return;
         }
 
@@ -110,7 +125,7 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
         }
         catch (IOException)
         {
-            errorMessages.Add("The photo could not be read. Please try a different file.");
+            _errorMessages.Add("The photo could not be read. Please try a different file.");
         }
         finally
         {
@@ -125,19 +140,19 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     /// <returns>A task representing the operation.</returns>
     private async Task SavePhotoAsync()
     {
-        if (cropper is null)
+        if (_cropper is null)
         {
             return;
         }
 
-        errorMessages.Clear();
+        _errorMessages.Clear();
         IsBusy = true;
         try
         {
             // Export as JPEG (universally supported by canvas) on a white background so
             // transparent source regions don't turn black. The background transfer streams
             // the image in chunks, which keeps SignalR messages small on server circuits.
-            var imageReceiver = await cropper.GetCroppedCanvasDataInBackgroundAsync(
+            var imageReceiver = await _cropper.GetCroppedCanvasDataInBackgroundAsync(
                 new GetCroppedCanvasOptions
                 {
                     MaxWidth = ProfilePhotoConstraints.LargeSize,
@@ -158,7 +173,7 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
 
             if (content.Length == 0)
             {
-                errorMessages.Add("The cropped image could not be processed. Please try again.");
+                _errorMessages.Add("The cropped image could not be processed. Please try again.");
                 return;
             }
 
@@ -179,15 +194,15 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
                 var problem = result.Problem;
                 if (problem.Errors is { Count: > 0 })
                 {
-                    errorMessages.AddRange(problem.Errors.Values.SelectMany(messages => messages));
+                    _errorMessages.AddRange(problem.Errors.Values.SelectMany(messages => messages));
                 }
                 else if (!string.IsNullOrEmpty(problem.Detail))
                 {
-                    errorMessages.Add(problem.Detail);
+                    _errorMessages.Add(problem.Detail);
                 }
                 else
                 {
-                    errorMessages.Add("The photo could not be saved. Please try again.");
+                    _errorMessages.Add("The photo could not be saved. Please try again.");
                 }
             }
         }
@@ -202,7 +217,7 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
     /// </summary>
     private void ChooseDifferentPhoto()
     {
-        errorMessages.Clear();
+        _errorMessages.Clear();
         ImageDataUrl = null;
     }
 

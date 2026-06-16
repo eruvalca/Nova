@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Nova.Shared.Account;
 using Nova.UI.Components;
 
@@ -15,23 +15,48 @@ public partial class AssignClubAdminPanel(IClubMemberService clubMemberService, 
     private long? _selectedUserId;
     private bool _loading = true;
     private bool _submitting;
-    private string? _error;
+    private string? _submitError;
+
+    /// <summary>
+    /// The current list of club members available for admin assignment.
+    /// Persisted across prerender → interactive attach to avoid duplicate initial fetch.
+    /// </summary>
+    [PersistentState]
+    public IReadOnlyList<ClubMemberDto> Members
+    {
+        get => _members;
+        set => _members = value ?? [];
+    }
+
+    /// <summary>
+    /// The initial-load error message shown when club members cannot be fetched.
+    /// Persisted across prerender → interactive attach.
+    /// </summary>
+    [PersistentState]
+    public string? Error { get; set; }
+
+    /// <summary>
+    /// Whether initial data has already been loaded during prerendering.
+    /// Persisted to prevent duplicate initial API calls after hydration.
+    /// </summary>
+    [PersistentState]
+    public bool Initialized { get; set; }
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        if (Initialized)
+        {
+            _loading = false;
+            return;
+        }
+
         var result = await clubMemberService.GetClubMembersAsync(ComponentCancellationToken);
         result.Switch(
-            members =>
-            {
-                _members = members;
-                _loading = false;
-            },
-            problem =>
-            {
-                _error = problem.Detail ?? "Failed to load club members.";
-                _loading = false;
-            });
+            members => Members = members,
+            problem => Error = problem.Detail ?? "Failed to load club members.");
+        Initialized = true;
+        _loading = false;
     }
 
     /// <summary>Handles the "Make this person a club admin" button click.</summary>
@@ -44,7 +69,7 @@ public partial class AssignClubAdminPanel(IClubMemberService clubMemberService, 
         }
 
         _submitting = true;
-        _error = null;
+        _submitError = null;
 
         var result = await clubMemberService.AssignClubAdminAsync(
             new AssignAdminInput { TargetUserId = _selectedUserId.Value },
@@ -53,7 +78,7 @@ public partial class AssignClubAdminPanel(IClubMemberService clubMemberService, 
             _ => navigationManager.Refresh(forceReload: true),
             problem =>
             {
-                _error = problem.Detail ?? "Failed to assign admin. Please try again.";
+                _submitError = problem.Detail ?? "Failed to assign admin. Please try again.";
                 _submitting = false;
             });
     }

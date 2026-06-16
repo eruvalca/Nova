@@ -17,18 +17,18 @@
             </div>
         </div>
     }
-    else if (!string.IsNullOrEmpty(_error))
+    else if (!string.IsNullOrEmpty(ErrorMessage))
     {
-        <div class="alert alert-danger" role="alert">@_error</div>
+        <div class="alert alert-danger" role="alert">@ErrorMessage</div>
     }
-    else if (_requests is null || _requests.Count == 0)
+    else if (RequestList.Count == 0)
     {
         <p class="text-muted">No pending requests.</p>
     }
     else
     {
         <ul class="list-group">
-            @foreach (var request in _requests)
+            @foreach (var request in RequestList)
             {
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <div>

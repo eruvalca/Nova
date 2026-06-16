@@ -21,9 +21,11 @@ public partial class ClubAdmin(
     public long ClubId { get; set; }
 
     /// <summary>
-    /// The current pending requests, or <see langword="null"/> before the first load.
+    /// The current pending requests.
+    /// Persisted across the prerender → interactive handoff so initial results are reused.
     /// </summary>
-    private IReadOnlyList<ClubJoinRequestDto>? _requests;
+    [PersistentState]
+    public IReadOnlyList<ClubJoinRequestDto>? Requests { get; set; }
 
     /// <summary>
     /// Whether the page is currently loading the request list.
@@ -32,8 +34,22 @@ public partial class ClubAdmin(
 
     /// <summary>
     /// A page-level error message, or <see langword="null"/> when no error.
+    /// Persisted across the prerender → interactive handoff.
     /// </summary>
-    private string? _error;
+    [PersistentState]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Whether initial data has already been loaded during prerendering.
+    /// Persisted to prevent a duplicate API call when the interactive runtime attaches.
+    /// </summary>
+    [PersistentState]
+    public bool Initialized { get; set; }
+
+    /// <summary>
+    /// A non-null view over <see cref="Requests"/> for safe rendering.
+    /// </summary>
+    private IReadOnlyList<ClubJoinRequestDto> RequestList => Requests ?? [];
 
     /// <summary>
     /// The id of the request currently being approved/rejected, or <see langword="null"/> when idle.
@@ -41,21 +57,22 @@ public partial class ClubAdmin(
     private long? _processingRequestId;
 
     /// <inheritdoc />
-    protected override async Task OnInitializedAsync() => await LoadRequestsAsync();
-
-    /// <summary>
-    /// Loads (or reloads) the pending join requests for <see cref="ClubId"/>.
-    /// </summary>
-    /// <returns>A task that completes once loading has finished.</returns>
-    private async Task LoadRequestsAsync()
+    protected override async Task OnInitializedAsync()
     {
+        // Skip the data fetch on the interactive pass — state was already loaded during prerender.
+        if (Initialized)
+        {
+            _loading = false;
+            return;
+        }
+
         _loading = true;
-        _error = null;
+        ErrorMessage = null;
 
         var result = await clubJoinRequestService.GetClubJoinRequestsAsync(ClubId, ComponentCancellationToken);
         var shouldReturn = false;
         result.Switch(
-            requests => _requests = requests,
+            requests => Requests = requests,
             problem =>
             {
                 if (problem.Kind == ServiceProblemKind.Forbidden)
@@ -65,7 +82,41 @@ public partial class ClubAdmin(
                     return;
                 }
 
-                _error = problem.Detail ?? "Failed to load join requests. Please try again.";
+                ErrorMessage = problem.Detail ?? "Failed to load join requests. Please try again.";
+            });
+
+        if (shouldReturn)
+        {
+            return;
+        }
+
+        Initialized = true;
+        _loading = false;
+    }
+
+    /// <summary>
+    /// Loads (or reloads) the pending join requests for <see cref="ClubId"/>.
+    /// </summary>
+    /// <returns>A task that completes once loading has finished.</returns>
+    private async Task LoadRequestsAsync()
+    {
+        _loading = true;
+        ErrorMessage = null;
+
+        var result = await clubJoinRequestService.GetClubJoinRequestsAsync(ClubId, ComponentCancellationToken);
+        var shouldReturn = false;
+        result.Switch(
+            requests => Requests = requests,
+            problem =>
+            {
+                if (problem.Kind == ServiceProblemKind.Forbidden)
+                {
+                    NavigateToAccessDenied();
+                    shouldReturn = true;
+                    return;
+                }
+
+                ErrorMessage = problem.Detail ?? "Failed to load join requests. Please try again.";
             });
 
         if (shouldReturn)
@@ -84,7 +135,7 @@ public partial class ClubAdmin(
     private async Task HandleApproveAsync(long requestId)
     {
         _processingRequestId = requestId;
-        _error = null;
+        ErrorMessage = null;
 
         var succeeded = false;
         var shouldReturn = false;
@@ -100,7 +151,7 @@ public partial class ClubAdmin(
                     return;
                 }
 
-                _error = problem.Detail ?? "Failed to approve the request. Please try again.";
+                ErrorMessage = problem.Detail ?? "Failed to approve the request. Please try again.";
             });
 
         _processingRequestId = null;
@@ -124,7 +175,7 @@ public partial class ClubAdmin(
     private async Task HandleRejectAsync(long requestId)
     {
         _processingRequestId = requestId;
-        _error = null;
+        ErrorMessage = null;
 
         var succeeded = false;
         var shouldReturn = false;
@@ -140,7 +191,7 @@ public partial class ClubAdmin(
                     return;
                 }
 
-                _error = problem.Detail ?? "Failed to reject the request. Please try again.";
+                ErrorMessage = problem.Detail ?? "Failed to reject the request. Please try again.";
             });
 
         _processingRequestId = null;
