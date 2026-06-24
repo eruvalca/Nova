@@ -3,10 +3,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Logging;
-using Nova.Data;
 using Nova.Entities;
 
 namespace Nova.Components.Account.Pages.Manage;

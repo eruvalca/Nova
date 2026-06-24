@@ -1,18 +1,14 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nova.Data;
 using Nova.Entities;
-using Nova.Extensions.Account;
 using Nova.Features.Account;
 using Nova.Shared.Account;
-using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
 using Shouldly;
-using Xunit;
 
 namespace Nova.Unit.Tests.Account;
 
@@ -130,13 +126,13 @@ public class AccountDeletionServiceTests : IDisposable
             userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == AdminUserId), Roles.ClubAdmin)
                 .Returns(Task.FromResult(true));
         }
-        
+
         if (_nonAdminUser != null)
         {
             userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == NonAdminUserId), Roles.ClubAdmin)
                 .Returns(Task.FromResult(false));
         }
-        
+
         if (_secondAdminUser != null)
         {
             userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == SecondAdminUserId), Roles.ClubAdmin)

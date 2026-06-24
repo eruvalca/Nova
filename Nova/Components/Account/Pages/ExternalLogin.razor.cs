@@ -5,8 +5,6 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.Logging;
-using Nova.Data;
 using Nova.Entities;
 using Nova.Shared.Security;
 

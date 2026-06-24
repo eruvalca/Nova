@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Reflection;
 using Nova.Shared.Account;
 using Nova.Shared.Clubs;
 using Shouldly;

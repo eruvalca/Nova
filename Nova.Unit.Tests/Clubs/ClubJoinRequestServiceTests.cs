@@ -9,8 +9,6 @@ using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
-using OneOf;
-using OneOf.Types;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Clubs;
@@ -82,11 +80,11 @@ public class ClubJoinRequestServiceTests : IDisposable
         // Use _userManager so the test can verify UpdateSecurityStampAsync calls
         _userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
             .Returns(Task.FromResult(Microsoft.AspNetCore.Identity.IdentityResult.Success));
-        
+
         var signInManager = Substitute.For<Microsoft.AspNetCore.Identity.SignInManager<NovaUserEntity>>(
             _userManager, Substitute.For<IHttpContextAccessor>(), Substitute.For<IUserClaimsPrincipalFactory<NovaUserEntity>>(),
             null, null, null, null);
-        
+
         // Mock RefreshSignInAsync to avoid null reference exceptions
         signInManager.RefreshSignInAsync(Arg.Any<NovaUserEntity>())
             .Returns(Task.CompletedTask);

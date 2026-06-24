@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Components;
-using Nova.Components.Account;
 
 namespace Nova.Components.Account.Shared;
 

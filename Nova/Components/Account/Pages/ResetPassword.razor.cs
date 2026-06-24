@@ -3,7 +3,6 @@ using System.Text;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
-using Nova.Data;
 using Nova.Entities;
 
 namespace Nova.Components.Account.Pages;

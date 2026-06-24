@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
-using Nova.Data;
 using Nova.Entities;
 
 namespace Nova.Components.Account.Pages.Manage;

@@ -1,8 +1,6 @@
 using System.Buffers.Text;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
-using Nova.Components.Account;
-using Nova.Data;
 using Nova.Entities;
 
 namespace Nova.Components.Account.Pages.Manage;

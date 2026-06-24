@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nova.Data;
 using Nova.Entities;
-using Nova.Extensions.Account;
 using Nova.Features.Account;
 using Nova.Shared.Account;
 using Nova.Shared.Results;
@@ -12,7 +10,6 @@ using Nova.Shared.Security;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
 using Shouldly;
-using Xunit;
 
 namespace Nova.Unit.Tests.Account;
 
