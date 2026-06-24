@@ -79,11 +79,6 @@ dotnet_style_prefer_collection_expression = when_types_loosely_match:suggestion
 # Convention: prefer string.Empty over ""
 dotnet_style_prefer_empty_string = true:warning
 
-#### Unused values ####
-# Convention: eliminate unused parameters and unused value assignments
-csharp_style_unused_value_expression_statement_preference = discard_variable:suggestion
-csharp_style_unused_value_assignment_preference = discard_variable:suggestion
-
 #### .NET style rules ####
 dotnet_style_readonly_field = true:suggestion
 dotnet_style_explicit_tuple_names = true:warning
