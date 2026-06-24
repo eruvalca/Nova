@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -1378,7 +1378,7 @@ public class ClubComponentsTests : BunitContext
             .Add(p => p.PersistedRequests, persistedRequests));
 
         // Assert
-        joinRequestService.DidNotReceiveWithAnyArgs().GetClubJoinRequestsAsync(default, default);
+        joinRequestService.DidNotReceiveWithAnyArgs().GetClubJoinRequestsAsync(default, Xunit.TestContext.Current.CancellationToken);
         cut.Markup.ShouldContain("Persisted User");
         cut.Markup.ShouldNotContain("spinner-border");
         cut.Markup.ShouldNotContain("No pending requests");
@@ -1398,10 +1398,10 @@ public class ClubComponentsTests : BunitContext
         var cut = Render<PersistedStateClubAdmin>(parameters => parameters
             .Add(p => p.ClubId, 42L)
             .Add(p => p.StartInitialized, true)
-            .Add(p => p.PersistedRequests, (IReadOnlyList<ClubJoinRequestDto>?)null));
+            .Add(p => p.PersistedRequests, null));
 
         // Assert
-        joinRequestService.DidNotReceiveWithAnyArgs().GetClubJoinRequestsAsync(default, default);
+        joinRequestService.DidNotReceiveWithAnyArgs().GetClubJoinRequestsAsync(default, Xunit.TestContext.Current.CancellationToken);
         cut.Markup.ShouldContain("No pending requests");
         cut.Markup.ShouldNotContain("alert-danger");
     }
@@ -1424,7 +1424,7 @@ public class ClubComponentsTests : BunitContext
             .Add(p => p.PersistedErrorMessage, persistedError));
 
         // Assert
-        joinRequestService.DidNotReceiveWithAnyArgs().GetClubJoinRequestsAsync(default, default);
+        joinRequestService.DidNotReceiveWithAnyArgs().GetClubJoinRequestsAsync(default, Xunit.TestContext.Current.CancellationToken);
         cut.Markup.ShouldContain("alert-danger");
         cut.Markup.ShouldContain(persistedError);
     }

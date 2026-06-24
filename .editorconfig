@@ -108,7 +108,6 @@ dotnet_naming_symbols.interface_symbols.applicable_kinds           = interface
 dotnet_naming_symbols.interface_symbols.applicable_accessibilities = *
 
 dotnet_naming_style.interface_style.required_prefix = I
-dotnet_naming_style.interface_style.capitalization  = pascal_case
 
 # Type parameters must start with T (e.g. TResult)
 dotnet_naming_rule.type_parameters_must_begin_with_t.symbols   = type_parameter_symbols
@@ -118,7 +117,6 @@ dotnet_naming_rule.type_parameters_must_begin_with_t.severity  = suggestion
 dotnet_naming_symbols.type_parameter_symbols.applicable_kinds = type_parameter
 
 dotnet_naming_style.type_parameter_style.required_prefix = T
-dotnet_naming_style.type_parameter_style.capitalization  = pascal_case
 
 # Async methods must end in Async
 dotnet_naming_rule.async_methods_must_end_in_async.symbols   = async_method_symbols
@@ -130,7 +128,6 @@ dotnet_naming_symbols.async_method_symbols.applicable_accessibilities = *
 dotnet_naming_symbols.async_method_symbols.required_modifiers       = async
 
 dotnet_naming_style.async_method_style.required_suffix = Async
-dotnet_naming_style.async_method_style.capitalization  = pascal_case
 
 # Private/protected fields use _camelCase
 dotnet_naming_rule.private_fields_use_underscore_prefix.symbols   = private_field_symbols
@@ -141,7 +138,6 @@ dotnet_naming_symbols.private_field_symbols.applicable_kinds           = field
 dotnet_naming_symbols.private_field_symbols.applicable_accessibilities = private, protected, private_protected
 
 dotnet_naming_style.private_field_style.required_prefix = _
-dotnet_naming_style.private_field_style.capitalization  = camel_case
 
 # Constants are PascalCase
 dotnet_naming_rule.constants_are_pascal_case.symbols   = constant_symbols
@@ -150,5 +146,3 @@ dotnet_naming_rule.constants_are_pascal_case.severity  = warning
 
 dotnet_naming_symbols.constant_symbols.applicable_kinds        = field, local
 dotnet_naming_symbols.constant_symbols.required_modifiers      = const
-
-dotnet_naming_style.pascal_case_style.capitalization = pascal_case
