@@ -5,8 +5,8 @@ using Nova.Shared.Results;
 namespace Nova.UI.Features.Clubs.Pages;
 
 /// <summary>
-/// Club admin page that lists pending join requests for a club and lets admins approve
-/// or reject each one.
+/// Club admin page for managing club administration tasks.
+/// Currently supports managing pending join requests.
 /// </summary>
 /// <param name="clubJoinRequestService">The service for club join request operations.</param>
 /// <param name="navigationManager">The navigation manager used for access-denied redirects.</param>
