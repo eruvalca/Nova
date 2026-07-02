@@ -1,5 +1,6 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Nova.Components.Account;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
@@ -14,10 +15,16 @@ namespace Nova.Features.Account;
 /// <summary>
 /// Server-side implementation of <see cref="IClubMemberService"/>: lists club members and assigns ClubAdmin.
 /// </summary>
+/// <param name="readDbContextFactory">The read-only context factory for club-member queries.</param>
+/// <param name="userManager">The identity user manager for club-admin role membership changes.</param>
+/// <param name="currentUserProvider">The current user provider used for authorization checks and user context.</param>
+/// <param name="clubMembershipClaimRefresher">The claim refresher used to bump a promoted member's security stamp.</param>
+/// <param name="logger">The logger used for warning-level access failures.</param>
 public sealed partial class ClubMemberService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     UserManager<NovaUserEntity> userManager,
     ICurrentUserProvider currentUserProvider,
+    ClubMembershipClaimRefresher clubMembershipClaimRefresher,
     ILogger<ClubMemberService> logger) : IClubMemberService
 {
     /// <inheritdoc />
@@ -103,6 +110,8 @@ public sealed partial class ClubMemberService(
             var roleErrors = string.Join(", ", result.Errors.Select(e => e.Description));
             return ServiceProblem.ServerError(roleErrors);
         }
+
+        await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(targetUser);
 
         LogAdminAssigned(input.TargetUserId, actorClubId, actorUserId);
         return true;

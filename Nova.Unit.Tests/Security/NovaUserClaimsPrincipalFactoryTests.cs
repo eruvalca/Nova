@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -49,13 +49,37 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
     [Fact]
     public async Task GenerateClaims_AddsClubIdClaim_WhenUserHasClub()
     {
-        SeedClub(id: 5);
+        SeedClub(id: 5, name: "Austin Strikers");
         var user = SeedUser(id: 23, clubId: 5);
         var factory = CreateFactory();
 
         var principal = await factory.CreateAsync(user);
 
         principal.FindFirst(NovaClaimTypes.ClubId)?.Value.ShouldBe("5");
+    }
+
+    [Fact]
+    public async Task GenerateClaims_AddsClubNameClaim_WhenUserHasClub()
+    {
+        SeedClub(id: 6, name: "Dallas Dynamos");
+        var user = SeedUser(id: 24, clubId: 6);
+        var factory = CreateFactory();
+
+        var principal = await factory.CreateAsync(user);
+
+        principal.FindFirst(NovaClaimTypes.ClubName)?.Value.ShouldBe("Dallas Dynamos");
+    }
+
+    [Fact]
+    public async Task GenerateClaims_OmitsClubIdAndClubNameClaims_WhenUserHasNoClub()
+    {
+        var user = SeedUser(id: 25, clubId: null);
+        var factory = CreateFactory();
+
+        var principal = await factory.CreateAsync(user);
+
+        principal.HasClaim(claim => claim.Type == NovaClaimTypes.ClubId).ShouldBeFalse();
+        principal.HasClaim(claim => claim.Type == NovaClaimTypes.ClubName).ShouldBeFalse();
     }
 
     /// <summary>
@@ -95,10 +119,10 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
         return user;
     }
 
-    private void SeedClub(long id)
+    private void SeedClub(long id, string? name = null)
     {
         using var context = _harness.CreateAdminContext();
-        context.Clubs.Add(new ClubEntity { ClubId = id, Name = $"Club {id}", City = "Austin", State = "TX", CreatedById = 1 });
+        context.Clubs.Add(new ClubEntity { ClubId = id, Name = name ?? $"Club {id}", City = "Austin", State = "TX", CreatedById = 1 });
         context.SaveChanges();
     }
 

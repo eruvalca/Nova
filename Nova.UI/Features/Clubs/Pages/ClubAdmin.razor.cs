@@ -1,147 +1,140 @@
 using Microsoft.AspNetCore.Components;
+using Nova.Shared.Account;
 using Nova.Shared.Clubs;
 using Nova.Shared.Results;
+using Nova.UI.Components;
 
 namespace Nova.UI.Features.Clubs.Pages;
 
 /// <summary>
-/// Club admin page for managing club administration tasks.
-/// Currently supports managing pending join requests.
+/// Server-rendered club administration page for reviewing join requests and managing the club roster.
 /// </summary>
-/// <param name="clubJoinRequestService">The service for club join request operations.</param>
+/// <param name="clubAdminService">The service used to fetch club and roster data.</param>
+/// <param name="clubMemberService">The service used to promote members to ClubAdmin.</param>
+/// <param name="clubJoinRequestService">The service used to manage join requests.</param>
 /// <param name="navigationManager">The navigation manager used for access-denied redirects.</param>
 public partial class ClubAdmin(
+    IClubAdminService clubAdminService,
+    IClubMemberService clubMemberService,
     IClubJoinRequestService clubJoinRequestService,
-    NavigationManager navigationManager)
+    NavigationManager navigationManager) : NovaComponentBase
 {
     /// <summary>
-    /// The id of the club whose pending requests are shown. Bound from the route.
+    /// Gets or sets the club identifier supplied by the route.
     /// </summary>
     [Parameter]
     public long ClubId { get; set; }
 
     /// <summary>
-    /// The current pending requests.
-    /// Persisted across the prerender → interactive handoff so initial results are reused.
+    /// Gets or sets the join request identifier supplied by a form POST.
     /// </summary>
-    [PersistentState]
-    public IReadOnlyList<ClubJoinRequestDto>? Requests { get; set; }
+    [SupplyParameterFromForm]
+    private long? RequestId { get; set; }
 
     /// <summary>
-    /// Whether the page is currently loading the request list.
+    /// Gets or sets the target member identifier supplied by a form POST.
     /// </summary>
-    private bool _loading = true;
+    [SupplyParameterFromForm]
+    private long? MemberUserId { get; set; }
 
     /// <summary>
-    /// A page-level error message, or <see langword="null"/> when no error.
-    /// Persisted across the prerender → interactive handoff.
+    /// Gets the current club summary used to render the overview card.
     /// </summary>
-    [PersistentState]
-    public string? ErrorMessage { get; set; }
+    private ClubAdminSummaryDto? _summary;
 
     /// <summary>
-    /// Whether initial data has already been loaded during prerendering.
-    /// Persisted to prevent a duplicate API call when the interactive runtime attaches.
+    /// Gets the current club roster used to render the members and admins card.
     /// </summary>
-    [PersistentState]
-    public bool Initialized { get; set; }
+    private IReadOnlyList<ClubMemberDetailDto> _roster = [];
 
     /// <summary>
-    /// A non-null view over <see cref="Requests"/> for safe rendering.
+    /// Gets the current pending join requests used to render the join requests card.
     /// </summary>
-    private IReadOnlyList<ClubJoinRequestDto> RequestList => Requests ?? [];
+    private IReadOnlyList<ClubJoinRequestDto> _requests = [];
 
     /// <summary>
-    /// The id of the request currently being approved/rejected, or <see langword="null"/> when idle.
+    /// Gets or sets the current page error message.
     /// </summary>
-    private long? _processingRequestId;
+    private string? _error;
+
+    /// <summary>
+    /// Gets or sets the current page status message.
+    /// </summary>
+    private string? _status;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
-        // Skip the data fetch on the interactive pass — state was already loaded during prerender.
-        if (Initialized)
-        {
-            _loading = false;
-            return;
-        }
-
-        _loading = true;
-        ErrorMessage = null;
-
-        var result = await clubJoinRequestService.GetClubJoinRequestsAsync(ClubId, ComponentCancellationToken);
-        var shouldReturn = false;
-        result.Switch(
-            requests => Requests = requests,
-            problem =>
-            {
-                if (problem.Kind == ServiceProblemKind.Forbidden)
-                {
-                    NavigateToAccessDenied();
-                    shouldReturn = true;
-                    return;
-                }
-
-                ErrorMessage = problem.Detail ?? "Failed to load join requests. Please try again.";
-            });
-
-        if (shouldReturn)
-        {
-            return;
-        }
-
-        Initialized = true;
-        _loading = false;
+        await LoadAsync();
     }
 
     /// <summary>
-    /// Loads (or reloads) the pending join requests for <see cref="ClubId"/>.
+    /// Loads the club summary, roster, and pending join requests for the current club.
     /// </summary>
-    /// <returns>A task that completes once loading has finished.</returns>
-    private async Task LoadRequestsAsync()
+    /// <returns>A task that completes once the data has been refreshed.</returns>
+    private async Task LoadAsync()
     {
-        _loading = true;
-        ErrorMessage = null;
-
-        var result = await clubJoinRequestService.GetClubJoinRequestsAsync(ClubId, ComponentCancellationToken);
-        var shouldReturn = false;
-        result.Switch(
-            requests => Requests = requests,
+        var summaryResult = await clubAdminService.GetClubAdminSummaryAsync(ClubId, ComponentCancellationToken);
+        summaryResult.Switch(
+            summary => _summary = summary,
             problem =>
             {
                 if (problem.Kind == ServiceProblemKind.Forbidden)
                 {
                     NavigateToAccessDenied();
-                    shouldReturn = true;
                     return;
                 }
 
-                ErrorMessage = problem.Detail ?? "Failed to load join requests. Please try again.";
+                _error = problem.Detail ?? "Failed to load the club summary.";
             });
 
-        if (shouldReturn)
-        {
-            return;
-        }
+        var rosterResult = await clubAdminService.GetClubRosterAsync(ClubId, ComponentCancellationToken);
+        rosterResult.Switch(
+            roster => _roster = roster,
+            problem =>
+            {
+                if (problem.Kind == ServiceProblemKind.Forbidden)
+                {
+                    NavigateToAccessDenied();
+                    return;
+                }
 
-        _loading = false;
+                _error = problem.Detail ?? "Failed to load the club roster.";
+            });
+
+        var requestsResult = await clubJoinRequestService.GetClubJoinRequestsAsync(ClubId, ComponentCancellationToken);
+        requestsResult.Switch(
+            requests => _requests = requests,
+            problem =>
+            {
+                if (problem.Kind == ServiceProblemKind.Forbidden)
+                {
+                    NavigateToAccessDenied();
+                    return;
+                }
+
+                _error = problem.Detail ?? "Failed to load the join requests.";
+            });
     }
 
     /// <summary>
-    /// Approves the specified request, then reloads the list.
+    /// Approves the join request identified by the current form POST.
     /// </summary>
-    /// <param name="requestId">The id of the request to approve.</param>
-    /// <returns>A task that completes once processing and optional reload are finished.</returns>
-    private async Task HandleApproveAsync(long requestId)
+    /// <returns>A task that completes once the operation has finished and the data has reloaded.</returns>
+    private async Task HandleApproveAsync()
     {
-        _processingRequestId = requestId;
-        ErrorMessage = null;
+        if (RequestId is null)
+        {
+            return;
+        }
 
-        var succeeded = false;
+        _error = null;
+        _status = null;
+
         var shouldReturn = false;
-        var result = await clubJoinRequestService.ApproveJoinRequestAsync(requestId, ComponentCancellationToken);
+        var result = await clubJoinRequestService.ApproveJoinRequestAsync(RequestId.Value, ComponentCancellationToken);
         result.Switch(
-            _ => succeeded = true,
+            _ => _status = "Join request approved.",
             problem =>
             {
                 if (problem.Kind == ServiceProblemKind.Forbidden)
@@ -151,37 +144,35 @@ public partial class ClubAdmin(
                     return;
                 }
 
-                ErrorMessage = problem.Detail ?? "Failed to approve the request. Please try again.";
+                _error = problem.Detail ?? "Failed to approve the request. Please try again.";
             });
-
-        _processingRequestId = null;
 
         if (shouldReturn)
         {
             return;
         }
 
-        if (succeeded)
-        {
-            await LoadRequestsAsync();
-        }
+        await LoadAsync();
     }
 
     /// <summary>
-    /// Rejects the specified request, then reloads the list.
+    /// Rejects the join request identified by the current form POST.
     /// </summary>
-    /// <param name="requestId">The id of the request to reject.</param>
-    /// <returns>A task that completes once processing and optional reload are finished.</returns>
-    private async Task HandleRejectAsync(long requestId)
+    /// <returns>A task that completes once the operation has finished and the data has reloaded.</returns>
+    private async Task HandleRejectAsync()
     {
-        _processingRequestId = requestId;
-        ErrorMessage = null;
+        if (RequestId is null)
+        {
+            return;
+        }
 
-        var succeeded = false;
+        _error = null;
+        _status = null;
+
         var shouldReturn = false;
-        var result = await clubJoinRequestService.RejectJoinRequestAsync(requestId, ComponentCancellationToken);
+        var result = await clubJoinRequestService.RejectJoinRequestAsync(RequestId.Value, ComponentCancellationToken);
         result.Switch(
-            _ => succeeded = true,
+            _ => _status = "Join request rejected.",
             problem =>
             {
                 if (problem.Kind == ServiceProblemKind.Forbidden)
@@ -191,20 +182,95 @@ public partial class ClubAdmin(
                     return;
                 }
 
-                ErrorMessage = problem.Detail ?? "Failed to reject the request. Please try again.";
+                _error = problem.Detail ?? "Failed to reject the request. Please try again.";
             });
-
-        _processingRequestId = null;
 
         if (shouldReturn)
         {
             return;
         }
 
-        if (succeeded)
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// Promotes the member identified by the current form POST to ClubAdmin.
+    /// </summary>
+    /// <returns>A task that completes once the operation has finished and the data has reloaded.</returns>
+    private async Task HandlePromoteAsync()
+    {
+        if (MemberUserId is null)
         {
-            await LoadRequestsAsync();
+            return;
         }
+
+        _error = null;
+        _status = null;
+
+        var shouldReturn = false;
+        var result = await clubMemberService.AssignClubAdminAsync(
+            new AssignAdminInput { TargetUserId = MemberUserId.Value },
+            ComponentCancellationToken);
+        result.Switch(
+            _ => _status = "Member promoted to admin.",
+            problem =>
+            {
+                if (problem.Kind == ServiceProblemKind.Forbidden)
+                {
+                    NavigateToAccessDenied();
+                    shouldReturn = true;
+                    return;
+                }
+
+                _error = problem.Detail ?? "Failed to promote the member to admin.";
+            });
+
+        if (shouldReturn)
+        {
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// Demotes the member identified by the current form POST from ClubAdmin.
+    /// </summary>
+    /// <returns>A task that completes once the operation has finished and the data has reloaded.</returns>
+    private async Task HandleDemoteAsync()
+    {
+        if (MemberUserId is null)
+        {
+            return;
+        }
+
+        _error = null;
+        _status = null;
+
+        var shouldReturn = false;
+        var result = await clubAdminService.DemoteClubAdminAsync(
+            new DemoteAdminInput { TargetUserId = MemberUserId.Value },
+            ComponentCancellationToken);
+        result.Switch(
+            _ => _status = "Member demoted from admin.",
+            problem =>
+            {
+                if (problem.Kind == ServiceProblemKind.Forbidden)
+                {
+                    NavigateToAccessDenied();
+                    shouldReturn = true;
+                    return;
+                }
+
+                _error = problem.Detail ?? "Failed to demote the member from admin.";
+            });
+
+        if (shouldReturn)
+        {
+            return;
+        }
+
+        await LoadAsync();
     }
 
     /// <summary>

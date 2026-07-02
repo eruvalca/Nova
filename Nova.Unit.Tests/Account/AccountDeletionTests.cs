@@ -242,7 +242,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void AssignAdminInput_ValidationPasses_WhenTargetUserIdIsZero_BecauseRequiredIsContractMarkerOnly()
+    public void AssignAdminInput_ValidationFails_WhenTargetUserIdIsZero()
     {
         // Arrange
         var input = new AssignAdminInput { TargetUserId = 0 };
@@ -253,10 +253,9 @@ public class AccountDeletionTests
         var isValid = Validator.TryValidateObject(input, context, results, validateAllProperties: true);
 
         // Assert
-        // Note: [Required] on non-nullable long doesn't reject 0; it's a contract marker for API docs.
-        // For phase 1 (contracts), we just verify it can be constructed and validated without exceptions.
-        isValid.ShouldBeTrue();
-        results.ShouldBeEmpty();
+        isValid.ShouldBeFalse();
+        results.ShouldNotBeEmpty();
+        results.ShouldContain(r => r.MemberNames.Contains(nameof(AssignAdminInput.TargetUserId)));
     }
 
     [Fact]
@@ -286,6 +285,23 @@ public class AccountDeletionTests
 
         // Assert
         hasRequired.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void AssignAdminInput_HasRangeAttribute_OnTargetUserId()
+    {
+        // Arrange
+        var property = typeof(AssignAdminInput).GetProperty(nameof(AssignAdminInput.TargetUserId));
+
+        // Act
+        var range = property?.GetCustomAttributes(typeof(RangeAttribute), inherit: false)
+            .Cast<RangeAttribute>()
+            .FirstOrDefault();
+
+        // Assert
+        range.ShouldNotBeNull();
+        range!.Minimum.ShouldBe(1);
+        range.Maximum.ShouldBe(long.MaxValue);
     }
 
     [Fact]

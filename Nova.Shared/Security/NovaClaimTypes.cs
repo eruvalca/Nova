@@ -1,4 +1,4 @@
-namespace Nova.Shared.Security;
+﻿namespace Nova.Shared.Security;
 
 /// <summary>
 /// Defines custom claim type names used by the application.
@@ -9,6 +9,11 @@ public static class NovaClaimTypes
     /// The claim type holding the user's club (tenant) id.
     /// </summary>
     public const string ClubId = "nova:club_id";
+
+    /// <summary>
+    /// The claim type holding the user's club display name.
+    /// </summary>
+    public const string ClubName = "nova:club_name";
 
     /// <summary>
     /// The claim type indicating the user has uploaded a profile photo.

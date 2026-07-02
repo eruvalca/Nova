@@ -1,6 +1,8 @@
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Account;
@@ -111,7 +113,25 @@ public class ClubMemberServiceTests : IDisposable
             readDbFactory,
             userManager,
             _harness.CurrentUser,
+            CreateClaimRefresher(userManager),
             _mockLogger);
+    }
+
+    private static ClubMembershipClaimRefresher CreateClaimRefresher(UserManager<NovaUserEntity> userManager)
+    {
+        userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
+            .Returns(Task.FromResult(IdentityResult.Success));
+
+        var signInManager = Substitute.For<SignInManager<NovaUserEntity>>(
+            userManager,
+            Substitute.For<IHttpContextAccessor>(),
+            Substitute.For<IUserClaimsPrincipalFactory<NovaUserEntity>>(),
+            null,
+            null,
+            null,
+            null);
+
+        return new ClubMembershipClaimRefresher(userManager, signInManager);
     }
 
     private UserManager<NovaUserEntity> CreateUserManagerMock()
@@ -222,6 +242,23 @@ public class ClubMemberServiceTests : IDisposable
     #region AssignClubAdminAsync Tests
 
     [Fact]
+    public async Task AssignClubAdminAsync_ReturnsValidation_WhenTargetUserIdIsZero()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = ClubAdminUserId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+        var service = CreateService();
+
+        // Act
+        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = 0 }, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+    }
+
+    [Fact]
     public async Task AssignClubAdminAsync_ReturnsForbidden_WhenActorNotAuthenticated()
     {
         // Arrange
@@ -317,6 +354,7 @@ public class ClubMemberServiceTests : IDisposable
             readDbFactory,
             userManager,
             _harness.CurrentUser,
+            CreateClaimRefresher(userManager),
             _mockLogger);
 
         // Act
@@ -359,6 +397,7 @@ public class ClubMemberServiceTests : IDisposable
             readDbFactory,
             userManager,
             _harness.CurrentUser,
+            CreateClaimRefresher(userManager),
             _mockLogger);
 
         // Act
@@ -367,6 +406,49 @@ public class ClubMemberServiceTests : IDisposable
         // Assert
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task AssignClubAdminAsync_MarksTargetClaimsStale_WhenPromotionSucceeds()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = ClubAdminUserId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
+        var store = Substitute.For<IUserStore<NovaUserEntity>>();
+        var userManager = Substitute.For<UserManager<NovaUserEntity>>(
+            store,
+            Substitute.For<IOptions<IdentityOptions>>(),
+            Substitute.For<IPasswordHasher<NovaUserEntity>>(),
+            new List<IUserValidator<NovaUserEntity>>(),
+            new List<IPasswordValidator<NovaUserEntity>>(),
+            Substitute.For<ILookupNormalizer>(),
+            Substitute.For<IdentityErrorDescriber>(),
+            Substitute.For<IServiceProvider>(),
+            Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
+
+        userManager.FindByIdAsync(Member1UserId.ToString()).Returns(Task.FromResult(_member1User)!);
+        // Member1 is not yet a ClubAdmin
+        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == Member1UserId), Roles.ClubAdmin)
+            .Returns(Task.FromResult(false));
+        userManager.AddToRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == Member1UserId), Roles.ClubAdmin)
+            .Returns(Task.FromResult(IdentityResult.Success));
+
+        var service = new ClubMemberService(
+            readDbFactory,
+            userManager,
+            _harness.CurrentUser,
+            CreateClaimRefresher(userManager),
+            _mockLogger);
+
+        // Act
+        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+        await userManager.Received().UpdateSecurityStampAsync(_member1User!);
     }
 
     [Fact]
@@ -403,6 +485,7 @@ public class ClubMemberServiceTests : IDisposable
             readDbFactory,
             userManager,
             _harness.CurrentUser,
+            CreateClaimRefresher(userManager),
             _mockLogger);
 
         // Act

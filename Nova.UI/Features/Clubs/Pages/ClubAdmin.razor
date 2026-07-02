@@ -1,7 +1,7 @@
 @page "/Clubs/{ClubId:long}/admin"
-@rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubAdmin)]
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
 @using Nova.Shared.Security
 
 <PageTitle>Club Administration</PageTitle>
@@ -9,53 +9,177 @@
 <div class="container py-4">
     <h1 class="mb-4">Club Administration</h1>
 
-    @if (_loading)
+    @if (!string.IsNullOrEmpty(_error))
     {
-        <div class="d-flex justify-content-center py-5">
-            <div class="spinner-border" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </div>
+        <div class="alert alert-danger" role="alert">@_error</div>
     }
-    else if (!string.IsNullOrEmpty(ErrorMessage))
+
+    @if (!string.IsNullOrEmpty(_status))
     {
-        <div class="alert alert-danger" role="alert">@ErrorMessage</div>
+        <div class="alert alert-success" role="alert">@_status</div>
     }
-    else if (RequestList.Count == 0)
-    {
-        <p class="text-muted">No pending requests.</p>
-    }
-    else
-    {
-        <ul class="list-group">
-            @foreach (var request in RequestList)
-            {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
+
+    <div class="d-flex flex-column gap-4">
+        <section class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2 mb-3">
                     <div>
-                        <div class="fw-semibold">@request.RequestingUserName</div>
-                        <small class="text-muted">Requested @request.CreatedAt.LocalDateTime.ToString("MMMM d, yyyy")</small>
+                        <h2 class="h4 mb-1">@(_summary?.Name ?? "Club")</h2>
+                        @if (_summary is not null)
+                        {
+                            <p class="text-muted mb-0">@_summary.City, @_summary.State</p>
+                        }
                     </div>
-                    <div class="btn-group">
-                        <button class="btn btn-sm btn-success"
-                                @onclick="() => HandleApproveAsync(request.ClubJoinRequestId)"
-                                disabled="@(_processingRequestId == request.ClubJoinRequestId)">
-                            @if (_processingRequestId == request.ClubJoinRequestId)
-                            {
-                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                            }
-                            else
-                            {
-                                <span>Approve</span>
-                            }
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger"
-                                @onclick="() => HandleRejectAsync(request.ClubJoinRequestId)"
-                                disabled="@(_processingRequestId == request.ClubJoinRequestId)">
-                            Reject
-                        </button>
+                </div>
+
+                @if (_summary is null)
+                {
+                    <p class="text-muted mb-0">Club details are currently unavailable.</p>
+                }
+                else
+                {
+                    <div class="row row-cols-2 row-cols-md-4 g-3">
+                        <div class="col">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-muted small text-uppercase">Members</div>
+                                <div class="fs-4 fw-semibold">@_summary.MemberCount</div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-muted small text-uppercase">Admins</div>
+                                <div class="fs-4 fw-semibold">@_summary.AdminCount</div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-muted small text-uppercase">Pending</div>
+                                <div class="fs-4 fw-semibold">@_summary.PendingJoinRequestCount</div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="border rounded p-3 h-100">
+                                <div class="text-muted small text-uppercase">Players</div>
+                                <div class="fs-4 fw-semibold">@_summary.PlayerCount</div>
+                            </div>
+                        </div>
                     </div>
-                </li>
-            }
-        </ul>
-    }
+
+                    @if (_summary.IsCurrentUserSoleAdmin)
+                    {
+                        <div class="alert alert-warning mt-3 mb-0" role="alert">
+                            You are the only admin for this club. Consider promoting another member before you demote yourself
+                            or leave the club.
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+
+        <section class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h2 class="h4 mb-3">Join Requests</h2>
+
+                @if (_requests.Count == 0)
+                {
+                    <p class="text-muted mb-0">No pending requests.</p>
+                }
+                else
+                {
+                    <div class="d-flex flex-column gap-3">
+                        @foreach (var request in _requests)
+                        {
+                            <div class="border rounded p-3">
+                                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2">
+                                    <div>
+                                        <div class="fw-semibold">@request.RequestingUserName</div>
+                                        <div class="text-muted small">Requested @request.CreatedAt.LocalDateTime.ToString("MMMM d, yyyy")</div>
+                                    </div>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <form @formname="@($"approve-request-{request.ClubJoinRequestId}")"
+                                              @onsubmit="HandleApproveAsync" method="post" data-enhance>
+                                            <AntiforgeryToken />
+                                            <input type="hidden" name="RequestId" value="@request.ClubJoinRequestId" />
+                                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                                        </form>
+                                        <form @formname="@($"reject-request-{request.ClubJoinRequestId}")"
+                                              @onsubmit="HandleRejectAsync" method="post" data-enhance>
+                                            <AntiforgeryToken />
+                                            <input type="hidden" name="RequestId" value="@request.ClubJoinRequestId" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h2 class="h4 mb-3">Members &amp; Admins</h2>
+
+                @if (_roster.Count == 0)
+                {
+                    <p class="text-muted mb-0">No members found.</p>
+                }
+                else
+                {
+                    <div class="d-flex flex-column gap-3">
+                        @foreach (var member in _roster)
+                        {
+                            var isLastMemberOrSoleAdmin = member.IsCurrentUser &&
+                                (_summary?.MemberCount <= 1 || _summary?.IsCurrentUserSoleAdmin == true);
+                            var demoteTitle = isLastMemberOrSoleAdmin
+                                ? "You are the only admin for this club. Consider promoting another member before you demote yourself or leave the club."
+                                : null;
+
+                            <div class="border rounded p-3">
+                                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2">
+                                    <div>
+                                        <div class="fw-semibold">@member.FullName</div>
+                                        <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+                                            @if (member.IsClubAdmin)
+                                            {
+                                                <span class="badge bg-primary">Admin</span>
+                                            }
+                                            @if (member.IsCurrentUser)
+                                            {
+                                                <span class="text-muted small">You</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    <div>
+                                        @if (member.IsClubAdmin)
+                                        {
+                                            <form @formname="@($"demote-{member.UserId}")" @onsubmit="HandleDemoteAsync"
+                                                  method="post" data-enhance>
+                                                <AntiforgeryToken />
+                                                <input type="hidden" name="MemberUserId" value="@member.UserId" />
+                                                <button type="submit" class="btn btn-sm btn-outline-warning"
+                                                        disabled="@isLastMemberOrSoleAdmin" title="@demoteTitle">
+                                                    Demote
+                                                </button>
+                                            </form>
+                                        }
+                                        else
+                                        {
+                                            <form @formname="@($"promote-{member.UserId}")" @onsubmit="HandlePromoteAsync"
+                                                  method="post" data-enhance>
+                                                <AntiforgeryToken />
+                                                <input type="hidden" name="MemberUserId" value="@member.UserId" />
+                                                <button type="submit" class="btn btn-sm btn-outline-primary">Promote</button>
+                                            </form>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
 </div>

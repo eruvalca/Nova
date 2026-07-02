@@ -3,16 +3,24 @@
 <nav class="navbar navbar-expand-md navbar-light bg-light border-top fixed-bottom">
     <div class="container-fluid">
         <NavLink class="navbar-brand" href="" Match="NavLinkMatch.All">Nova</NavLink>
-        <button class="navbar-toggler"
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#main-nav-menu"
-                aria-controls="main-nav-menu"
-                aria-expanded="false"
-                aria-label="Toggle navigation">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#main-nav-menu"
+                aria-controls="main-nav-menu" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="main-nav-menu">
+            <ul class="navbar-nav me-auto mb-2 mb-md-0">
+                <AuthorizeView>
+                    <Authorized>
+                        @if (ClubDetailUrl is not null && ClubName is not null)
+                        {
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="@ClubDetailUrl" Match="NavLinkMatch.Prefix">@ClubName
+                                </NavLink>
+                            </li>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+            </ul>
             <ul class="navbar-nav ms-auto mb-2 mb-md-0">
                 <AuthorizeView>
                     <Authorized>

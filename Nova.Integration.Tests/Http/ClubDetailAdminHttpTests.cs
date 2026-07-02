@@ -182,7 +182,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         body.ShouldContain("Adrian Admin");
         body.ShouldContain("Megan Member");
         body.ShouldContain("Current user (You)");
-        body.ShouldNotContain("Manage Join Requests");
+        body.ShouldNotContain($"/Clubs/{club.ClubId}/admin");
     }
 
     /// <summary>
@@ -215,7 +215,7 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         body.ShouldContain("Rita Roster");
         body.ShouldContain("Current user (You)");
         body.ShouldContain($"/Clubs/{club.ClubId}/admin");
-        body.ShouldContain("Manage Join Requests");
+        body.ShouldContain("Admin");
     }
 
     /// <summary>
@@ -306,8 +306,10 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         {
             pendingAfter.StatusCode.ShouldBe(HttpStatusCode.OK);
             var body = await pendingAfter.Content.ReadAsStringAsync(cancellationToken);
+            // The pending list is cleared, and the newly approved member now appears in the
+            // admin page's Members & Admins roster; the rejected user does not become a member.
             body.ShouldContain("No pending requests.");
-            body.ShouldNotContain("Paula PendingApprove");
+            body.ShouldContain("Paula PendingApprove");
             body.ShouldNotContain("Rex PendingReject");
         }
 

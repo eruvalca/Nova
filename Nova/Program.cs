@@ -87,6 +87,7 @@ builder.Services.AddScoped<IProfilePhotoService, ProfilePhotoService>();
 
 builder.Services.AddScoped<IClubService, ClubService>();
 builder.Services.AddScoped<IClubDetailService, ClubDetailService>();
+builder.Services.AddScoped<IClubAdminService, ClubAdminService>();
 builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();
 builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
 builder.Services.AddScoped<IClubMemberService, ClubMemberService>();

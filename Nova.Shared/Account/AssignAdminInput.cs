@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace Nova.Shared.Account;
 
@@ -7,5 +7,6 @@ public sealed record AssignAdminInput
 {
     /// <summary>The ID of the user to promote to ClubAdmin.</summary>
     [Required]
+    [Range(1, long.MaxValue)]
     public required long TargetUserId { get; init; }
 }
