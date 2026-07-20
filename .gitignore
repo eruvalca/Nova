@@ -368,6 +368,3 @@ __blobstorage__/
 
 # Playwright page snapshots
 .playwright-cli/page-*.yml
-
-# Agent Plans
-plans/
