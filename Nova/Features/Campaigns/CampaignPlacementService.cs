@@ -41,7 +41,7 @@ public readonly record struct PlacementConflict(string Detail);
 /// <summary>
 /// Applies tenant-safe campaign placement mutations with administrator authorization and optimistic concurrency.
 /// </summary>
-/// <param name="dbContextFactory">The tenant-scoped context factory used for the mutation transaction.</param>
+/// <param name="dbContextFactory">The tenant-scoped context factory used for the placement mutation.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for mutation outcomes.</param>
 public sealed partial class CampaignPlacementService(
