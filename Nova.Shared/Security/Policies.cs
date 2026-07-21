@@ -21,7 +21,7 @@ public static class Policies
     public const string RequireClubMember = "RequireClubMember";
 
     /// <summary>
-    /// Requires an authenticated evaluator with an approved club membership.
+    /// Requires an authenticated club member who may perform evaluation work.
     /// </summary>
     public const string RequireEvaluator = "RequireEvaluator";
 }

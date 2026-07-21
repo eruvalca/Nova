@@ -16,16 +16,17 @@ public static class AuthorizationBuilderExtensions
         /// <returns>The authorization builder for further configuration.</returns>
         public AuthorizationBuilder AddNovaAuthorizationPolicies()
         {
-            var clubMemberPolicy = new AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser()
-                .RequireClaim(NovaClaimTypes.ClubId)
-                .Build();
+            static void ConfigureClubMemberPolicy(AuthorizationPolicyBuilder policy)
+            {
+                policy.RequireAuthenticatedUser()
+                    .RequireClaim(NovaClaimTypes.ClubId);
+            }
 
             return builder
                 .AddPolicy(Policies.RequireAdmin, policy => policy.RequireRole(Roles.Admin))
                 .AddPolicy(Policies.RequireClubAdmin, policy => policy.RequireRole(Roles.ClubAdmin, Roles.Admin))
-                .AddPolicy(Policies.RequireClubMember, clubMemberPolicy)
-                .AddPolicy(Policies.RequireEvaluator, clubMemberPolicy);
+                .AddPolicy(Policies.RequireClubMember, ConfigureClubMemberPolicy)
+                .AddPolicy(Policies.RequireEvaluator, ConfigureClubMemberPolicy);
         }
     }
 }

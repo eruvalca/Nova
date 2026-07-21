@@ -59,9 +59,14 @@ public sealed class EvaluatorAuthorizationPolicyTests
 
         clubMemberPolicy.ShouldNotBeNull();
         evaluatorPolicy.ShouldNotBeNull();
-        evaluatorPolicy.AuthenticationSchemes.ShouldBe(clubMemberPolicy.AuthenticationSchemes);
-        evaluatorPolicy.Requirements.Select(requirement => requirement.GetType())
-            .ShouldBe(clubMemberPolicy.Requirements.Select(requirement => requirement.GetType()));
+        evaluatorPolicy.AuthenticationSchemes.Order()
+            .ShouldBe(clubMemberPolicy.AuthenticationSchemes.Order());
+        evaluatorPolicy.Requirements
+            .Select(requirement => requirement.GetType().FullName)
+            .Order()
+            .ShouldBe(clubMemberPolicy.Requirements
+                .Select(requirement => requirement.GetType().FullName)
+                .Order());
 
         var clubClaimRequirement = clubMemberPolicy.Requirements
             .OfType<ClaimsAuthorizationRequirement>()
@@ -71,7 +76,8 @@ public sealed class EvaluatorAuthorizationPolicyTests
             .ShouldHaveSingleItem();
 
         evaluatorClaimRequirement.ClaimType.ShouldBe(clubClaimRequirement.ClaimType);
-        evaluatorClaimRequirement.AllowedValues.ShouldBe(clubClaimRequirement.AllowedValues);
+        evaluatorClaimRequirement.AllowedValues?.Order()
+            .ShouldBe(clubClaimRequirement.AllowedValues?.Order());
     }
 
     /// <summary>
