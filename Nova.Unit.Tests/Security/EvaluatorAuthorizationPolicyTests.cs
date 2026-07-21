@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Extensions.Security;
 using Nova.Shared.Security;
@@ -45,10 +46,10 @@ public sealed class EvaluatorAuthorizationPolicyTests
     }
 
     /// <summary>
-    /// Verifies that evaluator and club-member policy names share one policy definition.
+    /// Verifies that evaluator and club-member policy names enforce equivalent requirements.
     /// </summary>
     [Fact]
-    public async Task EvaluatorPolicy_UsesClubMemberPolicyDefinition()
+    public async Task EvaluatorPolicy_HasEquivalentRequirements_ToClubMemberPolicy()
     {
         using var serviceProvider = CreateServiceProvider();
         var policyProvider = serviceProvider.GetRequiredService<IAuthorizationPolicyProvider>();
@@ -56,7 +57,21 @@ public sealed class EvaluatorAuthorizationPolicyTests
         var clubMemberPolicy = await policyProvider.GetPolicyAsync(Policies.RequireClubMember);
         var evaluatorPolicy = await policyProvider.GetPolicyAsync(Policies.RequireEvaluator);
 
-        evaluatorPolicy.ShouldBeSameAs(clubMemberPolicy);
+        clubMemberPolicy.ShouldNotBeNull();
+        evaluatorPolicy.ShouldNotBeNull();
+        evaluatorPolicy.AuthenticationSchemes.ShouldBe(clubMemberPolicy.AuthenticationSchemes);
+        evaluatorPolicy.Requirements.Select(requirement => requirement.GetType())
+            .ShouldBe(clubMemberPolicy.Requirements.Select(requirement => requirement.GetType()));
+
+        var clubClaimRequirement = clubMemberPolicy.Requirements
+            .OfType<ClaimsAuthorizationRequirement>()
+            .ShouldHaveSingleItem();
+        var evaluatorClaimRequirement = evaluatorPolicy.Requirements
+            .OfType<ClaimsAuthorizationRequirement>()
+            .ShouldHaveSingleItem();
+
+        evaluatorClaimRequirement.ClaimType.ShouldBe(clubClaimRequirement.ClaimType);
+        evaluatorClaimRequirement.AllowedValues.ShouldBe(clubClaimRequirement.AllowedValues);
     }
 
     /// <summary>
