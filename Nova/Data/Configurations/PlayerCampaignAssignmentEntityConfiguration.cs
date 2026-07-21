@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Nova.Entities;
+using Nova.Shared.Enums;
 
 namespace Nova.Data.Configurations;
 
@@ -29,10 +30,19 @@ public class PlayerCampaignAssignmentEntityConfiguration : IEntityTypeConfigurat
             .IsUnique()
             .HasFilter("\"TryoutNumber\" IS NOT NULL");
 
+        var outcomeColumn = $"\"{nameof(PlayerCampaignAssignmentEntity.PlacementOutcome)}\"";
+        var teamIdColumn = $"\"{nameof(PlayerCampaignAssignmentEntity.TeamId)}\"";
+        var assigned = (int)PlacementOutcome.Assigned;
+        var outcomesWithoutTeam = string.Join(
+            ", ",
+            (int)PlacementOutcome.Undecided,
+            (int)PlacementOutcome.NotSelected,
+            (int)PlacementOutcome.Withdrawn);
+
         builder.ToTable(tableBuilder =>
             tableBuilder.HasCheckConstraint(
                 "CK_PlayerCampaignAssignments_PlacementOutcomeTeam",
-                "(\"PlacementOutcome\" = 1 AND \"TeamId\" IS NOT NULL) OR (\"PlacementOutcome\" IN (0, 2, 3) AND \"TeamId\" IS NULL)"));
+                $"({outcomeColumn} = {assigned} AND {teamIdColumn} IS NOT NULL) OR ({outcomeColumn} IN ({outcomesWithoutTeam}) AND {teamIdColumn} IS NULL)"));
 
         builder
             .HasOne(e => e.Player)

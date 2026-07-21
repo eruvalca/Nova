@@ -31,6 +31,11 @@ description: "Nova C# coding conventions, editorconfig expectations, and logging
 - Use source-generated named unions when they improve discoverability, reduce duplication, or centralize shared behavior and documentation for common result shapes.
 - Preserve clear API contracts: if a method returns a union, document each possible case in XML docs so callers understand expected flows.
 
+## Operation Input Naming
+
+- Name records that carry values into a service operation with an `Input` suffix (for example, `UpdateCampaignPlacementInput`).
+- Reserve `Command` and `Query` suffixes for code that intentionally implements a CQRS command/query architecture. Do not use CQRS terminology for ordinary service method inputs.
+
 ## Extension Members (C# 14)
 
 - **Use C# 14 extension blocks** for all new extension members. Declare a static class containing one or more `extension(ReceiverType receiver) { ... }` blocks instead of classic `this`-parameter extension methods:

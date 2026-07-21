@@ -47,7 +47,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementCommand(
+            new UpdateCampaignPlacementInput(
                 ClubAAssignmentId,
                 PlacementOutcome.Assigned,
                 EligibleTeamId,
@@ -85,7 +85,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementCommand(
+            new UpdateCampaignPlacementInput(
                 ClubAAssignmentId,
                 outcome,
                 teamId,
@@ -93,7 +93,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             TestContext.Current.CancellationToken);
 
         result.IsT1.ShouldBeTrue();
-        result.AsT1.Value.ShouldContainKey(nameof(UpdateCampaignPlacementCommand.TeamId));
+        result.AsT1.Value.ShouldContainKey(nameof(UpdateCampaignPlacementInput.TeamId));
     }
 
     /// <summary>
@@ -106,7 +106,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementCommand(
+            new UpdateCampaignPlacementInput(
                 ClubAAssignmentId,
                 PlacementOutcome.NotSelected,
                 TeamId: null,
@@ -126,7 +126,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementCommand(
+            new UpdateCampaignPlacementInput(
                 ClubBAssignmentId,
                 PlacementOutcome.NotSelected,
                 TeamId: null,
@@ -146,7 +146,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementCommand(
+            new UpdateCampaignPlacementInput(
                 ClubAAssignmentId,
                 PlacementOutcome.Assigned,
                 ClubBTeamId,
@@ -166,7 +166,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementCommand(
+            new UpdateCampaignPlacementInput(
                 ClubAAssignmentId,
                 PlacementOutcome.Assigned,
                 IneligibleTeamId,
@@ -207,7 +207,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.UpdatePlacementAsync(
-            new UpdateCampaignPlacementCommand(
+            new UpdateCampaignPlacementInput(
                 ClubAAssignmentId,
                 PlacementOutcome.NotSelected,
                 TeamId: null,

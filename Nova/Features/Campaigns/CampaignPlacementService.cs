@@ -14,7 +14,7 @@ namespace Nova.Features.Campaigns;
 /// <param name="Outcome">The new placement outcome.</param>
 /// <param name="TeamId">The assigned team identifier, required only for an assigned outcome.</param>
 /// <param name="ExpectedConcurrencyToken">The token observed when the placement was loaded.</param>
-public sealed record UpdateCampaignPlacementCommand(
+public sealed record UpdateCampaignPlacementInput(
     long PlayerCampaignAssignmentId,
     PlacementOutcome Outcome,
     long? TeamId,
@@ -52,7 +52,7 @@ public sealed partial class CampaignPlacementService(
     /// <summary>
     /// Updates one campaign participant's outcome and optional team.
     /// </summary>
-    /// <param name="command">The requested placement values and expected concurrency token.</param>
+    /// <param name="input">The requested placement values and expected concurrency token.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>
     /// The new concurrency token on success; validation, not-found, forbidden, or conflict information otherwise.
@@ -63,13 +63,13 @@ public sealed partial class CampaignPlacementService(
         NotFound,
         PlacementForbidden,
         PlacementConflict>> UpdatePlacementAsync(
-            UpdateCampaignPlacementCommand command,
+            UpdateCampaignPlacementInput input,
             CancellationToken cancellationToken = default)
     {
-        var validationErrors = Validate(command);
+        var validationErrors = Validate(input);
         if (validationErrors.Count > 0)
         {
-            LogPlacementValidationFailed(command.PlayerCampaignAssignmentId);
+            LogPlacementValidationFailed(input.PlayerCampaignAssignmentId);
             return new Error<IReadOnlyDictionary<string, string[]>>(validationErrors);
         }
 
@@ -77,7 +77,7 @@ public sealed partial class CampaignPlacementService(
             || currentUserProvider.ClubId is not long clubId
             || !currentUserProvider.IsClubAdmin)
         {
-            LogPlacementForbidden(command.PlayerCampaignAssignmentId, currentUserProvider.UserId ?? 0);
+            LogPlacementForbidden(input.PlayerCampaignAssignmentId, currentUserProvider.UserId ?? 0);
             return new PlacementForbidden("You must be a club administrator to update campaign placements.");
         }
 
@@ -88,7 +88,7 @@ public sealed partial class CampaignPlacementService(
             .Include(assignment => assignment.Player)
             .Include(assignment => assignment.Campaign)
             .SingleOrDefaultAsync(
-                assignment => assignment.PlayerCampaignAssignmentId == command.PlayerCampaignAssignmentId,
+                assignment => assignment.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId,
                 cancellationToken);
 
         if (participation is null
@@ -96,28 +96,28 @@ public sealed partial class CampaignPlacementService(
             || participation.Player.ClubId != clubId
             || participation.Campaign.ClubId != clubId)
         {
-            LogPlacementNotFound(command.PlayerCampaignAssignmentId, clubId);
+            LogPlacementNotFound(input.PlayerCampaignAssignmentId, clubId);
             return new NotFound();
         }
 
-        if (command.TeamId is long teamId)
+        if (input.TeamId is long teamId)
         {
             var team = await db.Teams
                 .SingleOrDefaultAsync(candidate => candidate.TeamId == teamId, cancellationToken);
 
             if (team is null || team.ClubId != clubId)
             {
-                LogPlacementTeamNotFound(command.PlayerCampaignAssignmentId, teamId, clubId);
+                LogPlacementTeamNotFound(input.PlayerCampaignAssignmentId, teamId, clubId);
                 return new NotFound();
             }
 
             if (participation.Player.GraduationYear < team.GraduationYear)
             {
-                LogPlacementEligibilityFailed(command.PlayerCampaignAssignmentId, teamId);
+                LogPlacementEligibilityFailed(input.PlayerCampaignAssignmentId, teamId);
                 return new Error<IReadOnlyDictionary<string, string[]>>(
                     new Dictionary<string, string[]>
                     {
-                        [nameof(command.TeamId)] =
+                        [nameof(input.TeamId)] =
                         [
                             "The player's graduation year must be greater than or equal to the team's graduation year."
                         ]
@@ -127,10 +127,10 @@ public sealed partial class CampaignPlacementService(
 
         db.Entry(participation)
             .Property(assignment => assignment.ConcurrencyToken)
-            .OriginalValue = command.ExpectedConcurrencyToken;
+            .OriginalValue = input.ExpectedConcurrencyToken;
 
-        participation.PlacementOutcome = command.Outcome;
-        participation.TeamId = command.TeamId;
+        participation.PlacementOutcome = input.Outcome;
+        participation.TeamId = input.TeamId;
         participation.ConcurrencyToken = Guid.NewGuid();
 
         try
@@ -140,53 +140,53 @@ public sealed partial class CampaignPlacementService(
         }
         catch (DbUpdateConcurrencyException)
         {
-            LogPlacementConflict(command.PlayerCampaignAssignmentId, userId);
+            LogPlacementConflict(input.PlayerCampaignAssignmentId, userId);
             return new PlacementConflict("The placement was changed by another user. Reload it and try again.");
         }
 
-        LogPlacementUpdated(command.PlayerCampaignAssignmentId, userId);
+        LogPlacementUpdated(input.PlayerCampaignAssignmentId, userId);
         return new PlacementMutationSuccess(participation.ConcurrencyToken);
     }
 
     /// <summary>
-    /// Validates command values that do not require database access.
+    /// Validates input values that do not require database access.
     /// </summary>
-    /// <param name="command">The command to validate.</param>
+    /// <param name="input">The placement input to validate.</param>
     /// <returns>A field-keyed validation-error dictionary.</returns>
-    private static Dictionary<string, string[]> Validate(UpdateCampaignPlacementCommand command)
+    private static Dictionary<string, string[]> Validate(UpdateCampaignPlacementInput input)
     {
         var errors = new Dictionary<string, string[]>();
 
-        if (command.PlayerCampaignAssignmentId <= 0)
+        if (input.PlayerCampaignAssignmentId <= 0)
         {
-            errors[nameof(command.PlayerCampaignAssignmentId)] = ["A campaign participation identifier is required."];
+            errors[nameof(input.PlayerCampaignAssignmentId)] = ["A campaign participation identifier is required."];
         }
 
-        if (!Enum.IsDefined(command.Outcome))
+        if (!Enum.IsDefined(input.Outcome))
         {
-            errors[nameof(command.Outcome)] = ["The placement outcome is invalid."];
+            errors[nameof(input.Outcome)] = ["The placement outcome is invalid."];
         }
 
-        if (command.ExpectedConcurrencyToken == Guid.Empty)
+        if (input.ExpectedConcurrencyToken == Guid.Empty)
         {
-            errors[nameof(command.ExpectedConcurrencyToken)] = ["A concurrency token is required."];
+            errors[nameof(input.ExpectedConcurrencyToken)] = ["A concurrency token is required."];
         }
 
-        var hasTeam = command.TeamId.HasValue;
-        if (command.Outcome == PlacementOutcome.Assigned && !hasTeam)
+        var hasTeam = input.TeamId.HasValue;
+        if (input.Outcome == PlacementOutcome.Assigned && !hasTeam)
         {
-            errors[nameof(command.TeamId)] = ["A team is required for an assigned outcome."];
+            errors[nameof(input.TeamId)] = ["A team is required for an assigned outcome."];
         }
-        else if (command.Outcome != PlacementOutcome.Assigned && hasTeam)
+        else if (input.Outcome != PlacementOutcome.Assigned && hasTeam)
         {
-            errors[nameof(command.TeamId)] = ["A team is only allowed for an assigned outcome."];
+            errors[nameof(input.TeamId)] = ["A team is only allowed for an assigned outcome."];
         }
 
         return errors;
     }
 
     /// <summary>
-    /// Logs a rejected placement request containing invalid command values.
+    /// Logs a rejected placement request containing invalid input values.
     /// </summary>
     /// <param name="assignmentId">The requested campaign participation identifier.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign placement validation failed for AssignmentId={AssignmentId}.")]
