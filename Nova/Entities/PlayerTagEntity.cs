@@ -5,7 +5,7 @@ namespace Nova.Entities;
 /// <summary>
 /// Represents the Player Tag Entity persisted in the database.
 /// </summary>
-public class PlayerTagEntity : BaseEntity, ITenantOwnedEntity
+public class PlayerTagEntity : ArchivableEntity, ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the Player Tag Id.

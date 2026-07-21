@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using OneOf;
 using OneOf.Types;
@@ -81,6 +82,7 @@ public sealed partial class CampaignPlacementService(
             return new PlacementForbidden("You must be a club administrator to update campaign placements.");
         }
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var participation = await db.PlayerCampaignAssignments
             .Include(assignment => assignment.Player)
@@ -98,8 +100,18 @@ public sealed partial class CampaignPlacementService(
             return new NotFound();
         }
 
+        await db.AcquirePlayerMutationLockAsync(participation.PlayerId, cancellationToken);
+        await db.Entry(participation.Player).ReloadAsync(cancellationToken);
+
+        if (participation.Player.LifecycleStatus == LifecycleStatus.Archived)
+        {
+            LogPlacementPlayerArchived(input.PlayerCampaignAssignmentId, participation.PlayerId);
+            return new PlacementConflict("Archived players cannot receive new placement decisions.");
+        }
+
         if (input.TeamId is long teamId)
         {
+            await db.AcquireTeamMutationLockAsync(teamId, cancellationToken);
             var team = await db.Teams
                 .SingleOrDefaultAsync(candidate => candidate.TeamId == teamId, cancellationToken);
 
@@ -107,6 +119,12 @@ public sealed partial class CampaignPlacementService(
             {
                 LogPlacementTeamNotFound(input.PlayerCampaignAssignmentId, teamId, clubId);
                 return new NotFound();
+            }
+
+            if (team.LifecycleStatus == LifecycleStatus.Archived)
+            {
+                LogPlacementTeamArchived(input.PlayerCampaignAssignmentId, teamId);
+                return new PlacementConflict("Archived teams cannot receive new placements.");
             }
 
             if (participation.Player.GraduationYear < team.GraduationYear)
@@ -134,6 +152,7 @@ public sealed partial class CampaignPlacementService(
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -218,6 +237,22 @@ public sealed partial class CampaignPlacementService(
     /// <param name="clubId">The current club identifier.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "TeamId={TeamId} for AssignmentId={AssignmentId} was not found for ClubId={ClubId}.")]
     private partial void LogPlacementTeamNotFound(long assignmentId, long teamId, long clubId);
+
+    /// <summary>
+    /// Logs a placement rejected because its player is archived.
+    /// </summary>
+    /// <param name="assignmentId">The requested campaign participation identifier.</param>
+    /// <param name="playerId">The archived player identifier.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign placement rejected for AssignmentId={AssignmentId} because PlayerId={PlayerId} is archived.")]
+    private partial void LogPlacementPlayerArchived(long assignmentId, long playerId);
+
+    /// <summary>
+    /// Logs a placement rejected because its requested team is archived.
+    /// </summary>
+    /// <param name="assignmentId">The requested campaign participation identifier.</param>
+    /// <param name="teamId">The archived team identifier.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign placement rejected for AssignmentId={AssignmentId} because TeamId={TeamId} is archived.")]
+    private partial void LogPlacementTeamArchived(long assignmentId, long teamId);
 
     /// <summary>
     /// Logs a placement rejected by the graduation-year eligibility rule.

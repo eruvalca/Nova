@@ -210,6 +210,66 @@ public sealed class CampaignPlacementServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies an archived player cannot receive a new placement decision.
+    /// </summary>
+    [Fact]
+    public async Task UpdatePlacementAsync_ReturnsConflict_WhenPlayerIsArchived()
+    {
+        await using (var archive = _harness.CreateAdminContext())
+        {
+            var player = await archive.Players
+                .SingleAsync(candidate => candidate.PlayerId == 700, TestContext.Current.CancellationToken);
+            player.LifecycleStatus = LifecycleStatus.Archived;
+            player.ArchivedAt = DateTimeOffset.UtcNow;
+            player.ArchivedById = ClubAAdminId;
+            await archive.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.UpdatePlacementAsync(
+            new UpdateCampaignPlacementInput(
+                ClubAAssignmentId,
+                PlacementOutcome.NotSelected,
+                TeamId: null,
+                _clubAConcurrencyToken),
+            TestContext.Current.CancellationToken);
+
+        result.IsT4.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies an archived team cannot receive a new placement.
+    /// </summary>
+    [Fact]
+    public async Task UpdatePlacementAsync_ReturnsConflict_WhenTeamIsArchived()
+    {
+        await using (var archive = _harness.CreateAdminContext())
+        {
+            var team = await archive.Teams
+                .SingleAsync(candidate => candidate.TeamId == EligibleTeamId, TestContext.Current.CancellationToken);
+            team.LifecycleStatus = LifecycleStatus.Archived;
+            team.ArchivedAt = DateTimeOffset.UtcNow;
+            team.ArchivedById = ClubAAdminId;
+            await archive.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.UpdatePlacementAsync(
+            new UpdateCampaignPlacementInput(
+                ClubAAssignmentId,
+                PlacementOutcome.Assigned,
+                EligibleTeamId,
+                _clubAConcurrencyToken),
+            TestContext.Current.CancellationToken);
+
+        result.IsT4.ShouldBeTrue();
+    }
+
+    /// <summary>
     /// Verifies a stale token returns a conflict and cannot overwrite the newer placement.
     /// </summary>
     [Fact]
