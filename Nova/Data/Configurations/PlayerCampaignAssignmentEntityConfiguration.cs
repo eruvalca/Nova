@@ -19,6 +19,21 @@ public class PlayerCampaignAssignmentEntityConfiguration : IEntityTypeConfigurat
         builder.Property(e => e.PlayerCampaignAssignmentId)
             .ValueGeneratedOnAdd();
 
+        builder.Property(e => e.ConcurrencyToken)
+            .IsConcurrencyToken();
+
+        builder.HasIndex(e => new { e.CampaignId, e.PlayerId })
+            .IsUnique();
+
+        builder.HasIndex(e => new { e.CampaignId, e.TryoutNumber })
+            .IsUnique()
+            .HasFilter("\"TryoutNumber\" IS NOT NULL");
+
+        builder.ToTable(tableBuilder =>
+            tableBuilder.HasCheckConstraint(
+                "CK_PlayerCampaignAssignments_PlacementOutcomeTeam",
+                "(\"PlacementOutcome\" = 1 AND \"TeamId\" IS NOT NULL) OR (\"PlacementOutcome\" IN (0, 2, 3) AND \"TeamId\" IS NULL)"));
+
         builder
             .HasOne(e => e.Player)
             .WithMany(p => p.CampaignAssignments)

@@ -41,10 +41,6 @@ public class PlayerEntity : BaseEntity, ITenantOwnedEntity
     /// </summary>
     public int? JerseyNumber { get; set; }
     /// <summary>
-    /// Gets or sets the Tryout Number.
-    /// </summary>
-    public int? TryoutNumber { get; set; }
-    /// <summary>
     /// Gets or sets the Graduation Year.
     /// </summary>
     public required int GraduationYear { get; set; }
