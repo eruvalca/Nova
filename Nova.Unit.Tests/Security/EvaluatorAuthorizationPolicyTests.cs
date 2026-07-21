@@ -22,6 +22,7 @@ public sealed class EvaluatorAuthorizationPolicyTests
     /// <param name="expected">Whether evaluator authorization should succeed.</param>
     [Theory]
     [InlineData(false, false, null, false)]
+    [InlineData(false, true, null, false)]
     [InlineData(true, false, null, false)]
     [InlineData(true, true, null, true)]
     [InlineData(true, true, Roles.ClubAdmin, true)]
