@@ -19,4 +19,9 @@ public static class Policies
     /// Requires an authenticated user with a club membership claim.
     /// </summary>
     public const string RequireClubMember = "RequireClubMember";
+
+    /// <summary>
+    /// Requires an authenticated club member who may perform evaluation work.
+    /// </summary>
+    public const string RequireEvaluator = "RequireEvaluator";
 }
