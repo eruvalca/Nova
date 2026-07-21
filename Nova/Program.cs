@@ -14,6 +14,7 @@ using Nova.Data.Interceptors;
 using Nova.Data.Startup;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Extensions.Security;
 using Nova.Features.Account;
 using Nova.Features.Clubs;
 using Nova.Features.Photos;
@@ -125,9 +126,7 @@ builder.Services.AddIdentityCore<NovaUserEntity>(options =>
     .AddDefaultTokenProviders();
 
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy(Policies.RequireAdmin, policy => policy.RequireRole(Roles.Admin))
-    .AddPolicy(Policies.RequireClubAdmin, policy => policy.RequireRole(Roles.ClubAdmin, Roles.Admin))
-    .AddPolicy(Policies.RequireClubMember, policy => policy.RequireAuthenticatedUser().RequireClaim(NovaClaimTypes.ClubId));
+    .AddNovaAuthorizationPolicies();
 
 builder.Services.AddHttpContextAccessor();
 

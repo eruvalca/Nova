@@ -59,7 +59,7 @@ This document describes the current application state and a proposed MVP for clu
 | View closed campaign results | Yes | Yes |
 | Manage club members and administrators | Yes | No |
 
-An evaluator is initially a club member with evaluation permissions. A dedicated evaluator role or campaign-level staff assignment can be added later if regular club members should not automatically evaluate.
+An evaluator is initially a club member with evaluation permissions. A dedicated evaluator role or campaign-level staff assignment can be added later if regular club members should not automatically evaluate. The evaluator endpoint policy is only a coarse access gate; evaluation domain services must also validate current club membership and tenant ownership before reading or writing club data.
 
 ## Entry and Navigation
 
