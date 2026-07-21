@@ -1,4 +1,5 @@
 using Nova.Entities.Base;
+using Nova.Shared.Enums;
 
 namespace Nova.Entities;
 
@@ -31,6 +32,16 @@ public class PlayerCampaignAssignmentEntity : BaseEntity, ITenantOwnedEntity
     public CampaignEntity Campaign { get; set; } = null!;
 
     /// <summary>
+    /// Gets or sets the campaign-scoped tryout number.
+    /// </summary>
+    public int? TryoutNumber { get; set; }
+
+    /// <summary>
+    /// Gets or sets the player's placement outcome for the campaign.
+    /// </summary>
+    public PlacementOutcome PlacementOutcome { get; set; } = PlacementOutcome.Undecided;
+
+    /// <summary>
     /// Gets or sets the Team Id.
     /// </summary>
     public long? TeamId { get; set; } = null;
@@ -38,6 +49,11 @@ public class PlayerCampaignAssignmentEntity : BaseEntity, ITenantOwnedEntity
     /// Gets or sets the Team.
     /// </summary>
     public TeamEntity? Team { get; set; } = null;
+
+    /// <summary>
+    /// Gets or sets the application-managed token used to detect concurrent placement updates.
+    /// </summary>
+    public Guid ConcurrencyToken { get; set; } = Guid.NewGuid();
 
     /// <summary>
     /// Gets or sets the Club Id.
