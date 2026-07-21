@@ -97,6 +97,30 @@ public sealed class CampaignPlacementServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies non-positive team identifiers are reported as invalid input.
+    /// </summary>
+    /// <param name="teamId">The invalid team identifier.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task UpdatePlacementAsync_ReturnsValidation_ForNonPositiveTeamId(long teamId)
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.UpdatePlacementAsync(
+            new UpdateCampaignPlacementInput(
+                ClubAAssignmentId,
+                PlacementOutcome.Assigned,
+                teamId,
+                _clubAConcurrencyToken),
+            TestContext.Current.CancellationToken);
+
+        result.IsT1.ShouldBeTrue();
+        result.AsT1.Value.ShouldContainKey(nameof(UpdateCampaignPlacementInput.TeamId));
+    }
+
+    /// <summary>
     /// Verifies a regular club member cannot mutate placement decisions.
     /// </summary>
     [Fact]

@@ -80,9 +80,7 @@ public sealed partial class CampaignPlacementService(
             LogPlacementForbidden(input.PlayerCampaignAssignmentId, currentUserProvider.UserId ?? 0);
             return new PlacementForbidden("You must be a club administrator to update campaign placements.");
         }
-
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var participation = await db.PlayerCampaignAssignments
             .Include(assignment => assignment.Player)
@@ -136,7 +134,6 @@ public sealed partial class CampaignPlacementService(
         try
         {
             await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -170,6 +167,11 @@ public sealed partial class CampaignPlacementService(
         if (input.ExpectedConcurrencyToken == Guid.Empty)
         {
             errors[nameof(input.ExpectedConcurrencyToken)] = ["A concurrency token is required."];
+        }
+
+        if (input.TeamId is <= 0)
+        {
+            errors[nameof(input.TeamId)] = ["A team identifier must be greater than zero."];
         }
 
         var hasTeam = input.TeamId.HasValue;
