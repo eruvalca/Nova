@@ -5,14 +5,15 @@ using Nova.Entities;
 namespace Nova.Data.Configurations;
 
 /// <summary>
-/// Configures EF Core mapping for Note Entity Configuration.
+/// Configures EF Core mapping for <see cref="NoteEntity"/>, associating evaluation notes
+/// with campaign participation as the dependent side of the relationship.
 /// </summary>
 public class NoteEntityConfiguration : IEntityTypeConfiguration<NoteEntity>
 {
     /// <summary>
-    /// Executes the Configure operation.
+    /// Applies the entity configuration.
     /// </summary>
-    /// <param name="builder">The builder.</param>
+    /// <param name="builder">The entity type builder.</param>
     public void Configure(EntityTypeBuilder<NoteEntity> builder)
     {
         builder.HasKey(e => e.NoteId);
@@ -20,9 +21,9 @@ public class NoteEntityConfiguration : IEntityTypeConfiguration<NoteEntity>
             .ValueGeneratedOnAdd();
 
         builder
-            .HasOne(e => e.Player)
+            .HasOne(e => e.PlayerCampaignAssignment)
             .WithMany(p => p.Notes)
-            .HasForeignKey(e => e.PlayerId)
+            .HasForeignKey(e => e.PlayerCampaignAssignmentId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder

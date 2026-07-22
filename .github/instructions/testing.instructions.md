@@ -43,6 +43,10 @@ round-trip test in `Nova.Integration.Tests` for provider-sensitive queries.
 - Never assert on global, unfiltered counts in integration tests (the database is shared across the
   collection — each test seeds its own data with database-generated ids).
 - bunit and NSubstitute are available in both projects for component/service tests.
+- Do not pass `null` or `null!` for required mock constructor dependencies. Supply a valid
+  `Substitute.For<T>()` (or a lightweight real implementation when clearer), and use
+  `Array.Empty<T>()` for empty validator or collaborator collections. Reserve nulls for tests that
+  intentionally exercise nullable behavior.
 
 ## Related
 

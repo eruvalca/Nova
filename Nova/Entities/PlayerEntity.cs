@@ -46,9 +46,15 @@ public class PlayerEntity : ArchivableEntity, ITenantOwnedEntity
     public required int GraduationYear { get; set; }
 
     /// <summary>
+<<<<<<< HEAD
     /// Gets or sets the Notes.
     /// </summary>
     public ICollection<NoteEntity> Notes { get; set; } = [];
+=======
+    /// Gets or sets the Tags.
+    /// </summary>
+    public ICollection<PlayerTagEntity> Tags { get; set; } = [];
+>>>>>>> origin/main
     /// <summary>
     /// Gets or sets the Campaign Assignments.
     /// </summary>

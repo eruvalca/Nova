@@ -106,7 +106,7 @@ public class ClubMemberServiceTests : IDisposable
 
     private ClubMemberService CreateService()
     {
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
         var userManager = CreateUserManagerMock();
 
         return new ClubMemberService(
@@ -126,10 +126,10 @@ public class ClubMemberServiceTests : IDisposable
             userManager,
             Substitute.For<IHttpContextAccessor>(),
             Substitute.For<IUserClaimsPrincipalFactory<NovaUserEntity>>(),
-            null,
-            null,
-            null,
-            null);
+            Substitute.For<IOptions<IdentityOptions>>(),
+            Substitute.For<ILogger<SignInManager<NovaUserEntity>>>(),
+            Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>(),
+            Substitute.For<IUserConfirmation<NovaUserEntity>>());
 
         return new ClubMembershipClaimRefresher(userManager, signInManager);
     }
@@ -332,7 +332,7 @@ public class ClubMemberServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
         _harness.CurrentUser.IsClubAdmin = true;
 
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
         var userManager = Substitute.For<UserManager<NovaUserEntity>>(
             store,
@@ -347,7 +347,7 @@ public class ClubMemberServiceTests : IDisposable
 
         userManager.FindByIdAsync(Member1UserId.ToString()).Returns(Task.FromResult(_member1User)!);
         // Member1 is already a ClubAdmin
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == Member1UserId), Roles.ClubAdmin)
+        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(true));
 
         var service = new ClubMemberService(
@@ -373,7 +373,7 @@ public class ClubMemberServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
         _harness.CurrentUser.IsClubAdmin = true;
 
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
         var userManager = Substitute.For<UserManager<NovaUserEntity>>(
             store,
@@ -388,9 +388,9 @@ public class ClubMemberServiceTests : IDisposable
 
         userManager.FindByIdAsync(Member1UserId.ToString()).Returns(Task.FromResult(_member1User)!);
         // Member1 is not yet a ClubAdmin
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == Member1UserId), Roles.ClubAdmin)
+        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(false));
-        userManager.AddToRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == Member1UserId), Roles.ClubAdmin)
+        userManager.AddToRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(IdentityResult.Success));
 
         var service = new ClubMemberService(
@@ -416,7 +416,7 @@ public class ClubMemberServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
         _harness.CurrentUser.IsClubAdmin = true;
 
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
         var userManager = Substitute.For<UserManager<NovaUserEntity>>(
             store,
@@ -431,9 +431,9 @@ public class ClubMemberServiceTests : IDisposable
 
         userManager.FindByIdAsync(Member1UserId.ToString()).Returns(Task.FromResult(_member1User)!);
         // Member1 is not yet a ClubAdmin
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == Member1UserId), Roles.ClubAdmin)
+        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(false));
-        userManager.AddToRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == Member1UserId), Roles.ClubAdmin)
+        userManager.AddToRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(IdentityResult.Success));
 
         var service = new ClubMemberService(
@@ -459,7 +459,7 @@ public class ClubMemberServiceTests : IDisposable
         _harness.CurrentUser.ClubId = ClubAId;
         _harness.CurrentUser.IsClubAdmin = true;
 
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
         var userManager = Substitute.For<UserManager<NovaUserEntity>>(
             store,
@@ -474,11 +474,11 @@ public class ClubMemberServiceTests : IDisposable
 
         userManager.FindByIdAsync(Member1UserId.ToString()).Returns(Task.FromResult(_member1User)!);
         // Member1 is not yet a ClubAdmin
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == Member1UserId), Roles.ClubAdmin)
+        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(false));
         // AddToRoleAsync fails
         var failedResult = IdentityResult.Failed(new IdentityError { Code = "RoleFailed", Description = "Role assignment failed." });
-        userManager.AddToRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == Member1UserId), Roles.ClubAdmin)
+        userManager.AddToRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(failedResult));
 
         var service = new ClubMemberService(

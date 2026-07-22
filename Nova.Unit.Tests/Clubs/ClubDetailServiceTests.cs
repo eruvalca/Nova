@@ -122,7 +122,7 @@ public class ClubDetailServiceTests : IDisposable
     private ClubDetailService CreateService()
     {
         IDbContextFactory<NovaReadDbContext> readDbFactory =
-            new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
+            new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
         return new ClubDetailService(readDbFactory, _harness.CurrentUser, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClubDetailService>.Instance);
     }
 

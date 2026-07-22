@@ -51,7 +51,7 @@ public class NovaComponentBaseTests
         await component.DisposeAsync();
         cut.Dispose();
 
-        var token = Should.NotThrow(() => component.GetToken());
+        var token = Should.NotThrow(component.GetToken);
 
         token.IsCancellationRequested.ShouldBeTrue();
     }

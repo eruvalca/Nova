@@ -389,7 +389,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// </summary>
     /// <returns>A context factory backed by the shared SQLite connection.</returns>
     private IDbContextFactory<NovaDbContext> CreateDbContextFactory()
-        => new TestDbContextFactory<NovaDbContext>(() => _harness.CreateTenantContext());
+        => new TestDbContextFactory<NovaDbContext>(_harness.CreateTenantContext);
 
     /// <summary>
     /// Sets the current user state for the next tenant context.

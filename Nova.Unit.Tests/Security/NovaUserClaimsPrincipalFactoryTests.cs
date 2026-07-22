@@ -91,16 +91,34 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
     {
         var userStore = Substitute.For<IUserStore<NovaUserEntity>>();
         userStore.GetUserIdAsync(Arg.Any<NovaUserEntity>(), Arg.Any<CancellationToken>())
-            .Returns(call => Task.FromResult(call.Arg<NovaUserEntity>().Id.ToString()));
+            .Returns(call =>
+            {
+                var user = call.Arg<NovaUserEntity>() ?? throw new InvalidOperationException("User argument was null.");
+                return Task.FromResult(user.Id.ToString());
+            });
         userStore.GetUserNameAsync(Arg.Any<NovaUserEntity>(), Arg.Any<CancellationToken>())
-            .Returns(call => Task.FromResult<string?>($"user{call.Arg<NovaUserEntity>().Id}"));
+            .Returns(call =>
+            {
+                var user = call.Arg<NovaUserEntity>() ?? throw new InvalidOperationException("User argument was null.");
+                return Task.FromResult<string?>($"user{user.Id}");
+            });
 
         var userManager = new UserManager<NovaUserEntity>(
-            userStore, Options.Create(new IdentityOptions()), null!, [], [], null!, null!, null!,
+            userStore,
+            Options.Create(new IdentityOptions()),
+            new PasswordHasher<NovaUserEntity>(),
+            Array.Empty<IUserValidator<NovaUserEntity>>(),
+            Array.Empty<IPasswordValidator<NovaUserEntity>>(),
+            new UpperInvariantLookupNormalizer(),
+            new IdentityErrorDescriber(),
+            Substitute.For<IServiceProvider>(),
             NullLogger<UserManager<NovaUserEntity>>.Instance);
 
         var roleManager = new RoleManager<IdentityRole<long>>(
-            Substitute.For<IRoleStore<IdentityRole<long>>>(), [], null!, null!,
+            Substitute.For<IRoleStore<IdentityRole<long>>>(),
+            Array.Empty<IRoleValidator<IdentityRole<long>>>(),
+            new UpperInvariantLookupNormalizer(),
+            new IdentityErrorDescriber(),
             NullLogger<RoleManager<IdentityRole<long>>>.Instance);
 
         return new NovaUserClaimsPrincipalFactory(

@@ -234,7 +234,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     private CampaignLifecycleService CreateService()
     {
         IDbContextFactory<NovaDbContext> dbContextFactory =
-            new TestDbContextFactory<NovaDbContext>(() => _harness.CreateTenantContext());
+            new TestDbContextFactory<NovaDbContext>(_harness.CreateTenantContext);
 
         return new CampaignLifecycleService(
             dbContextFactory,
