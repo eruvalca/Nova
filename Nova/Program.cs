@@ -94,6 +94,7 @@ builder.Services.AddScoped<IClubService, ClubService>();
 builder.Services.AddScoped<IClubDetailService, ClubDetailService>();
 builder.Services.AddScoped<IClubAdminService, ClubAdminService>();
 builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();
+builder.Services.AddScoped<IPlayerDetailService, PlayerDetailQueryService>();
 builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
 builder.Services.AddScoped<IClubMemberService, ClubMemberService>();
 builder.Services.AddScoped<EvaluationNoteService>();
@@ -101,6 +102,7 @@ builder.Services.AddScoped<CampaignPlacementService>();
 builder.Services.AddScoped<CampaignTagApplicationService>();
 builder.Services.AddScoped<CampaignLifecycleService>();
 builder.Services.AddScoped<IPlayerLifecycleService, PlayerLifecycleService>();
+builder.Services.AddScoped<IPlayerManagementService, PlayerManagementService>();
 builder.Services.AddScoped<TeamLifecycleService>();
 builder.Services.AddScoped<TagDefinitionLifecycleService>();
 
@@ -219,6 +221,12 @@ app.MapClubEndpoints();
 
 // Player lifecycle archive/restore endpoints.
 app.MapPlayerLifecycleEndpoints();
+
+// Player create and update endpoints.
+app.MapPlayerManagementEndpoints();
+
+// Player detail and campaign-history query endpoint.
+app.MapPlayerEndpoints();
 
 await StartupDatabaseInitializer.InitializeAsync(app.Services, app.Environment.IsDevelopment());
 

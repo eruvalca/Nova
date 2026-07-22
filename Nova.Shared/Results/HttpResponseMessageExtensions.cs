@@ -26,8 +26,10 @@ public static class HttpResponseMessageExtensions
                 .Where(static entry => entry.Key is not ("type" or "title" or "status" or "instance"))
                 .ToDictionary(entry => entry.Key, entry => (object?)entry.Value);
 
-            // If we have structured validation errors and a 400 status, it's a Validation problem.
-            if (response.StatusCode == HttpStatusCode.BadRequest && errors is not null && errors.Count > 0)
+            // If we have structured validation errors and a 400/422 status, it's a Validation problem.
+            // Minimal APIs return 422 UnprocessableEntity for TypedResults.ValidationProblem.
+            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity
+                && errors is not null && errors.Count > 0)
             {
                 return ServiceProblem.Validation(errors, detail, extensions);
             }
@@ -37,7 +39,11 @@ public static class HttpResponseMessageExtensions
             {
                 HttpStatusCode.NotFound => ServiceProblem.NotFound(detail, extensions),
                 HttpStatusCode.Forbidden => ServiceProblem.Forbidden(detail, extensions),
+                HttpStatusCode.Conflict when errors is { Count: > 0 } =>
+                    ServiceProblem.Conflict(detail, errors, extensions),
                 HttpStatusCode.Conflict => ServiceProblem.Conflict(detail, extensions),
+                HttpStatusCode.UnprocessableEntity =>
+                    ServiceProblem.Validation(new Dictionary<string, string[]>(), detail, extensions),
                 HttpStatusCode.BadRequest => ServiceProblem.BadRequest(detail, extensions),
                 _ => ServiceProblem.ServerError(detail, extensions)
             };

@@ -73,6 +73,44 @@ public class HttpResponseMessageExtensionsTests
     }
 
     [Fact]
+    public async Task ToServiceProblemAsync_ReturnsValidation_For422WithErrorsBody()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
+        {
+            Content = JsonContent.Create(new
+            {
+                detail = "Please correct the validation errors.",
+                errors = new Dictionary<string, string[]>
+                {
+                    ["firstName"] = ["First name is required."]
+                }
+            })
+        };
+
+        var problem = await response.ToServiceProblemAsync(TestContext.Current.CancellationToken);
+
+        problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        problem.Detail.ShouldBe("Please correct the validation errors.");
+        problem.Errors.ShouldNotBeNull();
+        problem.Errors["firstName"].ShouldBe(["First name is required."]);
+    }
+
+    [Fact]
+    public async Task ToServiceProblemAsync_ReturnsValidation_For422WithoutErrors()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
+        {
+            Content = JsonContent.Create(new { detail = "Unprocessable." })
+        };
+
+        var problem = await response.ToServiceProblemAsync(TestContext.Current.CancellationToken);
+
+        problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        problem.Errors.ShouldNotBeNull();
+        problem.Errors.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task ToServiceProblemAsync_ReturnsNullDetail_ForEmptyBody()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound);

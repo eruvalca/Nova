@@ -49,6 +49,16 @@ public readonly record struct ServiceProblem(
         => new(ServiceProblemKind.Conflict, detail, null, extensions);
 
     /// <summary>
+    /// Creates a Conflict problem (HTTP 409) with structured errors.
+    /// Use this when the conflict carries structured data the client must parse (e.g. graduation-year blockers).
+    /// </summary>
+    public static ServiceProblem Conflict(
+        string? detail,
+        IReadOnlyDictionary<string, string[]> errors,
+        IReadOnlyDictionary<string, object?>? extensions = null)
+        => new(ServiceProblemKind.Conflict, detail, errors, extensions);
+
+    /// <summary>
     /// Creates a BadRequest problem (HTTP 400).
     /// Use this for single-message business-rule rejections where the client input is structurally valid
     /// but semantically rejected (e.g. invalid state transition).

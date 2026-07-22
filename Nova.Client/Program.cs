@@ -30,5 +30,7 @@ builder.Services.AddScoped<IClubService, HttpClubService>();
 builder.Services.AddScoped<IClubJoinRequestService, HttpClubJoinRequestService>();
 builder.Services.AddScoped<IClubMemberService, HttpClubMemberService>();
 builder.Services.AddScoped<IPlayerLifecycleService, HttpPlayerLifecycleService>();
+builder.Services.AddScoped<IPlayerManagementService, HttpPlayerManagementService>();
+builder.Services.AddScoped<IPlayerDetailService, HttpPlayerDetailService>();
 
 await builder.Build().RunAsync();
