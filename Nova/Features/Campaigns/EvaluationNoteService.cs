@@ -52,6 +52,7 @@ public sealed partial class EvaluationNoteService(
         }
 
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var participation = await db.PlayerCampaignAssignments
             .Include(assignment => assignment.Campaign)
@@ -64,6 +65,9 @@ public sealed partial class EvaluationNoteService(
             LogNoteNotFound(nameof(AddAsync), input.PlayerCampaignAssignmentId, clubId);
             return new NotFound();
         }
+
+        await db.AcquireCampaignMutationLockAsync(participation.CampaignId, cancellationToken);
+        await db.Entry(participation.Campaign).ReloadAsync(cancellationToken);
 
         if (participation.Campaign.Status == CampaignStatus.Closed)
         {
@@ -81,6 +85,7 @@ public sealed partial class EvaluationNoteService(
         db.Notes.Add(note);
 
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         LogNoteAdded(note.NoteId, input.PlayerCampaignAssignmentId, actorUserId);
         return new Success();
@@ -114,6 +119,7 @@ public sealed partial class EvaluationNoteService(
         }
 
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var note = await db.Notes
             .Include(n => n.PlayerCampaignAssignment)
@@ -134,6 +140,9 @@ public sealed partial class EvaluationNoteService(
             return new LifecycleForbidden("Only the note author or a club administrator may edit evaluation notes.");
         }
 
+        await db.AcquireCampaignMutationLockAsync(note.PlayerCampaignAssignment.CampaignId, cancellationToken);
+        await db.Entry(note.PlayerCampaignAssignment.Campaign).ReloadAsync(cancellationToken);
+
         if (note.PlayerCampaignAssignment.Campaign.Status == CampaignStatus.Closed)
         {
             LogNoteCampaignClosed(nameof(EditAsync), input.NoteId, note.PlayerCampaignAssignment.CampaignId);
@@ -143,6 +152,7 @@ public sealed partial class EvaluationNoteService(
         note.Content = input.Content;
 
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         LogNoteEdited(input.NoteId, actorUserId);
         return new Success();
@@ -169,6 +179,7 @@ public sealed partial class EvaluationNoteService(
         }
 
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var note = await db.Notes
             .Include(n => n.PlayerCampaignAssignment)
@@ -189,6 +200,9 @@ public sealed partial class EvaluationNoteService(
             return new LifecycleForbidden("Only the note author or a club administrator may delete evaluation notes.");
         }
 
+        await db.AcquireCampaignMutationLockAsync(note.PlayerCampaignAssignment.CampaignId, cancellationToken);
+        await db.Entry(note.PlayerCampaignAssignment.Campaign).ReloadAsync(cancellationToken);
+
         if (note.PlayerCampaignAssignment.Campaign.Status == CampaignStatus.Closed)
         {
             LogNoteCampaignClosed(nameof(DeleteAsync), noteId, note.PlayerCampaignAssignment.CampaignId);
@@ -197,6 +211,7 @@ public sealed partial class EvaluationNoteService(
 
         db.Notes.Remove(note);
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         LogNoteDeleted(noteId, actorUserId);
         return new Success();

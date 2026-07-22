@@ -71,6 +71,14 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         }, TestContext.Current.CancellationToken);
 
         result.IsT0.ShouldBeTrue(); // Success
+
+        using var db = _harness.CreateAdminContext();
+        var addedNote = db.Notes
+            .Where(note => note.PlayerCampaignAssignmentId == _assignmentId && note.Content == "Good footwork.")
+            .OrderByDescending(note => note.NoteId)
+            .First();
+        addedNote.ClubId.ShouldBe(ClubAId);
+        addedNote.CreatedById.ShouldBe(ClubAMember1Id);
     }
 
     /// <summary>Verifies that an unauthenticated caller cannot add a note.</summary>
@@ -162,6 +170,9 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         // Note was created by ClubAMember1Id (see Seed)
         ActAs(ClubAMember1Id, ClubAId);
         var sut = CreateService();
+        using var originalDb = _harness.CreateAdminContext();
+        var originalNote = originalDb.Notes.Single(note => note.NoteId == _existingNoteId);
+        var originalCreatedById = originalNote.CreatedById;
 
         var result = await sut.EditAsync(new EditEvaluationNoteInput
         {
@@ -170,6 +181,13 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         }, TestContext.Current.CancellationToken);
 
         result.IsT0.ShouldBeTrue(); // Success
+
+        using var db = _harness.CreateAdminContext();
+        var editedNote = db.Notes.Single(note => note.NoteId == _existingNoteId);
+        editedNote.Content.ShouldBe("Updated content.");
+        editedNote.CreatedById.ShouldBe(originalCreatedById);
+        editedNote.ModifiedAt.ShouldNotBeNull();
+        editedNote.ModifiedById.ShouldBe(ClubAMember1Id);
     }
 
     /// <summary>Verifies that a club administrator can edit any note in their club.</summary>
