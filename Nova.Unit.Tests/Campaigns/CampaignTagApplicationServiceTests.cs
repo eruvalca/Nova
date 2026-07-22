@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
+using Nova.Shared.Campaigns;
 using Nova.Shared.Enums;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
@@ -52,7 +53,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput(ActiveAssignmentId, SecondaryActiveTagId),
+            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = SecondaryActiveTagId },
             TestContext.Current.CancellationToken);
 
         result.IsT0.ShouldBeTrue();
@@ -76,7 +77,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput(ActiveAssignmentId, ActiveTagId),
+            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = ActiveTagId },
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
@@ -92,7 +93,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput(ActiveAssignmentId, ArchivedTagId),
+            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = ArchivedTagId },
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
@@ -108,7 +109,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput(ClosedAssignmentId, ActiveTagId),
+            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ClosedAssignmentId, PlayerTagId = ActiveTagId },
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
@@ -124,7 +125,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput(ClubBAssignmentId, ActiveTagId),
+            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ClubBAssignmentId, PlayerTagId = ActiveTagId },
             TestContext.Current.CancellationToken);
 
         result.IsT2.ShouldBeTrue();
@@ -140,7 +141,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.ApplyAsync(
-            new ApplyCampaignTagApplicationInput(ActiveAssignmentId, ClubBTagId),
+            new ApplyCampaignTagApplicationInput { PlayerCampaignAssignmentId = ActiveAssignmentId, PlayerTagId = ClubBTagId },
             TestContext.Current.CancellationToken);
 
         result.IsT2.ShouldBeTrue();
@@ -156,7 +157,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput(ExistingApplicationId),
+            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ExistingApplicationId },
             TestContext.Current.CancellationToken);
 
         result.IsT0.ShouldBeTrue();
@@ -177,7 +178,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput(ExistingApplicationId),
+            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ExistingApplicationId },
             TestContext.Current.CancellationToken);
 
         result.IsT0.ShouldBeTrue();
@@ -193,7 +194,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput(ExistingApplicationId),
+            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ExistingApplicationId },
             TestContext.Current.CancellationToken);
 
         result.IsT3.ShouldBeTrue();
@@ -209,7 +210,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput(ClosedCampaignApplicationId),
+            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ClosedCampaignApplicationId },
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
@@ -225,7 +226,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.RemoveAsync(
-            new RemoveCampaignTagApplicationInput(ArchivedTagApplicationId),
+            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ArchivedTagApplicationId },
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();

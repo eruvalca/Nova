@@ -2,25 +2,15 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Entities;
 using Nova.Features.Shared;
+using Nova.Shared.Campaigns;
 using Nova.Shared.Enums;
+using Nova.Shared.Validation;
 using OneOf;
 using OneOf.Types;
 
 namespace Nova.Features.Campaigns;
-
-/// <summary>
-/// Describes a request to apply a tag definition to a campaign participation.
-/// </summary>
-/// <param name="PlayerCampaignAssignmentId">The participation identifier to tag.</param>
-/// <param name="PlayerTagId">The tag-definition identifier to apply.</param>
-public sealed record ApplyCampaignTagApplicationInput(long PlayerCampaignAssignmentId, long PlayerTagId);
-
-/// <summary>
-/// Describes a request to remove one campaign tag application.
-/// </summary>
-/// <param name="CampaignTagApplicationId">The campaign tag application identifier to remove.</param>
-public sealed record RemoveCampaignTagApplicationInput(long CampaignTagApplicationId);
 
 /// <summary>
 /// Reports the created campaign tag application identifier.
@@ -66,7 +56,7 @@ public sealed partial class CampaignTagApplicationService(
             ApplyCampaignTagApplicationInput input,
             CancellationToken cancellationToken = default)
     {
-        var errors = Validate(input);
+        var errors = InputValidator.Validate(input);
         if (errors.Count > 0)
         {
             LogApplyValidationFailed(input.PlayerCampaignAssignmentId, input.PlayerTagId);
@@ -128,7 +118,7 @@ public sealed partial class CampaignTagApplicationService(
             return new CampaignTagApplicationConflict("The selected tag has already been applied to this participation.");
         }
 
-        var application = new Entities.CampaignTagApplicationEntity
+        var application = new CampaignTagApplicationEntity
         {
             PlayerCampaignAssignmentId = input.PlayerCampaignAssignmentId,
             PlayerTagId = input.PlayerTagId,
@@ -167,7 +157,7 @@ public sealed partial class CampaignTagApplicationService(
             RemoveCampaignTagApplicationInput input,
             CancellationToken cancellationToken = default)
     {
-        var errors = Validate(input);
+        var errors = InputValidator.Validate(input);
         if (errors.Count > 0)
         {
             LogRemoveValidationFailed(input.CampaignTagApplicationId);
@@ -229,43 +219,6 @@ public sealed partial class CampaignTagApplicationService(
 
         LogRemoveSucceeded(input.CampaignTagApplicationId, actorUserId);
         return new Success();
-    }
-
-    /// <summary>
-    /// Validates apply-input values that do not require database access.
-    /// </summary>
-    /// <param name="input">The apply-input values to validate.</param>
-    /// <returns>A field-keyed validation-error dictionary.</returns>
-    private static Dictionary<string, string[]> Validate(ApplyCampaignTagApplicationInput input)
-    {
-        var errors = new Dictionary<string, string[]>();
-        if (input.PlayerCampaignAssignmentId <= 0)
-        {
-            errors[nameof(input.PlayerCampaignAssignmentId)] = ["A campaign participation identifier is required."];
-        }
-
-        if (input.PlayerTagId <= 0)
-        {
-            errors[nameof(input.PlayerTagId)] = ["A tag-definition identifier is required."];
-        }
-
-        return errors;
-    }
-
-    /// <summary>
-    /// Validates remove-input values that do not require database access.
-    /// </summary>
-    /// <param name="input">The remove-input values to validate.</param>
-    /// <returns>A field-keyed validation-error dictionary.</returns>
-    private static Dictionary<string, string[]> Validate(RemoveCampaignTagApplicationInput input)
-    {
-        var errors = new Dictionary<string, string[]>();
-        if (input.CampaignTagApplicationId <= 0)
-        {
-            errors[nameof(input.CampaignTagApplicationId)] = ["A campaign tag application identifier is required."];
-        }
-
-        return errors;
     }
 
     /// <summary>
