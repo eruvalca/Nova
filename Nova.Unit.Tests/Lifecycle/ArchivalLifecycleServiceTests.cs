@@ -461,6 +461,9 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
                 Name = "Historical Campaign",
                 StartDate = new DateOnly(2025, 6, 1),
                 EndDate = new DateOnly(2025, 7, 1),
+                Status = CampaignStatus.Closed,
+                ClosedAt = DateTimeOffset.UtcNow,
+                ClosedById = ClubAAdminId,
                 SeasonId = 600,
                 ClubId = ClubAId,
                 CreatedById = ClubAAdminId
