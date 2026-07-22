@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Nova.Components.Account;
@@ -35,7 +35,15 @@ public class ClubJoinRequestServiceTests : IDisposable
     public ClubJoinRequestServiceTests()
     {
         _userManager = Substitute.For<UserManager<NovaUserEntity>>(
-            Substitute.For<IUserStore<NovaUserEntity>>(), null, null, null, null, null, null, null, null);
+            Substitute.For<IUserStore<NovaUserEntity>>(),
+            Substitute.For<Microsoft.Extensions.Options.IOptions<IdentityOptions>>(),
+            Substitute.For<IPasswordHasher<NovaUserEntity>>(),
+            Array.Empty<IUserValidator<NovaUserEntity>>(),
+            Array.Empty<IPasswordValidator<NovaUserEntity>>(),
+            Substitute.For<ILookupNormalizer>(),
+            Substitute.For<IdentityErrorDescriber>(),
+            Substitute.For<IServiceProvider>(),
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<UserManager<NovaUserEntity>>>());
         Seed();
     }
 
@@ -79,11 +87,14 @@ public class ClubJoinRequestServiceTests : IDisposable
         // Create a minimal ClubMembershipClaimRefresher with mocked dependencies
         // Use _userManager so the test can verify UpdateSecurityStampAsync calls
         _userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
-            .Returns(Task.FromResult(Microsoft.AspNetCore.Identity.IdentityResult.Success));
+            .Returns(Task.FromResult(IdentityResult.Success));
 
-        var signInManager = Substitute.For<Microsoft.AspNetCore.Identity.SignInManager<NovaUserEntity>>(
+        var signInManager = Substitute.For<SignInManager<NovaUserEntity>>(
             _userManager, Substitute.For<IHttpContextAccessor>(), Substitute.For<IUserClaimsPrincipalFactory<NovaUserEntity>>(),
-            null, null, null, null);
+            Substitute.For<Microsoft.Extensions.Options.IOptions<IdentityOptions>>(),
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<SignInManager<NovaUserEntity>>>(),
+            Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>(),
+            Substitute.For<IUserConfirmation<NovaUserEntity>>());
 
         // Mock RefreshSignInAsync to avoid null reference exceptions
         signInManager.RefreshSignInAsync(Arg.Any<NovaUserEntity>())
@@ -575,10 +586,10 @@ public class ClubJoinRequestServiceTests : IDisposable
         }
 
         // Verify UserManager.UpdateAsync was called
-        await _userManager.Received().UpdateAsync(Arg.Is<NovaUserEntity>(u => u.Id == RequestingUserId));
+        await _userManager.Received().UpdateAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == RequestingUserId));
 
         // Verify UserManager.UpdateSecurityStampAsync was called (proxy for MarkUserClaimsStaleAsync)
-        await _userManager.Received().UpdateSecurityStampAsync(Arg.Is<NovaUserEntity>(u => u.Id == RequestingUserId));
+        await _userManager.Received().UpdateSecurityStampAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == RequestingUserId));
     }
 
     #endregion

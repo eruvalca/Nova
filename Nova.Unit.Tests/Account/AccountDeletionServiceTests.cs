@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nova.Data;
@@ -89,8 +89,8 @@ public class AccountDeletionServiceTests : IDisposable
 
     private AccountDeletionService CreateService()
     {
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
-        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(() => _harness.CreateAdminContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
+        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext);
         var userManagerMock = CreateUserManagerMock();
 
         return new AccountDeletionService(
@@ -123,28 +123,33 @@ public class AccountDeletionServiceTests : IDisposable
         // Configure role checks - use Arg.Is to match exact users
         if (_adminUser != null)
         {
-            userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == AdminUserId), Roles.ClubAdmin)
+            userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId), Roles.ClubAdmin)
                 .Returns(Task.FromResult(true));
         }
 
         if (_nonAdminUser != null)
         {
-            userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == NonAdminUserId), Roles.ClubAdmin)
+            userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == NonAdminUserId), Roles.ClubAdmin)
                 .Returns(Task.FromResult(false));
         }
 
         if (_secondAdminUser != null)
         {
-            userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == SecondAdminUserId), Roles.ClubAdmin)
+            userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == SecondAdminUserId), Roles.ClubAdmin)
                 .Returns(Task.FromResult(true));
         }
 
         // Setup GetUsersInRoleAsync to return all admins by default
         var defaultAdmins = new List<NovaUserEntity>();
         if (_adminUser != null)
+        {
             defaultAdmins.Add(_adminUser);
+        }
+
         if (_secondAdminUser != null)
+        {
             defaultAdmins.Add(_secondAdminUser);
+        }
 
         userManager.GetUsersInRoleAsync(Roles.ClubAdmin)
             .Returns(Task.FromResult((IList<NovaUserEntity>)defaultAdmins));
@@ -216,8 +221,8 @@ public class AccountDeletionServiceTests : IDisposable
         _harness.CurrentUser.UserId = AdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
 
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
-        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(() => _harness.CreateAdminContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
+        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext);
 
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
         var userManager = Substitute.For<UserManager<NovaUserEntity>>(
@@ -232,11 +237,11 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
         userManager.FindByIdAsync(AdminUserId.ToString()).Returns(Task.FromResult(_adminUser)!);
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == AdminUserId), Roles.ClubAdmin)
+        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(true));
         // Only admin user is a ClubAdmin in Club A
         userManager.GetUsersInRoleAsync(Roles.ClubAdmin)
-            .Returns(Task.FromResult((IList<NovaUserEntity>)new List<NovaUserEntity> { _adminUser! }));
+            .Returns(Task.FromResult((IList<NovaUserEntity>)[_adminUser!]));
 
         // Need to seed Club A with only this admin user (no other members)
         using (var context = _harness.CreateAdminContext())
@@ -269,8 +274,8 @@ public class AccountDeletionServiceTests : IDisposable
         _harness.CurrentUser.UserId = AdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
 
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
-        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(() => _harness.CreateAdminContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
+        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext);
 
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
         var userManager = Substitute.For<UserManager<NovaUserEntity>>(
@@ -285,11 +290,11 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
         userManager.FindByIdAsync(AdminUserId.ToString()).Returns(Task.FromResult(_adminUser)!);
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == AdminUserId), Roles.ClubAdmin)
+        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(true));
         // Only admin user is a ClubAdmin in Club A (other members are not admins)
         userManager.GetUsersInRoleAsync(Roles.ClubAdmin)
-            .Returns(Task.FromResult((IList<NovaUserEntity>)new List<NovaUserEntity> { _adminUser! }));
+            .Returns(Task.FromResult((IList<NovaUserEntity>)[_adminUser!]));
 
         var service = new AccountDeletionService(
             adminDbFactory,
@@ -315,8 +320,8 @@ public class AccountDeletionServiceTests : IDisposable
         _harness.CurrentUser.UserId = AdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
 
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
-        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(() => _harness.CreateAdminContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
+        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext);
 
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
         var userManager = Substitute.For<UserManager<NovaUserEntity>>(
@@ -331,11 +336,11 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
         userManager.FindByIdAsync(AdminUserId.ToString()).Returns(Task.FromResult(_adminUser)!);
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == AdminUserId), Roles.ClubAdmin)
+        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(true));
         // Both admin and secondAdmin are ClubAdmins in Club A
         userManager.GetUsersInRoleAsync(Roles.ClubAdmin)
-            .Returns(Task.FromResult((IList<NovaUserEntity>)new List<NovaUserEntity> { _adminUser!, _secondAdminUser! }));
+            .Returns(Task.FromResult((IList<NovaUserEntity>)[_adminUser!, _secondAdminUser!]));
 
         var service = new AccountDeletionService(
             adminDbFactory,
@@ -364,8 +369,8 @@ public class AccountDeletionServiceTests : IDisposable
         _harness.CurrentUser.UserId = AdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
 
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
-        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(() => _harness.CreateAdminContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
+        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext);
 
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
         var userManager = Substitute.For<UserManager<NovaUserEntity>>(
@@ -380,11 +385,11 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
         userManager.FindByIdAsync(AdminUserId.ToString()).Returns(Task.FromResult(_adminUser)!);
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == AdminUserId), Roles.ClubAdmin)
+        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(true));
         // Only admin is a ClubAdmin
         userManager.GetUsersInRoleAsync(Roles.ClubAdmin)
-            .Returns(Task.FromResult((IList<NovaUserEntity>)new List<NovaUserEntity> { _adminUser! }));
+            .Returns(Task.FromResult((IList<NovaUserEntity>)[_adminUser!]));
         // DeleteAsync succeeds
         userManager.DeleteAsync(Arg.Any<NovaUserEntity>())
             .Returns(Task.FromResult(IdentityResult.Success));
@@ -407,11 +412,11 @@ public class AccountDeletionServiceTests : IDisposable
         await service.DeleteAccountAsync(TestContext.Current.CancellationToken);
 
         // Verify DeleteAsync was called
-        await userManager.Received(1).DeleteAsync(Arg.Is<NovaUserEntity>(u => u.Id == AdminUserId));
+        await userManager.Received(1).DeleteAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId));
 
         // Verify club was removed
         using var finalContext = _harness.CreateAdminContext();
-        var club = await finalContext.Clubs.FindAsync(new object[] { ClubAId }, cancellationToken: TestContext.Current.CancellationToken);
+        var club = await finalContext.Clubs.FindAsync([ClubAId], cancellationToken: TestContext.Current.CancellationToken);
         club.ShouldBeNull();
     }
 
@@ -422,8 +427,8 @@ public class AccountDeletionServiceTests : IDisposable
         _harness.CurrentUser.UserId = NonAdminUserId;
         _harness.CurrentUser.ClubId = ClubAId;
 
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
-        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(() => _harness.CreateAdminContext());
+        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
+        var adminDbFactory = new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext);
 
         var store = Substitute.For<IUserStore<NovaUserEntity>>();
         var userManager = Substitute.For<UserManager<NovaUserEntity>>(
@@ -438,10 +443,10 @@ public class AccountDeletionServiceTests : IDisposable
             Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 
         userManager.FindByIdAsync(NonAdminUserId.ToString()).Returns(Task.FromResult(_nonAdminUser)!);
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == NonAdminUserId), Roles.ClubAdmin)
+        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == NonAdminUserId), Roles.ClubAdmin)
             .Returns(Task.FromResult(false));
         userManager.GetUsersInRoleAsync(Roles.ClubAdmin)
-            .Returns(Task.FromResult((IList<NovaUserEntity>)new List<NovaUserEntity> { _adminUser! }));
+            .Returns(Task.FromResult((IList<NovaUserEntity>)[_adminUser!]));
         // DeleteAsync succeeds
         userManager.DeleteAsync(Arg.Any<NovaUserEntity>())
             .Returns(Task.FromResult(IdentityResult.Success));
@@ -458,11 +463,11 @@ public class AccountDeletionServiceTests : IDisposable
 
         // Assert
         // Verify DeleteAsync was called
-        await userManager.Received(1).DeleteAsync(Arg.Is<NovaUserEntity>(u => u.Id == NonAdminUserId));
+        await userManager.Received(1).DeleteAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == NonAdminUserId));
 
         // Verify club still exists (not deleted)
         using var finalContext = _harness.CreateAdminContext();
-        var club = await finalContext.Clubs.FindAsync(new object[] { ClubAId }, cancellationToken: TestContext.Current.CancellationToken);
+        var club = await finalContext.Clubs.FindAsync([ClubAId], cancellationToken: TestContext.Current.CancellationToken);
         club.ShouldNotBeNull();
     }
 

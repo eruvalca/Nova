@@ -294,7 +294,7 @@ public class ClubAdminServiceTests : IDisposable
     private ClubAdminService CreateService(UserManager<NovaUserEntity> userManager)
     {
         IDbContextFactory<NovaReadDbContext> readDbFactory =
-            new TestDbContextFactory<NovaReadDbContext>(() => _harness.CreateReadContext());
+            new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
 
         userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
             .Returns(Task.FromResult(IdentityResult.Success));
@@ -303,10 +303,10 @@ public class ClubAdminServiceTests : IDisposable
             userManager,
             Substitute.For<IHttpContextAccessor>(),
             Substitute.For<IUserClaimsPrincipalFactory<NovaUserEntity>>(),
-            null,
-            null,
-            null,
-            null);
+            Substitute.For<IOptions<IdentityOptions>>(),
+            NullLogger<SignInManager<NovaUserEntity>>.Instance,
+            Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>(),
+            Substitute.For<IUserConfirmation<NovaUserEntity>>());
 
         var claimRefresher = new ClubMembershipClaimRefresher(userManager, signInManager);
         return new ClubAdminService(readDbFactory, userManager, _harness.CurrentUser, claimRefresher, NullLogger<ClubAdminService>.Instance);
@@ -345,7 +345,7 @@ public class ClubAdminServiceTests : IDisposable
         {
             foreach (var roleMembership in roleMembershipByUserId)
             {
-                manager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u.Id == roleMembership.Key), Roles.ClubAdmin)
+                manager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == roleMembership.Key), Roles.ClubAdmin)
                     .Returns(Task.FromResult(roleMembership.Value));
             }
         }

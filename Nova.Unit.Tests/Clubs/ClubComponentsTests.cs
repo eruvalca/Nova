@@ -1146,7 +1146,7 @@ public class ClubComponentsTests : BunitContext
 
         // Act & Assert
         // Should not throw any exceptions during disposal
-        var disposeTask = cut.InvokeAsync(() => cut.Instance.DisposeAsync());
+        var disposeTask = cut.InvokeAsync(cut.Instance.DisposeAsync);
         await disposeTask;
 
         cut.Dispose();

@@ -1,4 +1,4 @@
-using Bunit;
+﻿using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Shared.Account;
@@ -145,7 +145,7 @@ public class AssignClubAdminPanelTests
 
         // Assert
         await service.Received(1).AssignClubAdminAsync(
-            Arg.Is<AssignAdminInput>(i => i.TargetUserId == 1L),
+            Arg.Is<AssignAdminInput>(i => i != null && i.TargetUserId == 1L),
             Arg.Any<CancellationToken>());
         navigationManager.Received(1).Refresh(forceReload: true);
     }
@@ -194,7 +194,7 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         await service.Received(2).AssignClubAdminAsync(
-            Arg.Is<AssignAdminInput>(i => i.TargetUserId == 1L),
+            Arg.Is<AssignAdminInput>(i => i != null && i.TargetUserId == 1L),
             Arg.Any<CancellationToken>());
         navigationManager.DidNotReceive().Refresh(forceReload: Arg.Any<bool>());
     }
@@ -382,7 +382,7 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         // Assert
-        await service.Received(1).AssignClubAdminAsync(Arg.Is<AssignAdminInput>(i => i.TargetUserId == 1L), Arg.Any<CancellationToken>());
+        await service.Received(1).AssignClubAdminAsync(Arg.Is<AssignAdminInput>(i => i != null && i.TargetUserId == 1L), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -474,7 +474,7 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         await service.Received(2).AssignClubAdminAsync(
-            Arg.Is<AssignAdminInput>(i => i.TargetUserId == 1L),
+            Arg.Is<AssignAdminInput>(i => i != null && i.TargetUserId == 1L),
             Arg.Any<CancellationToken>());
         navigationManager.DidNotReceive().Refresh(forceReload: Arg.Any<bool>());
     }

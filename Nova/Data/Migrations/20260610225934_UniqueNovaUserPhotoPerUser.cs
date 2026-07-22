@@ -2,36 +2,35 @@
 
 #nullable disable
 
-namespace Nova.Data.Migrations
+namespace Nova.Data.Migrations;
+
+/// <inheritdoc />
+public partial class UniqueNovaUserPhotoPerUser : Migration
 {
     /// <inheritdoc />
-    public partial class UniqueNovaUserPhotoPerUser : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropIndex(
-                name: "IX_NovaUserPhotos_NovaUserId",
-                table: "NovaUserPhotos");
+        migrationBuilder.DropIndex(
+            name: "IX_NovaUserPhotos_NovaUserId",
+            table: "NovaUserPhotos");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_NovaUserPhotos_NovaUserId",
-                table: "NovaUserPhotos",
-                column: "NovaUserId",
-                unique: true);
-        }
+        migrationBuilder.CreateIndex(
+            name: "IX_NovaUserPhotos_NovaUserId",
+            table: "NovaUserPhotos",
+            column: "NovaUserId",
+            unique: true);
+    }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropIndex(
-                name: "IX_NovaUserPhotos_NovaUserId",
-                table: "NovaUserPhotos");
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropIndex(
+            name: "IX_NovaUserPhotos_NovaUserId",
+            table: "NovaUserPhotos");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_NovaUserPhotos_NovaUserId",
-                table: "NovaUserPhotos",
-                column: "NovaUserId");
-        }
+        migrationBuilder.CreateIndex(
+            name: "IX_NovaUserPhotos_NovaUserId",
+            table: "NovaUserPhotos",
+            column: "NovaUserId");
     }
 }

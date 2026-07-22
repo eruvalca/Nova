@@ -25,7 +25,6 @@ using Nova.Features.Teams;
 using Nova.Shared.Account;
 using Nova.Shared.Clubs;
 using Nova.Shared.Photos;
-using Nova.Shared.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
