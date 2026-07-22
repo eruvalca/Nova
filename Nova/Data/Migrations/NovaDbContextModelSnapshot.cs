@@ -306,10 +306,6 @@ namespace Nova.Data.Migrations
 
                     b.HasIndex("ClubId");
 
-                    b.HasIndex("PlayerCampaignAssignmentId");
-
-                    b.HasIndex("PlayerTagId");
-
                     b.HasIndex("PlayerCampaignAssignmentId", "ClubId");
 
                     b.HasIndex("PlayerCampaignAssignmentId", "PlayerTagId")

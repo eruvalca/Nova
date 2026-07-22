@@ -22,10 +22,6 @@ public class CampaignTagApplicationEntityConfiguration : IEntityTypeConfiguratio
         builder.HasIndex(e => new { e.PlayerCampaignAssignmentId, e.PlayerTagId })
             .IsUnique();
 
-        builder.HasIndex(e => e.ClubId);
-        builder.HasIndex(e => e.PlayerTagId);
-        builder.HasIndex(e => e.PlayerCampaignAssignmentId);
-
         builder
             .HasOne(e => e.PlayerCampaignAssignment)
             .WithMany(assignment => assignment.CampaignTagApplications)

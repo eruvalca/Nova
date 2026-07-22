@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations
 {
     [DbContext(typeof(NovaDbContext))]
-    [Migration("20260722023954_AddCampaignTagApplications")]
+    [Migration("20260722030717_AddCampaignTagApplications")]
     partial class AddCampaignTagApplications
     {
         /// <inheritdoc />
@@ -308,10 +308,6 @@ namespace Nova.Data.Migrations
                     b.HasKey("CampaignTagApplicationId");
 
                     b.HasIndex("ClubId");
-
-                    b.HasIndex("PlayerCampaignAssignmentId");
-
-                    b.HasIndex("PlayerTagId");
 
                     b.HasIndex("PlayerCampaignAssignmentId", "ClubId");
 

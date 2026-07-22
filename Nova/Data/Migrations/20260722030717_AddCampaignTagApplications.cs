@@ -68,11 +68,6 @@ namespace Nova.Data.Migrations
                 column: "ClubId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_CampaignTagApplications_PlayerCampaignAssignmentId",
-                table: "CampaignTagApplications",
-                column: "PlayerCampaignAssignmentId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_CampaignTagApplications_PlayerCampaignAssignmentId_ClubId",
                 table: "CampaignTagApplications",
                 columns: new[] { "PlayerCampaignAssignmentId", "ClubId" });
@@ -82,11 +77,6 @@ namespace Nova.Data.Migrations
                 table: "CampaignTagApplications",
                 columns: new[] { "PlayerCampaignAssignmentId", "PlayerTagId" },
                 unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_CampaignTagApplications_PlayerTagId",
-                table: "CampaignTagApplications",
-                column: "PlayerTagId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CampaignTagApplications_PlayerTagId_ClubId",
