@@ -102,6 +102,7 @@ builder.Services.AddScoped<CampaignPlacementService>();
 builder.Services.AddScoped<CampaignTagApplicationService>();
 builder.Services.AddScoped<CampaignLifecycleService>();
 builder.Services.AddScoped<PlayerLifecycleService>();
+builder.Services.AddScoped<IPlayerManagementService, PlayerManagementService>();
 builder.Services.AddScoped<TeamLifecycleService>();
 builder.Services.AddScoped<TagDefinitionLifecycleService>();
 
@@ -217,6 +218,9 @@ app.MapProfilePhotoEndpoints();
 
 // Club and club join request endpoints.
 app.MapClubEndpoints();
+
+// Player create and update endpoints.
+app.MapPlayerManagementEndpoints();
 
 // Player detail and campaign-history query endpoint.
 app.MapPlayerEndpoints();
