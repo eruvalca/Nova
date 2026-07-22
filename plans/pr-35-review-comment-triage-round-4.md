@@ -27,13 +27,13 @@ Found one newly unresolved thread on `plans/pr-35-review-comment-triage.md`. Cla
 
 ## Phase 2: Apply and Verify Fixes
 
-Status: In progress
+Status: Complete
 
 Suggested executor: orchestrator
 
 - [x] Implement code/doc changes for valid or partially valid comments.
-- [ ] Run focused verification commands for changed behavior.
-- [ ] Commit and push changes to the PR branch.
+- [x] Run focused verification commands for changed behavior.
+- [x] Commit and push changes to the PR branch.
 
 ### Verification Plan
 
@@ -42,17 +42,17 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Updated `plans/pr-35-review-comment-triage.md` to rephrase the prior validity note so it accurately records missing filters as deferred/out-of-scope for this PR. Committed and pushed as `088baa6`.
 
 ## Phase 3: Reply and Resolve
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator
 
-- [ ] Reply on each unresolved thread with concise technical rationale.
-- [ ] Resolve each thread after fixes are pushed or rationale is posted.
-- [ ] Confirm zero unresolved review threads remain on PR #35.
+- [x] Reply on each unresolved thread with concise technical rationale.
+- [x] Resolve each thread after fixes are pushed or rationale is posted.
+- [x] Confirm zero unresolved review threads remain on PR #35.
 
 ### Verification Plan
 
@@ -60,12 +60,14 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Posted a thread reply summarizing the wording correction and resolved the thread. Follow-up GraphQL query confirms zero unresolved review threads on PR #35.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Round-4 review feedback contained one valid documentation concern. I updated the durable triage plan wording to avoid implying those filter requirements were absent from issue metadata and instead mark them as deferred for this PR. The review thread was replied to and resolved.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Keep PR #35 branch at commit `088baa6` or later.
+2. Confirm PR #35 review threads remain fully resolved.
+3. Merge through normal CI/approval flow.
