@@ -23,7 +23,7 @@ public sealed partial class PlayerDetailQueryService(
     /// <inheritdoc />
     public async Task<ServiceResult<PlayerDetailDto>> GetPlayerDetailAsync(long playerId, CancellationToken cancellationToken = default)
     {
-        if (currentUserProvider.UserId is not long userId
+        if (currentUserProvider.UserId is not long
             || currentUserProvider.ClubId is not long clubId)
         {
             LogPlayerDetailForbidden(playerId, currentUserProvider.UserId ?? 0);
