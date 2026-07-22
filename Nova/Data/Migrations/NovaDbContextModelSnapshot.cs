@@ -263,9 +263,9 @@ namespace Nova.Data.Migrations
 
                     b.HasKey("CampaignLifecycleEventId");
 
-                    b.HasIndex("CampaignId");
-
                     b.HasIndex("ClubId");
+
+                    b.HasIndex("CampaignId", "ClubId");
 
                     b.ToTable("CampaignLifecycleEvents", t =>
                         {
@@ -976,15 +976,16 @@ namespace Nova.Data.Migrations
 
             modelBuilder.Entity("Nova.Entities.CampaignLifecycleEventEntity", b =>
                 {
-                    b.HasOne("Nova.Entities.CampaignEntity", "Campaign")
-                        .WithMany("LifecycleEvents")
-                        .HasForeignKey("CampaignId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Nova.Entities.ClubEntity", "Club")
                         .WithMany()
                         .HasForeignKey("ClubId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Nova.Entities.CampaignEntity", "Campaign")
+                        .WithMany("LifecycleEvents")
+                        .HasForeignKey("CampaignId", "ClubId")
+                        .HasPrincipalKey("CampaignId", "ClubId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

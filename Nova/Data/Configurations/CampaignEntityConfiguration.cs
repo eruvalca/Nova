@@ -21,6 +21,7 @@ public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEnti
             .ValueGeneratedOnAdd();
         builder.Property(e => e.Status)
             .IsConcurrencyToken();
+        builder.HasAlternateKey(e => new { e.CampaignId, e.ClubId });
 
         var statusColumn = $"\"{nameof(CampaignEntity.Status)}\"";
         var closedAtColumn = $"\"{nameof(CampaignEntity.ClosedAt)}\"";

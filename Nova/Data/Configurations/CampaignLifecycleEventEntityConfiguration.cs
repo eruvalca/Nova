@@ -30,7 +30,8 @@ public class CampaignLifecycleEventEntityConfiguration : IEntityTypeConfiguratio
         builder
             .HasOne(e => e.Campaign)
             .WithMany(campaign => campaign.LifecycleEvents)
-            .HasForeignKey(e => e.CampaignId)
+            .HasForeignKey(e => new { e.CampaignId, e.ClubId })
+            .HasPrincipalKey(campaign => new { campaign.CampaignId, campaign.ClubId })
             .OnDelete(DeleteBehavior.Cascade);
 
         builder
@@ -38,7 +39,5 @@ public class CampaignLifecycleEventEntityConfiguration : IEntityTypeConfiguratio
             .WithMany()
             .HasForeignKey(e => e.ClubId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasIndex(e => e.CampaignId);
     }
 }

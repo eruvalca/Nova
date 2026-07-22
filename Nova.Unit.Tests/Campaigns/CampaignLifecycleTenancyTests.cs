@@ -65,6 +65,25 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies the campaign foreign key rejects an event that claims the current club but references another club's campaign.
+    /// </summary>
+    [Fact]
+    public void TenantContext_RejectsCampaignLifecycleEvent_ForCrossTenantCampaign()
+    {
+        ActAs(ClubAUserId, ClubAId);
+        using var db = _harness.CreateTenantContext();
+        db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
+        {
+            CampaignId = 1201,
+            EventType = CampaignLifecycleEventType.Closed,
+            ClubId = ClubAId,
+            CreatedById = ClubAUserId
+        });
+
+        Should.Throw<DbUpdateException>(() => db.SaveChanges());
+    }
+
+    /// <summary>
     /// Verifies the model carries campaign lifecycle status and event-type check constraints.
     /// </summary>
     [Fact]
@@ -84,6 +103,20 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
         eventEntityType.ShouldNotBeNull();
         eventEntityType.GetCheckConstraints()
             .ShouldContain(constraint => constraint.Name == "CK_CampaignLifecycleEvents_EventType");
+        var campaignForeignKey = eventEntityType.GetForeignKeys()
+            .Single(foreignKey => foreignKey.PrincipalEntityType.ClrType == typeof(CampaignEntity));
+        campaignForeignKey.Properties.Select(property => property.Name)
+            .ShouldBe(
+            [
+                nameof(CampaignLifecycleEventEntity.CampaignId),
+                nameof(CampaignLifecycleEventEntity.ClubId)
+            ]);
+        campaignForeignKey.PrincipalKey.Properties.Select(property => property.Name)
+            .ShouldBe(
+            [
+                nameof(CampaignEntity.CampaignId),
+                nameof(CampaignEntity.ClubId)
+            ]);
     }
 
     /// <summary>

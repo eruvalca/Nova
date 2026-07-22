@@ -101,6 +101,7 @@ public sealed partial class CampaignPlacementService(
         }
 
         await db.AcquireCampaignMutationLockAsync(participation.CampaignId, cancellationToken);
+        await db.Entry(participation.Campaign).ReloadAsync(cancellationToken);
 
         if (participation.Campaign.Status == CampaignStatus.Closed)
         {

@@ -104,6 +104,27 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies the composite campaign foreign key rejects lifecycle events whose club differs from the campaign owner.
+    /// </summary>
+    [Fact]
+    public async Task LifecycleEventCampaignForeignKey_RejectsCrossTenantCampaignReference()
+    {
+        var first = await SeedCampaignAsync();
+        var second = await SeedCampaignAsync();
+        await using var db = fixture.CreateAdminContext();
+        db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
+        {
+            CampaignId = second.CampaignId,
+            EventType = CampaignLifecycleEventType.Closed,
+            ClubId = first.ClubId,
+            CreatedById = first.ActorUserId
+        });
+
+        await Should.ThrowAsync<DbUpdateException>(
+            () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
     /// Verifies campaign status concurrency prevents stale lifecycle transitions.
     /// </summary>
     [Fact]

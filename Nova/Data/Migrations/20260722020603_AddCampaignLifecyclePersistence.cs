@@ -31,6 +31,11 @@ namespace Nova.Data.Migrations
                 nullable: false,
                 defaultValue: 0);
 
+            migrationBuilder.AddUniqueConstraint(
+                name: "AK_Campaigns_CampaignId_ClubId",
+                table: "Campaigns",
+                columns: new[] { "CampaignId", "ClubId" });
+
             migrationBuilder.CreateTable(
                 name: "CampaignLifecycleEvents",
                 columns: table => new
@@ -50,10 +55,10 @@ namespace Nova.Data.Migrations
                     table.PrimaryKey("PK_CampaignLifecycleEvents", x => x.CampaignLifecycleEventId);
                     table.CheckConstraint("CK_CampaignLifecycleEvents_EventType", "\"EventType\" IN (0, 1)");
                     table.ForeignKey(
-                        name: "FK_CampaignLifecycleEvents_Campaigns_CampaignId",
-                        column: x => x.CampaignId,
+                        name: "FK_CampaignLifecycleEvents_Campaigns_CampaignId_ClubId",
+                        columns: x => new { x.CampaignId, x.ClubId },
                         principalTable: "Campaigns",
-                        principalColumn: "CampaignId",
+                        principalColumns: new[] { "CampaignId", "ClubId" },
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_CampaignLifecycleEvents_Clubs_ClubId",
@@ -69,9 +74,9 @@ namespace Nova.Data.Migrations
                 sql: "(\"Status\" = 0 AND \"ClosedAt\" IS NULL AND \"ClosedById\" IS NULL) OR (\"Status\" = 1 AND \"ClosedAt\" IS NOT NULL AND \"ClosedById\" IS NOT NULL)");
 
             migrationBuilder.CreateIndex(
-                name: "IX_CampaignLifecycleEvents_CampaignId",
+                name: "IX_CampaignLifecycleEvents_CampaignId_ClubId",
                 table: "CampaignLifecycleEvents",
-                column: "CampaignId");
+                columns: new[] { "CampaignId", "ClubId" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_CampaignLifecycleEvents_ClubId",
@@ -84,6 +89,10 @@ namespace Nova.Data.Migrations
         {
             migrationBuilder.DropTable(
                 name: "CampaignLifecycleEvents");
+
+            migrationBuilder.DropUniqueConstraint(
+                name: "AK_Campaigns_CampaignId_ClubId",
+                table: "Campaigns");
 
             migrationBuilder.DropCheckConstraint(
                 name: "CK_Campaigns_StatusClosureMetadata",

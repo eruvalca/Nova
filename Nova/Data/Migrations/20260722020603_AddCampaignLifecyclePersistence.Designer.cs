@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations
 {
     [DbContext(typeof(NovaDbContext))]
-    [Migration("20260722014142_AddCampaignLifecyclePersistence")]
+    [Migration("20260722020603_AddCampaignLifecyclePersistence")]
     partial class AddCampaignLifecyclePersistence
     {
         /// <inheritdoc />
@@ -266,9 +266,9 @@ namespace Nova.Data.Migrations
 
                     b.HasKey("CampaignLifecycleEventId");
 
-                    b.HasIndex("CampaignId");
-
                     b.HasIndex("ClubId");
+
+                    b.HasIndex("CampaignId", "ClubId");
 
                     b.ToTable("CampaignLifecycleEvents", t =>
                         {
@@ -979,15 +979,16 @@ namespace Nova.Data.Migrations
 
             modelBuilder.Entity("Nova.Entities.CampaignLifecycleEventEntity", b =>
                 {
-                    b.HasOne("Nova.Entities.CampaignEntity", "Campaign")
-                        .WithMany("LifecycleEvents")
-                        .HasForeignKey("CampaignId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Nova.Entities.ClubEntity", "Club")
                         .WithMany()
                         .HasForeignKey("ClubId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Nova.Entities.CampaignEntity", "Campaign")
+                        .WithMany("LifecycleEvents")
+                        .HasForeignKey("CampaignId", "ClubId")
+                        .HasPrincipalKey("CampaignId", "ClubId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
