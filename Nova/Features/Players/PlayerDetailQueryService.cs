@@ -71,40 +71,32 @@ public sealed partial class PlayerDetailQueryService(
             })
             .ToListAsync(cancellationToken);
 
-        var assignmentIds = assignments
-            .Select(assignment => assignment.PlayerCampaignAssignmentId)
-            .ToArray();
+        var noteRows = await db.Notes
+            .Where(note => note.PlayerCampaignAssignment.PlayerId == playerId)
+            .Select(note => new
+            {
+                note.NoteId,
+                note.PlayerCampaignAssignmentId,
+                note.Content,
+                AuthorUserId = note.CreatedById,
+                note.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
 
-        var noteRows = assignmentIds.Length == 0
-            ? []
-            : await db.Notes
-                .Where(note => assignmentIds.Contains(note.PlayerCampaignAssignmentId))
-                .Select(note => new
-                {
-                    note.NoteId,
-                    note.PlayerCampaignAssignmentId,
-                    note.Content,
-                    AuthorUserId = note.CreatedById,
-                    note.CreatedAt
-                })
-                .ToListAsync(cancellationToken);
-
-        var tagRows = assignmentIds.Length == 0
-            ? []
-            : await db.CampaignTagApplications
-                .Where(application => assignmentIds.Contains(application.PlayerCampaignAssignmentId))
-                .Select(application => new
-                {
-                    application.CampaignTagApplicationId,
-                    application.PlayerCampaignAssignmentId,
-                    application.PlayerTagId,
-                    TagName = application.PlayerTag.Name,
-                    TagColor = application.PlayerTag.Color,
-                    IsTagArchived = application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived,
-                    ApplyingUserId = application.CreatedById,
-                    AppliedAt = application.CreatedAt
-                })
-                .ToListAsync(cancellationToken);
+        var tagRows = await db.CampaignTagApplications
+            .Where(application => application.PlayerCampaignAssignment.PlayerId == playerId)
+            .Select(application => new
+            {
+                application.CampaignTagApplicationId,
+                application.PlayerCampaignAssignmentId,
+                application.PlayerTagId,
+                TagName = application.PlayerTag.Name,
+                TagColor = application.PlayerTag.Color,
+                IsTagArchived = application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived,
+                ApplyingUserId = application.CreatedById,
+                AppliedAt = application.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
 
         var actorUserIds = noteRows
             .Select(note => note.AuthorUserId)
