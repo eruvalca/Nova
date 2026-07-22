@@ -33,7 +33,15 @@ internal static class ServiceResultExtensions
         public IResult ToHttpResult()
         {
             var traceId = Activity.Current?.TraceId.ToString() ?? string.Empty;
-            var extensions = string.IsNullOrEmpty(traceId) ? null : new Dictionary<string, object?> { ["traceId"] = traceId };
+            var extensions = problem.Extensions is null
+                ? new Dictionary<string, object?>()
+                : new Dictionary<string, object?>(problem.Extensions);
+            if (!string.IsNullOrEmpty(traceId))
+            {
+                extensions["traceId"] = traceId;
+            }
+
+            var problemExtensions = extensions.Count == 0 ? null : extensions;
 
             return problem.Kind switch
             {
@@ -41,36 +49,42 @@ internal static class ServiceResultExtensions
                     TypedResults.Problem(
                         detail: problem.Detail,
                         statusCode: StatusCodes.Status404NotFound,
-                        extensions: extensions),
+                        extensions: problemExtensions),
 
                 ServiceProblemKind.Forbidden =>
                     TypedResults.Problem(
                         detail: problem.Detail,
                         statusCode: StatusCodes.Status403Forbidden,
-                        extensions: extensions),
+                        extensions: problemExtensions),
+
+                ServiceProblemKind.Conflict when problem.Errors is { } conflictErrors =>
+                    TypedResults.Problem(
+                        detail: problem.Detail,
+                        statusCode: StatusCodes.Status409Conflict,
+                        extensions: new Dictionary<string, object?>(extensions ?? []) { ["errors"] = conflictErrors }),
 
                 ServiceProblemKind.Conflict =>
                     TypedResults.Problem(
                         detail: problem.Detail,
                         statusCode: StatusCodes.Status409Conflict,
-                        extensions: extensions),
+                        extensions: problemExtensions),
 
                 ServiceProblemKind.Validation =>
                     TypedResults.ValidationProblem(
                         errors: problem.Errors?.ToDictionary(e => e.Key, e => e.Value) ?? [],
                         detail: problem.Detail,
-                        extensions: extensions),
+                        extensions: problemExtensions),
 
                 ServiceProblemKind.BadRequest =>
                     TypedResults.Problem(
                         detail: problem.Detail,
                         statusCode: StatusCodes.Status400BadRequest,
-                        extensions: extensions),
+                        extensions: problemExtensions),
 
                 _ => TypedResults.Problem(
                     detail: problem.Detail,
                     statusCode: StatusCodes.Status500InternalServerError,
-                    extensions: extensions)
+                    extensions: problemExtensions)
             };
         }
     }
