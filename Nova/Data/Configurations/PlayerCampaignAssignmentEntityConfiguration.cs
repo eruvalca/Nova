@@ -20,6 +20,8 @@ public class PlayerCampaignAssignmentEntityConfiguration : IEntityTypeConfigurat
         builder.Property(e => e.PlayerCampaignAssignmentId)
             .ValueGeneratedOnAdd();
 
+        builder.HasAlternateKey(e => new { e.PlayerCampaignAssignmentId, e.ClubId });
+
         builder.Property(e => e.ConcurrencyToken)
             .IsConcurrencyToken();
 
