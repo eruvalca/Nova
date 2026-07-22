@@ -45,8 +45,8 @@ public sealed partial class PlayerService(
         var normalizedSearch = string.IsNullOrWhiteSpace(input.Search) ? null : input.Search.Trim();
         var normalizedSortBy = string.IsNullOrWhiteSpace(input.SortBy) ? "displayName" : input.SortBy.Trim();
         var normalizedSortDirection = string.IsNullOrWhiteSpace(input.SortDirection) ? "asc" : input.SortDirection.Trim();
-        var page = Math.Max(GetPlayerRosterInput.DefaultPage, input.Page);
-        var pageSize = Math.Clamp(input.PageSize, 1, GetPlayerRosterInput.MaxPageSize);
+        var page = input.Page;
+        var pageSize = input.PageSize;
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
         var isNpgsql = db.Database.IsNpgsql();
@@ -71,7 +71,7 @@ public sealed partial class PlayerService(
         if (string.Equals(normalizedSortBy, "joinedAt", StringComparison.OrdinalIgnoreCase))
         {
             var descending = string.Equals(normalizedSortDirection, "desc", StringComparison.OrdinalIgnoreCase);
-            if (db.Database.IsSqlite())
+            if (string.Equals(db.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
             {
                 // SQLite cannot translate DateTimeOffset ORDER BY in EF Core; retain deterministic
                 // behavior in tests by ordering in memory only for this provider.
