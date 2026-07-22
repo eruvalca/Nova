@@ -49,14 +49,14 @@ Applied valid feedback in `PlayerService` and `HttpPlayerService`: authenticated
 
 ## Phase 3: Respond and Resolve Threads
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator
 
-- [ ] Post concise replies on each open thread:
-- [ ] Valid threads: summarize the fix that was applied.
-- [ ] Invalid threads: explain why no code change is needed.
-- [ ] Resolve each open thread after response and/or fix is in place.
+- [x] Post concise replies on each open thread:
+- [x] Valid threads: summarize the fix that was applied.
+- [x] Invalid threads: explain why no code change is needed.
+- [x] Resolve each open thread after response and/or fix is in place.
 
 ### Verification Plan
 
@@ -65,12 +65,15 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Replied on all 7 open threads with either applied-fix detail or explicit scope-based rationale, then resolved each thread. Post-resolution GraphQL check confirms all review threads are resolved.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Reviewed every open PR #35 review thread, triaged validity, applied targeted code fixes for valid concerns, and resolved invalid concerns with technical rationale tied to accepted issue scope. Pushed follow-up commit `738c8e7` containing the code/test updates and maintained a durable execution record in this plan file.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Ensure PR #35 includes both commits (`0b09dff` and `738c8e7`) and all review threads remain resolved.
+2. Let CI run full branch validation as configured for the repository.
+3. Merge PR #35 into `main` once checks and approvals are complete.
+4. After merge, run the club-member roster API smoke test in the target environment for default, search, joinedAt sort, and paging scenarios.
