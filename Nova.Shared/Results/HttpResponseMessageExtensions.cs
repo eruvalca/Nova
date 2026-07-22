@@ -22,8 +22,10 @@ public static class HttpResponseMessageExtensions
             var detail = problemBody?.Detail;
             var errors = problemBody?.Errors;
 
-            // If we have structured validation errors and a 400 status, it's a Validation problem.
-            if (response.StatusCode == HttpStatusCode.BadRequest && errors is not null && errors.Count > 0)
+            // If we have structured validation errors and a 400/422 status, it's a Validation problem.
+            // Minimal APIs return 422 UnprocessableEntity for TypedResults.ValidationProblem.
+            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity
+                && errors is not null && errors.Count > 0)
             {
                 return ServiceProblem.Validation(errors, detail);
             }
@@ -35,6 +37,7 @@ public static class HttpResponseMessageExtensions
                 HttpStatusCode.Forbidden => ServiceProblem.Forbidden(detail),
                 HttpStatusCode.Conflict when errors is { Count: > 0 } => ServiceProblem.Conflict(detail, errors),
                 HttpStatusCode.Conflict => ServiceProblem.Conflict(detail),
+                HttpStatusCode.UnprocessableEntity => ServiceProblem.Validation(new Dictionary<string, string[]>(), detail),
                 HttpStatusCode.BadRequest => ServiceProblem.BadRequest(detail),
                 _ => ServiceProblem.ServerError(detail)
             };
