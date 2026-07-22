@@ -132,6 +132,46 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies repeated close and reopen cycles retain every lifecycle event in order.
+    /// </summary>
+    [Fact]
+    public async Task LifecycleTransitions_PreserveAllEvents_AcrossRepeatedCloseReopenCycles()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        (await service.ReopenAsync(
+            ClosedCampaignId,
+            TestContext.Current.CancellationToken)).IsT0.ShouldBeTrue();
+        (await service.CloseAsync(
+            ClosedCampaignId,
+            TestContext.Current.CancellationToken)).IsT0.ShouldBeTrue();
+        (await service.ReopenAsync(
+            ClosedCampaignId,
+            TestContext.Current.CancellationToken)).IsT0.ShouldBeTrue();
+
+        await using var verify = _harness.CreateAdminContext();
+        var campaign = await verify.Campaigns
+            .SingleAsync(candidate => candidate.CampaignId == ClosedCampaignId, TestContext.Current.CancellationToken);
+        campaign.Status.ShouldBe(CampaignStatus.Active);
+        campaign.ClosedAt.ShouldBeNull();
+        campaign.ClosedById.ShouldBeNull();
+
+        var eventTypes = await verify.CampaignLifecycleEvents
+            .Where(candidate => candidate.CampaignId == ClosedCampaignId)
+            .OrderBy(candidate => candidate.CampaignLifecycleEventId)
+            .Select(candidate => candidate.EventType)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        eventTypes.ShouldBe(
+        [
+            CampaignLifecycleEventType.Closed,
+            CampaignLifecycleEventType.Reopened,
+            CampaignLifecycleEventType.Closed,
+            CampaignLifecycleEventType.Reopened
+        ]);
+    }
+
+    /// <summary>
     /// Verifies non-admin users cannot close campaigns.
     /// </summary>
     [Fact]
@@ -155,6 +195,34 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.CloseAsync(ClubBCampaignId, TestContext.Current.CancellationToken);
+
+        result.IsT1.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies non-admin users cannot reopen campaigns.
+    /// </summary>
+    [Fact]
+    public async Task ReopenAsync_ReturnsForbidden_WhenCallerIsNotClubAdmin()
+    {
+        ActAs(ClubAMemberId, ClubAId);
+        var service = CreateService();
+
+        var result = await service.ReopenAsync(ClosedCampaignId, TestContext.Current.CancellationToken);
+
+        result.IsT2.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies tenant filters hide another club's campaign from reopen operations.
+    /// </summary>
+    [Fact]
+    public async Task ReopenAsync_ReturnsNotFound_ForCrossTenantCampaign()
+    {
+        ActAs(ClubBAdminId, ClubBId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.ReopenAsync(ClosedCampaignId, TestContext.Current.CancellationToken);
 
         result.IsT1.ShouldBeTrue();
     }
