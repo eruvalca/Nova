@@ -9,9 +9,12 @@ Canonical files:
 ## When to use unit tests
 
 Default new tests to `Nova.Unit.Tests`. Add an integration test only when the behavior depends
-on the real provider (type mappings, migrations, SQL translation, collation).
+on the real provider (type mappings, migrations, database constraints, advisory locks,
+transaction races, SQL translation, collation).
 
 Use `Nova.Unit.Tests` for provider-agnostic logic: query-filter composition, interceptor branching, services, OneOf state.
+`LifecycleMutationLock` is a no-op under SQLite, so unit tests can cover guard branching but not
+cross-transaction serialization or close/archive-versus-write races.
 
 ## Harness internals
 

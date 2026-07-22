@@ -5,7 +5,7 @@ description: >-
   MapGroup mapping, static handlers, ServiceResult-to-HTTP conversion, validation,
   ProblemDetails, metadata, authorization, antiforgery, OpenAPI, and WASM client wiring.
   USE FOR: add an API endpoint, map a new route, new MapPost/MapGet handler, wire a WASM client call to a server endpoint, ProblemDetails/ToHttpResult, ProducesProblem, antiforgery on WASM endpoints, enum query binding, CreatedAtRoute.
-  DO NOT USE FOR: building a full feature from scratch (use add-feature-slice), service-layer result types only, writing tests (use nova-testing).
+  DO NOT USE FOR: building a full feature from scratch (use add-feature-slice), domain/persistence-only work (use add-domain-persistence), service-layer result types only, writing tests (use nova-testing).
 ---
 
 # Add API Endpoint

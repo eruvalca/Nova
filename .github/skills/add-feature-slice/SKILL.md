@@ -3,8 +3,8 @@ name: add-feature-slice
 description: >-
   Orchestrates building a full vertical feature slice in Nova: input record + validation, service (ServiceResult/ServiceProblem), HTTP endpoint, WASM client, tests.
   USE FOR: add a new feature, build a vertical slice end to end, new input record + service + endpoint, scaffold a feature, add a service that crosses the HTTP/WASM boundary.
-  DO NOT USE FOR: a single endpoint on an existing service (use add-api-endpoint), only writing/running tests (use nova-testing).
-  INVOKES: add-api-endpoint (endpoint step), nova-testing (test step).
+  DO NOT USE FOR: domain/persistence-only work (use add-domain-persistence), a single endpoint on an existing service (use add-api-endpoint), only writing/running tests (use nova-testing).
+  INVOKES: add-domain-persistence (when schema/domain persistence changes), add-api-endpoint (endpoint step), nova-testing (test step).
 ---
 
 # Add Feature Slice
@@ -21,9 +21,10 @@ Canonical examples: `Nova.Shared\Clubs\CreateClubInput.cs`, `Nova.Shared\Clubs\C
 
 ## Ordered checklist
 
-1. **Input record + validation** — create `Nova.Shared\{Feature}\{Name}Input.cs`; follow [input-and-validation.md](references/input-and-validation.md).
-2. **Shared contract + server service** — add DTOs/interfaces in `Nova.Shared\{Feature}\` and implement `Nova\Features\{Feature}\{Feature}Service.cs`; follow [service-result-patterns.md](references/service-result-patterns.md).
-3. **HTTP endpoint** — invoke `add-api-endpoint`; do not duplicate that skill's endpoint details here.
-4. **WASM client service** — add `Nova.Client\Services\Http{Feature}Service.cs`; follow [wasm-client.md](references/wasm-client.md).
-5. **Tests** — invoke `nova-testing`; do not duplicate that skill's test-suite details here.
-
+1. **Domain/persistence, when needed** — invoke `add-domain-persistence` for entity, EF configuration, migration, tenancy, lifecycle, or concurrency work.
+2. **Input record + validation** — create `Nova.Shared\{Feature}\{Name}Input.cs`; follow [input-and-validation.md](references/input-and-validation.md).
+3. **Shared contract + server service** — add DTOs/interfaces in `Nova.Shared\{Feature}\` and implement `Nova\Features\{Feature}\{Feature}Service.cs`; follow [service-result-patterns.md](references/service-result-patterns.md).
+4. **Composition root** — register the server service in `Nova\Program.cs`; direct-construction unit tests do not verify DI registration.
+5. **HTTP endpoint** — invoke `add-api-endpoint`; do not duplicate that skill's endpoint details here.
+6. **WASM client service** — add `Nova.Client\Services\Http{Feature}Service.cs`; follow [wasm-client.md](references/wasm-client.md).
+7. **Tests** — invoke `nova-testing`; do not duplicate that skill's test-suite details here.
