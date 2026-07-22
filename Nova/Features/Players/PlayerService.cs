@@ -49,14 +49,22 @@ public sealed partial class PlayerService(
         var pageSize = Math.Clamp(input.PageSize, 1, GetPlayerRosterInput.MaxPageSize);
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var isNpgsql = string.Equals(db.Database.ProviderName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal);
         var query = db.Players
             .Where(player => player.ClubId == currentUserClubId && player.LifecycleStatus == LifecycleStatus.Active);
 
         if (!string.IsNullOrEmpty(normalizedSearch))
         {
-            var uppercaseSearch = normalizedSearch.ToUpperInvariant();
-            query = query.Where(player =>
-                (player.FirstName + " " + player.LastName).ToUpper().Contains(uppercaseSearch));
+            if (isNpgsql)
+            {
+                query = query.Where(player => EF.Functions.ILike(player.FirstName + " " + player.LastName, $"%{normalizedSearch}%"));
+            }
+            else
+            {
+                var uppercaseSearch = normalizedSearch.ToUpperInvariant();
+                query = query.Where(player =>
+                    (player.FirstName + " " + player.LastName).ToUpper().Contains(uppercaseSearch));
+            }
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

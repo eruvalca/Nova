@@ -27,6 +27,7 @@ internal static class PlayerRosterEndpointRouteBuilderExtensions
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .RequireAuthorization(Policies.RequireClubMember)
                 .WithName("GetPlayerRoster");
 
