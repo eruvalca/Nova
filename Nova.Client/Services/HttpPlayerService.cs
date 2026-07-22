@@ -30,6 +30,11 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
         }
 
         var roster = await response.Content.ReadFromJsonAsync<PagedResult<PlayerListItem>>(cancellationToken);
-        return roster ?? new PagedResult<PlayerListItem>([], input.Page, input.PageSize, 0);
+        if (roster is null)
+        {
+            return ServiceProblem.ServerError("The server returned an empty roster payload.");
+        }
+
+        return roster;
     }
 }

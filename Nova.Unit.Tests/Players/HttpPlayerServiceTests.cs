@@ -83,4 +83,24 @@ public sealed class HttpPlayerServiceTests
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
+
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_OnNullSuccessPayload()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("null", System.Text.Encoding.UTF8, "application/json")
+        };
+
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpPlayerService(httpClient);
+
+        var result = await service.GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
 }

@@ -50,7 +50,7 @@ public sealed partial class PlayerService(
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
         var query = db.Players
-            .Where(player => player.ClubId == input.ClubId && player.LifecycleStatus == LifecycleStatus.Active);
+            .Where(player => player.ClubId == currentUserClubId && player.LifecycleStatus == LifecycleStatus.Active);
 
         if (!string.IsNullOrEmpty(normalizedSearch))
         {
@@ -63,31 +63,50 @@ public sealed partial class PlayerService(
         if (string.Equals(normalizedSortBy, "joinedAt", StringComparison.OrdinalIgnoreCase))
         {
             var descending = string.Equals(normalizedSortDirection, "desc", StringComparison.OrdinalIgnoreCase);
-            var joinedRows = await query
-                .Select(player => new
-                {
-                    player.PlayerId,
-                    player.FirstName,
-                    player.LastName,
-                    player.CreatedAt
-                })
-                .ToListAsync(cancellationToken);
+            if (string.Equals(db.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
+            {
+                // SQLite cannot translate DateTimeOffset ORDER BY in EF Core; retain deterministic
+                // behavior in tests by ordering in memory only for this provider.
+                var joinedRows = await query
+                    .Select(player => new
+                    {
+                        player.PlayerId,
+                        player.FirstName,
+                        player.LastName,
+                        player.CreatedAt
+                    })
+                    .ToListAsync(cancellationToken);
 
-            var orderedJoinedRows = descending
-                ? joinedRows.OrderByDescending(player => player.CreatedAt).ThenBy(player => player.PlayerId)
-                : joinedRows.OrderBy(player => player.CreatedAt).ThenBy(player => player.PlayerId);
+                var orderedJoinedRows = descending
+                    ? joinedRows.OrderByDescending(player => player.CreatedAt).ThenBy(player => player.PlayerId)
+                    : joinedRows.OrderBy(player => player.CreatedAt).ThenBy(player => player.PlayerId);
 
-            var joinedItems = orderedJoinedRows
+                var joinedItems = orderedJoinedRows
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(player => new PlayerListItem(
+                        player.PlayerId,
+                        player.FirstName + " " + player.LastName,
+                        player.CreatedAt))
+                    .ToList()
+                    .AsReadOnly();
+
+                return new PagedResult<PlayerListItem>(joinedItems, page, pageSize, totalCount);
+            }
+
+            var joinedAtQuery = descending
+                ? query.OrderByDescending(player => player.CreatedAt).ThenBy(player => player.PlayerId)
+                : query.OrderBy(player => player.CreatedAt).ThenBy(player => player.PlayerId);
+            var joinedAtPlayers = await joinedAtQuery
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(player => new PlayerListItem(
                     player.PlayerId,
                     player.FirstName + " " + player.LastName,
                     player.CreatedAt))
-                .ToList()
-                .AsReadOnly();
+                .ToListAsync(cancellationToken);
 
-            return new PagedResult<PlayerListItem>(joinedItems, page, pageSize, totalCount);
+            return new PagedResult<PlayerListItem>(joinedAtPlayers.AsReadOnly(), page, pageSize, totalCount);
         }
 
         var orderedQuery = BuildOrderedQuery(query, normalizedSortDirection);
@@ -104,10 +123,9 @@ public sealed partial class PlayerService(
     }
 
     /// <summary>
-    /// Applies deterministic ordering for roster queries based on normalized sort tokens.
+    /// Applies display-name ordering for roster queries.
     /// </summary>
     /// <param name="query">The source roster query.</param>
-    /// <param name="sortBy">The normalized sort field.</param>
     /// <param name="sortDirection">The normalized sort direction.</param>
     /// <returns>The ordered query.</returns>
     private static IQueryable<PlayerEntity> BuildOrderedQuery(
