@@ -56,11 +56,15 @@ public sealed partial class EvaluationNoteService(
 
         var participation = await db.PlayerCampaignAssignments
             .Include(assignment => assignment.Campaign)
+            .Include(assignment => assignment.Player)
             .SingleOrDefaultAsync(
                 assignment => assignment.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId,
                 cancellationToken);
 
-        if (participation is null || participation.ClubId != clubId || participation.Campaign.ClubId != clubId)
+        if (participation is null
+            || participation.ClubId != clubId
+            || participation.Campaign.ClubId != clubId
+            || participation.Player.ClubId != clubId)
         {
             LogNoteNotFound(nameof(AddAsync), input.PlayerCampaignAssignmentId, clubId);
             return new NotFound();
@@ -124,9 +128,15 @@ public sealed partial class EvaluationNoteService(
         var note = await db.Notes
             .Include(n => n.PlayerCampaignAssignment)
                 .ThenInclude(assignment => assignment.Campaign)
+            .Include(n => n.PlayerCampaignAssignment)
+                .ThenInclude(assignment => assignment.Player)
             .SingleOrDefaultAsync(n => n.NoteId == input.NoteId, cancellationToken);
 
-        if (note is null || note.ClubId != clubId)
+        if (note is null
+            || note.ClubId != clubId
+            || note.PlayerCampaignAssignment.ClubId != clubId
+            || note.PlayerCampaignAssignment.Campaign.ClubId != clubId
+            || note.PlayerCampaignAssignment.Player.ClubId != clubId)
         {
             LogNoteNotFound(nameof(EditAsync), input.NoteId, clubId);
             return new NotFound();
@@ -184,9 +194,15 @@ public sealed partial class EvaluationNoteService(
         var note = await db.Notes
             .Include(n => n.PlayerCampaignAssignment)
                 .ThenInclude(assignment => assignment.Campaign)
+            .Include(n => n.PlayerCampaignAssignment)
+                .ThenInclude(assignment => assignment.Player)
             .SingleOrDefaultAsync(n => n.NoteId == noteId, cancellationToken);
 
-        if (note is null || note.ClubId != clubId)
+        if (note is null
+            || note.ClubId != clubId
+            || note.PlayerCampaignAssignment.ClubId != clubId
+            || note.PlayerCampaignAssignment.Campaign.ClubId != clubId
+            || note.PlayerCampaignAssignment.Player.ClubId != clubId)
         {
             LogNoteNotFound(nameof(DeleteAsync), noteId, clubId);
             return new NotFound();
