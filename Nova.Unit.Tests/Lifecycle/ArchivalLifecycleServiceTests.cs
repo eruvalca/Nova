@@ -7,6 +7,8 @@ using Nova.Features.Shared;
 using Nova.Features.Tags;
 using Nova.Features.Teams;
 using Nova.Shared.Enums;
+using Nova.Shared.Players;
+using Nova.Shared.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using OneOf;
@@ -28,6 +30,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     private const long ActiveUndecidedPlayerId = 300;
     private const long ResolvedPlayerId = 301;
     private const long ClubBPlayerId = 302;
+    private const long ArchivedWithoutAssignmentsPlayerId = 303;
     private const long ActivePlacementTeamId = 400;
     private const long HistoricalPlacementTeamId = 401;
     private const long ClubBTeamId = 402;
@@ -57,7 +60,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             ResolvedPlayerId,
             TestContext.Current.CancellationToken);
 
-        archiveResult.IsT0.ShouldBeTrue();
+        archiveResult.IsSuccess.ShouldBeTrue();
 
         await using (var archivedContext = _harness.CreateAdminContext())
         {
@@ -80,7 +83,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             ResolvedPlayerId,
             TestContext.Current.CancellationToken);
 
-        restoreResult.IsT0.ShouldBeTrue();
+        restoreResult.IsSuccess.ShouldBeTrue();
 
         await using var restoredContext = _harness.CreateAdminContext();
         var restored = await restoredContext.Players
@@ -103,7 +106,13 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             ActiveUndecidedPlayerId,
             TestContext.Current.CancellationToken);
 
-        result.IsT3.ShouldBeTrue();
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.TryGetArchiveBlockers(out var blockers).ShouldBeTrue();
+        blockers.Count.ShouldBe(1);
+        blockers[0].CampaignId.ShouldBe(700);
+        blockers[0].CampaignName.ShouldBe("Active Campaign");
+        blockers[0].ParticipationIds.ShouldBe([800]);
 
         await using var verify = _harness.CreateAdminContext();
         var player = await verify.Players
@@ -234,7 +243,6 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// </summary>
     /// <param name="target">The lifecycle-managed record type.</param>
     [Theory]
-    [InlineData(LifecycleTarget.Player)]
     [InlineData(LifecycleTarget.Team)]
     [InlineData(LifecycleTarget.TagDefinition)]
     public async Task LifecycleMutation_ReturnsForbidden_WhenCallerIsNotClubAdmin(LifecycleTarget target)
@@ -251,7 +259,6 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// </summary>
     /// <param name="target">The lifecycle-managed record type.</param>
     [Theory]
-    [InlineData(LifecycleTarget.Player)]
     [InlineData(LifecycleTarget.Team)]
     [InlineData(LifecycleTarget.TagDefinition)]
     public async Task LifecycleMutation_ReturnsNotFound_ForCrossTenantRecord(LifecycleTarget target)
@@ -288,7 +295,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         (await CreatePlayerService().ArchiveAsync(
             ResolvedPlayerId,
-            TestContext.Current.CancellationToken)).IsT0.ShouldBeTrue();
+            TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
         (await CreateTeamService().ArchiveAsync(
             HistoricalPlacementTeamId,
             TestContext.Current.CancellationToken)).IsT0.ShouldBeTrue();
@@ -310,7 +317,74 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Archives one target through its focused lifecycle service.
+    /// Verifies player archive is forbidden for a signed-in non-admin club member.
+    /// </summary>
+    [Fact]
+    public async Task PlayerLifecycle_ReturnsForbidden_WhenCallerIsNotClubAdmin()
+    {
+        ActAs(ClubAMemberId, ClubAId);
+        var result = await CreatePlayerService().ArchiveAsync(
+            ResolvedPlayerId,
+            TestContext.Current.CancellationToken);
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    /// <summary>
+    /// Verifies cross-tenant player archive attempts return not-found without data disclosure.
+    /// </summary>
+    [Fact]
+    public async Task PlayerLifecycle_ReturnsNotFound_ForCrossTenantRecord()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var result = await CreatePlayerService().ArchiveAsync(
+            ClubBPlayerId,
+            TestContext.Current.CancellationToken);
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
+    /// <summary>
+    /// Verifies restoring an archived player does not create campaign assignments for campaigns that started while archived.
+    /// </summary>
+    [Fact]
+    public async Task PlayerLifecycle_Restore_DoesNotRetroactivelyEnrollMissedCampaigns()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreatePlayerService();
+
+        (await service.ArchiveAsync(
+            ArchivedWithoutAssignmentsPlayerId,
+            TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+
+        await using (var mutate = _harness.CreateAdminContext())
+        {
+            mutate.Campaigns.Add(new CampaignEntity
+            {
+                CampaignId = 703,
+                Name = "Started While Archived",
+                StartDate = new DateOnly(2026, 9, 1),
+                SeasonId = 600,
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId
+            });
+            await mutate.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        (await service.RestoreAsync(
+            ArchivedWithoutAssignmentsPlayerId,
+            TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+
+        await using var verify = _harness.CreateAdminContext();
+        var assignmentCount = await verify.PlayerCampaignAssignments
+            .CountAsync(
+                assignment => assignment.PlayerId == ArchivedWithoutAssignmentsPlayerId,
+                TestContext.Current.CancellationToken);
+        assignmentCount.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// Archives one non-player lifecycle target through its focused lifecycle service.
     /// </summary>
     /// <param name="target">The target record type.</param>
     /// <param name="id">The target record identifier.</param>
@@ -320,7 +394,6 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         long id)
         => target switch
         {
-            LifecycleTarget.Player => CreatePlayerService().ArchiveAsync(id, TestContext.Current.CancellationToken),
             LifecycleTarget.Team => CreateTeamService().ArchiveAsync(id, TestContext.Current.CancellationToken),
             LifecycleTarget.TagDefinition => CreateTagService().ArchiveAsync(id, TestContext.Current.CancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(target), target, null),
@@ -334,7 +407,6 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     private static long CurrentClubId(LifecycleTarget target)
         => target switch
         {
-            LifecycleTarget.Player => ResolvedPlayerId,
             LifecycleTarget.Team => HistoricalPlacementTeamId,
             LifecycleTarget.TagDefinition => TagDefinitionId,
             _ => throw new ArgumentOutOfRangeException(nameof(target), target, null),
@@ -348,7 +420,6 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     private static long OtherClubId(LifecycleTarget target)
         => target switch
         {
-            LifecycleTarget.Player => ClubBPlayerId,
             LifecycleTarget.Team => ClubBTeamId,
             LifecycleTarget.TagDefinition => ClubBTagDefinitionId,
             _ => throw new ArgumentOutOfRangeException(nameof(target), target, null),
@@ -519,6 +590,16 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
                 GraduationYear = 2030,
                 ClubId = ClubBId,
                 CreatedById = ClubBAdminId
+            },
+            new PlayerEntity
+            {
+                PlayerId = ArchivedWithoutAssignmentsPlayerId,
+                FirstName = "Archived",
+                LastName = "NoAssignments",
+                DateOfBirth = new DateOnly(2011, 5, 1),
+                GraduationYear = 2029,
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId
             });
 
         db.PlayerTags.AddRange(

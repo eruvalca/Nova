@@ -3,6 +3,8 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
+using Nova.Shared.Players;
+using Nova.Shared.Results;
 using OneOf;
 using OneOf.Types;
 
@@ -17,29 +19,49 @@ namespace Nova.Features.Players;
 public sealed partial class PlayerLifecycleService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<PlayerLifecycleService> logger)
+    ILogger<PlayerLifecycleService> logger) : IPlayerLifecycleService
 {
     /// <summary>
     /// Archives a player after confirming no active campaign participation remains undecided.
     /// </summary>
     /// <param name="playerId">The player identifier to archive.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    /// <returns>Success, not found, forbidden, or conflict information.</returns>
-    public Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> ArchiveAsync(
+    /// <returns>A boundary-safe service result with success or ProblemDetails-mappable failure.</returns>
+    public async Task<ServiceResult<Success>> ArchiveAsync(
         long playerId,
         CancellationToken cancellationToken = default)
-        => TransitionAsync(playerId, LifecycleStatus.Archived, cancellationToken);
+    {
+        var outcome = await TransitionAsync(playerId, LifecycleStatus.Archived, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail),
+            blocked => ServiceProblem.Conflict(
+                "Resolve every undecided active-campaign participation before archiving the player.",
+                PlayerLifecycleProblemExtensions.CreateArchiveBlockerExtensions(blocked.Blockers)));
+    }
 
     /// <summary>
     /// Restores an archived player to active use and clears archive provenance.
     /// </summary>
     /// <param name="playerId">The player identifier to restore.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    /// <returns>Success, not found, forbidden, or conflict information.</returns>
-    public Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> RestoreAsync(
+    /// <returns>A boundary-safe service result with success or ProblemDetails-mappable failure.</returns>
+    public async Task<ServiceResult<Success>> RestoreAsync(
         long playerId,
         CancellationToken cancellationToken = default)
-        => TransitionAsync(playerId, LifecycleStatus.Active, cancellationToken);
+    {
+        var outcome = await TransitionAsync(playerId, LifecycleStatus.Active, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail),
+            blocked => ServiceProblem.Conflict(
+                "Resolve every undecided active-campaign participation before archiving the player.",
+                PlayerLifecycleProblemExtensions.CreateArchiveBlockerExtensions(blocked.Blockers)));
+    }
 
     /// <summary>
     /// Applies the requested lifecycle status after authorization and integrity checks.
@@ -47,8 +69,8 @@ public sealed partial class PlayerLifecycleService(
     /// <param name="playerId">The player identifier to mutate.</param>
     /// <param name="targetStatus">The lifecycle status to apply.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    /// <returns>Success, not found, forbidden, or conflict information.</returns>
-    private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> TransitionAsync(
+    /// <returns>Internal lifecycle outcomes before boundary mapping to shared service contracts.</returns>
+    private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, PlayerArchiveBlockedConflict>> TransitionAsync(
         long playerId,
         LifecycleStatus targetStatus,
         CancellationToken cancellationToken)
@@ -61,64 +83,88 @@ public sealed partial class PlayerLifecycleService(
             return new LifecycleForbidden("You must be a club administrator to change player lifecycle state.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.AcquirePlayerMutationLockAsync(playerId, cancellationToken);
-        var player = await db.Players
-            .SingleOrDefaultAsync(candidate => candidate.PlayerId == playerId, cancellationToken);
-
-        if (player is null || player.ClubId != clubId)
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, PlayerArchiveBlockedConflict>>(async () =>
         {
-            LogPlayerNotFound(playerId, clubId);
-            return new NotFound();
-        }
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            await db.AcquirePlayerMutationLockAsync(playerId, cancellationToken);
+            var player = await db.Players
+                .SingleOrDefaultAsync(candidate => candidate.PlayerId == playerId, cancellationToken);
 
-        if (player.LifecycleStatus == targetStatus)
-        {
-            LogPlayerLifecycleConflict(playerId, targetStatus);
-            return new LifecycleConflict($"The player is already {targetStatus.ToString().ToLowerInvariant()}.");
-        }
-
-        if (targetStatus == LifecycleStatus.Archived)
-        {
-            var hasUndecidedActiveParticipation = await db.PlayerCampaignAssignments
-                .AnyAsync(
-                    assignment => assignment.PlayerId == playerId
-                        && assignment.Campaign.Status == CampaignStatus.Active
-                        && assignment.PlacementOutcome == PlacementOutcome.Undecided,
-                    cancellationToken);
-
-            if (hasUndecidedActiveParticipation)
+            if (player is null || player.ClubId != clubId)
             {
-                LogPlayerArchiveBlocked(playerId);
-                return new LifecycleConflict(
-                    "Resolve every undecided active-campaign participation before archiving the player.");
+                LogPlayerNotFound(playerId, clubId);
+                return new NotFound();
             }
 
-            player.LifecycleStatus = LifecycleStatus.Archived;
-            player.ArchivedAt = DateTimeOffset.UtcNow;
-            player.ArchivedById = actorUserId;
-        }
-        else
-        {
-            player.LifecycleStatus = LifecycleStatus.Active;
-            player.ArchivedAt = null;
-            player.ArchivedById = null;
-        }
+            if (player.LifecycleStatus == targetStatus)
+            {
+                LogPlayerLifecycleConflict(playerId, targetStatus);
+                return new LifecycleConflict($"The player is already {targetStatus.ToString().ToLowerInvariant()}.");
+            }
 
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            LogPlayerLifecycleConcurrencyConflict(playerId);
-            return new LifecycleConflict("The player's lifecycle changed. Reload it and try again.");
-        }
+            if (targetStatus == LifecycleStatus.Archived)
+            {
+                var blockingParticipations = await db.PlayerCampaignAssignments
+                    .Where(
+                        assignment => assignment.PlayerId == playerId
+                            && assignment.Campaign.Status == CampaignStatus.Active
+                            && assignment.PlacementOutcome == PlacementOutcome.Undecided)
+                    .Select(assignment => new
+                    {
+                        assignment.CampaignId,
+                        CampaignName = assignment.Campaign.Name,
+                        assignment.PlayerCampaignAssignmentId
+                    })
+                    .ToListAsync(cancellationToken);
 
-        LogPlayerLifecycleChanged(playerId, targetStatus, actorUserId);
-        return new Success();
+                if (blockingParticipations.Count > 0)
+                {
+                    var blockers = blockingParticipations
+                        .GroupBy(
+                            entry => new { entry.CampaignId, entry.CampaignName },
+                            entry => entry.PlayerCampaignAssignmentId)
+                        .Select(group => new PlayerArchiveBlocker
+                        {
+                            CampaignId = group.Key.CampaignId,
+                            CampaignName = group.Key.CampaignName,
+                            ParticipationIds = group.OrderBy(id => id).ToList().AsReadOnly()
+                        })
+                        .OrderBy(blocker => blocker.CampaignId)
+                        .ToList()
+                        .AsReadOnly();
+
+                    LogPlayerArchiveBlocked(playerId, blockers.Count);
+                    return new PlayerArchiveBlockedConflict(blockers);
+                }
+
+                player.LifecycleStatus = LifecycleStatus.Archived;
+                player.ArchivedAt = DateTimeOffset.UtcNow;
+                player.ArchivedById = actorUserId;
+            }
+            else
+            {
+                player.LifecycleStatus = LifecycleStatus.Active;
+                player.ArchivedAt = null;
+                player.ArchivedById = null;
+            }
+
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                LogPlayerLifecycleConcurrencyConflict(playerId);
+                return new LifecycleConflict("The player's lifecycle changed. Reload it and try again.");
+            }
+
+            LogPlayerLifecycleChanged(playerId, targetStatus, actorUserId);
+            return new Success();
+        });
     }
 
     /// <summary>
@@ -149,8 +195,9 @@ public sealed partial class PlayerLifecycleService(
     /// Logs a player archive blocked by unresolved active-campaign participation.
     /// </summary>
     /// <param name="playerId">The blocked player identifier.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Player archive blocked by undecided active-campaign participation for PlayerId={PlayerId}.")]
-    private partial void LogPlayerArchiveBlocked(long playerId);
+    /// <param name="campaignCount">The number of active campaigns currently blocking archive.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Player archive blocked by undecided active-campaign participation for PlayerId={PlayerId} across CampaignCount={CampaignCount}.")]
+    private partial void LogPlayerArchiveBlocked(long playerId, int campaignCount);
 
     /// <summary>
     /// Logs a lifecycle transition rejected because the player changed concurrently.
@@ -167,4 +214,10 @@ public sealed partial class PlayerLifecycleService(
     /// <param name="actorUserId">The acting administrator identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "PlayerId={PlayerId} lifecycle changed to {Status} by UserId={ActorUserId}.")]
     private partial void LogPlayerLifecycleChanged(long playerId, LifecycleStatus status, long actorUserId);
+
+    /// <summary>
+    /// Represents an archive conflict with structured active-campaign participation blockers.
+    /// </summary>
+    /// <param name="Blockers">The grouped blocker details loaded under the lifecycle lock.</param>
+    private readonly record struct PlayerArchiveBlockedConflict(IReadOnlyList<PlayerArchiveBlocker> Blockers);
 }

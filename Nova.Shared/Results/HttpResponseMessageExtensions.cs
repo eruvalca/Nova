@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Nova.Shared.Results;
 
@@ -21,21 +22,24 @@ public static class HttpResponseMessageExtensions
             var problemBody = await ReadProblemBodyAsync(response, cancellationToken);
             var detail = problemBody?.Detail;
             var errors = problemBody?.Errors;
+            var extensions = problemBody?.Extensions?
+                .Where(static entry => entry.Key is not ("type" or "title" or "status" or "instance"))
+                .ToDictionary(entry => entry.Key, entry => (object?)entry.Value);
 
             // If we have structured validation errors and a 400 status, it's a Validation problem.
             if (response.StatusCode == HttpStatusCode.BadRequest && errors is not null && errors.Count > 0)
             {
-                return ServiceProblem.Validation(errors, detail);
+                return ServiceProblem.Validation(errors, detail, extensions);
             }
 
             // Otherwise, map the status code to a problem kind.
             return response.StatusCode switch
             {
-                HttpStatusCode.NotFound => ServiceProblem.NotFound(detail),
-                HttpStatusCode.Forbidden => ServiceProblem.Forbidden(detail),
-                HttpStatusCode.Conflict => ServiceProblem.Conflict(detail),
-                HttpStatusCode.BadRequest => ServiceProblem.BadRequest(detail),
-                _ => ServiceProblem.ServerError(detail)
+                HttpStatusCode.NotFound => ServiceProblem.NotFound(detail, extensions),
+                HttpStatusCode.Forbidden => ServiceProblem.Forbidden(detail, extensions),
+                HttpStatusCode.Conflict => ServiceProblem.Conflict(detail, extensions),
+                HttpStatusCode.BadRequest => ServiceProblem.BadRequest(detail, extensions),
+                _ => ServiceProblem.ServerError(detail, extensions)
             };
         }
     }
@@ -72,7 +76,22 @@ public static class HttpResponseMessageExtensions
     /// </summary>
     /// <param name="Detail">The problem detail message, when present.</param>
     /// <param name="Errors">The structured validation errors, when the body is a ValidationProblemDetails payload.</param>
-    private sealed record ProblemDetailsDto(
-        string? Detail,
-        IReadOnlyDictionary<string, string[]>? Errors);
+    private sealed class ProblemDetailsDto
+    {
+        /// <summary>
+        /// Gets or sets the problem detail message.
+        /// </summary>
+        public string? Detail { get; set; }
+
+        /// <summary>
+        /// Gets or sets structured validation errors when present.
+        /// </summary>
+        public IReadOnlyDictionary<string, string[]>? Errors { get; set; }
+
+        /// <summary>
+        /// Gets or sets all additional ProblemDetails extension members.
+        /// </summary>
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? Extensions { get; set; }
+    }
 }
