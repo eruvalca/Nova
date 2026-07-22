@@ -1,5 +1,6 @@
 using Nova.Features.Shared;
 using Nova.Shared.Players;
+using Nova.Shared.Results;
 using Nova.Shared.Security;
 
 namespace Nova.Features.Players;
@@ -72,9 +73,8 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
         // Ensure the route parameter and body agree on the target player.
         if (playerId != input.PlayerId)
         {
-            return TypedResults.Problem(
-                detail: "The player identifier in the route does not match the request body.",
-                statusCode: StatusCodes.Status400BadRequest);
+            return ServiceProblem.BadRequest("The player identifier in the route does not match the request body.")
+                .ToHttpResult();
         }
 
         var result = await playerManagementService.UpdateAsync(input, cancellationToken);

@@ -49,6 +49,12 @@ internal static class ServiceResultExtensions
                         statusCode: StatusCodes.Status403Forbidden,
                         extensions: extensions),
 
+                ServiceProblemKind.Conflict when problem.Errors is { } conflictErrors =>
+                    TypedResults.Problem(
+                        detail: problem.Detail,
+                        statusCode: StatusCodes.Status409Conflict,
+                        extensions: new Dictionary<string, object?>(extensions ?? []) { ["errors"] = conflictErrors }),
+
                 ServiceProblemKind.Conflict =>
                     TypedResults.Problem(
                         detail: problem.Detail,

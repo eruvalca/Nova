@@ -166,8 +166,7 @@ public sealed partial class PlayerManagementService(
                 {
                     LogPlayerGraduationYearBlocked(input.PlayerId, blocked.Blockers.Count);
                     var errors = BuildBlockerErrors(blocked.Blockers);
-                    return (ServiceProblem?)new ServiceProblem(
-                        ServiceProblemKind.Conflict,
+                    return (ServiceProblem?)ServiceProblem.Conflict(
                         "The proposed graduation year would make one or more Active-campaign placements ineligible.",
                         errors);
                 });
