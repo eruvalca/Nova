@@ -51,6 +51,11 @@ public class PlayerCampaignAssignmentEntity : BaseEntity, ITenantOwnedEntity
     public TeamEntity? Team { get; set; } = null;
 
     /// <summary>
+    /// Gets or sets the campaign tag applications for this participation.
+    /// </summary>
+    public ICollection<CampaignTagApplicationEntity> CampaignTagApplications { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the application-managed token used to detect concurrent placement updates.
     /// </summary>
     public Guid ConcurrencyToken { get; set; } = Guid.NewGuid();

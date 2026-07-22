@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Nova.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations
 {
     [DbContext(typeof(NovaDbContext))]
-    partial class NovaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722030717_AddCampaignTagApplications")]
+    partial class AddCampaignTagApplications
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -419,14 +422,14 @@ namespace Nova.Data.Migrations
                     b.Property<long?>("ModifiedById")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("PlayerCampaignAssignmentId")
+                    b.Property<long>("PlayerId")
                         .HasColumnType("bigint");
 
                     b.HasKey("NoteId");
 
                     b.HasIndex("ClubId");
 
-                    b.HasIndex("PlayerCampaignAssignmentId");
+                    b.HasIndex("PlayerId");
 
                     b.ToTable("Notes");
                 });
@@ -1078,15 +1081,15 @@ namespace Nova.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Nova.Entities.PlayerCampaignAssignmentEntity", "PlayerCampaignAssignment")
+                    b.HasOne("Nova.Entities.PlayerEntity", "Player")
                         .WithMany("Notes")
-                        .HasForeignKey("PlayerCampaignAssignmentId")
+                        .HasForeignKey("PlayerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Club");
 
-                    b.Navigation("PlayerCampaignAssignment");
+                    b.Navigation("Player");
                 });
 
             modelBuilder.Entity("Nova.Entities.NovaUserEntity", b =>
@@ -1243,13 +1246,13 @@ namespace Nova.Data.Migrations
             modelBuilder.Entity("Nova.Entities.PlayerCampaignAssignmentEntity", b =>
                 {
                     b.Navigation("CampaignTagApplications");
-
-                    b.Navigation("Notes");
                 });
 
             modelBuilder.Entity("Nova.Entities.PlayerEntity", b =>
                 {
                     b.Navigation("CampaignAssignments");
+
+                    b.Navigation("Notes");
 
                     b.Navigation("Photos");
                 });

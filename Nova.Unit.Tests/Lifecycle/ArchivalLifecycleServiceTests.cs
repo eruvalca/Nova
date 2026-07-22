@@ -196,7 +196,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies tag-definition archival preserves prior player associations and restore clears provenance.
+    /// Verifies tag-definition archival preserves prior campaign tag applications and restore clears provenance.
     /// </summary>
     [Fact]
     public async Task TagDefinitionLifecycle_ArchivesAndRestores_WhilePreservingAssociations()
@@ -221,10 +221,12 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         tag.ArchivedAt.ShouldBeNull();
         tag.ArchivedById.ShouldBeNull();
 
-        var player = await verify.Players
-            .Include(candidate => candidate.Tags)
-            .SingleAsync(candidate => candidate.PlayerId == ResolvedPlayerId, TestContext.Current.CancellationToken);
-        player.Tags.ShouldContain(candidate => candidate.PlayerTagId == TagDefinitionId);
+        var historicalApplicationExists = await verify.CampaignTagApplications
+            .AnyAsync(
+                candidate => candidate.PlayerCampaignAssignment.PlayerId == ResolvedPlayerId
+                    && candidate.PlayerTagId == TagDefinitionId,
+                TestContext.Current.CancellationToken);
+        historicalApplicationExists.ShouldBeTrue();
     }
 
     /// <summary>
@@ -496,8 +498,6 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             ClubId = ClubAId,
             CreatedById = ClubAAdminId
         };
-        resolvedPlayer.Tags.Add(tagDefinition);
-
         db.Players.AddRange(
             new PlayerEntity
             {
@@ -521,14 +521,16 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
                 CreatedById = ClubBAdminId
             });
 
-        db.PlayerTags.Add(new PlayerTagEntity
-        {
-            PlayerTagId = ClubBTagDefinitionId,
-            Name = "Other",
-            Color = "#000000",
-            ClubId = ClubBId,
-            CreatedById = ClubBAdminId
-        });
+        db.PlayerTags.AddRange(
+            tagDefinition,
+            new PlayerTagEntity
+            {
+                PlayerTagId = ClubBTagDefinitionId,
+                Name = "Other",
+                Color = "#000000",
+                ClubId = ClubBId,
+                CreatedById = ClubBAdminId
+            });
 
         db.Teams.AddRange(
             new TeamEntity
@@ -586,6 +588,15 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
                 ClubId = ClubAId,
                 CreatedById = ClubAAdminId
             });
+
+        db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
+        {
+            CampaignTagApplicationId = 900,
+            PlayerCampaignAssignmentId = 801,
+            PlayerTagId = TagDefinitionId,
+            ClubId = ClubAId,
+            CreatedById = ClubAAdminId
+        });
 
         db.SaveChanges();
     }

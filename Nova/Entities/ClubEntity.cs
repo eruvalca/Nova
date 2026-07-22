@@ -49,6 +49,10 @@ public class ClubEntity : BaseEntity
     /// </summary>
     public ICollection<PlayerTagEntity> PlayerTags { get; set; } = [];
     /// <summary>
+    /// Gets or sets the campaign tag applications.
+    /// </summary>
+    public ICollection<CampaignTagApplicationEntity> CampaignTagApplications { get; set; } = [];
+    /// <summary>
     /// Gets or sets the Join Requests.
     /// </summary>
     public ICollection<ClubJoinRequestEntity> JoinRequests { get; set; } = [];

@@ -81,6 +81,10 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// </summary>
     public DbSet<PlayerCampaignAssignmentEntity> PlayerCampaignAssignments => Set<PlayerCampaignAssignmentEntity>();
     /// <summary>
+    /// Gets the Campaign Tag Applications.
+    /// </summary>
+    public DbSet<CampaignTagApplicationEntity> CampaignTagApplications => Set<CampaignTagApplicationEntity>();
+    /// <summary>
     /// Gets the Campaign Lifecycle Events.
     /// </summary>
     public DbSet<CampaignLifecycleEventEntity> CampaignLifecycleEvents => Set<CampaignLifecycleEventEntity>();

@@ -38,12 +38,5 @@ public class PlayerEntityConfiguration : IEntityTypeConfiguration<PlayerEntity>
             .HasForeignKey(e => e.ClubId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder
-            .HasMany(p => p.Tags)
-            .WithMany()
-            .UsingEntity(
-                right => right.HasOne(typeof(PlayerTagEntity)).WithMany().OnDelete(DeleteBehavior.Cascade),
-                left => left.HasOne(typeof(PlayerEntity)).WithMany().OnDelete(DeleteBehavior.Cascade)
-            );
     }
 }

@@ -62,6 +62,8 @@ public sealed partial class TagDefinitionLifecycleService(
         }
 
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireTagMutationLockAsync(tagDefinitionId, cancellationToken);
         var tagDefinition = await db.PlayerTags
             .SingleOrDefaultAsync(candidate => candidate.PlayerTagId == tagDefinitionId, cancellationToken);
 
@@ -94,6 +96,7 @@ public sealed partial class TagDefinitionLifecycleService(
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {

@@ -28,4 +28,9 @@ public class PlayerTagEntity : ArchivableEntity, ITenantOwnedEntity
     /// Gets or sets the Club.
     /// </summary>
     public ClubEntity Club { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the campaign tag applications using this definition.
+    /// </summary>
+    public ICollection<CampaignTagApplicationEntity> CampaignTagApplications { get; set; } = [];
 }
