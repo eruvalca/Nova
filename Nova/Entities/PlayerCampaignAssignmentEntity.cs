@@ -56,9 +56,15 @@ public class PlayerCampaignAssignmentEntity : BaseEntity, ITenantOwnedEntity
     public Guid ConcurrencyToken { get; set; } = Guid.NewGuid();
 
     /// <summary>
+    /// Gets or sets the evaluation notes written for this campaign participation.
+    /// </summary>
+    public ICollection<NoteEntity> Notes { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the Club Id.
     /// </summary>
     public required long ClubId { get; set; }
+
     /// <summary>
     /// Gets or sets the Club.
     /// </summary>

@@ -82,6 +82,10 @@ public class TenancyTests : IDisposable
 
     private readonly TenancyTestHarness _harness = new();
 
+    // Assigned during Seed() once database-generated IDs are available.
+    private long _clubAAssignmentId;
+    private long _clubBAssignmentId;
+
     public TenancyTests()
     {
         Seed();
@@ -120,6 +124,71 @@ public class TenancyTests : IDisposable
             new NovaUserPhotoEntity { OriginalBlobName = "b1.jpg", NovaUserId = ClubBMemberId, CreatedById = ClubBMemberId },
             new NovaUserPhotoEntity { OriginalBlobName = "n1.jpg", NovaUserId = NoClubUserId, CreatedById = NoClubUserId });
 
+        context.SaveChanges();
+
+        // Seed seasons, campaigns, and participations so notes can be associated per-club.
+        var seasonA = new SeasonEntity
+        {
+            Name = "Season A",
+            StartDate = new DateOnly(2026, 1, 1),
+            ClubId = ClubAId,
+            CreatedById = ClubAMember1Id
+        };
+        var seasonB = new SeasonEntity
+        {
+            Name = "Season B",
+            StartDate = new DateOnly(2026, 1, 1),
+            ClubId = ClubBId,
+            CreatedById = ClubBMemberId
+        };
+        context.Seasons.AddRange(seasonA, seasonB);
+        context.SaveChanges();
+
+        var campaignA = new CampaignEntity
+        {
+            Name = "Campaign A",
+            StartDate = new DateOnly(2026, 6, 1),
+            SeasonId = seasonA.SeasonId,
+            ClubId = ClubAId,
+            CreatedById = ClubAMember1Id
+        };
+        var campaignB = new CampaignEntity
+        {
+            Name = "Campaign B",
+            StartDate = new DateOnly(2026, 6, 1),
+            SeasonId = seasonB.SeasonId,
+            ClubId = ClubBId,
+            CreatedById = ClubBMemberId
+        };
+        context.Campaigns.AddRange(campaignA, campaignB);
+        context.SaveChanges();
+
+        var playerA = context.Players.First(p => p.ClubId == ClubAId);
+        var playerB = context.Players.First(p => p.ClubId == ClubBId);
+        var assignmentA = new PlayerCampaignAssignmentEntity
+        {
+            PlayerId = playerA.PlayerId,
+            CampaignId = campaignA.CampaignId,
+            ClubId = ClubAId,
+            CreatedById = ClubAMember1Id
+        };
+        var assignmentB = new PlayerCampaignAssignmentEntity
+        {
+            PlayerId = playerB.PlayerId,
+            CampaignId = campaignB.CampaignId,
+            ClubId = ClubBId,
+            CreatedById = ClubBMemberId
+        };
+        context.PlayerCampaignAssignments.AddRange(assignmentA, assignmentB);
+        context.SaveChanges();
+
+        _clubAAssignmentId = assignmentA.PlayerCampaignAssignmentId;
+        _clubBAssignmentId = assignmentB.PlayerCampaignAssignmentId;
+
+        // One note per club to exercise the tenant filter on NoteEntity.
+        context.Notes.AddRange(
+            new NoteEntity { Content = "Note A", PlayerCampaignAssignmentId = _clubAAssignmentId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new NoteEntity { Content = "Note B", PlayerCampaignAssignmentId = _clubBAssignmentId, ClubId = ClubBId, CreatedById = ClubBMemberId });
         context.SaveChanges();
     }
 
@@ -393,5 +462,47 @@ public class TenancyTests : IDisposable
 
         player.ModifiedAt.ShouldNotBeNull();
         player.ModifiedById.ShouldBe(ClubAMember1Id);
+    }
+
+    [Fact]
+    public void Notes_VisibleToOwningClubMember()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using var context = _harness.CreateTenantContext();
+
+        var notes = context.Notes.ToList();
+
+        notes.Count.ShouldBe(1);
+        notes[0].ClubId.ShouldBe(ClubAId);
+    }
+
+    [Fact]
+    public void Notes_HiddenFromOtherClub()
+    {
+        ActAs(ClubBMemberId, ClubBId);
+        using var context = _harness.CreateTenantContext();
+
+        var notes = context.Notes.ToList();
+
+        notes.Count.ShouldBe(1);
+        notes.ShouldAllBe(n => n.ClubId == ClubBId);
+    }
+
+    [Fact]
+    public void Interceptor_Throws_OnCrossTenantNoteAdd()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using var context = _harness.CreateTenantContext();
+
+        context.Notes.Add(new NoteEntity
+        {
+            Content = "Cross-tenant attempt.",
+            PlayerCampaignAssignmentId = _clubBAssignmentId,
+            ClubId = ClubBId,
+            CreatedById = ClubAMember1Id
+        });
+
+        Should.Throw<InvalidOperationException>(() => context.SaveChanges())
+            .Message.ShouldContain("Cross-tenant");
     }
 }
