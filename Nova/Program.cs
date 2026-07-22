@@ -24,6 +24,7 @@ using Nova.Features.Tags;
 using Nova.Features.Teams;
 using Nova.Shared.Account;
 using Nova.Shared.Clubs;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Photos;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -95,6 +96,7 @@ builder.Services.AddScoped<IClubAdminService, ClubAdminService>();
 builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();
 builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
 builder.Services.AddScoped<IClubMemberService, ClubMemberService>();
+builder.Services.AddScoped<IPlayerService, PlayerService>();
 builder.Services.AddScoped<EvaluationNoteService>();
 builder.Services.AddScoped<CampaignPlacementService>();
 builder.Services.AddScoped<CampaignTagApplicationService>();
@@ -215,6 +217,7 @@ app.MapProfilePhotoEndpoints();
 
 // Club and club join request endpoints.
 app.MapClubEndpoints();
+app.MapPlayerRosterEndpoints();
 
 await StartupDatabaseInitializer.InitializeAsync(app.Services, app.Environment.IsDevelopment());
 
