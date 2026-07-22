@@ -25,7 +25,7 @@ Suggested executor: orchestrator
 
 Retrieved 7 open review threads via GraphQL. Classification:
 - Valid: SQL paging concern on joinedAt sort; XML doc/signature mismatch; query should scope by authenticated club id; null success payload should not silently map to empty page.
-- Invalid: claimed requirement for lastName-first default ordering (not in issue/scope); claimed missing filters (status/year/tag) not in issue scope; claimed shared folder/namespace mismatch (implementation follows requested issue path under `Nova.Shared/Features/Players`).
+- Invalid: claimed requirement for lastName-first default ordering (not in accepted scope for this PR); claimed missing filters (status/year/tag) treated as deferred/out-of-scope for this PR; claimed shared folder/namespace mismatch (implementation follows requested issue path under `Nova.Shared/Features/Players`).
 Planned actions: apply code/test fixes for valid threads, reply with rationale for invalid threads, then resolve all threads.
 
 ## Phase 2: Implement Valid Feedback
