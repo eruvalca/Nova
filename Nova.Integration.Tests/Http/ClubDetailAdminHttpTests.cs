@@ -2,6 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Clubs;
+using Nova.Shared.Features.Players;
+using Nova.Shared.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -362,6 +364,59 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         payload.Count.ShouldBe(1);
         payload[0].ClubJoinRequestId.ShouldBe(request.ClubJoinRequestId);
         payload[0].RequestingUserName.ShouldBe("Jamie JsonJoiner");
+    }
+
+    /// <summary>
+    /// Verifies the player-roster API route is registered and enforces expected auth boundaries.
+    /// </summary>
+    [Fact]
+    public async Task PlayerRosterApi_Enforces401And403_AndAllowsSameClubMembersAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var anonymousClient = fixture.CreateNovaHttpClient();
+        using var clubAdminClient = fixture.CreateNovaHttpClient();
+        using var sameClubMemberClient = fixture.CreateNovaHttpClient();
+        using var otherClubMemberClient = fixture.CreateNovaHttpClient();
+
+        var adminEmail = UniqueEmail("roster-api-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(clubAdminClient, adminEmail, Password, cancellationToken);
+        await UpdateUserAsync(adminEmail, "Rhea", "RosterAdmin", clubId: null, cancellationToken);
+        var club = await CreateClubAsync(clubAdminClient, "Nashville North", "Nashville", "TN", cancellationToken);
+        await RefreshClubMembershipCookieAsync(clubAdminClient, cancellationToken);
+
+        var memberEmail = UniqueEmail("roster-api-member");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(sameClubMemberClient, memberEmail, Password, cancellationToken);
+        await UpdateUserAsync(memberEmail, "Mila", "Member", club.ClubId, cancellationToken);
+        await RefreshClubMembershipCookieAsync(sameClubMemberClient, cancellationToken);
+
+        var otherClubEmail = UniqueEmail("roster-api-other");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(otherClubMemberClient, otherClubEmail, Password, cancellationToken);
+        await UpdateUserAsync(otherClubEmail, "Oscar", "OtherClub", clubId: null, cancellationToken);
+        _ = await CreateClubAsync(otherClubMemberClient, "Memphis Monarchs", "Memphis", "TN", cancellationToken);
+        await RefreshClubMembershipCookieAsync(otherClubMemberClient, cancellationToken);
+
+        var rosterUrl = GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId);
+
+        using (var anonymousResponse = await anonymousClient.GetAsync(rosterUrl, cancellationToken))
+        {
+            anonymousResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        }
+
+        using (var crossClubResponse = await otherClubMemberClient.GetAsync(rosterUrl, cancellationToken))
+        {
+            crossClubResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+            var problem = await crossClubResponse.ToServiceProblemAsync(cancellationToken);
+            problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+        }
+
+        using (var sameClubResponse = await sameClubMemberClient.GetAsync(rosterUrl, cancellationToken))
+        {
+            sameClubResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var payload = await sameClubResponse.Content.ReadFromJsonAsync<PagedResult<PlayerListItem>>(cancellationToken);
+            payload.ShouldNotBeNull();
+            payload.Page.ShouldBe(1);
+            payload.PageSize.ShouldBe(20);
+        }
     }
 
     /// <summary>
