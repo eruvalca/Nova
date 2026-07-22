@@ -146,14 +146,14 @@ Judged all three Copilot review comments valid. The route group now requires `Po
 
 ## Phase 8: Malformed blocker extension resilience
 
-Status: In progress <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator
 
 - [x] Preserve the `TryGetArchiveBlockers` non-throwing contract when JSON blocker arrays contain invalid schema.
 - [x] Add focused unit coverage for malformed-array and non-array extension values.
 - [x] Run scoped tests and the solution build.
-- [ ] Reply to and resolve review thread `PRRT_kwDOSz2VcM6TFvmr` after the fix is pushed.
+- [x] Reply to and resolve review thread `PRRT_kwDOSz2VcM6TFvmr` after the fix is pushed.
 
 ### Verification Plan
 
@@ -164,12 +164,16 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Judged the parser comment valid. `TryGetArchiveBlockers` now catches only `JsonException` from malformed blocker-array deserialization and returns `false` with the initialized empty list; non-array values continue to return `false` without deserialization. Added focused malformed-array and wrong-shape unit tests. Verification passed with 5 targeted unit tests, 3 HTTP integration tests, and a successful solution build. Replied to and resolved the review thread.
 
 ## Final Recap
 
-_(refresh when phase 8 completes)_
+Implemented issue #30 as a full vertical slice. Player archive/restore is exposed through shared contracts (`IPlayerLifecycleService`), server minimal API endpoints, and WASM typed client methods. Structured archive blockers are returned as grouped campaign payloads and preserved end-to-end via `ServiceProblem.Extensions`/`ProblemDetails` extensions with trace IDs. Blocker extraction remains non-throwing when extension JSON is malformed or has the wrong shape. Lifecycle mutations are retry-safe under Npgsql: every execution-strategy attempt uses a fresh tenant context so rolled-back tracked state cannot produce false conflicts. Endpoint middleware and service-layer checks both enforce club-administrator authorization. Unit and PostgreSQL integration coverage verify authorization metadata, lifecycle invariants, history preservation, HTTP behavior, extension parsing, and transient retry behavior.
 
 ## Deployment Plan
 
-_(refresh when phase 8 completes)_
+1. Merge this branch into `main`.
+2. Deploy the standard Nova application artifacts; no schema migration is required.
+3. Smoke test player archive/restore with an administrator account.
+4. Confirm non-admin and cross-tenant requests retain forbidden/not-found semantics.
+5. Monitor lifecycle conflict, authorization failure, malformed response, and database retry telemetry after deployment for unexpected increases.
