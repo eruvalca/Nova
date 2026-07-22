@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Nova.Entities;
+using Nova.Shared.Enums;
 
 namespace Nova.Data.Configurations;
 
@@ -18,6 +19,19 @@ public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEnti
         builder.HasKey(e => e.CampaignId);
         builder.Property(e => e.CampaignId)
             .ValueGeneratedOnAdd();
+        builder.Property(e => e.Status)
+            .IsConcurrencyToken();
+        builder.HasAlternateKey(e => new { e.CampaignId, e.ClubId });
+
+        var statusColumn = $"\"{nameof(CampaignEntity.Status)}\"";
+        var closedAtColumn = $"\"{nameof(CampaignEntity.ClosedAt)}\"";
+        var closedByIdColumn = $"\"{nameof(CampaignEntity.ClosedById)}\"";
+
+        builder.ToTable(tableBuilder =>
+            tableBuilder.HasCheckConstraint(
+                "CK_Campaigns_StatusClosureMetadata",
+                $"({statusColumn} = {(int)CampaignStatus.Active} AND {closedAtColumn} IS NULL AND {closedByIdColumn} IS NULL) OR "
+                + $"({statusColumn} = {(int)CampaignStatus.Closed} AND {closedAtColumn} IS NOT NULL AND {closedByIdColumn} IS NOT NULL)"));
 
         builder
             .HasOne(e => e.Club)

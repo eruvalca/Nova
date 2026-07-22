@@ -1,4 +1,5 @@
 using Nova.Entities.Base;
+using Nova.Shared.Enums;
 
 namespace Nova.Entities;
 
@@ -25,9 +26,29 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     public DateOnly? EndDate { get; set; } = null;
 
     /// <summary>
+    /// Gets or sets whether the campaign is active or closed.
+    /// </summary>
+    public CampaignStatus Status { get; set; } = CampaignStatus.Active;
+
+    /// <summary>
+    /// Gets or sets when the campaign was closed.
+    /// </summary>
+    public DateTimeOffset? ClosedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the identifier of the user who closed the campaign.
+    /// </summary>
+    public long? ClosedById { get; set; }
+
+    /// <summary>
     /// Gets or sets the Player Assignments.
     /// </summary>
     public ICollection<PlayerCampaignAssignmentEntity> PlayerAssignments { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the append-only lifecycle events for this campaign.
+    /// </summary>
+    public ICollection<CampaignLifecycleEventEntity> LifecycleEvents { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the Club Id.
@@ -50,5 +71,5 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets the Is Complete.
     /// </summary>
-    public bool IsComplete => EndDate.HasValue;
+    public bool IsComplete => Status == CampaignStatus.Closed;
 }

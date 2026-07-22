@@ -26,6 +26,15 @@ internal static class LifecycleMutationLock
         /// <returns>A task representing lock acquisition.</returns>
         public Task AcquireTeamMutationLockAsync(long teamId, CancellationToken cancellationToken)
             => AcquirePostgresLockAsync(db, -teamId, cancellationToken);
+
+        /// <summary>
+        /// Acquires a transaction-scoped lock for mutations involving one campaign.
+        /// </summary>
+        /// <param name="campaignId">The campaign identifier whose lifecycle-sensitive mutations must be serialized.</param>
+        /// <param name="cancellationToken">A token that cancels lock acquisition.</param>
+        /// <returns>A task representing lock acquisition.</returns>
+        public Task AcquireCampaignMutationLockAsync(long campaignId, CancellationToken cancellationToken)
+            => AcquirePostgresLockAsync(db, long.MinValue + campaignId, cancellationToken);
     }
 
     /// <summary>

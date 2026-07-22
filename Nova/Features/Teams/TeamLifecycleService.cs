@@ -99,7 +99,7 @@ public sealed partial class TeamLifecycleService(
         var createsIneligiblePlacement = await db.PlayerCampaignAssignments
             .AnyAsync(
                 assignment => assignment.TeamId == input.TeamId
-                    && assignment.Campaign.EndDate == null
+                && assignment.Campaign.Status == CampaignStatus.Active
                     && assignment.Player.GraduationYear < input.GraduationYear,
                 cancellationToken);
 
@@ -168,7 +168,7 @@ public sealed partial class TeamLifecycleService(
         {
             var hasActivePlacement = await db.PlayerCampaignAssignments
                 .AnyAsync(
-                    assignment => assignment.TeamId == teamId && assignment.Campaign.EndDate == null,
+                    assignment => assignment.TeamId == teamId && assignment.Campaign.Status == CampaignStatus.Active,
                     cancellationToken);
 
             if (hasActivePlacement)

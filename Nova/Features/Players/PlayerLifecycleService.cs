@@ -84,7 +84,7 @@ public sealed partial class PlayerLifecycleService(
             var hasUndecidedActiveParticipation = await db.PlayerCampaignAssignments
                 .AnyAsync(
                     assignment => assignment.PlayerId == playerId
-                        && assignment.Campaign.EndDate == null
+                        && assignment.Campaign.Status == CampaignStatus.Active
                         && assignment.PlacementOutcome == PlacementOutcome.Undecided,
                     cancellationToken);
 

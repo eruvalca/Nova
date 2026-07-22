@@ -97,6 +97,7 @@ builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();
 builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
 builder.Services.AddScoped<IClubMemberService, ClubMemberService>();
 builder.Services.AddScoped<CampaignPlacementService>();
+builder.Services.AddScoped<CampaignLifecycleService>();
 builder.Services.AddScoped<PlayerLifecycleService>();
 builder.Services.AddScoped<TeamLifecycleService>();
 builder.Services.AddScoped<TagDefinitionLifecycleService>();

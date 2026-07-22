@@ -100,6 +100,16 @@ public sealed partial class CampaignPlacementService(
             return new NotFound();
         }
 
+        await db.AcquireCampaignMutationLockAsync(participation.CampaignId, cancellationToken);
+        await db.Entry(participation.Campaign).ReloadAsync(cancellationToken);
+
+        if (participation.Campaign.Status == CampaignStatus.Closed)
+        {
+            // Keep campaign close semantics consistent: evaluation mutations must apply the same closed-campaign guard.
+            LogPlacementCampaignClosed(input.PlayerCampaignAssignmentId, participation.CampaignId);
+            return new PlacementConflict("Closed campaigns are read-only and cannot accept placement changes.");
+        }
+
         await db.AcquirePlayerMutationLockAsync(participation.PlayerId, cancellationToken);
         await db.Entry(participation.Player).ReloadAsync(cancellationToken);
 
@@ -237,6 +247,14 @@ public sealed partial class CampaignPlacementService(
     /// <param name="clubId">The current club identifier.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "TeamId={TeamId} for AssignmentId={AssignmentId} was not found for ClubId={ClubId}.")]
     private partial void LogPlacementTeamNotFound(long assignmentId, long teamId, long clubId);
+
+    /// <summary>
+    /// Logs a placement rejected because its campaign is closed.
+    /// </summary>
+    /// <param name="assignmentId">The requested campaign participation identifier.</param>
+    /// <param name="campaignId">The closed campaign identifier.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign placement rejected for AssignmentId={AssignmentId} because CampaignId={CampaignId} is closed.")]
+    private partial void LogPlacementCampaignClosed(long assignmentId, long campaignId);
 
     /// <summary>
     /// Logs a placement rejected because its player is archived.

@@ -22,6 +22,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
     private const long ClubBAdminId = 202;
     private const long ClubAAssignmentId = 300;
     private const long ClubBAssignmentId = 301;
+    private const long ClosedCampaignAssignmentId = 302;
     private const long EligibleTeamId = 400;
     private const long IneligibleTeamId = 401;
     private const long ClubBTeamId = 402;
@@ -270,6 +271,26 @@ public sealed class CampaignPlacementServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies closed campaigns reject placement mutations.
+    /// </summary>
+    [Fact]
+    public async Task UpdatePlacementAsync_ReturnsConflict_WhenCampaignIsClosed()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.UpdatePlacementAsync(
+            new UpdateCampaignPlacementInput(
+                ClosedCampaignAssignmentId,
+                PlacementOutcome.NotSelected,
+                TeamId: null,
+                Guid.NewGuid()),
+            TestContext.Current.CancellationToken);
+
+        result.IsT4.ShouldBeTrue();
+    }
+
+    /// <summary>
     /// Verifies a stale token returns a conflict and cannot overwrite the newer placement.
     /// </summary>
     [Fact]
@@ -398,6 +419,18 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 SeasonId = 501,
                 ClubId = ClubBId,
                 CreatedById = ClubBAdminId
+            },
+            new CampaignEntity
+            {
+                CampaignId = 602,
+                Name = "Closed Campaign A",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Closed,
+                ClosedAt = DateTimeOffset.UtcNow,
+                ClosedById = ClubAAdminId,
+                SeasonId = 500,
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId
             });
 
         db.Players.AddRange(
@@ -420,6 +453,16 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 GraduationYear = 2030,
                 ClubId = ClubBId,
                 CreatedById = ClubBAdminId
+            },
+            new PlayerEntity
+            {
+                PlayerId = 702,
+                FirstName = "Casey",
+                LastName = "Closed",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId
             });
 
         db.Teams.AddRange(
@@ -468,6 +511,16 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 PlacementOutcome = PlacementOutcome.Undecided,
                 ConcurrencyToken = Guid.NewGuid(),
                 CreatedById = ClubBAdminId
+            },
+            new PlayerCampaignAssignmentEntity
+            {
+                PlayerCampaignAssignmentId = ClosedCampaignAssignmentId,
+                PlayerId = 702,
+                CampaignId = 602,
+                ClubId = ClubAId,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                ConcurrencyToken = Guid.NewGuid(),
+                CreatedById = ClubAAdminId
             });
 
         db.SaveChanges();

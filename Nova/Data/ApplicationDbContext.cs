@@ -81,6 +81,10 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// </summary>
     public DbSet<PlayerCampaignAssignmentEntity> PlayerCampaignAssignments => Set<PlayerCampaignAssignmentEntity>();
     /// <summary>
+    /// Gets the Campaign Lifecycle Events.
+    /// </summary>
+    public DbSet<CampaignLifecycleEventEntity> CampaignLifecycleEvents => Set<CampaignLifecycleEventEntity>();
+    /// <summary>
     /// Gets the Nova User Photos.
     /// </summary>
     public DbSet<NovaUserPhotoEntity> NovaUserPhotos => Set<NovaUserPhotoEntity>();
