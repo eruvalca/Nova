@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
+using Nova.Shared.Campaigns;
 using Nova.Shared.Enums;
 using Shouldly;
 
@@ -182,7 +183,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
             new UpdateCampaignPlacementInput(
                 seed.AssignmentId,
                 PlacementOutcome.NotSelected,
-                TeamId: null,
+                teamId: null,
                 seed.ConcurrencyToken),
             cancellationToken);
 

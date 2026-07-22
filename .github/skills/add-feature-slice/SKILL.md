@@ -21,9 +21,15 @@ Canonical examples: `Nova.Shared\Clubs\CreateClubInput.cs`, `Nova.Shared\Clubs\C
 
 ## Ordered checklist
 
-1. **Domain/persistence, when needed** — invoke `add-domain-persistence` for entity, EF configuration, migration, tenancy, lifecycle, or concurrency work.
+1. **Domain/persistence or decision policy, when needed** — invoke `add-domain-persistence` for entity,
+   EF configuration, migration, tenancy, lifecycle, concurrency, or a non-trivial deterministic
+   business-rule matrix. Logic-only policy work does not require entity or migration changes.
 2. **Input record + validation** — create `Nova.Shared\{Feature}\{Name}Input.cs`; follow [input-and-validation.md](references/input-and-validation.md).
-3. **Shared contract + server service** — add DTOs/interfaces in `Nova.Shared\{Feature}\` and implement `Nova\Features\{Feature}\{Feature}Service.cs`; follow [service-result-patterns.md](references/service-result-patterns.md).
+3. **Shared contract + server service** — add DTOs/interfaces in `Nova.Shared\{Feature}\` and implement
+   `Nova\Features\{Feature}\{Feature}Service.cs`; follow
+   [service-result-patterns.md](references/service-result-patterns.md). Keep authorization, EF,
+   locking, persistence, and logging in the service; compose a feature-local pure policy when the
+   decision-boundary triggers apply.
 4. **Composition root** — register the server service in `Nova\Program.cs`; direct-construction unit tests do not verify DI registration.
 5. **HTTP endpoint** — invoke `add-api-endpoint`; do not duplicate that skill's endpoint details here.
 6. **WASM client service** — add `Nova.Client\Services\Http{Feature}Service.cs`; follow [wasm-client.md](references/wasm-client.md).

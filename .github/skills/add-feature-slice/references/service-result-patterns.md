@@ -43,6 +43,27 @@ Example:
 - ✅ **ClubMembershipClaimRefresher** (internal service, single tier) → native OneOf
 - ✅ **IProfilePhotoService** (boundary-crossing interface) → ServiceResult
 
+### Composing a pure domain policy
+
+When a service contains a non-trivial deterministic rule matrix, keep it as the imperative shell and
+compose a feature-local policy. The policy returns native `OneOf`; the service maps that result into
+its boundary contract:
+
+```csharp
+var decision = CampaignClosurePolicy.Evaluate(assignmentStates);
+return await decision.Match(
+    ApplyClosureAsync,
+    RejectClosureAsync);
+```
+
+Prefer exhaustive `Match` for value-producing branches and `Switch` for side-effect-only branches;
+do not branch on positional `IsTn`/`AsTn` members. Use a source-generated named OneOf union when a
+multi-case service contract is reused or benefits from a domain name.
+
+Do not return `ServiceResult` from an internal policy. Do not move authorization, tenant-safe EF
+queries, transactions, lifecycle locks, concurrency, persistence, or logging out of the service.
+Follow `.github/skills/add-domain-persistence/references/functional-core-imperative-shell.md`.
+
 ## ServiceProblem Construction
 
 Use the factory methods on ServiceProblem for type-safe creation:
@@ -214,4 +235,3 @@ public sealed partial class ClubService(
     }
 }
 ```
-

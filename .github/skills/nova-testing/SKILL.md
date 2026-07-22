@@ -15,10 +15,11 @@ Use this skill when writing or running Nova tests. Read the relevant reference b
 
 ## Choose the harness
 
-| Project                  | Speed                     | Database                                    | Use for                                                                                                  |
-| ------------------------ | ------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `Nova.Unit.Tests`        | ~2s                       | Shared in-memory SQLite (`EnsureCreated()`) | Provider-agnostic logic: query-filter composition, interceptor branching, services, OneOf state                                  |
-| `Nova.Integration.Tests` | ~20s+ (starts containers) | Real PostgreSQL 18 via the Aspire AppHost   | Postgres-only behavior: migrations, mappings, constraints, advisory locks, transaction races, filter SQL translation             |
+| Test shape | Project | Database | Use for |
+| --- | --- | --- | --- |
+| Pure policy | `Nova.Unit.Tests` | None | Deterministic decisions over constructed immutable facts; no harness, DI, mocks, or logger |
+| Service shell | `Nova.Unit.Tests` | Shared in-memory SQLite (`EnsureCreated()`) | Query filters, interceptors, authorization, tenancy, effects, and OneOf state |
+| Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via Aspire AppHost | Migrations, mappings, constraints, advisory locks, transaction races, and SQL translation |
 
 Default new tests to `Nova.Unit.Tests`. Add an integration test only when the behavior depends
 on the real provider (type mappings, migrations, database constraints, advisory locks,
@@ -43,7 +44,12 @@ Filter by class with `--filter-class "*Name"`.
 1. Pick `Nova.Unit.Tests` unless the behavior is provider-specific.
 2. Follow existing sibling tests for arrangement and naming (`Subject_Outcome_Condition`).
 3. Use Shouldly (`ShouldBe`, `Should.Throw<T>`) and `[Theory]`/`[InlineData]` for case matrices.
-4. Use `TestContext.Current.CancellationToken` when an async API accepts a token.
-5. For tenant data, set the simulated user before creating the context, seed through the admin context, then assert through the appropriate tenant/read/admin context.
-6. If production behavior relies on `LifecycleMutationLock`, database constraints, or competing transactions, add a focused PostgreSQL integration test; SQLite cannot verify them.
-7. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
+4. Test pure policies directly using the real policy and constructed values. Do not mock the policy
+   or use the SQLite harness for deterministic logic; use `[Theory]` for tabular combinations.
+   Assert the domain case by type (for example, `result.Value.ShouldBeOfType<CampaignMayClose>()`)
+   rather than positional `IsTn`/`AsTn` checks.
+5. Use `TestContext.Current.CancellationToken` when an async API accepts a token.
+6. For tenant data, set the simulated user before creating the context, seed through the admin context, then assert through the appropriate tenant/read/admin context.
+7. If production behavior relies on `LifecycleMutationLock`, database constraints, or competing transactions, add a focused PostgreSQL integration test; SQLite cannot verify them.
+8. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
+   Repeat `--filter-class` for multiple classes; do not combine class names with `|`.

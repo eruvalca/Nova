@@ -42,6 +42,17 @@ and tests call services directly. The service is therefore the authoritative val
 every path. Both layers read the same attributes. See
 `.github/instructions/service-layer.instructions.md` → **Dual-Layer Validation**.
 
+## Structural validation versus contextual policies
+
+- DataAnnotations remain the single source of truth for field rules and model-intrinsic cross-field
+  rules that depend only on submitted input. Use `IValidatableObject` when a request-field
+  combination cannot be expressed by individual attributes.
+- A feature-local policy may evaluate contextual business decisions that require loaded tenant,
+  lifecycle, relationship, or eligibility facts. It must not duplicate `[Required]`, length, range,
+  whitespace, format, or input-only shape rules.
+- Run `InputValidator.Validate` before authorization, EF access, or lock acquisition. Construct and
+  evaluate contextual policy facts only after the shell has loaded any required fresh state.
+
 ## Documented exception: `ProfilePhotoValidator`
 
 `Nova/Features/Photos/ProfilePhotoValidator.cs` validates uploaded image bytes by sniffing magic bytes
@@ -59,3 +70,4 @@ content sniffing, streaming) follows the same manual-validator approach — see
 - `Nova.Shared/Results/ServiceProblem.cs`.
 - `Nova/Features/Photos/ProfilePhotoValidator.cs`.
 - `.github/instructions/service-layer.instructions.md`, `.github/instructions/api-endpoints.instructions.md`.
+- `.github/instructions/functional-core.instructions.md`.

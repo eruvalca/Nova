@@ -13,10 +13,11 @@ description: "Testing rules: which project to use, run commands and MTP flag con
 
 Both projects use **xUnit v3 on Microsoft.Testing.Platform (MTP)** with **Shouldly** assertions.
 
-| Project | Speed | Database | Use for |
+| Test shape | Project | Database | Use for |
 | --- | --- | --- | --- |
-| `Nova.Unit.Tests` | ~2s | Shared in-memory SQLite (`EnsureCreated()`) | Provider-agnostic logic: query-filter composition, interceptor branching, services, OneOf state |
-| `Nova.Integration.Tests` | ~20s+ (starts containers) | Real PostgreSQL 18 via the Aspire AppHost | Postgres-only behavior: production migrations, `timestamptz`/`DateOnly` mappings, filter SQL translation |
+| Pure policy | `Nova.Unit.Tests` | None | Deterministic business decisions over constructed immutable facts; no harness, DI, mocks, or logger |
+| Service shell | `Nova.Unit.Tests` | Shared in-memory SQLite (`EnsureCreated()`) | Query-filter composition, interceptor branching, authorization, tenancy, effects, OneOf state |
+| Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via the Aspire AppHost | Production migrations, mappings, constraints, advisory locks, transaction races, filter SQL translation |
 
 **Default new tests to `Nova.Unit.Tests`.** Add an integration test only when behavior depends on the
 real provider (type mappings, migrations, SQL translation, collation). SQLite will not catch
@@ -33,6 +34,8 @@ round-trip test in `Nova.Integration.Tests` for provider-sensitive queries.
 
 - One behavior per test; name `Subject_Outcome_Condition` (e.g. `Interceptor_Throws_OnCrossTenantAdd`).
   Use Shouldly (`ShouldBe`, `Should.Throw<T>`) and `[Theory]`/`[InlineData]` for case matrices.
+- Test pure policies directly with real policy types and constructed values. Do not use a database
+  harness, DI, mocks, or substitute policy implementations; use `[Theory]` for tabular rule matrices.
 - Prefer `Xunit.TestContext.Current.CancellationToken` over `CancellationToken.None` whenever the async
   API accepts a token; otherwise leave the call as-is rather than forcing refactors.
 - xUnit v3: fixtures implement `IAsyncLifetime` with `ValueTask`; test classes receive fixtures via
@@ -51,4 +54,5 @@ round-trip test in `Nova.Integration.Tests` for provider-sensitive queries.
 ## Related
 
 - `.github/skills/nova-testing/` — harness internals and the write/run workflow.
+- `.github/instructions/functional-core.instructions.md` — policy boundary and layered test coverage.
 - `Nova.Unit.Tests/Data/TenancyTests.cs`, `Nova.Integration.Tests/Data/NovaAppHostFixture.cs`.

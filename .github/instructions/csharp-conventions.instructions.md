@@ -25,11 +25,21 @@ description: "Nova C# coding conventions, editorconfig expectations, and logging
 - **Use ServiceResult<T>** (defined in Nova.Shared.Results) only when the operation crosses service boundaries: HTTP endpoints, WebAssembly client calls, or shared interfaces that span tiers.
   - Example: ClubMembershipClaimRefresher (internal, single tier) → native OneOf.
   - Example: IProfilePhotoService (boundary-crossing interface) → ServiceResult.
-- Prefer exhaustive handling with `Match`, `Switch`, or equivalent pattern-based dispatch so every union case is handled explicitly.
+- Handle unions exhaustively with `Match` when branches produce a value and `Switch` when branches
+  only perform side effects. Prefer named handlers or domain-named lambda parameters for multi-case
+  flows.
+- Do not branch on positional members such as `IsT0`, `IsT1`, `AsT0`, or `AsT1` in production code;
+  their meaning changes when union ordering changes and is not readable at the call site.
 - Keep union variants domain-oriented and meaningful; avoid broad catch-all variants such as `object` or `string` when a dedicated type is more precise.
-- When a union shape is reused in multiple places, prefer the OneOf source-generator companion library to define a named union type and generate boilerplate members.
-- Use source-generated named unions when they improve discoverability, reduce duplication, or centralize shared behavior and documentation for common result shapes.
+- Use the OneOf source generator for a reused union shape, a public/service contract with several
+  cases, or a union whose domain identity improves signatures and discoverability. Keep a simple,
+  single-use two-case policy as native `OneOf<T0, T1>` rather than generating a wrapper solely to
+  rename it.
 - Preserve clear API contracts: if a method returns a union, document each possible case in XML docs so callers understand expected flows.
+- Internal pure policies use native `OneOf` with domain-named outcomes; `ServiceResult` remains at
+  cross-tier boundaries. See `.github/instructions/functional-core.instructions.md`.
+- Prefer feature-local `*Policy` names for deterministic cross-entity decisions. Keep policies free
+  of ambient or mutable static state; `static` describes stateless evaluation, not global storage.
 
 ## Operation Input Naming
 

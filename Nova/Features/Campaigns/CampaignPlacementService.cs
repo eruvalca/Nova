@@ -1,25 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Entities;
 using Nova.Features.Shared;
+using Nova.Shared.Campaigns;
 using Nova.Shared.Enums;
+using Nova.Shared.Validation;
 using OneOf;
 using OneOf.Types;
 
 namespace Nova.Features.Campaigns;
-
-/// <summary>
-/// Describes an administrator request to update a campaign participant's placement.
-/// </summary>
-/// <param name="PlayerCampaignAssignmentId">The campaign participation identifier to update.</param>
-/// <param name="Outcome">The new placement outcome.</param>
-/// <param name="TeamId">The assigned team identifier, required only for an assigned outcome.</param>
-/// <param name="ExpectedConcurrencyToken">The token observed when the placement was loaded.</param>
-public sealed record UpdateCampaignPlacementInput(
-    long PlayerCampaignAssignmentId,
-    PlacementOutcome Outcome,
-    long? TeamId,
-    Guid ExpectedConcurrencyToken);
 
 /// <summary>
 /// Reports the new concurrency token after a placement mutation succeeds.
@@ -40,6 +30,19 @@ public readonly record struct PlacementForbidden(string Detail);
 public readonly record struct PlacementConflict(string Detail);
 
 /// <summary>
+/// Represents every supported outcome of a campaign-placement mutation.
+/// </summary>
+[GenerateOneOf]
+public partial class PlacementUpdateResult : OneOfBase<
+    PlacementMutationSuccess,
+    Error<IReadOnlyDictionary<string, string[]>>,
+    NotFound,
+    PlacementForbidden,
+    PlacementConflict>
+{
+}
+
+/// <summary>
 /// Applies tenant-safe campaign placement mutations with administrator authorization and optimistic concurrency.
 /// </summary>
 /// <param name="dbContextFactory">The tenant-scoped context factory used for the placement mutation.</param>
@@ -58,16 +61,11 @@ public sealed partial class CampaignPlacementService(
     /// <returns>
     /// The new concurrency token on success; validation, not-found, forbidden, or conflict information otherwise.
     /// </returns>
-    public async Task<OneOf<
-        PlacementMutationSuccess,
-        Error<IReadOnlyDictionary<string, string[]>>,
-        NotFound,
-        PlacementForbidden,
-        PlacementConflict>> UpdatePlacementAsync(
-            UpdateCampaignPlacementInput input,
-            CancellationToken cancellationToken = default)
+    public async Task<PlacementUpdateResult> UpdatePlacementAsync(
+        UpdateCampaignPlacementInput input,
+        CancellationToken cancellationToken = default)
     {
-        var validationErrors = Validate(input);
+        var validationErrors = InputValidator.Validate(input);
         if (validationErrors.Count > 0)
         {
             LogPlacementValidationFailed(input.PlayerCampaignAssignmentId);
@@ -103,117 +101,100 @@ public sealed partial class CampaignPlacementService(
         await db.AcquireCampaignMutationLockAsync(participation.CampaignId, cancellationToken);
         await db.Entry(participation.Campaign).ReloadAsync(cancellationToken);
 
-        if (participation.Campaign.Status == CampaignStatus.Closed)
-        {
-            // Keep campaign close semantics consistent: evaluation mutations must apply the same closed-campaign guard.
-            LogPlacementCampaignClosed(input.PlayerCampaignAssignmentId, participation.CampaignId);
-            return new PlacementConflict("Closed campaigns are read-only and cannot accept placement changes.");
-        }
-
         await db.AcquirePlayerMutationLockAsync(participation.PlayerId, cancellationToken);
         await db.Entry(participation.Player).ReloadAsync(cancellationToken);
 
-        if (participation.Player.LifecycleStatus == LifecycleStatus.Archived)
-        {
-            LogPlacementPlayerArchived(input.PlayerCampaignAssignmentId, participation.PlayerId);
-            return new PlacementConflict("Archived players cannot receive new placement decisions.");
-        }
-
+        TeamEntity? team = null;
         if (input.TeamId is long teamId)
         {
             await db.AcquireTeamMutationLockAsync(teamId, cancellationToken);
-            var team = await db.Teams
+            team = await db.Teams
                 .SingleOrDefaultAsync(candidate => candidate.TeamId == teamId, cancellationToken);
+        }
 
-            if (team is null || team.ClubId != clubId)
+        var placementDecision = CampaignPlacementPolicy.Evaluate(
+            new PlacementDecisionContext(
+                participation.Campaign.Status,
+                participation.Player.LifecycleStatus,
+                participation.Player.GraduationYear,
+                input.TeamId.HasValue,
+                team is not null && team.ClubId == clubId,
+                team?.LifecycleStatus,
+                team?.GraduationYear));
+
+        return await placementDecision.Match(
+            ApplyPlacementAsync,
+            RejectClosedCampaignAsync,
+            RejectArchivedPlayerAsync,
+            RejectUnavailableTeamAsync,
+            RejectArchivedTeamAsync,
+            RejectIneligiblePlayerAsync);
+
+        async Task<PlacementUpdateResult> ApplyPlacementAsync(PlacementMayApply _)
+        {
+            db.Entry(participation)
+                .Property(assignment => assignment.ConcurrencyToken)
+                .OriginalValue = input.ExpectedConcurrencyToken;
+
+            participation.PlacementOutcome = input.Outcome;
+            participation.TeamId = input.TeamId;
+            participation.ConcurrencyToken = Guid.NewGuid();
+
+            try
             {
-                LogPlacementTeamNotFound(input.PlayerCampaignAssignmentId, teamId, clubId);
-                return new NotFound();
+                await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                LogPlacementConflict(input.PlayerCampaignAssignmentId, userId);
+                return new PlacementConflict("The placement was changed by another user. Reload it and try again.");
             }
 
-            if (team.LifecycleStatus == LifecycleStatus.Archived)
-            {
-                LogPlacementTeamArchived(input.PlayerCampaignAssignmentId, teamId);
-                return new PlacementConflict("Archived teams cannot receive new placements.");
-            }
+            LogPlacementUpdated(input.PlayerCampaignAssignmentId, userId);
+            return new PlacementMutationSuccess(participation.ConcurrencyToken);
+        }
 
-            if (participation.Player.GraduationYear < team.GraduationYear)
-            {
-                LogPlacementEligibilityFailed(input.PlayerCampaignAssignmentId, teamId);
-                return new Error<IReadOnlyDictionary<string, string[]>>(
+        Task<PlacementUpdateResult> RejectClosedCampaignAsync(PlacementCampaignClosed _)
+        {
+            LogPlacementCampaignClosed(input.PlayerCampaignAssignmentId, participation.CampaignId);
+            return Task.FromResult<PlacementUpdateResult>(
+                new PlacementConflict("Closed campaigns are read-only and cannot accept placement changes."));
+        }
+
+        Task<PlacementUpdateResult> RejectArchivedPlayerAsync(PlacementPlayerArchived _)
+        {
+            LogPlacementPlayerArchived(input.PlayerCampaignAssignmentId, participation.PlayerId);
+            return Task.FromResult<PlacementUpdateResult>(
+                new PlacementConflict("Archived players cannot receive new placement decisions."));
+        }
+
+        Task<PlacementUpdateResult> RejectUnavailableTeamAsync(PlacementTeamUnavailable _)
+        {
+            LogPlacementTeamNotFound(input.PlayerCampaignAssignmentId, input.TeamId!.Value, clubId);
+            return Task.FromResult<PlacementUpdateResult>(new NotFound());
+        }
+
+        Task<PlacementUpdateResult> RejectArchivedTeamAsync(PlacementTeamArchived _)
+        {
+            LogPlacementTeamArchived(input.PlayerCampaignAssignmentId, input.TeamId!.Value);
+            return Task.FromResult<PlacementUpdateResult>(
+                new PlacementConflict("Archived teams cannot receive new placements."));
+        }
+
+        Task<PlacementUpdateResult> RejectIneligiblePlayerAsync(PlacementTeamIneligible _)
+        {
+            LogPlacementEligibilityFailed(input.PlayerCampaignAssignmentId, input.TeamId!.Value);
+            return Task.FromResult<PlacementUpdateResult>(
+                new Error<IReadOnlyDictionary<string, string[]>>(
                     new Dictionary<string, string[]>
                     {
                         [nameof(input.TeamId)] =
                         [
                             "The player's graduation year must be greater than or equal to the team's graduation year."
                         ]
-                    });
-            }
+                    }));
         }
-
-        db.Entry(participation)
-            .Property(assignment => assignment.ConcurrencyToken)
-            .OriginalValue = input.ExpectedConcurrencyToken;
-
-        participation.PlacementOutcome = input.Outcome;
-        participation.TeamId = input.TeamId;
-        participation.ConcurrencyToken = Guid.NewGuid();
-
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            LogPlacementConflict(input.PlayerCampaignAssignmentId, userId);
-            return new PlacementConflict("The placement was changed by another user. Reload it and try again.");
-        }
-
-        LogPlacementUpdated(input.PlayerCampaignAssignmentId, userId);
-        return new PlacementMutationSuccess(participation.ConcurrencyToken);
-    }
-
-    /// <summary>
-    /// Validates input values that do not require database access.
-    /// </summary>
-    /// <param name="input">The placement input to validate.</param>
-    /// <returns>A field-keyed validation-error dictionary.</returns>
-    private static Dictionary<string, string[]> Validate(UpdateCampaignPlacementInput input)
-    {
-        var errors = new Dictionary<string, string[]>();
-
-        if (input.PlayerCampaignAssignmentId <= 0)
-        {
-            errors[nameof(input.PlayerCampaignAssignmentId)] = ["A campaign participation identifier is required."];
-        }
-
-        if (!Enum.IsDefined(input.Outcome))
-        {
-            errors[nameof(input.Outcome)] = ["The placement outcome is invalid."];
-        }
-
-        if (input.ExpectedConcurrencyToken == Guid.Empty)
-        {
-            errors[nameof(input.ExpectedConcurrencyToken)] = ["A concurrency token is required."];
-        }
-
-        if (input.TeamId is <= 0)
-        {
-            errors[nameof(input.TeamId)] = ["A team identifier must be greater than zero."];
-        }
-
-        var hasTeam = input.TeamId.HasValue;
-        if (input.Outcome == PlacementOutcome.Assigned && !hasTeam)
-        {
-            errors[nameof(input.TeamId)] = ["A team is required for an assigned outcome."];
-        }
-        else if (input.Outcome != PlacementOutcome.Assigned && hasTeam)
-        {
-            errors[nameof(input.TeamId)] = ["A team is only allowed for an assigned outcome."];
-        }
-
-        return errors;
     }
 
     /// <summary>

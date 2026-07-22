@@ -21,67 +21,18 @@ public sealed partial class AccountDeletionService(
     /// <inheritdoc />
     public async Task<AccountDeletionPreviewDto> GetDeletionPreviewAsync(CancellationToken cancellationToken = default)
     {
-        // Get current user ID
-        if (currentUserProvider.UserId is not long userId)
+        var facts = await GatherDeletionFactsAsync(cancellationToken);
+        var preview = AccountDeletionPolicy.Evaluate(facts);
+        if (facts.IsAuthenticated
+            && facts.UserExists
+            && facts.IsClubAdmin
+            && facts.ClubId.HasValue
+            && currentUserProvider.UserId is long userId)
         {
-            return new AccountDeletionPreviewDto(AccountDeletionScenario.NoClubOrNonAdmin, null, null);
+            LogScenarioComputed(preview.Scenario, userId);
         }
 
-        // Load user and check if they are a ClubAdmin
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-        {
-            return new AccountDeletionPreviewDto(AccountDeletionScenario.NoClubOrNonAdmin, null, null);
-        }
-
-        var isClubAdmin = await userManager.IsInRoleAsync(user, Roles.ClubAdmin);
-        if (!isClubAdmin)
-        {
-            return new AccountDeletionPreviewDto(AccountDeletionScenario.NoClubOrNonAdmin, null, null);
-        }
-
-        // Get club ID
-        if (currentUserProvider.ClubId is not long clubId)
-        {
-            return new AccountDeletionPreviewDto(AccountDeletionScenario.NoClubOrNonAdmin, null, null);
-        }
-
-        await using var readDb = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-
-        // Count total members in the club
-        var totalMembers = await readDb.Users.CountAsync(u => u.ClubId == clubId, cancellationToken);
-
-        // If user is the only member, club will be deleted with the account
-        if (totalMembers == 1)
-        {
-            var clubName = await readDb.Clubs
-                .Where(c => c.ClubId == clubId)
-                .Select(c => c.Name)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            LogScenarioComputed(AccountDeletionScenario.OnlyClubMember, userId);
-            return new AccountDeletionPreviewDto(AccountDeletionScenario.OnlyClubMember, clubName, 0);
-        }
-
-        // Count ClubAdmins in the club
-        var clubAdmins = await userManager.GetUsersInRoleAsync(Roles.ClubAdmin);
-        var adminCount = clubAdmins.Count(u => u.ClubId == clubId);
-
-        // If user is the only admin but not the only member, another admin must be assigned first
-        if (adminCount == 1)
-        {
-            var clubName = await readDb.Clubs
-                .Where(c => c.ClubId == clubId)
-                .Select(c => c.Name)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            LogScenarioComputed(AccountDeletionScenario.SoleClubAdmin, userId);
-            return new AccountDeletionPreviewDto(AccountDeletionScenario.SoleClubAdmin, clubName, totalMembers - 1);
-        }
-
-        // User is not the only admin, or has no club
-        LogScenarioComputed(AccountDeletionScenario.NoClubOrNonAdmin, userId);
-        return new AccountDeletionPreviewDto(AccountDeletionScenario.NoClubOrNonAdmin, null, null);
+        return preview;
     }
 
     /// <inheritdoc />
@@ -93,8 +44,9 @@ public sealed partial class AccountDeletionService(
             throw new InvalidOperationException("User is not authenticated.");
         }
 
-        // Determine deletion scenario
-        var preview = await GetDeletionPreviewAsync(cancellationToken);
+        // Re-read current facts immediately before deciding which destructive effects to apply.
+        var deletionFacts = await GatherDeletionFactsAsync(cancellationToken);
+        var preview = AccountDeletionPolicy.Evaluate(deletionFacts);
 
         // Load the current user
         var user = await userManager.FindByIdAsync(userId.ToString());
@@ -106,7 +58,7 @@ public sealed partial class AccountDeletionService(
         // If user is the only member, delete the club
         if (preview.Scenario == AccountDeletionScenario.OnlyClubMember)
         {
-            if (currentUserProvider.ClubId is long clubId)
+            if (deletionFacts.ClubId is long clubId)
             {
                 await using var adminDb = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -118,6 +70,7 @@ public sealed partial class AccountDeletionService(
                     LogClubDeletion(clubId, userId);
                 }
             }
+
         }
 
         // Delete the user account
@@ -128,6 +81,51 @@ public sealed partial class AccountDeletionService(
             LogDeleteFailed(userId, errors);
             throw new InvalidOperationException($"Failed to delete account: {errors}");
         }
+    }
+
+    /// <summary>
+    /// Loads the current identity, role, club, membership, and administrator facts used by deletion policy.
+    /// </summary>
+    /// <param name="cancellationToken">A token that cancels database operations.</param>
+    /// <returns>A fresh immutable account-deletion fact snapshot.</returns>
+    private async Task<AccountDeletionFacts> GatherDeletionFactsAsync(CancellationToken cancellationToken)
+    {
+        if (currentUserProvider.UserId is not long userId)
+        {
+            return new AccountDeletionFacts(false, false, false, null, null, 0, 0);
+        }
+
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+        {
+            return new AccountDeletionFacts(true, false, false, currentUserProvider.ClubId, null, 0, 0);
+        }
+
+        var isClubAdmin = await userManager.IsInRoleAsync(user, Roles.ClubAdmin);
+        if (!isClubAdmin || currentUserProvider.ClubId is not long clubId)
+        {
+            return new AccountDeletionFacts(true, true, isClubAdmin, currentUserProvider.ClubId, null, 0, 0);
+        }
+
+        await using var readDb = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var clubFacts = await readDb.Clubs
+            .Where(club => club.ClubId == clubId)
+            .Select(club => new
+            {
+                club.Name,
+                TotalMemberCount = readDb.Users.Count(candidate => candidate.ClubId == clubId)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+        var clubAdmins = await userManager.GetUsersInRoleAsync(Roles.ClubAdmin);
+
+        return new AccountDeletionFacts(
+            true,
+            true,
+            true,
+            clubId,
+            clubFacts?.Name,
+            clubFacts?.TotalMemberCount ?? 0,
+            clubAdmins.Count(candidate => candidate.ClubId == clubId));
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Computed account deletion scenario {Scenario} for user {UserId}.")]

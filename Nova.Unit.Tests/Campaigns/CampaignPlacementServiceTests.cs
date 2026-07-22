@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
+using Nova.Shared.Campaigns;
 using Nova.Shared.Enums;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
@@ -134,7 +135,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             new UpdateCampaignPlacementInput(
                 ClubAAssignmentId,
                 PlacementOutcome.NotSelected,
-                TeamId: null,
+                teamId: null,
                 _clubAConcurrencyToken),
             TestContext.Current.CancellationToken);
 
@@ -154,7 +155,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             new UpdateCampaignPlacementInput(
                 ClubBAssignmentId,
                 PlacementOutcome.NotSelected,
-                TeamId: null,
+                teamId: null,
                 Guid.NewGuid()),
             TestContext.Current.CancellationToken);
 
@@ -233,7 +234,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             new UpdateCampaignPlacementInput(
                 ClubAAssignmentId,
                 PlacementOutcome.NotSelected,
-                TeamId: null,
+                teamId: null,
                 _clubAConcurrencyToken),
             TestContext.Current.CancellationToken);
 
@@ -283,7 +284,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             new UpdateCampaignPlacementInput(
                 ClosedCampaignAssignmentId,
                 PlacementOutcome.NotSelected,
-                TeamId: null,
+                teamId: null,
                 Guid.NewGuid()),
             TestContext.Current.CancellationToken);
 
@@ -315,7 +316,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             new UpdateCampaignPlacementInput(
                 ClubAAssignmentId,
                 PlacementOutcome.NotSelected,
-                TeamId: null,
+                teamId: null,
                 _clubAConcurrencyToken),
             TestContext.Current.CancellationToken);
 

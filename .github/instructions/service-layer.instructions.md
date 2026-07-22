@@ -76,6 +76,17 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
 - The lock is intentionally a no-op under SQLite. Add a PostgreSQL integration test for lifecycle
   races such as close-versus-write or archive-versus-placement.
 
+## Functional core boundary
+
+- When a service contains a non-trivial deterministic rule matrix, consider a feature-local pure
+  policy after applying the extraction triggers in
+  `.github/instructions/functional-core.instructions.md`.
+- Keep the service as the imperative shell: validate and authorize, query tenant-safe facts, acquire
+  transactions and lifecycle locks, reload freshness-sensitive state, call the policy once, then
+  apply effects, persist, handle concurrency, and log.
+- Do not introduce a policy for simple guards or move EF, authorization, locking, persistence, or
+  logging into the policy.
+
 ## Logging
 
 - Log **warnings** for expected-but-noteworthy failures (validation errors, conflicts).
@@ -90,3 +101,4 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
 - `Nova.Shared/Results/` — `ServiceProblem`, `ServiceResult`, `ServiceProblemKind`, `HttpResponseMessageExtensions`.
 - `Nova/Features/Shared/ServiceResultExtensions.cs`.
 - `.github/instructions/api-endpoints.instructions.md`, `.github/instructions/validation.instructions.md`.
+- `.github/instructions/functional-core.instructions.md`.

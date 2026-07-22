@@ -38,6 +38,7 @@ This document describes the current application state and a proposed MVP for clu
 - Campaign participation outcomes, tryout-number uniqueness, placement integrity, and optimistic concurrency.
 - Assignment-scoped evaluation notes and explicit campaign tag applications with author/admin mutation rules.
 - Transactional lifecycle/write guards, incremental migrations, and focused SQLite/PostgreSQL coverage.
+- Feature-local functional cores for campaign closure, placement lifecycle/eligibility, and account-deletion classification, with effectful authorization, locking, persistence, and logging retained in service shells.
 
 ### Not Yet Implemented as Product Workflows
 
@@ -266,7 +267,7 @@ Placement invariants:
 - Not selected and Withdrawn require `TeamId` to be null.
 - Undecided is allowed only while the campaign is Active.
 - A player is eligible only when `Player.GraduationYear >= Team.GraduationYear`.
-- Eligibility is validated by the service in the same transaction as placement.
+- `CampaignPlacementService` validates shared input rules before database access, loads and locks fresh tenant facts, delegates lifecycle/eligibility decisions to `CampaignPlacementPolicy`, and applies accepted mutations in the same transaction.
 
 ### 8. Closeout
 
@@ -285,6 +286,7 @@ Placement invariants:
 ```
 
 - Close is blocked while any participant is Undecided or any Assigned participant lacks an active, eligible team.
+- `CampaignLifecycleService` projects fresh assignment facts after acquiring the campaign mutation lock, delegates readiness to `CampaignClosurePolicy`, and applies closure effects only when the policy returns `CampaignMayClose`.
 - Closing records `ClosedAt`, FK-less `ClosedById`, and an append-only lifecycle event.
 - Closed workspace tabs remain readable and export-ready.
 - Reopen is administrator-only, records an audit event, and restores editing without discarding outcomes.
@@ -408,8 +410,17 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
 - Continue using `NovaDbContext` for tenant writes and `NovaReadDbContext` for read-only roster/history queries.
 - Tenant isolation and cross-tenant write coverage exists for each new entity.
 - Validate related player, campaign, team, tag, and assignment records belong to the current club.
-- Enforce graduation-year eligibility in the service transaction. A PostgreSQL `CHECK` constraint cannot compare values from the related Player and Team rows.
+- Enforce graduation-year eligibility through the placement service shell and its pure policy in the same transaction. A PostgreSQL `CHECK` constraint cannot compare values from the related Player and Team rows.
 - Campaign participation uses optimistic concurrency, and lifecycle-sensitive writes use transaction-scoped mutation locks so close/archive operations cannot race dependent writes.
+
+### Functional Core and Imperative Shell
+
+- Use feature-local deterministic policies for non-trivial business-rule matrices, not for simple guards or database-native queries.
+- Services remain the imperative shells responsible for validation, authorization, tenant-safe EF queries, transaction-scoped locks, fresh-state reloads, optimistic concurrency, persistence, logging, and effect execution.
+- Policies receive compact immutable facts and return domain-named outcomes. Consume those outcomes exhaustively with `Match` or `Switch`, not positional `IsTn`/`AsTn` checks.
+- Use source-generated named OneOf unions for reused or multi-case public/service contracts when the domain name improves signatures; keep small single-use policy unions native.
+- Test policies directly without EF, DI, or mocks; retain SQLite service-shell tests and PostgreSQL provider, constraint, lock, and race tests.
+- Canonical implementations are `CampaignClosurePolicy`, `CampaignPlacementPolicy`, and `AccountDeletionPolicy`. Follow `.github/instructions/functional-core.instructions.md` and the `extract-functional-core` skill for future extractions.
 
 ### Migration Outcome
 
@@ -432,6 +443,7 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
   - Extended campaign participation with tryout number, placement outcome, integrity constraints, and optimistic concurrency.
   - Replaced player-only evaluation relationships with assignment-scoped notes and explicit tag applications.
   - Added reusable evaluator authorization plus transactional lifecycle and placement guards.
+  - Added shared placement input validation, deterministic closure/placement/account-deletion policies, exhaustive OneOf handling, and named multi-case service results.
   - Added and verified incremental migrations, tenancy/integrity tests, and PostgreSQL migration/race coverage.
 
 - **Epic 3: Player roster management**
@@ -440,12 +452,14 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
   - Add archive and restore while preserving campaign history.
   - Auto-enroll a newly created active player into all active campaigns transactionally.
   - Add player detail with campaign-grouped notes, tags, outcomes, and team history.
+  - Keep enrollment/edit/archive orchestration in services; extract only non-trivial active-placement impact classification into feature-local pure policies over freshly loaded facts.
 
 - **Epic 4: Persistent team management**
   - Add team list and detail screens.
   - Add create/edit validation for name and graduation-year cutoff.
   - Add archive/restore; expose only active teams for new placements.
   - Block cutoff edits that would invalidate active campaign placements until those placements are resolved.
+  - Evaluate cutoff/archive placement impacts with compact fresh facts and a feature-local policy when the rule matrix becomes non-trivial; retain locks and persistence in the team service shell.
 
 - **Epic 5: Seasons and campaign creation**
   - Add campaign list grouped by season and status.
@@ -470,6 +484,7 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
   - Hard-block assignments where player graduation year is below the team's cutoff.
   - Handle concurrent placement edits with a clear conflict-and-refresh experience.
   - Show outcome and team summary counts.
+  - Reuse `UpdateCampaignPlacementInput`, `CampaignPlacementService`, `CampaignPlacementPolicy`, and `PlacementUpdateResult`; endpoints and UI must not duplicate or invoke policy rules directly.
 
 - **Epic 8: Campaign close, history, and reopen**
   - Add closeout readiness validation and unresolved-player drill-down.
@@ -477,6 +492,7 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
   - Freeze notes, tags, outcomes, and placements on close.
   - Keep closed campaign workspaces and player histories readable by club staff.
   - Add administrator-only reopen with an auditable event.
+  - Reuse `CampaignLifecycleService`, `CampaignClosurePolicy`, and `CampaignCloseResult`; closeout UI presents policy blockers but does not recalculate readiness rules.
 
 - **Epic 9: MVP hardening and usability**
   - Add authorization tests for administrator and evaluator boundaries.
@@ -484,6 +500,7 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
   - Add responsive and keyboard-accessible roster, drawer, forms, and placement controls.
   - Add loading, empty, validation, conflict, and retry states.
   - Add focused integration tests for create campaign, late player enrollment, evaluation, placement, close, and reopen.
+  - Add database-free matrix coverage for every new deterministic policy, representative SQLite shell coverage, and PostgreSQL coverage for provider, lock, concurrency, and race behavior.
   - Add basic campaign roster and final placement CSV export only after the core closeout workflow is stable.
 
 ## Reviewed Implementation Order

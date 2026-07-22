@@ -10,13 +10,17 @@ using OneOf.Types;
 namespace Nova.Features.Campaigns;
 
 /// <summary>
-/// Reports close blockers that prevent transitioning a campaign to closed.
+/// Represents every supported outcome of a campaign-close operation.
 /// </summary>
-/// <param name="Detail">A human-readable summary of the blockers.</param>
-/// <param name="Errors">A condition-keyed list of blocker messages.</param>
-public readonly record struct CampaignCloseBlocked(
-    string Detail,
-    IReadOnlyDictionary<string, string[]> Errors);
+[GenerateOneOf]
+public partial class CampaignCloseResult : OneOfBase<
+    Success,
+    NotFound,
+    LifecycleForbidden,
+    CampaignCloseBlocked,
+    LifecycleConflict>
+{
+}
 
 /// <summary>
 /// Applies tenant-safe campaign close and reopen lifecycle transitions with club-administrator authorization.
@@ -29,10 +33,6 @@ public sealed partial class CampaignLifecycleService(
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignLifecycleService> logger)
 {
-    private const string OutcomeBlockerKey = "outcomes";
-    private const string EligibilityBlockerKey = "eligibility";
-    private const string ArchivedTeamBlockerKey = "archivedTeams";
-
     /// <summary>
     /// Closes a campaign only when every participant has a final outcome, every assigned placement remains eligible,
     /// and no assigned team is archived.
@@ -40,7 +40,7 @@ public sealed partial class CampaignLifecycleService(
     /// <param name="campaignId">The campaign identifier to close.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Success, not found, forbidden, blocker, or conflict information.</returns>
-    public async Task<OneOf<Success, NotFound, LifecycleForbidden, CampaignCloseBlocked, LifecycleConflict>> CloseAsync(
+    public async Task<CampaignCloseResult> CloseAsync(
         long campaignId,
         CancellationToken cancellationToken = default)
     {
@@ -73,7 +73,7 @@ public sealed partial class CampaignLifecycleService(
 
         var assignmentStates = await db.PlayerCampaignAssignments
             .Where(assignment => assignment.CampaignId == campaignId)
-            .Select(assignment => new AssignmentCloseState(
+            .Select(assignment => new CampaignAssignmentClosureState(
                 assignment.PlayerCampaignAssignmentId,
                 assignment.PlacementOutcome,
                 assignment.Player.GraduationYear,
@@ -82,77 +82,47 @@ public sealed partial class CampaignLifecycleService(
                 assignment.Team == null ? null : assignment.Team.LifecycleStatus))
             .ToListAsync(cancellationToken);
 
-        Dictionary<string, string[]> blockers = [];
-        var undecidedCount = assignmentStates.Count(state => state.Outcome == PlacementOutcome.Undecided);
-        if (undecidedCount > 0)
+        var closureDecision = CampaignClosurePolicy.Evaluate(assignmentStates);
+        return await closureDecision.Match(ApplyClosureAsync, RejectClosureAsync);
+
+        async Task<CampaignCloseResult> ApplyClosureAsync(CampaignMayClose _)
         {
-            blockers[OutcomeBlockerKey] =
-            [
-                $"Every participant must have a final outcome before closing. Found {undecidedCount} undecided participation record(s)."
-            ];
+            campaign.Status = CampaignStatus.Closed;
+            campaign.ClosedAt = DateTimeOffset.UtcNow;
+            campaign.ClosedById = actorUserId;
+
+            db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
+            {
+                CampaignId = campaign.CampaignId,
+                ClubId = campaign.ClubId,
+                EventType = CampaignLifecycleEventType.Closed,
+                CreatedById = default
+            });
+
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                LogCampaignLifecycleConcurrencyConflict(campaignId);
+                return new LifecycleConflict("The campaign changed. Reload it and try again.");
+            }
+
+            LogCampaignLifecycleChanged(campaignId, CampaignStatus.Closed, actorUserId);
+            return new Success();
         }
 
-        var ineligibleAssignments = assignmentStates
-            .Where(state => state.Outcome == PlacementOutcome.Assigned
-                && (!state.TeamId.HasValue
-                    || !state.TeamGraduationYear.HasValue
-                    || state.PlayerGraduationYear < state.TeamGraduationYear.Value))
-            .Select(state => state.AssignmentId)
-            .ToArray();
-        if (ineligibleAssignments.Length > 0)
+        Task<CampaignCloseResult> RejectClosureAsync(CampaignCloseBlocked blocked)
         {
-            blockers[EligibilityBlockerKey] =
-            [
-                $"Every assigned participant must remain eligible for their team. Ineligible assignment ids: {string.Join(", ", ineligibleAssignments)}."
-            ];
+            LogCampaignCloseBlocked(
+                campaignId,
+                blocked.UndecidedCount,
+                blocked.IneligibleCount,
+                blocked.ArchivedTeamCount);
+            return Task.FromResult<CampaignCloseResult>(blocked);
         }
-
-        var archivedTeamAssignments = assignmentStates
-            .Where(state => state.Outcome == PlacementOutcome.Assigned
-                && state.TeamLifecycleStatus == LifecycleStatus.Archived)
-            .Select(state => state.AssignmentId)
-            .ToArray();
-        if (archivedTeamAssignments.Length > 0)
-        {
-            blockers[ArchivedTeamBlockerKey] =
-            [
-                $"Assigned participants cannot reference archived teams. Blocked assignment ids: {string.Join(", ", archivedTeamAssignments)}."
-            ];
-        }
-
-        if (blockers.Count > 0)
-        {
-            LogCampaignCloseBlocked(campaignId, undecidedCount, ineligibleAssignments.Length, archivedTeamAssignments.Length);
-            return new CampaignCloseBlocked(
-                "Resolve all campaign close blockers before closing this campaign.",
-                blockers);
-        }
-
-        campaign.Status = CampaignStatus.Closed;
-        campaign.ClosedAt = DateTimeOffset.UtcNow;
-        campaign.ClosedById = actorUserId;
-
-        db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
-        {
-            CampaignId = campaign.CampaignId,
-            ClubId = campaign.ClubId,
-            EventType = CampaignLifecycleEventType.Closed,
-            CreatedById = default
-        });
-
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            LogCampaignLifecycleConcurrencyConflict(campaignId);
-            return new LifecycleConflict("The campaign changed. Reload it and try again.");
-        }
-
-        LogCampaignLifecycleChanged(campaignId, CampaignStatus.Closed, actorUserId);
-        return new Success();
     }
 
     /// <summary>
@@ -218,23 +188,6 @@ public sealed partial class CampaignLifecycleService(
         LogCampaignLifecycleChanged(campaignId, CampaignStatus.Active, actorUserId);
         return new Success();
     }
-
-    /// <summary>
-    /// Captures the fields required to evaluate campaign close blockers in one snapshot.
-    /// </summary>
-    /// <param name="AssignmentId">The campaign participation identifier.</param>
-    /// <param name="Outcome">The placement outcome.</param>
-    /// <param name="PlayerGraduationYear">The player's graduation year.</param>
-    /// <param name="TeamId">The assigned team identifier when present.</param>
-    /// <param name="TeamGraduationYear">The assigned team's graduation year when present.</param>
-    /// <param name="TeamLifecycleStatus">The assigned team's lifecycle status when present.</param>
-    private sealed record AssignmentCloseState(
-        long AssignmentId,
-        PlacementOutcome Outcome,
-        int PlayerGraduationYear,
-        long? TeamId,
-        int? TeamGraduationYear,
-        LifecycleStatus? TeamLifecycleStatus);
 
     /// <summary>
     /// Logs a lifecycle request rejected because the caller is not a club administrator.
