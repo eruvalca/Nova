@@ -1,6 +1,6 @@
-# Issue 32: Player Roster Endpoint and Client
+# Issue 32: Player Roster Endpoint and Client (Implemented Scope)
 
-Implement backend and WASM client support for querying a club player roster with filtering, sorting, and pagination, following Nova endpoint/service/result conventions.
+Implement backend and WASM client support for querying a club player roster with the currently delivered scope: active-only results, name search, display-name/joinedAt sorting, and pagination, following Nova endpoint/service/result conventions.
 
 ## For Future Agents
 

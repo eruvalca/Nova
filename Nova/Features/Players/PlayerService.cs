@@ -49,7 +49,7 @@ public sealed partial class PlayerService(
         var pageSize = Math.Clamp(input.PageSize, 1, GetPlayerRosterInput.MaxPageSize);
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-        var isNpgsql = string.Equals(db.Database.ProviderName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal);
+        var isNpgsql = db.Database.IsNpgsql();
         var query = db.Players
             .Where(player => player.ClubId == currentUserClubId && player.LifecycleStatus == LifecycleStatus.Active);
 
@@ -71,7 +71,7 @@ public sealed partial class PlayerService(
         if (string.Equals(normalizedSortBy, "joinedAt", StringComparison.OrdinalIgnoreCase))
         {
             var descending = string.Equals(normalizedSortDirection, "desc", StringComparison.OrdinalIgnoreCase);
-            if (string.Equals(db.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
+            if (db.Database.IsSqlite())
             {
                 // SQLite cannot translate DateTimeOffset ORDER BY in EF Core; retain deterministic
                 // behavior in tests by ordering in memory only for this provider.
