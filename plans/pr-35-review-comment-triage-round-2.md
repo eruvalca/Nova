@@ -49,13 +49,13 @@ Implemented both requested fixes: added `.ProducesProblem(StatusCodes.Status500I
 
 ## Phase 3: Respond and Resolve Threads
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator
 
-- [ ] Reply on each unresolved thread with concise technical rationale.
-- [ ] Resolve each thread after corresponding fix is pushed or rationale is posted.
-- [ ] Confirm no unresolved review threads remain for PR #35.
+- [x] Reply on each unresolved thread with concise technical rationale.
+- [x] Resolve each thread after corresponding fix is pushed or rationale is posted.
+- [x] Confirm no unresolved review threads remain for PR #35.
 
 ### Verification Plan
 
@@ -63,12 +63,15 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Posted applied-fix replies on both newly opened threads and resolved each one. Follow-up GraphQL check confirms all PR #35 review threads are resolved.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Round-2 PR comment triage is complete. Both newly opened unresolved comments were valid and addressed in code, pushed in commit `38a49ff`, replied to on-thread, and resolved. No invalid round-2 comments required rebuttal-only closure.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Ensure CI passes on PR #35 with the latest branch head.
+2. Confirm all review threads remain resolved in the PR conversation.
+3. Merge PR #35 when approvals/checks are complete.
+4. After merge, execute a quick roster API smoke test (default roster + search path) in the target environment.
