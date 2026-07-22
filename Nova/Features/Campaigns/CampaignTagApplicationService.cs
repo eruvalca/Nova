@@ -214,8 +214,17 @@ public sealed partial class CampaignTagApplicationService(
         }
 
         db.CampaignTagApplications.Remove(application);
-        await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            LogRemoveConcurrencyConflict(input.CampaignTagApplicationId);
+            return new NotFound();
+        }
 
         LogRemoveSucceeded(input.CampaignTagApplicationId, actorUserId);
         return new Success();
@@ -328,4 +337,11 @@ public sealed partial class CampaignTagApplicationService(
     /// <param name="actorUserId">The acting user identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "Campaign tag application removed: CampaignTagApplicationId={ApplicationId}, UserId={ActorUserId}.")]
     private partial void LogRemoveSucceeded(long applicationId, long actorUserId);
+
+    /// <summary>
+    /// Logs a remove mutation that failed because the application was concurrently deleted.
+    /// </summary>
+    /// <param name="applicationId">The campaign tag application identifier that could not be deleted.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign tag application removal concurrency conflict: CampaignTagApplicationId={ApplicationId} was already removed.")]
+    private partial void LogRemoveConcurrencyConflict(long applicationId);
 }
