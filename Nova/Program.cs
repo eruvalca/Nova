@@ -94,6 +94,7 @@ builder.Services.AddScoped<IClubService, ClubService>();
 builder.Services.AddScoped<IClubDetailService, ClubDetailService>();
 builder.Services.AddScoped<IClubAdminService, ClubAdminService>();
 builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();
+builder.Services.AddScoped<IPlayerDetailService, PlayerDetailQueryService>();
 builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
 builder.Services.AddScoped<IClubMemberService, ClubMemberService>();
 builder.Services.AddScoped<EvaluationNoteService>();
@@ -220,6 +221,9 @@ app.MapClubEndpoints();
 
 // Player create and update endpoints.
 app.MapPlayerManagementEndpoints();
+
+// Player detail and campaign-history query endpoint.
+app.MapPlayerEndpoints();
 
 await StartupDatabaseInitializer.InitializeAsync(app.Services, app.Environment.IsDevelopment());
 
