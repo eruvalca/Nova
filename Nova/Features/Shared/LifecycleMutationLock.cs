@@ -47,7 +47,8 @@ internal static class LifecycleMutationLock
 
         /// <summary>
         /// Acquires a transaction-scoped club-roster lock that serializes concurrent player creation
-        /// and campaign creation within the same club, preventing gaps in campaign enrollment.
+        /// within the same club, preventing gaps in campaign enrollment. Campaign creation is also
+        /// intended to acquire this lock when it is implemented.
         /// </summary>
         /// <param name="clubId">The club identifier whose roster mutations must be serialized.</param>
         /// <param name="cancellationToken">A token that cancels lock acquisition.</param>

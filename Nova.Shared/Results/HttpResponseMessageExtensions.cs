@@ -33,6 +33,7 @@ public static class HttpResponseMessageExtensions
             {
                 HttpStatusCode.NotFound => ServiceProblem.NotFound(detail),
                 HttpStatusCode.Forbidden => ServiceProblem.Forbidden(detail),
+                HttpStatusCode.Conflict when errors is { Count: > 0 } => ServiceProblem.Conflict(detail, errors),
                 HttpStatusCode.Conflict => ServiceProblem.Conflict(detail),
                 HttpStatusCode.BadRequest => ServiceProblem.BadRequest(detail),
                 _ => ServiceProblem.ServerError(detail)
