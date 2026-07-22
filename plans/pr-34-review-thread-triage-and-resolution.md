@@ -8,13 +8,13 @@ As work proceeds: mark checkboxes `- [x]` as items complete; when a phase is don
 
 ## Phase 1: Collect and Classify Unresolved Threads
 
-Status: Not started <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator
 
-- [ ] Fetch unresolved inline review threads for PR #34 with file/line/comment context.
-- [ ] Classify each thread as valid, partially valid, or invalid with explicit rationale.
-- [ ] Build an actionable fix list for valid/partially valid threads and a reply list for invalid threads.
+- [x] Fetch unresolved inline review threads for PR #34 with file/line/comment context.
+- [x] Classify each thread as valid, partially valid, or invalid with explicit rationale.
+- [x] Build an actionable fix list for valid/partially valid threads and a reply list for invalid threads.
 
 ### Verification Plan
 
@@ -23,17 +23,17 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Fetched unresolved threads and classified both as valid performance concerns. Both comments targeted `assignmentIds.Contains(...)` predicates in `PlayerDetailQueryService`, and the actionable fix list was to replace ID-list filters with navigation-based `PlayerId` filters.
 
 ## Phase 2: Implement and Verify Valid Fixes
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator
 
-- [ ] Apply code changes addressing every valid/partially valid thread.
-- [ ] Run targeted tests/build commands covering changed behavior.
-- [ ] Commit and push updates to `eruvalca-add-player-detail-and-campaign-history-q`.
+- [x] Apply code changes addressing every valid/partially valid thread.
+- [x] Run targeted tests/build commands covering changed behavior.
+- [x] Commit and push updates to `eruvalca-add-player-detail-and-campaign-history-q`.
 
 ### Verification Plan
 
@@ -43,17 +43,17 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Updated note/tag-application queries to use `...PlayerCampaignAssignment.PlayerId == playerId` filtering, eliminating growth-prone `IN (...)` parameter lists. Targeted unit tests and solution build passed, then changes were committed and pushed in commit `51f4697`.
 
 ## Phase 3: Reply and Resolve Review Threads
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator
 
-- [ ] Post thread replies for each resolved item: fix summary for valid comments and rationale for invalid comments.
-- [ ] Resolve all addressed threads on PR #34.
-- [ ] Confirm there are no remaining unresolved inline threads for this pass.
+- [x] Post thread replies for each resolved item: fix summary for valid comments and rationale for invalid comments.
+- [x] Resolve all addressed threads on PR #34.
+- [x] Confirm there are no remaining unresolved inline threads for this pass.
 
 ### Verification Plan
 
@@ -62,12 +62,12 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Posted direct replies on both threads summarizing the query refactor and resolved both review threads via GraphQL `resolveReviewThread` mutation.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Reviewed unresolved inline comments on PR #34, judged both comments valid, applied a targeted query refactor to prevent large `IN (...)` parameter expansion, validated with focused tests/build, pushed follow-up commit `51f4697`, replied on both review threads, and resolved both threads.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+No deployment action is needed at this stage. Merge PR #34 once CI and review requirements are satisfied.
