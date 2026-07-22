@@ -102,6 +102,7 @@ public sealed partial class CampaignTagApplicationService(
             return new CampaignTagApplicationConflict("Closed campaigns are read-only and cannot accept tag applications.");
         }
 
+        await db.AcquireTagMutationLockAsync(input.PlayerTagId, cancellationToken);
         var tagDefinition = await db.PlayerTags
             .SingleOrDefaultAsync(candidate => candidate.PlayerTagId == input.PlayerTagId, cancellationToken);
         if (tagDefinition is null || tagDefinition.ClubId != clubId)
@@ -208,6 +209,7 @@ public sealed partial class CampaignTagApplicationService(
             return new CampaignTagApplicationConflict("Closed campaigns are read-only and cannot remove tag applications.");
         }
 
+        await db.AcquireTagMutationLockAsync(application.PlayerTagId, cancellationToken);
         await db.Entry(application.PlayerTag).ReloadAsync(cancellationToken);
         if (application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived)
         {
