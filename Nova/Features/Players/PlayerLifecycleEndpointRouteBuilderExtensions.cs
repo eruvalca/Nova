@@ -1,5 +1,6 @@
 using Nova.Features.Shared;
 using Nova.Shared.Players;
+using Nova.Shared.Security;
 
 namespace Nova.Features.Players;
 
@@ -18,7 +19,9 @@ internal static class PlayerLifecycleEndpointRouteBuilderExtensions
         {
             ArgumentNullException.ThrowIfNull(endpoints);
 
-            var group = endpoints.MapGroup(PlayerEndpoints.GroupPrefix).RequireAuthorization();
+            var group = endpoints
+                .MapGroup(PlayerEndpoints.GroupPrefix)
+                .RequireAuthorization(Policies.RequireClubAdmin);
 
             group.MapPost(PlayerEndpoints.ArchiveRelative, ArchivePlayerHandler)
                 .Produces(StatusCodes.Status204NoContent)

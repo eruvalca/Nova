@@ -35,12 +35,12 @@ public static class PlayerEndpoints
     /// </summary>
     /// <param name="playerId">The player identifier to archive.</param>
     /// <returns>The archive endpoint URL.</returns>
-    public static string ArchiveUrl(long playerId) => $"/api/players/{playerId}/archive";
+    public static string ArchiveUrl(long playerId) => $"{GroupPrefix}/{playerId}/archive";
 
     /// <summary>
     /// Builds the restore endpoint URL for a specific player.
     /// </summary>
     /// <param name="playerId">The player identifier to restore.</param>
     /// <returns>The restore endpoint URL.</returns>
-    public static string RestoreUrl(long playerId) => $"/api/players/{playerId}/restore";
+    public static string RestoreUrl(long playerId) => $"{GroupPrefix}/{playerId}/restore";
 }

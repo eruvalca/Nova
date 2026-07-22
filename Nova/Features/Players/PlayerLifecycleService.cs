@@ -58,9 +58,7 @@ public sealed partial class PlayerLifecycleService(
             _ => ServiceProblem.NotFound(),
             forbidden => ServiceProblem.Forbidden(forbidden.Detail),
             conflict => ServiceProblem.Conflict(conflict.Detail),
-            blocked => ServiceProblem.Conflict(
-                "Resolve every undecided active-campaign participation before archiving the player.",
-                PlayerLifecycleProblemExtensions.CreateArchiveBlockerExtensions(blocked.Blockers)));
+            blocked => MapUnexpectedRestoreBlocked(playerId, blocked));
     }
 
     /// <summary>
@@ -168,6 +166,20 @@ public sealed partial class PlayerLifecycleService(
     }
 
     /// <summary>
+    /// Maps an invariant-violating archive blocker returned during restore to a logged server error.
+    /// </summary>
+    /// <param name="playerId">The player identifier being restored.</param>
+    /// <param name="blocked">The unexpected archive blocker outcome.</param>
+    /// <returns>A server error that does not expose archive-specific guidance for a restore request.</returns>
+    private ServiceResult<Success> MapUnexpectedRestoreBlocked(
+        long playerId,
+        PlayerArchiveBlockedConflict blocked)
+    {
+        LogUnexpectedPlayerRestoreBlocked(playerId, blocked.Blockers.Count);
+        return ServiceProblem.ServerError("The player could not be restored because of an unexpected lifecycle conflict.");
+    }
+
+    /// <summary>
     /// Logs a lifecycle request rejected because the caller is not a club administrator.
     /// </summary>
     /// <param name="playerId">The requested player identifier.</param>
@@ -198,6 +210,14 @@ public sealed partial class PlayerLifecycleService(
     /// <param name="campaignCount">The number of active campaigns currently blocking archive.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Player archive blocked by undecided active-campaign participation for PlayerId={PlayerId} across CampaignCount={CampaignCount}.")]
     private partial void LogPlayerArchiveBlocked(long playerId, int campaignCount);
+
+    /// <summary>
+    /// Logs an invariant violation where restore unexpectedly produced archive blockers.
+    /// </summary>
+    /// <param name="playerId">The player identifier being restored.</param>
+    /// <param name="campaignCount">The number of unexpected blocking campaigns.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Player restore unexpectedly returned archive blockers for PlayerId={PlayerId} across CampaignCount={CampaignCount}.")]
+    private partial void LogUnexpectedPlayerRestoreBlocked(long playerId, int campaignCount);
 
     /// <summary>
     /// Logs a lifecycle transition rejected because the player changed concurrently.

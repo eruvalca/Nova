@@ -121,14 +121,33 @@ Suggested executor: orchestrator
 
 `PlayerLifecycleService` now uses one context only to obtain the provider execution strategy and creates a new tenant context inside every retried delegate invocation. Each attempt independently acquires the transaction and advisory lock, reloads persisted player state, saves, commits, and disposes. `PlayerLifecycleRetryTests` injects one transient Npgsql failure after the first update executes but before commit; the rollback is retried with a fresh context and archives successfully. Verification passed: 18 targeted unit tests, 13 targeted PostgreSQL/HTTP integration tests (including the retry regression), and `dotnet build Nova.slnx`.
 
+## Phase 7: Pull request review feedback
+
+Status: In progress <!-- Not started | In progress | Complete -->
+
+Suggested executor: orchestrator
+
+- [x] Require `Policies.RequireClubAdmin` in player lifecycle endpoint metadata while retaining service-layer authorization.
+- [x] Map the unreachable restore-blocked outcome to a logged server error instead of an archive-specific conflict.
+- [x] Build archive and restore URLs from `PlayerEndpoints.GroupPrefix`.
+- [x] Add focused endpoint authorization metadata coverage and run the scoped regression suite.
+- [ ] Reply to and resolve all three review threads after the fixes are pushed.
+
+### Verification Plan
+
+- `dotnet test --project Nova.Unit.Tests --filter-class "*PlayerLifecycleEndpointTests" --filter-class "*ArchivalLifecycleServiceTests" --filter-class "*HttpPlayerLifecycleServiceTests"` passes.
+- `dotnet test --project Nova.Integration.Tests --filter-class "*PlayerLifecycleRetryTests" --filter-class "*PlayerLifecycleHttpTests" --filter-class "*ArchivalLifecyclePostgresTests"` passes.
+- `dotnet build Nova.slnx` succeeds.
+- GitHub review threads `PRRT_kwDOSz2VcM6TFiKj`, `PRRT_kwDOSz2VcM6TFiKs`, and `PRRT_kwDOSz2VcM6TFiKy` contain resolution replies and are marked resolved.
+
+### Phase Summary
+
+_(write when phase completes)_
+
 ## Final Recap
 
-Implemented issue #30 as a full vertical slice. Player archive/restore is exposed through shared contracts (`IPlayerLifecycleService`), server minimal API endpoints, and WASM typed client methods. Structured archive blockers are returned as grouped campaign payloads and preserved end-to-end via `ServiceProblem.Extensions`/`ProblemDetails` extensions with trace IDs. Lifecycle mutations are retry-safe under Npgsql: every execution-strategy attempt uses a fresh tenant context so rolled-back tracked state cannot produce false conflicts. Unit and PostgreSQL integration coverage verify lifecycle invariants, history preservation, HTTP behavior, and transient retry behavior.
+_(refresh when phase 7 completes)_
 
 ## Deployment Plan
 
-1. Merge this branch into `main`.
-2. Deploy the standard Nova application artifacts; no schema migration is required.
-3. Smoke test player archive/restore with an administrator account.
-4. Confirm non-admin and cross-tenant requests retain forbidden/not-found semantics.
-5. Monitor lifecycle conflict and database retry telemetry after deployment for unexpected increases.
+_(refresh when phase 7 completes)_
