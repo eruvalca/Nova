@@ -144,14 +144,32 @@ Suggested executor: orchestrator
 
 Judged all three Copilot review comments valid. The route group now requires `Policies.RequireClubAdmin` while the service guard remains in place; the impossible restore-blocker branch logs an error and returns a server error; and both URL builders derive from `GroupPrefix`. Added `PlayerLifecycleEndpointTests` to verify archive and restore endpoint authorization metadata. Verification passed with 19 targeted unit tests, 13 targeted PostgreSQL/HTTP integration tests, and a successful solution build. Replied to and resolved all three review threads.
 
+## Phase 8: Malformed blocker extension resilience
+
+Status: In progress <!-- Not started | In progress | Complete -->
+
+Suggested executor: orchestrator
+
+- [x] Preserve the `TryGetArchiveBlockers` non-throwing contract when JSON blocker arrays contain invalid schema.
+- [x] Add focused unit coverage for malformed-array and non-array extension values.
+- [x] Run scoped tests and the solution build.
+- [ ] Reply to and resolve review thread `PRRT_kwDOSz2VcM6TFvmr` after the fix is pushed.
+
+### Verification Plan
+
+- `dotnet test --project Nova.Unit.Tests --filter-class "*PlayerLifecycleProblemExtensionsTests" --filter-class "*HttpPlayerLifecycleServiceTests"` passes.
+- `dotnet test --project Nova.Integration.Tests --filter-class "*PlayerLifecycleHttpTests"` passes.
+- `dotnet build Nova.slnx` succeeds.
+- GitHub review thread `PRRT_kwDOSz2VcM6TFvmr` contains a resolution reply and is marked resolved.
+
+### Phase Summary
+
+_(write when phase completes)_
+
 ## Final Recap
 
-Implemented issue #30 as a full vertical slice. Player archive/restore is exposed through shared contracts (`IPlayerLifecycleService`), server minimal API endpoints, and WASM typed client methods. Structured archive blockers are returned as grouped campaign payloads and preserved end-to-end via `ServiceProblem.Extensions`/`ProblemDetails` extensions with trace IDs. Lifecycle mutations are retry-safe under Npgsql: every execution-strategy attempt uses a fresh tenant context so rolled-back tracked state cannot produce false conflicts. Endpoint middleware and service-layer checks both enforce club-administrator authorization. Unit and PostgreSQL integration coverage verify authorization metadata, lifecycle invariants, history preservation, HTTP behavior, and transient retry behavior.
+_(refresh when phase 8 completes)_
 
 ## Deployment Plan
 
-1. Merge this branch into `main`.
-2. Deploy the standard Nova application artifacts; no schema migration is required.
-3. Smoke test player archive/restore with an administrator account.
-4. Confirm non-admin and cross-tenant requests retain forbidden/not-found semantics.
-5. Monitor lifecycle conflict, authorization failure, and database retry telemetry after deployment for unexpected increases.
+_(refresh when phase 8 completes)_

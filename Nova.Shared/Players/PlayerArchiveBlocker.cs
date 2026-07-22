@@ -73,7 +73,17 @@ public static class PlayerLifecycleProblemExtensions
 
             if (raw is JsonElement element && element.ValueKind == JsonValueKind.Array)
             {
-                var parsed = element.Deserialize<List<PlayerArchiveBlocker>>(new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                List<PlayerArchiveBlocker>? parsed;
+                try
+                {
+                    parsed = element.Deserialize<List<PlayerArchiveBlocker>>(
+                        new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                }
+                catch (JsonException)
+                {
+                    return false;
+                }
+
                 if (parsed is null)
                 {
                     return false;
