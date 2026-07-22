@@ -4,19 +4,25 @@ Canonical files:
 
 - `Nova.Integration.Tests\Data\NovaAppHostFixture.cs` defines `NovaAppHostFixture`, `NovaAppHostCollection`, live context factories, and `CreateNovaHttpClient`.
 - `Nova.Integration.Tests\Data\PostgresTenancyTests.cs` shows provider-specific database tests for migrations, `timestamptz`, `DateOnly`, and query-filter SQL translation.
+- `Nova.Integration.Tests\Data\CampaignParticipationPostgresTests.cs` shows database-constraint and optimistic-concurrency coverage.
+- `Nova.Integration.Tests\Data\CampaignLifecyclePostgresTests.cs` shows advisory-lock and competing-transaction race coverage.
 - `Nova.Integration.Tests\Http\ProfilePhotoHttpTests.cs` shows HTTP-layer e2e tests against the running app.
 - `Nova.Integration.Tests\Http\IdentityHttpClientHelper.cs` shows HTTP auth bootstrap for tests.
 
 ## When to use integration tests
 
 Default new tests to `Nova.Unit.Tests`. Add an integration test only when the behavior depends
-on the real provider (type mappings, migrations, SQL translation, collation).
+on the real provider (type mappings, migrations, database constraints, advisory locks,
+transaction races, SQL translation, collation).
 
-Use `Nova.Integration.Tests` for Postgres-only behavior: production migrations, `timestamptz`/`DateOnly` mappings, filter SQL translation.
+Use `Nova.Integration.Tests` for Postgres-only behavior: production migrations,
+`timestamptz`/`DateOnly` mappings, database constraints, advisory locks, competing transactions,
+and filter SQL translation.
 
 SQLite is not Postgres: it won't catch `timestamptz` offset requirements, identity-column
-semantics, case-sensitivity/collation, or SQL translation limits. If a query uses
-provider-sensitive constructs, mirror one round-trip test in `Nova.Integration.Tests`.
+semantics, case-sensitivity/collation, advisory-lock behavior, competing-transaction races, or SQL
+translation limits. If behavior uses provider-sensitive constructs, mirror one focused test in
+`Nova.Integration.Tests`.
 
 ## AppHost fixture internals
 

@@ -15,11 +15,12 @@ This document describes the current application state and a proposed MVP for clu
 - Team eligibility is a hard rule: `Player.GraduationYear >= Team.GraduationYear`.
 - Evaluation is qualitative: shared notes and shared position/trait tags, not numeric scoring.
 - Notes and tag applications are explicitly associated with a player's campaign participation.
-- A player can have a given tag once per campaign. The staff member who applied it or a club administrator can remove it.
+- A note can be edited or deleted only by its author or a club administrator.
+- A player can have a given tag once per campaign. The applying user or a club administrator can remove it.
 - Campaigns have two product states: Active and Closed. Closed campaigns are read-only and can be reopened by an administrator.
-- Every participant must have one closeout outcome: Assigned, Not selected, or Withdrawn.
-- Campaign decisions are visible only to club staff in the MVP.
-- Players can be archived and restored. Archived players remain in history and are excluded from future automatic enrollment.
+- Before close, every participant must have one final outcome: Assigned, Not selected, or Withdrawn.
+- Campaign decisions are visible only to approved club members in the MVP.
+- Players, teams, and tag definitions can be archived and restored while remaining available to history. Archived players are excluded from automatic enrollment.
 
 ## Current State
 
@@ -32,7 +33,11 @@ This document describes the current application state and a proposed MVP for clu
 - Club membership and club administrator authorization.
 - Club detail and club administration pages.
 - Club-based EF Core tenancy, audit stamping, and tenant-safe read/write contexts.
-- Domain entities for seasons, campaigns, teams, players, campaign participation, notes, and tags.
+- Active/Archived lifecycle with provenance for players, teams, and tag definitions.
+- Active/Closed campaign lifecycle with closure metadata and append-only close/reopen events.
+- Campaign participation outcomes, tryout-number uniqueness, placement integrity, and optimistic concurrency.
+- Assignment-scoped evaluation notes and explicit campaign tag applications with author/admin mutation rules.
+- Transactional lifecycle/write guards, incremental migrations, and focused SQLite/PostgreSQL coverage.
 
 ### Not Yet Implemented as Product Workflows
 
@@ -54,6 +59,7 @@ This document describes the current application state and a proposed MVP for clu
 | Create/edit/archive teams | Yes | No |
 | Create/close/reopen campaigns | Yes | No |
 | Add notes and tags in an active campaign | Yes | Yes |
+| Edit/delete a note | Yes | Only when they authored it |
 | Remove a tag | Yes | Only when they applied it |
 | Place players and set closeout outcomes | Yes | No for MVP |
 | View closed campaign results | Yes | Yes |
@@ -233,8 +239,10 @@ The dashboard is the post-login home for a user who belongs to a club. It should
 
 - The filterable roster and player drawer are the primary evaluator workflow.
 - Next/previous keeps the current filter and sort order.
-- Staff can add notes and tags only while the campaign is Active.
+- Approved club members can add notes and tags only while the campaign is Active.
+- Note edit/delete commands are shown only to the author and club administrators.
 - A tag removal command is shown only to its applying user and club administrators.
+- Applications using an archived tag definition remain visible but cannot be removed.
 - The layout becomes a full-screen player detail panel on narrow screens; the roster state is preserved on return.
 
 ### 7. Placements
@@ -276,8 +284,8 @@ Placement invariants:
 +----------------------------------------------------------------------------+
 ```
 
-- Close is blocked while any participant is Undecided or any Assigned participant lacks an eligible team.
-- Closing records `ClosedAt` and the closing administrator through audit fields.
+- Close is blocked while any participant is Undecided or any Assigned participant lacks an active, eligible team.
+- Closing records `ClosedAt`, FK-less `ClosedById`, and an append-only lifecycle event.
 - Closed workspace tabs remain readable and export-ready.
 - Reopen is administrator-only, records an audit event, and restores editing without discarding outcomes.
 
@@ -302,12 +310,12 @@ Placement invariants:
 
 ### Player Evaluation
 
-1. Staff opens an active campaign from the dashboard.
-2. Staff filters the roster by name, graduation year, tag, outcome, or team.
-3. Staff opens a player's drawer.
-4. Staff adds a timestamped note or applies a club-defined tag.
-5. Staff moves to the next player without losing roster context.
-6. All campaign staff see the shared evaluation stream.
+1. An approved club member opens an active campaign from the dashboard.
+2. The member filters the roster by name, graduation year, tag, outcome, or team.
+3. The member opens a player's drawer.
+4. The member adds a timestamped note or applies a club-defined tag.
+5. The member moves to the next player without losing roster context.
+6. All approved club members see the shared evaluation stream.
 
 ### Placement
 
@@ -320,66 +328,68 @@ Placement invariants:
 ### Campaign Close and Reopen
 
 1. Administrator opens Closeout.
-2. Nova validates that no participant is Undecided and all Assigned participants have eligible teams.
+2. Nova validates that no participant is Undecided and all Assigned participants have active, eligible teams.
 3. Administrator closes the campaign.
 4. Nova records closure time and freezes evaluation and placement writes.
-5. Staff can browse campaign results and player history.
+5. Approved club members can browse campaign results and player history.
 6. An administrator can deliberately reopen the campaign, with the action recorded for audit.
 
-## Recommended Domain and EF Core Changes
+## Implemented Domain and EF Core Foundation
 
-The current hierarchy and `PlayerCampaignAssignmentEntity` are a strong foundation. The assignment entity should be treated as campaign participation and become the parent for evaluation records.
+Epic #6 established `PlayerCampaignAssignmentEntity` as campaign participation and the parent for evaluation records.
 
 ### Player
 
-- Add an explicit Active/Archived status and `ArchivedAt`.
+- Uses the shared Active/Archived lifecycle with `ArchivedAt` and FK-less `ArchivedById`.
 - Keep permanent identity/demographic fields on the player.
-- Move campaign-varying tryout number to campaign participation.
+- Campaign-varying tryout number lives on campaign participation.
 - Block a graduation-year edit that would invalidate an active placement until the placement is resolved.
 - Require explicit resolution of active campaign participation before archiving a player; do not silently rewrite campaign outcomes.
 
 ### Team
 
-- Add an explicit Active/Archived status and `ArchivedAt`.
+- Uses the shared Active/Archived lifecycle with `ArchivedAt` and FK-less `ArchivedById`.
 - Keep `GraduationYear` as the minimum eligible graduation year.
 - Block archive or cutoff changes that would invalidate an active placement until affected placements are resolved.
 - Preserve archived teams as valid references in historical campaign results.
 
 ### Campaign
 
-- Add explicit `CampaignStatus` with Active and Closed values.
-- Add `ClosedAt`.
+- Uses explicit `CampaignStatus` with Active and Closed values.
+- Stores `ClosedAt` and FK-less `ClosedById`.
 - Treat the existing end date as a planned date, not as the source of completion state.
-- Replace `IsComplete => EndDate.HasValue` with status-based behavior.
+- `IsComplete` is status-based.
 - Allow administrators to correct Active campaign metadata without repeating roster enrollment.
 - Require reopening before editing a Closed campaign.
-- Persist close and reopen lifecycle events so repeated transitions remain auditable.
+- Close and reopen transitions append tenant-owned lifecycle events so repeated transitions remain auditable.
 
 ### Campaign Participation
 
-Extend `PlayerCampaignAssignmentEntity` with:
+`PlayerCampaignAssignmentEntity` includes:
 
 - `TryoutNumber`.
 - `PlacementOutcome`: Undecided, Assigned, NotSelected, Withdrawn.
 - Existing nullable `TeamId`.
 - A unique index on `(CampaignId, PlayerId)` to prevent duplicate enrollment.
 - A unique filtered index on `(CampaignId, TryoutNumber)` when the tryout number is not null.
+- An application-managed `Guid` concurrency token for placement mutations.
 - An index supporting campaign roster filters, with additional indexes added only after query shapes are implemented and measured.
 
 Do not add a separate `IsActive` flag to participation. Campaign status and placement outcome already express its lifecycle.
 
 ### Evaluation Notes
 
-Replace or migrate the current player-only note relationship with a note that has a required `PlayerCampaignAssignmentId`.
+Notes now have a required `PlayerCampaignAssignmentId`; the ambiguous player-only relationship was removed.
 
 - The assignment provides the player, campaign, and club context.
 - `BaseEntity.CreatedAt` and `CreatedById` provide timestamp and authorship.
 - Keep audit user IDs FK-less, consistent with the existing Nova model.
+- Only the author or a club administrator may edit or delete a note while the campaign is Active.
 - Cascade notes when participation is deleted. In normal product workflows, campaigns and players should be archived/closed rather than deleted once history exists.
 
 ### Tag Definitions and Applications
 
-Keep `PlayerTagEntity` as the club-owned definition: name and color. Replace the implicit player/tag many-to-many join with an explicit campaign tag application entity containing:
+`PlayerTagEntity` remains the club-owned definition for name and color. The implicit player/tag many-to-many join was replaced with an explicit campaign tag application entity containing:
 
 - `PlayerCampaignAssignmentId`.
 - `PlayerTagId`.
@@ -387,26 +397,26 @@ Keep `PlayerTagEntity` as the club-owned definition: name and color. Replace the
 - `BaseEntity` audit fields identifying who applied the tag and when.
 - A unique index on `(PlayerCampaignAssignmentId, PlayerTagId)`.
 
-Tag definitions have an Active/Archived lifecycle. Archived definitions remain visible in history but cannot be applied to new evaluations. Tag-definition management is administrator-only.
+Tag definitions have an Active/Archived lifecycle. Archived definitions remain visible in history, cannot be applied, and protect existing applications from removal. Tag-definition management is administrator-only.
 
 Removal authorization is enforced in the service: the applying user's `CreatedById` must match the caller, unless the caller is a club administrator. Physical deletion is sufficient for the MVP's shared-current-trait semantics; append-only tag history is explicitly out of scope.
 
 ### Tenancy and Integrity
 
 - Every new club-scoped entity implements `ITenantOwnedEntity` and has a real `ClubId` relationship.
+- Composite foreign keys enforce same-club relationships for lifecycle events and tag applications; participation and note services repeat tenant-consistency checks.
 - Continue using `NovaDbContext` for tenant writes and `NovaReadDbContext` for read-only roster/history queries.
-- Add tenant isolation and cross-tenant write tests for each new entity.
+- Tenant isolation and cross-tenant write coverage exists for each new entity.
 - Validate related player, campaign, team, tag, and assignment records belong to the current club.
 - Enforce graduation-year eligibility in the service transaction. A PostgreSQL `CHECK` constraint cannot compare values from the related Player and Team rows.
-- Consider optimistic concurrency on campaign participation before implementing placements, because two administrators can otherwise overwrite outcomes. A concurrency token is preferable to relying only on `ModifiedAt`.
+- Campaign participation uses optimistic concurrency, and lifecycle-sensitive writes use transaction-scoped mutation locks so close/archive operations cannot race dependent writes.
 
-### Migration Notes
+### Migration Outcome
 
-- The current implicit player/tag join has no campaign, author, or timestamp, so existing rows cannot be reliably assigned to campaigns. If production data exists, migrate them as general legacy traits or require an explicit cleanup decision; do not infer a campaign from timestamps that do not exist.
-- Existing player notes have timestamps and authors but no campaign. If campaigns overlap, date-based backfill is ambiguous. Preserve them as legacy general notes or require manual association.
-- Backfill existing players and teams as Active.
-- Backfill campaigns deliberately. Do not derive Closed solely from `EndDate` without confirming that historical end dates represented actual closure.
-- Generate migrations through `NovaDbContext` and verify no pending model changes, per repository instructions.
+- There was no durable production data, so ambiguous player-only notes and the implicit player/tag join were removed rather than assigned to campaigns without evidence.
+- Existing players, teams, and tag definitions default to Active; existing campaigns default to Active rather than deriving closure from `EndDate`.
+- Each schema-bearing child added an incremental migration through `NovaDbContext`, preserving the migration chain.
+- Clean PostgreSQL migration coverage and `has-pending-model-changes` verification confirmed the final model.
 
 ## MVP Epics
 
@@ -416,13 +426,13 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
   - Add primary navigation for Campaigns, Players, Teams, Club, and Account.
   - Show active campaigns, unresolved decisions, roster/team counts, join requests, and role-appropriate empty states.
 
-- **Epic 2: Domain model and persistence foundation**
-  - Add Active/Archived lifecycle to players and teams.
-  - Add explicit Active/Closed campaign status and closure metadata.
-  - Extend campaign participation with tryout number and placement outcome.
-  - Add unique campaign/player enrollment protection and optimistic concurrency.
-  - Replace player-only evaluation relationships with assignment-scoped notes and explicit tag applications.
-  - Create and verify the EF Core migration, tenancy tests, relationship tests, and migration integration tests.
+- **Epic 2: Domain model and persistence foundation — complete**
+  - Added Active/Archived lifecycle to players, teams, and tag definitions.
+  - Added explicit Active/Closed campaign status, closure metadata, and append-only lifecycle events.
+  - Extended campaign participation with tryout number, placement outcome, integrity constraints, and optimistic concurrency.
+  - Replaced player-only evaluation relationships with assignment-scoped notes and explicit tag applications.
+  - Added reusable evaluator authorization plus transactional lifecycle and placement guards.
+  - Added and verified incremental migrations, tenancy/integrity tests, and PostgreSQL migration/race coverage.
 
 - **Epic 3: Player roster management**
   - Add player list, search, graduation-year filtering, and active/archive views.
@@ -450,7 +460,7 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
   - Add filters for name, graduation year, tag, outcome, and team.
   - Add shared campaign notes with author and timestamp.
   - Add club tag definition management and campaign tag application.
-  - Enforce tag removal by applying staff member or administrator.
+  - Enforce note mutation by author/administrator and tag removal by applying user/administrator.
   - Disable all evaluation writes for closed campaigns.
 
 - **Epic 7: Team placement and closeout outcomes**

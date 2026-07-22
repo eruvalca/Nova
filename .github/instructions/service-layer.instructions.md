@@ -60,6 +60,22 @@ Examples: `ClubMembershipClaimRefresher` (single tier) → native OneOf; `IProfi
 All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
 (`Activity.Current?.TraceId`); `ServiceResultExtensions.ToHttpResult` inserts it automatically.
 
+## Composition root
+
+- Register every application-consumed server service in `Nova/Program.cs` in the same change that adds
+  it. Unit tests that construct a service directly do not verify DI registration.
+- Use scoped lifetime for services that depend on scoped user, authorization, or DbContext-factory
+  state; map boundary-crossing interfaces to their implementation explicitly.
+
+## Lifecycle-sensitive mutations
+
+- When a mutation depends on campaign, player, team, or tag lifecycle state, start a transaction,
+  acquire the matching `LifecycleMutationLock`, then read the lifecycle entity—or reload it if
+  already tracked—and re-check the guard before writing. For multiple locks, preserve the shared
+  order: campaign → player → team → tag.
+- The lock is intentionally a no-op under SQLite. Add a PostgreSQL integration test for lifecycle
+  races such as close-versus-write or archive-versus-placement.
+
 ## Logging
 
 - Log **warnings** for expected-but-noteworthy failures (validation errors, conflicts).

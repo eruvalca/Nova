@@ -17,7 +17,7 @@ If a targeted instruction file is referenced but not available in context, state
 - `.github/instructions/ef-core-tenancy.instructions.md` for EF Core setup, club-based multi-tenancy, DbContext selection (`NovaDbContext`/`NovaReadDbContext`/`NovaAdminDbContext`), entity/relationship rules, and migrations.
 - `.github/instructions/observability.instructions.md` for OpenTelemetry and correlation conventions: W3C/`Activity.Current` correlation, ServiceDefaults-owned wiring, Blazor tracing source inclusion, WASM HTTP trace propagation, and `ProblemDetails` trace IDs.
 - `.github/instructions/testing.instructions.md` for the test suite: unit vs Aspire integration tests, the SQLite tenancy harness, the AppHost fixture, and how to run each project.
-- `.github/instructions/service-layer.instructions.md` for service-layer patterns: ServiceProblem/ServiceResult types, OneOf preference rule, validation structure, trace ID guarantees, and logging conventions.
+- `.github/instructions/service-layer.instructions.md` for service-layer patterns: ServiceProblem/ServiceResult types, OneOf preference, validation, DI registration, lifecycle-mutation locking, trace IDs, and logging.
 - `.github/instructions/api-endpoints.instructions.md` for HTTP endpoint patterns: MapGroup organization, handler methods, ServiceResult conversion, ProblemDetails structure, authorization, and enum binding.
 
 ## Skills
@@ -26,5 +26,6 @@ The instruction files above hold the always-on *rules*. The step-by-step *recipe
 examples) live in model-invoked Agent Skills under `.github/skills/`, loaded on demand by intent:
 
 - `add-api-endpoint` — add/modify a minimal-API endpoint (route constants, handlers, `ToHttpResult`, ProblemDetails, antiforgery, auth, enum binding).
-- `add-feature-slice` — orchestrate a full vertical slice end to end (input record + validation → service → endpoint → WASM client → tests); invokes `add-api-endpoint` and `nova-testing`.
+- `add-domain-persistence` — add/modify domain entities, EF configuration, tenancy, lifecycle/concurrency invariants, incremental migrations, and provider-focused tests; invokes `nova-testing`.
+- `add-feature-slice` — orchestrate a full vertical slice end to end (input record + validation → service → endpoint → WASM client → tests); invokes `add-domain-persistence` when needed, `add-api-endpoint`, and `nova-testing`.
 - `nova-testing` — pick the harness (SQLite tenancy unit tests vs Aspire Postgres integration tests), write a test, and run it on Microsoft.Testing.Platform.
