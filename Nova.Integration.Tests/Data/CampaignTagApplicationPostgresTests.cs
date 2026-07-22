@@ -48,6 +48,8 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
 
     /// <summary>
     /// Verifies composite same-club foreign keys reject mismatched club references.
+    /// Uses a fresh (AssignmentId, TagId) pair so the unique index is not triggered
+    /// before the composite FK constraint.
     /// </summary>
     [Fact]
     public async Task CompositeTenantForeignKeys_RejectCrossTenantAssignmentTagMix()
@@ -55,11 +57,17 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         var seed = await SeedAsync();
         ActAs(userId: null, clubId: null);
         await using var db = fixture.CreateAdminContext();
+
+        // ClubAAssignmentId belongs to ClubA; ClubBTagId belongs to ClubB.
+        // Declaring ClubId = ClubAId means the FK (ClubBTagId, ClubAId) must exist
+        // in PlayerTags — it does not — so PostgreSQL rejects this as a FK violation.
+        // Because (ClubAAssignmentId, ClubBTagId) has never been inserted, the unique
+        // index cannot fire first.
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
             PlayerCampaignAssignmentId = seed.ClubAAssignmentId,
-            PlayerTagId = seed.ClubATagId,
-            ClubId = seed.ClubBId,
+            PlayerTagId = seed.ClubBTagId,
+            ClubId = seed.ClubAId,
             CreatedById = seed.ActorUserId
         });
 
@@ -202,7 +210,8 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
             clubA.ClubId,
             clubB.ClubId,
             assignmentA.PlayerCampaignAssignmentId,
-            tagA.PlayerTagId);
+            tagA.PlayerTagId,
+            tagB.PlayerTagId);
     }
 
     /// <summary>
@@ -226,10 +235,12 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
     /// <param name="ClubBId">The second club identifier.</param>
     /// <param name="ClubAAssignmentId">The first club's participation identifier.</param>
     /// <param name="ClubATagId">The first club's tag-definition identifier.</param>
+    /// <param name="ClubBTagId">The second club's tag-definition identifier.</param>
     private sealed record CampaignTagApplicationSeed(
         long ActorUserId,
         long ClubAId,
         long ClubBId,
         long ClubAAssignmentId,
-        long ClubATagId);
+        long ClubATagId,
+        long ClubBTagId);
 }
