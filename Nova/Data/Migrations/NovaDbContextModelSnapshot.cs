@@ -1242,11 +1242,9 @@ namespace Nova.Data.Migrations
 
             modelBuilder.Entity("Nova.Entities.PlayerCampaignAssignmentEntity", b =>
                 {
-<<<<<<< HEAD
                     b.Navigation("CampaignTagApplications");
-=======
+
                     b.Navigation("Notes");
->>>>>>> origin/main
                 });
 
             modelBuilder.Entity("Nova.Entities.PlayerEntity", b =>
