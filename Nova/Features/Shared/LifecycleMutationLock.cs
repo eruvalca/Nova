@@ -44,6 +44,16 @@ internal static class LifecycleMutationLock
         /// <returns>A task representing lock acquisition.</returns>
         public Task AcquireTagMutationLockAsync(long tagDefinitionId, CancellationToken cancellationToken)
             => AcquirePostgresLockAsync(db, (long.MinValue / 2) + tagDefinitionId, cancellationToken);
+
+        /// <summary>
+        /// Acquires a transaction-scoped club-roster lock that serializes concurrent player creation
+        /// and campaign creation within the same club, preventing gaps in campaign enrollment.
+        /// </summary>
+        /// <param name="clubId">The club identifier whose roster mutations must be serialized.</param>
+        /// <param name="cancellationToken">A token that cancels lock acquisition.</param>
+        /// <returns>A task representing lock acquisition.</returns>
+        public Task AcquireClubRosterLockAsync(long clubId, CancellationToken cancellationToken)
+            => AcquirePostgresLockAsync(db, (long.MinValue / 4) + clubId, cancellationToken);
     }
 
     /// <summary>

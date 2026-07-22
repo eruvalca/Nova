@@ -6,6 +6,7 @@ using Nova.Client.Telemetry;
 using Nova.Shared.Account;
 using Nova.Shared.Clubs;
 using Nova.Shared.Photos;
+using Nova.Shared.Players;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
@@ -28,5 +29,6 @@ builder.Services.AddScoped<IProfilePhotoService, HttpProfilePhotoService>();
 builder.Services.AddScoped<IClubService, HttpClubService>();
 builder.Services.AddScoped<IClubJoinRequestService, HttpClubJoinRequestService>();
 builder.Services.AddScoped<IClubMemberService, HttpClubMemberService>();
+builder.Services.AddScoped<IPlayerManagementService, HttpPlayerManagementService>();
 
 await builder.Build().RunAsync();
