@@ -50,12 +50,12 @@ Updated `GetPlayerRosterEndpoints.GetRosterUrl` to normalize lifecycle status us
 
 ## Phase 3: Reply and resolve threads
 
-Status: In progress <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator
 
-- [ ] Reply to lifecycleStatus thread with fix summary and resolve.
-- [ ] Reply to SerializeAllClaims thread with invalid/non-actionable rationale and resolve.
+- [x] Reply to lifecycleStatus thread with fix summary and resolve.
+- [x] Reply to SerializeAllClaims thread with invalid/non-actionable rationale and resolve.
 
 ### Verification Plan
 
@@ -63,12 +63,14 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Posted thread replies for both comments. For lifecycle status, linked the implemented allowlist normalization fix and test coverage. For claim serialization, documented why no code change was applied (current framework surface in this app does not support per-claim allowlisting in this path) and captured a future hardening direction if/when that capability exists. Resolved both review threads.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Round 4 is complete. One valid review comment was fixed by clamping/normalizing `lifecycleStatus` query generation in the shared roster URL builder and adding focused contract coverage for invalid-value omission. One comment was classified non-actionable in the current framework integration surface and answered with rationale. All threads for this round are resolved.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Pull the latest branch tip for `eruvalca-build-player-roster-create-edit-archive`.
+2. Run `dotnet test --project .\\Nova.Unit.Tests\\Nova.Unit.Tests.csproj --filter-class \"*GetPlayerRosterContractTests\"`.
+3. Continue PR #37 review/merge flow.
