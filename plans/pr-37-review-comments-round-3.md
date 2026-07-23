@@ -55,12 +55,12 @@ Implemented all UI-side fixes in `Players`: persisted-roster attach now rebuilds
 
 ## Phase 3: Reply and resolve threads
 
-Status: In progress <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator
 
-- [ ] Reply on each new thread with validity and fix summary.
-- [ ] Resolve each thread after push.
+- [x] Reply on each new thread with validity and fix summary.
+- [x] Resolve each thread after push.
 
 ### Verification Plan
 
@@ -68,12 +68,13 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Posted replies on all four new threads with validity decisions and implemented fixes, including provider-compatibility rationale for the casing consistency point. Resolved all four threads and verified that every PR #37 review thread is now resolved.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Reviewed the latest PR #37 comments, treated all as valid, implemented fixes for persisted filter-option restoration, status-message retention after mutation refresh, protected-member naming consistency, and non-Npgsql casing consistency (with translation-safe approach), added focused component coverage, and resolved all threads.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Keep branch `eruvalca-build-player-roster-create-edit-archive` as PR head at commit `c301819`.
+2. Merge PR #37 after required checks and approvals finish.
