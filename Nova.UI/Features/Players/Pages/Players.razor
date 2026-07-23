@@ -53,7 +53,7 @@
                 </div>
                 <div class="col-md-3">
                     <label for="players-grad-year" class="form-label">Graduation year</label>
-                    <select id="players-grad-year" class="form-select" value="@_graduationYearFilterText" @onchange="OnGraduationYearChangedAsync">
+                    <select id="players-grad-year" class="form-select" value="@GraduationYearFilterText" @onchange="OnGraduationYearChangedAsync">
                         <option value="">All years</option>
                         @foreach (var year in _availableGraduationYears)
                         {
@@ -63,7 +63,7 @@
                 </div>
                 <div class="col-md-3">
                     <label for="players-tag-filter" class="form-label">Tag</label>
-                    <select id="players-tag-filter" class="form-select" value="@_playerTagFilterText" @onchange="OnTagFilterChangedAsync">
+                    <select id="players-tag-filter" class="form-select" value="@PlayerTagFilterText" @onchange="OnTagFilterChangedAsync">
                         <option value="">All tags</option>
                         @foreach (var tag in _availableTags)
                         {

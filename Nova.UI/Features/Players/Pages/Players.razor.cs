@@ -203,12 +203,12 @@ public partial class Players(
     /// <summary>
     /// Gets the selected graduation-year filter as a string for select binding.
     /// </summary>
-    protected string _graduationYearFilterText => _graduationYearFilter?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+    protected string GraduationYearFilterText => _graduationYearFilter?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
 
     /// <summary>
     /// Gets the selected tag filter as a string for select binding.
     /// </summary>
-    protected string _playerTagFilterText => _playerTagFilter?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+    protected string PlayerTagFilterText => _playerTagFilter?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
 
     /// <summary>
     /// Gets a value indicating whether roster results are truncated in the current UI payload.
@@ -246,6 +246,10 @@ public partial class Players(
         {
             _roster = PersistedRoster;
             _pageError = PersistedPageError;
+            if (_roster is not null)
+            {
+                RefreshAvailableFilters(_roster.Items);
+            }
             _isLoading = false;
             return;
         }
@@ -291,7 +295,6 @@ public partial class Players(
 
         _isLoading = true;
         _pageError = null;
-        _statusMessage = null;
 
         var input = new GetPlayerRosterInput
         {

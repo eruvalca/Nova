@@ -71,7 +71,7 @@ public sealed partial class PlayerService(
             }
             else
             {
-                var uppercaseSearch = normalizedSearch.ToUpperInvariant();
+                var uppercaseSearch = normalizedSearch.ToUpper();
                 query = hasTryoutNumberSearch
                     ? query.Where(player =>
                         (player.FirstName + " " + player.LastName).ToUpper().Contains(uppercaseSearch)

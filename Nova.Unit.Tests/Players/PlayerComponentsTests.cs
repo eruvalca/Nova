@@ -189,6 +189,43 @@ public sealed class PlayerComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Players_ShowsCreateSuccessMessage_AfterMutationReload()
+    {
+        var rosterService = Substitute.For<IPlayerService>();
+        rosterService.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems())));
+
+        var managementService = Substitute.For<IPlayerManagementService>();
+        managementService.CreateAsync(Arg.Any<CreatePlayerInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDto>(new PlayerDto
+            {
+                PlayerId = 21,
+                ClubId = 42,
+                FirstName = "Taylor",
+                LastName = "Lane",
+                DateOfBirth = new DateOnly(2012, 5, 1),
+                GraduationYear = 2031,
+                LifecycleStatus = LifecycleStatus.Active
+            })));
+
+        RegisterServices(
+            rosterService: rosterService,
+            managementService: managementService,
+            isClubAdmin: true);
+
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Add player"));
+        cut.Find("#player-first-name").Change("Taylor");
+        cut.Find("#player-last-name").Change("Lane");
+        cut.Find("button[type='submit']").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Player created successfully."));
+    }
+
+    [Fact]
     public void Players_PreservesFilterContext_InPlayerDetailLink()
     {
         RegisterServices(isClubAdmin: true);
