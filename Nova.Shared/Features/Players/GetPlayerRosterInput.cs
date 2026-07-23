@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace Nova.Shared.Features.Players;
 
@@ -48,14 +48,14 @@ public sealed record GetPlayerRosterInput
     public string? SortDirection { get; init; }
 
     /// <summary>
-    /// The 1-based page number to return.
+    /// The optional 1-based page number to return. The service applies <see cref="DefaultPage"/> when omitted.
     /// </summary>
     [Range(1, int.MaxValue)]
-    public int Page { get; init; } = DefaultPage;
+    public int? Page { get; init; } = DefaultPage;
 
     /// <summary>
-    /// The number of results per page.
+    /// The optional number of results per page. The service applies <see cref="DefaultPageSize"/> when omitted.
     /// </summary>
     [Range(1, MaxPageSize)]
-    public int PageSize { get; init; } = DefaultPageSize;
+    public int? PageSize { get; init; } = DefaultPageSize;
 }

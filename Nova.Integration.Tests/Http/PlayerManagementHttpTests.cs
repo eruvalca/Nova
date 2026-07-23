@@ -75,10 +75,11 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies that submitting an invalid create-player payload returns 422 Unprocessable Entity.
+    /// Verifies that endpoint-layer validation rejects an invalid create-player payload with
+    /// 400 Bad Request before the service executes.
     /// </summary>
     [Fact]
-    public async Task Create_ReturnsUnprocessableEntity_ForInvalidInput()
+    public async Task Create_ReturnsBadRequest_ForInvalidInput()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -99,7 +100,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
 
         using var response = await client.PostAsJsonAsync(PlayerEndpoints.Create, invalid, cancellationToken);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     /// <summary>

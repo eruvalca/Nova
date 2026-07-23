@@ -46,6 +46,12 @@ public class PlayerEntity : ArchivableEntity, ITenantOwnedEntity
     public required int GraduationYear { get; set; }
 
     /// <summary>
+    /// Gets or sets the stable identifier used to verify an idempotent player-creation transaction.
+    /// Legacy players created before idempotent creation support have no identifier.
+    /// </summary>
+    public Guid? CreationOperationId { get; set; }
+
+    /// <summary>
     /// Gets or sets the Campaign Assignments.
     /// </summary>
     public ICollection<PlayerCampaignAssignmentEntity> CampaignAssignments { get; set; } = [];

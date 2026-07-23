@@ -107,6 +107,28 @@ private static async Task<IResult> UploadHandler(IFormFile file, ...)
 }
 ```
 
+## Optional `[AsParameters]` Query Properties
+
+A property initializer does not make a non-nullable scalar optional during minimal-API
+`[AsParameters]` query binding. The binder can reject an omitted value before the handler runs.
+When omission is valid:
+
+1. Make the query-record property nullable.
+2. Keep DataAnnotations on the property so explicitly supplied values are validated.
+3. Coalesce to the default in the service, which is the authoritative boundary for HTTP and direct
+   callers.
+4. Add HTTP tests for omission and for an invalid explicit value.
+
+```csharp
+public sealed record GetPlayerRosterInput
+{
+    [Range(1, 100)]
+    public int? PageSize { get; init; }
+}
+
+var pageSize = input.PageSize ?? PlayerRosterDefaults.PageSize;
+```
+
 ## Enum Query Parameter Binding
 
 Query parameter enum binding in minimal APIs is **case-sensitive**. Always use explicit parsing with `ignoreCase: true`:

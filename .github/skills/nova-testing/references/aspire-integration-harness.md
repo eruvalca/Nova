@@ -6,6 +6,10 @@ Canonical files:
 - `Nova.Integration.Tests\Data\PostgresTenancyTests.cs` shows provider-specific database tests for migrations, `timestamptz`, `DateOnly`, and query-filter SQL translation.
 - `Nova.Integration.Tests\Data\CampaignParticipationPostgresTests.cs` shows database-constraint and optimistic-concurrency coverage.
 - `Nova.Integration.Tests\Data\CampaignLifecyclePostgresTests.cs` shows advisory-lock and competing-transaction race coverage.
+- `Nova.Integration.Tests\Data\ExecutionStrategyRetryTestSupport.cs` provides before-commit rollback
+  and lost-commit-acknowledgement fault injection.
+- `Nova.Integration.Tests\Data\PlayerManagementRetryTests.cs` shows fresh-context retries,
+  transaction atomicity, and exactly-once insert verification.
 - `Nova.Integration.Tests\Http\ProfilePhotoHttpTests.cs` shows HTTP-layer e2e tests against the running app.
 - `Nova.Integration.Tests\Http\IdentityHttpClientHelper.cs` shows HTTP auth bootstrap for tests.
 
@@ -17,12 +21,28 @@ transaction races, SQL translation, collation).
 
 Use `Nova.Integration.Tests` for Postgres-only behavior: production migrations,
 `timestamptz`/`DateOnly` mappings, database constraints, advisory locks, competing transactions,
-and filter SQL translation.
+execution-strategy retries, ambiguous commits, and filter SQL translation.
 
 SQLite is not Postgres: it won't catch `timestamptz` offset requirements, identity-column
 semantics, case-sensitivity/collation, advisory-lock behavior, competing-transaction races, or SQL
 translation limits. If behavior uses provider-sensitive constructs, mirror one focused test in
 `Nova.Integration.Tests`.
+
+## Retrying mutation fault injection
+
+Test retrying mutations against PostgreSQL in both failure modes:
+
+1. **Before commit** — inject a transient failure that rolls back the attempt. Assert that the
+   execution strategy retries with fresh context state and the mutation eventually commits
+   atomically.
+2. **After commit acknowledgement is lost** — commit the transaction, then inject the transient
+   failure. Assert that `verifySucceeded` reconstructs success instead of replaying a non-idempotent
+   insert.
+
+Use the shared helpers in
+`Nova.Integration.Tests\Data\ExecutionStrategyRetryTestSupport.cs`. Assert that the intended fault
+was injected and that exactly one aggregate with its complete dependent set persisted. SQLite
+cannot validate provider execution strategies or ambiguous-commit behavior.
 
 ## AppHost fixture internals
 

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
@@ -41,7 +42,136 @@ public sealed partial class PlayerManagementService(
             return ServiceProblem.Forbidden("You must be a club administrator to create players.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var creationOperationId = Guid.CreateVersion7();
+        return await ExecuteWithFreshContextAsync(
+            db => CreatePlayerAsync(
+                db,
+                input,
+                actorUserId,
+                clubId,
+                creationOperationId,
+                cancellationToken),
+            db => VerifyPlayerCreationAsync(
+                db,
+                clubId,
+                creationOperationId,
+                cancellationToken),
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<ServiceResult<PlayerDto>> UpdateAsync(
+        UpdatePlayerInput input,
+        CancellationToken cancellationToken = default)
+    {
+        var validationErrors = InputValidator.Validate(input);
+        if (validationErrors.Count > 0)
+        {
+            return ServiceProblem.Validation(validationErrors);
+        }
+
+        if (currentUserProvider.UserId is not long actorUserId
+            || currentUserProvider.ClubId is not long clubId
+            || !currentUserProvider.IsClubAdmin)
+        {
+            LogPlayerUpdateForbidden(input.PlayerId, currentUserProvider.UserId ?? 0);
+            return ServiceProblem.Forbidden("You must be a club administrator to edit players.");
+        }
+
+        return await ExecuteWithFreshContextAsync(
+            db => UpdatePlayerAsync(db, input, actorUserId, clubId, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Projects a <see cref="PlayerEntity"/> to a <see cref="PlayerDto"/>.
+    /// </summary>
+    private static PlayerDto ToDto(PlayerEntity player) => new()
+    {
+        PlayerId = player.PlayerId,
+        ClubId = player.ClubId,
+        FirstName = player.FirstName,
+        LastName = player.LastName,
+        DateOfBirth = player.DateOfBirth,
+        GraduationYear = player.GraduationYear,
+        Gender = player.Gender,
+        JerseyNumber = player.JerseyNumber,
+        LifecycleStatus = player.LifecycleStatus
+    };
+
+    /// <summary>
+    /// Runs a player-management mutation inside EF Core's retrying execution strategy while creating
+    /// a fresh tenant context for each execution attempt.
+    /// </summary>
+    /// <typeparam name="TResult">The result produced by the mutation attempt.</typeparam>
+    /// <param name="operation">The mutation to run with a fresh tenant context.</param>
+    /// <param name="cancellationToken">A token that cancels the strategy setup or mutation attempt.</param>
+    /// <returns>The result returned by the successful execution-strategy attempt.</returns>
+    private async Task<TResult> ExecuteWithFreshContextAsync<TResult>(
+        Func<NovaDbContext, Task<TResult>> operation,
+        CancellationToken cancellationToken)
+    {
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            return await operation(db);
+        });
+    }
+
+    /// <summary>
+    /// Runs a player-management mutation inside EF Core's retrying execution strategy and verifies
+    /// whether an ambiguous commit succeeded before allowing the strategy to replay the mutation.
+    /// </summary>
+    /// <typeparam name="TResult">The result produced by the mutation attempt.</typeparam>
+    /// <param name="operation">The mutation to run with a fresh tenant context.</param>
+    /// <param name="verifySucceeded">The verification query to run with a fresh tenant context.</param>
+    /// <param name="cancellationToken">A token that cancels strategy setup, mutation, or verification.</param>
+    /// <returns>The mutation result or the reconstructed result from successful commit verification.</returns>
+    private async Task<TResult> ExecuteWithFreshContextAsync<TResult>(
+        Func<NovaDbContext, Task<TResult>> operation,
+        Func<NovaDbContext, Task<ExecutionResult<TResult>>> verifySucceeded,
+        CancellationToken cancellationToken)
+    {
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(
+            (Operation: operation, VerifySucceeded: verifySucceeded),
+            async (state, _) =>
+            {
+                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                return await state.Operation(db);
+            },
+            async (state, _) =>
+            {
+                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                return await state.VerifySucceeded(db);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates one player and enrolls them in every active campaign using one transactional execution
+    /// attempt.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="input">The requested player profile details.</param>
+    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="creationOperationId">The stable identifier for this logical creation operation.</param>
+    /// <param name="cancellationToken">A token that cancels the database work.</param>
+    /// <returns>The created player or a ProblemDetails-mappable failure.</returns>
+    private async Task<ServiceResult<PlayerDto>> CreatePlayerAsync(
+        NovaDbContext db,
+        CreatePlayerInput input,
+        long actorUserId,
+        long clubId,
+        Guid creationOperationId,
+        CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         // Serialize with campaign creation so late-joining player and concurrent campaign cannot miss each other.
@@ -57,6 +187,7 @@ public sealed partial class PlayerManagementService(
             JerseyNumber = input.JerseyNumber,
             LifecycleStatus = LifecycleStatus.Active,
             ClubId = clubId,
+            CreationOperationId = creationOperationId,
             CreatedById = default
         };
 
@@ -105,26 +236,49 @@ public sealed partial class PlayerManagementService(
         return ToDto(player);
     }
 
-    /// <inheritdoc />
-    public async Task<ServiceResult<PlayerDto>> UpdateAsync(
-        UpdatePlayerInput input,
-        CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Checks whether a player-creation transaction with an uncertain commit outcome was committed
+    /// and reconstructs its successful service result without replaying the insert.
+    /// </summary>
+    /// <param name="db">The fresh tenant context used for commit verification.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="creationOperationId">The stable identifier for the logical creation operation.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>An execution result indicating whether the committed player was found.</returns>
+    private static async Task<ExecutionResult<ServiceResult<PlayerDto>>> VerifyPlayerCreationAsync(
+        NovaDbContext db,
+        long clubId,
+        Guid creationOperationId,
+        CancellationToken cancellationToken)
     {
-        var validationErrors = InputValidator.Validate(input);
-        if (validationErrors.Count > 0)
-        {
-            return ServiceProblem.Validation(validationErrors);
-        }
+        var player = await db.Players
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.ClubId == clubId
+                    && candidate.CreationOperationId == creationOperationId,
+                cancellationToken);
 
-        if (currentUserProvider.UserId is not long actorUserId
-            || currentUserProvider.ClubId is not long clubId
-            || !currentUserProvider.IsClubAdmin)
-        {
-            LogPlayerUpdateForbidden(input.PlayerId, currentUserProvider.UserId ?? 0);
-            return ServiceProblem.Forbidden("You must be a club administrator to edit players.");
-        }
+        return player is null
+            ? new ExecutionResult<ServiceResult<PlayerDto>>(successful: false, default!)
+            : new ExecutionResult<ServiceResult<PlayerDto>>(successful: true, ToDto(player));
+    }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+    /// <summary>
+    /// Updates one player profile using one transactional execution attempt.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="input">The requested player profile updates.</param>
+    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the database work.</param>
+    /// <returns>The updated player or a ProblemDetails-mappable failure.</returns>
+    private async Task<ServiceResult<PlayerDto>> UpdatePlayerAsync(
+        NovaDbContext db,
+        UpdatePlayerInput input,
+        long actorUserId,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await db.AcquirePlayerMutationLockAsync(input.PlayerId, cancellationToken);
 
@@ -198,22 +352,6 @@ public sealed partial class PlayerManagementService(
         LogPlayerUpdated(player.PlayerId, actorUserId);
         return ToDto(player);
     }
-
-    /// <summary>
-    /// Projects a <see cref="PlayerEntity"/> to a <see cref="PlayerDto"/>.
-    /// </summary>
-    private static PlayerDto ToDto(PlayerEntity player) => new()
-    {
-        PlayerId = player.PlayerId,
-        ClubId = player.ClubId,
-        FirstName = player.FirstName,
-        LastName = player.LastName,
-        DateOfBirth = player.DateOfBirth,
-        GraduationYear = player.GraduationYear,
-        Gender = player.Gender,
-        JerseyNumber = player.JerseyNumber,
-        LifecycleStatus = player.LifecycleStatus
-    };
 
     /// <summary>
     /// Encodes graduation-year blocker items into the ServiceProblem errors dictionary using

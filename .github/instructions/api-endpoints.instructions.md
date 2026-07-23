@@ -1,6 +1,6 @@
 ---
-applyTo: "Nova/Features/**/*.cs,Nova.Shared/**/*Endpoints.cs,Nova.Client/Services/**/*.cs"
-description: "HTTP endpoint rules: route constants, MapGroup, static handlers, ServiceResult-to-HTTP conversion, ProblemDetails/trace IDs, validation, authorization, antiforgery, and enum binding."
+applyTo: "Nova/Features/**/*.cs,Nova.Shared/**/*Endpoints.cs,Nova.Shared/**/*Input.cs,Nova.Client/Services/**/*.cs"
+description: "HTTP endpoint rules: routes, handlers, ProblemDetails, validation, optional AsParameters query binding, authorization, antiforgery, and enum binding."
 ---
 
 # API Endpoint Rules
@@ -58,6 +58,14 @@ description: "HTTP endpoint rules: route constants, MapGroup, static handlers, S
   `.ProducesValidationProblem()` (not `.ProducesProblem(400)`).
 - For inputs not expressible as DataAnnotations (file size, content-type, streaming), validate manually
   in the handler and return `ServiceProblem.Validation(...).ToHttpResult()`.
+
+## Optional `[AsParameters]` query properties
+
+- A property initializer does not make a non-nullable scalar optional during minimal-API
+  `[AsParameters]` query binding. If omission is valid, make the property nullable, retain
+  DataAnnotations for explicitly supplied values, and coalesce to the default in the service.
+- Add HTTP coverage for both an omitted optional property and an invalid explicit value so binding
+  and validation behavior are exercised before the handler boundary.
 
 ## Enum query parameters
 

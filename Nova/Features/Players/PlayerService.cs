@@ -45,8 +45,8 @@ public sealed partial class PlayerService(
         var normalizedSearch = string.IsNullOrWhiteSpace(input.Search) ? null : input.Search.Trim();
         var normalizedSortBy = string.IsNullOrWhiteSpace(input.SortBy) ? "displayName" : input.SortBy.Trim();
         var normalizedSortDirection = string.IsNullOrWhiteSpace(input.SortDirection) ? "asc" : input.SortDirection.Trim();
-        var page = input.Page;
-        var pageSize = input.PageSize;
+        var page = input.Page ?? GetPlayerRosterInput.DefaultPage;
+        var pageSize = input.PageSize ?? GetPlayerRosterInput.DefaultPageSize;
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
         var isNpgsql = db.Database.IsNpgsql();

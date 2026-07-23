@@ -367,56 +367,146 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies the player-roster API route is registered and enforces expected auth boundaries.
+    /// Verifies the player-roster API rejects anonymous requests.
     /// </summary>
     [Fact]
-    public async Task PlayerRosterApi_Enforces401And403_AndAllowsSameClubMembersAsync()
+    public async Task PlayerRosterApi_ReturnsUnauthorized_ForAnonymousUserAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
+        var rosterUrl = GetPlayerRosterEndpoints.GetRosterUrl(clubId: 1);
+
+        using var response = await anonymousClient.GetAsync(rosterUrl, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// Verifies a member of another club receives forbidden ProblemDetails from the player-roster API.
+    /// </summary>
+    [Fact]
+    public async Task PlayerRosterApi_ReturnsForbidden_ForCrossClubMemberAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var targetClubAdminClient = fixture.CreateNovaHttpClient();
+        using var otherClubAdminClient = fixture.CreateNovaHttpClient();
+        var targetClub = await CreateClubWithAdminAsync(
+            targetClubAdminClient,
+            "roster-api-target-admin",
+            "Rhea",
+            "RosterAdmin",
+            "Nashville North",
+            "Nashville",
+            "TN",
+            cancellationToken);
+        _ = await CreateClubWithAdminAsync(
+            otherClubAdminClient,
+            "roster-api-other-admin",
+            "Oscar",
+            "OtherClub",
+            "Memphis Monarchs",
+            "Memphis",
+            "TN",
+            cancellationToken);
+
+        using var response = await otherClubAdminClient.GetAsync(
+            GetPlayerRosterEndpoints.GetRosterUrl(targetClub.ClubId),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        var problem = await response.ToServiceProblemAsync(cancellationToken);
+        problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    /// <summary>
+    /// Verifies a same-club member receives the default first roster page.
+    /// </summary>
+    [Fact]
+    public async Task PlayerRosterApi_ReturnsDefaultPage_ForSameClubMemberAsync()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAdminClient = fixture.CreateNovaHttpClient();
-        using var sameClubMemberClient = fixture.CreateNovaHttpClient();
-        using var otherClubMemberClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var club = await CreateClubWithAdminAsync(
+            clubAdminClient,
+            "roster-api-admin",
+            "Rhea",
+            "RosterAdmin",
+            "Nashville North",
+            "Nashville",
+            "TN",
+            cancellationToken);
+        await RegisterClubMemberAsync(
+            memberClient,
+            "roster-api-member",
+            "Mila",
+            "Member",
+            club.ClubId,
+            cancellationToken);
 
-        var adminEmail = UniqueEmail("roster-api-admin");
-        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(clubAdminClient, adminEmail, Password, cancellationToken);
-        await UpdateUserAsync(adminEmail, "Rhea", "RosterAdmin", clubId: null, cancellationToken);
-        var club = await CreateClubAsync(clubAdminClient, "Nashville North", "Nashville", "TN", cancellationToken);
-        await RefreshClubMembershipCookieAsync(clubAdminClient, cancellationToken);
+        using var response = await memberClient.GetAsync(
+            GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId),
+            cancellationToken);
 
-        var memberEmail = UniqueEmail("roster-api-member");
-        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(sameClubMemberClient, memberEmail, Password, cancellationToken);
-        await UpdateUserAsync(memberEmail, "Mila", "Member", club.ClubId, cancellationToken);
-        await RefreshClubMembershipCookieAsync(sameClubMemberClient, cancellationToken);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<PagedResult<PlayerListItem>>(cancellationToken);
+        payload.ShouldNotBeNull();
+        payload.Page.ShouldBe(GetPlayerRosterInput.DefaultPage);
+        payload.PageSize.ShouldBe(GetPlayerRosterInput.DefaultPageSize);
+    }
 
-        var otherClubEmail = UniqueEmail("roster-api-other");
-        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(otherClubMemberClient, otherClubEmail, Password, cancellationToken);
-        await UpdateUserAsync(otherClubEmail, "Oscar", "OtherClub", clubId: null, cancellationToken);
-        _ = await CreateClubAsync(otherClubMemberClient, "Memphis Monarchs", "Memphis", "TN", cancellationToken);
-        await RefreshClubMembershipCookieAsync(otherClubMemberClient, cancellationToken);
+    /// <summary>
+    /// Registers a completed-profile user, creates their club, and refreshes their membership claims.
+    /// </summary>
+    /// <param name="client">The authenticated client to configure as the club admin.</param>
+    /// <param name="emailPrefix">The unique email prefix for the user.</param>
+    /// <param name="firstName">The user's first name.</param>
+    /// <param name="lastName">The user's last name.</param>
+    /// <param name="clubName">The club name.</param>
+    /// <param name="city">The club city.</param>
+    /// <param name="state">The club state.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The created club.</returns>
+    private async Task<ClubDto> CreateClubWithAdminAsync(
+        HttpClient client,
+        string emailPrefix,
+        string firstName,
+        string lastName,
+        string clubName,
+        string city,
+        string state,
+        CancellationToken cancellationToken)
+    {
+        var email = UniqueEmail(emailPrefix);
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, firstName, lastName, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, clubName, city, state, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        return club;
+    }
 
-        var rosterUrl = GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId);
-
-        using (var anonymousResponse = await anonymousClient.GetAsync(rosterUrl, cancellationToken))
-        {
-            anonymousResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        }
-
-        using (var crossClubResponse = await otherClubMemberClient.GetAsync(rosterUrl, cancellationToken))
-        {
-            crossClubResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-            var problem = await crossClubResponse.ToServiceProblemAsync(cancellationToken);
-            problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
-        }
-
-        using (var sameClubResponse = await sameClubMemberClient.GetAsync(rosterUrl, cancellationToken))
-        {
-            sameClubResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-            var payload = await sameClubResponse.Content.ReadFromJsonAsync<PagedResult<PlayerListItem>>(cancellationToken);
-            payload.ShouldNotBeNull();
-            payload.Page.ShouldBe(1);
-            payload.PageSize.ShouldBe(20);
-        }
+    /// <summary>
+    /// Registers a completed-profile user as a member of an existing club and refreshes their claims.
+    /// </summary>
+    /// <param name="client">The authenticated client to configure as a club member.</param>
+    /// <param name="emailPrefix">The unique email prefix for the user.</param>
+    /// <param name="firstName">The user's first name.</param>
+    /// <param name="lastName">The user's last name.</param>
+    /// <param name="clubId">The club the user belongs to.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the member's cookie carries the club claim.</returns>
+    private async Task RegisterClubMemberAsync(
+        HttpClient client,
+        string emailPrefix,
+        string firstName,
+        string lastName,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
+        var email = UniqueEmail(emailPrefix);
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, firstName, lastName, clubId, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
     }
 
     /// <summary>

@@ -1,5 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
-using Nova.Features.Shared;
+﻿using Nova.Features.Shared;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Nova.Shared.Security;

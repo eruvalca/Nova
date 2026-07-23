@@ -1,6 +1,6 @@
 ---
 applyTo: "Nova/Features/**/*Service.cs,Nova.Shared/**/I*Service.cs,Nova.Shared/Results/**/*.cs,Nova.Client/Services/**/*.cs"
-description: "Service-layer rules: dual-layer validation, ServiceProblem/ServiceResult types, OneOf preference, trace ID guarantee, and logging conventions."
+description: "Service-layer rules: validation, ServiceResult, retry-safe transactions, lifecycle locking, trace IDs, and logging."
 ---
 
 # Service-Layer Rules
@@ -75,6 +75,17 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
   order: campaign → player → team → tag.
 - The lock is intentionally a no-op under SQLite. Add a PostgreSQL integration test for lifecycle
   races such as close-versus-write or archive-versus-placement.
+
+## Retrying execution strategies
+
+- With a retrying database provider, run the entire explicit transaction inside
+  `CreateExecutionStrategy().ExecuteAsync`. Create and dispose a fresh `DbContext` and transaction
+  for every attempt; never reuse tracked state after a transient failure.
+- For inserts whose commit acknowledgement can be lost, generate a stable operation ID before the
+  first attempt, enforce tenant-scoped uniqueness in the database, and use `verifySucceeded` to
+  reconstruct the committed result instead of replaying a non-idempotent mutation.
+- Verify retry behavior with focused PostgreSQL integration tests; the SQLite harness cannot model
+  provider execution strategies or ambiguous commits.
 
 ## Functional core boundary
 
