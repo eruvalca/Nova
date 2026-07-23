@@ -44,7 +44,7 @@ public partial class PlayerDetail(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
-        _returnUrl = string.IsNullOrWhiteSpace(ReturnUrl) ? "/players" : ReturnUrl;
+        _returnUrl = NormalizeReturnUrl(ReturnUrl);
         var result = await playerDetailService.GetPlayerDetailAsync(PlayerId, ComponentCancellationToken);
         result.Switch(
             detail => _detail = detail,
@@ -58,5 +58,28 @@ public partial class PlayerDetail(
 
                 _error = problem.Detail ?? "Could not load player details.";
             });
+    }
+
+    /// <summary>
+    /// Normalizes the inbound return URL to a safe local path within this application.
+    /// </summary>
+    /// <param name="returnUrl">The incoming return URL query value.</param>
+    /// <returns>A safe local path for the roster back link.</returns>
+    private static string NormalizeReturnUrl(string? returnUrl)
+    {
+        if (string.IsNullOrWhiteSpace(returnUrl))
+        {
+            return "/players";
+        }
+
+        var candidate = returnUrl.Trim();
+        if (!Uri.IsWellFormedUriString(candidate, UriKind.Relative)
+            || candidate.StartsWith("//", StringComparison.Ordinal)
+            || candidate.StartsWith("\\\\", StringComparison.Ordinal))
+        {
+            return "/players";
+        }
+
+        return candidate.StartsWith('/') ? candidate : $"/{candidate}";
     }
 }

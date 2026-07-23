@@ -154,6 +154,24 @@ public partial class Players(
     private bool _queryFiltersApplied;
 
     /// <summary>
+    /// Gets or sets the persisted startup roster snapshot used across prerender and interactive attach.
+    /// </summary>
+    [PersistentState]
+    public PagedResult<PlayerListItem>? PersistedRoster { get; set; }
+
+    /// <summary>
+    /// Gets or sets the persisted startup page error used across prerender and interactive attach.
+    /// </summary>
+    [PersistentState]
+    public string? PersistedPageError { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether startup initialization already completed during prerender.
+    /// </summary>
+    [PersistentState]
+    public bool Initialized { get; set; }
+
+    /// <summary>
     /// Gets or sets the incoming lifecycle view query parameter.
     /// </summary>
     [SupplyParameterFromQuery(Name = "view")]
@@ -208,21 +226,33 @@ public partial class Players(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
-        _isLoading = true;
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authenticationState.User;
 
         _canManagePlayers = principal.IsInRole(Roles.Admin) || principal.IsInRole(Roles.ClubAdmin);
         _clubId = ReadClubIdClaim(principal);
 
+        if (Initialized)
+        {
+            _roster = PersistedRoster;
+            _pageError = PersistedPageError;
+            _isLoading = false;
+            return;
+        }
+
+        _isLoading = true;
         if (_clubId is null)
         {
             _pageError = "You must join a club before viewing the player roster.";
+            PersistStartupState();
+            Initialized = true;
             _isLoading = false;
             return;
         }
 
         await LoadRosterAsync();
+        PersistStartupState();
+        Initialized = true;
     }
 
     /// <summary>
@@ -281,7 +311,17 @@ public partial class Players(
                 _roster = null;
             });
 
+        PersistStartupState();
         _isLoading = false;
+    }
+
+    /// <summary>
+    /// Persists the current startup roster/error state for prerender-to-interactive restoration.
+    /// </summary>
+    private void PersistStartupState()
+    {
+        PersistedRoster = _roster;
+        PersistedPageError = _pageError;
     }
 
     /// <summary>

@@ -10,6 +10,7 @@ using Nova.Shared.Players;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using OneOf.Types;
+using PlayerDetailPage = Nova.UI.Features.Players.Pages.PlayerDetail;
 using PlayersPage = Nova.UI.Features.Players.Pages.Players;
 using Shouldly;
 
@@ -259,6 +260,42 @@ public sealed class PlayerComponentsTests : BunitContext
             cut.Markup.ShouldContain("The FirstName field is required.");
             cut.Markup.ShouldContain("The LastName field is required.");
         });
+    }
+
+    [Fact]
+    public void PlayerDetail_UsesPlayersFallback_WhenReturnUrlIsExternal()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        Services.AddSingleton(detailService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/players/7?returnUrl=https%3A%2F%2Fevil.example%2Fphish");
+
+        var cut = Render<PlayerDetailPage>(parameters => parameters
+            .Add(component => component.PlayerId, 7));
+
+        cut.WaitForAssertion(() =>
+            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/players"));
+    }
+
+    [Fact]
+    public void PlayerDetail_PreservesSafeRelativeReturnUrl()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        Services.AddSingleton(detailService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/players/7?returnUrl=%2Fplayers%3Fview%3Darchived%26search%3DAvery");
+
+        var cut = Render<PlayerDetailPage>(parameters => parameters
+            .Add(component => component.PlayerId, 7));
+
+        cut.WaitForAssertion(() =>
+            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/players?view=archived&search=Avery"));
     }
 
     private void RegisterServices(
