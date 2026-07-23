@@ -51,12 +51,12 @@ Added `[PersistentState]` startup restoration to `Players` (`Initialized`, `Pers
 
 ## Phase 3: Respond and resolve PR threads
 
-Status: In progress <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator
 
-- [ ] Post thread replies summarizing fixes (or invalid rationale if any).
-- [ ] Resolve each review thread after code/test updates are complete.
+- [x] Post thread replies summarizing fixes (or invalid rationale if any).
+- [x] Resolve each review thread after code/test updates are complete.
 
 ### Verification Plan
 
@@ -64,12 +64,13 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+Posted inline thread replies describing the implemented fixes and resolved both review threads via GraphQL `resolveReviewThread`. Verification query confirms both threads are now `isResolved: true`.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Reviewed all inline PR comments on #37, classified both as valid, implemented the requested fixes, added focused component coverage for return-url safety behavior, replied on each thread, and resolved all review threads.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Keep branch `eruvalca-build-player-roster-create-edit-archive` as PR head and ensure CI completes on commit `718b6c4`.
+2. Merge PR #37 once required checks/reviews pass.
