@@ -1,0 +1,80 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using Nova.Shared.Enums
+
+<section class="card shadow-sm border-0">
+    <div class="card-body">
+        <h2 class="h5 mb-3">@Heading</h2>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert" aria-live="assertive">@ErrorMessage</div>
+        }
+
+        @if (GraduationYearBlockers.Count > 0)
+        {
+            <div class="alert alert-warning" role="alert" aria-live="polite">
+                <div class="fw-semibold mb-2">Resolve active placements before lowering graduation year:</div>
+                <ul class="mb-0">
+                    @foreach (var blocker in GraduationYearBlockers)
+                    {
+                        <li>
+                            Campaign @blocker.CampaignId, Team @blocker.TeamId requires graduation year @blocker.TeamGraduationYear.
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <EditForm Model="Model" OnValidSubmit="OnValidSubmit">
+            <DataAnnotationsValidator />
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="player-first-name" class="form-label">First name</label>
+                    <InputText id="player-first-name" class="form-control" @bind-Value="Model.FirstName" />
+                    <ValidationMessage For="() => Model.FirstName" class="text-danger small" />
+                </div>
+                <div class="col-md-6">
+                    <label for="player-last-name" class="form-label">Last name</label>
+                    <InputText id="player-last-name" class="form-control" @bind-Value="Model.LastName" />
+                    <ValidationMessage For="() => Model.LastName" class="text-danger small" />
+                </div>
+                <div class="col-md-4">
+                    <label for="player-dob" class="form-label">Date of birth</label>
+                    <InputDate id="player-dob" class="form-control" @bind-Value="Model.DateOfBirth" />
+                    <ValidationMessage For="() => Model.DateOfBirth" class="text-danger small" />
+                </div>
+                <div class="col-md-4">
+                    <label for="player-grad-year" class="form-label">Graduation year</label>
+                    <InputNumber id="player-grad-year" class="form-control" @bind-Value="Model.GraduationYear" />
+                    <ValidationMessage For="() => Model.GraduationYear" class="text-danger small" />
+                </div>
+                <div class="col-md-4">
+                    <label for="player-gender" class="form-label">Gender</label>
+                    <InputSelect id="player-gender" class="form-select" @bind-Value="Model.Gender">
+                        <option value="">Not specified</option>
+                        @foreach (var option in GenderOptions)
+                        {
+                            <option value="@option">@option</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-4">
+                    <label for="player-jersey" class="form-label">Jersey number</label>
+                    <InputNumber id="player-jersey" class="form-control" @bind-Value="Model.JerseyNumber" />
+                    <ValidationMessage For="() => Model.JerseyNumber" class="text-danger small" />
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                    @if (IsSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                    }
+                    @SubmitButtonText
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="OnCancel">Cancel</button>
+            </div>
+        </EditForm>
+    </div>
+</section>

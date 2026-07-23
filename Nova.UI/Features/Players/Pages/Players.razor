@@ -1,0 +1,250 @@
+@page "/players"
+@rendermode InteractiveAuto
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Enums
+@using Nova.Shared.Security
+@using Nova.UI.Features.Players.Components
+
+<PageTitle>Players</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <h1 class="mb-0">Players</h1>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <label for="players-view-filter" class="visually-hidden">Roster view</label>
+            <select id="players-view-filter" class="form-select players-view-select" value="@_lifecycleStatusFilter" @onchange="OnLifecycleStatusChangedAsync">
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+            </select>
+            @if (_canManagePlayers)
+            {
+                <button type="button" class="btn btn-primary" @onclick="ShowCreateForm">
+                    Add player
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_statusMessage))
+    {
+        <div class="alert alert-success" role="status" aria-live="polite">@_statusMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_pageError))
+    {
+        <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+            <span>@_pageError</span>
+            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="ReloadAsync">Retry</button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="players-search" class="form-label">Search name or tryout number</label>
+                    <input id="players-search"
+                           class="form-control"
+                           type="search"
+                           value="@_searchDraft"
+                           @oninput="OnSearchInputChangedAsync"
+                           placeholder="e.g. Avery, 12" />
+                </div>
+                <div class="col-md-3">
+                    <label for="players-grad-year" class="form-label">Graduation year</label>
+                    <select id="players-grad-year" class="form-select" value="@GraduationYearFilterText" @onchange="OnGraduationYearChangedAsync">
+                        <option value="">All years</option>
+                        @foreach (var year in _availableGraduationYears)
+                        {
+                            <option value="@year.ToString()">@year</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="players-tag-filter" class="form-label">Tag</label>
+                    <select id="players-tag-filter" class="form-select" value="@PlayerTagFilterText" @onchange="OnTagFilterChangedAsync">
+                        <option value="">All tags</option>
+                        @foreach (var tag in _availableTags)
+                        {
+                            <option value="@tag.PlayerTagId.ToString()">@tag.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_showCreateForm)
+    {
+        <div class="mb-3">
+            <PlayerForm Heading="Add player"
+                        Model="_createForm"
+                        SubmitButtonText="Create player"
+                        IsSubmitting="_isMutating"
+                        ErrorMessage="_mutationError"
+                        GraduationYearBlockers="_graduationYearBlockers"
+                        OnValidSubmit="CreatePlayerAsync"
+                        OnCancel="CancelMutationForm" />
+        </div>
+    }
+
+    @if (_editForm is not null)
+    {
+        <div class="mb-3">
+            <PlayerForm Heading="Edit player"
+                        Model="_editForm"
+                        SubmitButtonText="Save changes"
+                        IsSubmitting="_isMutating"
+                        ErrorMessage="_mutationError"
+                        GraduationYearBlockers="_graduationYearBlockers"
+                        OnValidSubmit="UpdatePlayerAsync"
+                        OnCancel="CancelMutationForm" />
+        </div>
+    }
+
+    @if (_archiveCandidate is not null)
+    {
+        <section class="card shadow-sm border-0 mb-3" aria-live="polite">
+            <div class="card-body">
+                <h2 class="h5">Archive @(_archiveCandidate.DisplayName)?</h2>
+                <p class="text-muted">
+                    Archiving preserves campaign history. Any unresolved active-campaign blockers must be resolved first.
+                </p>
+                @if (_archiveBlockers.Count > 0)
+                {
+                    <div class="alert alert-warning" role="alert">
+                        <div class="fw-semibold mb-2">Archive blockers:</div>
+                        <ul class="mb-0">
+                            @foreach (var blocker in _archiveBlockers)
+                            {
+                                <li>
+                                    @blocker.CampaignName (Campaign @blocker.CampaignId): participation IDs @string.Join(", ", blocker.ParticipationIds)
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+                <div class="form-check mb-3">
+                    <input id="archive-confirm-checkbox" class="form-check-input" type="checkbox" @bind="_archiveConfirmed" />
+                    <label class="form-check-label" for="archive-confirm-checkbox">
+                        I understand this player will be moved to the archived roster.
+                    </label>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-warning" disabled="@(!_archiveConfirmed || _isMutating)" @onclick="ConfirmArchiveAsync">Archive player</button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelArchive">Cancel</button>
+                </div>
+            </div>
+        </section>
+    }
+
+    @if (_isLoading)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex align-items-center gap-2">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>Loading players...</span>
+            </div>
+        </div>
+    }
+    else if (_roster?.Items.Count is 0)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <h2 class="h5 mb-2">No players found</h2>
+                <p class="text-muted mb-0">Try changing filters or add a new player.</p>
+            </div>
+        </div>
+    }
+    else if (_roster is not null)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Graduation year</th>
+                            <th scope="col">Tags</th>
+                            <th scope="col">Active campaigns</th>
+                            @if (_canManagePlayers)
+                            {
+                                <th scope="col" class="text-end">Actions</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var player in _roster.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <a href="@BuildPlayerDetailUrl(player.PlayerId)">@player.DisplayName</a>
+                                </td>
+                                <td>@player.GraduationYear</td>
+                                <td>
+                                    @if (player.CurrentTags.Count == 0)
+                                    {
+                                        <span class="text-muted">None</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach (var tag in player.CurrentTags)
+                                            {
+                                                <span class="badge rounded-pill tag-pill" style="@BuildTagStyle(tag)">@tag.Name</span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                                <td>
+                                    @if (player.ActiveCampaigns.Count == 0)
+                                    {
+                                        <span class="text-muted">None</span>
+                                    }
+                                    else
+                                    {
+                                        @string.Join(", ", player.ActiveCampaigns)
+                                    }
+                                </td>
+                                @if (_canManagePlayers)
+                                {
+                                    <td class="text-end">
+                                        <div class="d-flex flex-wrap justify-content-end gap-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => BeginEditAsync(player)">
+                                                Edit
+                                            </button>
+                                            @if (player.LifecycleStatus == LifecycleStatus.Active)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-warning" @onclick="() => BeginArchive(player)">
+                                                    Archive
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-success" @onclick="() => RestorePlayerAsync(player)">
+                                                    Restore
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (IsRosterTruncated)
+        {
+            <div class="alert alert-info mt-3" role="status">
+                Showing first @_roster.Items.Count of @_roster.TotalCount players. Refine filters to narrow the roster.
+            </div>
+        }
+
+        <p class="form-text mt-2">
+            Restoring reactivates the profile only; campaigns missed while archived are not backfilled automatically.
+        </p>
+    }
+</div>

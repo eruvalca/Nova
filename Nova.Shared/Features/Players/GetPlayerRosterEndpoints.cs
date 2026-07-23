@@ -27,6 +27,9 @@ public static class GetPlayerRosterEndpoints
     /// </summary>
     /// <param name="clubId">The club identifier.</param>
     /// <param name="search">The optional search term.</param>
+    /// <param name="lifecycleStatus">The optional lifecycle-status view filter (<c>active</c> or <c>archived</c>).</param>
+    /// <param name="graduationYear">The optional graduation-year filter.</param>
+    /// <param name="playerTagId">The optional player-tag filter.</param>
     /// <param name="sortBy">The optional sort field.</param>
     /// <param name="sortDirection">The optional sort direction.</param>
     /// <param name="page">The optional 1-based page number.</param>
@@ -35,6 +38,9 @@ public static class GetPlayerRosterEndpoints
     public static string GetRosterUrl(
         long clubId,
         string? search = null,
+        string? lifecycleStatus = null,
+        int? graduationYear = null,
+        long? playerTagId = null,
         string? sortBy = null,
         string? sortDirection = null,
         int? page = null,
@@ -45,6 +51,27 @@ public static class GetPlayerRosterEndpoints
         if (!string.IsNullOrWhiteSpace(search))
         {
             querySegments.Add($"search={Uri.EscapeDataString(search)}");
+        }
+
+        var normalizedLifecycleStatus = lifecycleStatus?.Trim().ToLowerInvariant() switch
+        {
+            "active" => "active",
+            "archived" => "archived",
+            _ => null
+        };
+        if (normalizedLifecycleStatus is not null)
+        {
+            querySegments.Add($"lifecycleStatus={Uri.EscapeDataString(normalizedLifecycleStatus)}");
+        }
+
+        if (graduationYear is >= 2000 and <= 2100)
+        {
+            querySegments.Add($"graduationYear={graduationYear.Value}");
+        }
+
+        if (playerTagId is > 0)
+        {
+            querySegments.Add($"playerTagId={playerTagId.Value}");
         }
 
         if (!string.IsNullOrWhiteSpace(sortBy))

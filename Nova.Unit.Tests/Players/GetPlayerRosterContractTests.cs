@@ -19,12 +19,15 @@ public sealed class GetPlayerRosterContractTests
         var url = GetPlayerRosterEndpoints.GetRosterUrl(
             clubId: 42,
             search: "Bo B",
+            lifecycleStatus: "archived",
+            graduationYear: 2031,
+            playerTagId: 8,
             sortBy: "joinedAt",
             sortDirection: "desc",
             page: 3,
             pageSize: 50);
 
-        url.ShouldBe("/api/clubs/42/players/roster?search=Bo%20B&sortBy=joinedAt&sortDirection=desc&page=3&pageSize=50");
+        url.ShouldBe("/api/clubs/42/players/roster?search=Bo%20B&lifecycleStatus=archived&graduationYear=2031&playerTagId=8&sortBy=joinedAt&sortDirection=desc&page=3&pageSize=50");
     }
 
     [Fact]
@@ -44,5 +47,37 @@ public sealed class GetPlayerRosterContractTests
         var errors = InputValidator.Validate(input);
 
         errors.ShouldContainKey(nameof(GetPlayerRosterInput.SortBy));
+    }
+
+    [Fact]
+    public void GetPlayerRosterInput_ReturnsValidationError_ForInvalidLifecycleStatus()
+    {
+        var input = new GetPlayerRosterInput { ClubId = 42, LifecycleStatus = "retired" };
+
+        var errors = InputValidator.Validate(input);
+
+        errors.ShouldContainKey(nameof(GetPlayerRosterInput.LifecycleStatus));
+    }
+
+    [Fact]
+    public void GetRosterUrl_OmitsGraduationYear_WhenOutsideAllowedRange()
+    {
+        var url = GetPlayerRosterEndpoints.GetRosterUrl(
+            clubId: 42,
+            graduationYear: 2200,
+            lifecycleStatus: "active");
+
+        url.ShouldBe("/api/clubs/42/players/roster?lifecycleStatus=active");
+    }
+
+    [Fact]
+    public void GetRosterUrl_OmitsLifecycleStatus_WhenOutsideAllowedValues()
+    {
+        var url = GetPlayerRosterEndpoints.GetRosterUrl(
+            clubId: 42,
+            lifecycleStatus: "retired",
+            search: "Avery");
+
+        url.ShouldBe("/api/clubs/42/players/roster?search=Avery");
     }
 }

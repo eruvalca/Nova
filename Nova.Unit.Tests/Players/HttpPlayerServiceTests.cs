@@ -31,7 +31,18 @@ public sealed class HttpPlayerServiceTests
     public async Task GetPlayerRosterAsync_SendsGetToRosterEndpoint_AndReturnsPagedResult()
     {
         var payload = new PagedResult<PlayerListItem>(
-            [new PlayerListItem(10, "Alex Archer", new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero))],
+            [
+                new PlayerListItem
+                {
+                    PlayerId = 10,
+                    DisplayName = "Alex Archer",
+                    GraduationYear = 2030,
+                    LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active,
+                    CurrentTags = [],
+                    ActiveCampaigns = [],
+                    JoinedAt = new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)
+                }
+            ],
             Page: 1,
             PageSize: 20,
             TotalCount: 1);
@@ -49,6 +60,9 @@ public sealed class HttpPlayerServiceTests
             {
                 ClubId = 42,
                 Search = "Alex",
+                LifecycleStatus = "archived",
+                GraduationYear = 2031,
+                PlayerTagId = 17,
                 SortBy = "joinedAt",
                 SortDirection = "desc",
                 Page = 1,
@@ -61,7 +75,7 @@ public sealed class HttpPlayerServiceTests
         result.Value.Items.Single().DisplayName.ShouldBe("Alex Archer");
         handler.LastRequest.ShouldNotBeNull();
         handler.LastRequest.Method.ShouldBe(HttpMethod.Get);
-        handler.LastRequest.RequestUri!.PathAndQuery.ShouldBe("/api/clubs/42/players/roster?search=Alex&sortBy=joinedAt&sortDirection=desc&page=1&pageSize=20");
+        handler.LastRequest.RequestUri!.PathAndQuery.ShouldBe("/api/clubs/42/players/roster?search=Alex&lifecycleStatus=archived&graduationYear=2031&playerTagId=17&sortBy=joinedAt&sortDirection=desc&page=1&pageSize=20");
     }
 
     [Fact]

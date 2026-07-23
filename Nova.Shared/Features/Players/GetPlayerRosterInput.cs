@@ -36,6 +36,24 @@ public sealed record GetPlayerRosterInput
     public string? Search { get; init; }
 
     /// <summary>
+    /// Optional lifecycle-status view filter. Allowed values: <c>active</c>, <c>archived</c>.
+    /// </summary>
+    [RegularExpression("(?i)^(active|archived)$")]
+    public string? LifecycleStatus { get; init; }
+
+    /// <summary>
+    /// Optional exact graduation-year filter.
+    /// </summary>
+    [Range(2000, 2100)]
+    public int? GraduationYear { get; init; }
+
+    /// <summary>
+    /// Optional player-tag filter applied to active-campaign tag applications.
+    /// </summary>
+    [Range(1, long.MaxValue)]
+    public long? PlayerTagId { get; init; }
+
+    /// <summary>
     /// Optional sort field. Allowed values: <c>displayName</c>, <c>joinedAt</c>.
     /// </summary>
     [RegularExpression("(?i)^(displayName|joinedAt)$")]

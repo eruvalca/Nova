@@ -18,6 +18,9 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
         var url = GetPlayerRosterEndpoints.GetRosterUrl(
             input.ClubId,
             input.Search,
+            input.LifecycleStatus,
+            input.GraduationYear,
+            input.PlayerTagId,
             input.SortBy,
             input.SortDirection,
             input.Page,

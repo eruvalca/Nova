@@ -30,6 +30,27 @@ round-trip test in `Nova.Integration.Tests` for provider-sensitive queries.
 - **Do NOT pass VSTest-only flags** (`--nologo`, `--collect`, `--logger`) — MTP rejects them.
 - Filter by class with `--filter-class "*Name"`.
 
+## Aspire + Playwright validation (manual browser pass)
+
+Use this only when a ticket explicitly requires browser-level behavior validation (for example,
+interactive auth/claims propagation, UI mutation controls, or flow-level UX that unit/integration
+tests cannot fully prove).
+
+1. Start the app with Aspire from worktrees:
+   - `aspire start --isolated --non-interactive`
+2. Wait for the web resource before opening a browser:
+   - `aspire wait nova --non-interactive`
+3. Discover the frontend URL from Aspire state:
+   - `aspire describe --format Json`
+4. Execute the browser flow using Playwright MCP/CLI against that URL.
+5. Stop Aspire when done:
+   - `aspire stop --non-interactive`
+
+Rules:
+- Never guess the frontend URL; always read it from Aspire state.
+- Keep this pass focused and scenario-based (admin happy path + read-only role checks).
+- Clean temporary browser artifacts from repo paths after the run.
+
 ## Conventions
 
 - One behavior per test; name `Subject_Outcome_Condition` (e.g. `Interceptor_Throws_OnCrossTenantAdd`).
