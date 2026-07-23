@@ -69,4 +69,15 @@ public sealed class GetPlayerRosterContractTests
 
         url.ShouldBe("/api/clubs/42/players/roster?lifecycleStatus=active");
     }
+
+    [Fact]
+    public void GetRosterUrl_OmitsLifecycleStatus_WhenOutsideAllowedValues()
+    {
+        var url = GetPlayerRosterEndpoints.GetRosterUrl(
+            clubId: 42,
+            lifecycleStatus: "retired",
+            search: "Avery");
+
+        url.ShouldBe("/api/clubs/42/players/roster?search=Avery");
+    }
 }

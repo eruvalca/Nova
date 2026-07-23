@@ -53,9 +53,15 @@ public static class GetPlayerRosterEndpoints
             querySegments.Add($"search={Uri.EscapeDataString(search)}");
         }
 
-        if (!string.IsNullOrWhiteSpace(lifecycleStatus))
+        var normalizedLifecycleStatus = lifecycleStatus?.Trim().ToLowerInvariant() switch
         {
-            querySegments.Add($"lifecycleStatus={Uri.EscapeDataString(lifecycleStatus)}");
+            "active" => "active",
+            "archived" => "archived",
+            _ => null
+        };
+        if (normalizedLifecycleStatus is not null)
+        {
+            querySegments.Add($"lifecycleStatus={Uri.EscapeDataString(normalizedLifecycleStatus)}");
         }
 
         if (graduationYear is >= 2000 and <= 2100)
