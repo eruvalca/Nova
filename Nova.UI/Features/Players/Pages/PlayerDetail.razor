@@ -59,7 +59,7 @@
                     <div class="d-flex flex-wrap gap-2">
                         @foreach (var trait in _detail.CurrentTraits)
                         {
-                            <span class="badge rounded-pill" style="@($"background-color: {trait.Color}; color: #ffffff;")">@trait.Name</span>
+                            <span class="badge rounded-pill" style="@BuildTraitStyle(trait)">@trait.Name</span>
                         }
                     </div>
                 }

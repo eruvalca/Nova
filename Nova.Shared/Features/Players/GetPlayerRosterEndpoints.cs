@@ -58,7 +58,7 @@ public static class GetPlayerRosterEndpoints
             querySegments.Add($"lifecycleStatus={Uri.EscapeDataString(lifecycleStatus)}");
         }
 
-        if (graduationYear is >= 2000)
+        if (graduationYear is >= 2000 and <= 2100)
         {
             querySegments.Add($"graduationYear={graduationYear.Value}");
         }

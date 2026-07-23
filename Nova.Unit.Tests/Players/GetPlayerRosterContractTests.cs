@@ -58,4 +58,15 @@ public sealed class GetPlayerRosterContractTests
 
         errors.ShouldContainKey(nameof(GetPlayerRosterInput.LifecycleStatus));
     }
+
+    [Fact]
+    public void GetRosterUrl_OmitsGraduationYear_WhenOutsideAllowedRange()
+    {
+        var url = GetPlayerRosterEndpoints.GetRosterUrl(
+            clubId: 42,
+            graduationYear: 2200,
+            lifecycleStatus: "active");
+
+        url.ShouldBe("/api/clubs/42/players/roster?lifecycleStatus=active");
+    }
 }

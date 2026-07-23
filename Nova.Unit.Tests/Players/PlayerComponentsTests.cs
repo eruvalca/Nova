@@ -152,6 +152,43 @@ public sealed class PlayerComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Players_RequestsMaxPageSize_OnInitialRosterLoad()
+    {
+        var rosterService = Substitute.For<IPlayerService>();
+        rosterService.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems())));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        rosterService.Received().GetPlayerRosterAsync(
+            Arg.Is<GetPlayerRosterInput>(input =>
+                input != null
+                && input.Page == GetPlayerRosterInput.DefaultPage
+                && input.PageSize == GetPlayerRosterInput.MaxPageSize),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Players_ShowsTruncationMessage_WhenRosterIsLargerThanLoadedItems()
+    {
+        var rosterService = Substitute.For<IPlayerService>();
+        rosterService.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(
+                CreateRosterItems(),
+                totalCount: 120,
+                pageSize: GetPlayerRosterInput.MaxPageSize)));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() =>
+            cut.Markup.ShouldContain("Showing first 1 of 120 players. Refine filters to narrow the roster."));
+    }
+
+    [Fact]
     public void Players_PreservesFilterContext_InPlayerDetailLink()
     {
         RegisterServices(isClubAdmin: true);
@@ -298,6 +335,44 @@ public sealed class PlayerComponentsTests : BunitContext
             cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/players?view=archived&search=Avery"));
     }
 
+    [Fact]
+    public void Players_UsesFallbackTagColor_WhenRosterTagColorIsInvalid()
+    {
+        var rosterService = Substitute.For<IPlayerService>();
+        rosterService.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems(tagColor: "#0055AA; color: red;"))));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find(".tag-pill").GetAttribute("style").ShouldBe("background-color: #6C757D; color: #ffffff;");
+    }
+
+    [Fact]
+    public void PlayerDetail_UsesFallbackTagColor_WhenTraitColorIsInvalid()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                CreatePlayerDetail(currentTraits:
+                [
+                    new PlayerCurrentTraitDto(11, "Defender", "#0055AA; color: red;")
+                ]))));
+        Services.AddSingleton(detailService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/players/7");
+
+        var cut = Render<PlayerDetailPage>(parameters => parameters
+            .Add(component => component.PlayerId, 7));
+
+        cut.WaitForAssertion(() =>
+            cut.Find("span.badge.rounded-pill").GetAttribute("style")
+                .ShouldBe("background-color: #6C757D; color: #ffffff;"));
+    }
+
     private void RegisterServices(
         bool isClubAdmin,
         IPlayerService? rosterService = null,
@@ -328,10 +403,14 @@ public sealed class PlayerComponentsTests : BunitContext
         Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
     }
 
-    private static ServiceResult<PagedResult<PlayerListItem>> SuccessRosterResult(IReadOnlyList<PlayerListItem> items)
-        => new(new PagedResult<PlayerListItem>(items, 1, 20, items.Count));
+    private static ServiceResult<PagedResult<PlayerListItem>> SuccessRosterResult(
+        IReadOnlyList<PlayerListItem> items,
+        int? totalCount = null,
+        int page = 1,
+        int pageSize = 20)
+        => new(new PagedResult<PlayerListItem>(items, page, pageSize, totalCount ?? items.Count));
 
-    private static List<PlayerListItem> CreateRosterItems()
+    private static List<PlayerListItem> CreateRosterItems(string tagColor = "#0055AA")
     {
         return
         [
@@ -341,14 +420,14 @@ public sealed class PlayerComponentsTests : BunitContext
                 DisplayName = "Avery Johnson",
                 GraduationYear = 2032,
                 LifecycleStatus = LifecycleStatus.Active,
-                CurrentTags = [new PlayerRosterTagItem(11, "Defender", "#0055AA")],
+                CurrentTags = [new PlayerRosterTagItem(11, "Defender", tagColor)],
                 ActiveCampaigns = ["Summer Tryouts"],
                 JoinedAt = DateTimeOffset.UtcNow
             }
         ];
     }
 
-    private static PlayerDetailDto CreatePlayerDetail()
+    private static PlayerDetailDto CreatePlayerDetail(IReadOnlyList<PlayerCurrentTraitDto>? currentTraits = null)
         => new(
             7,
             "Avery",
@@ -358,7 +437,7 @@ public sealed class PlayerComponentsTests : BunitContext
             2032,
             12,
             LifecycleStatus.Active,
-            [],
+            currentTraits ?? [],
             []);
 
     private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin)

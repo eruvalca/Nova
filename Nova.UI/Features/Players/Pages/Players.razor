@@ -236,6 +236,13 @@
             </div>
         </div>
 
+        @if (IsRosterTruncated)
+        {
+            <div class="alert alert-info mt-3" role="status">
+                Showing first @_roster.Items.Count of @_roster.TotalCount players. Refine filters to narrow the roster.
+            </div>
+        }
+
         <p class="form-text mt-2">
             Restoring reactivates the profile only; campaigns missed while archived are not backfilled automatically.
         </p>

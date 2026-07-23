@@ -34,6 +34,11 @@ public partial class Players(
     private const int SearchDebounceMilliseconds = 350;
 
     /// <summary>
+    /// The roster page size requested by this UI.
+    /// </summary>
+    private const int RosterPageSize = GetPlayerRosterInput.MaxPageSize;
+
+    /// <summary>
     /// The loaded roster page, or <see langword="null"/> when unavailable.
     /// </summary>
     private PagedResult<PlayerListItem>? _roster;
@@ -205,6 +210,11 @@ public partial class Players(
     /// </summary>
     protected string _playerTagFilterText => _playerTagFilter?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
 
+    /// <summary>
+    /// Gets a value indicating whether roster results are truncated in the current UI payload.
+    /// </summary>
+    protected bool IsRosterTruncated => _roster is not null && _roster.TotalCount > _roster.Items.Count;
+
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
@@ -289,7 +299,9 @@ public partial class Players(
             Search = _searchApplied,
             LifecycleStatus = _lifecycleStatusFilter,
             GraduationYear = _graduationYearFilter,
-            PlayerTagId = _playerTagFilter
+            PlayerTagId = _playerTagFilter,
+            Page = GetPlayerRosterInput.DefaultPage,
+            PageSize = RosterPageSize
         };
 
         var result = await playerService.GetPlayerRosterAsync(input, ComponentCancellationToken);
@@ -656,7 +668,7 @@ public partial class Players(
     /// <param name="tag">The tag to style.</param>
     /// <returns>An inline CSS style string.</returns>
     private static string BuildTagStyle(PlayerRosterTagItem tag)
-        => $"background-color: {tag.Color}; color: #ffffff;";
+        => PlayerTagStyle.BuildBadgeStyle(tag.Color);
 
     /// <summary>
     /// Extracts structured graduation-year blockers from a conflict error payload.

@@ -82,4 +82,12 @@ public partial class PlayerDetail(
 
         return candidate.StartsWith('/') ? candidate : $"/{candidate}";
     }
+
+    /// <summary>
+    /// Builds a safe inline CSS style string for one current-trait badge.
+    /// </summary>
+    /// <param name="trait">The trait to style.</param>
+    /// <returns>A sanitized inline style string.</returns>
+    private static string BuildTraitStyle(PlayerCurrentTraitDto trait)
+        => PlayerTagStyle.BuildBadgeStyle(trait.Color);
 }
