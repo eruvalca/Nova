@@ -12,6 +12,7 @@ Use this skill when writing or running Nova tests. Read the relevant reference b
 
 - [Unit SQLite tenancy harness](references/unit-sqlite-harness.md) for `Nova.Unit.Tests`, shared in-memory SQLite, `TenancyTestHarness`, `FakeCurrentUserProvider`, and `ActAs`.
 - [Aspire integration harness](references/aspire-integration-harness.md) for `Nova.Integration.Tests`, real PostgreSQL 18 via Aspire AppHost, `NovaAppHostFixture`, HTTP e2e, and provider-specific checks.
+- [Aspire + Playwright validation](../aspire-playwright-validation/SKILL.md) for live browser acceptance flows that must run against the Aspire-hosted app.
 
 ## Choose the harness
 

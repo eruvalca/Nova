@@ -1,0 +1,107 @@
+@page "/players/{PlayerId:long}"
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Enums
+@using Nova.Shared.Security
+
+<PageTitle>@(_detail is null ? "Player details" : $"{_detail.FirstName} {_detail.LastName}")</PageTitle>
+
+<div class="container py-4">
+    <a class="btn btn-outline-secondary btn-sm mb-3" href="@(_returnUrl ?? "/players")">Back to roster</a>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+    else if (_detail is null)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                Loading player details...
+            </div>
+        </div>
+    }
+    else
+    {
+        <section class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <h1 class="h3 mb-1">@_detail.FirstName @_detail.LastName</h1>
+                <p class="text-muted mb-3">
+                    Graduation year @_detail.GraduationYear · Status @_detail.LifecycleStatus
+                </p>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="small text-uppercase text-muted">Date of birth</div>
+                        <div>@_detail.DateOfBirth.ToString("MMMM d, yyyy")</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small text-uppercase text-muted">Gender</div>
+                        <div>@(_detail.Gender?.ToString() ?? "Not specified")</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="small text-uppercase text-muted">Jersey number</div>
+                        <div>@(_detail.JerseyNumber?.ToString() ?? "Not assigned")</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <h2 class="h5">Current tags</h2>
+                @if (_detail.CurrentTraits.Count == 0)
+                {
+                    <p class="text-muted mb-0">No active tags.</p>
+                }
+                else
+                {
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var trait in _detail.CurrentTraits)
+                        {
+                            <span class="badge rounded-pill" style="@($"background-color: {trait.Color}; color: #ffffff;")">@trait.Name</span>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="card shadow-sm border-0">
+            <div class="card-body">
+                <h2 class="h5">Campaign history</h2>
+                @if (_detail.CampaignHistory.Count == 0)
+                {
+                    <p class="text-muted mb-0">No campaign history yet.</p>
+                }
+                else
+                {
+                    <div class="d-flex flex-column gap-3">
+                        @foreach (var history in _detail.CampaignHistory)
+                        {
+                            <article class="border rounded p-3">
+                                <div class="d-flex flex-wrap justify-content-between gap-2">
+                                    <div class="fw-semibold">@history.CampaignName</div>
+                                    <div class="text-muted">@history.CampaignStatus</div>
+                                </div>
+                                <div class="small text-muted mb-2">
+                                    Start @history.CampaignStartDate.ToString("MMMM d, yyyy") · Outcome @history.PlacementOutcome
+                                    @if (history.TryoutNumber is not null)
+                                    {
+                                        <span> · Tryout #@history.TryoutNumber</span>
+                                    }
+                                </div>
+                                @if (history.Team is not null)
+                                {
+                                    <div class="small mb-2">Team: @history.Team.Name (@history.Team.GraduationYear)</div>
+                                }
+                                <div class="small text-muted">
+                                    Notes: @history.Notes.Count · Tags: @history.TagApplications.Count
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+    }
+</div>

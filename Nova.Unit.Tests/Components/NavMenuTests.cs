@@ -57,6 +57,7 @@ public class NavMenuTests
         // Assert
         cut.Markup.ShouldContain("Austin Strikers");
         cut.Markup.ShouldContain("href=\"Clubs/42\"");
+        cut.Markup.ShouldContain("href=\"players\"");
     }
 
     [Fact]
@@ -96,6 +97,7 @@ public class NavMenuTests
 
         // Assert
         cut.Markup.ShouldNotContain("href=\"Clubs/");
+        cut.Markup.ShouldNotContain("href=\"players\"");
     }
 
     private static ClaimsPrincipal CreatePrincipal(string? clubId, string? clubName)

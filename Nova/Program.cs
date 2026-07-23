@@ -36,7 +36,10 @@ builder.AddServiceDefaults();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents()
-    .AddAuthenticationStateSerialization();
+    .AddAuthenticationStateSerialization(options =>
+    {
+        options.SerializeAllClaims = true;
+    });
 
 // Cropper.Blazor for the profile photo editor; raise the SignalR message size limit so
 // cropped-image data URLs can flow over InteractiveServer circuits (InteractiveAuto first visit).
