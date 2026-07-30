@@ -56,6 +56,21 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         cut.Markup.ShouldNotContain("Loading player details...");
     }
 
+    [Fact]
+    public void PlayerDetail_RedirectsToAccessDenied_WhenServiceReturnsForbidden()
+    {
+        var detailService = Substitute.For<IPlayerDetailService>();
+        detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(
+                ServiceProblem.Forbidden("Access denied."))));
+
+        RegisterServices(detailService: detailService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+
+        var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/Account/AccessDenied"));
+    }
+
     // ── Transport error with retry ────────────────────────────────────────────
 
     [Fact]
