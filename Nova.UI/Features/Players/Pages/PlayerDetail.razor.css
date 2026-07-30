@@ -1,0 +1,32 @@
+.campaign-history-summary {
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.campaign-history-summary::-webkit-details-marker {
+    display: none;
+}
+
+.campaign-history-summary::before {
+    content: "▶";
+    display: inline-block;
+    margin-right: 0.5rem;
+    font-size: 0.75rem;
+    transition: transform 0.15s ease;
+    vertical-align: middle;
+}
+
+.campaign-history-details[open] > .campaign-history-summary::before {
+    transform: rotate(90deg);
+}
+
+.badge-archived {
+    opacity: 0.7;
+    text-decoration: line-through;
+}
+
+.note-entry {
+    border-left: 0.2rem solid #dee2e6;
+    padding-left: 0.75rem;
+}
