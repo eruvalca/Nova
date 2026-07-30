@@ -88,7 +88,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
             cut.Markup.ShouldContain("Avery Johnson");
             cut.Markup.ShouldContain("2032");
             cut.Markup.ShouldContain("Active");
-            cut.Markup.ShouldContain("April 1, 2012");
+            cut.Markup.ShouldContain(new DateOnly(2012, 4, 1).ToString("MMMM d, yyyy"));
             cut.Markup.ShouldContain("Female");
             cut.Markup.ShouldContain("12");
         });
