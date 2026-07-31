@@ -1,6 +1,6 @@
 ---
 applyTo: "Nova/Features/**/*.cs,Nova.Shared/**/*Endpoints.cs,Nova.Shared/**/*Input.cs,Nova.Client/Services/**/*.cs"
-description: "HTTP endpoint rules: routes, handlers, ProblemDetails, validation, optional AsParameters query binding, authorization, antiforgery, and enum binding."
+description: "HTTP endpoint and WASM client rules: routes, handlers, contract fidelity, ProblemDetails, validation, metadata, authorization, antiforgery, and query binding."
 ---
 
 # API Endpoint Rules
@@ -14,6 +14,10 @@ description: "HTTP endpoint rules: routes, handlers, ProblemDetails, validation,
   feature folder, e.g. `Nova.Shared/Clubs/ClubEndpoints.cs`). Never write inline route literals in
   the mapping code or in WASM client services — server and client must consume the same constants.
 - For routes with dynamic segments, expose a URL-builder static method rather than the raw template.
+- Compose URL builders from the feature's existing route constants (especially `GroupPrefix`) instead
+  of repeating prefixes. A builder must emit only query values accepted by the corresponding input
+  contract; share allowed values/bounds or normalize and omit invalid optional values so the client
+  cannot generate a URL that endpoint validation will reject.
 - Naming: `GroupPrefix` (full prefix for `MapGroup`), `{Verb}` (full absolute URL), `{Verb}Relative`
   (relative path/template used inside a group), `{Verb}Template` (full absolute template with tokens).
 
@@ -25,6 +29,9 @@ description: "HTTP endpoint rules: routes, handlers, ProblemDetails, validation,
 - Convert service results with the `ToHttpResult` extensions in
   `Nova.Features.Shared.ServiceResultExtensions`. Prefer returning `IResult`; use `Results<T1, T2, …>`
   only when OpenAPI needs precise success-type information.
+- Keep endpoint metadata aligned with every status the handler can actually return, including
+  route/body mismatch 400s, conflicts, not-found results, and unexpected 500s. Client or service unit
+  tests do not prove that route registration, middleware, metadata, and status mapping agree.
 - ⚠️ `TypedResults.CreatedAtRoute<TValue>` takes the **value first**:
   `CreatedAtRoute(value, routeName, routeValues)`. Putting the route name first compiles but throws
   at runtime. Only use `CreatedAtRoute` when a matching GET route exists; otherwise return
@@ -37,12 +44,19 @@ description: "HTTP endpoint rules: routes, handlers, ProblemDetails, validation,
   customization in `Program.cs`. This is required for log/trace correlation.
 - `ServiceProblem.Validation(errors)` is converted to RFC 7807 `ValidationProblemDetails`; the WASM
   client reconstructs it with `HttpResponseMessageExtensions.ToServiceProblemAsync()`.
+- Preserve structured `ServiceProblem.Errors` for every problem kind that uses them, not only
+  `Validation`. Add the matching factory overload, HTTP serialization, WASM deserialization, and
+  round-trip tests together; never hand-construct a problem to bypass a missing shared factory.
+- Treat both 400 and 422 responses containing an `errors` payload as validation failures in WASM
+  clients. Do not misclassify .NET 10 automatic-validation 422 responses as server errors.
 
 ## Metadata, authorization, antiforgery
 
 - Declare possible problem responses with `ProducesProblem`; use `WithName` for routes referenced in
   redirection/OpenAPI.
-- Apply `RequireAuthorization` at the group or handler level as appropriate.
+- Apply the narrowest required authorization policy at the group or handler level. If an operation is
+  administrator-only, middleware must require the administrator policy even when the service repeats
+  the check as defense in depth; authentication-only metadata is insufficient.
 - Endpoints accepting JSON/multipart from the WASM client must call `DisableAntiforgery()` (the client
   cannot generate Razor CSRF tokens; `SameSite=Lax` on the Identity cookie provides CSRF protection).
 
@@ -71,6 +85,13 @@ description: "HTTP endpoint rules: routes, handlers, ProblemDetails, validation,
 
 - Minimal-API enum query binding is **case-sensitive**. Bind as `string?` and parse explicitly with
   `Enum.TryParse<T>(value, ignoreCase: true, out …)`, applying a default on failure.
+
+## WASM success payloads
+
+- A successful response for an endpoint with a required body must deserialize to that body. Treat an
+  empty, `null`, malformed, or unexpected success payload as `ServiceProblem.ServerError` (or a
+  deliberate thrown protocol exception consistent with the service contract), never as an empty
+  collection or default DTO that hides a server/client contract defect.
 
 ## Related
 

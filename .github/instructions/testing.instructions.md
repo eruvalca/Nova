@@ -1,6 +1,6 @@
 ---
 applyTo: "Nova.Unit.Tests/**,Nova.Integration.Tests/**"
-description: "Testing rules: which project to use, run commands and MTP flag constraints, and core test conventions."
+description: "Testing rules: project and harness selection, HTTP/UI boundary coverage, MTP commands, and core test conventions."
 ---
 
 # Testing Rules
@@ -66,6 +66,16 @@ Rules:
   (`ClubJoinRequestEntity`, `NovaUserEntity`, `NovaUserPhotoEntity`) need one test per visibility rule.
 - Never assert on global, unfiltered counts in integration tests (the database is shared across the
   collection — each test seeds its own data with database-generated ids).
+- For every new HTTP endpoint, add focused boundary coverage for route registration, anonymous and
+  role-policy behavior, success serialization, and each declared ProblemDetails shape/status that
+  cannot be proven by service or client unit tests. Keep provider-specific database assertions
+  separate from this HTTP contract coverage.
+- For interactive pages with event handlers, include a render-mode assertion or a focused
+  Aspire/Playwright scenario; bUnit can invoke callbacks even when the deployed page would render as
+  static SSR.
+- Build culture-sensitive expected display strings (dates, numbers, currencies) with the same
+  explicit or current culture used by the component. Do not hard-code an English rendering unless
+  the product contract explicitly fixes that culture.
 - bunit and NSubstitute are available in both projects for component/service tests.
 - Do not pass `null` or `null!` for required mock constructor dependencies. Supply a valid
   `Substitute.For<T>()` (or a lightweight real implementation when clearer), and use

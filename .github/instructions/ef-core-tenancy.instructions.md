@@ -1,6 +1,6 @@
 ---
-applyTo: "Nova/Data/**/*.cs,Nova/Entities/**/*.cs,Nova/Program.cs,Nova.Unit.Tests/**/*.cs"
-description: "EF Core setup, club-based multi-tenancy, DbContext selection, entity/relationship rules, and migrations."
+applyTo: "Nova/Data/**/*.cs,Nova/Entities/**/*.cs,Nova/Features/**/*Service.cs,Nova/Program.cs,Nova.Unit.Tests/**/*.cs"
+description: "EF Core setup, club-based multi-tenancy, tenant-safe query construction, provider behavior, entity/relationship rules, and migrations."
 ---
 
 # EF Core & Tenancy
@@ -52,6 +52,9 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 - Visibility belongs in query filters; ACTIONS (approve/reject/delete) belong in authorization
   policies (`Policies.RequireAdmin` / `RequireClubAdmin` / `RequireClubMember` in
   `Nova.Shared/Security/Policies.cs`).
+- Scope tenant queries from the authenticated tenant context, not from a caller-supplied route or
+  query value. A route tenant id may be compared for non-disclosing authorization behavior, but it
+  must not become the authoritative LINQ predicate.
 
 ## Current user & claims
 
@@ -79,6 +82,22 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   - Audit columns (`CreatedById`/`ModifiedById`) never get FKs.
 - Club deletion is NOT interceptor-guarded (Club isn't tenant-owned) — any club-delete feature
   must be gated by `Policies.RequireClubAdmin` or `RequireAdmin`.
+
+## Query construction and provider behavior
+
+- Keep filtering, deterministic ordering, `Skip`, and `Take` in SQL before materialization. Do not
+  load an entire tenant result set merely to sort or page in memory. If a test provider cannot
+  translate production behavior, isolate a provider-specific fallback and retain SQL-side execution
+  for PostgreSQL.
+- Avoid materializing identifier lists and feeding them back through large `Contains`/`IN`
+  predicates when a mapped navigation can express the relationship directly. Navigation predicates
+  keep SQL bounded and avoid parameter-list growth for long histories.
+- Use provider helpers such as `db.Database.IsNpgsql()`/`IsSqlite()` rather than comparing
+  `ProviderName` strings. For PostgreSQL case-insensitive contains search, prefer
+  `EF.Functions.ILike`; use a clearly isolated provider-compatible fallback for SQLite tests.
+- Validation and normalization must have one explicit behavior. If `[Range]` rejects a page size,
+  do not also clamp it after validation; either reject or cap, and make the contract, service, and
+  tests agree.
 
 ## Migrations
 

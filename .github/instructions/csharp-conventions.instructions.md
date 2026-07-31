@@ -1,6 +1,6 @@
 ---
 applyTo: "**/*.cs"
-description: "Nova C# coding conventions, editorconfig expectations, and logging rules."
+description: "Nova C# coding conventions, Try-method contracts, editorconfig expectations, documentation, and logging rules."
 ---
 
 # C# Conventions
@@ -16,6 +16,15 @@ description: "Nova C# coding conventions, editorconfig expectations, and logging
 - Prefer `string.Empty` over empty string literals for representing empty strings.
 - Eliminate unused parameters and unused value assignments.
 - Prefer the C# 8+ declaration form `using var x = ...;` over the braced `using (...) { }` form when the variable lifetime naturally ends at the enclosing scope.
+
+## `Try*` contracts
+
+- A method named `TryParse*`, `TryGet*`, or similar must return `false` with safe out values for
+  expected malformed input or schema drift; callers must not need exception handling for ordinary
+  parse failure.
+- Catch only the specific parsing/format exceptions needed to uphold that contract (for example,
+  `JsonException`). Do not use a broad catch or hide unrelated programming and infrastructure
+  failures.
 
 ## Discriminated Unions (OneOf)
 
