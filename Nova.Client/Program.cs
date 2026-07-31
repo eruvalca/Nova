@@ -8,6 +8,7 @@ using Nova.Shared.Clubs;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Photos;
 using Nova.Shared.Players;
+using Nova.Shared.Teams;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
@@ -33,6 +34,7 @@ builder.Services.AddScoped<IClubMemberService, HttpClubMemberService>();
 builder.Services.AddScoped<IPlayerService, HttpPlayerService>();
 builder.Services.AddScoped<IPlayerLifecycleService, HttpPlayerLifecycleService>();
 builder.Services.AddScoped<IPlayerManagementService, HttpPlayerManagementService>();
+builder.Services.AddScoped<ITeamManagementService, HttpTeamManagementService>();
 builder.Services.AddScoped<IPlayerDetailService, HttpPlayerDetailService>();
 
 await builder.Build().RunAsync();
