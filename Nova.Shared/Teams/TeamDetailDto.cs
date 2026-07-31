@@ -19,7 +19,23 @@ public sealed record TeamDetailDto(
     int GraduationYear,
     LifecycleStatus LifecycleStatus,
     IReadOnlyList<TeamPlacementImpactDto> ActivePlacementImpacts,
-    IReadOnlyList<TeamPlacementImpactDto> PlacementHistory);
+    IReadOnlyList<TeamPlacementImpactDto> PlacementHistory)
+{
+    /// <summary>
+    /// Gets the total number of active placements assigned to the team.
+    /// </summary>
+    public int ActivePlacementImpactTotalCount { get; init; }
+
+    /// <summary>
+    /// Gets the total number of placements assigned to the team across all campaigns.
+    /// </summary>
+    public int PlacementHistoryTotalCount { get; init; }
+
+    /// <summary>
+    /// Gets whether the returned placement projections were truncated at the contract bound.
+    /// </summary>
+    public bool IsPlacementHistoryTruncated { get; init; }
+}
 
 /// <summary>
 /// Represents the bounded campaign and player context for one team placement.
@@ -45,4 +61,3 @@ public sealed record TeamPlacementImpactDto(
     int PlayerGraduationYear,
     int? TryoutNumber,
     PlacementOutcome PlacementOutcome);
-

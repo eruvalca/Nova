@@ -18,6 +18,8 @@ public sealed partial class TeamDetailQueryService(
     ICurrentUserProvider currentUserProvider,
     ILogger<TeamDetailQueryService> logger) : ITeamDetailService
 {
+    private const int MaxPlacementHistoryItems = 100;
+
     /// <inheritdoc />
     public async Task<ServiceResult<TeamDetailDto>> GetTeamDetailAsync(
         long teamId,
@@ -49,7 +51,7 @@ public sealed partial class TeamDetailQueryService(
             return ServiceProblem.NotFound();
         }
 
-        var rows = await db.PlayerCampaignAssignments
+        var placementQuery = db.PlayerCampaignAssignments
             .Where(assignment => assignment.TeamId == teamId && assignment.ClubId == clubId)
             .Select(assignment => new
             {
@@ -63,13 +65,22 @@ public sealed partial class TeamDetailQueryService(
                 PlayerGraduationYear = assignment.Player.GraduationYear,
                 assignment.TryoutNumber,
                 assignment.PlacementOutcome
-            })
+            });
+
+        var placementHistoryTotalCount = await placementQuery.CountAsync(cancellationToken);
+        var rows = await placementQuery
+            .OrderByDescending(row => row.CampaignStatus == CampaignStatus.Active)
+            .ThenByDescending(row => row.CampaignStartDate)
+            .ThenByDescending(row => row.CampaignId)
+            .ThenBy(row => row.PlayerDisplayName)
+            .ThenBy(row => row.PlayerId)
+            .Take(MaxPlacementHistoryItems)
             .ToListAsync(cancellationToken);
 
         var placementHistory = rows
             .OrderByDescending(row => row.CampaignStartDate)
             .ThenByDescending(row => row.CampaignId)
-            .ThenBy(row => row.PlayerDisplayName)
+            .ThenBy(row => row.PlayerDisplayName, StringComparer.Ordinal)
             .ThenBy(row => row.PlayerId)
             .Select(row => ToPlacementImpact(
                 row.PlayerCampaignAssignmentId,
@@ -97,13 +108,28 @@ public sealed partial class TeamDetailQueryService(
             team.GraduationYear,
             team.LifecycleStatus,
             activePlacementImpacts,
-            placementHistory);
+            placementHistory)
+        {
+            ActivePlacementImpactTotalCount = await placementQuery
+                .CountAsync(row => row.CampaignStatus == CampaignStatus.Active, cancellationToken),
+            PlacementHistoryTotalCount = placementHistoryTotalCount,
+            IsPlacementHistoryTruncated = placementHistoryTotalCount > MaxPlacementHistoryItems
+        };
     }
 
     /// <summary>
     /// Maps one materialized placement projection to its shared DTO.
     /// </summary>
-    /// <param name="row">The materialized placement projection.</param>
+    /// <param name="playerCampaignAssignmentId">The placement assignment identifier.</param>
+    /// <param name="campaignId">The campaign identifier.</param>
+    /// <param name="campaignName">The campaign display name.</param>
+    /// <param name="campaignStatus">The campaign lifecycle status.</param>
+    /// <param name="campaignStartDate">The campaign start date.</param>
+    /// <param name="playerId">The assigned player identifier.</param>
+    /// <param name="playerDisplayName">The assigned player's display name.</param>
+    /// <param name="playerGraduationYear">The assigned player's graduation year.</param>
+    /// <param name="tryoutNumber">The campaign-scoped tryout number.</param>
+    /// <param name="placementOutcome">The placement outcome.</param>
     /// <returns>The placement detail DTO.</returns>
     private static TeamPlacementImpactDto ToPlacementImpact(
         long playerCampaignAssignmentId,
