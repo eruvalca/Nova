@@ -41,6 +41,40 @@ public sealed class HttpTeamLifecycleServiceTests
     }
 
     [Fact]
+    public async Task ArchiveAsync_ReturnsStructuredConflict()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            Content = JsonContent.Create(new
+            {
+                detail = "Resolve active placements first.",
+                archiveBlockers = new[]
+                {
+                    new
+                    {
+                        campaignId = 700L,
+                        campaignName = "Active Campaign",
+                        placementIds = new[] { 801L }
+                    }
+                }
+            })
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpTeamLifecycleService(httpClient);
+
+        var result = await service.ArchiveAsync(42, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.TryGetArchiveBlockers(out var blockers).ShouldBeTrue();
+        blockers.Count.ShouldBe(1);
+        blockers[0].CampaignId.ShouldBe(700);
+        blockers[0].CampaignName.ShouldBe("Active Campaign");
+        blockers[0].PlacementIds.ShouldBe([801]);
+    }
+
+    [Fact]
     public async Task RestoreAsync_PostsToSharedRoute()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
