@@ -30,7 +30,7 @@ public sealed partial class TeamRosterQueryService(
             return ServiceProblem.Validation(errors);
         }
 
-        if (currentUserProvider.UserId is not long userId
+        if (currentUserProvider.UserId is not long
             || currentUserProvider.ClubId is not long clubId)
         {
             LogForbiddenRosterAccess(currentUserProvider.UserId ?? 0);
@@ -46,9 +46,10 @@ public sealed partial class TeamRosterQueryService(
 
         if (search is not null)
         {
+            var uppercaseSearch = search.ToUpperInvariant();
             query = db.Database.IsNpgsql()
                 ? query.Where(team => EF.Functions.ILike(team.Name, $"%{search}%"))
-                : query.Where(team => team.Name.ToUpper().Contains(search.ToUpper()));
+                : query.Where(team => team.Name.ToUpper().Contains(uppercaseSearch));
         }
 
         if (input.GraduationYear is int graduationYear)
