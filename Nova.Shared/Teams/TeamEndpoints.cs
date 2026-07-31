@@ -53,4 +53,55 @@ public static class TeamEndpoints
     /// <param name="teamId">The team identifier.</param>
     /// <returns>The update-team URL.</returns>
     public static string UpdateUrl(long teamId) => $"{GroupPrefix}/{teamId}";
+
+    /// <summary>
+    /// Gets the absolute archive route template.
+    /// </summary>
+    public const string ArchiveTemplate = "/api/teams/{teamId:long}/archive";
+
+    /// <summary>
+    /// Gets the archive route template relative to the group.
+    /// </summary>
+    public const string ArchiveRelative = "{teamId:long}/archive";
+
+    /// <summary>
+    /// Gets the absolute restore route template.
+    /// </summary>
+    public const string RestoreTemplate = "/api/teams/{teamId:long}/restore";
+
+    /// <summary>
+    /// Gets the restore route template relative to the group.
+    /// </summary>
+    public const string RestoreRelative = "{teamId:long}/restore";
+
+    /// <summary>
+    /// Gets the absolute graduation-year update route template.
+    /// </summary>
+    public const string UpdateGraduationYearTemplate = "/api/teams/{teamId:long}/graduation-year";
+
+    /// <summary>
+    /// Gets the graduation-year update route template relative to the group.
+    /// </summary>
+    public const string UpdateGraduationYearRelative = "{teamId:long}/graduation-year";
+
+    /// <summary>
+    /// Builds the URL for archiving a team.
+    /// </summary>
+    /// <param name="teamId">The team identifier.</param>
+    /// <returns>The archive URL.</returns>
+    public static string ArchiveUrl(long teamId) => $"{GroupPrefix}/{teamId}/archive";
+
+    /// <summary>
+    /// Builds the URL for restoring a team.
+    /// </summary>
+    /// <param name="teamId">The team identifier.</param>
+    /// <returns>The restore URL.</returns>
+    public static string RestoreUrl(long teamId) => $"{GroupPrefix}/{teamId}/restore";
+
+    /// <summary>
+    /// Builds the URL for updating a team's graduation-year cutoff.
+    /// </summary>
+    /// <param name="teamId">The team identifier.</param>
+    /// <returns>The graduation-year update URL.</returns>
+    public static string UpdateGraduationYearUrl(long teamId) => $"{GroupPrefix}/{teamId}/graduation-year";
 }

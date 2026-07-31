@@ -9,6 +9,7 @@ using Nova.Features.Teams;
 using Nova.Shared.Enums;
 using Nova.Shared.Players;
 using Nova.Shared.Results;
+using Nova.Shared.Teams;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using OneOf;
@@ -108,7 +109,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
-        result.Problem.TryGetArchiveBlockers(out var blockers).ShouldBeTrue();
+        PlayerLifecycleProblemExtensions.TryGetArchiveBlockers(result.Problem, out var blockers).ShouldBeTrue();
         blockers.Count.ShouldBe(1);
         blockers[0].CampaignId.ShouldBe(700);
         blockers[0].CampaignName.ShouldBe("Active Campaign");
@@ -141,8 +142,13 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             HistoricalPlacementTeamId,
             TestContext.Current.CancellationToken);
 
-        blockedResult.IsT3.ShouldBeTrue();
-        archivedResult.IsT0.ShouldBeTrue();
+        blockedResult.IsProblem.ShouldBeTrue();
+        blockedResult.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        TeamLifecycleProblemExtensions.TryGetArchiveBlockers(blockedResult.Problem, out var archiveBlockers).ShouldBeTrue();
+        archiveBlockers.Count.ShouldBe(1);
+        archiveBlockers[0].CampaignId.ShouldBe(700);
+        archiveBlockers[0].PlacementIds.ShouldBe([801]);
+        archivedResult.IsSuccess.ShouldBeTrue();
 
         await using var verify = _harness.CreateAdminContext();
         var activeTeam = await verify.Teams
@@ -169,10 +175,13 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         var service = CreateTeamService();
 
         var result = await service.UpdateGraduationYearAsync(
-            new UpdateTeamGraduationYearInput(ActivePlacementTeamId, 2031),
+            new UpdateTeamGraduationYearInput { TeamId = ActivePlacementTeamId, GraduationYear = 2031 },
             TestContext.Current.CancellationToken);
 
-        result.IsT4.ShouldBeTrue();
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.TryGetGraduationYearBlockers(out var cutoffBlockers).ShouldBeTrue();
+        cutoffBlockers.Count.ShouldBe(1);
 
         await using var verify = _harness.CreateAdminContext();
         var graduationYear = await verify.Teams
@@ -192,10 +201,10 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         var service = CreateTeamService();
 
         var result = await service.UpdateGraduationYearAsync(
-            new UpdateTeamGraduationYearInput(ActivePlacementTeamId, 2030),
+            new UpdateTeamGraduationYearInput { TeamId = ActivePlacementTeamId, GraduationYear = 2030 },
             TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue();
+        result.IsSuccess.ShouldBeTrue();
 
         await using var verify = _harness.CreateAdminContext();
         var team = await verify.Teams
@@ -389,15 +398,26 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// <param name="target">The target record type.</param>
     /// <param name="id">The target record identifier.</param>
     /// <returns>The common lifecycle mutation result.</returns>
-    private Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> ArchiveAsync(
+    private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> ArchiveAsync(
         LifecycleTarget target,
         long id)
-        => target switch
+    {
+        if (target == LifecycleTarget.Team)
         {
-            LifecycleTarget.Team => CreateTeamService().ArchiveAsync(id, TestContext.Current.CancellationToken),
-            LifecycleTarget.TagDefinition => CreateTagService().ArchiveAsync(id, TestContext.Current.CancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(target), target, null),
-        };
+            var teamResult = await CreateTeamService().ArchiveAsync(id, TestContext.Current.CancellationToken);
+            return teamResult.Match<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>(
+                success => success,
+                problem => problem.Kind switch
+                {
+                    ServiceProblemKind.NotFound => new NotFound(),
+                    ServiceProblemKind.Forbidden => new LifecycleForbidden(problem.Detail ?? string.Empty),
+                    ServiceProblemKind.Conflict => new LifecycleConflict(problem.Detail ?? string.Empty),
+                    _ => throw new InvalidOperationException($"Unexpected team archive problem: {problem.Kind}.")
+                });
+        }
+
+        return await CreateTagService().ArchiveAsync(id, TestContext.Current.CancellationToken);
+    }
 
     /// <summary>
     /// Gets the current-club record identifier for a lifecycle target.
