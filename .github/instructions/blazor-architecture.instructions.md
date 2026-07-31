@@ -1,6 +1,6 @@
 ---
 applyTo: "**/*.razor,**/*.razor.cs,**/*.razor.css,Nova/Program.cs,Nova.Client/Program.cs"
-description: "Blazor architecture: component/page placement across Nova.UI/Nova/Nova.Client, SSR-first render-mode rules, feature folders, code-behind and CSS isolation conventions, and data-access rules for components."
+description: "Blazor architecture: placement, SSR-first render modes, persisted state, safe navigation/rendering, bounded data, feature organization, and component service access."
 ---
 
 # Blazor Architecture
@@ -24,6 +24,9 @@ Build SSR-first; opt into interactivity only when functionality or UX requires i
 4. Apply render modes at the component or page level, not globally. Do not make the whole app interactive.
 
 Interactive (Auto/WebAssembly) components must live in a project referenced by `Nova.Client` — i.e. `Nova.UI` or `Nova.Client` — never in `Nova`.
+Any page or component that relies on event handlers (`@onclick`, `@onchange`, submit callbacks),
+timers, or other interactive behavior must have an effective interactive render mode. Static SSR
+markup can compile and pass component tests while its handlers remain non-functional in the app.
 
 ## Prerendering and Persistent State
 
@@ -32,6 +35,9 @@ Interactive render modes (`InteractiveAuto`, `InteractiveWebAssembly`, `Interact
 - `OnInitializedAsync` runs during prerender and runs again after interactive attach unless state is restored.
 - Use `[PersistentState]` only on **public component properties** so state can be serialized/restored across prerender and attach.
 - For duplicate-fetch prevention, persist a boolean `Initialized` flag and check it at the top of `OnInitializedAsync`; if already initialized, return before loading data again.
+- When restoring persisted source data, also rebuild any derived collections, filter options, or
+  computed view state before returning from initialization. Persisting rows without reconstructing
+  their dependent UI state causes prerendered controls to disappear or drift after attach.
 - Keep explicit reload/refetch helper methods for user-triggered refresh actions (button clicks, retry flows, etc.); the `Initialized` guard is only for startup duplication.
 - Keep this guidance separate from `ExcludeFromInteractiveRouting`: `ExcludeFromInteractiveRouting` controls routing/rendering behavior, not duplicate initialization or persisted component data.
 
@@ -67,6 +73,9 @@ Nova.UI/
 - **Don't mutate parameters directly for owned state**: if a child component needs to mutate parameter-derived state, do not write back to the `[Parameter]` property. Copy to private component state only on first load or when the incoming parameter value actually changes, then mutate that private state.
 - **Use fields for internal mutable UI state by default**: private fields are preferred for purely internal mutable state (`_loading`, `_error`, `_selectedId`, timers, `CancellationTokenSource`, etc.); Blazor doesn't gain reactivity from converting those values to properties.
 - **Use private/protected properties when accessors add value**: prefer properties for computed values, normalization, or when getter/setter logic improves clarity.
+- **Preserve mutation feedback across refreshes**: when a successful mutation sets a status message
+  and then reloads data, the reload helper must not clear that message before it can render. Clear
+  feedback at an intentional user-action boundary instead.
 - **Scoped styles**: component-specific CSS goes in `{Name}.razor.css` (CSS isolation). Do not add component-specific rules to global stylesheets.
 - Follow `.github/instructions/csharp-conventions.instructions.md` in code-behind files (XML docs, logging, OneOf, etc.).
 
@@ -77,6 +86,18 @@ Nova.UI/
 - Add custom CSS only when a specific requirement cannot be met with Bootstrap alone; keep those rules minimal and scoped in the component's `.razor.css`.
 - Avoid global stylesheet overrides for feature-specific UI when Bootstrap utilities or component-scoped styles can satisfy the requirement.
 - Use `rem` units for all custom CSS length values (font-size, spacing, padding, margin, width, height, etc.). Avoid `px` units in custom CSS; `px` is acceptable only for hairline borders (e.g., `border: 1px solid`) or when a pixel-exact value is a hard requirement.
+- Never interpolate persisted or user-controlled strings directly into an inline `style` attribute.
+  Normalize through a strict allowlist (for example, `#RRGGBB` for a color token) and use a safe
+  fallback.
+
+## Navigation and bounded data
+
+- Treat query-string return URLs as untrusted. Normalize them to well-formed local relative paths;
+  reject absolute URLs, network-path references, and malformed values, then fall back to a known
+  local route.
+- A UI backed by a paged endpoint must implement paging or deliberately request a documented bounded
+  maximum and show when `TotalCount` exceeds the loaded rows. Never silently render only the default
+  first page, especially when filter choices are derived from the loaded data.
 
 ## Data Access and Services from Components
 
@@ -86,4 +107,8 @@ Nova.UI/
   - an HTTP-based implementation in `Nova.Client` calling minimal API endpoints in `Nova`, registered in `Nova.Client/Program.cs` (used when the component runs in WASM).
     Register both sides so an `InteractiveAuto` component resolves the right implementation wherever it renders.
 - `HttpContext` is only available during static SSR in `Nova`. Never use it from interactive components or from `Nova.UI`/`Nova.Client`; flow user/tenant state through abstractions (e.g., `AuthenticationStateProvider`, `CurrentUserState` in `Nova.Shared`) instead.
+- Claims serialized into interactive/WASM authentication state are browser-visible. Serialize only
+  claims required by the UI when the framework supports selective inclusion; if a global
+  `SerializeAllClaims` switch is the only viable mechanism, document why it is required and do not
+  treat the serialized claims as secrets or as a replacement for server authorization.
 - Keep Identity/Account pages in `Nova` as static SSR — they depend on `HttpContext`, cookies, and `SignInManager`.
