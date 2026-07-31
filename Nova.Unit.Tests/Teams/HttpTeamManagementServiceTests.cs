@@ -12,6 +12,32 @@ namespace Nova.Unit.Tests.Teams;
 public sealed class HttpTeamManagementServiceTests
 {
     [Fact]
+    public async Task Create_SendsPostToTeamRoute_AndReadsDto()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = JsonContent.Create(new TeamDto
+            {
+                TeamId = 7,
+                ClubId = 42,
+                Name = "U16",
+                GraduationYear = 2028,
+                LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active
+            })
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamManagementService(http).CreateAsync(
+            new CreateTeamInput { Name = "U16", GraduationYear = 2028 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        handler.LastRequest!.Method.ShouldBe(HttpMethod.Post);
+        handler.LastRequest.RequestUri!.PathAndQuery.ShouldBe("/api/teams");
+    }
+
+    [Fact]
     public async Task Update_SendsPutToTeamRoute_AndReadsDto()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)

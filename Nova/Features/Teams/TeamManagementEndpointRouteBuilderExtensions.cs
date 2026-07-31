@@ -27,6 +27,7 @@ internal static class TeamManagementEndpointRouteBuilderExtensions
                 .Produces<TeamDto>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status409Conflict)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .DisableAntiforgery()
                 .WithName("CreateTeam");
@@ -34,6 +35,7 @@ internal static class TeamManagementEndpointRouteBuilderExtensions
             group.MapPut(TeamEndpoints.UpdateRelative, UpdateTeamHandler)
                 .Produces<TeamDto>()
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status409Conflict)
