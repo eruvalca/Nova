@@ -31,6 +31,23 @@ public static class TeamEndpoints
     public const string UpdateRelative = "{teamId:long}";
 
     /// <summary>
+    /// Gets the absolute team-detail route template.
+    /// </summary>
+    public const string GetDetailTemplate = "/api/teams/{teamId:long}";
+
+    /// <summary>
+    /// Gets the team-detail route template relative to the group.
+    /// </summary>
+    public const string GetDetailRelative = "{teamId:long}";
+
+    /// <summary>
+    /// Builds the URL for retrieving a team's detail and placement history.
+    /// </summary>
+    /// <param name="teamId">The team identifier.</param>
+    /// <returns>The team-detail URL.</returns>
+    public static string GetDetailUrl(long teamId) => $"{GroupPrefix}/{teamId}";
+
+    /// <summary>
     /// Builds the URL for updating the specified team.
     /// </summary>
     /// <param name="teamId">The team identifier.</param>

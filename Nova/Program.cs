@@ -111,6 +111,7 @@ builder.Services.AddScoped<IPlayerLifecycleService, PlayerLifecycleService>();
 builder.Services.AddScoped<IPlayerManagementService, PlayerManagementService>();
 builder.Services.AddScoped<ITeamManagementService, TeamManagementService>();
 builder.Services.AddScoped<ITeamRosterService, TeamRosterQueryService>();
+builder.Services.AddScoped<ITeamDetailService, TeamDetailQueryService>();
 builder.Services.AddScoped<TeamLifecycleService>();
 builder.Services.AddScoped<TagDefinitionLifecycleService>();
 
@@ -235,6 +236,7 @@ app.MapPlayerLifecycleEndpoints();
 app.MapPlayerManagementEndpoints();
 app.MapTeamManagementEndpoints();
 app.MapTeamRosterEndpoints();
+app.MapTeamDetailEndpoints();
 
 // Player detail and campaign-history query endpoint.
 app.MapPlayerEndpoints();
