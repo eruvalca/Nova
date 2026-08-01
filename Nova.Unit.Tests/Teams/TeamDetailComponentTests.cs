@@ -551,6 +551,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// <param name="startDate">The campaign start date.</param>
     /// <param name="campaignStatus">The campaign lifecycle status.</param>
     /// <param name="playerDisplayName">Optional player display name.</param>
+    /// <param name="campaignId">Optional explicit campaign identifier; defaults to <paramref name="assignmentId"/> × 100 when omitted.</param>
     /// <returns>A populated <see cref="TeamPlacementImpactDto"/>.</returns>
     private static TeamPlacementImpactDto BuildPlacement(
         long assignmentId,

@@ -17,6 +17,9 @@ namespace Nova.Integration.Tests.Http;
 [Collection(NovaAppHostCollection.Name)]
 public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
 {
+    /// <summary>
+    /// The shared test-account password used for all registered test users in this suite.
+    /// </summary>
     private const string Password = "Test#Passw0rd!";
 
     /// <summary>
@@ -189,6 +192,14 @@ public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
         return team.TeamId;
     }
 
+    /// <summary>
+    /// Updates a seeded user's profile fields and optional club membership.
+    /// </summary>
+    /// <param name="email">The user email address.</param>
+    /// <param name="firstName">The first name to set.</param>
+    /// <param name="lastName">The last name to set.</param>
+    /// <param name="clubId">The optional club membership value.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
     private async Task UpdateUserAsync(
         string email,
         string firstName,
@@ -206,6 +217,12 @@ public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Gets the user identifier for the specified email address.
+    /// </summary>
+    /// <param name="email">The user email address.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The user identifier.</returns>
     private async Task<long> GetUserIdByEmailAsync(string email, CancellationToken cancellationToken)
     {
         await using var context = fixture.CreateAdminContext();
@@ -216,6 +233,15 @@ public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
             .SingleAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Creates a club over HTTP for the authenticated user.
+    /// </summary>
+    /// <param name="client">The authenticated HTTP client.</param>
+    /// <param name="name">The club name.</param>
+    /// <param name="city">The club city.</param>
+    /// <param name="state">The club state abbreviation.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The created club DTO.</returns>
     private static async Task<ClubDto> CreateClubAsync(
         HttpClient client,
         string name,
@@ -236,11 +262,21 @@ public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
         return club;
     }
 
+    /// <summary>
+    /// Refreshes the authenticated cookie after club-membership changes.
+    /// </summary>
+    /// <param name="client">The authenticated HTTP client.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
+    /// <summary>
+    /// Creates a unique email address for test-user registration.
+    /// </summary>
+    /// <param name="prefix">A scenario prefix for easier traceability.</param>
+    /// <returns>A unique email address.</returns>
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";
 }

@@ -130,6 +130,30 @@ public partial class TeamDetail(
     /// </summary>
     private string? _lastReturnUrl;
 
+    /// <summary>
+    /// Gets or sets the persisted startup detail payload used across prerender and interactive attach.
+    /// </summary>
+    [PersistentState]
+    public TeamDetailDto? PersistedDetail { get; set; }
+
+    /// <summary>
+    /// Gets or sets the persisted startup page-error message used across prerender and interactive attach.
+    /// </summary>
+    [PersistentState]
+    public string? PersistedError { get; set; }
+
+    /// <summary>
+    /// Gets or sets the persisted startup not-found flag used across prerender and interactive attach.
+    /// </summary>
+    [PersistentState]
+    public bool PersistedIsNotFound { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether startup initialization already completed during prerender.
+    /// </summary>
+    [PersistentState]
+    public bool Initialized { get; set; }
+
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
@@ -140,7 +164,19 @@ public partial class TeamDetail(
         _lastLoadedTeamId = TeamId;
         _lastReturnUrl = ReturnUrl;
         _returnUrl = NormalizeReturnUrl(ReturnUrl);
+
+        if (Initialized)
+        {
+            _detail = PersistedDetail;
+            _error = PersistedError;
+            _isNotFound = PersistedIsNotFound;
+            _isLoading = false;
+            return;
+        }
+
         await LoadDetailAsync();
+        PersistStartupState();
+        Initialized = true;
     }
 
     /// <inheritdoc />
@@ -154,6 +190,7 @@ public partial class TeamDetail(
         _lastLoadedTeamId = TeamId;
         _lastReturnUrl = ReturnUrl;
         _returnUrl = NormalizeReturnUrl(ReturnUrl);
+        ResetTeamScopedState();
         await LoadDetailAsync();
     }
 
@@ -450,6 +487,36 @@ public partial class TeamDetail(
         {
             await LoadDetailAsync();
         }
+    }
+
+    /// <summary>
+    /// Persists the current startup detail/error/not-found state for prerender-to-interactive restoration.
+    /// </summary>
+    private void PersistStartupState()
+    {
+        PersistedDetail = _detail;
+        PersistedError = _error;
+        PersistedIsNotFound = _isNotFound;
+    }
+
+    /// <summary>
+    /// Resets all team-scoped interaction state before loading a new team via enhanced navigation,
+    /// preventing a previously open edit form or archive panel from acting on the newly navigated team.
+    /// </summary>
+    private void ResetTeamScopedState()
+    {
+        _detail = null;
+        _error = null;
+        _isNotFound = false;
+        _showEditForm = false;
+        _editForm = null;
+        _formError = null;
+        _cutoffBlockers = [];
+        _showArchiveConfirm = false;
+        _archiveConfirmed = false;
+        _archiveBlockers = [];
+        _mutationError = null;
+        _statusMessage = null;
     }
 
     /// <summary>
