@@ -8,6 +8,7 @@ using Nova.Shared.Security;
 using Nova.Shared.Teams;
 using Nova.UI.Components;
 using Nova.UI.Features.Teams.Components;
+using OneOf.Types;
 
 namespace Nova.UI.Features.Teams.Pages;
 
@@ -329,6 +330,7 @@ public partial class TeamDetail(
         _showArchiveConfirm = false;
         _formError = null;
         _mutationError = null;
+        _statusMessage = null;
         _cutoffBlockers = [];
         _editForm = TeamFormState.FromDetailDto(_detail);
         _showEditForm = true;
@@ -346,27 +348,10 @@ public partial class TeamDetail(
         _formError = null;
         _cutoffBlockers = [];
 
-        var success = false;
+        ServiceResult<TeamDto> result;
         try
         {
-            var result = await teamManagementService.UpdateAsync(state.ToUpdateInput(), teamToken);
-            result.Switch(
-                _ =>
-                {
-                    _showEditForm = false;
-                    _editForm = null;
-                    _statusMessage = "Team updated successfully.";
-                    success = true;
-                },
-                problem =>
-                {
-                    _formError = problem.Detail ?? "Could not update team.";
-                    if (problem.Kind == ServiceProblemKind.Conflict
-                        && problem.TryGetGraduationYearBlockers(out var blockers))
-                    {
-                        _cutoffBlockers = blockers;
-                    }
-                });
+            result = await teamManagementService.UpdateAsync(state.ToUpdateInput(), teamToken);
         }
         catch (OperationCanceledException) when (teamToken.IsCancellationRequested
             || ComponentCancellationToken.IsCancellationRequested)
@@ -376,12 +361,40 @@ public partial class TeamDetail(
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             _ = ex;
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _formError = "Failed to save team. Please retry.";
-        }
-        finally
-        {
             _isMutating = false;
+            return;
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var success = false;
+        result.Switch(
+            _ =>
+            {
+                _showEditForm = false;
+                _editForm = null;
+                _statusMessage = "Team updated successfully.";
+                success = true;
+            },
+            problem =>
+            {
+                _formError = problem.Detail ?? "Could not update team.";
+                if (problem.Kind == ServiceProblemKind.Conflict
+                    && problem.TryGetGraduationYearBlockers(out var blockers))
+                {
+                    _cutoffBlockers = blockers;
+                }
+            });
+        _isMutating = false;
 
         if (success)
         {
@@ -439,26 +452,10 @@ public partial class TeamDetail(
         _mutationError = null;
         _archiveBlockers = [];
 
-        var success = false;
+        ServiceResult<Success> result;
         try
         {
-            var result = await teamLifecycleService.ArchiveAsync(TeamId, teamToken);
-            result.Switch(
-                _ =>
-                {
-                    _statusMessage = "Team archived.";
-                    CancelArchive();
-                    success = true;
-                },
-                problem =>
-                {
-                    _mutationError = problem.Detail ?? "Could not archive team.";
-                    if (problem.Kind == ServiceProblemKind.Conflict
-                        && problem.TryGetArchiveBlockers(out var blockers))
-                    {
-                        _archiveBlockers = blockers;
-                    }
-                });
+            result = await teamLifecycleService.ArchiveAsync(TeamId, teamToken);
         }
         catch (OperationCanceledException) when (teamToken.IsCancellationRequested
             || ComponentCancellationToken.IsCancellationRequested)
@@ -468,12 +465,39 @@ public partial class TeamDetail(
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             _ = ex;
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _mutationError = "Failed to archive team. Please retry.";
-        }
-        finally
-        {
             _isMutating = false;
+            return;
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var success = false;
+        result.Switch(
+            _ =>
+            {
+                _statusMessage = "Team archived.";
+                CancelArchive();
+                success = true;
+            },
+            problem =>
+            {
+                _mutationError = problem.Detail ?? "Could not archive team.";
+                if (problem.Kind == ServiceProblemKind.Conflict
+                    && problem.TryGetArchiveBlockers(out var blockers))
+                {
+                    _archiveBlockers = blockers;
+                }
+            });
+        _isMutating = false;
 
         if (success)
         {
@@ -491,17 +515,10 @@ public partial class TeamDetail(
         _isMutating = true;
         _mutationError = null;
 
-        var success = false;
+        ServiceResult<Success> result;
         try
         {
-            var result = await teamLifecycleService.RestoreAsync(TeamId, teamToken);
-            result.Switch(
-                _ =>
-                {
-                    _statusMessage = "Team restored.";
-                    success = true;
-                },
-                problem => _mutationError = problem.Detail ?? "Could not restore team.");
+            result = await teamLifecycleService.RestoreAsync(TeamId, teamToken);
         }
         catch (OperationCanceledException) when (teamToken.IsCancellationRequested
             || ComponentCancellationToken.IsCancellationRequested)
@@ -511,12 +528,30 @@ public partial class TeamDetail(
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             _ = ex;
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _mutationError = "Failed to restore team. Please retry.";
-        }
-        finally
-        {
             _isMutating = false;
+            return;
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var success = false;
+        result.Switch(
+            _ =>
+            {
+                _statusMessage = "Team restored.";
+                success = true;
+            },
+            problem => _mutationError = problem.Detail ?? "Could not restore team.");
+        _isMutating = false;
 
         if (success)
         {
