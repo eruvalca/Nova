@@ -20,7 +20,7 @@ public sealed class CurrentUserProvider(IHttpContextAccessor httpContextAccessor
     public long? ClubId => GetLongClaim(NovaClaimTypes.ClubId);
 
     /// <inheritdoc />
-    public bool IsClubAdmin => GetPrincipal()?.IsInRole(Roles.ClubAdmin) ?? false;
+    public bool IsClubAdmin => IsClubAdminRole(GetPrincipal());
 
     /// <inheritdoc />
     public CurrentUserState GetCurrentUserState()
@@ -36,9 +36,13 @@ public sealed class CurrentUserProvider(IHttpContextAccessor httpContextAccessor
 
         var clubIdValue = principal?.FindFirstValue(NovaClaimTypes.ClubId);
         return long.TryParse(clubIdValue, out var clubId)
-            ? new ClubMember(userId, clubId, principal?.IsInRole(Roles.ClubAdmin) ?? false)
+            ? new ClubMember(userId, clubId, IsClubAdminRole(principal))
             : new AuthenticatedUser(userId);
     }
+
+    private static bool IsClubAdminRole(ClaimsPrincipal? principal) =>
+        (principal?.IsInRole(Roles.ClubAdmin) ?? false)
+        || (principal?.IsInRole(Roles.Admin) ?? false);
 
     private long? GetLongClaim(string claimType)
     {

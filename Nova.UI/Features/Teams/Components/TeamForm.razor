@@ -47,7 +47,7 @@
                     }
                     @SubmitButtonText
                 </button>
-                <button type="button" class="btn btn-outline-secondary" @onclick="OnCancel">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary" disabled="@IsSubmitting" @onclick="OnCancel">Cancel</button>
             </div>
         </EditForm>
     </div>

@@ -59,20 +59,21 @@ public sealed class CurrentUserStateTests
     /// <summary>
     /// A user with a club claim yields <see cref="ClubMember"/> with role evaluated.
     /// </summary>
-    /// <param name="isClubAdmin">Whether the ClubAdmin role claim is present.</param>
+    /// <param name="role">The optional role claim to apply.</param>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void GetCurrentUserState_WithClub_ReturnsClubMember(bool isClubAdmin)
+    [InlineData(null, false)]
+    [InlineData(Roles.ClubAdmin, true)]
+    [InlineData(Roles.Admin, true)]
+    public void GetCurrentUserState_WithClub_ReturnsClubMember(string? role, bool isClubAdmin)
     {
         List<Claim> claims =
         [
             new(ClaimTypes.NameIdentifier, "42"),
             new(NovaClaimTypes.ClubId, "7"),
         ];
-        if (isClubAdmin)
+        if (!string.IsNullOrWhiteSpace(role))
         {
-            claims.Add(new Claim(ClaimTypes.Role, Roles.ClubAdmin));
+            claims.Add(new Claim(ClaimTypes.Role, role));
         }
 
         var state = CreateProvider(claims).GetCurrentUserState();

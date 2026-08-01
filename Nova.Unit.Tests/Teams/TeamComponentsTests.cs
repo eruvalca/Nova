@@ -81,6 +81,19 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Teams_ShowsMutationControls_ForAdmin()
+    {
+        RegisterServices(isClubAdmin: false, isAdmin: true);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForState(() => !cut.Markup.Contains("Loading teams...", StringComparison.Ordinal));
+
+        cut.Markup.ShouldContain("Add team");
+        cut.Markup.ShouldContain("Edit");
+        cut.Markup.ShouldContain("Archive");
+    }
+
+    [Fact]
     public void Teams_HidesMutationControls_ForEvaluator()
     {
         RegisterServices(isClubAdmin: false);
@@ -269,6 +282,34 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Teams_ClearsRestoreSuccessMessage_WhenLaterRestoreFails()
+    {
+        var lifecycleService = Substitute.For<ITeamLifecycleService>();
+        lifecycleService.RestoreAsync(7, Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<Success>(new Success())),
+                Task.FromResult(new ServiceResult<Success>(ServiceProblem.Conflict("Restore blocked."))));
+
+        RegisterServices(
+            isClubAdmin: true,
+            lifecycleService: lifecycleService,
+            rosterItems: CreateRosterItems(LifecycleStatus.Archived));
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-success").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Team restored."));
+
+        cut.Find("button.btn-outline-success").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Restore blocked.");
+            cut.Markup.ShouldNotContain("Team restored.");
+        });
+    }
+
+    [Fact]
     public void Teams_ShowsOnlyRestore_ForArchivedRows()
     {
         RegisterServices(isClubAdmin: true, rosterItems: CreateRosterItems(LifecycleStatus.Archived));
@@ -309,6 +350,7 @@ public sealed class TeamComponentsTests : BunitContext
 
     private void RegisterServices(
         bool isClubAdmin,
+        bool isAdmin = false,
         ITeamRosterService? rosterService = null,
         ITeamManagementService? managementService = null,
         ITeamLifecycleService? lifecycleService = null,
@@ -329,7 +371,7 @@ public sealed class TeamComponentsTests : BunitContext
         Services.AddSingleton(rosterService);
         Services.AddSingleton(managementService);
         Services.AddSingleton(lifecycleService);
-        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
+        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin, isAdmin)));
     }
 
     private static ServiceResult<IReadOnlyList<TeamRosterItem>> SuccessRosterResult(IReadOnlyList<TeamRosterItem> items)
@@ -367,7 +409,7 @@ public sealed class TeamComponentsTests : BunitContext
         throw new InvalidOperationException("Could not locate repository root for Teams route assertion.");
     }
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool isAdmin)
     {
         var claims = new List<Claim>
         {
@@ -378,6 +420,11 @@ public sealed class TeamComponentsTests : BunitContext
         if (isClubAdmin)
         {
             claims.Add(new Claim(ClaimTypes.Role, Roles.ClubAdmin));
+        }
+
+        if (isAdmin)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, Roles.Admin));
         }
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));

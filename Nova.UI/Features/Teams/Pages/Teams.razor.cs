@@ -215,7 +215,7 @@ public partial class Teams(
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authenticationState.User;
 
-        _canManageTeams = principal.IsInRole(Roles.ClubAdmin);
+        _canManageTeams = principal.IsInRole(Roles.ClubAdmin) || principal.IsInRole(Roles.Admin);
         _clubId = ReadClubIdClaim(principal);
 
         if (Initialized)
@@ -487,6 +487,11 @@ public partial class Teams(
     /// </summary>
     private void ShowCreateForm()
     {
+        if (_isMutating)
+        {
+            return;
+        }
+
         _createForm = TeamFormState.CreateDefault();
         _showCreateForm = true;
         _editForm = null;
@@ -502,6 +507,11 @@ public partial class Teams(
     /// <param name="team">The selected roster team.</param>
     private void BeginEdit(TeamRosterItem team)
     {
+        if (_isMutating)
+        {
+            return;
+        }
+
         _showCreateForm = false;
         _statusMessage = null;
         _formError = null;
@@ -515,6 +525,11 @@ public partial class Teams(
     /// </summary>
     private void CancelMutationForm()
     {
+        if (_isMutating)
+        {
+            return;
+        }
+
         _showCreateForm = false;
         _editForm = null;
         _formError = null;
@@ -591,6 +606,11 @@ public partial class Teams(
     /// <param name="team">The selected team.</param>
     private void BeginArchive(TeamRosterItem team)
     {
+        if (_isMutating)
+        {
+            return;
+        }
+
         _archiveCandidate = team;
         _archiveConfirmed = false;
         _archiveBlockers = [];
@@ -604,6 +624,11 @@ public partial class Teams(
     /// </summary>
     private void CancelArchive()
     {
+        if (_isMutating)
+        {
+            return;
+        }
+
         _archiveCandidate = null;
         _archiveConfirmed = false;
         _archiveBlockers = [];
@@ -615,7 +640,7 @@ public partial class Teams(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task ConfirmArchiveAsync()
     {
-        if (_archiveCandidate is null || !_archiveConfirmed)
+        if (_archiveCandidate is null || !_archiveConfirmed || _isMutating)
         {
             return;
         }
@@ -655,7 +680,13 @@ public partial class Teams(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task RestoreTeamAsync(TeamRosterItem team)
     {
+        if (_isMutating)
+        {
+            return;
+        }
+
         _isMutating = true;
+        _statusMessage = null;
         _actionError = null;
 
         var result = await teamLifecycleService.RestoreAsync(team.TeamId, ComponentCancellationToken);

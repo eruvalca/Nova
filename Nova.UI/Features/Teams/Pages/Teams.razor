@@ -19,7 +19,7 @@
             </select>
             @if (_canManageTeams)
             {
-                <button type="button" class="btn btn-primary" @onclick="ShowCreateForm">
+                <button type="button" class="btn btn-primary" disabled="@_isMutating" @onclick="ShowCreateForm">
                     Add team
                 </button>
             }
@@ -122,14 +122,14 @@
                     </div>
                 }
                 <div class="form-check mb-3">
-                    <input id="archive-confirm-checkbox" class="form-check-input" type="checkbox" @bind="_archiveConfirmed" />
+                    <input id="archive-confirm-checkbox" class="form-check-input" type="checkbox" disabled="@_isMutating" @bind="_archiveConfirmed" />
                     <label class="form-check-label" for="archive-confirm-checkbox">
                         I understand this team will be moved to the archived roster.
                     </label>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     <button type="button" class="btn btn-warning" disabled="@(!_archiveConfirmed || _isMutating)" @onclick="ConfirmArchiveAsync">Archive team</button>
-                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelArchive">Cancel</button>
+                    <button type="button" class="btn btn-outline-secondary" disabled="@_isMutating" @onclick="CancelArchive">Cancel</button>
                 </div>
             </div>
         </section>
@@ -182,10 +182,10 @@
                                         <div class="d-flex flex-wrap justify-content-end gap-2">
                                             @if (team.LifecycleStatus == LifecycleStatus.Active)
                                             {
-                                                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => BeginEdit(team)">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" disabled="@_isMutating" @onclick="() => BeginEdit(team)">
                                                     Edit
                                                 </button>
-                                                <button type="button" class="btn btn-sm btn-outline-warning" @onclick="() => BeginArchive(team)">
+                                                <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_isMutating" @onclick="() => BeginArchive(team)">
                                                     Archive
                                                 </button>
                                             }
