@@ -173,7 +173,9 @@
                         @foreach (var team in _roster)
                         {
                             <tr>
-                                <td>@team.Name</td>
+                                <td>
+                                    <a href="@BuildTeamDetailUrl(team.TeamId)">@team.Name</a>
+                                </td>
                                 <td>@team.GraduationYear</td>
                                 <td>@team.ActivePlacementCount</td>
                                 @if (_canManageTeams)

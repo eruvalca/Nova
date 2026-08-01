@@ -945,6 +945,38 @@ public partial class Teams(
             ? parsed
             : null;
 
+    /// <summary>
+    /// Builds the team-detail URL while preserving current roster filter context as a return URL.
+    /// </summary>
+    /// <param name="teamId">The target team identifier.</param>
+    /// <returns>A relative team-detail URL with an encoded return URL query parameter.</returns>
+    private string BuildTeamDetailUrl(long teamId)
+        => $"/teams/{teamId}?returnUrl={Uri.EscapeDataString(BuildCurrentRosterUrl())}";
+
+    /// <summary>
+    /// Builds the current roster URL with active filter state for use as a return URL.
+    /// </summary>
+    /// <returns>The roster URL with active query-string filter values.</returns>
+    private string BuildCurrentRosterUrl()
+    {
+        var querySegments = new List<string>
+        {
+            $"view={Uri.EscapeDataString(_lifecycleStatusFilter)}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(_searchApplied))
+        {
+            querySegments.Add($"search={Uri.EscapeDataString(_searchApplied)}");
+        }
+
+        if (_graduationYearFilter is not null)
+        {
+            querySegments.Add($"graduationYear={_graduationYearFilter.Value.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        return $"/teams?{string.Join("&", querySegments)}";
+    }
+
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
