@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using System.IO;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
@@ -99,6 +101,7 @@ public sealed class TeamComponentsTests : BunitContext
             .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems())));
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
 
         var cut = Render<TeamsPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
@@ -111,12 +114,14 @@ public sealed class TeamComponentsTests : BunitContext
                     && input.LifecycleStatus != null
                     && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal)),
                 Arg.Any<CancellationToken>()));
+        navigationManager.Uri.ShouldContain("view=archived");
 
         cut.Find("#teams-grad-year").Change("2032");
         cut.WaitForAssertion(() =>
             rosterService.Received().GetRosterAsync(
                 Arg.Is<GetTeamRosterInput>(input => input != null && input.GraduationYear == 2032),
                 Arg.Any<CancellationToken>()));
+        navigationManager.Uri.ShouldContain("graduationYear=2032");
     }
 
     [Fact]
@@ -127,6 +132,7 @@ public sealed class TeamComponentsTests : BunitContext
             .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems())));
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
 
         var cut = Render<TeamsPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
@@ -140,6 +146,7 @@ public sealed class TeamComponentsTests : BunitContext
                     && string.Equals(input.Search, "Blue", StringComparison.Ordinal)),
                 Arg.Any<CancellationToken>()),
             timeout: TimeSpan.FromSeconds(2));
+        navigationManager.Uri.ShouldContain("search=Blue");
     }
 
     [Fact]
@@ -246,6 +253,43 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Teams_ShowsLifecycleMutationError_InGlobalAlert()
+    {
+        var lifecycleService = Substitute.For<ITeamLifecycleService>();
+        lifecycleService.RestoreAsync(7, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<Success>(ServiceProblem.Conflict("Restore blocked."))));
+
+        RegisterServices(isClubAdmin: true, lifecycleService: lifecycleService, rosterItems: CreateRosterItems(LifecycleStatus.Archived));
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-success").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Restore blocked."));
+    }
+
+    [Fact]
+    public void Teams_ShowsOnlyRestore_ForArchivedRows()
+    {
+        RegisterServices(isClubAdmin: true, rosterItems: CreateRosterItems(LifecycleStatus.Archived));
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Markup.ShouldNotContain("btn-outline-primary");
+        cut.Markup.ShouldNotContain("btn-outline-warning");
+        cut.Markup.ShouldContain("btn-outline-success");
+    }
+
+    [Fact]
+    public void TeamsRoute_DeclaresInteractiveAutoRenderMode()
+    {
+        var repoRoot = FindRepoRoot();
+        var razorPath = Path.Combine(repoRoot, "Nova.UI", "Features", "Teams", "Pages", "Teams.razor");
+        File.ReadAllText(razorPath).ShouldContain("@rendermode InteractiveAuto");
+    }
+
+    [Fact]
     public void TeamForm_ShowsValidationMessages_WhenSubmittedInvalid()
     {
         var model = new Nova.UI.Features.Teams.Components.TeamFormState
@@ -267,13 +311,16 @@ public sealed class TeamComponentsTests : BunitContext
         bool isClubAdmin,
         ITeamRosterService? rosterService = null,
         ITeamManagementService? managementService = null,
-        ITeamLifecycleService? lifecycleService = null)
+        ITeamLifecycleService? lifecycleService = null,
+        IReadOnlyList<TeamRosterItem>? rosterItems = null)
     {
+        rosterItems ??= CreateRosterItems();
+
         if (rosterService is null)
         {
             rosterService = Substitute.For<ITeamRosterService>();
             rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems())));
+                .Returns(Task.FromResult(SuccessRosterResult(rosterItems)));
         }
 
         managementService ??= Substitute.For<ITeamManagementService>();
@@ -288,7 +335,7 @@ public sealed class TeamComponentsTests : BunitContext
     private static ServiceResult<IReadOnlyList<TeamRosterItem>> SuccessRosterResult(IReadOnlyList<TeamRosterItem> items)
         => new(items.ToList().AsReadOnly());
 
-    private static List<TeamRosterItem> CreateRosterItems()
+    private static List<TeamRosterItem> CreateRosterItems(LifecycleStatus lifecycleStatus = LifecycleStatus.Active)
     {
         return
         [
@@ -297,10 +344,27 @@ public sealed class TeamComponentsTests : BunitContext
                 TeamId = 7,
                 Name = "U16 Blue",
                 GraduationYear = 2032,
-                LifecycleStatus = LifecycleStatus.Active,
+                LifecycleStatus = lifecycleStatus,
                 ActivePlacementCount = 1
             }
         ];
+    }
+
+    private static string FindRepoRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var gitDirectoryPath = Path.Combine(directory.FullName, ".git");
+            if (Directory.Exists(gitDirectoryPath) || File.Exists(gitDirectoryPath))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate repository root for Teams route assertion.");
     }
 
     private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin)

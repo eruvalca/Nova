@@ -11,6 +11,16 @@ namespace Nova.UI.Features.Teams.Components;
 public partial class TeamForm
 {
     /// <summary>
+    /// The local editable copy bound by this form.
+    /// </summary>
+    private TeamFormState _localModel = TeamFormState.CreateDefault();
+
+    /// <summary>
+    /// Tracks the last parent model reference copied into local state.
+    /// </summary>
+    private TeamFormState? _lastModelReference;
+
+    /// <summary>
     /// Gets or sets the heading displayed above the form.
     /// </summary>
     [Parameter]
@@ -50,13 +60,29 @@ public partial class TeamForm
     /// Gets or sets the callback invoked when the form validates and submits.
     /// </summary>
     [Parameter]
-    public EventCallback OnValidSubmit { get; set; }
+    public EventCallback<TeamFormState> OnValidSubmit { get; set; }
 
     /// <summary>
     /// Gets or sets the callback invoked when the user cancels editing.
     /// </summary>
     [Parameter]
     public EventCallback OnCancel { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(_lastModelReference, Model))
+        {
+            _lastModelReference = Model;
+            _localModel = Model.Clone();
+        }
+    }
+
+    /// <summary>
+    /// Submits a cloned local model to the parent callback.
+    /// </summary>
+    /// <returns>A task that completes when the parent callback finishes.</returns>
+    private async Task HandleValidSubmit() => await OnValidSubmit.InvokeAsync(_localModel.Clone());
 }
 
 /// <summary>
@@ -119,6 +145,18 @@ public sealed class TeamFormState : IValidatableObject
     /// <returns>An update-team input payload.</returns>
     public UpdateTeamInput ToUpdateInput() => new()
     {
+        TeamId = TeamId,
+        Name = Name,
+        GraduationYear = GraduationYear
+    };
+
+    /// <summary>
+    /// Creates a deep copy of this form state.
+    /// </summary>
+    /// <returns>A copy of this state.</returns>
+    public TeamFormState Clone() => new()
+    {
+        IsEdit = IsEdit,
         TeamId = TeamId,
         Name = Name,
         GraduationYear = GraduationYear

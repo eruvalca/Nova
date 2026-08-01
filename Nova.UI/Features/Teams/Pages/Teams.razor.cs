@@ -42,9 +42,14 @@ public partial class Teams(
     private string? _pageError;
 
     /// <summary>
-    /// The current mutation-level error message.
+    /// The current create/edit form mutation error message.
     /// </summary>
-    private string? _mutationError;
+    private string? _formError;
+
+    /// <summary>
+    /// The current non-form lifecycle mutation error message.
+    /// </summary>
+    private string? _actionError;
 
     /// <summary>
     /// The current status message shown after successful mutations.
@@ -97,6 +102,11 @@ public partial class Teams(
     private IReadOnlyList<int> _availableGraduationYears = [];
 
     /// <summary>
+    /// A stable set of seen graduation years used to avoid collapsing the year filter options.
+    /// </summary>
+    private readonly HashSet<int> _knownGraduationYears = [];
+
+    /// <summary>
     /// The create-team input model.
     /// </summary>
     private TeamFormState _createForm = TeamFormState.CreateDefault();
@@ -137,9 +147,14 @@ public partial class Teams(
     private CancellationTokenSource? _searchDebounceSource;
 
     /// <summary>
-    /// Indicates whether query-string filters have been applied to component state.
+    /// Request source used to cancel stale roster loads.
     /// </summary>
-    private bool _queryFiltersApplied;
+    private CancellationTokenSource? _loadRosterSource;
+
+    /// <summary>
+    /// Monotonic request version used to ignore stale roster results.
+    /// </summary>
+    private long _loadRosterVersion;
 
     /// <summary>
     /// Gets or sets the persisted startup roster snapshot used across prerender and interactive attach.
@@ -183,25 +198,20 @@ public partial class Teams(
     protected string GraduationYearFilterText => _graduationYearFilter?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
 
     /// <inheritdoc />
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        if (_queryFiltersApplied)
+        var filtersChanged = ApplyQueryFiltersToState();
+        if (filtersChanged && Initialized && _clubId is not null)
         {
-            return;
+            await LoadRosterAsync();
         }
-
-        _queryFiltersApplied = true;
-        _lifecycleStatusFilter = string.Equals(ViewQuery, "archived", StringComparison.OrdinalIgnoreCase)
-            ? "archived"
-            : "active";
-        _searchDraft = SearchQuery ?? string.Empty;
-        _searchApplied = _searchDraft;
-        _graduationYearFilter = GraduationYearQuery;
     }
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        _ = ApplyQueryFiltersToState();
+
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authenticationState.User;
 
@@ -237,6 +247,42 @@ public partial class Teams(
     }
 
     /// <summary>
+    /// Applies normalized query-string filters to component state.
+    /// </summary>
+    /// <returns><see langword="true"/> when one or more filter values changed; otherwise <see langword="false"/>.</returns>
+    private bool ApplyQueryFiltersToState()
+    {
+        var lifecycleFromQuery = NormalizeLifecycleStatus(ViewQuery);
+        var searchFromQuery = (SearchQuery ?? string.Empty).Trim();
+        var graduationYearFromQuery = GraduationYearQuery is >= 2000 and <= 2100 ? GraduationYearQuery : null;
+
+        var hasChanged = !string.Equals(_lifecycleStatusFilter, lifecycleFromQuery, StringComparison.Ordinal)
+            || !string.Equals(_searchDraft, searchFromQuery, StringComparison.Ordinal)
+            || _graduationYearFilter != graduationYearFromQuery;
+
+        _lifecycleStatusFilter = lifecycleFromQuery;
+        _searchDraft = searchFromQuery;
+        _searchApplied = searchFromQuery;
+        _graduationYearFilter = graduationYearFromQuery;
+        if (_graduationYearFilter is int year)
+        {
+            _knownGraduationYears.Add(year);
+        }
+
+        return hasChanged;
+    }
+
+    /// <summary>
+    /// Parses and normalizes the lifecycle query value.
+    /// </summary>
+    /// <param name="lifecycleQuery">The incoming lifecycle query value.</param>
+    /// <returns><c>archived</c> or <c>active</c>.</returns>
+    private static string NormalizeLifecycleStatus(string? lifecycleQuery)
+        => string.Equals(lifecycleQuery, "archived", StringComparison.OrdinalIgnoreCase)
+            ? "archived"
+            : "active";
+
+    /// <summary>
     /// Parses the club identifier claim from the current principal.
     /// </summary>
     /// <param name="principal">The current principal.</param>
@@ -260,6 +306,12 @@ public partial class Teams(
             return;
         }
 
+        var version = Interlocked.Increment(ref _loadRosterVersion);
+        _loadRosterSource?.Cancel();
+        _loadRosterSource?.Dispose();
+        _loadRosterSource = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+        var requestToken = _loadRosterSource.Token;
+
         _isLoading = true;
         _pageError = null;
 
@@ -270,7 +322,21 @@ public partial class Teams(
             GraduationYear = _graduationYearFilter
         };
 
-        var result = await teamRosterService.GetRosterAsync(input, ComponentCancellationToken);
+        ServiceResult<IReadOnlyList<TeamRosterItem>> result;
+        try
+        {
+            result = await teamRosterService.GetRosterAsync(input, requestToken);
+        }
+        catch (OperationCanceledException) when (requestToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (version != _loadRosterVersion || requestToken.IsCancellationRequested)
+        {
+            return;
+        }
+
         result.Switch(
             roster =>
             {
@@ -303,17 +369,44 @@ public partial class Teams(
     }
 
     /// <summary>
-    /// Refreshes graduation-year filter options from the currently loaded roster rows.
+    /// Refreshes graduation-year filter options from known and currently loaded roster rows.
     /// </summary>
     /// <param name="items">The loaded roster rows.</param>
     private void RefreshAvailableGraduationYears(IReadOnlyList<TeamRosterItem> items)
     {
-        _availableGraduationYears = items
-            .Select(team => team.GraduationYear)
-            .Distinct()
+        foreach (var year in items.Select(team => team.GraduationYear))
+        {
+            _knownGraduationYears.Add(year);
+        }
+
+        if (_graduationYearFilter is int selectedYear)
+        {
+            _knownGraduationYears.Add(selectedYear);
+        }
+
+        _availableGraduationYears = _knownGraduationYears
             .OrderBy(year => year)
             .ToList()
             .AsReadOnly();
+    }
+
+    /// <summary>
+    /// Synchronizes active filter values into the URL query string.
+    /// </summary>
+    private void SyncFiltersToUrl()
+    {
+        var uri = navigationManager.GetUriWithQueryParameters(
+            new Dictionary<string, object?>
+            {
+                ["view"] = _lifecycleStatusFilter,
+                ["search"] = string.IsNullOrWhiteSpace(_searchApplied) ? null : _searchApplied,
+                ["graduationYear"] = _graduationYearFilter
+            });
+
+        if (!string.Equals(uri, navigationManager.Uri, StringComparison.Ordinal))
+        {
+            navigationManager.NavigateTo(uri, new NavigationOptions { ReplaceHistoryEntry = true });
+        }
     }
 
     /// <summary>
@@ -345,7 +438,10 @@ public partial class Teams(
             return;
         }
 
-        _searchApplied = _searchDraft;
+        _searchApplied = _searchDraft.Trim();
+        _statusMessage = null;
+        _actionError = null;
+        SyncFiltersToUrl();
         await LoadRosterAsync();
     }
 
@@ -356,7 +452,10 @@ public partial class Teams(
     /// <returns>A task that completes when loading is finished.</returns>
     private async Task OnLifecycleStatusChangedAsync(ChangeEventArgs args)
     {
-        _lifecycleStatusFilter = args.Value?.ToString() ?? "active";
+        _lifecycleStatusFilter = NormalizeLifecycleStatus(args.Value?.ToString());
+        _statusMessage = null;
+        _actionError = null;
+        SyncFiltersToUrl();
         await LoadRosterAsync();
     }
 
@@ -371,6 +470,15 @@ public partial class Teams(
         _graduationYearFilter = int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedYear)
             ? parsedYear
             : null;
+
+        if (_graduationYearFilter is int year)
+        {
+            _knownGraduationYears.Add(year);
+        }
+
+        _statusMessage = null;
+        _actionError = null;
+        SyncFiltersToUrl();
         await LoadRosterAsync();
     }
 
@@ -379,10 +487,12 @@ public partial class Teams(
     /// </summary>
     private void ShowCreateForm()
     {
+        _createForm = TeamFormState.CreateDefault();
         _showCreateForm = true;
         _editForm = null;
         _statusMessage = null;
-        _mutationError = null;
+        _formError = null;
+        _actionError = null;
         _cutoffBlockers = [];
     }
 
@@ -394,7 +504,8 @@ public partial class Teams(
     {
         _showCreateForm = false;
         _statusMessage = null;
-        _mutationError = null;
+        _formError = null;
+        _actionError = null;
         _cutoffBlockers = [];
         _editForm = TeamFormState.FromRosterItem(team);
     }
@@ -406,21 +517,23 @@ public partial class Teams(
     {
         _showCreateForm = false;
         _editForm = null;
-        _mutationError = null;
+        _formError = null;
         _cutoffBlockers = [];
     }
 
     /// <summary>
     /// Creates a new team and refreshes the roster.
     /// </summary>
+    /// <param name="formState">The validated team form state.</param>
     /// <returns>A task that completes when the mutation finishes.</returns>
-    private async Task CreateTeamAsync()
+    private async Task CreateTeamAsync(TeamFormState formState)
     {
         _isMutating = true;
-        _mutationError = null;
+        _formError = null;
+        _actionError = null;
         _cutoffBlockers = [];
 
-        var result = await teamManagementService.CreateAsync(_createForm.ToCreateInput(), ComponentCancellationToken);
+        var result = await teamManagementService.CreateAsync(formState.ToCreateInput(), ComponentCancellationToken);
         result.Switch(
             _ =>
             {
@@ -428,7 +541,7 @@ public partial class Teams(
                 _createForm = TeamFormState.CreateDefault();
                 _statusMessage = "Team created successfully.";
             },
-            problem => _mutationError = problem.Detail ?? "Could not create team.");
+            problem => _formError = problem.Detail ?? "Could not create team.");
 
         _isMutating = false;
         if (result.IsSuccess)
@@ -440,19 +553,16 @@ public partial class Teams(
     /// <summary>
     /// Saves edits for an existing team and refreshes the roster.
     /// </summary>
+    /// <param name="formState">The validated edit form state.</param>
     /// <returns>A task that completes when the mutation finishes.</returns>
-    private async Task UpdateTeamAsync()
+    private async Task UpdateTeamAsync(TeamFormState formState)
     {
-        if (_editForm is null)
-        {
-            return;
-        }
-
         _isMutating = true;
-        _mutationError = null;
+        _formError = null;
+        _actionError = null;
         _cutoffBlockers = [];
 
-        var result = await teamManagementService.UpdateAsync(_editForm.ToUpdateInput(), ComponentCancellationToken);
+        var result = await teamManagementService.UpdateAsync(formState.ToUpdateInput(), ComponentCancellationToken);
         result.Switch(
             _ =>
             {
@@ -461,7 +571,7 @@ public partial class Teams(
             },
             problem =>
             {
-                _mutationError = problem.Detail ?? "Could not update team.";
+                _formError = problem.Detail ?? "Could not update team.";
                 if (problem.Kind == ServiceProblemKind.Conflict)
                 {
                     _cutoffBlockers = ExtractCutoffBlockers(problem.Errors);
@@ -484,7 +594,8 @@ public partial class Teams(
         _archiveCandidate = team;
         _archiveConfirmed = false;
         _archiveBlockers = [];
-        _mutationError = null;
+        _formError = null;
+        _actionError = null;
         _statusMessage = null;
     }
 
@@ -510,7 +621,7 @@ public partial class Teams(
         }
 
         _isMutating = true;
-        _mutationError = null;
+        _actionError = null;
         _archiveBlockers = [];
 
         var result = await teamLifecycleService.ArchiveAsync(_archiveCandidate.TeamId, ComponentCancellationToken);
@@ -522,7 +633,7 @@ public partial class Teams(
             },
             problem =>
             {
-                _mutationError = problem.Detail ?? "Could not archive team.";
+                _actionError = problem.Detail ?? "Could not archive team.";
                 if (problem.Kind == ServiceProblemKind.Conflict
                     && problem.TryGetArchiveBlockers(out var blockers))
                 {
@@ -545,12 +656,12 @@ public partial class Teams(
     private async Task RestoreTeamAsync(TeamRosterItem team)
     {
         _isMutating = true;
-        _mutationError = null;
+        _actionError = null;
 
         var result = await teamLifecycleService.RestoreAsync(team.TeamId, ComponentCancellationToken);
         result.Switch(
             _ => _statusMessage = "Team restored.",
-            problem => _mutationError = problem.Detail ?? "Could not restore team.");
+            problem => _actionError = problem.Detail ?? "Could not restore team.");
 
         _isMutating = false;
         if (result.IsSuccess)
@@ -683,6 +794,9 @@ public partial class Teams(
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();
         _searchDebounceSource = null;
+        _loadRosterSource?.Cancel();
+        _loadRosterSource?.Dispose();
+        _loadRosterSource = null;
         return ValueTask.CompletedTask;
     }
 

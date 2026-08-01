@@ -24,18 +24,18 @@
             </div>
         }
 
-        <EditForm Model="Model" OnValidSubmit="OnValidSubmit">
+        <EditForm Model="_localModel" OnValidSubmit="HandleValidSubmit">
             <DataAnnotationsValidator />
             <div class="row g-3">
                 <div class="col-md-7">
                     <label for="team-name" class="form-label">Team name</label>
-                    <InputText id="team-name" class="form-control" @bind-Value="Model.Name" />
-                    <ValidationMessage For="() => Model.Name" class="text-danger small" />
+                    <InputText id="team-name" class="form-control" @bind-Value="_localModel.Name" />
+                    <ValidationMessage For="() => _localModel.Name" class="text-danger small" />
                 </div>
                 <div class="col-md-5">
                     <label for="team-grad-year" class="form-label">Graduation year cutoff</label>
-                    <InputNumber id="team-grad-year" class="form-control" @bind-Value="Model.GraduationYear" />
-                    <ValidationMessage For="() => Model.GraduationYear" class="text-danger small" />
+                    <InputNumber id="team-grad-year" class="form-control" @bind-Value="_localModel.GraduationYear" />
+                    <ValidationMessage For="() => _localModel.GraduationYear" class="text-danger small" />
                 </div>
             </div>
 
