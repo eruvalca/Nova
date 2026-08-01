@@ -252,6 +252,10 @@ public partial class Teams(
     {
         var lifecycleFromQuery = NormalizeLifecycleStatus(ViewQuery);
         var searchFromQuery = (SearchQuery ?? string.Empty).Trim();
+        if (searchFromQuery.Length > 200)
+        {
+            searchFromQuery = string.Empty;
+        }
         var graduationYearFromQuery = ParseGraduationYearQuery(GraduationYearQuery);
 
         var hasChanged = !string.Equals(_lifecycleStatusFilter, lifecycleFromQuery, StringComparison.Ordinal)
