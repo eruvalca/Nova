@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.IO;
+using System.Net.Http;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -65,6 +66,19 @@ public sealed class TeamComponentsTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Transport failed."));
         cut.Find("button.btn-outline-danger").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+    }
+
+    [Fact]
+    public void Teams_ShowsRetryableError_WhenRosterTransportFails()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<ServiceResult<IReadOnlyList<TeamRosterItem>>>(new HttpRequestException("network")));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Failed to load teams. Please retry."));
     }
 
     [Fact]
@@ -396,6 +410,50 @@ public sealed class TeamComponentsTests : BunitContext
         {
             cut.Markup.ShouldContain("Archive blockers:");
             cut.Markup.ShouldContain("Summer Tryouts (Campaign 15): placement IDs 44");
+        });
+    }
+
+    [Fact]
+    public void Teams_ShowsArchiveTransportError_AndKeepsArchiveWorkflowOpen()
+    {
+        var lifecycleService = Substitute.For<ITeamLifecycleService>();
+        lifecycleService.ArchiveAsync(7, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<ServiceResult<Success>>(new HttpRequestException("network")));
+
+        RegisterServices(isClubAdmin: true, lifecycleService: lifecycleService);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-warning").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Archive U16 Blue?"));
+
+        cut.Find("#archive-confirm-checkbox").Change(true);
+        cut.Find("button.btn-warning").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Could not archive team. Please retry.");
+            cut.Markup.ShouldContain("Archive U16 Blue?");
+        });
+    }
+
+    [Fact]
+    public void Teams_BeginArchive_ClosesEditWorkflow()
+    {
+        RegisterServices(isClubAdmin: true);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit team"));
+
+        cut.Find("button.btn-outline-warning").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Archive U16 Blue?");
+            cut.Markup.ShouldNotContain("Save changes");
         });
     }
 

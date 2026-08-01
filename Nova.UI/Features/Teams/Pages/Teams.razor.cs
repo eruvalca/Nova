@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -348,6 +349,14 @@ public partial class Teams(
         {
             return;
         }
+        catch (HttpRequestException)
+        {
+            _pageError = "Failed to load teams. Please retry.";
+            _roster = null;
+            PersistStartupState();
+            _isLoading = false;
+            return;
+        }
 
         if (version != _loadRosterVersion || requestToken.IsCancellationRequested)
         {
@@ -578,18 +587,35 @@ public partial class Teams(
         _actionError = null;
         _cutoffBlockers = [];
 
-        var result = await teamManagementService.CreateAsync(formState.ToCreateInput(), ComponentCancellationToken);
-        result.Switch(
-            _ =>
-            {
-                _showCreateForm = false;
-                _createForm = TeamFormState.CreateDefault();
-                _statusMessage = "Team created successfully.";
-            },
-            problem => _formError = problem.Detail ?? "Could not create team.");
+        var shouldReloadRoster = false;
+        try
+        {
+            var result = await teamManagementService.CreateAsync(formState.ToCreateInput(), ComponentCancellationToken);
+            result.Switch(
+                _ =>
+                {
+                    _showCreateForm = false;
+                    _createForm = TeamFormState.CreateDefault();
+                    _statusMessage = "Team created successfully.";
+                },
+                problem => _formError = problem.Detail ?? "Could not create team.");
+            shouldReloadRoster = result.IsSuccess;
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (HttpRequestException)
+        {
+            _formError = "Could not create team. Please retry.";
+            return;
+        }
+        finally
+        {
+            _isMutating = false;
+        }
 
-        _isMutating = false;
-        if (result.IsSuccess)
+        if (shouldReloadRoster)
         {
             await LoadRosterAsync();
         }
@@ -607,24 +633,41 @@ public partial class Teams(
         _actionError = null;
         _cutoffBlockers = [];
 
-        var result = await teamManagementService.UpdateAsync(formState.ToUpdateInput(), ComponentCancellationToken);
-        result.Switch(
-            _ =>
-            {
-                _editForm = null;
-                _statusMessage = "Team updated successfully.";
-            },
-            problem =>
-            {
-                _formError = problem.Detail ?? "Could not update team.";
-                if (problem.Kind == ServiceProblemKind.Conflict)
+        var shouldReloadRoster = false;
+        try
+        {
+            var result = await teamManagementService.UpdateAsync(formState.ToUpdateInput(), ComponentCancellationToken);
+            result.Switch(
+                _ =>
                 {
-                    _cutoffBlockers = ExtractCutoffBlockers(problem.Errors);
-                }
-            });
+                    _editForm = null;
+                    _statusMessage = "Team updated successfully.";
+                },
+                problem =>
+                {
+                    _formError = problem.Detail ?? "Could not update team.";
+                    if (problem.Kind == ServiceProblemKind.Conflict)
+                    {
+                        _cutoffBlockers = ExtractCutoffBlockers(problem.Errors);
+                    }
+                });
+            shouldReloadRoster = result.IsSuccess;
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (HttpRequestException)
+        {
+            _formError = "Could not update team. Please retry.";
+            return;
+        }
+        finally
+        {
+            _isMutating = false;
+        }
 
-        _isMutating = false;
-        if (result.IsSuccess)
+        if (shouldReloadRoster)
         {
             await LoadRosterAsync();
         }
@@ -641,6 +684,9 @@ public partial class Teams(
             return;
         }
 
+        _showCreateForm = false;
+        _editForm = null;
+        _cutoffBlockers = [];
         _archiveCandidate = team;
         _archiveConfirmed = false;
         _archiveBlockers = [];
@@ -687,25 +733,42 @@ public partial class Teams(
         _actionError = null;
         _archiveBlockers = [];
 
-        var result = await teamLifecycleService.ArchiveAsync(_archiveCandidate.TeamId, ComponentCancellationToken);
-        result.Switch(
-            _ =>
-            {
-                _statusMessage = "Team archived.";
-                ClearArchiveState();
-            },
-            problem =>
-            {
-                _actionError = problem.Detail ?? "Could not archive team.";
-                if (problem.Kind == ServiceProblemKind.Conflict
-                    && problem.TryGetArchiveBlockers(out var blockers))
+        var shouldReloadRoster = false;
+        try
+        {
+            var result = await teamLifecycleService.ArchiveAsync(_archiveCandidate.TeamId, ComponentCancellationToken);
+            result.Switch(
+                _ =>
                 {
-                    _archiveBlockers = blockers;
-                }
-            });
+                    _statusMessage = "Team archived.";
+                    ClearArchiveState();
+                },
+                problem =>
+                {
+                    _actionError = problem.Detail ?? "Could not archive team.";
+                    if (problem.Kind == ServiceProblemKind.Conflict
+                        && problem.TryGetArchiveBlockers(out var blockers))
+                    {
+                        _archiveBlockers = blockers;
+                    }
+                });
+            shouldReloadRoster = result.IsSuccess;
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (HttpRequestException)
+        {
+            _actionError = "Could not archive team. Please retry.";
+            return;
+        }
+        finally
+        {
+            _isMutating = false;
+        }
 
-        _isMutating = false;
-        if (result.IsSuccess)
+        if (shouldReloadRoster)
         {
             await LoadRosterAsync();
         }
@@ -726,14 +789,30 @@ public partial class Teams(
         _isMutating = true;
         _statusMessage = null;
         _actionError = null;
+        var shouldReloadRoster = false;
+        try
+        {
+            var result = await teamLifecycleService.RestoreAsync(team.TeamId, ComponentCancellationToken);
+            result.Switch(
+                _ => _statusMessage = "Team restored.",
+                problem => _actionError = problem.Detail ?? "Could not restore team.");
+            shouldReloadRoster = result.IsSuccess;
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (HttpRequestException)
+        {
+            _actionError = "Could not restore team. Please retry.";
+            return;
+        }
+        finally
+        {
+            _isMutating = false;
+        }
 
-        var result = await teamLifecycleService.RestoreAsync(team.TeamId, ComponentCancellationToken);
-        result.Switch(
-            _ => _statusMessage = "Team restored.",
-            problem => _actionError = problem.Detail ?? "Could not restore team.");
-
-        _isMutating = false;
-        if (result.IsSuccess)
+        if (shouldReloadRoster)
         {
             await LoadRosterAsync();
         }

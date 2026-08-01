@@ -40,6 +40,11 @@ public sealed class CurrentUserProvider(IHttpContextAccessor httpContextAccessor
             : new AuthenticatedUser(userId);
     }
 
+    /// <summary>
+    /// Determines whether the principal has club-administration capability.
+    /// </summary>
+    /// <param name="principal">The principal to evaluate.</param>
+    /// <returns><see langword="true"/> when the principal is in ClubAdmin or Admin role; otherwise <see langword="false"/>.</returns>
     private static bool IsClubAdminRole(ClaimsPrincipal? principal) =>
         (principal?.IsInRole(Roles.ClubAdmin) ?? false)
         || (principal?.IsInRole(Roles.Admin) ?? false);
