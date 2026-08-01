@@ -60,6 +60,7 @@ public sealed class CurrentUserStateTests
     /// A user with a club claim yields <see cref="ClubMember"/> with role evaluated.
     /// </summary>
     /// <param name="role">The optional role claim to apply.</param>
+    /// <param name="isClubAdmin">Expected administration capability for the supplied role.</param>
     [Theory]
     [InlineData(null, false)]
     [InlineData(Roles.ClubAdmin, true)]

@@ -458,6 +458,44 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Teams_ShowCreateForm_ClosesArchiveWorkflow()
+    {
+        RegisterServices(isClubAdmin: true);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-warning").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Archive U16 Blue?"));
+
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Add team");
+            cut.Markup.ShouldNotContain("Archive U16 Blue?");
+        });
+    }
+
+    [Fact]
+    public void Teams_BeginEdit_ClosesArchiveWorkflow()
+    {
+        RegisterServices(isClubAdmin: true);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-warning").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Archive U16 Blue?"));
+
+        cut.Find("button.btn-outline-primary").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Edit team");
+            cut.Markup.ShouldNotContain("Archive U16 Blue?");
+        });
+    }
+
+    [Fact]
     public void Teams_ShowsLifecycleMutationError_InGlobalAlert()
     {
         var lifecycleService = Substitute.For<ITeamLifecycleService>();

@@ -351,6 +351,11 @@ public partial class Teams(
         }
         catch (HttpRequestException)
         {
+            if (version != _loadRosterVersion || requestToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _pageError = "Failed to load teams. Please retry.";
             _roster = null;
             PersistStartupState();
@@ -531,6 +536,7 @@ public partial class Teams(
             return;
         }
 
+        ClearArchiveState();
         _createForm = TeamFormState.CreateDefault();
         _showCreateForm = true;
         _editForm = null;
@@ -551,6 +557,7 @@ public partial class Teams(
             return;
         }
 
+        ClearArchiveState();
         _showCreateForm = false;
         _statusMessage = null;
         _formError = null;
