@@ -3,8 +3,8 @@ name: add-feature-slice
 description: >-
   Orchestrates building a full vertical feature slice in Nova: input record + validation, service (ServiceResult/ServiceProblem), HTTP endpoint, WASM client, tests.
   USE FOR: add a new feature, build a vertical slice end to end, new input record + service + endpoint, scaffold a feature, add a service that crosses the HTTP/WASM boundary.
-  DO NOT USE FOR: domain/persistence-only work (use add-domain-persistence), a single endpoint on an existing service (use add-api-endpoint), only writing/running tests (use nova-testing).
-  INVOKES: add-domain-persistence (when schema/domain persistence changes), add-api-endpoint (endpoint step), nova-testing (test step).
+  DO NOT USE FOR: domain/persistence-only work (use add-domain-persistence), a single endpoint on an existing service (use add-api-endpoint), UI-only work such as adding a page or component (use add-blazor-ui), only writing/running tests (use nova-testing).
+  INVOKES: add-domain-persistence (when schema/domain persistence changes), add-api-endpoint (endpoint step), add-blazor-ui (UI step), nova-testing (test step).
 ---
 
 # Add Feature Slice
@@ -33,4 +33,7 @@ Canonical examples: `Nova.Shared\Clubs\CreateClubInput.cs`, `Nova.Shared\Clubs\C
 4. **Composition root** — register the server service in `Nova\Program.cs`; direct-construction unit tests do not verify DI registration.
 5. **HTTP endpoint** — invoke `add-api-endpoint`; do not duplicate that skill's endpoint details here.
 6. **WASM client service** — add `Nova.Client\Services\Http{Feature}Service.cs`; follow [wasm-client.md](references/wasm-client.md).
-7. **Tests** — invoke `nova-testing`; do not duplicate that skill's test-suite details here.
+7. **UI (pages/components)** — invoke `add-blazor-ui` when the slice surfaces in the UI; it owns
+   placement, the render-mode decision, lifecycle/persisted state, callbacks, and form wiring. Do not
+   duplicate that skill's details here.
+8. **Tests** — invoke `nova-testing`; do not duplicate that skill's test-suite details here.

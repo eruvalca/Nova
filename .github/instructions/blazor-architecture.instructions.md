@@ -5,6 +5,11 @@ description: "Blazor architecture: placement, SSR-first render modes, persisted 
 
 # Blazor Architecture
 
+> Declarative rules only. For the **step-by-step recipe** (placement and page-vs-component decision,
+> the render-mode decision tree, lifecycle selection, prerender/persisted state, parameters and
+> `EventCallback`s, binding, and `EditForm` validation), use the **`add-blazor-ui`** skill
+> (`.github/skills/add-blazor-ui/`).
+
 ## Project Roles
 
 - `Nova.UI` (Razor class library) is the default home for pages and components. New UI goes here unless a rule below requires otherwise.
@@ -23,6 +28,9 @@ Build SSR-first; opt into interactivity only when functionality or UX requires i
 3. Use **`InteractiveServer`** only when the component must be interactive _and_ cannot run in WASM (depends on server-only services that have no client abstraction). Prefer fixing the abstraction over falling back to server interactivity.
 4. Apply render modes at the component or page level, not globally. Do not make the whole app interactive.
 
+Run the ordered decision tree in `.github/skills/add-blazor-ui/references/render-mode-decision.md`
+before writing markup; it also covers per-instance `@rendermode` islands on static SSR pages.
+
 Interactive (Auto/WebAssembly) components must live in a project referenced by `Nova.Client` — i.e. `Nova.UI` or `Nova.Client` — never in `Nova`.
 Any page or component that relies on event handlers (`@onclick`, `@onchange`, submit callbacks),
 timers, or other interactive behavior must have an effective interactive render mode. Static SSR
@@ -34,7 +42,9 @@ Interactive render modes (`InteractiveAuto`, `InteractiveWebAssembly`, `Interact
 
 - `OnInitializedAsync` runs during prerender and runs again after interactive attach unless state is restored.
 - Use `[PersistentState]` only on **public component properties** so state can be serialized/restored across prerender and attach.
-- For duplicate-fetch prevention, persist a boolean `Initialized` flag and check it at the top of `OnInitializedAsync`; if already initialized, return before loading data again.
+- Prevent duplicate startup fetches across prerender and attach by persisting an `Initialized` flag
+  and returning early when it is already set. Recipe:
+  `.github/skills/add-blazor-ui/references/lifecycle-and-state.md`.
 - When restoring persisted source data, also rebuild any derived collections, filter options, or
   computed view state before returning from initialization. Persisting rows without reconstructing
   their dependent UI state causes prerendered controls to disappear or drift after attach.
@@ -69,6 +79,17 @@ Nova.UI/
 - **DI in code-behind**: prefer constructor injection with primary constructors in the `.razor.cs` file over `@inject`/`[Inject]` when possible. Constructor injection requires the component to be instantiated by DI-aware rendering (.NET 10 supports this); use `[Inject]` properties only when constructor injection is not viable (e.g., generated base-class constraints).
 - **Flow cancellation through async work**: pass `ComponentCancellationToken` to async operations (service methods, HTTP calls, EF/query calls exposed via services, delays, streams, etc.) so work stops promptly when the component is disposed.
 - **Extend disposal via `DisposeAsyncCore()`**: when component-specific async cleanup is needed, override `DisposeAsyncCore()` in the existing component inheritance chain instead of re-implementing `IAsyncDisposable` on the component.
+- **Choose the lifecycle method by purpose**: `OnInitializedAsync` for one-time data loading;
+  `OnParametersSet(Async)` to react to `[Parameter]`/`[SupplyParameterFromQuery]` values — it runs on
+  every parameter set, so guard one-time projection behind an applied-once flag or an actual-change
+  check; `OnAfterRenderAsync(firstRender)` only for DOM, JS interop, and `@ref` access, never for
+  data loading.
+- **Use `EventCallback`/`EventCallback<T>` for child-to-parent notification**, never `Action`,
+  `Action<T>`, or `Func<Task>`. `EventCallback` re-renders the parent that supplied the handler;
+  `Action` does not, so the parent's UI silently goes stale.
+- **Do not call `StateHasChanged` defensively**: `ComponentBase` re-renders after lifecycle methods
+  and component event handlers. Call it only when state changes outside those paths (timer, JS
+  callback, non-UI service event), and marshal with `await InvokeAsync(StateHasChanged)`.
 - **Use properties where the framework requires properties**: component `[Parameter]` members must be `public` properties with `public` setters, and `[PersistentState]` persists `public` properties.
 - **Don't mutate parameters directly for owned state**: if a child component needs to mutate parameter-derived state, do not write back to the `[Parameter]` property. Copy to private component state only on first load or when the incoming parameter value actually changes, then mutate that private state.
 - **Use fields for internal mutable UI state by default**: private fields are preferred for purely internal mutable state (`_loading`, `_error`, `_selectedId`, timers, `CancellationTokenSource`, etc.); Blazor doesn't gain reactivity from converting those values to properties.
@@ -112,3 +133,15 @@ Nova.UI/
   `SerializeAllClaims` switch is the only viable mechanism, document why it is required and do not
   treat the serialized claims as secrets or as a replacement for server authorization.
 - Keep Identity/Account pages in `Nova` as static SSR — they depend on `HttpContext`, cookies, and `SignInManager`.
+
+## Related
+
+- `.github/skills/add-blazor-ui/` — the page/component build recipe: placement and page-vs-component,
+  render-mode decision tree, lifecycle and prerender state, parameters/`EventCallback`/binding, and
+  `EditForm` validation.
+- `.github/instructions/csharp-conventions.instructions.md` — XML docs, naming, OneOf, and logging in
+  code-behind files.
+- `.github/instructions/validation.instructions.md` — DataAnnotations on shared input records and
+  `InputValidator`, which UI form models must reuse rather than re-declare.
+- `.github/instructions/testing.instructions.md` — component/bUnit coverage and the render-mode
+  assertion requirement for interactive pages.

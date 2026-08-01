@@ -2,7 +2,7 @@
 name: nova-testing
 description: >-
   Write and run Nova tests: pick the right harness (in-memory SQLite tenancy unit tests vs Aspire Postgres integration tests) and run them on Microsoft.Testing.Platform.
-  USE FOR: write a unit test, add an integration test, run tests, dotnet test, which test project, tenancy test harness, NovaAppHostFixture, lifecycle race tests, execution-strategy retry tests, transient fault injection, ambiguous commit verification, migration verification, filter tests, MTP flags.
+  USE FOR: write a unit test, add an integration test, run tests, dotnet test, which test project, tenancy test harness, NovaAppHostFixture, lifecycle race tests, execution-strategy retry tests, transient fault injection, ambiguous commit verification, migration verification, filter tests, MTP flags, bUnit component tests, render-mode assertion.
   DO NOT USE FOR: domain/persistence work (use add-domain-persistence), building full features (use add-feature-slice), or adding endpoints (use add-api-endpoint).
 ---
 
@@ -11,6 +11,9 @@ description: >-
 Use this skill when writing or running Nova tests. Read the relevant reference before editing tests:
 
 - [Unit SQLite tenancy harness](references/unit-sqlite-harness.md) for `Nova.Unit.Tests`, shared in-memory SQLite, `TenancyTestHarness`, `FakeCurrentUserProvider`, and `ActAs`.
+- [Blazor component tests](references/blazor-component-tests.md) for bUnit + NSubstitute component
+  rendering, `EventCallback` assertions, the required render-mode assertion, and persisted-state
+  restore coverage.
 - [Aspire integration harness](references/aspire-integration-harness.md) for `Nova.Integration.Tests`, real PostgreSQL 18 via Aspire AppHost, `NovaAppHostFixture`, HTTP e2e, and provider-specific checks.
 - [Aspire + Playwright validation](../aspire-playwright-validation/SKILL.md) for live browser acceptance flows that must run against the Aspire-hosted app.
 

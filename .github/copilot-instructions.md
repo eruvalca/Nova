@@ -30,5 +30,6 @@ examples) live in model-invoked Agent Skills under `.github/skills/`, loaded on 
 - `add-api-endpoint` — add/modify a minimal-API endpoint (route constants, handlers, `ToHttpResult`, ProblemDetails, antiforgery, auth, enum binding).
 - `add-domain-persistence` — add/modify domain policies, entities, EF configuration, tenancy, lifecycle/concurrency invariants, incremental migrations, and provider-focused tests; invokes `nova-testing`.
 - `add-feature-slice` — orchestrate a full vertical slice end to end (input record + validation → service → endpoint → WASM client → tests); invokes `add-domain-persistence` when needed, `add-api-endpoint`, and `nova-testing`.
+- `add-blazor-ui` — build a Blazor page or component (placement and page-vs-component, render-mode decision tree, lifecycle and prerender/persisted state, parameters/`EventCallback`/binding, `EditForm` validation); invokes `nova-testing`.
 - `extract-functional-core` — extract deterministic business decisions from an existing service into a feature-local pure policy while preserving shell behavior; invokes `nova-testing`.
 - `nova-testing` — pick the harness (SQLite tenancy unit tests vs Aspire Postgres integration tests), write a test, and run it on Microsoft.Testing.Platform.

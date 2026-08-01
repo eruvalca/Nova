@@ -85,5 +85,7 @@ Rules:
 ## Related
 
 - `.github/skills/nova-testing/` — harness internals and the write/run workflow.
+- `.github/skills/nova-testing/references/blazor-component-tests.md` — bUnit component rendering,
+  `EventCallback` assertions, and the render-mode assertion recipe.
 - `.github/instructions/functional-core.instructions.md` — policy boundary and layered test coverage.
 - `Nova.Unit.Tests/Data/TenancyTests.cs`, `Nova.Integration.Tests/Data/NovaAppHostFixture.cs`.
