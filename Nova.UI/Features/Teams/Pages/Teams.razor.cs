@@ -724,6 +724,7 @@ public partial class Teams(
         _archiveCandidate = null;
         _archiveConfirmed = false;
         _archiveBlockers = [];
+        _actionError = null;
     }
 
     /// <summary>
