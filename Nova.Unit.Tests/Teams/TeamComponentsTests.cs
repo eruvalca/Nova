@@ -82,6 +82,23 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Teams_NavigatesToAccessDenied_WhenRosterResponseIsForbidden()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TeamRosterItem>>(ServiceProblem.Forbidden("Not authorized."))));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        var cut = Render<TeamsPage>();
+
+        cut.WaitForAssertion(() =>
+            navigationManager.Uri.ShouldContain("/Account/AccessDenied"),
+            timeout: TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
     public void Teams_ShowsMutationControls_ForClubAdmin()
     {
         RegisterServices(isClubAdmin: true);
