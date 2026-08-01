@@ -52,6 +52,7 @@
                     <input id="teams-search"
                            class="form-control"
                            type="search"
+                           maxlength="200"
                            value="@_searchDraft"
                            @oninput="OnSearchInputChangedAsync"
                            placeholder="e.g. U16 Blue" />
@@ -190,7 +191,7 @@
                                             }
                                             else
                                             {
-                                                <button type="button" class="btn btn-sm btn-outline-success" @onclick="() => RestoreTeamAsync(team)">
+                                                <button type="button" class="btn btn-sm btn-outline-success" disabled="@_isMutating" @onclick="() => RestoreTeamAsync(team)">
                                                     Restore
                                                 </button>
                                             }
