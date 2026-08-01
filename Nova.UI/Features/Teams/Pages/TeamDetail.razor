@@ -199,16 +199,16 @@
                         <article class="card shadow-sm border-0">
                             <details class="placement-history-details">
                                 <summary class="card-body placement-history-summary">
-                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                        <div>
+                                    <span class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                        <span>
                                             <span class="fw-semibold me-2">@group.CampaignName</span>
                                             <span class="badge @CampaignStatusBadgeClass(group.CampaignStatus)">@group.CampaignStatus</span>
-                                        </div>
-                                        <div class="text-muted small">
+                                        </span>
+                                        <span class="text-muted small">
                                             @group.CampaignStartDate.ToString("MMM d, yyyy") ·
                                             @group.Placements.Count player@(group.Placements.Count != 1 ? "s" : string.Empty)
-                                        </div>
-                                    </div>
+                                        </span>
+                                    </span>
                                 </summary>
                                 <div class="card-body border-top pt-3">
                                     <div class="table-responsive">

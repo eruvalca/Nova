@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Threading;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Nova.Shared.Enums;
@@ -137,6 +138,12 @@ public partial class TeamDetail(
     private CancellationTokenSource _teamScopedCts = new();
 
     /// <summary>
+    /// Monotonically increasing generation counter incremented at the start of every <see cref="LoadDetailAsync"/>
+    /// call. Any completion that sees a mismatched generation discards its result without touching component state.
+    /// </summary>
+    private int _loadDetailVersion;
+
+    /// <summary>
     /// Gets or sets the persisted startup detail payload used across prerender and interactive attach.
     /// </summary>
     [PersistentState]
@@ -248,32 +255,15 @@ public partial class TeamDetail(
     private async Task LoadDetailAsync()
     {
         var teamToken = _teamScopedCts.Token;
+        var version = Interlocked.Increment(ref _loadDetailVersion);
         _isLoading = true;
         _error = null;
         _isNotFound = false;
 
+        ServiceResult<TeamDetailDto> result;
         try
         {
-            var result = await teamDetailService.GetTeamDetailAsync(TeamId, teamToken);
-            result.Switch(
-                detail => _detail = detail,
-                problem =>
-                {
-                    if (problem.Kind == ServiceProblemKind.Forbidden)
-                    {
-                        navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
-                        return;
-                    }
-
-                    if (problem.Kind == ServiceProblemKind.NotFound)
-                    {
-                        _isNotFound = true;
-                        _detail = null;
-                        return;
-                    }
-
-                    _error = problem.Detail ?? "Could not load team details.";
-                });
+            result = await teamDetailService.GetTeamDetailAsync(TeamId, teamToken);
         }
         catch (OperationCanceledException) when (teamToken.IsCancellationRequested
             || ComponentCancellationToken.IsCancellationRequested)
@@ -283,12 +273,41 @@ public partial class TeamDetail(
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             _ = ex;
+            if (version != _loadDetailVersion || teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _error = "Failed to load team details. Please retry.";
-        }
-        finally
-        {
             _isLoading = false;
+            return;
         }
+
+        if (version != _loadDetailVersion || teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        result.Switch(
+            detail => _detail = detail,
+            problem =>
+            {
+                if (problem.Kind == ServiceProblemKind.Forbidden)
+                {
+                    navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
+                    return;
+                }
+
+                if (problem.Kind == ServiceProblemKind.NotFound)
+                {
+                    _isNotFound = true;
+                    _detail = null;
+                    return;
+                }
+
+                _error = problem.Detail ?? "Could not load team details.";
+            });
+        _isLoading = false;
     }
 
     /// <summary>
