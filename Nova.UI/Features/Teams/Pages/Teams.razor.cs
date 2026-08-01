@@ -223,10 +223,7 @@ public partial class Teams(
         {
             _roster = PersistedRoster;
             _pageError = PersistedPageError;
-            if (_roster is not null)
-            {
-                RefreshAvailableGraduationYears(_roster);
-            }
+            RefreshAvailableGraduationYears(_roster ?? []);
 
             _isLoading = false;
             return;
@@ -349,7 +346,7 @@ public partial class Teams(
         {
             return;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             if (version != _loadRosterVersion || requestToken.IsCancellationRequested)
             {
@@ -612,7 +609,7 @@ public partial class Teams(
         {
             return;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             _formError = "Could not create team. Please retry.";
             return;
@@ -664,7 +661,7 @@ public partial class Teams(
         {
             return;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             _formError = "Could not update team. Please retry.";
             return;
@@ -765,7 +762,7 @@ public partial class Teams(
         {
             return;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             _actionError = "Could not archive team. Please retry.";
             return;
@@ -809,7 +806,7 @@ public partial class Teams(
         {
             return;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             _actionError = "Could not restore team. Please retry.";
             return;
