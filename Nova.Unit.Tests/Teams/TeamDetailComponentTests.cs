@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
@@ -94,13 +95,13 @@ public sealed class TeamDetailComponentTests : BunitContext
         var detailService = Substitute.For<ITeamDetailService>();
         detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
             .Returns(
-                Task.FromResult(new ServiceResult<TeamDetailDto>(ServiceProblem.ServerError("Service unavailable."))),
+                Task.FromException<ServiceResult<TeamDetailDto>>(new HttpRequestException("Connection refused")),
                 Task.FromResult(new ServiceResult<TeamDetailDto>(CreateTeamDetail())));
 
         RegisterServices(detailService: detailService);
 
         var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Service unavailable."));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Failed to load team details. Please retry."));
         cut.Find("button.btn-outline-danger").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
     }

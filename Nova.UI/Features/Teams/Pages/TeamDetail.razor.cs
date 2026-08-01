@@ -119,6 +119,17 @@ public partial class TeamDetail(
     /// </summary>
     private string? _returnUrl;
 
+    /// <summary>
+    /// The <see cref="TeamId"/> value from the most recent parameter-driven load, used to detect
+    /// navigation to a different team without a full component teardown.
+    /// </summary>
+    private long _lastLoadedTeamId;
+
+    /// <summary>
+    /// The <see cref="ReturnUrl"/> value from the most recent parameter-driven load.
+    /// </summary>
+    private string? _lastReturnUrl;
+
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
@@ -126,6 +137,22 @@ public partial class TeamDetail(
         var principal = authState.User;
         _canManageTeams = principal.IsInRole(Roles.Admin) || principal.IsInRole(Roles.ClubAdmin);
 
+        _lastLoadedTeamId = TeamId;
+        _lastReturnUrl = ReturnUrl;
+        _returnUrl = NormalizeReturnUrl(ReturnUrl);
+        await LoadDetailAsync();
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        if (TeamId == _lastLoadedTeamId && ReturnUrl == _lastReturnUrl)
+        {
+            return;
+        }
+
+        _lastLoadedTeamId = TeamId;
+        _lastReturnUrl = ReturnUrl;
         _returnUrl = NormalizeReturnUrl(ReturnUrl);
         await LoadDetailAsync();
     }
@@ -179,28 +206,42 @@ public partial class TeamDetail(
         _error = null;
         _isNotFound = false;
 
-        var result = await teamDetailService.GetTeamDetailAsync(TeamId, ComponentCancellationToken);
-        result.Switch(
-            detail => _detail = detail,
-            problem =>
-            {
-                if (problem.Kind == ServiceProblemKind.Forbidden)
+        try
+        {
+            var result = await teamDetailService.GetTeamDetailAsync(TeamId, ComponentCancellationToken);
+            result.Switch(
+                detail => _detail = detail,
+                problem =>
                 {
-                    navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
-                    return;
-                }
+                    if (problem.Kind == ServiceProblemKind.Forbidden)
+                    {
+                        navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
+                        return;
+                    }
 
-                if (problem.Kind == ServiceProblemKind.NotFound)
-                {
-                    _isNotFound = true;
-                    _detail = null;
-                    return;
-                }
+                    if (problem.Kind == ServiceProblemKind.NotFound)
+                    {
+                        _isNotFound = true;
+                        _detail = null;
+                        return;
+                    }
 
-                _error = problem.Detail ?? "Could not load team details.";
-            });
-
-        _isLoading = false;
+                    _error = problem.Detail ?? "Could not load team details.";
+                });
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            _ = ex;
+            _error = "Failed to load team details. Please retry.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     /// <summary>
@@ -238,26 +279,43 @@ public partial class TeamDetail(
         _formError = null;
         _cutoffBlockers = [];
 
-        var result = await teamManagementService.UpdateAsync(state.ToUpdateInput(), ComponentCancellationToken);
-        result.Switch(
-            _ =>
-            {
-                _showEditForm = false;
-                _editForm = null;
-                _statusMessage = "Team updated successfully.";
-            },
-            problem =>
-            {
-                _formError = problem.Detail ?? "Could not update team.";
-                if (problem.Kind == ServiceProblemKind.Conflict
-                    && problem.TryGetGraduationYearBlockers(out var blockers))
+        var success = false;
+        try
+        {
+            var result = await teamManagementService.UpdateAsync(state.ToUpdateInput(), ComponentCancellationToken);
+            result.Switch(
+                _ =>
                 {
-                    _cutoffBlockers = blockers;
-                }
-            });
+                    _showEditForm = false;
+                    _editForm = null;
+                    _statusMessage = "Team updated successfully.";
+                    success = true;
+                },
+                problem =>
+                {
+                    _formError = problem.Detail ?? "Could not update team.";
+                    if (problem.Kind == ServiceProblemKind.Conflict
+                        && problem.TryGetGraduationYearBlockers(out var blockers))
+                    {
+                        _cutoffBlockers = blockers;
+                    }
+                });
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            _ = ex;
+            _formError = "Failed to save team. Please retry.";
+        }
+        finally
+        {
+            _isMutating = false;
+        }
 
-        _isMutating = false;
-        if (result.IsSuccess)
+        if (success)
         {
             await LoadDetailAsync();
         }
@@ -312,25 +370,42 @@ public partial class TeamDetail(
         _mutationError = null;
         _archiveBlockers = [];
 
-        var result = await teamLifecycleService.ArchiveAsync(TeamId, ComponentCancellationToken);
-        result.Switch(
-            _ =>
-            {
-                _statusMessage = "Team archived.";
-                CancelArchive();
-            },
-            problem =>
-            {
-                _mutationError = problem.Detail ?? "Could not archive team.";
-                if (problem.Kind == ServiceProblemKind.Conflict
-                    && problem.TryGetArchiveBlockers(out var blockers))
+        var success = false;
+        try
+        {
+            var result = await teamLifecycleService.ArchiveAsync(TeamId, ComponentCancellationToken);
+            result.Switch(
+                _ =>
                 {
-                    _archiveBlockers = blockers;
-                }
-            });
+                    _statusMessage = "Team archived.";
+                    CancelArchive();
+                    success = true;
+                },
+                problem =>
+                {
+                    _mutationError = problem.Detail ?? "Could not archive team.";
+                    if (problem.Kind == ServiceProblemKind.Conflict
+                        && problem.TryGetArchiveBlockers(out var blockers))
+                    {
+                        _archiveBlockers = blockers;
+                    }
+                });
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            _ = ex;
+            _mutationError = "Failed to archive team. Please retry.";
+        }
+        finally
+        {
+            _isMutating = false;
+        }
 
-        _isMutating = false;
-        if (result.IsSuccess)
+        if (success)
         {
             await LoadDetailAsync();
         }
@@ -345,13 +420,33 @@ public partial class TeamDetail(
         _isMutating = true;
         _mutationError = null;
 
-        var result = await teamLifecycleService.RestoreAsync(TeamId, ComponentCancellationToken);
-        result.Switch(
-            _ => _statusMessage = "Team restored.",
-            problem => _mutationError = problem.Detail ?? "Could not restore team.");
+        var success = false;
+        try
+        {
+            var result = await teamLifecycleService.RestoreAsync(TeamId, ComponentCancellationToken);
+            result.Switch(
+                _ =>
+                {
+                    _statusMessage = "Team restored.";
+                    success = true;
+                },
+                problem => _mutationError = problem.Detail ?? "Could not restore team.");
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            _ = ex;
+            _mutationError = "Failed to restore team. Please retry.";
+        }
+        finally
+        {
+            _isMutating = false;
+        }
 
-        _isMutating = false;
-        if (result.IsSuccess)
+        if (success)
         {
             await LoadDetailAsync();
         }
