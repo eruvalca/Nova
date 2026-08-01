@@ -190,7 +190,7 @@ public partial class Teams(
     /// Gets or sets the incoming graduation-year query parameter.
     /// </summary>
     [SupplyParameterFromQuery(Name = "graduationYear")]
-    private int? GraduationYearQuery { get; set; }
+    private string? GraduationYearQuery { get; set; }
 
     /// <summary>
     /// Gets the selected graduation-year filter as a string for select binding.
@@ -254,7 +254,7 @@ public partial class Teams(
     {
         var lifecycleFromQuery = NormalizeLifecycleStatus(ViewQuery);
         var searchFromQuery = (SearchQuery ?? string.Empty).Trim();
-        var graduationYearFromQuery = GraduationYearQuery is >= 2000 and <= 2100 ? GraduationYearQuery : null;
+        var graduationYearFromQuery = ParseGraduationYearQuery(GraduationYearQuery);
 
         var hasChanged = !string.Equals(_lifecycleStatusFilter, lifecycleFromQuery, StringComparison.Ordinal)
             || !string.Equals(_searchDraft, searchFromQuery, StringComparison.Ordinal)
@@ -281,6 +281,23 @@ public partial class Teams(
         => string.Equals(lifecycleQuery, "archived", StringComparison.OrdinalIgnoreCase)
             ? "archived"
             : "active";
+
+    /// <summary>
+    /// Parses and validates the graduation-year query value.
+    /// </summary>
+    /// <param name="graduationYearQuery">The raw graduation-year query value.</param>
+    /// <returns>A valid graduation year, or <see langword="null"/> when invalid/out of range.</returns>
+    private static int? ParseGraduationYearQuery(string? graduationYearQuery)
+    {
+        if (!int.TryParse(graduationYearQuery, NumberStyles.Integer, CultureInfo.InvariantCulture, out var graduationYear))
+        {
+            return null;
+        }
+
+        return graduationYear is >= 2000 and <= 2100
+            ? graduationYear
+            : null;
+    }
 
     /// <summary>
     /// Parses the club identifier claim from the current principal.

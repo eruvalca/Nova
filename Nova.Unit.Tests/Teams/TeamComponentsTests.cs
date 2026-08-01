@@ -198,6 +198,29 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Teams_IgnoresMalformedGraduationYearQuery_OnFirstRender()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems(LifecycleStatus.Archived))));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("https://localhost/teams?view=archived&search=Blue&graduationYear=abc");
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() =>
+            rosterService.Received().GetRosterAsync(
+                Arg.Is<GetTeamRosterInput>(input =>
+                    input != null
+                    && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal)
+                    && string.Equals(input.Search, "Blue", StringComparison.Ordinal)
+                    && input.GraduationYear == null),
+                Arg.Any<CancellationToken>()));
+        cut.WaitForAssertion(() => cut.Find("#teams-search").GetAttribute("value").ShouldBe("Blue"));
+    }
+
+    [Fact]
     public void Teams_AppliesUpdatedQueryStringFilters_OnSameRouteNavigation()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
