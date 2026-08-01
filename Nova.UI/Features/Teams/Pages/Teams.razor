@@ -182,16 +182,28 @@
                                         <div class="d-flex flex-wrap justify-content-end gap-2">
                                             @if (team.LifecycleStatus == LifecycleStatus.Active)
                                             {
-                                                <button type="button" class="btn btn-sm btn-outline-primary" disabled="@_isMutating" @onclick="() => BeginEdit(team)">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-primary"
+                                                        aria-label="@($"Edit {team.Name}")"
+                                                        disabled="@_isMutating"
+                                                        @onclick="() => BeginEdit(team)">
                                                     Edit
                                                 </button>
-                                                <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_isMutating" @onclick="() => BeginArchive(team)">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-warning"
+                                                        aria-label="@($"Archive {team.Name}")"
+                                                        disabled="@_isMutating"
+                                                        @onclick="() => BeginArchive(team)">
                                                     Archive
                                                 </button>
                                             }
                                             else
                                             {
-                                                <button type="button" class="btn btn-sm btn-outline-success" disabled="@_isMutating" @onclick="() => RestoreTeamAsync(team)">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-success"
+                                                        aria-label="@($"Restore {team.Name}")"
+                                                        disabled="@_isMutating"
+                                                        @onclick="() => RestoreTeamAsync(team)">
                                                     Restore
                                                 </button>
                                             }

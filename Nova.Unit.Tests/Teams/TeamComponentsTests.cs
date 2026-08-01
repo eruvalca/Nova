@@ -81,6 +81,18 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Teams_RowActions_IncludeTeamNameInAccessibleLabel()
+    {
+        RegisterServices(isClubAdmin: true);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForState(() => !cut.Markup.Contains("Loading teams...", StringComparison.Ordinal));
+
+        cut.Find("button.btn-outline-primary").GetAttribute("aria-label").ShouldBe("Edit U16 Blue");
+        cut.Find("button.btn-outline-warning").GetAttribute("aria-label").ShouldBe("Archive U16 Blue");
+    }
+
+    [Fact]
     public void Teams_ShowsMutationControls_ForAdmin()
     {
         RegisterServices(isClubAdmin: false, isAdmin: true);
@@ -160,6 +172,53 @@ public sealed class TeamComponentsTests : BunitContext
                 Arg.Any<CancellationToken>()),
             timeout: TimeSpan.FromSeconds(2));
         navigationManager.Uri.ShouldContain("search=Blue");
+    }
+
+    [Fact]
+    public void Teams_AppliesInitialQueryStringFilters_OnFirstRender()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems(LifecycleStatus.Archived))));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("https://localhost/teams?view=archived&search=Blue&graduationYear=2032");
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() =>
+            rosterService.Received().GetRosterAsync(
+                Arg.Is<GetTeamRosterInput>(input =>
+                    input != null
+                    && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal)
+                    && string.Equals(input.Search, "Blue", StringComparison.Ordinal)
+                    && input.GraduationYear == 2032),
+                Arg.Any<CancellationToken>()));
+        cut.WaitForAssertion(() => cut.Find("#teams-search").GetAttribute("value").ShouldBe("Blue"));
+    }
+
+    [Fact]
+    public void Teams_AppliesUpdatedQueryStringFilters_OnSameRouteNavigation()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems(LifecycleStatus.Archived))));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+
+        var cut = Render<TeamsPage>();
+        navigationManager.NavigateTo("https://localhost/teams?view=archived&search=Blue&graduationYear=2032");
+        cut.Render();
+
+        cut.WaitForAssertion(() =>
+            rosterService.Received().GetRosterAsync(
+                Arg.Is<GetTeamRosterInput>(input =>
+                    input != null
+                    && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal)
+                    && string.Equals(input.Search, "Blue", StringComparison.Ordinal)
+                    && input.GraduationYear == 2032),
+                Arg.Any<CancellationToken>()));
     }
 
     [Fact]
@@ -372,6 +431,7 @@ public sealed class TeamComponentsTests : BunitContext
         cut.Markup.ShouldNotContain("btn-outline-primary");
         cut.Markup.ShouldNotContain("btn-outline-warning");
         cut.Markup.ShouldContain("btn-outline-success");
+        cut.Find("button.btn-outline-success").GetAttribute("aria-label").ShouldBe("Restore U16 Blue");
     }
 
     [Fact]
