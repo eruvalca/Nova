@@ -1,0 +1,55 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+<section class="card shadow-sm border-0">
+    <div class="card-body">
+        <h2 class="h5 mb-3">@Heading</h2>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert" aria-live="assertive">@ErrorMessage</div>
+        }
+
+        @if (CutoffBlockers.Count > 0)
+        {
+            <div class="alert alert-warning" role="alert" aria-live="polite">
+                <div class="fw-semibold mb-2">Resolve ineligible active placements before raising this team's cutoff:</div>
+                <ul class="mb-0">
+                    @foreach (var blocker in CutoffBlockers)
+                    {
+                        <li>
+                            Campaign @blocker.CampaignId: Player @blocker.PlayerId (graduation year @blocker.PlayerGraduationYear), assignment @blocker.PlayerCampaignAssignmentId.
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <EditForm Model="_localModel" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="visually-hidden" aria-live="polite" />
+            <div class="row g-3">
+                <div class="col-md-7">
+                    <label for="team-name" class="form-label">Team name</label>
+                    <InputText id="team-name" class="form-control" @bind-Value="_localModel.Name" />
+                    <ValidationMessage For="() => _localModel.Name" class="text-danger small" />
+                </div>
+                <div class="col-md-5">
+                    <label for="team-grad-year" class="form-label">Graduation year cutoff</label>
+                    <InputNumber id="team-grad-year" class="form-control" @bind-Value="_localModel.GraduationYear" />
+                    <ValidationMessage For="() => _localModel.GraduationYear" class="text-danger small" />
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                    @if (IsSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                    }
+                    @SubmitButtonText
+                </button>
+                <button type="button" class="btn btn-outline-secondary" disabled="@IsSubmitting" @onclick="OnCancel">Cancel</button>
+            </div>
+        </EditForm>
+    </div>
+</section>
