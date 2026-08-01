@@ -453,6 +453,7 @@ public partial class Teams(
     private async Task OnLifecycleStatusChangedAsync(ChangeEventArgs args)
     {
         _lifecycleStatusFilter = NormalizeLifecycleStatus(args.Value?.ToString());
+        PromoteSearchDraftToApplied();
         _statusMessage = null;
         _actionError = null;
         SyncFiltersToUrl();
@@ -476,10 +477,22 @@ public partial class Teams(
             _knownGraduationYears.Add(year);
         }
 
+        PromoteSearchDraftToApplied();
         _statusMessage = null;
         _actionError = null;
         SyncFiltersToUrl();
         await LoadRosterAsync();
+    }
+
+    /// <summary>
+    /// Applies the current search draft immediately and cancels any pending debounce.
+    /// </summary>
+    private void PromoteSearchDraftToApplied()
+    {
+        _searchDebounceSource?.Cancel();
+        _searchDebounceSource?.Dispose();
+        _searchDebounceSource = null;
+        _searchApplied = _searchDraft.Trim();
     }
 
     /// <summary>
@@ -629,6 +642,14 @@ public partial class Teams(
             return;
         }
 
+        ClearArchiveState();
+    }
+
+    /// <summary>
+    /// Clears archive confirmation state.
+    /// </summary>
+    private void ClearArchiveState()
+    {
         _archiveCandidate = null;
         _archiveConfirmed = false;
         _archiveBlockers = [];
@@ -654,7 +675,7 @@ public partial class Teams(
             _ =>
             {
                 _statusMessage = "Team archived.";
-                CancelArchive();
+                ClearArchiveState();
             },
             problem =>
             {

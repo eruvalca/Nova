@@ -163,6 +163,58 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Teams_PreservesSearchDraft_WhenLifecycleChangesBeforeDebounce()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems())));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("#teams-search").Input("Blue");
+        cut.Find("#teams-view-filter").Change("archived");
+
+        cut.WaitForAssertion(() =>
+            rosterService.Received().GetRosterAsync(
+                Arg.Is<GetTeamRosterInput>(input =>
+                    input != null
+                    && string.Equals(input.Search, "Blue", StringComparison.Ordinal)
+                    && string.Equals(input.LifecycleStatus, "archived", StringComparison.Ordinal)),
+                Arg.Any<CancellationToken>()));
+        navigationManager.Uri.ShouldContain("search=Blue");
+    }
+
+    [Fact]
+    public void Teams_PreservesSearchDraft_WhenGraduationYearChangesBeforeDebounce()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(CreateRosterItems())));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("#teams-search").Input("Blue");
+        cut.Find("#teams-grad-year").Change("2032");
+
+        cut.WaitForAssertion(() =>
+            rosterService.Received().GetRosterAsync(
+                Arg.Is<GetTeamRosterInput>(input =>
+                    input != null
+                    && string.Equals(input.Search, "Blue", StringComparison.Ordinal)
+                    && input.GraduationYear == 2032),
+                Arg.Any<CancellationToken>()));
+        navigationManager.Uri.ShouldContain("search=Blue");
+    }
+
+    [Fact]
     public void Teams_ShowsCreateSuccessMessage_AfterMutationReload()
     {
         var rosterService = Substitute.For<ITeamRosterService>();

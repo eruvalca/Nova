@@ -20,7 +20,8 @@ public interface ICurrentUserProvider
     long? ClubId { get; }
 
     /// <summary>
-    /// Gets a value indicating whether the current user is in the ClubAdmin role.
+    /// Gets a value indicating whether the current user has club-administration capability
+    /// (ClubAdmin or global Admin role).
     /// Kept as a flat primitive so EF query filters can parameterize it.
     /// </summary>
     bool IsClubAdmin { get; }
