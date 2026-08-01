@@ -130,6 +130,19 @@ public sealed class TeamFormState : IValidatableObject
     };
 
     /// <summary>
+    /// Creates an edit-mode form state from a loaded team detail payload.
+    /// </summary>
+    /// <param name="team">The loaded team detail.</param>
+    /// <returns>An edit-mode form state.</returns>
+    public static TeamFormState FromDetailDto(TeamDetailDto team) => new()
+    {
+        IsEdit = true,
+        TeamId = team.TeamId,
+        Name = team.Name,
+        GraduationYear = team.GraduationYear
+    };
+
+    /// <summary>
     /// Converts this state to a create-team input payload.
     /// </summary>
     /// <returns>A create-team input payload.</returns>
