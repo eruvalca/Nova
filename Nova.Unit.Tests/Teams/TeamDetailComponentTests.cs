@@ -466,6 +466,39 @@ public sealed class TeamDetailComponentTests : BunitContext
                 .ShouldBe("/teams?view=archived&graduationYear=2028"));
     }
 
+    /// <summary>
+    /// Verifies the back link falls back to <c>/teams</c> when the return URL starts with a single backslash,
+    /// which HTTP parsers normalize to a forward slash and treat as a network-path reference.
+    /// </summary>
+    [Fact]
+    public void TeamDetail_UsesFallbackReturnUrl_WhenReturnUrlStartsWithSingleBackslash()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        // %5C is a single backslash — parsers normalize \evil.example → /evil.example
+        navigationManager.NavigateTo("/teams/7?returnUrl=%5Cevil.example");
+
+        var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
+        cut.WaitForAssertion(() =>
+            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/teams"));
+    }
+
+    /// <summary>
+    /// Verifies the back link falls back to <c>/teams</c> when the return URL starts with a double backslash.
+    /// </summary>
+    [Fact]
+    public void TeamDetail_UsesFallbackReturnUrl_WhenReturnUrlStartsWithDoubleBackslash()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        // %5C%5C is a double backslash
+        navigationManager.NavigateTo("/teams/7?returnUrl=%5C%5Cevil.example");
+
+        var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
+        cut.WaitForAssertion(() =>
+            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/teams"));
+    }
+
     // ── Enhanced navigation guard ─────────────────────────────────────────────
 
     /// <summary>

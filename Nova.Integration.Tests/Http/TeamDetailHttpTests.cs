@@ -182,7 +182,7 @@ public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
                 CampaignId = closedCampaign.CampaignId,
                 TeamId = team.TeamId,
                 TryoutNumber = 12,
-                PlacementOutcome = PlacementOutcome.NotSelected,
+                PlacementOutcome = PlacementOutcome.Assigned,
                 ClubId = clubId,
                 CreatedById = actorUserId
             });
