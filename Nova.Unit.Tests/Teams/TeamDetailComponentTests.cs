@@ -466,6 +466,41 @@ public sealed class TeamDetailComponentTests : BunitContext
                 .ShouldBe("/teams?view=archived&graduationYear=2028"));
     }
 
+    // ── Enhanced navigation guard ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Verifies that when enhanced navigation changes the team ID while a prior load is still pending,
+    /// the stale result does not overwrite the new team's state (out-of-order navigation regression).
+    /// </summary>
+    [Fact]
+    public void TeamDetail_DoesNotApplyStaleResult_WhenNavigationChangesTeamIdBeforeFirstLoadCompletes()
+    {
+        var pendingTeamA = new TaskCompletionSource<ServiceResult<TeamDetailDto>>();
+        var teamBDetail = CreateTeamDetail();
+        teamBDetail = teamBDetail with { TeamId = 8, Name = "U14 Gold" };
+
+        var detailService = Substitute.For<ITeamDetailService>();
+        detailService.GetTeamDetailAsync(7, Arg.Any<CancellationToken>())
+            .Returns(pendingTeamA.Task);
+        detailService.GetTeamDetailAsync(8, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<TeamDetailDto>(teamBDetail)));
+
+        RegisterServices(detailService: detailService);
+
+        // Initial render for team A — still pending
+        var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
+        cut.Markup.ShouldContain("Loading team details...");
+
+        // Enhanced navigation to team B before team A resolves
+        cut.Render(p => p.Add(c => c.TeamId, 8));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U14 Gold"));
+
+        // Now complete team A's stale request — should have no effect
+        pendingTeamA.SetResult(new ServiceResult<TeamDetailDto>(CreateTeamDetail()));
+        cut.Markup.ShouldContain("U14 Gold");
+        cut.Markup.ShouldNotContain("U16 Blue");
+    }
+
     // ── GroupPlacementsByCampaign helper ──────────────────────────────────────
 
     /// <summary>

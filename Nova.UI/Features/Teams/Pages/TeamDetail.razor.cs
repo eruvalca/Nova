@@ -131,6 +131,12 @@ public partial class TeamDetail(
     private string? _lastReturnUrl;
 
     /// <summary>
+    /// Scoped cancellation token source for the current team's in-flight tasks; cancelled and replaced
+    /// when enhanced navigation changes <see cref="TeamId"/> so stale results cannot overwrite new-team state.
+    /// </summary>
+    private CancellationTokenSource _teamScopedCts = new();
+
+    /// <summary>
     /// Gets or sets the persisted startup detail payload used across prerender and interactive attach.
     /// </summary>
     [PersistentState]
@@ -157,6 +163,8 @@ public partial class TeamDetail(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authState.User;
         _canManageTeams = principal.IsInRole(Roles.Admin) || principal.IsInRole(Roles.ClubAdmin);
@@ -239,13 +247,14 @@ public partial class TeamDetail(
     /// <returns>A task that completes when loading and state updates are finished.</returns>
     private async Task LoadDetailAsync()
     {
+        var teamToken = _teamScopedCts.Token;
         _isLoading = true;
         _error = null;
         _isNotFound = false;
 
         try
         {
-            var result = await teamDetailService.GetTeamDetailAsync(TeamId, ComponentCancellationToken);
+            var result = await teamDetailService.GetTeamDetailAsync(TeamId, teamToken);
             result.Switch(
                 detail => _detail = detail,
                 problem =>
@@ -266,7 +275,8 @@ public partial class TeamDetail(
                     _error = problem.Detail ?? "Could not load team details.";
                 });
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -312,6 +322,7 @@ public partial class TeamDetail(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task UpdateTeamAsync(TeamFormState state)
     {
+        var teamToken = _teamScopedCts.Token;
         _isMutating = true;
         _formError = null;
         _cutoffBlockers = [];
@@ -319,7 +330,7 @@ public partial class TeamDetail(
         var success = false;
         try
         {
-            var result = await teamManagementService.UpdateAsync(state.ToUpdateInput(), ComponentCancellationToken);
+            var result = await teamManagementService.UpdateAsync(state.ToUpdateInput(), teamToken);
             result.Switch(
                 _ =>
                 {
@@ -338,7 +349,8 @@ public partial class TeamDetail(
                     }
                 });
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -403,6 +415,7 @@ public partial class TeamDetail(
             return;
         }
 
+        var teamToken = _teamScopedCts.Token;
         _isMutating = true;
         _mutationError = null;
         _archiveBlockers = [];
@@ -410,7 +423,7 @@ public partial class TeamDetail(
         var success = false;
         try
         {
-            var result = await teamLifecycleService.ArchiveAsync(TeamId, ComponentCancellationToken);
+            var result = await teamLifecycleService.ArchiveAsync(TeamId, teamToken);
             result.Switch(
                 _ =>
                 {
@@ -428,7 +441,8 @@ public partial class TeamDetail(
                     }
                 });
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -454,13 +468,14 @@ public partial class TeamDetail(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task RestoreTeamAsync()
     {
+        var teamToken = _teamScopedCts.Token;
         _isMutating = true;
         _mutationError = null;
 
         var success = false;
         try
         {
-            var result = await teamLifecycleService.RestoreAsync(TeamId, ComponentCancellationToken);
+            var result = await teamLifecycleService.RestoreAsync(TeamId, teamToken);
             result.Switch(
                 _ =>
                 {
@@ -469,7 +484,8 @@ public partial class TeamDetail(
                 },
                 problem => _mutationError = problem.Detail ?? "Could not restore team.");
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -505,6 +521,10 @@ public partial class TeamDetail(
     /// </summary>
     private void ResetTeamScopedState()
     {
+        _teamScopedCts.Cancel();
+        _teamScopedCts.Dispose();
+        _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+
         _detail = null;
         _error = null;
         _isNotFound = false;
