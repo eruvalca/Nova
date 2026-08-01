@@ -499,6 +499,23 @@ public sealed class TeamDetailComponentTests : BunitContext
             cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/teams"));
     }
 
+    /// <summary>
+    /// Verifies the back link falls back to <c>/teams</c> when the return URL contains a backslash after
+    /// a leading slash, which browsers normalize to <c>//evil.example</c> (network-path reference).
+    /// </summary>
+    [Fact]
+    public void TeamDetail_UsesFallbackReturnUrl_WhenReturnUrlContainsBackslashAfterSlash()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        // /%5Cevil.example decodes to /\evil.example; browsers normalize to //evil.example
+        navigationManager.NavigateTo("/teams/7?returnUrl=%2F%5Cevil.example");
+
+        var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
+        cut.WaitForAssertion(() =>
+            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/teams"));
+    }
+
     // ── Enhanced navigation guard ─────────────────────────────────────────────
 
     /// <summary>

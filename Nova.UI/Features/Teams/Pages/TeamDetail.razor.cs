@@ -608,7 +608,7 @@ public partial class TeamDetail(
         var candidate = returnUrl.Trim();
         if (!Uri.IsWellFormedUriString(candidate, UriKind.Relative)
             || candidate.StartsWith("//", StringComparison.Ordinal)
-            || candidate.StartsWith('\\'))
+            || candidate.Contains('\\'))
         {
             return "/teams";
         }
