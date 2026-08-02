@@ -76,10 +76,17 @@ public sealed partial class TeamLifecycleService(
         await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
 
+        // Records whether the most recent attempt reached CommitAsync. Verification is only
+        // meaningful for that attempt: a transient failure raised before the commit cannot have
+        // applied the transition, so the observed status belongs to some earlier request and must
+        // not be mistaken for this one's ambiguous commit.
+        var commitAttempted = new CommitAttemptTracker();
+
         return await strategy.ExecuteAsync(
-            (TeamId: teamId, TargetStatus: targetStatus, ActorUserId: actorUserId, ClubId: clubId),
+            (TeamId: teamId, TargetStatus: targetStatus, ActorUserId: actorUserId, ClubId: clubId, CommitAttempted: commitAttempted),
             async (state, token) =>
             {
+                state.CommitAttempted.Reset();
                 await using var db = await dbContextFactory.CreateDbContextAsync(token);
                 return await ApplyTransitionAsync(
                     db,
@@ -87,10 +94,18 @@ public sealed partial class TeamLifecycleService(
                     state.TargetStatus,
                     state.ActorUserId,
                     state.ClubId,
+                    state.CommitAttempted,
                     token);
             },
             async (state, token) =>
             {
+                if (!state.CommitAttempted.Attempted)
+                {
+                    return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, TeamArchiveBlockedConflict>>(
+                        successful: false,
+                        default!);
+                }
+
                 await using var db = await dbContextFactory.CreateDbContextAsync(token);
                 return await VerifyTransitionCommittedAsync(db, state.TeamId, state.TargetStatus, state.ClubId, token);
             },
@@ -98,14 +113,32 @@ public sealed partial class TeamLifecycleService(
     }
 
     /// <summary>
+    /// Tracks whether a lifecycle attempt reached its commit, scoping ambiguous-commit verification
+    /// to attempts that could actually have applied the transition.
+    /// </summary>
+    private sealed class CommitAttemptTracker
+    {
+        private int _attempted;
+
+        /// <summary>Gets a value indicating whether the current attempt reached its commit.</summary>
+        public bool Attempted => Volatile.Read(ref _attempted) == 1;
+
+        /// <summary>Clears the flag at the start of an execution-strategy attempt.</summary>
+        public void Reset() => Volatile.Write(ref _attempted, 0);
+
+        /// <summary>Marks that the current attempt is about to commit.</summary>
+        public void MarkAttempted() => Volatile.Write(ref _attempted, 1);
+    }
+
+    /// <summary>
     /// Determines whether an ambiguous commit already applied the requested transition so the
     /// execution strategy can report success instead of replaying the attempt.
     /// </summary>
     /// <remarks>
-    /// The execution strategy invokes this only after a transient failure interrupted an attempt, so
-    /// finding the target status already applied means this operation's commit reached the database.
-    /// Without it a replay would observe the applied status and return a spurious conflict to a
-    /// caller whose archive or restore actually succeeded.
+    /// The execution strategy invokes this only after a transient failure interrupted an attempt
+    /// that had already reached its commit, so finding the target status applied means this
+    /// operation's commit reached the database. Without it a replay would observe the applied status
+    /// and return a spurious conflict to a caller whose archive or restore actually succeeded.
     /// </remarks>
     /// <param name="db">The fresh tenant context used for verification.</param>
     /// <param name="teamId">The team identifier that was being mutated.</param>
@@ -146,6 +179,7 @@ public sealed partial class TeamLifecycleService(
     /// <param name="targetStatus">The lifecycle status to apply.</param>
     /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Internal lifecycle outcomes before boundary mapping to shared service contracts.</returns>
     private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, TeamArchiveBlockedConflict>> ApplyTransitionAsync(
@@ -154,6 +188,7 @@ public sealed partial class TeamLifecycleService(
         LifecycleStatus targetStatus,
         long actorUserId,
         long clubId,
+        CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -223,6 +258,7 @@ public sealed partial class TeamLifecycleService(
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            commitAttempted.MarkAttempted();
             await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)

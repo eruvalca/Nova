@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Teams;
 using Nova.Shared.Enums;
+using Nova.Shared.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -43,9 +44,9 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
         result.IsSuccess.ShouldBeTrue();
         failureInterceptor.FailureCount.ShouldBe(1);
 
-        // One context for execution-strategy setup, one per mutation attempt, and one for the
-        // commit verification the strategy runs after the transient failure.
-        factory.CreatedContextCount.ShouldBe(4);
+        // One context for execution-strategy setup and one per mutation attempt. The save failed
+        // before the commit, so verification short-circuits without creating a context.
+        factory.CreatedContextCount.ShouldBe(3);
 
         await using var verify = fixture.CreateAdminContext();
         var team = await verify.Teams
@@ -170,6 +171,43 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
             .SingleAsync(TestContext.Current.CancellationToken);
         team.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
         team.ArchivedAt.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Verifies a transient failure raised before any commit does not let commit verification
+    /// convert a genuine "already archived" conflict into a success.
+    /// </summary>
+    /// <remarks>
+    /// The team is archived before the request runs, so the correct answer is a conflict. The
+    /// injected failure interrupts the read, which means no commit was attempted and the applied
+    /// status belongs to an earlier request rather than this one's ambiguous commit.
+    /// </remarks>
+    [Fact]
+    public async Task TeamArchive_ReportsConflict_WhenTransientFailurePrecedesCommitOnArchivedTeam()
+    {
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var suffix = Guid.NewGuid().ToString("N");
+        var (clubId, teamId) = await SeedClubAndTeamAsync(actorUserId, suffix, archived: true);
+
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var failureInterceptor = new FailFirstTeamReadInterceptor();
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor);
+        var service = new TeamLifecycleService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<TeamLifecycleService>.Instance);
+
+        var result = await service.ArchiveAsync(teamId, TestContext.Current.CancellationToken);
+
+        failureInterceptor.FailureCount.ShouldBe(1);
+        result.IsProblem.ShouldBeTrue("an already-archived team must still conflict after a pre-commit retry");
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
     }
 
     /// <summary>

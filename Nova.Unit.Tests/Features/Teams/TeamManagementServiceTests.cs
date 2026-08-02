@@ -282,7 +282,8 @@ public sealed class TeamManagementServiceTests : IDisposable
         db.Teams.Single(team => team.TeamId == created.Value.TeamId).Name.ShouldBe("U18");
     }
 
-    private TeamManagementService CreateService()        => new(
+    private TeamManagementService CreateService()
+        => new(
             new HarnessDbContextFactory(_harness),
             _harness.CurrentUser,
             NullLogger<TeamManagementService>.Instance);
