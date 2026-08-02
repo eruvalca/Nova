@@ -62,7 +62,7 @@ evidence in the Phase Summary.
 - [x] Confirm `RequireEvaluator` and `RequireClubMember` are currently identical policy definitions.
 - [x] Confirm no caller anywhere invokes `UpdateGraduationYearAsync` outside its own tests (`Nova.UI`, `Nova.Client`, `Nova/`).
 - [x] Confirm `TeamEntity`/`TeamEntityConfiguration` have no unique index and no `CreationOperationId`.
-- [ ] Confirm the `TeamDetailQueryService` ordering mismatch by writing a failing test first — **carried into Phase E**, which starts with exactly this failing test.
+- [x] Confirm the `TeamDetailQueryService` ordering mismatch by writing a failing test first — **carried into Phase E**, which started with exactly this failing test and completed there.
 - [x] Record which findings, if any, turned out to be wrong, and adjust later phases accordingly.
 
 ### Verification Plan

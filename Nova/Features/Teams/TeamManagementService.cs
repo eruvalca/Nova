@@ -251,10 +251,12 @@ public sealed partial class TeamManagementService(
         // two mutations take disjoint locks, each reads the other's pre-change value, both pass
         // policy evaluation, and together they commit an ineligible placement.
         //
-        // Locking players first (ascending) and the team second establishes a single global order:
-        // the player service takes a prefix of it and TeamLifecycleService takes a suffix, so no
-        // cycle — and therefore no deadlock — is possible. Any future placement-mutation path must
-        // follow the same player-then-team order.
+        // Locking players first (ascending) and the team second matches the single global order
+        // every writer of this invariant already follows: campaign, then players ascending, then
+        // team. CampaignPlacementService takes campaign then player then team, the player service
+        // takes only a player, and TeamLifecycleService takes only a team, so each path takes a
+        // subsequence of that order and no cycle - and therefore no deadlock - is possible. Any new
+        // placement-mutation path must follow the same order.
         var lockedPlayerIds = await db.PlayerCampaignAssignments
             .Where(assignment =>
                 assignment.TeamId == input.TeamId
@@ -304,9 +306,9 @@ public sealed partial class TeamManagementService(
             var decision = TeamGraduationYearPolicy.Evaluate(input.GraduationYear, assignedPlacements);
 
             // Fail safe if a placement appeared for an unlocked player between computing the lock
-            // set and taking the locks. No placement-mutation path exists today, so this is
-            // unreachable; it exists so adding one surfaces as a retryable conflict rather than a
-            // silently unenforced invariant.
+            // set and taking the team lock. CampaignPlacementService can assign a player to this
+            // team in that window, so this is reachable; it surfaces as a retryable conflict rather
+            // than a silently unenforced invariant.
             if (assignedPlacements.Exists(placement => !lockedPlayerIds.Contains(placement.PlayerId)))
             {
                 LogTeamPlacementSetChangedUnderLock(input.TeamId);

@@ -23,7 +23,9 @@ namespace Nova.Integration.Tests.Data;
 /// Both sides validate that invariant, but they validate it against the counterpart row they read.
 /// If they take disjoint locks, each reads the other's pre-change value, both pass, and together
 /// they commit a violation. <see cref="TeamManagementService"/> therefore locks the placed players
-/// before locking the team, matching the order <see cref="PlayerManagementService"/> already uses.
+/// before locking the team, joining the campaign-then-players-then-team order that
+/// <see cref="Nova.Features.Campaigns.CampaignPlacementService"/> and
+/// <see cref="PlayerManagementService"/> already follow.
 /// </remarks>
 /// <param name="fixture">The shared AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
@@ -61,7 +63,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
         result.IsSuccess.ShouldBeTrue();
         lockRecorder.AcquiredKeys.ShouldBe(
             [seed.PlayerId, -seed.TeamId],
-            "the placed player must be locked before the team so the player service takes a prefix of the same order");
+            "the placed player must be locked before the team so every writer of this invariant shares one lock order");
     }
     /// <summary>
     /// Verifies concurrent team and player graduation-year changes that would together strand an
