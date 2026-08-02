@@ -78,7 +78,7 @@
                       Model="_createForm"
                       SubmitButtonText="Create team"
                       IsSubmitting="_isMutating"
-                      ErrorMessage="_formError"
+                      ErrorMessage="@_formError"
                       CutoffBlockers="_cutoffBlockers"
                       OnValidSubmit="CreateTeamAsync"
                       OnCancel="CancelMutationForm" />
@@ -92,7 +92,7 @@
                       Model="_editForm"
                       SubmitButtonText="Save changes"
                       IsSubmitting="_isMutating"
-                      ErrorMessage="_formError"
+                      ErrorMessage="@_formError"
                       CutoffBlockers="_cutoffBlockers"
                       OnValidSubmit="UpdateTeamAsync"
                       OnCancel="CancelMutationForm" />

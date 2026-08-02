@@ -401,25 +401,25 @@ total with 3 failures on `main`. Integration suite **104 total / 0 failed / 0 sk
 
 ## Phase H: Browser validation of the teams UI
 
-Status: Not started
+Status: Complete
 
 Suggested executor: sub-agent w/ smaller model, driven by the `aspire-playwright-validation` skill
 
 Invoke the `aspire-playwright-validation` skill and discover the app URL from the running AppHost
 rather than hardcoding a port.
 
-- [ ] Start the AppHost (`aspire start` or the skill's documented flow) and resolve the Nova web URL.
-- [ ] Sign in as a ClubAdmin. Load `/teams` and assert the roster renders with Create/Edit/Archive controls visible.
-- [ ] Create a team through the form; assert it appears in the roster with the correct graduation year.
-- [ ] Edit the team's name and graduation year; assert the change persists after reload.
-- [ ] Attempt a graduation-year change blocked by an active placement; assert the blocker list renders with campaign/player detail and the team is unchanged.
-- [ ] Attempt to archive a team with an active-campaign placement; assert the archive-blocked dialog lists the blocking campaigns and the team stays Active.
-- [ ] Archive an unblocked team, switch the roster filter to Archived, assert it appears there and not under Active; then restore it and assert the reverse.
-- [ ] Exercise the name search and graduation-year filters, including a search term containing `%`, to confirm the Phase F escaping behaves in the real UI.
-- [ ] Navigate to `/teams/{id}`; assert profile, active placement impacts, and placement history render with Active placements listed first (Phase E).
-- [ ] Sign in as a non-admin club member; assert `/teams` and `/teams/{id}` still load read-only with no Create/Edit/Archive controls.
-- [ ] Sign in as a global `Admin` who is not a ClubAdmin; assert management controls are absent and mutation attempts are refused (Phase B).
-- [ ] Stop the AppHost and clean up any test data or scratch scripts.
+- [x] Start the AppHost (`aspire start` or the skill's documented flow) and resolve the Nova web URL.
+- [x] Sign in as a ClubAdmin. Load `/teams` and assert the roster renders with Create/Edit/Archive controls visible.
+- [x] Create a team through the form; assert it appears in the roster with the correct graduation year.
+- [x] Edit the team's name and graduation year; assert the change persists after reload.
+- [x] Attempt a graduation-year change blocked by an active placement; assert the blocker list renders with campaign/player detail and the team is unchanged.
+- [x] Attempt to archive a team with an active-campaign placement; assert the archive-blocked dialog lists the blocking campaigns and the team stays Active.
+- [x] Archive an unblocked team, switch the roster filter to Archived, assert it appears there and not under Active; then restore it and assert the reverse.
+- [x] Exercise the name search and graduation-year filters, including a search term containing `%`, to confirm the Phase F escaping behaves in the real UI.
+- [x] Navigate to `/teams/{id}`; assert profile, active placement impacts, and placement history render with Active placements listed first (Phase E).
+- [x] Sign in as a non-admin club member; assert `/teams` and `/teams/{id}` still load read-only with no Create/Edit/Archive controls.
+- [x] Sign in as a global `Admin` who is not a ClubAdmin; assert management controls are absent and mutation attempts are refused (Phase B).
+- [x] Stop the AppHost and clean up any test data or scratch scripts.
 
 ### Verification Plan
 
@@ -429,7 +429,47 @@ rather than hardcoding a port.
 
 ### Phase Summary
 
-_(write when phase completes)_
+Ran the AppHost in isolated mode, discovered the web URL from `aspire describe`, and drove all
+twelve scenarios through Playwright. **Result: 12/12 PASS.** No unhandled browser console errors on
+either `/teams` or `/teams/{id}`. The AppHost was stopped afterwards and no Nova containers remain.
+
+| # | Scenario | Result |
+| --- | --- | --- |
+| 1 | ClubAdmin loads `/teams`; roster renders with Create/Edit/Archive | PASS |
+| 2 | Create a team through the form | PASS |
+| 3 | Edit name and graduation year; persists after reload | PASS |
+| 4 | Graduation-year change blocked by an active placement; blockers render, team unchanged | PASS |
+| 5 | Archive blocked by an active-campaign placement; blocking campaigns listed, team stays Active | PASS |
+| 6 | Archive an unblocked team; Archived filter shows it, Active does not | PASS |
+| 7 | Restore the archived team; reverse holds | PASS |
+| 8 | Name search and graduation-year filters | PASS |
+| 9 | Search term containing `%` treated literally (Phase F) | PASS |
+| 10 | `/teams/{id}` renders profile, impacts, and history with Active placements first (Phase E) | PASS |
+| 11 | Non-admin club member sees `/teams` and `/teams/{id}` read-only, no management controls | PASS |
+| 12 | User without ClubAdmin sees no management controls; mutations refused (Phase B) | PASS |
+
+**Bug found during this phase (not in the original ten findings).** `ErrorMessage="_formError"`
+passed the **literal string** `_formError` as the parameter value instead of the backing field, so a
+user hitting a server-side conflict saw the text `_formError` rather than the real error message.
+This is a pre-existing defect, not something this remediation introduced.
+
+Fixed at five sites:
+
+- `Nova.UI/Features/Teams/Pages/Teams.razor` — create form and edit form
+- `Nova.UI/Features/Teams/Pages/TeamDetail.razor` — edit form
+- `Nova.UI/Features/Players/Pages/PlayerDetail.razor` — edit form
+- `Nova.UI/Features/Players/Pages/Players.razor` — create form and edit form (`@_mutationError`)
+
+The three Players occurrences were outside the browser pass; I found them by grepping for the same
+bug class after the sub-agent reported the Teams ones.
+
+Added the regression test `Teams_ShowsServerErrorText_WhenUpdateReturnsConflict` in
+`Nova.Unit.Tests/Teams/TeamComponentsTests.cs`, which asserts the real conflict text renders **and**
+that the markup does not contain `_formError`. I proved it is a real guard by re-introducing the bug
+in `Teams.razor` and confirming the test fails, then restoring the fix and confirming it passes.
+
+Verified after the fixes: unit **748 total / 0 failed / 0 skipped**, integration **104 total /
+0 failed / 0 skipped**.
 
 ## Phase I: Land the change and update GitHub
 

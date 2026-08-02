@@ -401,6 +401,35 @@ public sealed class TeamComponentsTests : BunitContext
         });
     }
 
+    /// <summary>
+    /// Verifies the form surfaces the server's conflict detail text. Guards against the parameter
+    /// being bound to a literal string (for example <c>ErrorMessage="_formError"</c>) instead of the
+    /// backing field, which silently renders the field name to the user.
+    /// </summary>
+    [Fact]
+    public void Teams_ShowsServerErrorText_WhenUpdateReturnsConflict()
+    {
+        var managementService = Substitute.For<ITeamManagementService>();
+        managementService.UpdateAsync(Arg.Any<UpdateTeamInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<TeamDto>(
+                ServiceProblem.Conflict("A team with that name and graduation year already exists."))));
+
+        RegisterServices(isClubAdmin: true, managementService: managementService);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit team"));
+
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("A team with that name and graduation year already exists.");
+            cut.Markup.ShouldNotContain("_formError");
+        });
+    }
+
     [Fact]
     public void Teams_ShowsArchiveBlockers_WhenArchiveReturnsConflict()
     {
