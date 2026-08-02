@@ -473,32 +473,128 @@ Verified after the fixes: unit **748 total / 0 failed / 0 skipped**, integration
 
 ## Phase I: Land the change and update GitHub
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator
 
-- [ ] Re-run both test suites from clean and confirm zero failures.
-- [ ] Commit with the `Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>` trailer.
-- [ ] Open one PR from `eruvalca-team-epic-remediation` describing all ten findings and their resolutions, explicitly calling out the two behavior changes: global `Admin` is no longer a club operator, and `PUT /api/teams/{id}/graduation-year` is removed.
-- [ ] Comment on issue #8 summarizing the remediation PR and noting the removed cutoff endpoint from #43.
-- [ ] Note in the PR that `Teams.razor.cs` (1017 lines) and `TeamDetail.razor.cs` (633 lines) were deliberately left un-refactored as accepted follow-up debt.
+- [x] Re-run both test suites from clean and confirm zero failures.
+- [x] Commit with the `Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>` trailer.
+- [x] Open one PR from `eruvalca-team-epic-remediation` describing all ten findings and their resolutions, explicitly calling out the two behavior changes: global `Admin` is no longer a club operator, and `PUT /api/teams/{id}/graduation-year` is removed.
+- [x] Comment on issue #8 summarizing the remediation PR and noting the removed cutoff endpoint from #43.
+- [x] Note in the PR that `Teams.razor.cs` (1017 lines) and `TeamDetail.razor.cs` (633 lines) were deliberately left un-refactored as accepted follow-up debt.
 
 ### Verification Plan
 
 - `dotnet test --project Nova.Unit.Tests\Nova.Unit.Tests.csproj` → `failed: 0`.
 - `dotnet test --project Nova.Integration.Tests\Nova.Integration.Tests.csproj` → `failed: 0`.
-- `dotnet build Nova.sln` → 0 errors, no new warnings introduced by this work.
+- `dotnet build Nova.slnx` → 0 errors, no new warnings introduced by this work.
 - `gh pr view --json url,state` → PR exists and is open.
 - `gh issue view 8 --repo eruvalca/Nova --comments` → the remediation comment is present.
 
 ### Phase Summary
 
-_(write when phase completes)_
+Landed as two commits on `eruvalca-team-epic-remediation`:
+
+- `0caebb4` — Remediate team management epic findings (44 files, +3830/−570), covering Phases B–G.
+- `e10a312` — Fix ErrorMessage parameter binding in Teams and Players forms (6 files), covering the Phase H bug.
+
+Final verification: unit **748 total / 0 failed / 0 skipped**, integration **104 total / 0 failed /
+0 skipped**, solution builds clean.
+
+- PR: https://github.com/eruvalca/Nova/pull/53
+- Issue comment: https://github.com/eruvalca/Nova/issues/8#issuecomment-5154343080
+
+The PR body carries the full findings table, both behavior changes, the migration note, and the
+accepted follow-up debt. The issue comment leads with the two breaking changes so they are visible
+from the epic without opening the PR.
 
 ## Final Recap
 
-_(write when all phases complete)_
+All nine phases complete. Ten findings from the epic review were verified, fixed, and covered by
+tests, plus an eleventh bug found during browser validation.
+
+**What actually shipped:**
+
+- **Retry safety (finding 1, the only true blocker).** `TeamManagementService` and
+  `TeamLifecycleService` no longer call `BeginTransactionAsync` directly. Both run inside
+  `CreateExecutionStrategy().ExecuteAsync` with a fresh `DbContext` per attempt. This was a runtime
+  failure on every team mutation against Postgres, not a theoretical concern.
+- **Authorization narrowing (finding 4).** Global `Roles.Admin` is no longer a club operator
+  anywhere: provider, policy, and UI gates all require `Roles.ClubAdmin`. Teams read standardized on
+  `Policies.RequireClubMember` (finding 7).
+- **Domain consolidation (findings 5, 6).** The graduation-year rule lives in the pure
+  `TeamGraduationYearPolicy`; the duplicate implementation and the dead
+  `PUT /api/teams/{id}/graduation-year` endpoint were removed end to end.
+- **Data integrity (finding 8).** Unique `(ClubId, Name, GraduationYear)` plus `CreationOperationId`
+  with a filtered unique index for idempotent create.
+- **Correctness polish (findings 9, 10).** Placement ordering, `CreatedAtRoute`, and LIKE
+  metacharacter escaping.
+- **Test health (findings 2, 3).** Three tests that were red on `main` are green, and team mutations
+  now have real Postgres coverage where they previously had none.
+- **UI bug (finding 11).** `ErrorMessage` bound a literal string at five sites in Teams and Players.
+
+**Numbers.** Unit went from 729 total / 3 failed on `main` to 748 total / 0 failed. Integration:
+104 total / 0 failed. Browser: 12/12 scenarios pass.
+
+**Lessons worth carrying forward:**
+
+1. **Make the bug fail first.** For findings 1, 10, and 11 I reproduced the failure before fixing it
+   and confirmed the fix flipped it. This paid off directly on finding 10, where a sub-agent had
+   reported the LIKE-escaping fix as verified — but its SQLite tests passed both before and after,
+   because SQLite's `Contains` is already literal. Only a Postgres test could prove it. Always ask
+   whether the harness provider can actually reproduce the bug you think you are fixing.
+2. **Grep for the bug class, not the bug.** The `ErrorMessage="_formError"` defect surfaced in Teams
+   during the browser pass; searching for the same pattern found three more live occurrences in
+   Players that no one was looking for.
+3. **Check the baseline before blaming your change.** `main` was already red. Knowing that up front
+   avoided chasing three failures that had nothing to do with this work.
+
+**Deliberately not done:** `Teams.razor.cs` (1017 lines) and `TeamDetail.razor.cs` (633 lines) are
+too large and were left un-refactored as accepted follow-up debt. Players intentionally keeps its
+indexed-errors ProblemDetails shape rather than the extensions shape teams now use; unifying them is
+a separate decision.
 
 ## Deployment Plan
 
-_(write when all phases complete)_
+**Migration.** This change adds `20260802001653_AddTeamUniquenessAndCreationOperationId`. It is
+purely additive — one nullable `CreationOperationId` column on `Teams`, plus two indexes — so it
+carries no backfill and no data rewrite.
+
+```
+dotnet ef database update --context NovaDbContext --project Nova
+```
+
+**The one real risk.** The unique index on `(ClubId, Name, GraduationYear)` will **fail to create**
+if any target database already contains duplicate teams. This was written against a pre-production
+database where that was known not to be the case. Before applying to any environment with real data,
+check first:
+
+```sql
+SELECT "ClubId", "Name", "GraduationYear", COUNT(*)
+FROM "Teams"
+GROUP BY "ClubId", "Name", "GraduationYear"
+HAVING COUNT(*) > 1;
+```
+
+If that returns rows, they must be reconciled before the migration will apply.
+
+**Breaking changes to announce.**
+
+1. `PUT /api/teams/{id}/graduation-year` is gone. It had no in-repo caller, but any external consumer
+   will get a 404. Graduation-year changes go through the normal team update.
+2. Users holding only the global `Admin` role lose club management access. If anyone was relying on
+   `Admin` to operate on club data, they need an explicit `ClubAdmin` role assignment before this
+   deploys.
+
+**Rollback.** The code rolls back cleanly by reverting the two commits. The migration does not need
+to be reverted alongside it — the added column is nullable and the indexes are compatible with the
+previous code. If you do want to unwind it, `dotnet ef database update` to the prior migration drops
+the column and both indexes without data loss beyond `CreationOperationId` values.
+
+**Post-deploy checks.**
+
+1. Create, edit, archive, and restore a team against the real database — this is the path that was
+   throwing at runtime before finding 1 was fixed.
+2. Confirm a `ClubAdmin` sees management controls on `/teams` and a non-admin club member does not.
+3. Confirm a team search containing `%` returns literal matches rather than wildcard matches.
+
