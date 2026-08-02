@@ -67,4 +67,3 @@ public sealed class HttpClubService(HttpClient http) : IClubService
     }
 }
 ```
-
