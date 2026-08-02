@@ -241,6 +241,34 @@ public sealed partial class TeamManagementService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        // Lock every player currently placed on this team before locking the team itself.
+        //
+        // A team graduation-year change and a player graduation-year change validate the same
+        // invariant (an Assigned placement in an Active campaign requires
+        // Player.GraduationYear >= Team.GraduationYear) from opposite sides.
+        // PlayerManagementService.UpdatePlayerAsync holds only the player lock, so without this the
+        // two mutations take disjoint locks, each reads the other's pre-change value, both pass
+        // policy evaluation, and together they commit an ineligible placement.
+        //
+        // Locking players first (ascending) and the team second establishes a single global order:
+        // the player service takes a prefix of it and TeamLifecycleService takes a suffix, so no
+        // cycle — and therefore no deadlock — is possible. Any future placement-mutation path must
+        // follow the same player-then-team order.
+        var lockedPlayerIds = await db.PlayerCampaignAssignments
+            .Where(assignment =>
+                assignment.TeamId == input.TeamId
+                && assignment.PlacementOutcome == PlacementOutcome.Assigned
+                && assignment.Campaign.Status == CampaignStatus.Active)
+            .Select(assignment => assignment.PlayerId)
+            .Distinct()
+            .OrderBy(playerId => playerId)
+            .ToListAsync(cancellationToken);
+        foreach (var playerId in lockedPlayerIds)
+        {
+            await db.AcquirePlayerMutationLockAsync(playerId, cancellationToken);
+        }
+
         await db.AcquireTeamMutationLockAsync(input.TeamId, cancellationToken);
 
         var team = await db.Teams
@@ -274,6 +302,17 @@ public sealed partial class TeamManagementService(
                 .ToListAsync(cancellationToken);
 
             var decision = TeamGraduationYearPolicy.Evaluate(input.GraduationYear, assignedPlacements);
+
+            // Fail safe if a placement appeared for an unlocked player between computing the lock
+            // set and taking the locks. No placement-mutation path exists today, so this is
+            // unreachable; it exists so adding one surfaces as a retryable conflict rather than a
+            // silently unenforced invariant.
+            if (assignedPlacements.Exists(placement => !lockedPlayerIds.Contains(placement.PlayerId)))
+            {
+                LogTeamPlacementSetChangedUnderLock(input.TeamId);
+                return ServiceProblem.Conflict("The team's placements changed while validating eligibility. Reload and try again.");
+            }
+
             var blocked = decision.Match(
                 _ => (ServiceProblem?)null,
                 blockedOutcome =>
@@ -398,6 +437,14 @@ public sealed partial class TeamManagementService(
     /// <param name="blockerCount">The number of blocked placements.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Team graduation-year edit blocked for TeamId={TeamId}: {BlockerCount} ineligible placement(s).")]
     private partial void LogTeamGraduationYearBlocked(long teamId, int blockerCount);
+
+    /// <summary>
+    /// Logs a team update abandoned because its placement set changed after the player lock set was
+    /// computed, leaving an unlocked player in the eligibility facts.
+    /// </summary>
+    /// <param name="teamId">The affected team identifier.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Team placement set changed under lock for TeamId={TeamId}; eligibility could not be validated safely.")]
+    private partial void LogTeamPlacementSetChangedUnderLock(long teamId);
 
     /// <summary>Logs a team mutation that failed due to a concurrent data change.</summary>
     /// <param name="teamId">The affected team identifier.</param>
