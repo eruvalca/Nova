@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Teams;
+using Nova.Shared.Results;
 using Nova.Shared.Teams;
 using Shouldly;
 
@@ -223,6 +224,77 @@ public sealed class TeamManagementRetryTests(NovaAppHostFixture fixture)
 
         updatedTeam.Name.ShouldBe(updatedName);
         updatedTeam.GraduationYear.ShouldBe(2031);
+    }
+
+    /// <summary>
+    /// Verifies an update that loses the race to the unique team index is translated into a
+    /// conflict instead of letting the provider exception escape.
+    /// </summary>
+    /// <remarks>
+    /// The service probes for a duplicate before writing, so the losing update can only reach the
+    /// database constraint when the conflicting team appears after that probe. Committing the
+    /// conflicting team from an independent context immediately after the probe reproduces that
+    /// window deterministically instead of relying on two updates interleaving by chance.
+    /// </remarks>
+    [Fact]
+    public async Task Update_ReportsConflict_WhenDuplicateAppearsAfterTheProbe()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var suffix = Guid.NewGuid().ToString("N");
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var contestedName = $"Contested {suffix}";
+        long clubId;
+        long teamId;
+
+        ActAs(userId: null, clubId: null, isAdmin: false);
+
+        await using (var seed = fixture.CreateAdminContext())
+        {
+            clubId = await SeedClubAsync(
+                seed,
+                $"Team Update Conflict Club {suffix}",
+                actorUserId,
+                cancellationToken);
+
+            var team = CreateTeam($"Original {suffix}", clubId, actorUserId, Guid.CreateVersion7());
+            seed.Teams.Add(team);
+            await seed.SaveChangesAsync(cancellationToken);
+            teamId = team.TeamId;
+        }
+
+        ActAs(actorUserId, clubId, isAdmin: true);
+
+        var conflictInterceptor = new InsertAfterTeamExistsProbeInterceptor(async () =>
+        {
+            await using var conflicting = fixture.CreateAdminContext();
+            conflicting.Teams.Add(CreateTeam(contestedName, clubId, actorUserId, Guid.CreateVersion7()));
+            await conflicting.SaveChangesAsync(CancellationToken.None);
+        });
+
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            conflictInterceptor);
+        var service = new TeamManagementService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<TeamManagementService>.Instance);
+
+        var result = await service.UpdateAsync(
+            new UpdateTeamInput { TeamId = teamId, Name = contestedName, GraduationYear = 2030 },
+            cancellationToken);
+
+        conflictInterceptor.InsertCount.ShouldBe(1);
+        result.IsProblem.ShouldBeTrue("the losing update must surface as a conflict, not a provider exception");
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+
+        await using var verify = fixture.CreateAdminContext();
+        var names = await verify.Teams
+            .Where(team => team.ClubId == clubId)
+            .Select(team => team.Name)
+            .ToListAsync(cancellationToken);
+
+        names.ShouldBe([$"Original {suffix}", contestedName], ignoreOrder: true);
     }
 
     /// <summary>

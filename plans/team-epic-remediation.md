@@ -534,7 +534,9 @@ tests, plus an eleventh bug found during browser validation.
 - **UI bug (finding 11).** `ErrorMessage` bound a literal string at five sites in Teams and Players.
 
 **Numbers.** Unit went from 729 total / 3 failed on `main` to 748 total / 0 failed. Integration:
-104 total / 0 failed. Browser: 12/12 scenarios pass.
+113 total / 0 failed — 104 when the plan phases closed, plus nine added while addressing PR review
+feedback (ambiguous-commit verification, the create Location header, team/player lock ordering, the
+pre-commit conflict case, and the unique-index fallback). Browser: 12/12 scenarios pass.
 
 **Lessons worth carrying forward:**
 

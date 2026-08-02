@@ -141,3 +141,37 @@ internal sealed class FailFirstSaveChangesInterceptor : SaveChangesInterceptor
         return ValueTask.FromResult(result);
     }
 }
+
+/// <summary>
+/// Commits an independent write immediately after the team duplicate-name probe runs, reproducing
+/// the window in which another request inserts a conflicting team between the probe and the save.
+/// </summary>
+/// <param name="insertConflictAsync">The independent write to commit once, after the first probe.</param>
+internal sealed class InsertAfterTeamExistsProbeInterceptor(Func<Task> insertConflictAsync) : DbCommandInterceptor
+{
+    private int _shouldInsert = 1;
+    private int _insertCount;
+
+    /// <summary>
+    /// Gets the number of conflicting writes this interceptor committed.
+    /// </summary>
+    public int InsertCount => Volatile.Read(ref _insertCount);
+
+    /// <inheritdoc />
+    public override async ValueTask<System.Data.Common.DbDataReader> ReaderExecutedAsync(
+        System.Data.Common.DbCommand command,
+        CommandExecutedEventData eventData,
+        System.Data.Common.DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.Contains("EXISTS", StringComparison.Ordinal)
+            && command.CommandText.Contains("\"Teams\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _shouldInsert, 0) == 1)
+        {
+            await insertConflictAsync();
+            Interlocked.Increment(ref _insertCount);
+        }
+
+        return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+    }
+}
