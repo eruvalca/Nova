@@ -8,6 +8,7 @@ using Nova.Features.Players;
 using Nova.Features.Teams;
 using Nova.Shared.Enums;
 using Nova.Shared.Players;
+using Nova.Shared.Results;
 using Nova.Shared.Teams;
 using Npgsql;
 using Shouldly;
@@ -130,6 +131,107 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
         state.PlayerGraduationYear.ShouldBeGreaterThanOrEqualTo(
             state.TeamGraduationYear,
             "the placement must remain eligible after both updates settle");
+    }
+
+    /// <summary>
+    /// Verifies a team graduation-year change is rejected when a placement for a player outside the
+    /// lock set appears between computing that set and taking the team lock.
+    /// </summary>
+    /// <remarks>
+    /// The lock set is computed before the team lock is held, so
+    /// <see cref="Nova.Features.Campaigns.CampaignPlacementService"/> can assign another player to
+    /// this team inside that window. That player is unlocked, so its graduation year could still be
+    /// changing, and validating against it would enforce nothing. Committing the extra placement from
+    /// an independent connection at exactly that point reproduces the window deterministically rather
+    /// than waiting for two requests to interleave by chance.
+    /// </remarks>
+    [Fact]
+    public async Task TeamUpdate_ReportsConflict_WhenPlacementAppearsForUnlockedPlayer()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var actorUserId = Random.Shared.NextInt64(1, int.MaxValue);
+        var seed = await SeedPlacementAsync(actorUserId, teamGraduationYear: 2029, playerGraduationYear: 2030);
+        var latecomerPlayerId = await SeedPlayerAsync(seed.ClubId, actorUserId, graduationYear: 2030);
+        var campaignId = await ReadCampaignIdAsync(seed.PlacementId);
+
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = seed.ClubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var latecomer = new PlacementAfterLockSetInterceptor(async () =>
+        {
+            await using var independent = fixture.CreateAdminContext();
+            independent.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = latecomerPlayerId,
+                CampaignId = campaignId,
+                TeamId = seed.TeamId,
+                PlacementOutcome = PlacementOutcome.Assigned,
+                ClubId = seed.ClubId,
+                CreatedById = actorUserId
+            });
+            await independent.SaveChangesAsync(CancellationToken.None);
+        });
+
+        var service = new TeamManagementService(
+            new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, latecomer),
+            fixture.CurrentUser,
+            NullLogger<TeamManagementService>.Instance);
+
+        var result = await service.UpdateAsync(
+            new UpdateTeamInput { TeamId = seed.TeamId, Name = seed.TeamName, GraduationYear = 2030 },
+            cancellationToken);
+
+        latecomer.InsertCount.ShouldBe(1);
+        result.IsProblem.ShouldBeTrue(
+            "a placement for an unlocked player means eligibility cannot be validated, so the update must not commit");
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+
+        await using var verify = fixture.CreateAdminContext();
+        var graduationYear = await verify.Teams
+            .Where(team => team.TeamId == seed.TeamId)
+            .Select(team => team.GraduationYear)
+            .SingleAsync(cancellationToken);
+
+        graduationYear.ShouldBe(2029, "the rejected update must leave the team unchanged");
+    }
+
+    /// <summary>
+    /// Reads the campaign that owns the seeded placement.
+    /// </summary>
+    /// <param name="placementId">The seeded placement identifier.</param>
+    /// <returns>The owning campaign identifier.</returns>
+    private async Task<long> ReadCampaignIdAsync(long placementId)
+    {
+        await using var read = fixture.CreateAdminContext();
+        return await read.PlayerCampaignAssignments
+            .Where(assignment => assignment.PlayerCampaignAssignmentId == placementId)
+            .Select(assignment => assignment.CampaignId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// Seeds one additional player in the supplied club.
+    /// </summary>
+    /// <param name="clubId">The owning club identifier.</param>
+    /// <param name="actorUserId">The creating user identifier.</param>
+    /// <param name="graduationYear">The player's graduation year.</param>
+    /// <returns>The seeded player identifier.</returns>
+    private async Task<long> SeedPlayerAsync(long clubId, long actorUserId, int graduationYear)
+    {
+        await using var seed = fixture.CreateAdminContext();
+        var player = new PlayerEntity
+        {
+            FirstName = "Latecomer",
+            LastName = $"Player{Guid.CreateVersion7().ToString("N")[..8]}",
+            DateOfBirth = new DateOnly(2012, 6, 6),
+            GraduationYear = graduationYear,
+            ClubId = clubId,
+            CreatedById = actorUserId
+        };
+        seed.Players.Add(player);
+        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return player.PlayerId;
     }
 
     /// <summary>

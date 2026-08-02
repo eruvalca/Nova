@@ -175,3 +175,38 @@ internal sealed class InsertAfterTeamExistsProbeInterceptor(Func<Task> insertCon
         return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
     }
 }
+
+/// <summary>
+/// Commits an independent placement immediately after a team update computes its player lock set,
+/// reproducing the window in which another request places a player on the team being locked.
+/// </summary>
+/// <param name="insertPlacementAsync">The independent placement write to commit once.</param>
+internal sealed class PlacementAfterLockSetInterceptor(Func<Task> insertPlacementAsync) : DbCommandInterceptor
+{
+    private int _shouldInsert = 1;
+    private int _insertCount;
+
+    /// <summary>
+    /// Gets the number of placements this interceptor committed.
+    /// </summary>
+    public int InsertCount => Volatile.Read(ref _insertCount);
+
+    /// <inheritdoc />
+    public override async ValueTask<System.Data.Common.DbDataReader> ReaderExecutedAsync(
+        System.Data.Common.DbCommand command,
+        CommandExecutedEventData eventData,
+        System.Data.Common.DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        // The lock-set query is the only DISTINCT projection over placements the update issues.
+        if (command.CommandText.Contains("DISTINCT", StringComparison.Ordinal)
+            && command.CommandText.Contains("\"PlayerCampaignAssignments\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _shouldInsert, 0) == 1)
+        {
+            await insertPlacementAsync();
+            Interlocked.Increment(ref _insertCount);
+        }
+
+        return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+    }
+}
