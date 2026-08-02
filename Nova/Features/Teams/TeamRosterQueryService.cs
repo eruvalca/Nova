@@ -47,8 +47,9 @@ public sealed partial class TeamRosterQueryService(
         if (search is not null)
         {
             var uppercaseSearch = search.ToUpperInvariant();
+            var escapedSearch = EscapeLikePattern(search);
             query = db.Database.IsNpgsql()
-                ? query.Where(team => EF.Functions.ILike(team.Name, $"%{search}%"))
+                ? query.Where(team => EF.Functions.ILike(team.Name, $"%{escapedSearch}%", @"\"))
                 : query.Where(team => team.Name.ToUpper().Contains(uppercaseSearch));
         }
 
@@ -84,6 +85,16 @@ public sealed partial class TeamRosterQueryService(
         => string.Equals(lifecycleStatus, "archived", StringComparison.OrdinalIgnoreCase)
             ? LifecycleStatus.Archived
             : LifecycleStatus.Active;
+
+    /// <summary>
+    /// Escapes <c>ILIKE</c> pattern metacharacters so that a user-supplied search term is treated
+    /// as a literal substring. Backslash is escaped first to avoid double-escaping, then
+    /// <c>%</c> and <c>_</c> are escaped with the backslash escape character.
+    /// </summary>
+    /// <param name="value">The raw user search term.</param>
+    /// <returns>The term with <c>\</c>, <c>%</c>, and <c>_</c> escaped for use in an <c>ILIKE '%…%' ESCAPE '\'</c> pattern.</returns>
+    private static string EscapeLikePattern(string value)
+        => value.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 
     /// <summary>
     /// Logs an attempted roster read without an approved club membership.

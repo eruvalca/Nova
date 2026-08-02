@@ -175,7 +175,7 @@ public partial class TeamDetail(
 
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authState.User;
-        _canManageTeams = principal.IsInRole(Roles.Admin) || principal.IsInRole(Roles.ClubAdmin);
+        _canManageTeams = principal.IsInRole(Roles.ClubAdmin);
 
         _lastLoadedTeamId = TeamId;
         _lastReturnUrl = ReturnUrl;

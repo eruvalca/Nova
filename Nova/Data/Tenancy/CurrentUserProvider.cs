@@ -41,13 +41,14 @@ public sealed class CurrentUserProvider(IHttpContextAccessor httpContextAccessor
     }
 
     /// <summary>
-    /// Determines whether the principal has club-administration capability.
+    /// Determines whether the principal administers its own club. The global
+    /// <see cref="Roles.Admin"/> role deliberately does not qualify: it is a platform role that
+    /// carries no club tenancy, so it must never act as an operator inside a club's data.
     /// </summary>
     /// <param name="principal">The principal to evaluate.</param>
-    /// <returns><see langword="true"/> when the principal is in ClubAdmin or Admin role; otherwise <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> when the principal is in the ClubAdmin role; otherwise <see langword="false"/>.</returns>
     private static bool IsClubAdminRole(ClaimsPrincipal? principal) =>
-        (principal?.IsInRole(Roles.ClubAdmin) ?? false)
-        || (principal?.IsInRole(Roles.Admin) ?? false);
+        principal?.IsInRole(Roles.ClubAdmin) ?? false;
 
     private long? GetLongClaim(string claimType)
     {

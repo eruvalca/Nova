@@ -1,6 +1,6 @@
 @page "/teams"
 @rendermode InteractiveAuto
-@attribute [Authorize(Policy = Policies.RequireEvaluator)]
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
 @using Nova.Shared.Enums
 @using Nova.Shared.Security

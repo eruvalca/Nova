@@ -12,7 +12,7 @@ using OneOf.Types;
 namespace Nova.Features.Teams;
 
 /// <summary>
-/// Applies tenant-safe team lifecycle and graduation-year mutations with club-administrator authorization.
+/// Applies tenant-safe team lifecycle mutations with club-administrator authorization.
 /// </summary>
 /// <param name="dbContextFactory">The tenant-scoped context factory used for team mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
@@ -52,84 +52,6 @@ public sealed partial class TeamLifecycleService(
             blocked => MapUnexpectedRestoreBlocked(teamId, blocked));
     }
 
-    /// <inheritdoc />
-    public async Task<ServiceResult<Success>> UpdateGraduationYearAsync(
-        UpdateTeamGraduationYearInput input,
-        CancellationToken cancellationToken = default)
-    {
-        var validationErrors = InputValidator.Validate(input);
-        if (validationErrors.Count > 0)
-        {
-            LogTeamGraduationYearValidationFailed(input.TeamId);
-            return ServiceProblem.Validation(validationErrors);
-        }
-
-        if (currentUserProvider.UserId is not long actorUserId
-            || currentUserProvider.ClubId is not long clubId
-            || !currentUserProvider.IsClubAdmin)
-        {
-            LogTeamLifecycleForbidden(input.TeamId, currentUserProvider.UserId ?? 0);
-            return ServiceProblem.Forbidden("You must be a club administrator to change permanent team data.");
-        }
-
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.AcquireTeamMutationLockAsync(input.TeamId, cancellationToken);
-        var team = await db.Teams
-            .SingleOrDefaultAsync(candidate => candidate.TeamId == input.TeamId, cancellationToken);
-
-        if (team is null || team.ClubId != clubId)
-        {
-            LogTeamNotFound(input.TeamId, clubId);
-            return ServiceProblem.NotFound();
-        }
-
-        if (team.LifecycleStatus == LifecycleStatus.Archived)
-        {
-            LogTeamLifecycleConflict(input.TeamId, team.LifecycleStatus);
-            return ServiceProblem.Conflict("Restore the archived team before changing its graduation year.");
-        }
-
-        var blockers = await db.PlayerCampaignAssignments
-            .Where(
-                assignment => assignment.TeamId == input.TeamId
-                    && assignment.PlacementOutcome == PlacementOutcome.Assigned
-                    && assignment.Campaign.Status == CampaignStatus.Active
-                    && assignment.Player.GraduationYear < input.GraduationYear)
-            .Select(
-                assignment => new TeamGraduationYearBlockerItem
-                {
-                    PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
-                    CampaignId = assignment.CampaignId,
-                    PlayerId = assignment.PlayerId,
-                    PlayerGraduationYear = assignment.Player.GraduationYear
-                })
-            .ToListAsync(cancellationToken);
-
-        if (blockers.Count > 0)
-        {
-            LogTeamGraduationYearBlocked(input.TeamId, blockers.Count);
-            return ServiceProblem.Conflict(
-                "Resolve active-campaign placements that would become ineligible before changing the team's graduation year.",
-                TeamLifecycleProblemExtensions.CreateGraduationYearBlockerExtensions(blockers));
-        }
-
-        team.GraduationYear = input.GraduationYear;
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            LogTeamMutationConcurrencyConflict(input.TeamId);
-            return ServiceProblem.Conflict("The team changed. Reload it and try again.");
-        }
-
-        LogTeamGraduationYearChanged(input.TeamId, input.GraduationYear, actorUserId);
-        return new Success();
-    }
-
     /// <summary>
     /// Applies the requested team lifecycle status after authorization and integrity checks.
     /// </summary>
@@ -150,7 +72,34 @@ public sealed partial class TeamLifecycleService(
             return new LifecycleForbidden("You must be a club administrator to change team lifecycle state.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            return await ApplyTransitionAsync(db, teamId, targetStatus, actorUserId, clubId, cancellationToken);
+        });
+    }
+
+    /// <summary>
+    /// Applies one lifecycle transition attempt inside a single transaction using a fresh tenant context.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="teamId">The team identifier to mutate.</param>
+    /// <param name="targetStatus">The lifecycle status to apply.</param>
+    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Internal lifecycle outcomes before boundary mapping to shared service contracts.</returns>
+    private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, TeamArchiveBlockedConflict>> ApplyTransitionAsync(
+        NovaDbContext db,
+        long teamId,
+        LifecycleStatus targetStatus,
+        long actorUserId,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await db.AcquireTeamMutationLockAsync(teamId, cancellationToken);
         var team = await db.Teams
@@ -299,30 +248,6 @@ public sealed partial class TeamLifecycleService(
     /// <param name="actorUserId">The acting administrator identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "TeamId={TeamId} lifecycle changed to {Status} by UserId={ActorUserId}.")]
     private partial void LogTeamLifecycleChanged(long teamId, LifecycleStatus status, long actorUserId);
-
-    /// <summary>
-    /// Logs invalid team graduation-year input.
-    /// </summary>
-    /// <param name="teamId">The requested team identifier.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Team graduation-year validation failed for TeamId={TeamId}.")]
-    private partial void LogTeamGraduationYearValidationFailed(long teamId);
-
-    /// <summary>
-    /// Logs a team graduation-year change blocked by active placements.
-    /// </summary>
-    /// <param name="teamId">The blocked team identifier.</param>
-    /// <param name="blockerCount">The number of blocked placements.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Team graduation-year change blocked for TeamId={TeamId} across BlockerCount={BlockerCount}.")]
-    private partial void LogTeamGraduationYearBlocked(long teamId, int blockerCount);
-
-    /// <summary>
-    /// Logs a successful team graduation-year change.
-    /// </summary>
-    /// <param name="teamId">The changed team identifier.</param>
-    /// <param name="graduationYear">The applied graduation year.</param>
-    /// <param name="actorUserId">The acting administrator identifier.</param>
-    [LoggerMessage(Level = LogLevel.Information, Message = "TeamId={TeamId} graduation year changed to {GraduationYear} by UserId={ActorUserId}.")]
-    private partial void LogTeamGraduationYearChanged(long teamId, int graduationYear, long actorUserId);
 
     /// <summary>
     /// Represents an archive conflict with structured active-campaign placement blockers.

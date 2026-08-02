@@ -123,7 +123,7 @@ public partial class PlayerDetail(
     {
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authState.User;
-        _canManagePlayers = principal.IsInRole(Roles.Admin) || principal.IsInRole(Roles.ClubAdmin);
+        _canManagePlayers = principal.IsInRole(Roles.ClubAdmin);
 
         _returnUrl = NormalizeReturnUrl(ReturnUrl);
         await LoadDetailAsync();

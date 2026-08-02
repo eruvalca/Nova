@@ -57,14 +57,16 @@ public sealed class CurrentUserStateTests
     }
 
     /// <summary>
-    /// A user with a club claim yields <see cref="ClubMember"/> with role evaluated.
+    /// A user with a club claim yields <see cref="ClubMember"/> with role evaluated. The global
+    /// Admin role carries no club tenancy, so it must not grant club administration.
     /// </summary>
     /// <param name="role">The optional role claim to apply.</param>
     /// <param name="isClubAdmin">Expected administration capability for the supplied role.</param>
     [Theory]
     [InlineData(null, false)]
     [InlineData(Roles.ClubAdmin, true)]
-    [InlineData(Roles.Admin, true)]
+    [InlineData(Roles.Admin, false)]
+    [InlineData(Roles.StandardUser, false)]
     public void GetCurrentUserState_WithClub_ReturnsClubMember(string? role, bool isClubAdmin)
     {
         List<Claim> claims =

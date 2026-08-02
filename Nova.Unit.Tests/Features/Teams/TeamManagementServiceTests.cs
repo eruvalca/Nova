@@ -158,7 +158,10 @@ public sealed class TeamManagementServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
-        result.Problem.Errors!.ShouldContainKey("blockers[0].assignmentId");
+        result.Problem.TryGetGraduationYearBlockers(out var blockers).ShouldBeTrue();
+        blockers.Count.ShouldBe(1);
+        blockers[0].PlayerId.ShouldBe(_playerId);
+        blockers[0].PlayerGraduationYear.ShouldBe(2028);
 
         using var db = _harness.CreateAdminContext();
         var team = db.Teams.Single(t => t.TeamId == _teamId);
@@ -184,8 +187,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsConflict_ForArchivedTeam()
-    {
+    public async Task Update_ReturnsConflict_ForArchivedTeam()    {
         using (var db = _harness.CreateAdminContext())
         {
             var team = db.Teams.Single(t => t.TeamId == _teamId);
@@ -204,8 +206,83 @@ public sealed class TeamManagementServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
     }
 
-    private TeamManagementService CreateService()
-        => new(
+    /// <summary>
+    /// Verifies a club cannot own two teams sharing a name and graduation year.
+    /// </summary>
+    [Fact]
+    public async Task Create_ReturnsConflict_ForDuplicateNameAndGraduationYear()
+    {
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+
+        var result = await CreateService().CreateAsync(
+            new CreateTeamInput { Name = "U16", GraduationYear = 2028 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+
+        using var db = _harness.CreateAdminContext();
+        db.Teams.Count(team => team.ClubId == ClubAId && team.Name == "U16").ShouldBe(1);
+    }
+
+    /// <summary>
+    /// Verifies the same team name is allowed under a different graduation year.
+    /// </summary>
+    [Fact]
+    public async Task Create_Succeeds_ForSameNameUnderDifferentGraduationYear()
+    {
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+
+        var result = await CreateService().CreateAsync(
+            new CreateTeamInput { Name = "U16", GraduationYear = 2029 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.GraduationYear.ShouldBe(2029);
+    }
+
+    /// <summary>
+    /// Verifies team-name uniqueness is scoped to the owning club rather than global.
+    /// </summary>
+    [Fact]
+    public async Task Create_Succeeds_ForSameNameInAnotherClub()
+    {
+        ActAs(ClubBAdminId, ClubBId, isAdmin: true);
+
+        var result = await CreateService().CreateAsync(
+            new CreateTeamInput { Name = "U16", GraduationYear = 2028 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ClubId.ShouldBe(ClubBId);
+    }
+
+    /// <summary>
+    /// Verifies renaming a team onto an existing name and graduation year is rejected.
+    /// </summary>
+    [Fact]
+    public async Task Update_ReturnsConflict_WhenRenamingOntoExistingTeam()
+    {
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        var service = CreateService();
+
+        var created = await service.CreateAsync(
+            new CreateTeamInput { Name = "U18", GraduationYear = 2028 },
+            TestContext.Current.CancellationToken);
+        created.IsSuccess.ShouldBeTrue();
+
+        var result = await service.UpdateAsync(
+            new UpdateTeamInput { TeamId = created.Value.TeamId, Name = "U16", GraduationYear = 2028 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+
+        using var db = _harness.CreateAdminContext();
+        db.Teams.Single(team => team.TeamId == created.Value.TeamId).Name.ShouldBe("U18");
+    }
+
+    private TeamManagementService CreateService()        => new(
             new HarnessDbContextFactory(_harness),
             _harness.CurrentUser,
             NullLogger<TeamManagementService>.Instance);

@@ -166,54 +166,6 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies a team graduation-year change cannot make an active placement ineligible.
-    /// </summary>
-    [Fact]
-    public async Task TeamLifecycle_ReturnsConflict_WhenGraduationYearInvalidatesActivePlacement()
-    {
-        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
-        var service = CreateTeamService();
-
-        var result = await service.UpdateGraduationYearAsync(
-            new UpdateTeamGraduationYearInput { TeamId = ActivePlacementTeamId, GraduationYear = 2031 },
-            TestContext.Current.CancellationToken);
-
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
-        result.Problem.TryGetGraduationYearBlockers(out var cutoffBlockers).ShouldBeTrue();
-        cutoffBlockers.Count.ShouldBe(1);
-
-        await using var verify = _harness.CreateAdminContext();
-        var graduationYear = await verify.Teams
-            .Where(team => team.TeamId == ActivePlacementTeamId)
-            .Select(team => team.GraduationYear)
-            .SingleAsync(TestContext.Current.CancellationToken);
-        graduationYear.ShouldBe(2029);
-    }
-
-    /// <summary>
-    /// Verifies a team graduation-year change succeeds when all active placements remain eligible.
-    /// </summary>
-    [Fact]
-    public async Task TeamLifecycle_UpdatesGraduationYear_WhenActivePlacementsRemainEligible()
-    {
-        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
-        var service = CreateTeamService();
-
-        var result = await service.UpdateGraduationYearAsync(
-            new UpdateTeamGraduationYearInput { TeamId = ActivePlacementTeamId, GraduationYear = 2030 },
-            TestContext.Current.CancellationToken);
-
-        result.IsSuccess.ShouldBeTrue();
-
-        await using var verify = _harness.CreateAdminContext();
-        var team = await verify.Teams
-            .SingleAsync(candidate => candidate.TeamId == ActivePlacementTeamId, TestContext.Current.CancellationToken);
-        team.GraduationYear.ShouldBe(2030);
-        team.ModifiedById.ShouldBe(ClubAAdminId);
-    }
-
-    /// <summary>
     /// Verifies tag-definition archival preserves prior campaign tag applications and restore clears provenance.
     /// </summary>
     [Fact]

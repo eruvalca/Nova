@@ -27,11 +27,6 @@ public sealed class TeamLifecycleEndpointTests
             long teamId,
             CancellationToken cancellationToken = default)
             => Task.FromResult<ServiceResult<Success>>(new Success());
-
-        public Task<ServiceResult<Success>> UpdateGraduationYearAsync(
-            UpdateTeamGraduationYearInput input,
-            CancellationToken cancellationToken = default)
-            => Task.FromResult<ServiceResult<Success>>(new Success());
     }
 
     [Fact]
@@ -49,11 +44,10 @@ public sealed class TeamLifecycleEndpointTests
             .Where(
                 endpoint => endpoint.RoutePattern.RawText is
                     TeamEndpoints.ArchiveTemplate or
-                    TeamEndpoints.RestoreTemplate or
-                    TeamEndpoints.UpdateGraduationYearTemplate)
+                    TeamEndpoints.RestoreTemplate)
             .ToList();
 
-        routeEndpoints.Count.ShouldBe(3);
+        routeEndpoints.Count.ShouldBe(2);
         foreach (var endpoint in routeEndpoints)
         {
             endpoint.Metadata

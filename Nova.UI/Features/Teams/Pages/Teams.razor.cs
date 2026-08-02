@@ -216,7 +216,7 @@ public partial class Teams(
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authenticationState.User;
 
-        _canManageTeams = principal.IsInRole(Roles.ClubAdmin) || principal.IsInRole(Roles.Admin);
+        _canManageTeams = principal.IsInRole(Roles.ClubAdmin);
         _clubId = ReadClubIdClaim(principal);
 
         if (Initialized)
@@ -654,9 +654,10 @@ public partial class Teams(
                 problem =>
                 {
                     _formError = problem.Detail ?? "Could not update team.";
-                    if (problem.Kind == ServiceProblemKind.Conflict)
+                    if (problem.Kind == ServiceProblemKind.Conflict
+                        && problem.TryGetGraduationYearBlockers(out var blockers))
                     {
-                        _cutoffBlockers = ExtractCutoffBlockers(problem.Errors);
+                        _cutoffBlockers = blockers;
                     }
                 });
             shouldReloadRoster = result.IsSuccess;
@@ -828,124 +829,6 @@ public partial class Teams(
     }
 
     /// <summary>
-    /// Extracts structured graduation-year blockers from a conflict error payload.
-    /// </summary>
-    /// <param name="errors">The service-problem errors dictionary.</param>
-    /// <returns>A parsed list of blocker items, or an empty list when unavailable.</returns>
-    private static IReadOnlyList<TeamGraduationYearBlockerItem> ExtractCutoffBlockers(
-        IReadOnlyDictionary<string, string[]>? errors)
-    {
-        if (errors is null || errors.Count == 0)
-        {
-            return [];
-        }
-
-        var blockers = new Dictionary<int, TeamCutoffBlockerBuilder>();
-        foreach (var (key, values) in errors)
-        {
-            if (values.Length == 0 || !TryParseBlockerKey(key, out var index, out var fieldName))
-            {
-                continue;
-            }
-
-            if (!blockers.TryGetValue(index, out var builder))
-            {
-                builder = new TeamCutoffBlockerBuilder();
-                blockers[index] = builder;
-            }
-
-            var value = values[0];
-            switch (fieldName)
-            {
-                case "assignmentId":
-                    builder.PlayerCampaignAssignmentId = TryParseLong(value);
-                    break;
-                case "campaignId":
-                    builder.CampaignId = TryParseLong(value);
-                    break;
-                case "playerId":
-                    builder.PlayerId = TryParseLong(value);
-                    break;
-                case "playerGraduationYear":
-                    builder.PlayerGraduationYear = TryParseInt(value);
-                    break;
-            }
-        }
-
-        return blockers
-            .OrderBy(pair => pair.Key)
-            .Select(pair => pair.Value)
-            .Where(builder =>
-                builder.PlayerCampaignAssignmentId is not null
-                && builder.CampaignId is not null
-                && builder.PlayerId is not null
-                && builder.PlayerGraduationYear is not null)
-            .Select(builder => new TeamGraduationYearBlockerItem
-            {
-                PlayerCampaignAssignmentId = builder.PlayerCampaignAssignmentId!.Value,
-                CampaignId = builder.CampaignId!.Value,
-                PlayerId = builder.PlayerId!.Value,
-                PlayerGraduationYear = builder.PlayerGraduationYear!.Value
-            })
-            .ToList()
-            .AsReadOnly();
-    }
-
-    /// <summary>
-    /// Parses one blocker payload key in the format <c>blockers[{index}].{field}</c>.
-    /// </summary>
-    /// <param name="key">The input key.</param>
-    /// <param name="index">The parsed blocker index.</param>
-    /// <param name="fieldName">The parsed field name.</param>
-    /// <returns><see langword="true"/> when parsing succeeds; otherwise <see langword="false"/>.</returns>
-    private static bool TryParseBlockerKey(string key, out int index, out string fieldName)
-    {
-        index = default;
-        fieldName = string.Empty;
-
-        if (!key.StartsWith("blockers[", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var closeBracketIndex = key.IndexOf(']');
-        var dotIndex = key.IndexOf('.', closeBracketIndex + 1);
-        if (closeBracketIndex <= "blockers[".Length || dotIndex < 0)
-        {
-            return false;
-        }
-
-        var indexText = key["blockers[".Length..closeBracketIndex];
-        if (!int.TryParse(indexText, NumberStyles.Integer, CultureInfo.InvariantCulture, out index))
-        {
-            return false;
-        }
-
-        fieldName = key[(dotIndex + 1)..];
-        return fieldName.Length > 0;
-    }
-
-    /// <summary>
-    /// Parses a long using invariant culture.
-    /// </summary>
-    /// <param name="value">The incoming number text.</param>
-    /// <returns>The parsed long value, or <see langword="null"/> when parsing fails.</returns>
-    private static long? TryParseLong(string value)
-        => long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : null;
-
-    /// <summary>
-    /// Parses an int using invariant culture.
-    /// </summary>
-    /// <param name="value">The incoming number text.</param>
-    /// <returns>The parsed int value, or <see langword="null"/> when parsing fails.</returns>
-    private static int? TryParseInt(string value)
-        => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : null;
-
-    /// <summary>
     /// Builds the team-detail URL while preserving current roster filter context as a return URL.
     /// </summary>
     /// <param name="teamId">The target team identifier.</param>
@@ -987,31 +870,5 @@ public partial class Teams(
         _loadRosterSource?.Dispose();
         _loadRosterSource = null;
         return ValueTask.CompletedTask;
-    }
-
-    /// <summary>
-    /// Stores one partially parsed graduation-year cutoff blocker row.
-    /// </summary>
-    private sealed class TeamCutoffBlockerBuilder
-    {
-        /// <summary>
-        /// Gets or sets the assignment identifier.
-        /// </summary>
-        public long? PlayerCampaignAssignmentId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the campaign identifier.
-        /// </summary>
-        public long? CampaignId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the player identifier.
-        /// </summary>
-        public long? PlayerId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the player graduation-year value.
-        /// </summary>
-        public int? PlayerGraduationYear { get; set; }
     }
 }

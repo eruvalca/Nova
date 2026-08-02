@@ -20,7 +20,31 @@ public sealed partial class TeamDetailQueryService(
 {
     private const int MaxPlacementHistoryItems = 100;
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Returns the team profile, its placement history page, and active-campaign summaries
+    /// for the team identified by <paramref name="teamId"/>, scoped to the current club tenant.
+    /// Returns <see cref="ServiceProblem.Forbidden"/> when the caller has no club membership,
+    /// and <see cref="ServiceProblem.NotFound"/> when the team is not visible in the current tenant.
+    /// </summary>
+    /// <param name="teamId">The team to retrieve.</param>
+    /// <param name="cancellationToken">A token to observe for cooperative cancellation.</param>
+    /// <returns>
+    /// A <see cref="ServiceResult{T}"/> containing a <see cref="TeamDetailDto"/> on success, or a
+    /// <see cref="ServiceProblem"/> on authorization or lookup failure.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <see cref="TeamDetailDto.ActivePlacementImpacts"/> is derived from the truncated placement
+    /// history page (capped at <see cref="MaxPlacementHistoryItems"/> rows). It reflects only the
+    /// Active-campaign rows that survived the page cut.
+    /// </para>
+    /// <para>
+    /// <see cref="TeamDetailDto.ActivePlacementImpactTotalCount"/> is computed from a separate,
+    /// unbounded count query against all assignments for the team. It is intentionally independent
+    /// of the page and will correctly reflect the full Active count even when Active rows were
+    /// excluded from the page by the truncation limit.
+    /// </para>
+    /// </remarks>
     public async Task<ServiceResult<TeamDetailDto>> GetTeamDetailAsync(
         long teamId,
         CancellationToken cancellationToken = default)
@@ -78,7 +102,8 @@ public sealed partial class TeamDetailQueryService(
             .ToListAsync(cancellationToken);
 
         var placementHistory = rows
-            .OrderByDescending(row => row.CampaignStartDate)
+            .OrderByDescending(row => row.CampaignStatus == CampaignStatus.Active)
+            .ThenByDescending(row => row.CampaignStartDate)
             .ThenByDescending(row => row.CampaignId)
             .ThenBy(row => row.PlayerDisplayName, StringComparer.Ordinal)
             .ThenBy(row => row.PlayerId)

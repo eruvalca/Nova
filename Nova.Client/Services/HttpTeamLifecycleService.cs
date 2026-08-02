@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using Nova.Shared.Results;
 using Nova.Shared.Teams;
 using OneOf.Types;
@@ -22,23 +21,6 @@ public sealed class HttpTeamLifecycleService(HttpClient http) : ITeamLifecycleSe
         long teamId,
         CancellationToken cancellationToken = default)
         => SendMutationAsync(TeamEndpoints.RestoreUrl(teamId), cancellationToken);
-
-    /// <inheritdoc />
-    public async Task<ServiceResult<Success>> UpdateGraduationYearAsync(
-        UpdateTeamGraduationYearInput input,
-        CancellationToken cancellationToken = default)
-    {
-        using var response = await http.PutAsJsonAsync(
-            TeamEndpoints.UpdateGraduationYearUrl(input.TeamId),
-            input,
-            cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return await response.ToServiceProblemAsync(cancellationToken);
-        }
-
-        return new Success();
-    }
 
     private async Task<ServiceResult<Success>> SendMutationAsync(
         string requestUri,
