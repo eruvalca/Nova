@@ -42,7 +42,10 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
 
         result.IsSuccess.ShouldBeTrue();
         failureInterceptor.FailureCount.ShouldBe(1);
-        factory.CreatedContextCount.ShouldBe(3);
+
+        // One context for execution-strategy setup, one per mutation attempt, and one for the
+        // commit verification the strategy runs after the transient failure.
+        factory.CreatedContextCount.ShouldBe(4);
 
         await using var verify = fixture.CreateAdminContext();
         var team = await verify.Teams
@@ -90,6 +93,83 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
         team.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
         team.ArchivedAt.ShouldBeNull();
         team.ArchivedById.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Verifies an archive whose commit reached the database but surfaced a transient failure is
+    /// reported as success rather than replayed into a spurious "already archived" conflict.
+    /// </summary>
+    [Fact]
+    public async Task TeamArchive_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    {
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var suffix = Guid.NewGuid().ToString("N");
+        var (clubId, teamId) = await SeedClubAndTeamAsync(actorUserId, suffix);
+
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor);
+        var service = new TeamLifecycleService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<TeamLifecycleService>.Instance);
+
+        var result = await service.ArchiveAsync(teamId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        failureInterceptor.FailureCount.ShouldBe(1);
+
+        await using var verify = fixture.CreateAdminContext();
+        var team = await verify.Teams
+            .Where(candidate => candidate.TeamId == teamId)
+            .Select(candidate => new { candidate.LifecycleStatus, candidate.ArchivedById })
+            .SingleAsync(TestContext.Current.CancellationToken);
+        team.LifecycleStatus.ShouldBe(LifecycleStatus.Archived);
+        team.ArchivedById.ShouldBe(actorUserId);
+    }
+
+    /// <summary>
+    /// Verifies the same ambiguous-commit protection applies to restore.
+    /// </summary>
+    [Fact]
+    public async Task TeamRestore_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    {
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var suffix = Guid.NewGuid().ToString("N");
+        var (clubId, teamId) = await SeedClubAndTeamAsync(actorUserId, suffix, archived: true);
+
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor);
+        var service = new TeamLifecycleService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<TeamLifecycleService>.Instance);
+
+        var result = await service.RestoreAsync(teamId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        failureInterceptor.FailureCount.ShouldBe(1);
+
+        await using var verify = fixture.CreateAdminContext();
+        var team = await verify.Teams
+            .Where(candidate => candidate.TeamId == teamId)
+            .Select(candidate => new { candidate.LifecycleStatus, candidate.ArchivedAt })
+            .SingleAsync(TestContext.Current.CancellationToken);
+        team.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
+        team.ArchivedAt.ShouldBeNull();
     }
 
     /// <summary>

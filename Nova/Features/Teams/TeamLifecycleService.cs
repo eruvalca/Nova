@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Features.Shared;
@@ -75,11 +76,66 @@ public sealed partial class TeamLifecycleService(
         await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
 
-        return await strategy.ExecuteAsync(async () =>
+        return await strategy.ExecuteAsync(
+            (TeamId: teamId, TargetStatus: targetStatus, ActorUserId: actorUserId, ClubId: clubId),
+            async (state, token) =>
+            {
+                await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                return await ApplyTransitionAsync(
+                    db,
+                    state.TeamId,
+                    state.TargetStatus,
+                    state.ActorUserId,
+                    state.ClubId,
+                    token);
+            },
+            async (state, token) =>
+            {
+                await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                return await VerifyTransitionCommittedAsync(db, state.TeamId, state.TargetStatus, state.ClubId, token);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Determines whether an ambiguous commit already applied the requested transition so the
+    /// execution strategy can report success instead of replaying the attempt.
+    /// </summary>
+    /// <remarks>
+    /// The execution strategy invokes this only after a transient failure interrupted an attempt, so
+    /// finding the target status already applied means this operation's commit reached the database.
+    /// Without it a replay would observe the applied status and return a spurious conflict to a
+    /// caller whose archive or restore actually succeeded.
+    /// </remarks>
+    /// <param name="db">The fresh tenant context used for verification.</param>
+    /// <param name="teamId">The team identifier that was being mutated.</param>
+    /// <param name="targetStatus">The lifecycle status the interrupted attempt was applying.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>A successful result when the transition is already persisted; otherwise unsuccessful.</returns>
+    private async Task<ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, TeamArchiveBlockedConflict>>> VerifyTransitionCommittedAsync(
+        NovaDbContext db,
+        long teamId,
+        LifecycleStatus targetStatus,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
+        var appliedStatus = await db.Teams
+            .Where(candidate => candidate.TeamId == teamId && candidate.ClubId == clubId)
+            .Select(candidate => (LifecycleStatus?)candidate.LifecycleStatus)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (appliedStatus == targetStatus)
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return await ApplyTransitionAsync(db, teamId, targetStatus, actorUserId, clubId, cancellationToken);
-        });
+            LogTeamTransitionCommitVerified(teamId, targetStatus);
+            return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, TeamArchiveBlockedConflict>>(
+                successful: true,
+                new Success());
+        }
+
+        return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, TeamArchiveBlockedConflict>>(
+            successful: false,
+            default!);
     }
 
     /// <summary>
@@ -248,6 +304,14 @@ public sealed partial class TeamLifecycleService(
     /// <param name="actorUserId">The acting administrator identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "TeamId={TeamId} lifecycle changed to {Status} by UserId={ActorUserId}.")]
     private partial void LogTeamLifecycleChanged(long teamId, LifecycleStatus status, long actorUserId);
+
+    /// <summary>
+    /// Logs an ambiguous commit that verification confirmed had already applied the transition.
+    /// </summary>
+    /// <param name="teamId">The verified team identifier.</param>
+    /// <param name="status">The lifecycle status found already applied.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "TeamId={TeamId} transition to {Status} was already committed before the transient failure; skipping replay.")]
+    private partial void LogTeamTransitionCommitVerified(long teamId, LifecycleStatus status);
 
     /// <summary>
     /// Represents an archive conflict with structured active-campaign placement blockers.
