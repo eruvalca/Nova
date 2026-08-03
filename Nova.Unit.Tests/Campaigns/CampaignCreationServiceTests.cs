@@ -289,6 +289,51 @@ public sealed class CampaignCreationServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies a campaign cannot begin after its finite season ends.
+    /// </summary>
+    [Fact]
+    public async Task Create_ReturnsValidation_WhenCampaignStartsAfterSeason()
+    {
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+
+        var result = await CreateService().CreateAsync(
+            ValidExistingSeasonInput() with
+            {
+                StartDate = new DateOnly(2027, 1, 1),
+                PlannedEndDate = new DateOnly(2027, 6, 30)
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
+        result.Problem.Errors.ShouldContainKey(nameof(CreateCampaignInput.StartDate));
+        CampaignCountForClubA().ShouldBe(0);
+    }
+
+    /// <summary>
+    /// Verifies a campaign cannot have a planned end after its finite season ends.
+    /// </summary>
+    [Fact]
+    public async Task Create_ReturnsValidation_WhenCampaignEndsAfterSeason()
+    {
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+
+        var result = await CreateService().CreateAsync(
+            ValidExistingSeasonInput() with
+            {
+                PlannedEndDate = new DateOnly(2027, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
+        result.Problem.Errors.ShouldContainKey(nameof(CreateCampaignInput.PlannedEndDate));
+        CampaignCountForClubA().ShouldBe(0);
+    }
+
+    /// <summary>
     /// Verifies duplicate campaign names are rejected within one season.
     /// </summary>
     [Fact]

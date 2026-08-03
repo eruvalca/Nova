@@ -238,6 +238,104 @@ internal sealed class AdvisoryLockRecordingInterceptor : DbCommandInterceptor
 }
 
 /// <summary>
+/// Pauses a mutation immediately after it acquires an advisory lock so a test can deterministically
+/// queue a competing mutation behind it.
+/// </summary>
+internal sealed class AdvisoryLockGateInterceptor : DbCommandInterceptor
+{
+    private readonly TaskCompletionSource _attempted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _acquired =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _release =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Waits until the advisory-lock command is about to execute.</summary>
+    public Task WaitForAttemptAsync(CancellationToken cancellationToken) =>
+        _attempted.Task.WaitAsync(cancellationToken);
+
+    /// <summary>Waits until the advisory lock has been acquired.</summary>
+    public Task WaitForAcquiredAsync(CancellationToken cancellationToken) =>
+        _acquired.Task.WaitAsync(cancellationToken);
+
+    /// <summary>Allows the mutation holding the advisory lock to continue.</summary>
+    public void Release() => _release.TrySetResult();
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        RecordAttempt(command);
+        return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override async ValueTask<int> NonQueryExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        int result,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsAdvisoryLock(command))
+        {
+            _acquired.TrySetResult();
+            await _release.Task.WaitAsync(cancellationToken);
+        }
+
+        return await base.NonQueryExecutedAsync(
+            command,
+            eventData,
+            result,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        RecordAttempt(command);
+        return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsAdvisoryLock(command))
+        {
+            _acquired.TrySetResult();
+            await _release.Task.WaitAsync(cancellationToken);
+        }
+
+        return await base.ReaderExecutedAsync(
+            command,
+            eventData,
+            result,
+            cancellationToken);
+    }
+
+    private void RecordAttempt(DbCommand command)
+    {
+        if (IsAdvisoryLock(command))
+        {
+            _attempted.TrySetResult();
+        }
+    }
+
+    private static bool IsAdvisoryLock(DbCommand command) =>
+        command.CommandText.Contains("pg_advisory_xact_lock", StringComparison.Ordinal);
+}
+
+/// <summary>
 /// Commits an independent write immediately after the team duplicate-name probe runs, reproducing
 /// the window in which another request inserts a conflicting team between the probe and the save.
 /// </summary>

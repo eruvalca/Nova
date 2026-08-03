@@ -7,6 +7,7 @@ using Nova.Features.Players;
 using Nova.Shared.Campaigns;
 using Nova.Shared.Enums;
 using Nova.Shared.Players;
+using Nova.Shared.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -273,42 +274,88 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies concurrent player and campaign creation leave exactly one participation linking them.
+    /// Verifies either roster-lock winner leaves exactly one participation linking the new player and
+    /// campaign.
     /// </summary>
-    [Fact]
-    public async Task ConcurrentCampaignAndPlayerCreation_AlwaysProducesParticipation()
+    /// <param name="campaignWinsLock">Whether campaign creation acquires the roster lock first.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConcurrentCampaignAndPlayerCreation_ProducesParticipation_ForEitherLockWinner(
+        bool campaignWinsLock)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
         ActAs(seed.ActorUserId, seed.ClubId, isAdmin: true);
 
-        var lockRecorder = new AdvisoryLockRecordingInterceptor();
-        var factory = new RetryingTenantDbContextFactory(
+        var campaignGate = new AdvisoryLockGateInterceptor();
+        var playerGate = new AdvisoryLockGateInterceptor();
+        var campaignFactory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
             fixture.CurrentUser,
-            lockRecorder);
-        var campaignTask = CreateCampaignService(factory).CreateAsync(
-            ExistingSeasonInput(seed),
-            cancellationToken);
-        var playerTask = CreatePlayerService(factory).CreateAsync(
-            new CreatePlayerInput
+            campaignGate);
+        var playerFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            playerGate);
+        var playerInput = new CreatePlayerInput
+        {
+            FirstName = "Concurrent",
+            LastName = "Player",
+            DateOfBirth = new DateOnly(2012, 1, 1),
+            GraduationYear = 2030
+        };
+
+        Task<ServiceResult<CreateCampaignResult>> campaignTask;
+        Task<ServiceResult<PlayerDto>> playerTask;
+        try
+        {
+            if (campaignWinsLock)
             {
-                FirstName = "Concurrent",
-                LastName = "Player",
-                DateOfBirth = new DateOnly(2012, 1, 1),
-                GraduationYear = 2030
-            },
-            cancellationToken);
+                campaignTask = CreateCampaignService(campaignFactory).CreateAsync(
+                    ExistingSeasonInput(seed),
+                    cancellationToken);
+                await campaignGate.WaitForAcquiredAsync(cancellationToken);
+
+                playerTask = CreatePlayerService(playerFactory).CreateAsync(
+                    playerInput,
+                    cancellationToken);
+                await playerGate.WaitForAttemptAsync(cancellationToken);
+
+                campaignGate.Release();
+                await campaignTask;
+                await playerGate.WaitForAcquiredAsync(cancellationToken);
+                playerGate.Release();
+            }
+            else
+            {
+                playerTask = CreatePlayerService(playerFactory).CreateAsync(
+                    playerInput,
+                    cancellationToken);
+                await playerGate.WaitForAcquiredAsync(cancellationToken);
+
+                campaignTask = CreateCampaignService(campaignFactory).CreateAsync(
+                    ExistingSeasonInput(seed),
+                    cancellationToken);
+                await campaignGate.WaitForAttemptAsync(cancellationToken);
+
+                playerGate.Release();
+                await playerTask;
+                await campaignGate.WaitForAcquiredAsync(cancellationToken);
+                campaignGate.Release();
+            }
+        }
+        finally
+        {
+            campaignGate.Release();
+            playerGate.Release();
+        }
 
         await Task.WhenAll(campaignTask, playerTask);
         var campaignResult = await campaignTask;
         var playerResult = await playerTask;
         campaignResult.IsSuccess.ShouldBeTrue();
         playerResult.IsSuccess.ShouldBeTrue();
-        var expectedRosterLockKey = (long.MinValue / 4) + seed.ClubId;
-        lockRecorder.AcquiredKeys.Count(key => key == expectedRosterLockKey).ShouldBe(
-            2,
-            "campaign and player creation must both acquire the same club-roster lock");
 
         await using var verify = fixture.CreateAdminContext();
         var assignments = await verify.PlayerCampaignAssignments
