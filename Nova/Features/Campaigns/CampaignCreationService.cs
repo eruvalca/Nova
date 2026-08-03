@@ -328,16 +328,28 @@ public sealed partial class CampaignCreationService(
     /// <param name="operationId">The caller-generated creation operation identifier.</param>
     /// <param name="cancellationToken">A token that cancels verification.</param>
     /// <returns>An execution result indicating whether the committed aggregate was found.</returns>
-    private static async Task<ExecutionResult<ServiceResult<CreateCampaignResult>>> VerifyCampaignCreationAsync(
+    private async Task<ExecutionResult<ServiceResult<CreateCampaignResult>>> VerifyCampaignCreationAsync(
         NovaDbContext db,
         long clubId,
         Guid operationId,
         CancellationToken cancellationToken)
     {
         var result = await FindCommittedResultAsync(db, clubId, operationId, cancellationToken);
-        return result is null
-            ? new ExecutionResult<ServiceResult<CreateCampaignResult>>(successful: false, default!)
-            : new ExecutionResult<ServiceResult<CreateCampaignResult>>(successful: true, result);
+        if (result is null)
+        {
+            return new ExecutionResult<ServiceResult<CreateCampaignResult>>(
+                successful: false,
+                default!);
+        }
+
+        LogCampaignCommitRecovered(
+            operationId,
+            result.CampaignId,
+            result.SeasonId,
+            result.EnrolledPlayerCount);
+        return new ExecutionResult<ServiceResult<CreateCampaignResult>>(
+            successful: true,
+            result);
     }
 
     /// <summary>
@@ -418,4 +430,12 @@ public sealed partial class CampaignCreationService(
         long seasonId,
         int playerCount,
         long actorUserId);
+
+    /// <summary>Logs successful verification after an ambiguous campaign creation commit.</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Campaign creation OperationId={OperationId} recovered committed CampaignId={CampaignId} in SeasonId={SeasonId} with {PlayerCount} player(s) after an ambiguous commit.")]
+    private partial void LogCampaignCommitRecovered(
+        Guid operationId,
+        long campaignId,
+        long seasonId,
+        int playerCount);
 }

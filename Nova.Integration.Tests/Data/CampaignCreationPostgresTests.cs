@@ -56,6 +56,43 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies inline-season operation identifiers are unique within a club.
+    /// </summary>
+    [Fact]
+    public async Task SeasonOperationId_RejectsDuplicateWithinClub()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(includePlayers: false, cancellationToken);
+        var operationId = Guid.CreateVersion7();
+
+        await using var db = fixture.CreateAdminContext();
+        db.Seasons.AddRange(
+            CreateSeason("First Inline Season", seed, operationId),
+            CreateSeason("Second Inline Season", seed, operationId));
+
+        await Should.ThrowAsync<DbUpdateException>(() => db.SaveChangesAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// Verifies the same inline-season operation identifier may be used independently by two clubs.
+    /// </summary>
+    [Fact]
+    public async Task SeasonOperationId_AllowsDuplicateAcrossClubs()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var firstClub = await SeedAsync(includePlayers: false, cancellationToken);
+        var secondClub = await SeedAsync(includePlayers: false, cancellationToken);
+        var operationId = Guid.CreateVersion7();
+
+        await using var db = fixture.CreateAdminContext();
+        db.Seasons.AddRange(
+            CreateSeason("First Club Inline Season", firstClub, operationId),
+            CreateSeason("Second Club Inline Season", secondClub, operationId));
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Verifies campaign names are unique within one season but may repeat in a different season.
     /// </summary>
     [Fact]
@@ -101,6 +138,25 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
                 Guid.CreateVersion7()));
 
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Verifies the composite foreign key rejects a campaign linked to another club's season.
+    /// </summary>
+    [Fact]
+    public async Task CampaignSeasonForeignKey_RejectsCrossTenantRelationship()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var firstClub = await SeedAsync(includePlayers: false, cancellationToken);
+        var secondClub = await SeedAsync(includePlayers: false, cancellationToken);
+
+        await using var db = fixture.CreateAdminContext();
+        db.Campaigns.Add(CreateCampaign(
+            "Cross Tenant Campaign",
+            firstClub with { SeasonId = secondClub.SeasonId },
+            Guid.CreateVersion7()));
+
+        await Should.ThrowAsync<DbUpdateException>(() => db.SaveChangesAsync(cancellationToken));
     }
 
     /// <summary>
@@ -318,6 +374,20 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             Status = CampaignStatus.Active,
             ClubId = seed.ClubId,
             SeasonId = seed.SeasonId,
+            CreatedById = seed.ActorUserId
+        };
+
+    private static SeasonEntity CreateSeason(
+        string name,
+        CampaignCreationSeed seed,
+        Guid operationId)
+        => new()
+        {
+            CreationOperationId = operationId,
+            Name = $"{name} {seed.Suffix}",
+            StartDate = new DateOnly(2027, 1, 1),
+            EndDate = new DateOnly(2027, 12, 31),
+            ClubId = seed.ClubId,
             CreatedById = seed.ActorUserId
         };
 

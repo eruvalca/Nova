@@ -121,8 +121,8 @@ Suggested executor: orchestrator
 Added real PostgreSQL coverage for operation/name constraints, transient retry with fresh contexts,
 ambiguous commit verification, second-save rollback, and the campaign/player roster-lock race. The
 service creates only undecided player assignments for Active players and does not create campaign-team
-state. All eight PostgreSQL campaign tests pass, including positive cross-club operation-ID and
-cross-season campaign-name scope checks.
+state. All eleven PostgreSQL campaign tests pass, including campaign and season operation-ID scope,
+cross-season campaign-name scope, and tenant-consistent campaign-to-season relationship checks.
 
 ## Phase 5: Final Validation
 
@@ -144,7 +144,7 @@ Suggested executor: orchestrator
 ### Phase Summary
 
 The complete unit suite passes with 773 tests and the complete Aspire/PostgreSQL integration suite
-passes with 128 tests. EF reports no pending model changes, the solution builds successfully, and
+passes with 131 tests. EF reports no pending model changes, the solution builds successfully, and
 `git diff --check` reports no whitespace errors. Existing NuGet vulnerability and EF tool-version
 warnings remain unchanged by this feature.
 
