@@ -41,7 +41,8 @@ public sealed class HttpCampaignCreationServiceTests
     [Fact]
     public async Task CreateAsync_PostsToSharedRoute_AndReturnsResult()
     {
-        var expected = CreatedResult();
+        var input = ValidInput();
+        var expected = CreatedResult(input.OperationId);
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(expected)
@@ -50,7 +51,7 @@ public sealed class HttpCampaignCreationServiceTests
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignCreationService(http).CreateAsync(
-            ValidInput(),
+            input,
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -131,6 +132,28 @@ public sealed class HttpCampaignCreationServiceTests
     }
 
     /// <summary>
+    /// Verifies a syntactically valid but incomplete success object is rejected.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_ReturnsServerError_ForIncompleteSuccessPayload()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = new StringContent("{}", Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignCreationService(http).CreateAsync(
+            ValidInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        result.Problem.Detail.ShouldBe("The server returned an invalid campaign creation response.");
+    }
+
+    /// <summary>
     /// Verifies malformed success JSON becomes an explicit server error.
     /// </summary>
     [Fact]
@@ -168,8 +191,8 @@ public sealed class HttpCampaignCreationServiceTests
     /// Creates a representative successful response.
     /// </summary>
     /// <returns>A campaign creation result for response deserialization.</returns>
-    private static CreateCampaignResult CreatedResult() => new(
-        Guid.CreateVersion7(),
+    private static CreateCampaignResult CreatedResult(Guid operationId) => new(
+        operationId,
         100,
         "Summer Tryouts",
         new DateOnly(2026, 6, 1),

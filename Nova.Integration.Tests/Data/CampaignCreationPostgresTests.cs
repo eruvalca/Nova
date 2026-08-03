@@ -37,6 +37,25 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies the same campaign operation identifier may be used independently by two clubs.
+    /// </summary>
+    [Fact]
+    public async Task CampaignOperationId_AllowsDuplicateAcrossClubs()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var firstClub = await SeedAsync(includePlayers: false, cancellationToken);
+        var secondClub = await SeedAsync(includePlayers: false, cancellationToken);
+        var operationId = Guid.CreateVersion7();
+
+        await using var db = fixture.CreateAdminContext();
+        db.Campaigns.AddRange(
+            CreateCampaign("First Club", firstClub, operationId),
+            CreateCampaign("Second Club", secondClub, operationId));
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Verifies campaign names are unique within one season but may repeat in a different season.
     /// </summary>
     [Fact]
@@ -51,6 +70,37 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             CreateCampaign("Shared Name", seed, Guid.CreateVersion7()));
 
         await Should.ThrowAsync<DbUpdateException>(() => db.SaveChangesAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// Verifies campaign names may repeat in different seasons within the same club.
+    /// </summary>
+    [Fact]
+    public async Task CampaignName_AllowsDuplicateInDifferentSeason()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(includePlayers: false, cancellationToken);
+
+        await using var db = fixture.CreateAdminContext();
+        var otherSeason = new SeasonEntity
+        {
+            Name = $"Other Season {seed.Suffix}",
+            StartDate = new DateOnly(2027, 1, 1),
+            EndDate = new DateOnly(2027, 12, 31),
+            ClubId = seed.ClubId,
+            CreatedById = seed.ActorUserId
+        };
+        db.Seasons.Add(otherSeason);
+        await db.SaveChangesAsync(cancellationToken);
+
+        db.Campaigns.AddRange(
+            CreateCampaign("Shared Name", seed, Guid.CreateVersion7()),
+            CreateCampaign(
+                "Shared Name",
+                seed with { SeasonId = otherSeason.SeasonId },
+                Guid.CreateVersion7()));
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>

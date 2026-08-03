@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Nova.Shared.Campaigns;
+using Nova.Shared.Enums;
 using Nova.Shared.Results;
 
 namespace Nova.Client.Services;
@@ -29,10 +30,16 @@ public sealed class HttpCampaignCreationService(HttpClient http) : ICampaignCrea
         {
             var result = await response.Content.ReadFromJsonAsync<CreateCampaignResult>(
                 cancellationToken);
-            return result is null
-                ? ServiceProblem.ServerError(
-                    "The server returned an empty campaign creation response.")
-                : result;
+            if (result is null)
+            {
+                return ServiceProblem.ServerError(
+                    "The server returned an empty campaign creation response.");
+            }
+
+            return IsValidSuccessPayload(result, input.OperationId)
+                ? result
+                : ServiceProblem.ServerError(
+                    "The server returned an invalid campaign creation response.");
         }
         catch (JsonException)
         {
@@ -40,4 +47,24 @@ public sealed class HttpCampaignCreationService(HttpClient http) : ICampaignCrea
                 "The server returned an invalid campaign creation response.");
         }
     }
+
+    private static bool IsValidSuccessPayload(
+        CreateCampaignResult result,
+        Guid expectedOperationId)
+        => result.OperationId == expectedOperationId
+            && result.CampaignId > 0
+            && !string.IsNullOrWhiteSpace(result.CampaignName)
+            && result.CampaignStartDate != default
+            && (result.CampaignPlannedEndDate is null
+                || result.CampaignPlannedEndDate >= result.CampaignStartDate)
+            && result.Status == CampaignStatus.Active
+            && result.SeasonId > 0
+            && !string.IsNullOrWhiteSpace(result.SeasonName)
+            && result.SeasonStartDate != default
+            && (result.SeasonEndDate is null
+                || result.SeasonEndDate >= result.SeasonStartDate)
+            && result.CampaignStartDate >= result.SeasonStartDate
+            && (result.SeasonEndDate is null
+                || result.CampaignPlannedEndDate <= result.SeasonEndDate)
+            && result.EnrolledPlayerCount >= 0;
 }
