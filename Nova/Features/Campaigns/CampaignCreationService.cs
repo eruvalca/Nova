@@ -173,6 +173,7 @@ public sealed partial class CampaignCreationService(
             await transaction.CommitAsync(cancellationToken);
 
             LogCampaignCreated(
+                input.OperationId,
                 campaign.CampaignId,
                 season.Value.SeasonId,
                 activePlayerIds.Count,
@@ -409,8 +410,9 @@ public sealed partial class CampaignCreationService(
     private partial void LogCampaignCreateUniqueConflict(Guid operationId, long clubId);
 
     /// <summary>Logs successful campaign creation and initial enrollment.</summary>
-    [LoggerMessage(Level = LogLevel.Information, Message = "CampaignId={CampaignId} created in SeasonId={SeasonId} with {PlayerCount} player(s) by UserId={ActorUserId}.")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Campaign creation OperationId={OperationId} committed as CampaignId={CampaignId} in SeasonId={SeasonId} with {PlayerCount} player(s) by UserId={ActorUserId}.")]
     private partial void LogCampaignCreated(
+        Guid operationId,
         long campaignId,
         long seasonId,
         int playerCount,

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using Nova.Client.Services;
 using Nova.Shared.Campaigns;
 using Nova.Shared.Enums;
@@ -105,6 +106,28 @@ public sealed class HttpCampaignCreationServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a successful JSON null response exercises the explicit missing-payload guard.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_ReturnsServerError_ForNullSuccessPayload()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = new StringContent("null", Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignCreationService(http).CreateAsync(
+            ValidInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        result.Problem.Detail.ShouldBe("The server returned an empty campaign creation response.");
     }
 
     /// <summary>
