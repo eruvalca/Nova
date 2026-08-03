@@ -2,7 +2,7 @@
 name: add-domain-persistence
 description: >-
   Builds a Nova domain/persistence slice: deterministic domain policies, entities, EF configuration, tenant integrity, lifecycle/concurrency guards, retry-safe transactions, incremental migration, registration, and focused tests.
-  USE FOR: add a domain policy/decision as part of new domain work; add or change an entity, relationship, constraint, index, lifecycle state, domain service, optimistic concurrency, migration, tenant-owned persistence, advisory mutation lock, retrying transaction, ambiguous commit handling, idempotency key.
+  USE FOR: add a domain policy/decision as part of new domain work; add or change an entity, relationship, constraint, index, lifecycle state, domain service, optimistic concurrency, migration, tenant-owned persistence, advisory mutation lock, retrying transaction, ambiguous commit handling, idempotency key, provider-sensitive query, ILIKE escaping, bounded query ordering.
   DO NOT USE FOR: extracting policy logic from an existing service without domain/persistence changes (use extract-functional-core), HTTP/WASM/UI feature slices (use add-feature-slice), a single endpoint (use add-api-endpoint), only writing/running tests (use nova-testing).
   INVOKES: nova-testing.
 ---
@@ -18,6 +18,11 @@ Canonical examples:
   `PlayerCampaignAssignmentEntityConfiguration`, `CampaignPlacementService`.
 - Lifecycle and transaction races: `CampaignEntity`, `CampaignLifecycleEventEntity`,
   `CampaignLifecycleService`, `LifecycleMutationLock`.
+- Retry-safe and idempotent mutations: `TeamManagementService`, `TeamLifecycleService`,
+  `TeamEntityConfiguration`, `TeamManagementRetryTests`, `TeamLifecycleRetryTests`.
+- Multi-entity lock order and dynamic lock-set races: `TeamManagementService.UpdateTeamAsync`,
+  `TeamPlayerGraduationYearRaceTests`.
+- Provider-safe search and bounded ordering: `TeamRosterQueryService`, `TeamDetailQueryService`.
 - Tenant-safe history: `CampaignTagApplicationEntity`, `NoteEntity`, and their configurations.
 
 ## Ordered checklist
@@ -34,11 +39,9 @@ Canonical examples:
    constraints, delete behavior, and concurrency tokens there.
 5. **Implement domain operations** — use the correct DbContext factory, repeat service-layer
    authorization, preserve history, and enforce invariants transactionally. For lifecycle-sensitive
-   writes, use `LifecycleMutationLock`, read or reload state after locking, and preserve lock order:
-   campaign → player → team → tag. With a retrying provider, wrap the complete transaction in its
-   execution strategy and create a fresh context per attempt. For inserts vulnerable to ambiguous
-   commits, generate a stable operation ID before execution, enforce tenant-scoped uniqueness, and
-   use `verifySucceeded` to recover the committed result without replaying the insert.
+   writes, follow [retrying-mutations-and-locks.md](references/retrying-mutations-and-locks.md).
+   For provider-sensitive search, paging, or bounded history queries, follow
+   [query-construction.md](references/query-construction.md).
 6. **Wire the application, when needed** — expose required `DbSet<T>` members and register each
    application-consumed service in `Nova\Program.cs`. Pure static policies require no DI registration.
 7. **Add one incremental migration, when the model changed** — preserve the migration chain and generate against

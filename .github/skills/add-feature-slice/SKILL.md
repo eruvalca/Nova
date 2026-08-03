@@ -29,7 +29,8 @@ Canonical examples: `Nova.Shared\Clubs\CreateClubInput.cs`, `Nova.Shared\Clubs\C
    `Nova\Features\{Feature}\{Feature}Service.cs`; follow
    [service-result-patterns.md](references/service-result-patterns.md). Keep authorization, EF,
    locking, persistence, and logging in the service; compose a feature-local pure policy when the
-   decision-boundary triggers apply.
+   decision-boundary triggers apply. For provider-sensitive search or bounded query ordering, use
+   [add-domain-persistence/query-construction.md](../add-domain-persistence/references/query-construction.md).
 4. **Composition root** — register the server service in `Nova\Program.cs`; direct-construction unit tests do not verify DI registration.
 5. **HTTP endpoint** — invoke `add-api-endpoint`; do not duplicate that skill's endpoint details here.
 6. **WASM client service** — add `Nova.Client\Services\Http{Feature}Service.cs`; follow [wasm-client.md](references/wasm-client.md).

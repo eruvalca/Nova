@@ -5,6 +5,17 @@ Canonical Nova examples:
 - Routes: `Nova.Shared\Clubs\ClubEndpoints.cs`
 - Mapping/handlers: `Nova\Features\Clubs\ClubEndpointRouteBuilderExtensions.cs`
 - WASM client: `Nova.Client\Services\HttpClubService.cs`
+- Endpoint removal: the team graduation-year route removed in PR #53 because normal team update
+  already owned the mutation.
+
+## Prove the route is needed
+
+Before adding a route, search the feature service, existing `*Endpoints` constants, server mappings,
+WASM client, UI callers, and HTTP tests. A second route for the same mutation is not a harmless
+convenience: its authorization, validation, problem shape, and client behavior can drift.
+
+Add a specialized route only when it has a distinct external contract. Otherwise extend the existing
+command path.
 
 ## Route Constants
 
@@ -88,3 +99,17 @@ public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder 
     return endpoints;
 }
 ```
+
+## Remove an endpoint end to end
+
+Delete all of these in one change:
+
+1. Shared route constants, templates, and URL builders.
+2. Shared input, DTO, or interface members used only by the endpoint.
+3. Server mapping, handler, metadata, and feature-specific conversion helpers.
+4. WASM client method and any DI registration that is now unused.
+5. UI callers and tests for the removed surface.
+
+Search every removed symbol after editing. The removed team graduation-year endpoint is the canonical
+example: `UpdateTeamInput` remains the single supported command, so no second blocker-message shape
+can drift from it.

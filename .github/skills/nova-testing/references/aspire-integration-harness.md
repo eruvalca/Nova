@@ -10,7 +10,14 @@ Canonical files:
   and lost-commit-acknowledgement fault injection.
 - `Nova.Integration.Tests\Data\PlayerManagementRetryTests.cs` shows fresh-context retries,
   transaction atomicity, and exactly-once insert verification.
+- `Nova.Integration.Tests\Data\TeamManagementRetryTests.cs` shows tenant-scoped operation IDs and a
+  uniqueness conflict injected through an independent context after the application probe.
+- `Nova.Integration.Tests\Data\TeamLifecycleRetryTests.cs` shows ambiguous lifecycle-commit
+  verification scoped to attempts that reached commit.
+- `Nova.Integration.Tests\Data\TeamPlayerGraduationYearRaceTests.cs` shows lock-order assertions and
+  a relationship appearing outside a computed lock set.
 - `Nova.Integration.Tests\Http\ProfilePhotoHttpTests.cs` shows HTTP-layer e2e tests against the running app.
+- `Nova.Integration.Tests\Http\TeamManagementHttpTests.cs` shows `201` + `Location` + follow coverage.
 - `Nova.Integration.Tests\Http\IdentityHttpClientHelper.cs` shows HTTP auth bootstrap for tests.
 
 ## When to use integration tests
@@ -43,6 +50,20 @@ Use the shared helpers in
 `Nova.Integration.Tests\Data\ExecutionStrategyRetryTestSupport.cs`. Assert that the intended fault
 was injected and that exactly one aggregate with its complete dependent set persisted. SQLite
 cannot validate provider execution strategies or ambiguous-commit behavior.
+
+## Probe-then-write uniqueness races
+
+A pre-write uniqueness query improves error quality but cannot be the final integrity guard. Back it
+with a database unique constraint and test the race against PostgreSQL:
+
+1. Let the application uniqueness probe report no conflict.
+2. Through an independent context, commit the conflicting row immediately after the probe.
+3. Allow the application write to reach the unique constraint.
+4. Assert the service maps `DbUpdateException` to `Conflict`.
+5. Assert only the valid rows remain.
+
+`TeamManagementRetryTests.Update_ReportsConflict_WhenDuplicateAppearsAfterTheProbe` is the canonical
+deterministic injection pattern.
 
 ## AppHost fixture internals
 
@@ -98,6 +119,7 @@ flow, ProblemDetails bodies with `traceId`, ETag/304 caching, and owner-only acc
 4. Use `fixture.CreateTenantContext()`, `fixture.CreateReadContext()`, and `fixture.CreateAdminContext()` against the live PostgreSQL database.
 5. For HTTP e2e, use `fixture.CreateNovaHttpClient(allowAutoRedirect: false)` and assert redirects/status codes directly.
 6. Use unique emails/data per test; never rely on global counts.
+7. For `CreatedAtRoute`, assert `201`, the exact `Location`, and a successful GET after following it.
 
 Example pattern from `Nova.Integration.Tests\Data\PostgresTenancyTests.cs`:
 

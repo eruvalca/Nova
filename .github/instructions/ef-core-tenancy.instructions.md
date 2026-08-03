@@ -95,6 +95,14 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 - Use provider helpers such as `db.Database.IsNpgsql()`/`IsSqlite()` rather than comparing
   `ProviderName` strings. For PostgreSQL case-insensitive contains search, prefer
   `EF.Functions.ILike`; use a clearly isolated provider-compatible fallback for SQLite tests.
+- Treat user-supplied `LIKE`/`ILIKE` search text as a literal substring unless wildcard syntax is an
+  explicit product feature. Escape the escape character first, then `%` and `_`, and pass the same
+  explicit escape character to the PostgreSQL `ILike` overload. `TeamRosterQueryService` is the
+  canonical provider split and escape order.
+- If results are ordered in SQL before `Take`/`Skip` and then ordered again after materialization,
+  both orderings must use the same keys, directions, null semantics, and deterministic tie-breakers.
+  Otherwise the bounded SQL slice and the displayed order describe different result sets.
+  `TeamDetailQueryService` is the canonical matching-order example.
 - Validation and normalization must have one explicit behavior. If `[Range]` rejects a page size,
   do not also clamp it after validation; either reject or cap, and make the contract, service, and
   tests agree.

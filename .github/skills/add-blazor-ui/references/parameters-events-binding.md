@@ -22,6 +22,23 @@ public bool IsSubmitting { get; set; }
 - Prefer `IReadOnlyList<T>` over `List<T>` for collection parameters.
 - Every parameter gets an XML doc comment.
 
+### String parameter values: literal text versus C# expressions
+
+Quoted text passed to a child component `string` parameter is literal unless it is marked as a C#
+expression:
+
+```razor
+<!-- Wrong: renders the text "_formError". -->
+<TeamForm ErrorMessage="_formError" />
+
+<!-- Correct: passes the backing-field value. -->
+<TeamForm ErrorMessage="@_formError" />
+```
+
+This call-site rule is separate from the receiving component rule: `TeamForm.ErrorMessage` must
+still be a public `[Parameter]` property. The Teams and Players pages are the canonical expression
+examples.
+
 Route parameters are also `[Parameter]` properties, matched by name to the `@page` template:
 
 ```razor

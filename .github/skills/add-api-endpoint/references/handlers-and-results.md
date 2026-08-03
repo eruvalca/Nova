@@ -4,6 +4,8 @@ Canonical Nova examples:
 
 - Mapping/handlers: `Nova\Features\Clubs\ClubEndpointRouteBuilderExtensions.cs`
 - ToHttpResult: `Nova\Features\Shared\ServiceResultExtensions.cs`
+- Created resource: `Nova\Features\Teams\TeamManagementEndpointRouteBuilderExtensions.cs`
+- HTTP contract: `Nova.Integration.Tests\Http\TeamManagementHttpTests.cs`
 
 ## Handler Methods and Dependency Injection
 
@@ -124,6 +126,16 @@ return TypedResults.CreatedAtRoute(user, "GetUser", new { userId = user.Id });
 ```
 
 Only use `CreatedAtRoute` when a matching GET route actually exists. If the resource has no canonical GET endpoint, return `TypedResults.Created((string?)null, value)` (201 without a Location header) instead of pointing Location at the POST route.
+
+Use a shared route-name constant for the target GET. Then add a real HTTP test that:
+
+1. Asserts `201 Created`.
+2. Deserializes the created DTO.
+3. Asserts the exact `Location` generated from the shared URL builder.
+4. Follows `Location` and asserts the canonical GET succeeds.
+
+`TeamManagementHttpTests.CreateTeam_ReturnsCreatedWithLocationHeader_ForClubAdmin` is the canonical
+test. Endpoint metadata tests cannot prove the route name and route values generate a usable URL.
 
 ## Complete Endpoint Example
 
