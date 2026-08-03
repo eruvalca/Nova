@@ -10,6 +10,10 @@ description: "HTTP endpoint and WASM client rules: routes, handlers, contract fi
 
 ## Routes
 
+- Before adding a route, search existing service mutations, route constants, server mappings, WASM
+  clients, UI callers, and HTTP tests. Do not add a specialized endpoint when an existing command
+  already owns the same mutation and invariant unless a distinct external contract is intentional.
+  Every endpoint needs an intended caller or an explicit external-consumer justification.
 - **All route strings must be constants in a static `*Endpoints` class in `Nova.Shared`** (one per
   feature folder, e.g. `Nova.Shared/Clubs/ClubEndpoints.cs`). Never write inline route literals in
   the mapping code or in WASM client services — server and client must consume the same constants.
@@ -36,6 +40,18 @@ description: "HTTP endpoint and WASM client rules: routes, handlers, contract fi
   `CreatedAtRoute(value, routeName, routeValues)`. Putting the route name first compiles but throws
   at runtime. Only use `CreatedAtRoute` when a matching GET route exists; otherwise return
   `TypedResults.Created((string?)null, value)`.
+- A `CreatedAtRoute` contract is not complete until a real HTTP test asserts `201 Created`, validates
+  the generated `Location` header, follows it, and confirms the canonical GET resolves the resource.
+  Use a shared route-name constant so the GET mapping and create handler cannot drift.
+
+## Endpoint removal
+
+- Remove dead or superseded endpoints end to end in one change: shared route constants/builders,
+  input/DTO/interface members, server mapping and handler, WASM client method, DI registration when
+  no longer needed, UI callers, metadata, and tests.
+- Search for every removed symbol after editing. The removed team graduation-year endpoint is the
+  canonical example: graduation-year changes remain on the normal team update path instead of a
+  second mutation surface with a different problem shape.
 
 ## ProblemDetails and trace IDs
 

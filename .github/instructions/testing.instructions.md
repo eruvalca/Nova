@@ -17,12 +17,13 @@ Both projects use **xUnit v3 on Microsoft.Testing.Platform (MTP)** with **Should
 | --- | --- | --- | --- |
 | Pure policy | `Nova.Unit.Tests` | None | Deterministic business decisions over constructed immutable facts; no harness, DI, mocks, or logger |
 | Service shell | `Nova.Unit.Tests` | Shared in-memory SQLite (`EnsureCreated()`) | Query-filter composition, interceptor branching, authorization, tenancy, effects, OneOf state |
-| Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via the Aspire AppHost | Production migrations, mappings, constraints, advisory locks, transaction races, filter SQL translation |
+| Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via the Aspire AppHost | Production migrations, mappings, constraints, advisory locks, transaction races, execution-strategy retries, ambiguous commits, filter SQL translation |
 
 **Default new tests to `Nova.Unit.Tests`.** Add an integration test only when behavior depends on the
-real provider (type mappings, migrations, SQL translation, collation). SQLite will not catch
-`timestamptz` offsets, identity-column semantics, collation, or SQL-translation limits — mirror one
-round-trip test in `Nova.Integration.Tests` for provider-sensitive queries.
+real provider (type mappings, migrations, constraints, advisory locks, transaction races,
+execution-strategy retries, ambiguous commits, SQL translation, collation). SQLite will not catch
+`timestamptz` offsets, identity-column semantics, collation, advisory-lock behavior, provider retry
+semantics, or SQL-translation limits.
 
 ## Run commands
 
@@ -70,6 +71,11 @@ Rules:
   role-policy behavior, success serialization, and each declared ProblemDetails shape/status that
   cannot be proven by service or client unit tests. Keep provider-specific database assertions
   separate from this HTTP contract coverage.
+- For `CreatedAtRoute`, assert `201 Created`, the exact `Location`, and a successful GET after
+  following it. Route metadata alone cannot prove the generated URL is usable.
+- When application code probes uniqueness before writing, add a PostgreSQL race test that commits
+  the conflicting row through an independent context after the probe. Assert the unique constraint
+  is the final guard and the service maps the provider exception to `Conflict`.
 - For interactive pages with event handlers, include a render-mode assertion or a focused
   Aspire/Playwright scenario; bUnit can invoke callbacks even when the deployed page would render as
   static SSR.

@@ -102,11 +102,6 @@ public sealed partial class TeamDetailQueryService(
             .ToListAsync(cancellationToken);
 
         var placementHistory = rows
-            .OrderByDescending(row => row.CampaignStatus == CampaignStatus.Active)
-            .ThenByDescending(row => row.CampaignStartDate)
-            .ThenByDescending(row => row.CampaignId)
-            .ThenBy(row => row.PlayerDisplayName, StringComparer.Ordinal)
-            .ThenBy(row => row.PlayerId)
             .Select(row => ToPlacementImpact(
                 row.PlayerCampaignAssignmentId,
                 row.CampaignId,

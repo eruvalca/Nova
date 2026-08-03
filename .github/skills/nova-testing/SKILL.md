@@ -2,7 +2,7 @@
 name: nova-testing
 description: >-
   Write and run Nova tests: pick the right harness (in-memory SQLite tenancy unit tests vs Aspire Postgres integration tests) and run them on Microsoft.Testing.Platform.
-  USE FOR: write a unit test, add an integration test, run tests, dotnet test, which test project, tenancy test harness, NovaAppHostFixture, lifecycle race tests, execution-strategy retry tests, transient fault injection, ambiguous commit verification, migration verification, filter tests, MTP flags, bUnit component tests, render-mode assertion.
+  USE FOR: write a unit test, add an integration test, run tests, dotnet test, which test project, tenancy test harness, NovaAppHostFixture, lifecycle race tests, uniqueness probe race, execution-strategy retry tests, transient fault injection, ambiguous commit verification, migration verification, filter tests, CreatedAtRoute Location test, MTP flags, bUnit component tests, Razor literal parameter regression, render-mode assertion.
   DO NOT USE FOR: domain/persistence work (use add-domain-persistence), building full features (use add-feature-slice), or adding endpoints (use add-api-endpoint).
 ---
 
@@ -58,5 +58,8 @@ Filter by class with `--filter-class "*Name"`.
 8. For retrying mutations, test both a failure before commit and a lost commit acknowledgement.
    Assert that fault injection ran, retries use fresh context state, and exactly one complete
    aggregate persisted.
-9. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
+9. For a probe-then-write uniqueness check, inject a conflicting write through an independent
+   PostgreSQL context after the probe and assert the database violation maps to `Conflict`.
+10. For `CreatedAtRoute`, assert `201`, exact `Location`, and a successful GET after following it.
+11. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
    Repeat `--filter-class` for multiple classes; do not combine class names with `|`.

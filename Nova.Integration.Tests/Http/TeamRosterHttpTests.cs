@@ -195,7 +195,9 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
                 NewTeam("50% Wins", club.ClubId, userId),
                 NewTeam("50 Losses", club.ClubId, userId),
                 NewTeam("a_b Squad", club.ClubId, userId),
-                NewTeam("axb Squad", club.ClubId, userId));
+                NewTeam("axb Squad", club.ClubId, userId),
+                NewTeam(@"Path\Team", club.ClubId, userId),
+                NewTeam("PathTeam", club.ClubId, userId));
             await context.SaveChangesAsync(cancellationToken);
         }
 
@@ -216,6 +218,14 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         var underscoreRows = await underscoreResponse.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
         underscoreRows.ShouldNotBeNull();
         underscoreRows.Select(row => row.Name).ShouldBe(["a_b Squad"]);
+
+        using var backslashResponse = await client.GetAsync(
+            TeamRosterEndpoints.GetRosterUrl(search: @"Path\T"),
+            cancellationToken);
+        backslashResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var backslashRows = await backslashResponse.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
+        backslashRows.ShouldNotBeNull();
+        backslashRows.Select(row => row.Name).ShouldBe([@"Path\Team"]);
     }
 
     /// <summary>

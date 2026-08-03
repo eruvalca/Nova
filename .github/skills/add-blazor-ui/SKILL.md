@@ -4,7 +4,7 @@ description: >-
   Recipe for building Nova Blazor pages and components: project placement, page-vs-component, the
   render-mode decision tree, lifecycle selection, prerender/persisted state, parameters and
   EventCallbacks, binding, and EditForm validation.
-  USE FOR: add a Blazor page, add a Razor component, new .razor file, make a component interactive, choose a render mode, InteractiveAuto vs InteractiveServer vs static SSR, @rendermode, @onclick not firing / button does nothing, page vs component, where does this component go, add a [Parameter], EventCallback vs Action, child notifies parent, @bind / @bind:after, EditForm and validation in the UI, duplicate data load on prerender, [PersistentState], StateHasChanged, OnInitializedAsync vs OnParametersSet vs OnAfterRenderAsync, component code-behind, CSS isolation.
+  USE FOR: add a Blazor page, add a Razor component, new .razor file, make a component interactive, choose a render mode, InteractiveAuto vs InteractiveServer vs static SSR, @rendermode, @onclick not firing / button does nothing, page vs component, where does this component go, add a [Parameter], Razor string parameter literal vs expression, EventCallback vs Action, child notifies parent, @bind / @bind:after, EditForm and validation in the UI, duplicate data load on prerender, [PersistentState], StateHasChanged, OnInitializedAsync vs OnParametersSet vs OnAfterRenderAsync, component code-behind, CSS isolation.
   DO NOT USE FOR: server services or ServiceResult work (use add-feature-slice), HTTP endpoints or WASM client services (use add-api-endpoint), entities/EF/migrations (use add-domain-persistence), writing or running tests only (use nova-testing).
   INVOKES: nova-testing (component test step).
 ---
@@ -27,6 +27,7 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
 | Interactive page: persisted state, query params, debounce, paging | `Nova.UI\Features\Players\Pages\Players.razor(.cs)` |
 | Interactive page with child callbacks | `Nova.UI\Features\Clubs\Pages\ClubOnboarding.razor(.cs)` |
 | Form component: `EditorRequired`, `EventCallback`, `IValidatableObject` | `Nova.UI\Features\Players\Components\PlayerForm.razor(.cs)` |
+| Parent-driven form state and string parameter expressions | `Nova.UI\Features\Teams\Components\TeamForm.razor(.cs)`, `Nova.UI\Features\Teams\Pages\Teams.razor` |
 | Component owning its own submit + `EventCallback<T>` | `Nova.UI\Features\Clubs\Components\CreateClubForm.razor(.cs)` |
 | Debounce + `DisposeAsyncCore` cleanup | `Nova.UI\Features\Clubs\Components\ClubSearchPanel.razor.cs` |
 | Cross-feature shared component | `Nova.UI\Shared\ConfirmDeleteDialog.razor(.cs)` |
@@ -49,7 +50,8 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
    vs. DOM/JS work; add the `[PersistentState]` + `Initialized` guard when the component is
    interactive and loads data. See [lifecycle-and-state.md](references/lifecycle-and-state.md).
 5. **Define parameters, callbacks, and binding.** Public properties for `[Parameter]`,
-   `EventCallback` (never `Action`) for child→parent notification, private fields for internal state.
+   `EventCallback` (never `Action`) for child→parent notification, private fields for internal state,
+   and explicit `@` expressions when passing fields to child `string` parameters.
    See [parameters-events-binding.md](references/parameters-events-binding.md).
 6. **Wire the form**, if any: `EditForm` + `DataAnnotationsValidator`, reusing shared input-record
    rules through `InputValidator` rather than re-declaring them.

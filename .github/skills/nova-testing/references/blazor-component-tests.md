@@ -47,6 +47,20 @@ cut.Find("button.btn-primary").Click();
 callbackInvoked.ShouldBeTrue();
 ```
 
+## Asserting a server error reaches a child string parameter
+
+When a parent passes server feedback to a child `string` parameter, configure the substituted
+service to return recognizable text, submit through the rendered UI, and assert both sides:
+
+```csharp
+cut.Markup.ShouldContain("A team with that name and graduation year already exists.");
+cut.Markup.ShouldNotContain("_formError");
+```
+
+The negative assertion catches `ErrorMessage="_formError"`, which compiles but passes literal text
+instead of the backing-field value. Use
+`TeamComponentsTests.Teams_ShowsServerErrorText_WhenUpdateReturnsConflict` as the canonical example.
+
 ## Render-mode assertion (required for interactive pages)
 
 **bUnit invokes callbacks regardless of the deployed render mode.** A green callback test therefore

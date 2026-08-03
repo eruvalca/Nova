@@ -71,8 +71,17 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
 
 - When a mutation depends on campaign, player, team, or tag lifecycle state, start a transaction,
   acquire the matching `LifecycleMutationLock`, then read the lifecycle entity—or reload it if
-  already tracked—and re-check the guard before writing. For multiple locks, preserve the shared
-  order: campaign → player → team → tag.
+  already tracked—and re-check the guard before writing.
+- Every writer of a shared invariant must follow the global entity-type lock order:
+  campaign → player → team → tag. When acquiring multiple locks of the same type, sort their
+  identifiers ascending before locking. A writer may take a subsequence of the global order, but it
+  must never reverse that order.
+- When the required lock set comes from mutable relationships, compute the candidates, acquire the
+  locks in global order, reload the guarded state, and detect relationships that appeared outside
+  the locked set. Fail with a retryable conflict rather than evaluating an invariant against an
+  unlocked row. The canonical global order for the team/player eligibility invariant is campaign,
+  players ascending, then team; `TeamManagementService.UpdateTeamAsync` takes the players-then-team
+  subsequence and follows it with an unlocked-placement fail-safe.
 - The lock is intentionally a no-op under SQLite. Add a PostgreSQL integration test for lifecycle
   races such as close-versus-write or archive-versus-placement.
 
@@ -84,6 +93,9 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
 - For inserts whose commit acknowledgement can be lost, generate a stable operation ID before the
   first attempt, enforce tenant-scoped uniqueness in the database, and use `verifySucceeded` to
   reconstruct the committed result instead of replaying a non-idempotent mutation.
+- When persisted state could have been produced by an earlier request, track whether the current
+  attempt reached `CommitAsync` and only treat that state as proof for an attempt that reached its
+  commit. `TeamLifecycleService` is the canonical example.
 - Verify retry behavior with focused PostgreSQL integration tests; the SQLite harness cannot model
   provider execution strategies or ambiguous commits.
 
