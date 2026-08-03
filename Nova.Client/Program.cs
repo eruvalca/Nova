@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Nova.Client.Services;
 using Nova.Client.Telemetry;
 using Nova.Shared.Account;
+using Nova.Shared.Campaigns;
 using Nova.Shared.Clubs;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Photos;
@@ -39,5 +40,6 @@ builder.Services.AddScoped<ITeamLifecycleService, HttpTeamLifecycleService>();
 builder.Services.AddScoped<ITeamRosterService, HttpTeamRosterService>();
 builder.Services.AddScoped<ITeamDetailService, HttpTeamDetailService>();
 builder.Services.AddScoped<IPlayerDetailService, HttpPlayerDetailService>();
+builder.Services.AddScoped<ICampaignCreationService, HttpCampaignCreationService>();
 
 await builder.Build().RunAsync();

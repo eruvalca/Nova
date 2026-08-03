@@ -143,6 +143,36 @@ internal sealed class FailFirstSaveChangesInterceptor : SaveChangesInterceptor
 }
 
 /// <summary>
+/// Simulates a non-transient failure immediately before the second save in one context so tests can
+/// verify that earlier writes in the transaction are rolled back.
+/// </summary>
+internal sealed class FailSecondSaveChangesInterceptor : SaveChangesInterceptor
+{
+    private int _saveCount;
+    private int _failureCount;
+
+    /// <summary>
+    /// Gets the number of rollback failures injected by this interceptor.
+    /// </summary>
+    public int FailureCount => Volatile.Read(ref _failureCount);
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.Increment(ref _saveCount) == 2)
+        {
+            Interlocked.Increment(ref _failureCount);
+            throw new InvalidOperationException("Simulated campaign participation save failure.");
+        }
+
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+}
+
+/// <summary>
 /// Commits an independent write immediately after the team duplicate-name probe runs, reproducing
 /// the window in which another request inserts a conflicting team between the probe and the save.
 /// </summary>

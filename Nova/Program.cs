@@ -23,6 +23,7 @@ using Nova.Features.Players;
 using Nova.Features.Tags;
 using Nova.Features.Teams;
 using Nova.Shared.Account;
+using Nova.Shared.Campaigns;
 using Nova.Shared.Clubs;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Photos;
@@ -107,6 +108,7 @@ builder.Services.AddScoped<EvaluationNoteService>();
 builder.Services.AddScoped<CampaignPlacementService>();
 builder.Services.AddScoped<CampaignTagApplicationService>();
 builder.Services.AddScoped<CampaignLifecycleService>();
+builder.Services.AddScoped<ICampaignCreationService, CampaignCreationService>();
 builder.Services.AddScoped<IPlayerLifecycleService, PlayerLifecycleService>();
 builder.Services.AddScoped<IPlayerManagementService, PlayerManagementService>();
 builder.Services.AddScoped<ITeamManagementService, TeamManagementService>();
@@ -239,6 +241,7 @@ app.MapTeamManagementEndpoints();
 app.MapTeamLifecycleEndpoints();
 app.MapTeamRosterEndpoints();
 app.MapTeamDetailEndpoints();
+app.MapCampaignCreationEndpoints();
 
 // Player detail and campaign-history query endpoint.
 app.MapPlayerEndpoints();
