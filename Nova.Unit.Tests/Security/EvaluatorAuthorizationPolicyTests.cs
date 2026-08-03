@@ -92,7 +92,8 @@ public sealed class EvaluatorAuthorizationPolicyTests
     [InlineData(Policies.RequireAdmin, false, Roles.Admin, true)]
     [InlineData(Policies.RequireAdmin, true, Roles.ClubAdmin, false)]
     [InlineData(Policies.RequireClubAdmin, false, Roles.ClubAdmin, true)]
-    [InlineData(Policies.RequireClubAdmin, false, Roles.Admin, true)]
+    [InlineData(Policies.RequireClubAdmin, false, Roles.Admin, false)]
+    [InlineData(Policies.RequireClubAdmin, true, Roles.Admin, false)]
     [InlineData(Policies.RequireClubMember, true, Roles.StandardUser, true)]
     [InlineData(Policies.RequireClubMember, false, Roles.Admin, false)]
     public async Task ExistingPolicy_ReturnsExpectedResult_AfterEvaluatorRegistration(
@@ -111,6 +112,29 @@ public sealed class EvaluatorAuthorizationPolicyTests
             policyName);
 
         result.Succeeded.ShouldBe(expected);
+    }
+
+    /// <summary>
+    /// Verifies the global Admin role is never treated as a club operator. Admin is a platform
+    /// role with no club tenancy, so it must fail club-administration authorization even when the
+    /// principal happens to carry a club membership claim.
+    /// </summary>
+    /// <param name="hasClub">Whether the global administrator also carries a club claim.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ClubAdminPolicy_DeniesGlobalAdmin(bool hasClub)
+    {
+        using var serviceProvider = CreateServiceProvider();
+        var authorizationService = serviceProvider.GetRequiredService<IAuthorizationService>();
+        var principal = CreatePrincipal(isAuthenticated: true, hasClub, Roles.Admin);
+
+        var result = await authorizationService.AuthorizeAsync(
+            principal,
+            resource: null,
+            Policies.RequireClubAdmin);
+
+        result.Succeeded.ShouldBeFalse();
     }
 
     /// <summary>

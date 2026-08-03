@@ -26,7 +26,7 @@ internal static class TeamRosterEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
-                .RequireAuthorization(Policies.RequireEvaluator)
+                .RequireAuthorization(Policies.RequireClubMember)
                 .WithName("GetTeamRoster");
 
             return endpoints;

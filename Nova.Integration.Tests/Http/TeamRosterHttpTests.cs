@@ -117,6 +117,122 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         rows[0].ActivePlacementCount.ShouldBe(1);
     }
 
+    /// <summary>
+    /// Verifies a non-administrator club member can read the team roster, covering the
+    /// <c>RequireClubMember</c> policy the roster endpoint is authorized with.
+    /// </summary>
+    [Fact]
+    public async Task GetRoster_ReturnsRows_ForNonAdminClubMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+
+        var adminEmail = UniqueEmail("team-roster-member-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
+        await UpdateUserAsync(adminEmail, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(adminClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
+
+        var memberEmail = UniqueEmail("team-roster-member");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
+        await UpdateUserAsync(memberEmail, club.ClubId, cancellationToken);
+        await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
+
+        long teamId;
+        await using (var context = fixture.CreateAdminContext())
+        {
+            var adminUserId = await context.Users
+                .Where(user => user.NormalizedEmail == adminEmail.ToUpperInvariant())
+                .Select(user => user.Id)
+                .SingleAsync(cancellationToken);
+
+            var team = new TeamEntity
+            {
+                Name = $"Member Readable {Guid.CreateVersion7():N}",
+                GraduationYear = 2030,
+                ClubId = club.ClubId,
+                CreatedById = adminUserId
+            };
+            context.Teams.Add(team);
+            await context.SaveChangesAsync(cancellationToken);
+            teamId = team.TeamId;
+        }
+
+        using var response = await memberClient.GetAsync(TeamRosterEndpoints.GetRoster, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var rows = await response.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
+        rows.ShouldNotBeNull();
+        rows.Select(row => row.TeamId).ShouldContain(teamId);
+    }
+
+    /// <summary>
+    /// Verifies LIKE metacharacters in the search term are matched literally by PostgreSQL rather
+    /// than acting as wildcards. This is the authoritative check for the escaping fix, because the
+    /// SQLite unit-test harness uses a literal <c>Contains</c> and cannot reproduce the bug.
+    /// </summary>
+    [Fact]
+    public async Task GetRoster_Search_TreatsLikeMetacharactersAsLiterals()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        var email = UniqueEmail("team-roster-escaping");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        await using (var context = fixture.CreateAdminContext())
+        {
+            var userId = await context.Users
+                .Where(user => user.NormalizedEmail == email.ToUpperInvariant())
+                .Select(user => user.Id)
+                .SingleAsync(cancellationToken);
+
+            context.Teams.AddRange(
+                NewTeam("50% Wins", club.ClubId, userId),
+                NewTeam("50 Losses", club.ClubId, userId),
+                NewTeam("a_b Squad", club.ClubId, userId),
+                NewTeam("axb Squad", club.ClubId, userId));
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        using (var percentResponse = await client.GetAsync(
+            TeamRosterEndpoints.GetRosterUrl(search: "50%"),
+            cancellationToken))
+        {
+            percentResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var rows = await percentResponse.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
+            rows.ShouldNotBeNull();
+            rows.Select(row => row.Name).ShouldBe(["50% Wins"]);
+        }
+
+        using var underscoreResponse = await client.GetAsync(
+            TeamRosterEndpoints.GetRosterUrl(search: "a_b"),
+            cancellationToken);
+        underscoreResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var underscoreRows = await underscoreResponse.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
+        underscoreRows.ShouldNotBeNull();
+        underscoreRows.Select(row => row.Name).ShouldBe(["a_b Squad"]);
+    }
+
+    /// <summary>
+    /// Creates an unsaved active team entity for roster seeding.
+    /// </summary>
+    /// <param name="name">The team name.</param>
+    /// <param name="clubId">The owning club identifier.</param>
+    /// <param name="createdById">The creating user identifier.</param>
+    /// <returns>A new team entity.</returns>
+    private static TeamEntity NewTeam(string name, long clubId, long createdById) => new()
+    {
+        Name = name,
+        GraduationYear = 2030,
+        ClubId = clubId,
+        CreatedById = createdById
+    };
+
     private async Task UpdateUserAsync(string email, long? clubId, CancellationToken cancellationToken)
     {
         await using var context = fixture.CreateAdminContext();
@@ -131,7 +247,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     {
         using var response = await client.PostAsJsonAsync(
             ClubEndpoints.Create,
-            new CreateClubInput { Name = "Team Roster Club", City = "Austin", State = "TX" },
+            new CreateClubInput { Name = $"Team Roster Club {Guid.CreateVersion7():N}", City = "Austin", State = "TX" },
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;

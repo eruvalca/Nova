@@ -4,7 +4,7 @@ using OneOf.Types;
 namespace Nova.Shared.Teams;
 
 /// <summary>
-/// Provides administrator-only team lifecycle and graduation-cutoff mutations.
+/// Provides administrator-only team lifecycle mutations.
 /// </summary>
 public interface ITeamLifecycleService
 {
@@ -26,15 +26,5 @@ public interface ITeamLifecycleService
     /// <returns>A success result or a service problem.</returns>
     Task<ServiceResult<Success>> RestoreAsync(
         long teamId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Changes a team's graduation-year cutoff when active placements remain eligible.
-    /// </summary>
-    /// <param name="input">The team identifier and proposed cutoff.</param>
-    /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>A success result or a structured service problem.</returns>
-    Task<ServiceResult<Success>> UpdateGraduationYearAsync(
-        UpdateTeamGraduationYearInput input,
         CancellationToken cancellationToken = default);
 }

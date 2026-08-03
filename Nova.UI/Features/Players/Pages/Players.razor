@@ -82,7 +82,7 @@
                         Model="_createForm"
                         SubmitButtonText="Create player"
                         IsSubmitting="_isMutating"
-                        ErrorMessage="_mutationError"
+                        ErrorMessage="@_mutationError"
                         GraduationYearBlockers="_graduationYearBlockers"
                         OnValidSubmit="CreatePlayerAsync"
                         OnCancel="CancelMutationForm" />
@@ -96,7 +96,7 @@
                         Model="_editForm"
                         SubmitButtonText="Save changes"
                         IsSubmitting="_isMutating"
-                        ErrorMessage="_mutationError"
+                        ErrorMessage="@_mutationError"
                         GraduationYearBlockers="_graduationYearBlockers"
                         OnValidSubmit="UpdatePlayerAsync"
                         OnCancel="CancelMutationForm" />

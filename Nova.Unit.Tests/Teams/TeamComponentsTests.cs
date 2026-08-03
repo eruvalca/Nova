@@ -123,17 +123,21 @@ public sealed class TeamComponentsTests : BunitContext
         cut.Find("button.btn-outline-warning").GetAttribute("aria-label").ShouldBe("Archive U16 Blue");
     }
 
+    /// <summary>
+    /// The global Admin role carries no club tenancy, so it must not surface club-scoped
+    /// mutation controls.
+    /// </summary>
     [Fact]
-    public void Teams_ShowsMutationControls_ForAdmin()
+    public void Teams_HidesMutationControls_ForGlobalAdminWithoutClubAdmin()
     {
         RegisterServices(isClubAdmin: false, isAdmin: true);
 
         var cut = Render<TeamsPage>();
         cut.WaitForState(() => !cut.Markup.Contains("Loading teams...", StringComparison.Ordinal));
 
-        cut.Markup.ShouldContain("Add team");
-        cut.Markup.ShouldContain("Edit");
-        cut.Markup.ShouldContain("Archive");
+        cut.Markup.ShouldNotContain("Add team");
+        cut.Markup.ShouldNotContain("btn-outline-primary");
+        cut.Markup.ShouldNotContain("btn-outline-warning");
     }
 
     [Fact]
@@ -370,13 +374,16 @@ public sealed class TeamComponentsTests : BunitContext
             .Returns(Task.FromResult(new ServiceResult<TeamDto>(
                 ServiceProblem.Conflict(
                     "Update blocked.",
-                    new Dictionary<string, string[]>
-                    {
-                        ["blockers[0].assignmentId"] = ["77"],
-                        ["blockers[0].campaignId"] = ["400"],
-                        ["blockers[0].playerId"] = ["88"],
-                        ["blockers[0].playerGraduationYear"] = ["2029"]
-                    }))));
+                    TeamLifecycleProblemExtensions.CreateGraduationYearBlockerExtensions(
+                    [
+                        new TeamGraduationYearBlockerItem
+                        {
+                            PlayerCampaignAssignmentId = 77,
+                            CampaignId = 400,
+                            PlayerId = 88,
+                            PlayerGraduationYear = 2029
+                        }
+                    ])))));
 
         RegisterServices(isClubAdmin: true, managementService: managementService);
 
@@ -391,6 +398,35 @@ public sealed class TeamComponentsTests : BunitContext
         {
             cut.Markup.ShouldContain("Resolve ineligible active placements before raising this team's cutoff:");
             cut.Markup.ShouldContain("Campaign 400: Player 88 (graduation year 2029), assignment 77.");
+        });
+    }
+
+    /// <summary>
+    /// Verifies the form surfaces the server's conflict detail text. Guards against the parameter
+    /// being bound to a literal string (for example <c>ErrorMessage="_formError"</c>) instead of the
+    /// backing field, which silently renders the field name to the user.
+    /// </summary>
+    [Fact]
+    public void Teams_ShowsServerErrorText_WhenUpdateReturnsConflict()
+    {
+        var managementService = Substitute.For<ITeamManagementService>();
+        managementService.UpdateAsync(Arg.Any<UpdateTeamInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<TeamDto>(
+                ServiceProblem.Conflict("A team with that name and graduation year already exists."))));
+
+        RegisterServices(isClubAdmin: true, managementService: managementService);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit team"));
+
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("A team with that name and graduation year already exists.");
+            cut.Markup.ShouldNotContain("_formError");
         });
     }
 

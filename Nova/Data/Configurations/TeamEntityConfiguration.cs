@@ -21,6 +21,12 @@ public class TeamEntityConfiguration : IEntityTypeConfiguration<TeamEntity>
             .ValueGeneratedOnAdd();
         builder.Property(e => e.LifecycleStatus)
             .IsConcurrencyToken();
+        builder.HasIndex(e => e.ClubId);
+        builder.HasIndex(e => new { e.ClubId, e.Name, e.GraduationYear })
+            .IsUnique();
+        builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
+            .IsUnique()
+            .HasFilter("\"CreationOperationId\" IS NOT NULL");
 
         var lifecycleStatusColumn = $"\"{nameof(TeamEntity.LifecycleStatus)}\"";
         var archivedAtColumn = $"\"{nameof(TeamEntity.ArchivedAt)}\"";

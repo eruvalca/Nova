@@ -18,7 +18,7 @@ public sealed record AuthenticatedUser(long UserId);
 /// </summary>
 /// <param name="UserId">The user's id.</param>
 /// <param name="ClubId">The club (tenant) the user belongs to.</param>
-/// <param name="IsClubAdmin">Whether the user has club-administration capability (ClubAdmin or Admin role).</param>
+/// <param name="IsClubAdmin">Whether the user holds the ClubAdmin role.</param>
 public sealed record ClubMember(long UserId, long ClubId, bool IsClubAdmin);
 
 /// <summary>

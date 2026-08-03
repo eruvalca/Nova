@@ -239,7 +239,7 @@ public partial class Players(
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authenticationState.User;
 
-        _canManagePlayers = principal.IsInRole(Roles.Admin) || principal.IsInRole(Roles.ClubAdmin);
+        _canManagePlayers = principal.IsInRole(Roles.ClubAdmin);
         _clubId = ReadClubIdClaim(principal);
 
         if (Initialized)

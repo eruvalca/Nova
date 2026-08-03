@@ -24,7 +24,7 @@ public static class AuthorizationBuilderExtensions
 
             return builder
                 .AddPolicy(Policies.RequireAdmin, policy => policy.RequireRole(Roles.Admin))
-                .AddPolicy(Policies.RequireClubAdmin, policy => policy.RequireRole(Roles.ClubAdmin, Roles.Admin))
+                .AddPolicy(Policies.RequireClubAdmin, policy => policy.RequireRole(Roles.ClubAdmin))
                 .AddPolicy(Policies.RequireClubMember, ConfigureClubMemberPolicy)
                 .AddPolicy(Policies.RequireEvaluator, ConfigureClubMemberPolicy);
         }

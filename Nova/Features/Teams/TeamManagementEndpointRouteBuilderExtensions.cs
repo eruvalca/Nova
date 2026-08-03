@@ -60,7 +60,10 @@ internal static class TeamManagementEndpointRouteBuilderExtensions
         CancellationToken cancellationToken)
     {
         var result = await teamManagementService.CreateAsync(input, cancellationToken);
-        return result.ToHttpResult(team => TypedResults.Created((string?)null, team));
+        return result.ToHttpResult(team => TypedResults.CreatedAtRoute(
+            team,
+            TeamEndpoints.GetDetailRouteName,
+            new { teamId = team.TeamId }));
     }
 
     /// <summary>

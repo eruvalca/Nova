@@ -27,7 +27,7 @@ internal static class TeamDetailEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .RequireAuthorization(Policies.RequireClubMember)
-                .WithName("GetTeamDetail");
+                .WithName(TeamEndpoints.GetDetailRouteName);
 
             return endpoints;
         }

@@ -342,7 +342,7 @@ public sealed class PlayerComponentsTests : BunitContext
         var detailService = Substitute.For<IPlayerDetailService>();
         detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
-        Services.AddSingleton(detailService);
+        RegisterServices(isClubAdmin: false, detailService: detailService);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/players/7?returnUrl=https%3A%2F%2Fevil.example%2Fphish");
@@ -360,7 +360,7 @@ public sealed class PlayerComponentsTests : BunitContext
         var detailService = Substitute.For<IPlayerDetailService>();
         detailService.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
-        Services.AddSingleton(detailService);
+        RegisterServices(isClubAdmin: false, detailService: detailService);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/players/7?returnUrl=%2Fplayers%3Fview%3Darchived%26search%3DAvery");
@@ -397,7 +397,7 @@ public sealed class PlayerComponentsTests : BunitContext
                 [
                     new PlayerCurrentTraitDto(11, "Defender", "#0055AA; color: red;")
                 ]))));
-        Services.AddSingleton(detailService);
+        RegisterServices(isClubAdmin: false, detailService: detailService);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/players/7");

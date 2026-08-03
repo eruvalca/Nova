@@ -11,6 +11,13 @@ public static class TeamEndpoints
     public const string GroupPrefix = "/api/teams";
 
     /// <summary>
+    /// Gets the route name for the team-detail GET endpoint, used by
+    /// <see cref="Microsoft.AspNetCore.Http.TypedResults.CreatedAtRoute"/> to generate the
+    /// <c>Location</c> header after a successful team creation.
+    /// </summary>
+    public const string GetDetailRouteName = "GetTeamDetail";
+
+    /// <summary>
     /// Gets the absolute create-team route.
     /// </summary>
     public const string Create = "/api/teams";
@@ -75,16 +82,6 @@ public static class TeamEndpoints
     public const string RestoreRelative = "{teamId:long}/restore";
 
     /// <summary>
-    /// Gets the absolute graduation-year update route template.
-    /// </summary>
-    public const string UpdateGraduationYearTemplate = "/api/teams/{teamId:long}/graduation-year";
-
-    /// <summary>
-    /// Gets the graduation-year update route template relative to the group.
-    /// </summary>
-    public const string UpdateGraduationYearRelative = "{teamId:long}/graduation-year";
-
-    /// <summary>
     /// Builds the URL for archiving a team.
     /// </summary>
     /// <param name="teamId">The team identifier.</param>
@@ -97,11 +94,4 @@ public static class TeamEndpoints
     /// <param name="teamId">The team identifier.</param>
     /// <returns>The restore URL.</returns>
     public static string RestoreUrl(long teamId) => $"{GroupPrefix}/{teamId}/restore";
-
-    /// <summary>
-    /// Builds the URL for updating a team's graduation-year cutoff.
-    /// </summary>
-    /// <param name="teamId">The team identifier.</param>
-    /// <returns>The graduation-year update URL.</returns>
-    public static string UpdateGraduationYearUrl(long teamId) => $"{GroupPrefix}/{teamId}/graduation-year";
 }

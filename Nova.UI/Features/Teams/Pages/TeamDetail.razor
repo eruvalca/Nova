@@ -1,6 +1,6 @@
 @page "/teams/{TeamId:long}"
 @rendermode InteractiveAuto
-@attribute [Authorize(Policy = Policies.RequireEvaluator)]
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
 @using Nova.Shared.Enums
 @using Nova.Shared.Security
@@ -91,7 +91,7 @@
                           Model="_editForm"
                           SubmitButtonText="Save changes"
                           IsSubmitting="_isMutating"
-                          ErrorMessage="_formError"
+                          ErrorMessage="@_formError"
                           CutoffBlockers="_cutoffBlockers"
                           OnValidSubmit="UpdateTeamAsync"
                           OnCancel="CancelEdit" />
