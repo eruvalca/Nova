@@ -39,12 +39,14 @@ This document describes the current application state and a proposed MVP for clu
 - Assignment-scoped evaluation notes and explicit campaign tag applications with author/admin mutation rules.
 - Transactional lifecycle/write guards, incremental migrations, and focused SQLite/PostgreSQL coverage.
 - Feature-local functional cores for campaign closure, placement lifecycle/eligibility, and account-deletion classification, with effectful authorization, locking, persistence, and logging retained in service shells.
+- Persistent player roster and detail workflows with Active/Archived views, name/tryout-number search, graduation-year and tag filters, campaign history, and role-aware create/edit/archive/restore actions.
+- Tenant-safe player APIs and typed clients with structured lifecycle and graduation-year blockers, race-safe active-campaign enrollment, and retry-safe, idempotent creation.
+- Persistent team roster and detail workflows with Active/Archived views, composed search and graduation-year filters, placement history, and role-aware create/edit/archive/restore actions.
+- Tenant-safe team APIs and typed clients with structured placement blockers, retry-safe and idempotent mutations, and per-club team uniqueness enforcement.
 
 ### Not Yet Implemented as Product Workflows
 
 - A useful authenticated home dashboard.
-- Player roster management and player archive/restore.
-- Team management.
 - Season and campaign management.
 - Campaign participant enrollment.
 - Evaluation notes and campaign tag applications.
@@ -157,8 +159,12 @@ The dashboard is the post-login home for a user who belongs to a club. It should
 - Administrators manually create and edit players.
 - Required MVP fields: first name, last name, date of birth, and graduation year.
 - Tryout number belongs to campaign participation, not the permanent player profile.
-- Archive replaces destructive deletion for a player with history.
-- Adding an active player automatically creates participation in every active campaign.
+- Active and Archived views compose name or active-campaign tryout-number search with graduation-year and current-tag filters.
+- Approved club members can read roster, detail, and campaign history; only club administrators receive management actions.
+- Archive replaces destructive deletion for a player with history and returns structured blockers for unresolved active-campaign participation.
+- Restoring a player reactivates the permanent profile but does not backfill campaigns missed while archived.
+- Adding an active player automatically creates participation in every active campaign in the same retry-safe transaction, coordinated with campaign creation by a club roster lock.
+- Graduation-year edits return structured blockers and write nothing when an active assigned placement would become ineligible.
 
 ### 3. Player Detail and History
 
@@ -179,6 +185,7 @@ The dashboard is the post-login home for a user who belongs to a club. It should
 - The history is queried through explicit campaign participation, not inferred from date ranges.
 - Each note shows author and timestamp from the existing audit fields.
 - Tags shown as current within a campaign have an application timestamp and applying user.
+- Detail includes campaign status, tryout number, placement outcome, assigned team, and archived tag context, and preserves roster filters when navigating back.
 
 ### 4. Teams
 
@@ -193,8 +200,11 @@ The dashboard is the post-login home for a user who belongs to a club. It should
 ```
 
 - A team persists across seasons and campaigns.
+- Active and Archived views compose team-name search and graduation-year filtering.
+- Approved club members can read roster, detail, and placement history; only club administrators receive management actions.
 - Archiving excludes a team from future and active campaign placement options without erasing history.
-- Editing a graduation cutoff must identify any existing active placements that would become invalid and block the edit until resolved.
+- Editing a graduation cutoff or archiving a team identifies affected active placements with structured blocker details and writes nothing until they are resolved.
+- The detail workflow preserves current roster context when navigating back from a team.
 
 ### 5. Create Campaign
 
@@ -347,6 +357,7 @@ Epic #6 established `PlayerCampaignAssignmentEntity` as campaign participation a
 - Campaign-varying tryout number lives on campaign participation.
 - Block a graduation-year edit that would invalidate an active placement until the placement is resolved.
 - Require explicit resolution of active campaign participation before archiving a player; do not silently rewrite campaign outcomes.
+- Use an optional creation-operation ID for retry-safe, idempotent creation and enrollment.
 
 ### Team
 
@@ -354,6 +365,7 @@ Epic #6 established `PlayerCampaignAssignmentEntity` as campaign participation a
 - Keep `GraduationYear` as the minimum eligible graduation year.
 - Block archive or cutoff changes that would invalidate an active placement until affected placements are resolved.
 - Preserve archived teams as valid references in historical campaign results.
+- Enforce uniqueness per club for the `(Name, GraduationYear)` pair and use an optional creation-operation ID for retry-safe, idempotent creation.
 
 ### Campaign
 
@@ -437,7 +449,7 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
   - Add primary navigation for Campaigns, Players, Teams, Club, and Account.
   - Show active campaigns, unresolved decisions, roster/team counts, join requests, and role-appropriate empty states.
 
-- **Epic 2: Domain model and persistence foundation — complete**
+- **Epic 2: Domain model and persistence foundation — complete (`#6`)**
   - Added Active/Archived lifecycle to players, teams, and tag definitions.
   - Added explicit Active/Closed campaign status, closure metadata, and append-only lifecycle events.
   - Extended campaign participation with tryout number, placement outcome, integrity constraints, and optimistic concurrency.
@@ -446,20 +458,22 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
   - Added shared placement input validation, deterministic closure/placement/account-deletion policies, exhaustive OneOf handling, and named multi-case service results.
   - Added and verified incremental migrations, tenancy/integrity tests, and PostgreSQL migration/race coverage.
 
-- **Epic 3: Player roster management**
-  - Add player list, search, graduation-year filtering, and active/archive views.
-  - Add manual create and edit workflows with validation.
-  - Add archive and restore while preserving campaign history.
-  - Auto-enroll a newly created active player into all active campaigns transactionally.
-  - Add player detail with campaign-grouped notes, tags, outcomes, and team history.
-  - Keep enrollment/edit/archive orchestration in services; extract only non-trivial active-placement impact classification into feature-local pure policies over freshly loaded facts.
+- **Epic 3: Player roster management — complete (`#7`)**
+  - Added tenant-safe player list and detail screens with Active/Archived views, composed roster filters, bounded results, and campaign-grouped history.
+  - Added validated administrator create/edit workflows and structured graduation-year blockers.
+  - Added archive/restore with structured active-campaign blockers while preserving historical campaign references.
+  - Added retry-safe, idempotent player creation and transactional enrollment into every active campaign, coordinated against concurrent campaign creation.
+  - Added detail history for campaign status, tryout numbers, notes, tags, outcomes, and assigned teams, with roster-context return navigation.
+  - Centralized graduation-year impact decisions in a feature-local policy while retaining authorization, roster and player mutation locks, retrying transactions, persistence, and concurrency handling in the player service shells.
+  - Added approved-member read access, ClubAdmin-only mutations, typed WASM clients, and focused unit and PostgreSQL integration coverage.
 
-- **Epic 4: Persistent team management**
-  - Add team list and detail screens.
-  - Add create/edit validation for name and graduation-year cutoff.
-  - Add archive/restore; expose only active teams for new placements.
-  - Block cutoff edits that would invalidate active campaign placements until those placements are resolved.
-  - Evaluate cutoff/archive placement impacts with compact fresh facts and a feature-local policy when the rule matrix becomes non-trivial; retain locks and persistence in the team service shell.
+- **Epic 4: Persistent team management — complete (`#8`)**
+  - Added tenant-safe team list and detail screens with Active/Archived views, composed filters, placement impacts, and historical placement context.
+  - Added validated create/edit workflows for name and graduation-year cutoff, with retry-safe and idempotent persistence.
+  - Added administrator-only archive/restore actions; only active teams are exposed for new placements.
+  - Added structured blockers for cutoff edits and archive actions that would invalidate active campaign placements.
+  - Centralized graduation-year impact decisions in a feature-local policy while retaining authorization, lifecycle locks, retrying transactions, persistence, and concurrency handling in the team service shells.
+  - Added approved-member read access, ClubAdmin-only mutations, typed WASM clients, and focused unit and PostgreSQL integration coverage.
 
 - **Epic 5: Seasons and campaign creation**
   - Add campaign list grouped by season and status.
@@ -505,9 +519,9 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
 
 ## Reviewed Implementation Order
 
-1. **Domain model and persistence foundation** (`#6`) is the hard prerequisite for all new product workflows.
-2. **Player roster management** (`#7`) establishes the active roster and late-player enrollment behavior.
-3. **Persistent team management** (`#8`) establishes eligible placement targets. This can overlap with player roster work after the foundation is complete.
+1. **Domain model and persistence foundation** (`#6`) is complete and remains the hard prerequisite for all new product workflows.
+2. **Player roster management** (`#7`) is complete and establishes the active roster and race-safe late-player enrollment behavior.
+3. **Persistent team management** (`#8`) is complete and establishes eligible placement targets for campaign creation and placement workflows.
 4. **Seasons and campaign creation** (`#9`) depends on active players and teams and creates campaign participation.
 5. **Campaign evaluation workspace** (`#10`) depends on campaign creation and the campaign-scoped evaluation model.
 6. **Team placement and closeout outcomes** (`#11`) depends on teams, campaigns, outcome state, and concurrency handling. It can overlap with evaluation after campaign creation.
