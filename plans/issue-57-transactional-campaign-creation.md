@@ -144,7 +144,7 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-The complete unit suite passes with 775 tests and the complete Aspire/PostgreSQL integration suite
+The complete unit suite passes with 778 tests and the complete Aspire/PostgreSQL integration suite
 passes with 132 tests. EF reports no pending model changes, the solution builds successfully, and
 `git diff --check` reports no whitespace errors. Existing NuGet vulnerability and EF tool-version
 warnings remain unchanged by this feature.

@@ -17,7 +17,7 @@ public sealed record InlineSeasonInput : IValidatableObject
     /// <summary>
     /// Gets the first date in the season.
     /// </summary>
-    [Required]
+    [Required, NotDefaultDateOnly(ErrorMessage = "The season start date is required.")]
     public required DateOnly StartDate { get; init; }
 
     /// <summary>

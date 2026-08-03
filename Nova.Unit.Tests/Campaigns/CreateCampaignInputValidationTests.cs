@@ -87,6 +87,60 @@ public sealed class CreateCampaignInputValidationTests
     }
 
     /// <summary>
+    /// Verifies a default campaign start date is rejected structurally.
+    /// </summary>
+    [Fact]
+    public void Validate_ReturnsStartDateError_WhenCampaignStartDateIsDefault()
+    {
+        var errors = InputValidator.Validate(ValidInput() with
+        {
+            StartDate = default,
+            ExistingSeasonId = 42
+        });
+
+        errors.ShouldContainKey(nameof(CreateCampaignInput.StartDate));
+    }
+
+    /// <summary>
+    /// Verifies a default inline-season start date is rejected with its qualified member name.
+    /// </summary>
+    [Fact]
+    public void Validate_ReturnsQualifiedStartDateError_WhenInlineSeasonStartDateIsDefault()
+    {
+        var errors = InputValidator.Validate(ValidInput() with
+        {
+            InlineSeason = new InlineSeasonInput
+            {
+                Name = "2026",
+                StartDate = default
+            }
+        });
+
+        errors.ShouldContainKey(
+            $"{nameof(CreateCampaignInput.InlineSeason)}.{nameof(InlineSeasonInput.StartDate)}");
+    }
+
+    /// <summary>
+    /// Verifies open-ended campaign and inline-season dates remain structurally valid.
+    /// </summary>
+    [Fact]
+    public void Validate_ReturnsNoErrors_ForOpenEndedInlineSeason()
+    {
+        var errors = InputValidator.Validate(ValidInput() with
+        {
+            PlannedEndDate = null,
+            InlineSeason = new InlineSeasonInput
+            {
+                Name = "2026",
+                StartDate = new DateOnly(2026, 1, 1),
+                EndDate = null
+            }
+        });
+
+        errors.ShouldBeEmpty();
+    }
+
+    /// <summary>
     /// Verifies campaign and inline-season end dates cannot precede their starts.
     /// </summary>
     [Fact]

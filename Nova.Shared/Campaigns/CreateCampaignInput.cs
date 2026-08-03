@@ -23,7 +23,7 @@ public sealed record CreateCampaignInput : IValidatableObject
     /// <summary>
     /// Gets the campaign start date.
     /// </summary>
-    [Required]
+    [Required, NotDefaultDateOnly(ErrorMessage = "The campaign start date is required.")]
     public required DateOnly StartDate { get; init; }
 
     /// <summary>
