@@ -6,6 +6,7 @@ Canonical Nova examples:
 - `Nova\Features\Teams\TeamDetailQueryService.cs`
 - `Nova.Unit.Tests\Features\Teams\TeamRosterQueryServiceTests.cs`
 - `Nova.Unit.Tests\Features\Teams\TeamDetailQueryServiceTests.cs`
+- `Nova.Integration.Tests\Http\TeamRosterHttpTests.cs`
 
 ## Literal PostgreSQL contains search
 

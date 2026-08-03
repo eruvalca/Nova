@@ -40,8 +40,9 @@ the start of each attempt, mark it immediately before `CommitAsync`, and only le
 
 ## Multi-entity advisory locks
 
-Every writer of the same invariant must use one global entity-type order. Acquire multiple locks of
-the same type by ascending ID. Writers may take a subsequence, but never reverse it.
+Every writer of the same invariant must use the global entity-type order:
+campaign → player → team → tag. Acquire multiple locks of the same type by ascending ID. Writers may
+take a subsequence, but never reverse it.
 
 The canonical global order for the team/player eligibility invariant is campaign, players ascending,
 then team. `TeamManagementService.UpdateTeamAsync` takes the players-then-team subsequence: it
