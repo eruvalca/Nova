@@ -27,6 +27,7 @@ must be ordered again in memory, repeat the exact SQL keys, directions, null beh
 tie-breakers. A different in-memory order cannot recover rows excluded by the SQL bound and can
 silently change which items appear active or first.
 
-`TeamDetailQueryService` is the canonical pattern: campaign-active flag, campaign start date,
-campaign ID, player display name, and player ID appear in the same order on both sides of
-materialization.
+Prefer preserving the database-returned order after materialization. `TeamDetailQueryService` is the
+canonical pattern: campaign-active flag, campaign start date, campaign ID, player display name, and
+player ID are applied before `Take`, and the materialized rows are projected without a second sort
+that could use different collation semantics.
