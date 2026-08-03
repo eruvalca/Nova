@@ -11,7 +11,7 @@ public sealed record CreateCampaignInput : IValidatableObject
     /// <summary>
     /// Gets the caller-generated identifier that makes repeated submissions idempotent.
     /// </summary>
-    [Required]
+    [Required, NotEmptyGuid(ErrorMessage = "The operation identifier must not be empty.")]
     public required Guid OperationId { get; init; }
 
     /// <summary>
@@ -45,13 +45,6 @@ public sealed record CreateCampaignInput : IValidatableObject
     /// <inheritdoc />
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (OperationId == Guid.Empty)
-        {
-            yield return new ValidationResult(
-                "The operation identifier must not be empty.",
-                [nameof(OperationId)]);
-        }
-
         if (PlannedEndDate < StartDate)
         {
             yield return new ValidationResult(

@@ -176,10 +176,15 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
         ActAs(seed.ActorUserId, seed.ClubId, isAdmin: true);
 
-        var campaignTask = CreateCampaignService(new FixtureDbContextFactory(fixture)).CreateAsync(
+        var lockRecorder = new AdvisoryLockRecordingInterceptor();
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            lockRecorder);
+        var campaignTask = CreateCampaignService(factory).CreateAsync(
             ExistingSeasonInput(seed),
             cancellationToken);
-        var playerTask = CreatePlayerService().CreateAsync(
+        var playerTask = CreatePlayerService(factory).CreateAsync(
             new CreatePlayerInput
             {
                 FirstName = "Concurrent",
@@ -194,6 +199,10 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         var playerResult = await playerTask;
         campaignResult.IsSuccess.ShouldBeTrue();
         playerResult.IsSuccess.ShouldBeTrue();
+        var expectedRosterLockKey = (long.MinValue / 4) + seed.ClubId;
+        lockRecorder.AcquiredKeys.Count(key => key == expectedRosterLockKey).ShouldBe(
+            2,
+            "campaign and player creation must both acquire the same club-roster lock");
 
         await using var verify = fixture.CreateAdminContext();
         var assignments = await verify.PlayerCampaignAssignments
@@ -219,9 +228,10 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// Creates the player service used by the shared roster-lock race.
     /// </summary>
     /// <returns>A player management service.</returns>
-    private PlayerManagementService CreatePlayerService()
+    private PlayerManagementService CreatePlayerService(
+        IDbContextFactory<NovaDbContext>? factory = null)
         => new(
-            new FixtureDbContextFactory(fixture),
+            factory ?? new FixtureDbContextFactory(fixture),
             fixture.CurrentUser,
             NullLogger<PlayerManagementService>.Instance);
 

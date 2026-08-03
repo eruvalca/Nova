@@ -150,12 +150,13 @@ public sealed partial class CampaignCreationService(
 
         try
         {
-            await db.SaveChangesAsync(cancellationToken);
-
             var activePlayerIds = await db.Players
                 .Where(player => player.LifecycleStatus == LifecycleStatus.Active)
                 .Select(player => player.PlayerId)
                 .ToListAsync(cancellationToken);
+            campaign.InitialEnrolledPlayerCount = activePlayerIds.Count;
+
+            await db.SaveChangesAsync(cancellationToken);
 
             foreach (var playerId in activePlayerIds)
             {
@@ -310,13 +311,13 @@ public sealed partial class CampaignCreationService(
                 campaign.Name,
                 campaign.StartDate,
                 campaign.EndDate,
-                campaign.Status,
+                CampaignStatus.Active,
                 campaign.SeasonId,
                 campaign.Season.Name,
                 campaign.Season.StartDate,
                 campaign.Season.EndDate,
                 campaign.SeasonCreatedInline,
-                campaign.PlayerAssignments.Count))
+                campaign.InitialEnrolledPlayerCount))
             .SingleOrDefaultAsync(cancellationToken);
 
     /// <summary>

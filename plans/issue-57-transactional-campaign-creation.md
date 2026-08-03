@@ -74,7 +74,8 @@ Suggested executor: orchestrator
 Implemented a retry-safe transactional service that validates before effects, authorizes ClubAdmin,
 uses a fresh context per execution/verification attempt, holds the shared roster advisory lock, and
 commits inline season, campaign, and Active-player assignments atomically. Repeated and ambiguous
-operations reconstruct the original result. Eleven focused service tests pass.
+operations reconstruct the original creation-time status and enrollment count. Twelve focused service
+tests pass.
 
 ## Phase 3: HTTP Endpoint and WebAssembly Client
 
@@ -141,7 +142,7 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-The complete unit suite passes with 770 tests and the complete Aspire/PostgreSQL integration suite
+The complete unit suite passes with 772 tests and the complete Aspire/PostgreSQL integration suite
 passes with 126 tests. EF reports no pending model changes, the solution builds successfully, and
 `git diff --check` reports no whitespace errors. Existing NuGet vulnerability and EF tool-version
 warnings remain unchanged by this feature.

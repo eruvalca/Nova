@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Nova.Data;
@@ -169,6 +170,70 @@ internal sealed class FailSecondSaveChangesInterceptor : SaveChangesInterceptor
         }
 
         return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Records PostgreSQL advisory-lock keys so tests can prove both sides of a shared invariant use the
+/// same lock independently of task scheduling.
+/// </summary>
+internal sealed class AdvisoryLockRecordingInterceptor : DbCommandInterceptor
+{
+    private readonly List<long> _acquiredKeys = [];
+
+    /// <summary>
+    /// Gets a snapshot of the advisory-lock keys acquired so far.
+    /// </summary>
+    public IReadOnlyList<long> AcquiredKeys
+    {
+        get
+        {
+            lock (_acquiredKeys)
+            {
+                return [.. _acquiredKeys];
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        Record(command);
+        return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        Record(command);
+        return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    private void Record(DbCommand command)
+    {
+        if (!command.CommandText.Contains("pg_advisory_xact_lock", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        foreach (DbParameter parameter in command.Parameters)
+        {
+            if (parameter.Value is long key)
+            {
+                lock (_acquiredKeys)
+                {
+                    _acquiredKeys.Add(key);
+                }
+            }
+        }
     }
 }
 

@@ -149,6 +149,55 @@ public sealed class CampaignCreationServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies replay returns creation-time status and enrollment count after the aggregate changes.
+    /// </summary>
+    [Fact]
+    public async Task Create_ReturnsCreationSnapshot_AfterCampaignChanges()
+    {
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        var service = CreateService();
+        var input = ValidExistingSeasonInput();
+        var first = await service.CreateAsync(input, TestContext.Current.CancellationToken);
+        first.IsSuccess.ShouldBeTrue();
+
+        using (var db = _harness.CreateAdminContext())
+        {
+            var campaign = db.Campaigns.Single(candidate => candidate.CampaignId == first.Value.CampaignId);
+            campaign.Status = CampaignStatus.Closed;
+            campaign.ClosedAt = DateTimeOffset.UtcNow;
+            campaign.ClosedById = ClubAAdminId;
+
+            var latePlayer = new PlayerEntity
+            {
+                FirstName = "Late",
+                LastName = "Player",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId
+            };
+            db.Players.Add(latePlayer);
+            db.SaveChanges();
+            db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = latePlayer.PlayerId,
+                CampaignId = campaign.CampaignId,
+                ClubId = ClubAId,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                CreatedById = ClubAAdminId
+            });
+            db.SaveChanges();
+        }
+
+        var replay = await service.CreateAsync(input, TestContext.Current.CancellationToken);
+
+        replay.IsSuccess.ShouldBeTrue();
+        replay.Value.Status.ShouldBe(CampaignStatus.Active);
+        replay.Value.EnrolledPlayerCount.ShouldBe(first.Value.EnrolledPlayerCount);
+    }
+
+    /// <summary>
     /// Verifies a cross-tenant season identifier is hidden as not found.
     /// </summary>
     [Fact]

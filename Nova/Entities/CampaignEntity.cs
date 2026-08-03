@@ -24,6 +24,11 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     public bool SeasonCreatedInline { get; set; }
 
     /// <summary>
+    /// Gets or sets the Active-player count returned when the campaign was originally created.
+    /// </summary>
+    public int InitialEnrolledPlayerCount { get; set; }
+
+    /// <summary>
     /// Gets or sets the Name.
     /// </summary>
     public required string Name { get; set; }

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations
 {
     [DbContext(typeof(NovaDbContext))]
-    [Migration("20260803035152_AddCampaignCreationIdempotency")]
+    [Migration("20260803042430_AddCampaignCreationIdempotency")]
     partial class AddCampaignCreationIdempotency
     {
         /// <inheritdoc />
@@ -205,6 +205,9 @@ namespace Nova.Data.Migrations
 
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("date");
+
+                    b.Property<int>("InitialEnrolledPlayerCount")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("ModifiedAt")
                         .HasColumnType("timestamp with time zone");

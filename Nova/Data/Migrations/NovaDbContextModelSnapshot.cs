@@ -203,6 +203,9 @@ namespace Nova.Data.Migrations
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("date");
 
+                    b.Property<int>("InitialEnrolledPlayerCount")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset?>("ModifiedAt")
                         .HasColumnType("timestamp with time zone");
 

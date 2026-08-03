@@ -31,6 +31,13 @@ namespace Nova.Data.Migrations
                 type: "uuid",
                 nullable: true);
 
+            migrationBuilder.AddColumn<int>(
+                name: "InitialEnrolledPlayerCount",
+                table: "Campaigns",
+                type: "integer",
+                nullable: false,
+                defaultValue: 0);
+
             migrationBuilder.AddColumn<bool>(
                 name: "SeasonCreatedInline",
                 table: "Campaigns",
@@ -110,6 +117,10 @@ namespace Nova.Data.Migrations
 
             migrationBuilder.DropColumn(
                 name: "CreationOperationId",
+                table: "Campaigns");
+
+            migrationBuilder.DropColumn(
+                name: "InitialEnrolledPlayerCount",
                 table: "Campaigns");
 
             migrationBuilder.DropColumn(
