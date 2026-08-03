@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Nova.Data;
@@ -140,6 +141,198 @@ internal sealed class FailFirstSaveChangesInterceptor : SaveChangesInterceptor
 
         return ValueTask.FromResult(result);
     }
+}
+
+/// <summary>
+/// Simulates a non-transient failure immediately before the second save in one context so tests can
+/// verify that earlier writes in the transaction are rolled back.
+/// </summary>
+internal sealed class FailSecondSaveChangesInterceptor : SaveChangesInterceptor
+{
+    private int _saveCount;
+    private int _failureCount;
+
+    /// <summary>
+    /// Gets the number of rollback failures injected by this interceptor.
+    /// </summary>
+    public int FailureCount => Volatile.Read(ref _failureCount);
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.Increment(ref _saveCount) == 2)
+        {
+            Interlocked.Increment(ref _failureCount);
+            throw new InvalidOperationException("Simulated campaign participation save failure.");
+        }
+
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Records PostgreSQL advisory-lock keys so tests can prove both sides of a shared invariant use the
+/// same lock independently of task scheduling.
+/// </summary>
+internal sealed class AdvisoryLockRecordingInterceptor : DbCommandInterceptor
+{
+    private readonly List<long> _acquiredKeys = [];
+
+    /// <summary>
+    /// Gets a snapshot of the advisory-lock keys acquired so far.
+    /// </summary>
+    public IReadOnlyList<long> AcquiredKeys
+    {
+        get
+        {
+            lock (_acquiredKeys)
+            {
+                return [.. _acquiredKeys];
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        Record(command);
+        return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        Record(command);
+        return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    private void Record(DbCommand command)
+    {
+        if (!command.CommandText.Contains("pg_advisory_xact_lock", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        foreach (DbParameter parameter in command.Parameters)
+        {
+            if (parameter.Value is long key)
+            {
+                lock (_acquiredKeys)
+                {
+                    _acquiredKeys.Add(key);
+                }
+            }
+        }
+    }
+}
+
+/// <summary>
+/// Pauses a mutation immediately after it acquires an advisory lock so a test can deterministically
+/// queue a competing mutation behind it.
+/// </summary>
+internal sealed class AdvisoryLockGateInterceptor : DbCommandInterceptor
+{
+    private readonly TaskCompletionSource _attempted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _acquired =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _release =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Waits until the advisory-lock command is about to execute.</summary>
+    public Task WaitForAttemptAsync(CancellationToken cancellationToken) =>
+        _attempted.Task.WaitAsync(cancellationToken);
+
+    /// <summary>Waits until the advisory lock has been acquired.</summary>
+    public Task WaitForAcquiredAsync(CancellationToken cancellationToken) =>
+        _acquired.Task.WaitAsync(cancellationToken);
+
+    /// <summary>Allows the mutation holding the advisory lock to continue.</summary>
+    public void Release() => _release.TrySetResult();
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        RecordAttempt(command);
+        return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override async ValueTask<int> NonQueryExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        int result,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsAdvisoryLock(command))
+        {
+            _acquired.TrySetResult();
+            await _release.Task.WaitAsync(cancellationToken);
+        }
+
+        return await base.NonQueryExecutedAsync(
+            command,
+            eventData,
+            result,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        RecordAttempt(command);
+        return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsAdvisoryLock(command))
+        {
+            _acquired.TrySetResult();
+            await _release.Task.WaitAsync(cancellationToken);
+        }
+
+        return await base.ReaderExecutedAsync(
+            command,
+            eventData,
+            result,
+            cancellationToken);
+    }
+
+    private void RecordAttempt(DbCommand command)
+    {
+        if (IsAdvisoryLock(command))
+        {
+            _attempted.TrySetResult();
+        }
+    }
+
+    private static bool IsAdvisoryLock(DbCommand command) =>
+        command.CommandText.Contains("pg_advisory_xact_lock", StringComparison.Ordinal);
 }
 
 /// <summary>

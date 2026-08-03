@@ -18,6 +18,7 @@ public class SeasonEntityConfiguration : IEntityTypeConfiguration<SeasonEntity>
         builder.HasKey(e => e.SeasonId);
         builder.Property(e => e.SeasonId)
             .ValueGeneratedOnAdd();
+        builder.HasAlternateKey(e => new { e.SeasonId, e.ClubId });
 
         builder
             .HasOne(e => e.Club)
@@ -26,5 +27,8 @@ public class SeasonEntityConfiguration : IEntityTypeConfiguration<SeasonEntity>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(e => new { e.ClubId, e.Name }).IsUnique();
+        builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
+            .IsUnique()
+            .HasFilter("\"CreationOperationId\" IS NOT NULL");
     }
 }

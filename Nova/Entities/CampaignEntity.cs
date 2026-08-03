@@ -12,6 +12,22 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     /// Gets or sets the Campaign Id.
     /// </summary>
     public long CampaignId { get; set; } = default;
+
+    /// <summary>
+    /// Gets or sets the caller-generated identifier for the logical campaign creation operation.
+    /// </summary>
+    public Guid? CreationOperationId { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether campaign creation also created its season in the same transaction.
+    /// </summary>
+    public bool SeasonCreatedInline { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Active-player count returned when the campaign was originally created.
+    /// </summary>
+    public int InitialEnrolledPlayerCount { get; set; }
+
     /// <summary>
     /// Gets or sets the Name.
     /// </summary>

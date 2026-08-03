@@ -22,6 +22,11 @@ public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEnti
         builder.Property(e => e.Status)
             .IsConcurrencyToken();
         builder.HasAlternateKey(e => new { e.CampaignId, e.ClubId });
+        builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
+            .IsUnique()
+            .HasFilter("\"CreationOperationId\" IS NOT NULL");
+        builder.HasIndex(e => new { e.ClubId, e.SeasonId, e.Name })
+            .IsUnique();
 
         var statusColumn = $"\"{nameof(CampaignEntity.Status)}\"";
         var closedAtColumn = $"\"{nameof(CampaignEntity.ClosedAt)}\"";
@@ -42,7 +47,8 @@ public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEnti
         builder
             .HasOne(e => e.Season)
             .WithMany(s => s.Campaigns)
-            .HasForeignKey(e => e.SeasonId)
+            .HasPrincipalKey(s => new { s.SeasonId, s.ClubId })
+            .HasForeignKey(e => new { e.SeasonId, e.ClubId })
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(e => e.SeasonId);
