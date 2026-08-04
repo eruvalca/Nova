@@ -213,10 +213,10 @@ Suggested executor: sub-agent w/ smaller model
   payloads to `ServiceProblem.ServerError`.
 - [x] Validate success payload invariants without over-constraining legitimate empty states:
   counts are non-negative, returned row count does not exceed the requested/default limit,
-  `TotalCount` is not smaller than returned campaign rows, `TotalSeasonCount` is not smaller than
-  returned season choices, IDs are positive, names are non-whitespace, dates are intrinsically
-  ordered, season groups and campaigns retain the contracted deterministic order, and setup returns
-  at most 100 choices.
+  IDs are positive, names are non-whitespace, dates are intrinsically ordered, season groups and
+  campaigns retain the contracted deterministic order, and setup returns at most 100 choices.
+  Counts and bounded rows are separate reads, so the client tolerates a transiently inconsistent
+  total during concurrent mutations rather than requiring an unsupported provider transaction.
 - [x] Register `ICampaignQueryService` to `HttpCampaignQueryService` in `Nova.Client/Program.cs`.
 - [x] Add `HttpCampaignQueryServiceTests` covering exact list query construction, omitted filters,
   setup route use, successful empty and populated responses, ProblemDetails mapping, and rejection
