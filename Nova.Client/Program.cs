@@ -41,5 +41,6 @@ builder.Services.AddScoped<ITeamRosterService, HttpTeamRosterService>();
 builder.Services.AddScoped<ITeamDetailService, HttpTeamDetailService>();
 builder.Services.AddScoped<IPlayerDetailService, HttpPlayerDetailService>();
 builder.Services.AddScoped<ICampaignCreationService, HttpCampaignCreationService>();
+builder.Services.AddScoped<ICampaignQueryService, HttpCampaignQueryService>();
 
 await builder.Build().RunAsync();
