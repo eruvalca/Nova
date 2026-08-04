@@ -29,6 +29,13 @@ public sealed class CampaignQueryContractTests
     }
 
     [Fact]
+    public void GetCampaignListInput_RejectsEmptyStatus()
+    {
+        var errors = InputValidator.Validate(new GetCampaignListInput { Status = string.Empty });
+        errors.ShouldContainKey(nameof(GetCampaignListInput.Status));
+    }
+
+    [Fact]
     public void GetCampaignListUrl_OmitsInvalidOptionalValues()
     {
         var url = CampaignEndpoints.GetCampaignListUrl(" ", 0);

@@ -58,6 +58,13 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
 
         using var setupResp = await client.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
         setupResp.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var setup = await setupResp.Content.ReadFromJsonAsync<CampaignCreationSetupResult>(cancellationToken);
+        setup.ShouldNotBeNull();
+        setup.TotalSeasonCount.ShouldBe(1);
+        setup.Seasons.Count.ShouldBe(1);
+        setup.Seasons[0].Name.ShouldBe("S");
+        setup.ActivePlayerCount.ShouldBe(0);
+        setup.ActiveTeamCount.ShouldBe(0);
     }
 
     [Fact]
@@ -119,6 +126,13 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         var campaignNames = list.Seasons.SelectMany(s => s.Campaigns).Select(c => c.Name).ToList();
         campaignNames.ShouldNotContain("CA");
         campaignNames.ShouldContain("CB");
+
+        using var setupResp = await memberClient.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
+        setupResp.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var setup = await setupResp.Content.ReadFromJsonAsync<CampaignCreationSetupResult>(cancellationToken);
+        setup.ShouldNotBeNull();
+        setup.Seasons.Select(season => season.Name).ShouldNotContain("SA");
+        setup.Seasons.Select(season => season.Name).ShouldContain("SB");
     }
 
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";

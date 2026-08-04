@@ -95,4 +95,44 @@ public sealed class HttpCampaignQueryServiceTests
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
+
+    [Fact]
+    public async Task GetCampaignListAsync_ReturnsValidationProblem_ForInvalidInput()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK);
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignQueryService(http).GetCampaignListAsync(
+            new GetCampaignListInput { Status = string.Empty, Limit = 0 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        handler.LastRequest.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GetCreationSetupAsync_ReturnsServerError_ForIncorrectSeasonOrdering()
+    {
+        var sample = new CampaignCreationSetupResult
+        {
+            TotalSeasonCount = 2,
+            Seasons =
+            [
+                new CampaignSeasonChoice { SeasonId = 1, Name = "Older", StartDate = new DateOnly(2025, 1, 1) },
+                new CampaignSeasonChoice { SeasonId = 2, Name = "Newer", StartDate = new DateOnly(2026, 1, 1) }
+            ],
+            ActivePlayerCount = 0,
+            ActiveTeamCount = 0
+        };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(sample) };
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignQueryService(http).GetCreationSetupAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
 }

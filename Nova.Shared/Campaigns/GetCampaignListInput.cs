@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Nova.Shared.Validation;
 
 namespace Nova.Shared.Campaigns;
 
@@ -25,7 +26,7 @@ public sealed record GetCampaignListInput
     /// <summary>
     /// Gets the optional status filter, accepting <c>active</c> or <c>closed</c>.
     /// </summary>
-    [RegularExpression("(?i)^(active|closed)$")]
+    [NotWhitespace, RegularExpression("(?i)^(active|closed)$")]
     public string? Status { get; init; }
 
     /// <summary>

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Nova.Shared.Campaigns;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
+using Nova.Shared.Validation;
 
 namespace Nova.Client.Services;
 
@@ -17,6 +18,12 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         GetCampaignListInput input,
         CancellationToken cancellationToken = default)
     {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
+
         using var response = await http.GetAsync(
             CampaignEndpoints.GetCampaignListUrl(input.Status, input.Limit),
             cancellationToken);
@@ -149,8 +156,9 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             return end;
         }
 
-        var name = string.CompareOrdinal(left.Name, right.Name);
-        return name != 0 ? name : right.CampaignId.CompareTo(left.CampaignId);
+        // The server's database collation determines name ordering. Do not reject a
+        // valid response using a client-side ordinal comparison that may differ.
+        return 0;
     }
 
     private static bool IsValidCreationSetup(CampaignCreationSetupResult result)
@@ -161,9 +169,29 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             && result.Seasons.Count <= 100
             && result.ActivePlayerCount >= 0
             && result.ActiveTeamCount >= 0
-            && result.Seasons.All(season =>
-                season.SeasonId > 0
-                && !string.IsNullOrWhiteSpace(season.Name)
-                && season.StartDate != default
-                && (season.EndDate is null || season.EndDate >= season.StartDate));
+            && IsOrderedAndValidSeasons(result.Seasons);
+
+    private static bool IsOrderedAndValidSeasons(IReadOnlyList<CampaignSeasonChoice> seasons)
+    {
+        DateOnly? previousStart = null;
+        long? previousId = null;
+        foreach (var season in seasons)
+        {
+            if (season.SeasonId <= 0
+                || string.IsNullOrWhiteSpace(season.Name)
+                || season.StartDate == default
+                || (season.EndDate is not null && season.EndDate < season.StartDate)
+                || (previousStart is not null
+                    && (season.StartDate > previousStart
+                        || (season.StartDate == previousStart && season.SeasonId >= previousId))))
+            {
+                return false;
+            }
+
+            previousStart = season.StartDate;
+            previousId = season.SeasonId;
+        }
+
+        return true;
+    }
 }
