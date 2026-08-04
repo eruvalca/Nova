@@ -114,7 +114,11 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
             var seasonB = new SeasonEntity { Name = "SB", StartDate = new DateOnly(2026,1,1), ClubId = clubB.ClubId, CreatedById = memberUserId };
             var campaignA = new CampaignEntity { Name = "CA", StartDate = new DateOnly(2026,6,1), Status = CampaignStatus.Active, Season = seasonA, SeasonId = seasonA.SeasonId, ClubId = clubA.ClubId, CreatedById = adminUserId };
                         var campaignB = new CampaignEntity { Name = "CB", StartDate = new DateOnly(2026,6,1), Status = CampaignStatus.Active, Season = seasonB, SeasonId = seasonB.SeasonId, ClubId = clubB.ClubId, CreatedById = memberUserId };
-            context.AddRange(seasonA, seasonB, campaignA, campaignB);
+            var playerA = new PlayerEntity { FirstName = "A", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubA.ClubId, CreatedById = adminUserId };
+            var playerB = new PlayerEntity { FirstName = "B", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubB.ClubId, CreatedById = memberUserId };
+            var teamA = new TeamEntity { Name = "A Team", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubA.ClubId, CreatedById = adminUserId };
+            var teamB = new TeamEntity { Name = "B Team", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubB.ClubId, CreatedById = memberUserId };
+            context.AddRange(seasonA, seasonB, campaignA, campaignB, playerA, playerB, teamA, teamB);
             await context.SaveChangesAsync(cancellationToken);
         }
 
@@ -133,6 +137,8 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         setup.ShouldNotBeNull();
         setup.Seasons.Select(season => season.Name).ShouldNotContain("SA");
         setup.Seasons.Select(season => season.Name).ShouldContain("SB");
+        setup.ActivePlayerCount.ShouldBe(1);
+        setup.ActiveTeamCount.ShouldBe(1);
     }
 
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";

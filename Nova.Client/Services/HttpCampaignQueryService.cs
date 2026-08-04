@@ -80,7 +80,9 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
 
         var rows = result.Seasons.SelectMany(season => season.Campaigns).ToList();
         var limit = requestedLimit ?? GetCampaignListInput.DefaultLimit;
-        if (result.TotalCount < rows.Count || rows.Count > limit || result.TotalCount < 0)
+        // Count and bounded rows are separate reads, so a concurrent mutation may make
+        // the total briefly lag the returned rows; validate bounds without rejecting that state.
+        if (rows.Count > limit || result.TotalCount < 0)
         {
             return false;
         }
@@ -156,15 +158,16 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             return end;
         }
 
-        // The server's database collation determines name ordering. Do not reject a
-        // valid response using a client-side ordinal comparison that may differ.
-        return 0;
+        // The server's database collation determines ordering for different names.
+        // Only apply the portable ID tie-breaker when names are equal.
+        return string.Equals(left.Name, right.Name, StringComparison.Ordinal)
+            ? right.CampaignId.CompareTo(left.CampaignId)
+            : 0;
     }
 
     private static bool IsValidCreationSetup(CampaignCreationSetupResult result)
         => result.Seasons is not null
             && result.Seasons.All(season => season is not null)
-            && result.TotalSeasonCount >= result.Seasons.Count
             && result.TotalSeasonCount >= 0
             && result.Seasons.Count <= 100
             && result.ActivePlayerCount >= 0
