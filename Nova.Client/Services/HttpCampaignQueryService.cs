@@ -68,6 +68,12 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         }
     }
 
+    /// <summary>
+    /// Validates the structural and ordering invariants of a campaign-list success payload.
+    /// </summary>
+    /// <param name="result">The deserialized campaign-list payload.</param>
+    /// <param name="requestedLimit">The optional bound requested by the caller.</param>
+    /// <returns><see langword="true"/> when the payload satisfies the client contract.</returns>
     private static bool IsValidCampaignList(CampaignListResult result, int? requestedLimit)
     {
         if (result.Seasons is null
@@ -120,6 +126,11 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         return true;
     }
 
+    /// <summary>
+    /// Validates one campaign row from a successful response.
+    /// </summary>
+    /// <param name="campaign">The campaign row.</param>
+    /// <returns><see langword="true"/> when all row invariants hold.</returns>
     private static bool IsValidCampaign(CampaignListItem campaign)
         => campaign.CampaignId > 0
             && !string.IsNullOrWhiteSpace(campaign.Name)
@@ -130,6 +141,12 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             && campaign.UnresolvedCount <= campaign.ParticipantCount
             && campaign.Status is CampaignStatus.Active or CampaignStatus.Closed;
 
+    /// <summary>
+    /// Compares adjacent campaign rows using the portable response-order keys.
+    /// </summary>
+    /// <param name="left">The preceding row.</param>
+    /// <param name="right">The following row.</param>
+    /// <returns>A positive value when the rows violate the required order.</returns>
     private static int CompareCampaign(CampaignListItem left, CampaignListItem right)
     {
         var status = left.Status.CompareTo(right.Status);
@@ -165,6 +182,11 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             : 0;
     }
 
+    /// <summary>
+    /// Validates the structural, count, bound, and ordering invariants of setup data.
+    /// </summary>
+    /// <param name="result">The deserialized setup payload.</param>
+    /// <returns><see langword="true"/> when the payload satisfies the client contract.</returns>
     private static bool IsValidCreationSetup(CampaignCreationSetupResult result)
         => result.Seasons is not null
             && result.Seasons.All(season => season is not null)
@@ -174,6 +196,11 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             && result.ActiveTeamCount >= 0
             && IsOrderedAndValidSeasons(result.Seasons);
 
+    /// <summary>
+    /// Validates season choices and their descending start-date and identifier order.
+    /// </summary>
+    /// <param name="seasons">The season choices to validate.</param>
+    /// <returns><see langword="true"/> when all choices and ordering keys are valid.</returns>
     private static bool IsOrderedAndValidSeasons(IReadOnlyList<CampaignSeasonChoice> seasons)
     {
         DateOnly? previousStart = null;

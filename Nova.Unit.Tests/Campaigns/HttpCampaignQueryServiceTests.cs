@@ -8,12 +8,25 @@ using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
 
+/// <summary>
+/// Verifies the WebAssembly campaign query HTTP boundary and payload validation.
+/// </summary>
 public sealed class HttpCampaignQueryServiceTests
 {
+    /// <summary>
+    /// Captures the request and returns a configured response.
+    /// </summary>
+    /// <param name="response">The response returned for every request.</param>
     private sealed class FakeHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
     {
+        /// <summary>Gets the most recently captured request.</summary>
         public HttpRequestMessage? LastRequest { get; private set; }
+        /// <summary>Stores the configured response.</summary>
         private readonly HttpResponseMessage _response = response;
+        /// <summary>Sends the configured response while recording the request.</summary>
+        /// <param name="request">The outgoing request.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>The configured response.</returns>
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             LastRequest = request;
@@ -21,6 +34,7 @@ public sealed class HttpCampaignQueryServiceTests
         }
     }
 
+    /// <summary>Verifies list requests use the shared route and query values.</summary>
     [Fact]
     public async Task GetCampaignListAsync_RequestsSharedRoute_AndRespectsQuery()
     {
@@ -41,6 +55,7 @@ public sealed class HttpCampaignQueryServiceTests
         handler.LastRequest.RequestUri!.Query.ShouldContain("limit=10");
     }
 
+    /// <summary>Verifies an empty successful list body maps to a server error.</summary>
     [Fact]
     public async Task GetCampaignListAsync_ReturnsServerError_ForEmptySuccessPayload()
     {
@@ -53,6 +68,7 @@ public sealed class HttpCampaignQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    /// <summary>Verifies setup requests use the shared route and accept valid payloads.</summary>
     [Fact]
     public async Task GetCreationSetupAsync_UsesSetupRoute_AndValidatesPayload()
     {
@@ -69,6 +85,7 @@ public sealed class HttpCampaignQueryServiceTests
         handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(CampaignEndpoints.GetCreationSetup);
     }
 
+    /// <summary>Verifies non-success ProblemDetails responses retain their problem kind.</summary>
     [Fact]
     public async Task GetCampaignListAsync_ReturnsProblem_FromProblemDetails()
     {
@@ -84,6 +101,7 @@ public sealed class HttpCampaignQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.BadRequest);
     }
 
+    /// <summary>Verifies malformed successful JSON maps to a server error.</summary>
     [Fact]
     public async Task GetCampaignListAsync_ReturnsServerError_ForMalformedJson()
     {
@@ -96,6 +114,7 @@ public sealed class HttpCampaignQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    /// <summary>Verifies invalid input is rejected before an HTTP request is sent.</summary>
     [Fact]
     public async Task GetCampaignListAsync_ReturnsValidationProblem_ForInvalidInput()
     {
@@ -112,6 +131,7 @@ public sealed class HttpCampaignQueryServiceTests
         handler.LastRequest.ShouldBeNull();
     }
 
+    /// <summary>Verifies incorrectly ordered season choices are rejected.</summary>
     [Fact]
     public async Task GetCreationSetupAsync_ReturnsServerError_ForIncorrectSeasonOrdering()
     {
@@ -134,5 +154,144 @@ public sealed class HttpCampaignQueryServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a populated, structurally valid campaign response is accepted.
+    /// </summary>
+    [Fact]
+    public async Task GetCampaignListAsync_AcceptsPopulatedValidPayload()
+    {
+        const string payload = """
+            {"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","endDate":null,
+            "campaigns":[{"campaignId":2,"name":"Campaign","startDate":"2026-06-01",
+            "plannedEndDate":null,"status":0,"participantCount":1,"unresolvedCount":1}]}],"totalCount":1}
+            """;
+
+        var result = await GetCampaignListFromJsonAsync(payload);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies strict list-payload invariants map invalid successful responses to server errors.
+    /// </summary>
+    /// <param name="payload">The invalid successful JSON payload.</param>
+    [Theory]
+    [InlineData("""{"seasons":null,"totalCount":0}""")]
+    [InlineData("""{"seasons":[null],"totalCount":0}""")]
+    [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","campaigns":null}],"totalCount":0}""")]
+    [InlineData("""{"seasons":[],"totalCount":-1}""")]
+    [InlineData("""{"seasons":[{"seasonId":0,"name":"Season","startDate":"2026-01-01","campaigns":[]}],"totalCount":0}""")]
+    [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-02","endDate":"2026-01-01","campaigns":[]}],"totalCount":0}""")]
+    [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","campaigns":[{"campaignId":1,"name":"Campaign","startDate":"2026-06-02","plannedEndDate":"2026-06-01","status":0,"participantCount":0,"unresolvedCount":0}]}],"totalCount":1}""")]
+    [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","campaigns":[{"campaignId":1,"name":"Campaign","startDate":"2026-06-01","status":0,"participantCount":0,"unresolvedCount":1}]}],"totalCount":1}""")]
+    [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","campaigns":[{"campaignId":1,"name":"Older","startDate":"2026-06-01","status":0,"participantCount":0,"unresolvedCount":0},{"campaignId":2,"name":"Newer","startDate":"2026-06-02","status":0,"participantCount":0,"unresolvedCount":0}]}],"totalCount":2}""")]
+    public async Task GetCampaignListAsync_ReturnsServerError_ForInvalidPopulatedPayload(string payload)
+    {
+        var result = await GetCampaignListFromJsonAsync(payload);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a successful response exceeding the requested row bound is rejected.
+    /// </summary>
+    [Fact]
+    public async Task GetCampaignListAsync_ReturnsServerError_ForOverLimitPayload()
+    {
+        const string payload = """
+            {"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","campaigns":[
+            {"campaignId":2,"name":"A","startDate":"2026-06-02","status":0,"participantCount":0,"unresolvedCount":0},
+            {"campaignId":1,"name":"B","startDate":"2026-06-01","status":0,"participantCount":0,"unresolvedCount":0}
+            ]}],"totalCount":2}
+            """;
+
+        var result = await GetCampaignListFromJsonAsync(payload, limit: 1);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies setup responses exceeding the shared season-choice bound are rejected.
+    /// </summary>
+    [Fact]
+    public async Task GetCreationSetupAsync_ReturnsServerError_ForOverLimitChoices()
+    {
+        var sample = new CampaignCreationSetupResult
+        {
+            TotalSeasonCount = CampaignCreationSetupResult.MaxSeasonChoices + 1,
+            Seasons = Enumerable.Range(1, CampaignCreationSetupResult.MaxSeasonChoices + 1)
+                .Select(index => new CampaignSeasonChoice
+                {
+                    SeasonId = CampaignCreationSetupResult.MaxSeasonChoices + 2 - index,
+                    Name = $"Season {index}",
+                    StartDate = new DateOnly(2026, 1, 1)
+                })
+                .ToList(),
+            ActivePlayerCount = 0,
+            ActiveTeamCount = 0
+        };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(sample) };
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignQueryService(http)
+            .GetCreationSetupAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies strict setup-payload invariants map invalid successful responses to server errors.
+    /// </summary>
+    /// <param name="payload">The invalid successful JSON payload.</param>
+    [Theory]
+    [InlineData("""{"seasons":null,"totalSeasonCount":0,"activePlayerCount":0,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":[null],"totalSeasonCount":1,"activePlayerCount":0,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":[],"totalSeasonCount":-1,"activePlayerCount":0,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":[],"totalSeasonCount":0,"activePlayerCount":-1,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":[],"totalSeasonCount":0,"activePlayerCount":0,"activeTeamCount":-1}""")]
+    [InlineData("""{"seasons":[{"seasonId":0,"name":"Season","startDate":"2026-01-01"}],"totalSeasonCount":1,"activePlayerCount":0,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-02","endDate":"2026-01-01"}],"totalSeasonCount":1,"activePlayerCount":0,"activeTeamCount":0}""")]
+    public async Task GetCreationSetupAsync_ReturnsServerError_ForInvalidPayload(string payload)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignQueryService(http)
+            .GetCreationSetupAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Executes the list client against a supplied successful JSON response.
+    /// </summary>
+    /// <param name="payload">The response JSON.</param>
+    /// <param name="limit">The optional requested result bound.</param>
+    /// <returns>The client result.</returns>
+    private static async Task<ServiceResult<CampaignListResult>> GetCampaignListFromJsonAsync(
+        string payload,
+        int? limit = null)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        return await new HttpCampaignQueryService(http).GetCampaignListAsync(
+            new GetCampaignListInput { Limit = limit },
+            TestContext.Current.CancellationToken);
     }
 }

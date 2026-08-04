@@ -11,28 +11,47 @@ using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
 
+/// <summary>
+/// Creates read contexts backed by the shared tenancy test harness.
+/// </summary>
+/// <param name="harness">The shared SQLite tenancy harness.</param>
 file sealed class CampaignReadHarnessDbContextFactory(TenancyTestHarness harness) : IDbContextFactory<NovaReadDbContext>
 {
+    /// <summary>Creates a synchronous read context.</summary>
+    /// <returns>A tenant-filtered read context.</returns>
     public NovaReadDbContext CreateDbContext() => harness.CreateReadContext();
+    /// <summary>Creates an asynchronous read context.</summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A tenant-filtered read context.</returns>
     public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(harness.CreateReadContext());
 }
 
+/// <summary>
+/// Verifies tenant-safe campaign query service behavior.
+/// </summary>
 public sealed class CampaignQueryServiceTests : IDisposable
 {
+    /// <summary>Identifies the primary test club.</summary>
     private const long ClubAId = 1000;
+    /// <summary>Identifies the isolated second test club.</summary>
     private const long ClubBId = 2000;
+    /// <summary>Identifies the approved primary-club member.</summary>
     private const long ClubAMemberId = 1001;
 
+    /// <summary>Provides the shared SQLite database and current-user context.</summary>
     private readonly TenancyTestHarness _harness = new();
 
+    /// <summary>Initializes a test instance with cross-tenant campaign data.</summary>
     public CampaignQueryServiceTests()
     {
         Seed();
     }
 
+    /// <summary>Releases the tenancy harness.</summary>
     public void Dispose() => _harness.Dispose();
 
+    /// <summary>Seeds campaigns, lifecycle data, and assignments for both clubs.</summary>
     private void Seed()
     {
         using var admin = _harness.CreateAdminContext();
@@ -67,6 +86,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         admin.SaveChanges();
     }
 
+    /// <summary>Verifies list queries reject callers without approved membership.</summary>
     [Fact]
     public async Task GetCampaignList_ReturnsForbidden_WhenNotMember()
     {
@@ -83,6 +103,27 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
+    /// <summary>
+    /// Verifies creation setup retains its service-layer membership guard.
+    /// </summary>
+    /// <summary>Verifies count-before-bound behavior, tenant isolation, and assignment counts.</summary>
+    [Fact]
+    public async Task GetCreationSetup_ReturnsForbidden_WhenNotMember()
+    {
+        _harness.CurrentUser.UserId = null;
+        _harness.CurrentUser.ClubId = null;
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCreationSetupAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    /// <summary>Verifies status filtering is case-insensitive.</summary>
     [Fact]
     public async Task GetCampaignList_TotalCountIsBeforeLimit_AndTenantIsolated()
     {
@@ -104,6 +145,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         rows[0].UnresolvedCount.ShouldBe(1);
     }
 
+    /// <summary>Verifies setup returns tenant seasons and active lifecycle counts.</summary>
     [Fact]
     public async Task GetCampaignList_StatusFiltering_IsCaseInsensitive()
     {
@@ -121,6 +163,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         rows.ShouldAllBe(r => r.Status == CampaignStatus.Closed);
     }
 
+    /// <summary>Verifies setup returns the newest bounded choices and the pre-bound total.</summary>
     [Fact]
     public async Task GetCreationSetup_ReturnsSeasonAndActiveCounts()
     {
@@ -140,6 +183,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Value.ActiveTeamCount.ShouldBe(1);
     }
 
+    /// <summary>Verifies campaign rows follow the contracted deterministic keys.</summary>
     [Fact]
     public async Task GetCreationSetup_ReturnsNewestHundredSeasons_AndTotalBeforeBound()
     {
@@ -222,6 +266,16 @@ public sealed class CampaignQueryServiceTests : IDisposable
                 },
                 new CampaignEntity
                 {
+                    Name = "Earlier End",
+                    StartDate = sameDate,
+                    EndDate = sameEnd.AddDays(-1),
+                    Status = CampaignStatus.Active,
+                    SeasonId = season.SeasonId,
+                    ClubId = ClubAId,
+                    CreatedById = ClubAMemberId
+                },
+                new CampaignEntity
+                {
                     Name = "A",
                     StartDate = sameDate,
                     EndDate = sameEnd,
@@ -266,7 +320,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         var rows = result.Value.Seasons
             .Single(season => season.Name == "Ordering Season")
             .Campaigns;
-        rows.Select(campaign => campaign.Name).Take(5)
-            .ShouldBe(["Later", "A", "Z", "Open", "Closed"]);
+        rows.Select(campaign => campaign.Name).Take(6)
+            .ShouldBe(["Later", "A", "Z", "Earlier End", "Open", "Closed"]);
     }
 }

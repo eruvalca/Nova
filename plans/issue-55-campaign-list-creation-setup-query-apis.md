@@ -100,7 +100,7 @@ Suggested executor: sub-agent w/ smaller model
 
 ### Verification Plan
 
-- `dotnet test --project Nova.Unit.Tests --filter-class "*GetCampaignListInput*" --filter-class "*CampaignEndpoints*"` — discovers the new contract tests and all discovered tests pass.
+- `dotnet test --project Nova.Unit.Tests --filter-class "*CampaignQueryContractTests"` — discovers the new contract tests and all discovered tests pass.
 - `dotnet build Nova.Shared/Nova.Shared.csproj` — succeeds with no errors.
 
 ### Phase Summary
@@ -256,7 +256,7 @@ Suggested executor: sub-agent w/ smaller model
 
 ### Verification Plan
 
-- `dotnet test --project Nova.Unit.Tests --filter-class "*GetCampaignListInput*" --filter-class "*CampaignEndpoints*" --filter-class "*CampaignQueryServiceTests" --filter-class "*HttpCampaignQueryServiceTests"` — all focused unit tests are discovered and pass.
+- `dotnet test --project Nova.Unit.Tests --filter-class "*CampaignQueryContractTests" --filter-class "*CampaignQueryServiceTests" --filter-class "*HttpCampaignQueryServiceTests"` — all focused unit tests are discovered and pass.
 - `dotnet test --project Nova.Integration.Tests --filter-class "*CampaignQueryHttpTests"` — all focused HTTP tests are discovered and pass.
 - `dotnet test --project Nova.Unit.Tests` — the complete unit suite passes.
 - `dotnet test --project Nova.Integration.Tests` — the complete Aspire/PostgreSQL integration suite passes.
@@ -265,7 +265,7 @@ Suggested executor: sub-agent w/ smaller model
 
 ### Phase Summary
 
-Focused campaign tests pass (13 unit, 3 integration), the full delegated suites pass (791 unit,
+Focused campaign tests pass (46 unit, 5 integration), the full delegated suites pass (791 unit,
 135 integration), the solution build succeeds, and `git diff --check` is clean. Existing NuGet
 vulnerability warnings remain unrelated to this change.
 

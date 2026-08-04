@@ -153,6 +153,11 @@ public sealed partial class CampaignQueryService(
         };
     }
 
+    /// <summary>
+    /// Resolves the approved caller's current club identifier.
+    /// </summary>
+    /// <param name="clubId">The current club identifier when available.</param>
+    /// <returns><see langword="true"/> when both user and club context are present.</returns>
     private bool TryGetClubId(out long clubId)
     {
         if (currentUserProvider.UserId is long && currentUserProvider.ClubId is long currentClubId)
@@ -165,18 +170,32 @@ public sealed partial class CampaignQueryService(
         return false;
     }
 
+    /// <summary>
+    /// Holds the flat SQL projection used before grouping campaign rows by season.
+    /// </summary>
     private sealed class CampaignListProjection
     {
+        /// <summary>Gets the campaign identifier.</summary>
         public long CampaignId { get; init; }
+        /// <summary>Gets the campaign name.</summary>
         public required string CampaignName { get; init; }
+        /// <summary>Gets the campaign start date.</summary>
         public DateOnly CampaignStartDate { get; init; }
+        /// <summary>Gets the optional planned end date.</summary>
         public DateOnly? CampaignPlannedEndDate { get; init; }
+        /// <summary>Gets the campaign lifecycle status.</summary>
         public CampaignStatus CampaignStatus { get; init; }
+        /// <summary>Gets the season identifier.</summary>
         public long SeasonId { get; init; }
+        /// <summary>Gets the season name.</summary>
         public required string SeasonName { get; init; }
+        /// <summary>Gets the season start date.</summary>
         public DateOnly SeasonStartDate { get; init; }
+        /// <summary>Gets the optional season end date.</summary>
         public DateOnly? SeasonEndDate { get; init; }
+        /// <summary>Gets the persisted participant count.</summary>
         public int ParticipantCount { get; init; }
+        /// <summary>Gets the unresolved participant count.</summary>
         public int UnresolvedCount { get; init; }
     }
 
