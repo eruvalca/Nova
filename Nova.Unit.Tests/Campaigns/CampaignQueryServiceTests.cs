@@ -55,10 +55,13 @@ public sealed class CampaignQueryServiceTests : IDisposable
         var playerA = new PlayerEntity { FirstName = "P1", LastName = "One", DateOfBirth = new DateOnly(2010,1,1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
         var playerArchived = new PlayerEntity { FirstName = "P2", LastName = "Two", DateOfBirth = new DateOnly(2010,1,1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Archived, ClubId = ClubAId, CreatedById = ClubAMemberId, ArchivedAt = DateTimeOffset.UtcNow, ArchivedById = ClubAMemberId };
         admin.Players.AddRange(playerA, playerArchived);
+        admin.Teams.AddRange(
+            new TeamEntity { Name = "Active Team", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId },
+            new TeamEntity { Name = "Archived Team", GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Archived, ClubId = ClubAId, CreatedById = ClubAMemberId, ArchivedAt = DateTimeOffset.UtcNow, ArchivedById = ClubAMemberId });
         admin.SaveChanges();
 
         admin.PlayerCampaignAssignments.AddRange(
-            new PlayerCampaignAssignmentEntity { PlayerId = playerA.PlayerId, CampaignId = campaignA.CampaignId, ClubId = ClubAId, CreatedById = ClubAMemberId },
+            new PlayerCampaignAssignmentEntity { PlayerId = playerA.PlayerId, CampaignId = campaignA.CampaignId, ClubId = ClubAId, CreatedById = ClubAMemberId, PlacementOutcome = PlacementOutcome.NotSelected },
             new PlayerCampaignAssignmentEntity { PlayerId = playerArchived.PlayerId, CampaignId = campaignA.CampaignId, ClubId = ClubAId, CreatedById = ClubAMemberId, PlacementOutcome = PlacementOutcome.Undecided }
         );
         admin.SaveChanges();
@@ -97,7 +100,8 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Value.TotalCount.ShouldBe(2); // two campaigns seeded for club A
         var rows = result.Value.Seasons.SelectMany(s => s.Campaigns).ToList();
         rows.Count.ShouldBe(1); // bounded to limit
-        rows[0].ParticipantCount.ShouldBeGreaterThanOrEqualTo(1);
+        rows[0].ParticipantCount.ShouldBe(2);
+        rows[0].UnresolvedCount.ShouldBe(1);
     }
 
     [Fact]
@@ -132,7 +136,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.IsSuccess.ShouldBeTrue();
         result.Value.TotalSeasonCount.ShouldBeGreaterThanOrEqualTo(1);
         result.Value.Seasons.Count.ShouldBeGreaterThanOrEqualTo(1);
-        result.Value.ActivePlayerCount.ShouldBeGreaterThanOrEqualTo(1);
-        result.Value.ActiveTeamCount.ShouldBeGreaterThanOrEqualTo(0);
+        result.Value.ActivePlayerCount.ShouldBe(1);
+        result.Value.ActiveTeamCount.ShouldBe(1);
     }
 }

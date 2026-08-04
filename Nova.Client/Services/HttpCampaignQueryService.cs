@@ -63,6 +63,14 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
 
     private static bool IsValidCampaignList(CampaignListResult result, int? requestedLimit)
     {
+        if (result.Seasons is null
+            || result.Seasons.Any(season => season is null
+                || season.Campaigns is null
+                || season.Campaigns.Any(campaign => campaign is null)))
+        {
+            return false;
+        }
+
         var rows = result.Seasons.SelectMany(season => season.Campaigns).ToList();
         var limit = requestedLimit ?? GetCampaignListInput.DefaultLimit;
         if (result.TotalCount < rows.Count || rows.Count > limit || result.TotalCount < 0)
@@ -107,7 +115,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         => campaign.CampaignId > 0
             && !string.IsNullOrWhiteSpace(campaign.Name)
             && campaign.StartDate != default
-            && campaign.PlannedEndDate >= campaign.StartDate
+            && (campaign.PlannedEndDate is null || campaign.PlannedEndDate >= campaign.StartDate)
             && campaign.ParticipantCount >= 0
             && campaign.UnresolvedCount >= 0
             && campaign.UnresolvedCount <= campaign.ParticipantCount
@@ -146,7 +154,9 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
     }
 
     private static bool IsValidCreationSetup(CampaignCreationSetupResult result)
-        => result.TotalSeasonCount >= result.Seasons.Count
+        => result.Seasons is not null
+            && result.Seasons.All(season => season is not null)
+            && result.TotalSeasonCount >= result.Seasons.Count
             && result.TotalSeasonCount >= 0
             && result.Seasons.Count <= 100
             && result.ActivePlayerCount >= 0
@@ -155,5 +165,5 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
                 season.SeasonId > 0
                 && !string.IsNullOrWhiteSpace(season.Name)
                 && season.StartDate != default
-                && season.EndDate >= season.StartDate);
+                && (season.EndDate is null || season.EndDate >= season.StartDate));
 }

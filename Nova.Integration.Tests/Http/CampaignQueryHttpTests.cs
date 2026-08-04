@@ -25,12 +25,22 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         {
             anonResp.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
+        using (var anonResp = await anonymous.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken))
+        {
+            anonResp.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        }
+
+        using var adminClient = fixture.CreateNovaHttpClient();
+        var adminEmail = UniqueEmail("campaign-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
+        await UpdateUserAsync(adminEmail, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(adminClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
         using var client = fixture.CreateNovaHttpClient();
         var email = UniqueEmail("campaign-member");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
-        await UpdateUserAsync(email, clubId: null, cancellationToken);
-        var club = await CreateClubAsync(client, cancellationToken);
+        await UpdateUserAsync(email, club.ClubId, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         // Seed a season and campaign
@@ -64,7 +74,8 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         using var response = await client.GetAsync($"{CampaignEndpoints.GetCampaignList}?status=bogus&limit=0", cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var doc = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
-        doc.RootElement.TryGetProperty("traceId", out var traceProp).ShouldBeTrue();
+        doc.ShouldNotBeNull();
+        doc.RootElement.TryGetProperty("traceId", out _).ShouldBeTrue();
     }
 
     [Fact]
