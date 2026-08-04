@@ -139,4 +139,134 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Value.ActivePlayerCount.ShouldBe(1);
         result.Value.ActiveTeamCount.ShouldBe(1);
     }
+
+    [Fact]
+    public async Task GetCreationSetup_ReturnsNewestHundredSeasons_AndTotalBeforeBound()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        using (var admin = _harness.CreateAdminContext())
+        {
+            admin.Seasons.AddRange(Enumerable.Range(1, 101).Select(index => new SeasonEntity
+            {
+                Name = $"Bounded Season {index}",
+                StartDate = new DateOnly(2027, 1, 1),
+                ClubId = ClubAId,
+                CreatedById = ClubAMemberId
+            }));
+            admin.SaveChanges();
+        }
+
+        using var verification = _harness.CreateAdminContext();
+        var expectedIds = verification.Seasons
+            .Where(season => season.ClubId == ClubAId && season.StartDate == new DateOnly(2027, 1, 1))
+            .OrderByDescending(season => season.StartDate)
+            .ThenByDescending(season => season.SeasonId)
+            .Select(season => season.SeasonId)
+            .ToList();
+
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCreationSetupAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.TotalSeasonCount.ShouldBe(102);
+        result.Value.Seasons.Count.ShouldBe(CampaignCreationSetupResult.MaxSeasonChoices);
+        result.Value.Seasons.Select(season => season.SeasonId)
+            .ShouldBe(expectedIds.Take(CampaignCreationSetupResult.MaxSeasonChoices));
+    }
+
+    [Fact]
+    public async Task GetCampaignList_OrdersCampaignsByContractedKeys()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        using (var admin = _harness.CreateAdminContext())
+        {
+            var season = new SeasonEntity
+            {
+                Name = "Ordering Season",
+                StartDate = new DateOnly(2027, 1, 1),
+                ClubId = ClubAId,
+                CreatedById = ClubAMemberId
+            };
+            admin.Seasons.Add(season);
+            admin.SaveChanges();
+
+            var sameDate = new DateOnly(2027, 6, 1);
+            var sameEnd = new DateOnly(2027, 6, 20);
+            admin.Campaigns.AddRange(
+                new CampaignEntity
+                {
+                    Name = "Later",
+                    StartDate = new DateOnly(2027, 6, 2),
+                    Status = CampaignStatus.Active,
+                    SeasonId = season.SeasonId,
+                    ClubId = ClubAId,
+                    CreatedById = ClubAMemberId
+                },
+                new CampaignEntity
+                {
+                    Name = "Z",
+                    StartDate = sameDate,
+                    EndDate = sameEnd,
+                    Status = CampaignStatus.Active,
+                    SeasonId = season.SeasonId,
+                    ClubId = ClubAId,
+                    CreatedById = ClubAMemberId
+                },
+                new CampaignEntity
+                {
+                    Name = "A",
+                    StartDate = sameDate,
+                    EndDate = sameEnd,
+                    Status = CampaignStatus.Active,
+                    SeasonId = season.SeasonId,
+                    ClubId = ClubAId,
+                    CreatedById = ClubAMemberId
+                },
+                new CampaignEntity
+                {
+                    Name = "Open",
+                    StartDate = sameDate,
+                    Status = CampaignStatus.Active,
+                    SeasonId = season.SeasonId,
+                    ClubId = ClubAId,
+                    CreatedById = ClubAMemberId
+                },
+                new CampaignEntity
+                {
+                    Name = "Closed",
+                    StartDate = sameDate,
+                    Status = CampaignStatus.Closed,
+                    ClosedAt = DateTimeOffset.UtcNow,
+                    ClosedById = ClubAMemberId,
+                    SeasonId = season.SeasonId,
+                    ClubId = ClubAId,
+                    CreatedById = ClubAMemberId
+                });
+            admin.SaveChanges();
+        }
+
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCampaignListAsync(
+            new GetCampaignListInput { Limit = 100 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        var rows = result.Value.Seasons
+            .Single(season => season.Name == "Ordering Season")
+            .Campaigns;
+        rows.Select(campaign => campaign.Name).Take(5)
+            .ShouldBe(["Later", "A", "Z", "Open", "Closed"]);
+    }
 }

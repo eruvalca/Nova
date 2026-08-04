@@ -32,6 +32,11 @@ public sealed record CampaignSeasonChoice
 public sealed record CampaignCreationSetupResult
 {
     /// <summary>
+    /// Gets the maximum number of season choices returned by the setup endpoint.
+    /// </summary>
+    public const int MaxSeasonChoices = 100;
+
+    /// <summary>
     /// Gets the newest tenant seasons returned as choices.
     /// </summary>
     public required IReadOnlyList<CampaignSeasonChoice> Seasons { get; init; }

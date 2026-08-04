@@ -19,8 +19,6 @@ public sealed partial class CampaignQueryService(
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignQueryService> logger) : ICampaignQueryService
 {
-    private const int MaxSeasonChoices = 100;
-
     /// <inheritdoc />
     public async Task<ServiceResult<CampaignListResult>> GetCampaignListAsync(
         GetCampaignListInput input,
@@ -132,7 +130,7 @@ public sealed partial class CampaignQueryService(
         var seasons = await seasonsQuery
             .OrderByDescending(season => season.StartDate)
             .ThenByDescending(season => season.SeasonId)
-            .Take(MaxSeasonChoices)
+            .Take(CampaignCreationSetupResult.MaxSeasonChoices)
             .Select(season => new CampaignSeasonChoice
             {
                 SeasonId = season.SeasonId,

@@ -169,7 +169,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         => result.Seasons is not null
             && result.Seasons.All(season => season is not null)
             && result.TotalSeasonCount >= 0
-            && result.Seasons.Count <= 100
+            && result.Seasons.Count <= CampaignCreationSetupResult.MaxSeasonChoices
             && result.ActivePlayerCount >= 0
             && result.ActiveTeamCount >= 0
             && IsOrderedAndValidSeasons(result.Seasons);

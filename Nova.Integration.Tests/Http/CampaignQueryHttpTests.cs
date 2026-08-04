@@ -68,6 +68,23 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
+    public async Task GetEndpoints_ReturnForbidden_ForAuthenticatedUserWithoutClub()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("campaign-no-club");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        using var listResponse = await client.GetAsync(CampaignEndpoints.GetCampaignList, cancellationToken);
+        listResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        using var setupResponse = await client.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
+        setupResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task GetCampaigns_InvalidStatusOrLimit_ReturnsValidationProblem_WithTraceId()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
