@@ -38,7 +38,7 @@ public sealed class HttpPlayerServiceTests
                     DisplayName = "Alex Archer",
                     GraduationYear = 2031,
                     LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Archived,
-                    CurrentTags = [],
+                    CurrentTags = [new PlayerRosterTagItem(17, "Speed", "#001122")],
                     ActiveCampaigns = [],
                     JoinedAt = new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)
                 }
@@ -301,6 +301,35 @@ public sealed class HttpPlayerServiceTests
                 LifecycleStatus = "archived",
                 GraduationYear = 2031
             },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies every returned row contains the requested active-campaign tag.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenRowDoesNotMatchTagFilter()
+    {
+        var player = CreatePlayer(
+            10,
+            "Alex Archer",
+            new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)) with
+        {
+            CurrentTags = [new PlayerRosterTagItem(18, "Other Tag", "#001122")]
+        };
+        var payload = new PagedResult<PlayerListItem>([player], Page: 1, PageSize: 20, TotalCount: 1);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42, PlayerTagId = 17 },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();

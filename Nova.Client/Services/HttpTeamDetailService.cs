@@ -51,6 +51,7 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && detail.IsPlacementHistoryTruncated
                 == (detail.PlacementHistoryTotalCount > TeamDetailDto.MaxPlacementHistoryItems)
             && detail.PlacementHistory.All(IsValidPlacement)
+            && IsPlacementHistoryOrdered(detail.PlacementHistory)
             && detail.ActivePlacementImpacts.SequenceEqual(
                 detail.PlacementHistory.Where(placement =>
                     placement.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active));
@@ -71,4 +72,34 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && placement.PlayerId > 0
             && !string.IsNullOrWhiteSpace(placement.PlayerDisplayName)
             && placement.PlacementOutcome == Nova.Shared.Enums.PlacementOutcome.Assigned;
+
+    /// <summary>
+    /// Validates the portable leading keys and identifier tie-breaker of placement-history ordering.
+    /// </summary>
+    /// <param name="placements">The bounded placement-history rows.</param>
+    /// <returns><see langword="true"/> when adjacent rows retain the contracted portable order.</returns>
+    private static bool IsPlacementHistoryOrdered(IReadOnlyList<TeamPlacementImpactDto> placements)
+        => placements.Zip(placements.Skip(1)).All(pair =>
+        {
+            if (pair.First.CampaignStatus != pair.Second.CampaignStatus)
+            {
+               return pair.First.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active;
+            }
+
+            if (pair.First.CampaignStartDate != pair.Second.CampaignStartDate)
+            {
+               return pair.First.CampaignStartDate > pair.Second.CampaignStartDate;
+            }
+
+            if (pair.First.CampaignId != pair.Second.CampaignId)
+            {
+               return pair.First.CampaignId > pair.Second.CampaignId;
+            }
+
+            return !string.Equals(
+                   pair.First.PlayerDisplayName,
+                   pair.Second.PlayerDisplayName,
+                   StringComparison.Ordinal)
+               || pair.First.PlayerId < pair.Second.PlayerId;
+        });
 }

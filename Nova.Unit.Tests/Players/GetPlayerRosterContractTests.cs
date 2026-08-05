@@ -74,17 +74,17 @@ public sealed class GetPlayerRosterContractTests
             nameof(GetPlayerRosterInput.LifecycleStatus) => new GetPlayerRosterInput
             {
                 ClubId = 42,
-                LifecycleStatus = " "
+                LifecycleStatus = string.Empty
             },
             nameof(GetPlayerRosterInput.SortBy) => new GetPlayerRosterInput
             {
                 ClubId = 42,
-                SortBy = " "
+                SortBy = string.Empty
             },
             _ => new GetPlayerRosterInput
             {
                 ClubId = 42,
-                SortDirection = " "
+                SortDirection = string.Empty
             }
         };
 

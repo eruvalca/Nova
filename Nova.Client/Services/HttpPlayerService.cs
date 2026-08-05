@@ -58,6 +58,7 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
                 expectedPageSize,
                 expectedLifecycleStatus,
                 input.GraduationYear,
+                input.PlayerTagId,
                 expectedSortBy,
                 expectedSortDirection),
             cancellationToken);
@@ -71,6 +72,7 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
     /// <param name="expectedPageSize">The page size requested by the caller.</param>
     /// <param name="expectedLifecycleStatus">The lifecycle filter applied by the server.</param>
     /// <param name="expectedGraduationYear">The optional exact graduation-year filter.</param>
+    /// <param name="expectedPlayerTagId">The optional active-campaign tag filter.</param>
     /// <param name="expectedSortBy">The effective sort field requested by the caller.</param>
     /// <param name="expectedSortDirection">The effective sort direction requested by the caller.</param>
     /// <returns><see langword="true"/> when the roster is structurally valid.</returns>
@@ -83,6 +85,7 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
         int expectedPageSize,
         LifecycleStatus expectedLifecycleStatus,
         int? expectedGraduationYear,
+        long? expectedPlayerTagId,
         string expectedSortBy,
         string expectedSortDirection)
         => roster.Items is not null
@@ -93,7 +96,8 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
             && roster.Items.All(player => IsValidPlayer(
                 player,
                 expectedLifecycleStatus,
-                expectedGraduationYear))
+                expectedGraduationYear,
+                expectedPlayerTagId))
             && ArePlayersOrdered(roster.Items, expectedSortBy, expectedSortDirection);
 
     /// <summary>
@@ -132,11 +136,13 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
     /// <param name="player">The player row to validate.</param>
     /// <param name="expectedLifecycleStatus">The lifecycle filter applied by the server.</param>
     /// <param name="expectedGraduationYear">The optional exact graduation-year filter.</param>
+    /// <param name="expectedPlayerTagId">The optional active-campaign tag filter.</param>
     /// <returns><see langword="true"/> when the row is structurally valid.</returns>
     private static bool IsValidPlayer(
         PlayerListItem player,
         LifecycleStatus expectedLifecycleStatus,
-        int? expectedGraduationYear)
+        int? expectedGraduationYear,
+        long? expectedPlayerTagId)
         => player is not null
             && player.PlayerId > 0
             && !string.IsNullOrWhiteSpace(player.DisplayName)
@@ -149,6 +155,8 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
                 && tag.PlayerTagId > 0
                 && !string.IsNullOrWhiteSpace(tag.Name)
                 && !string.IsNullOrWhiteSpace(tag.Color))
+            && (expectedPlayerTagId is null
+                || player.CurrentTags.Any(tag => tag.PlayerTagId == expectedPlayerTagId))
             && player.ActiveCampaigns.All(name => !string.IsNullOrWhiteSpace(name))
             && player.JoinedAt != default;
 }

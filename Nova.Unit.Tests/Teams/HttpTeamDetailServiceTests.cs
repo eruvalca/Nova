@@ -353,6 +353,55 @@ public sealed class HttpTeamDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies placement history retains descending campaign-date ordering.
+    /// </summary>
+    [Fact]
+    public async Task GetTeamDetailAsync_ReturnsServerError_WhenPlacementHistoryIsOutOfOrder()
+    {
+        var older = new TeamPlacementImpactDto(
+            1,
+            2,
+            "Older Campaign",
+            CampaignStatus.Closed,
+            new DateOnly(2025, 1, 1),
+            3,
+            "Player One",
+            2028,
+            null,
+            PlacementOutcome.Assigned);
+        var newer = older with
+        {
+            PlayerCampaignAssignmentId = 2,
+            CampaignId = 3,
+            CampaignName = "Newer Campaign",
+            CampaignStartDate = new DateOnly(2025, 2, 1),
+            PlayerId = 4,
+            PlayerDisplayName = "Player Two"
+        };
+        var payload = new TeamDetailDto(
+            7,
+            8,
+            "U16",
+            2028,
+            LifecycleStatus.Active,
+            [],
+            [older, newer]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
+            7,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies the truncation flag remains consistent with its shared total and bound.
     /// </summary>
     [Fact]

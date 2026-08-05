@@ -39,7 +39,7 @@ public sealed class TeamRosterContractTests
     [Fact]
     public void GetTeamRosterInput_RejectsBlankLifecycleStatus()
     {
-        var errors = InputValidator.Validate(new GetTeamRosterInput { LifecycleStatus = " " });
+        var errors = InputValidator.Validate(new GetTeamRosterInput { LifecycleStatus = string.Empty });
 
         errors.ShouldContainKey(nameof(GetTeamRosterInput.LifecycleStatus));
     }

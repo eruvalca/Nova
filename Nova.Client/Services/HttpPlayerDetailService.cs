@@ -56,7 +56,19 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
                 && history.Notes.All(IsValidNote)
                 && history.TagApplications.All(IsValidTagApplication)
                 && AreNotesOrdered(history.Notes)
-                && AreTagApplicationsOrdered(history.TagApplications));
+                && AreTagApplicationsOrdered(history.TagApplications))
+             && IsCampaignHistoryOrdered(detail.CampaignHistory);
+
+    /// <summary>
+    /// Validates newest-campaign-first history ordering with a campaign identifier tie-breaker.
+    /// </summary>
+    /// <param name="history">The campaign-history rows to validate.</param>
+    /// <returns><see langword="true"/> when adjacent rows retain the contracted order.</returns>
+    private static bool IsCampaignHistoryOrdered(IReadOnlyList<PlayerCampaignHistoryDto> history)
+        => history.Zip(history.Skip(1)).All(pair =>
+            pair.First.CampaignStartDate > pair.Second.CampaignStartDate
+            || (pair.First.CampaignStartDate == pair.Second.CampaignStartDate
+                && pair.First.CampaignId > pair.Second.CampaignId));
 
     /// <summary>
     /// Validates that placement outcome and team presence satisfy the assignment contract.
