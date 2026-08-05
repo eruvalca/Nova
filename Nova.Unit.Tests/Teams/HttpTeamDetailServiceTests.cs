@@ -130,6 +130,28 @@ public sealed class HttpTeamDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies a matching requested identifier does not make a zero response identifier valid.
+    /// </summary>
+    [Fact]
+    public async Task GetTeamDetailAsync_ReturnsServerError_WhenRequestedAndResponseTeamIdsAreZero()
+    {
+        var payload = new TeamDetailDto(0, 9, "U16", 2028, LifecycleStatus.Active, [], []);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
+            0,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies active placement summaries must be Active rows from the returned history.
     /// </summary>
     [Fact]

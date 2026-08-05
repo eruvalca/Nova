@@ -364,10 +364,10 @@ public sealed class HttpPlayerServiceTests
     }
 
     /// <summary>
-    /// Verifies display-name sorting enforces its portable identifier tie-breaker.
+    /// Verifies display-name ties are accepted because the DTO omits the component sort keys.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenDisplayNameTieBreakerIsIncorrect()
+    public async Task GetPlayerRosterAsync_ReturnsRows_WhenDisplayNamesMatchButIdsAreReversed()
     {
         var joinedAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var payload = new PagedResult<PlayerListItem>(
@@ -386,8 +386,8 @@ public sealed class HttpPlayerServiceTests
             new GetPlayerRosterInput { ClubId = 42 },
             TestContext.Current.CancellationToken);
 
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Select(player => player.PlayerId).ShouldBe([2, 1]);
     }
 
     /// <summary>

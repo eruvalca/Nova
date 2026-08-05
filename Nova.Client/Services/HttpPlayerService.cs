@@ -122,11 +122,7 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
                             && pair.First.PlayerId < pair.Second.PlayerId);
             }
 
-            return !string.Equals(
-                    pair.First.DisplayName,
-                    pair.Second.DisplayName,
-                    StringComparison.Ordinal)
-                || pair.First.PlayerId < pair.Second.PlayerId;
+            return true;
         });
     }
 

@@ -134,6 +134,38 @@ public sealed class HttpPlayerDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies a matching requested identifier does not make a zero response identifier valid.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenRequestedAndResponsePlayerIdsAreZero()
+    {
+        var payload = new PlayerDetailDto(
+            0,
+            "Alex",
+            "Athlete",
+            new DateOnly(2010, 2, 3),
+            null,
+            2028,
+            null,
+            LifecycleStatus.Active,
+            [],
+            []);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            0,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies malformed nested team summaries are rejected.
     /// </summary>
     [Fact]

@@ -38,6 +38,7 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
     /// </remarks>
     private static bool IsValidDetail(TeamDetailDto detail, long expectedTeamId)
         => detail is not null
+            && detail.TeamId > 0
             && detail.TeamId == expectedTeamId
             && detail.ClubId > 0
             && !string.IsNullOrWhiteSpace(detail.Name)

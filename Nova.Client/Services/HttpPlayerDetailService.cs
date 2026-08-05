@@ -33,6 +33,7 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
     /// <returns><see langword="true"/> when the detail is structurally valid.</returns>
     private static bool IsValidDetail(PlayerDetailDto detail, long expectedPlayerId)
         => detail is not null
+            && detail.PlayerId > 0
             && detail.PlayerId == expectedPlayerId
             && !string.IsNullOrWhiteSpace(detail.FirstName)
             && !string.IsNullOrWhiteSpace(detail.LastName)
