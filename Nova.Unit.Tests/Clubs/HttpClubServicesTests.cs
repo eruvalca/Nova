@@ -333,10 +333,10 @@ public class HttpClubServicesTests
     }
 
     /// <summary>
-    /// GetCurrentUserPendingRequestAsync rejects a non-pending successful response.
+    /// GetCurrentUserPendingRequestAsync accepts the current user's existing non-pending request.
     /// </summary>
     [Fact]
-    public async Task GetCurrentUserPendingRequestAsync_ReturnsServerError_ForNonPendingResponse()
+    public async Task GetCurrentUserPendingRequestAsync_ReturnsRequest_ForNonPendingResponse()
     {
         var dto = new ClubJoinRequestDto(
             ClubJoinRequestId: 10,
@@ -356,8 +356,8 @@ public class HttpClubServicesTests
         var result = await new HttpClubJoinRequestService(httpClient)
             .GetCurrentUserPendingRequestAsync(TestContext.Current.CancellationToken);
 
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Status.ShouldBe(RequestStatus.Approved);
     }
 
     #endregion
@@ -792,6 +792,28 @@ public class HttpClubServicesTests
     public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenRequestsAreOutOfOrder()
     {
         var requests = new[] { CreateJoinRequest(11), CreateJoinRequest(10) };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(requests)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpClubJoinRequestService(httpClient).GetClubJoinRequestsAsync(
+            5,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// GetClubJoinRequestsAsync rejects non-pending rows from the administrative pending queue.
+    /// </summary>
+    [Fact]
+    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenRequestIsNotPending()
+    {
+        var requests = new[] { CreateJoinRequest(10) with { Status = RequestStatus.Approved } };
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(requests)

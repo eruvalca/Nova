@@ -44,7 +44,9 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
 
         return await response.Content.ReadRequiredJsonAsync<ClubJoinRequestDto>(
             "The server returned an invalid join request response.",
-            request => IsValidJoinRequest(request) && request.ClubId == clubId,
+            request => IsValidJoinRequest(request)
+                && request.Status == RequestStatus.Pending
+                && request.ClubId == clubId,
             cancellationToken);
     }
 
@@ -78,7 +80,9 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
         var result = await response.Content.ReadRequiredJsonAsync<List<ClubJoinRequestDto>>(
             "The server returned an invalid join request list response.",
             requests => requests.All(request =>
-                IsValidJoinRequest(request) && request.ClubId == clubId)
+                IsValidJoinRequest(request)
+                    && request.Status == RequestStatus.Pending
+                    && request.ClubId == clubId)
                 && requests.Zip(requests.Skip(1)).All(pair =>
                     pair.First.ClubJoinRequestId < pair.Second.ClubJoinRequestId),
             cancellationToken);
@@ -129,6 +133,8 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
             && !string.IsNullOrWhiteSpace(request.ClubName)
             && request.RequestingUserId > 0
             && !string.IsNullOrWhiteSpace(request.RequestingUserName)
-            && request.Status == RequestStatus.Pending
+            && request.Status is RequestStatus.Pending
+                or RequestStatus.Approved
+                or RequestStatus.Rejected
             && request.CreatedAt != default;
 }
