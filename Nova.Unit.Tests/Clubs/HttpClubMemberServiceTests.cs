@@ -26,6 +26,27 @@ public class HttpClubMemberServiceTests
     }
 
     /// <summary>
+    /// GetClubMembersAsync accepts a populated member list when each row satisfies the contract.
+    /// </summary>
+    [Fact]
+    public async Task GetClubMembersAsync_ReturnsMembers_WhenSuccessBodyIsValid()
+    {
+        var members = new[] { new ClubMemberDto(7, "Test User") };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(members)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpClubMemberService(httpClient)
+            .GetClubMembersAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe([members[0]]);
+    }
+
+    /// <summary>
     /// GetClubMembersAsync accepts a literal empty JSON array as an empty member list.
     /// </summary>
     [Fact]
@@ -121,6 +142,27 @@ public class HttpClubMemberServiceTests
         // Assert
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// AssignClubAdminAsync accepts an affirmative successful acknowledgement.
+    /// </summary>
+    [Fact]
+    public async Task AssignClubAdminAsync_ReturnsTrue_WhenSuccessBodyIsTrue()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("true", Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var input = new AssignAdminInput { TargetUserId = 99 };
+
+        var result = await new HttpClubMemberService(httpClient)
+            .AssignClubAdminAsync(input, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeTrue();
     }
 
     /// <summary>

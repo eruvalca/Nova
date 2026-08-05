@@ -228,6 +228,49 @@ public sealed class HttpPlayerDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies campaign-history rows reject undefined campaign statuses.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenCampaignStatusIsUndefined()
+    {
+        var history = new PlayerCampaignHistoryDto(
+            11,
+            12,
+            "Spring Tryouts",
+            (CampaignStatus)99,
+            new DateOnly(2025, 3, 1),
+            null,
+            PlacementOutcome.NotSelected,
+            null,
+            [],
+            []);
+        var payload = new PlayerDetailDto(
+            42,
+            "Alex",
+            "Athlete",
+            new DateOnly(2010, 2, 3),
+            null,
+            2028,
+            null,
+            LifecycleStatus.Active,
+            [],
+            [history]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies the client maps unsuccessful responses into <see cref="ServiceProblem"/>.
     /// </summary>
     [Fact]

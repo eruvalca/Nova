@@ -64,6 +64,8 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && placement.PlayerCampaignAssignmentId > 0
             && placement.CampaignId > 0
             && !string.IsNullOrWhiteSpace(placement.CampaignName)
+            && placement.CampaignStatus is Nova.Shared.Enums.CampaignStatus.Active
+                or Nova.Shared.Enums.CampaignStatus.Closed
             && placement.CampaignStartDate != default
             && placement.PlayerId > 0
             && !string.IsNullOrWhiteSpace(placement.PlayerDisplayName)
