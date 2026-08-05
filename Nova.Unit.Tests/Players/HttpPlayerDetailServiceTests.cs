@@ -38,6 +38,26 @@ public sealed class HttpPlayerDetailServiceTests
     [Fact]
     public async Task GetPlayerDetailAsync_ReturnsPlayerDetail_OnSuccess()
     {
+        var tagApplication = new PlayerTagApplicationDto(
+            1,
+            1,
+            "Leadership",
+            "#001122",
+            false,
+            5,
+            "Coach",
+            new DateTimeOffset(2025, 3, 2, 0, 0, 0, TimeSpan.Zero));
+        var activeHistory = new PlayerCampaignHistoryDto(
+            11,
+            12,
+            "Spring Tryouts",
+            CampaignStatus.Active,
+            new DateOnly(2025, 3, 1),
+            null,
+            PlacementOutcome.NotSelected,
+            null,
+            [],
+            [tagApplication]);
         var payload = new PlayerDetailDto(
             PlayerId: 42,
             FirstName: "Alex",
@@ -48,7 +68,7 @@ public sealed class HttpPlayerDetailServiceTests
             JerseyNumber: 11,
             LifecycleStatus: LifecycleStatus.Active,
             CurrentTraits: [new PlayerCurrentTraitDto(1, "Leadership", "#001122")],
-            CampaignHistory: []);
+            CampaignHistory: [activeHistory]);
 
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -67,6 +87,38 @@ public sealed class HttpPlayerDetailServiceTests
         handler.LastRequest.ShouldNotBeNull();
         handler.LastRequest.Method.ShouldBe(HttpMethod.Get);
         handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe("/api/players/42");
+    }
+
+    /// <summary>
+    /// Verifies current traits cannot diverge from active-campaign tag applications.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenCurrentTraitsDoNotMatchHistory()
+    {
+        var payload = new PlayerDetailDto(
+            PlayerId: 42,
+            FirstName: "Alex",
+            LastName: "Athlete",
+            DateOfBirth: new DateOnly(2010, 2, 3),
+            Gender: null,
+            GraduationYear: 2028,
+            JerseyNumber: null,
+            LifecycleStatus: LifecycleStatus.Active,
+            CurrentTraits: [new PlayerCurrentTraitDto(1, "Leadership", "#001122")],
+            CampaignHistory: []);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
     /// <summary>

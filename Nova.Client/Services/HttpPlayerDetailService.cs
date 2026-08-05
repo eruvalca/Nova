@@ -57,7 +57,29 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
                 && history.TagApplications.All(IsValidTagApplication)
                 && AreNotesOrdered(history.Notes)
                 && AreTagApplicationsOrdered(history.TagApplications))
+             && AreCurrentTraitsConsistent(detail)
              && IsCampaignHistoryOrdered(detail.CampaignHistory);
+
+    /// <summary>
+    /// Validates current traits against deduplicated active-campaign tag applications.
+    /// </summary>
+    /// <param name="detail">The player detail payload to validate.</param>
+    /// <returns><see langword="true"/> when current traits exactly match the derived sequence.</returns>
+    private static bool AreCurrentTraitsConsistent(PlayerDetailDto detail)
+    {
+        var expectedTraits = detail.CampaignHistory
+            .Where(history => history.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active)
+            .SelectMany(history => history.TagApplications)
+            .Select(application => new PlayerCurrentTraitDto(
+                application.PlayerTagId,
+                application.TagName,
+                application.TagColor))
+            .Distinct()
+            .OrderBy(trait => trait.Name, StringComparer.Ordinal)
+            .ThenBy(trait => trait.PlayerTagId);
+
+        return detail.CurrentTraits.SequenceEqual(expectedTraits);
+    }
 
     /// <summary>
     /// Validates newest-campaign-first history ordering with a campaign identifier tie-breaker.
