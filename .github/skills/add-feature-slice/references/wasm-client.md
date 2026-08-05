@@ -7,16 +7,29 @@ service in `Nova.Client\Services\Http{Feature}Service.cs`. The service should im
 
 Canonical files:
 
-- `Nova.Client\Services\HttpClubService.cs`
-- `Nova.Shared\Clubs\ClubEndpoints.cs`
-- `Nova.Shared\Clubs\IClubService.cs`
+- `Nova.Client\Services\HttpCampaignCreationService.cs`
+- `Nova.Client\Services\HttpCampaignQueryService.cs`
+- `Nova.Client\Services\HttpSuccessContentExtensions.cs`
+- `Nova.Shared\Campaigns\CampaignEndpoints.cs`
+- `Nova.Shared\Campaigns\ICampaignQueryService.cs`
 
 ## Pattern
 
 - Use endpoint route constants/builders from the shared `{Feature}Endpoints` type so client and server routes stay synchronized.
+- Validate shared input before calling a URL builder that normalizes or omits invalid values; invalid
+  caller input must not silently become a default request.
 - Use `PostAsJsonAsync` / `GetAsync` and pass the `CancellationToken`.
 - On non-success status codes, call `response.ToServiceProblemAsync(cancellationToken)`.
-- On success, deserialize the DTO with `ReadFromJsonAsync<T>(cancellationToken)` and return it.
+- On success, use `ReadRequiredJsonAsync` to deserialize and validate the required body. A
+  successfully deserialized empty collection (`[]`) is valid when the contract permits it. The
+  helper maps an empty body, JSON `null`, malformed JSON, or a contract-invalid payload to
+  `ServiceProblem.ServerError`; never disguise those failures with `[]`, `default`, or `!`.
+- C# `required` checks property presence during deserialization but does not reject explicit JSON
+  `null`; guard required nested collections and elements explicitly.
+- Validate portable protocol invariants such as positive IDs, shared bounds, ordering keys, and count
+  relationships guaranteed by the consistency contract. Do not compare separately queried totals
+  with returned rows, or reproduce database-collated string ordering client-side; an ID tie-breaker
+  remains safe when names are exactly equal.
 - Register the HTTP implementation for WebAssembly DI wherever the feature's client services are registered.
 
 ## Canonical example
@@ -46,8 +59,10 @@ public sealed class HttpClubService(HttpClient http) : IClubService
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
-        return club!;
+        return await response.Content.ReadRequiredJsonAsync<ClubDto>(
+            "The server returned an invalid club response.",
+            club => club.ClubId > 0 && !string.IsNullOrWhiteSpace(club.Name),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -62,8 +77,13 @@ public sealed class HttpClubService(HttpClient http) : IClubService
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var clubs = await response.Content.ReadFromJsonAsync<List<ClubDto>>(cancellationToken);
-        return (clubs ?? []).AsReadOnly();
+        var result = await response.Content.ReadRequiredJsonAsync<List<ClubDto>>(
+            "The server returned an invalid club list response.",
+            clubs => clubs.All(club => club is not null && club.ClubId > 0),
+            cancellationToken);
+        return result.Match<ServiceResult<IReadOnlyList<ClubDto>>>(
+            clubs => clubs.AsReadOnly(),
+            problem => problem);
     }
 }
 ```

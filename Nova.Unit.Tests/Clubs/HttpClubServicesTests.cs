@@ -1,5 +1,6 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using Nova.Client.Services;
 using Nova.Shared.Clubs;
 using Nova.Shared.Enums;
@@ -128,16 +129,18 @@ public class HttpClubServicesTests
     }
 
     /// <summary>
-    /// SearchClubsAsync returns an empty list when deserialization produces null
-    /// (covers the ?? [] guard in the implementation).
+    /// SearchClubsAsync returns a server error when a successful response has an invalid body.
     /// </summary>
-    [Fact]
-    public async Task SearchClubsAsync_ReturnsEmptyList_WhenDeserializationReturnsNull()
+    [Theory]
+    [InlineData("null")]
+    [InlineData("")]
+    [InlineData("{not-json")]
+    public async Task SearchClubsAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("null", System.Text.Encoding.UTF8, "application/json")
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
 
         var handler = new FakeHttpMessageHandler(response);
@@ -148,8 +151,8 @@ public class HttpClubServicesTests
         var result = await service.SearchClubsAsync(null, TestContext.Current.CancellationToken);
 
         // Assert
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.Count.ShouldBe(0);
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
     /// <summary>
@@ -329,6 +332,34 @@ public class HttpClubServicesTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
+    /// <summary>
+    /// GetCurrentUserPendingRequestAsync accepts the current user's existing non-pending request.
+    /// </summary>
+    [Fact]
+    public async Task GetCurrentUserPendingRequestAsync_ReturnsRequest_ForNonPendingResponse()
+    {
+        var dto = new ClubJoinRequestDto(
+            ClubJoinRequestId: 10,
+            ClubId: 5,
+            ClubName: "Liverpool",
+            RequestingUserId: 99,
+            RequestingUserName: "Test User",
+            Status: RequestStatus.Approved,
+            CreatedAt: DateTimeOffset.UtcNow);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(dto)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpClubJoinRequestService(httpClient)
+            .GetCurrentUserPendingRequestAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Status.ShouldBe(RequestStatus.Approved);
+    }
+
     #endregion
 
     #region HttpClubJoinRequestService.CreateJoinRequestAsync Tests
@@ -503,6 +534,335 @@ public class HttpClubServicesTests
         // Assert
         url.ShouldBe(expectedUrl);
     }
+
+    #endregion
+
+    #region Required Success Response Tests
+
+    /// <summary>
+    /// CreateClubAsync returns a server error when a successful response has an invalid body.
+    /// </summary>
+    [Theory]
+    [InlineData("null")]
+    [InlineData("")]
+    [InlineData("{not-json")]
+    public async Task CreateClubAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    {
+        // Arrange
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpClubService(httpClient);
+        var input = new CreateClubInput { Name = "Liverpool", City = "Liverpool", State = "England" };
+
+        // Act
+        var result = await service.CreateClubAsync(input, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// CreateClubAsync returns a server error when the response violates a club invariant.
+    /// </summary>
+    [Fact]
+    public async Task CreateClubAsync_ReturnsServerError_WhenClubInvariantIsInvalid()
+    {
+        // Arrange
+        var club = new ClubDto(0, "Liverpool", "Liverpool", "England");
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(club)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpClubService(httpClient);
+        var input = new CreateClubInput { Name = "Liverpool", City = "Liverpool", State = "England" };
+
+        // Act
+        var result = await service.CreateClubAsync(input, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// SearchClubsAsync accepts a literal empty JSON array as an empty club list.
+    /// </summary>
+    [Fact]
+    public async Task SearchClubsAsync_ReturnsEmptyList_WhenSuccessBodyIsEmptyArray()
+    {
+        // Arrange
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("[]", Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpClubService(httpClient);
+
+        // Act
+        var result = await service.SearchClubsAsync(null, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldNotBeNull();
+        result.Value.Count.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// SearchClubsAsync returns a server error when one club violates a response invariant.
+    /// </summary>
+    [Fact]
+    public async Task SearchClubsAsync_ReturnsServerError_WhenClubElementIsInvalid()
+    {
+        // Arrange
+        var clubs = new[] { new ClubDto(0, "Liverpool", "Liverpool", "England") };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(clubs)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpClubService(httpClient);
+
+        // Act
+        var result = await service.SearchClubsAsync(null, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// GetCurrentUserPendingRequestAsync returns a server error for an invalid successful body.
+    /// </summary>
+    [Theory]
+    [InlineData("null")]
+    [InlineData("")]
+    [InlineData("{not-json")]
+    public async Task GetCurrentUserPendingRequestAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    {
+        // Arrange
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpClubJoinRequestService(httpClient);
+
+        // Act
+        var result = await service.GetCurrentUserPendingRequestAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// GetCurrentUserPendingRequestAsync returns a server error for an invalid request identifier.
+    /// </summary>
+    [Fact]
+    public async Task GetCurrentUserPendingRequestAsync_ReturnsServerError_WhenRequestInvariantIsInvalid()
+    {
+        // Arrange
+        var request = CreateJoinRequest(0);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(request)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpClubJoinRequestService(httpClient);
+
+        // Act
+        var result = await service.GetCurrentUserPendingRequestAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// GetClubJoinRequestsAsync accepts a literal empty JSON array as an empty request list.
+    /// </summary>
+    [Fact]
+    public async Task GetClubJoinRequestsAsync_ReturnsEmptyList_WhenSuccessBodyIsEmptyArray()
+    {
+        // Arrange
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("[]", Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpClubJoinRequestService(httpClient);
+
+        // Act
+        var result = await service.GetClubJoinRequestsAsync(5, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldNotBeNull();
+        result.Value.Count.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// GetClubJoinRequestsAsync returns a server error when a successful response has an invalid body.
+    /// </summary>
+    [Theory]
+    [InlineData("null")]
+    [InlineData("")]
+    [InlineData("{not-json")]
+    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    {
+        // Arrange
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpClubJoinRequestService(httpClient);
+
+        // Act
+        var result = await service.GetClubJoinRequestsAsync(5, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// GetClubJoinRequestsAsync returns a server error when one request violates an invariant.
+    /// </summary>
+    [Fact]
+    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenRequestElementIsInvalid()
+    {
+        // Arrange
+        var requests = new[] { CreateJoinRequest(0) };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(requests)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var service = new HttpClubJoinRequestService(httpClient);
+
+        // Act
+        var result = await service.GetClubJoinRequestsAsync(5, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// GetClubJoinRequestsAsync rejects entries belonging to a different club.
+    /// </summary>
+    [Fact]
+    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenResponseClubIdDoesNotMatch()
+    {
+        var requests = new[] { CreateJoinRequest(10) with { ClubId = 6 } };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(requests)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpClubJoinRequestService(httpClient).GetClubJoinRequestsAsync(
+            5,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// GetClubJoinRequestsAsync rejects rows outside the contracted oldest-first identifier order.
+    /// </summary>
+    [Fact]
+    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenRequestsAreOutOfOrder()
+    {
+        var requests = new[] { CreateJoinRequest(11), CreateJoinRequest(10) };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(requests)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpClubJoinRequestService(httpClient).GetClubJoinRequestsAsync(
+            5,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// GetClubJoinRequestsAsync rejects non-pending rows from the administrative pending queue.
+    /// </summary>
+    [Fact]
+    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenRequestIsNotPending()
+    {
+        var requests = new[] { CreateJoinRequest(10) with { Status = RequestStatus.Approved } };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(requests)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpClubJoinRequestService(httpClient).GetClubJoinRequestsAsync(
+            5,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// CreateJoinRequestAsync rejects a success payload for a different club.
+    /// </summary>
+    [Fact]
+    public async Task CreateJoinRequestAsync_ReturnsServerError_WhenResponseClubIdDoesNotMatch()
+    {
+        var request = CreateJoinRequest(10) with { ClubId = 6 };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(request)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpClubJoinRequestService(httpClient).CreateJoinRequestAsync(
+            5,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Creates an otherwise valid club join request with the specified identifier.
+    /// </summary>
+    private static ClubJoinRequestDto CreateJoinRequest(long requestId) =>
+        new(
+            ClubJoinRequestId: requestId,
+            ClubId: 5,
+            ClubName: "Liverpool",
+            RequestingUserId: 99,
+            RequestingUserName: "Test User",
+            Status: RequestStatus.Pending,
+            CreatedAt: DateTimeOffset.Parse("2026-08-04T12:00:00+00:00"));
 
     #endregion
 }

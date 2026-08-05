@@ -61,5 +61,9 @@ Filter by class with `--filter-class "*Name"`.
 9. For a probe-then-write uniqueness check, inject a conflicting write through an independent
    PostgreSQL context after the probe and assert the database violation maps to `Conflict`.
 10. For `CreatedAtRoute`, assert `201`, exact `Location`, and a successful GET after following it.
-11. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
+11. For strict HTTP clients, test a populated valid body and table-driven malformed/invalid 2xx
+   payloads, including nested nulls, invalid relationships, bounds, and portable ordering.
+12. Exercise each endpoint and query-validation path independently, using the least-privileged
+   permitted role and exact counts for lifecycle or tenancy exclusions.
+13. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
    Repeat `--filter-class` for multiple classes; do not combine class names with `|`.

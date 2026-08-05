@@ -110,7 +110,7 @@ public sealed class HttpCampaignCreationServiceTests
     }
 
     /// <summary>
-    /// Verifies a successful JSON null response exercises the explicit missing-payload guard.
+    /// Verifies a successful JSON null response is rejected as an invalid payload.
     /// </summary>
     [Fact]
     public async Task CreateAsync_ReturnsServerError_ForNullSuccessPayload()
@@ -128,7 +128,7 @@ public sealed class HttpCampaignCreationServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-        result.Problem.Detail.ShouldBe("The server returned an empty campaign creation response.");
+        result.Problem.Detail.ShouldBe("The server returned an invalid campaign creation response.");
     }
 
     /// <summary>

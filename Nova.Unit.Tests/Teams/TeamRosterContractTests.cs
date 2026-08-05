@@ -33,6 +33,17 @@ public sealed class TeamRosterContractTests
         errors.ShouldContainKey(nameof(GetTeamRosterInput.LifecycleStatus));
     }
 
+    /// <summary>
+    /// Verifies an explicitly blank lifecycle status is not treated as omitted.
+    /// </summary>
+    [Fact]
+    public void GetTeamRosterInput_RejectsBlankLifecycleStatus()
+    {
+        var errors = InputValidator.Validate(new GetTeamRosterInput { LifecycleStatus = string.Empty });
+
+        errors.ShouldContainKey(nameof(GetTeamRosterInput.LifecycleStatus));
+    }
+
     [Fact]
     public void GetRosterUrl_OmitsInvalidOptionalValues()
     {

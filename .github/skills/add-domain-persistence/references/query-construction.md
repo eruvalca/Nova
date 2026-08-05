@@ -32,3 +32,13 @@ Prefer preserving the database-returned order after materialization. `TeamDetail
 canonical pattern: campaign-active flag, campaign start date, campaign ID, player display name, and
 player ID are applied before `Take`, and the materialized rows are projected without a second sort
 that could use different collation semantics.
+
+## Count and page consistency
+
+`CountAsync` followed by a bounded projection is two reads. Under normal read-committed behavior,
+concurrent changes can make the total briefly lag the rows. Choose and document one contract:
+
+- Prefer an eventually consistent total for ordinary list/setup reads; validate the bound and
+  non-negative total without assuming `TotalCount >= returned rows`.
+- Use a provider-compatible snapshot only when an atomic count/page pair is a product requirement,
+  not merely to satisfy defensive client validation.

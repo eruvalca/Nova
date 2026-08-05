@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Nova.Shared.Clubs;
+using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using OneOf.Types;
 
@@ -22,8 +23,10 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var dto = await response.Content.ReadFromJsonAsync<ClubJoinRequestDto>(cancellationToken);
-        return dto!;
+        return await response.Content.ReadRequiredJsonAsync<ClubJoinRequestDto>(
+            "The server returned an invalid pending join request response.",
+            IsValidJoinRequest,
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -39,8 +42,12 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var dto = await response.Content.ReadFromJsonAsync<ClubJoinRequestDto>(cancellationToken);
-        return dto!;
+        return await response.Content.ReadRequiredJsonAsync<ClubJoinRequestDto>(
+            "The server returned an invalid join request response.",
+            request => IsValidJoinRequest(request)
+                && request.Status == RequestStatus.Pending
+                && request.ClubId == clubId,
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -70,8 +77,18 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var dtoList = await response.Content.ReadFromJsonAsync<List<ClubJoinRequestDto>>(cancellationToken);
-        return dtoList ?? [];
+        var result = await response.Content.ReadRequiredJsonAsync<List<ClubJoinRequestDto>>(
+            "The server returned an invalid join request list response.",
+            requests => requests.All(request =>
+                IsValidJoinRequest(request)
+                    && request.Status == RequestStatus.Pending
+                    && request.ClubId == clubId)
+                && requests.Zip(requests.Skip(1)).All(pair =>
+                    pair.First.ClubJoinRequestId < pair.Second.ClubJoinRequestId),
+            cancellationToken);
+        return result.Match<ServiceResult<IReadOnlyList<ClubJoinRequestDto>>>(
+            requests => requests.AsReadOnly(),
+            problem => problem);
     }
 
     /// <inheritdoc />
@@ -103,4 +120,21 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
 
         return new Success();
     }
+
+    /// <summary>
+    /// Validates the portable invariants of a club join-request success payload.
+    /// </summary>
+    /// <param name="request">The join request to validate.</param>
+    /// <returns><see langword="true"/> when the request is structurally valid.</returns>
+    private static bool IsValidJoinRequest(ClubJoinRequestDto request)
+        => request is not null
+            && request.ClubJoinRequestId > 0
+            && request.ClubId > 0
+            && !string.IsNullOrWhiteSpace(request.ClubName)
+            && request.RequestingUserId > 0
+            && !string.IsNullOrWhiteSpace(request.RequestingUserName)
+            && request.Status is RequestStatus.Pending
+                or RequestStatus.Approved
+                or RequestStatus.Rejected
+            && request.CreatedAt != default;
 }

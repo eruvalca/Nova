@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Nova.Shared.Validation;
 
 namespace Nova.Shared.Teams;
 
@@ -16,7 +17,7 @@ public sealed record GetTeamRosterInput
     /// <summary>
     /// Gets the optional lifecycle view, which accepts <c>active</c> or <c>archived</c>.
     /// </summary>
-    [RegularExpression("(?i)^(active|archived)$")]
+    [NotWhitespace, RegularExpression("(?i)^(active|archived)$")]
     public string? LifecycleStatus { get; init; }
 
     /// <summary>

@@ -18,8 +18,6 @@ public sealed partial class TeamDetailQueryService(
     ICurrentUserProvider currentUserProvider,
     ILogger<TeamDetailQueryService> logger) : ITeamDetailService
 {
-    private const int MaxPlacementHistoryItems = 100;
-
     /// <summary>
     /// Returns the team profile, its placement history page, and active-campaign summaries
     /// for the team identified by <paramref name="teamId"/>, scoped to the current club tenant.
@@ -35,7 +33,7 @@ public sealed partial class TeamDetailQueryService(
     /// <remarks>
     /// <para>
     /// <see cref="TeamDetailDto.ActivePlacementImpacts"/> is derived from the truncated placement
-    /// history page (capped at <see cref="MaxPlacementHistoryItems"/> rows). It reflects only the
+    /// history page (capped at <see cref="TeamDetailDto.MaxPlacementHistoryItems"/> rows). It reflects only the
     /// Active-campaign rows that survived the page cut.
     /// </para>
     /// <para>
@@ -98,7 +96,7 @@ public sealed partial class TeamDetailQueryService(
             .ThenByDescending(row => row.CampaignId)
             .ThenBy(row => row.PlayerDisplayName)
             .ThenBy(row => row.PlayerId)
-            .Take(MaxPlacementHistoryItems)
+            .Take(TeamDetailDto.MaxPlacementHistoryItems)
             .ToListAsync(cancellationToken);
 
         var placementHistory = rows
@@ -133,7 +131,8 @@ public sealed partial class TeamDetailQueryService(
             ActivePlacementImpactTotalCount = await placementQuery
                 .CountAsync(row => row.CampaignStatus == CampaignStatus.Active, cancellationToken),
             PlacementHistoryTotalCount = placementHistoryTotalCount,
-            IsPlacementHistoryTruncated = placementHistoryTotalCount > MaxPlacementHistoryItems
+            IsPlacementHistoryTruncated =
+                placementHistoryTotalCount > TeamDetailDto.MaxPlacementHistoryItems
         };
     }
 

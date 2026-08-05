@@ -22,6 +22,11 @@ public sealed record TeamDetailDto(
     IReadOnlyList<TeamPlacementImpactDto> PlacementHistory)
 {
     /// <summary>
+    /// Gets the maximum number of placement-history rows returned by the detail contract.
+    /// </summary>
+    public const int MaxPlacementHistoryItems = 100;
+
+    /// <summary>
     /// Gets the total number of active placements assigned to the team.
     /// </summary>
     public int ActivePlacementImpactTotalCount { get; init; }

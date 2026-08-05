@@ -71,6 +71,12 @@ Rules:
   role-policy behavior, success serialization, and each declared ProblemDetails shape/status that
   cannot be proven by service or client unit tests. Keep provider-specific database assertions
   separate from this HTTP contract coverage.
+- Exercise every route independently and prove the least-privileged allowed role; a creator or other
+  implicitly elevated user does not establish ordinary-member access. Test independent query
+  validation paths independently rather than combining invalid values.
+- For clients that validate required success bodies, cover one populated valid payload plus explicit
+  nested nulls, malformed JSON, invalid ID/date/count relationships, shared-bound violations, and
+  incorrect portable ordering. Use exact expected counts when proving lifecycle or tenant exclusion.
 - For `CreatedAtRoute`, assert `201 Created`, the exact `Location`, and a successful GET after
   following it. Route metadata alone cannot prove the generated URL is usable.
 - When application code probes uniqueness before writing, add a PostgreSQL race test that commits

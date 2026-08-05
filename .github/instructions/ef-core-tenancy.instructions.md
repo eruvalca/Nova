@@ -104,6 +104,10 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   Otherwise the bounded SQL slice and the displayed order describe different result sets.
   Prefer preserving the database-returned order after materialization; `TeamDetailQueryService` is
   the canonical example.
+- A total count and its bounded rows are separate statements and are not an atomic snapshot by
+  default. Decide the contract explicitly: document and tolerate an eventually consistent total, or
+  use a provider-compatible snapshot only when product correctness requires it. Clients must not
+  enforce count relationships that the selected consistency contract cannot guarantee.
 - Validation and normalization must have one explicit behavior. If `[Range]` rejects a page size,
   do not also clamp it after validation; either reject or cap, and make the contract, service, and
   tests agree.
