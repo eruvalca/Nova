@@ -123,7 +123,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
-    /// <summary>Verifies status filtering is case-insensitive.</summary>
+    /// <summary>Verifies count-before-bound behavior, tenant isolation, and assignment counts.</summary>
     [Fact]
     public async Task GetCampaignList_TotalCountIsBeforeLimit_AndTenantIsolated()
     {
@@ -145,9 +145,15 @@ public sealed class CampaignQueryServiceTests : IDisposable
         rows[0].UnresolvedCount.ShouldBe(1);
     }
 
-    /// <summary>Verifies setup returns tenant seasons and active lifecycle counts.</summary>
-    [Fact]
-    public async Task GetCampaignList_StatusFiltering_IsCaseInsensitive()
+    /// <summary>Verifies both supported status filters are case-insensitive.</summary>
+    /// <param name="status">The status spelling supplied to the service.</param>
+    /// <param name="expectedStatus">The expected campaign status.</param>
+    [Theory]
+    [InlineData("ACTIVE", CampaignStatus.Active)]
+    [InlineData("CLOSED", CampaignStatus.Closed)]
+    public async Task GetCampaignList_StatusFiltering_IsCaseInsensitive(
+        string status,
+        CampaignStatus expectedStatus)
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -157,13 +163,17 @@ public sealed class CampaignQueryServiceTests : IDisposable
             _harness.CurrentUser,
             NullLogger<CampaignQueryService>.Instance);
 
-        var closed = await service.GetCampaignListAsync(new GetCampaignListInput { Status = "CLOSED" }, TestContext.Current.CancellationToken);
-        closed.IsSuccess.ShouldBeTrue();
-        var rows = closed.Value.Seasons.SelectMany(s => s.Campaigns).ToList();
-        rows.ShouldAllBe(r => r.Status == CampaignStatus.Closed);
+        var result = await service.GetCampaignListAsync(
+            new GetCampaignListInput { Status = status },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        var rows = result.Value.Seasons.SelectMany(season => season.Campaigns).ToList();
+        rows.ShouldNotBeEmpty();
+        rows.ShouldAllBe(campaign => campaign.Status == expectedStatus);
     }
 
-    /// <summary>Verifies setup returns the newest bounded choices and the pre-bound total.</summary>
+    /// <summary>Verifies setup returns tenant seasons and active lifecycle counts.</summary>
     [Fact]
     public async Task GetCreationSetup_ReturnsSeasonAndActiveCounts()
     {
@@ -183,6 +193,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Value.ActiveTeamCount.ShouldBe(1);
     }
 
+    /// <summary>Verifies setup returns the newest bounded choices and the pre-bound total.</summary>
     /// <summary>Verifies campaign rows follow the contracted deterministic keys.</summary>
     [Fact]
     public async Task GetCreationSetup_ReturnsNewestHundredSeasons_AndTotalBeforeBound()
