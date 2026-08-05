@@ -113,7 +113,6 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
     /// <summary>
     /// Verifies an invalid limit independently produces validation ProblemDetails with correlation.
     /// </summary>
-    /// <summary>Verifies campaign and setup projections cannot leak data across clubs.</summary>
     [Fact]
     public async Task GetCampaigns_InvalidLimit_ReturnsValidationProblem_WithTraceId()
     {
@@ -132,6 +131,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         doc.RootElement.TryGetProperty("traceId", out _).ShouldBeTrue();
     }
 
+    /// <summary>Verifies campaign and setup projections cannot leak data across clubs.</summary>
     [Fact]
     public async Task TenantIsolation_CannotSeeOtherClubsCampaigns()
     {

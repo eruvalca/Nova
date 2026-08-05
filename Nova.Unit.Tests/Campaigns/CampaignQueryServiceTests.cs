@@ -106,7 +106,6 @@ public sealed class CampaignQueryServiceTests : IDisposable
     /// <summary>
     /// Verifies creation setup retains its service-layer membership guard.
     /// </summary>
-    /// <summary>Verifies count-before-bound behavior, tenant isolation, and assignment counts.</summary>
     [Fact]
     public async Task GetCreationSetup_ReturnsForbidden_WhenNotMember()
     {
@@ -194,7 +193,6 @@ public sealed class CampaignQueryServiceTests : IDisposable
     }
 
     /// <summary>Verifies setup returns the newest bounded choices and the pre-bound total.</summary>
-    /// <summary>Verifies campaign rows follow the contracted deterministic keys.</summary>
     [Fact]
     public async Task GetCreationSetup_ReturnsNewestHundredSeasons_AndTotalBeforeBound()
     {
@@ -235,6 +233,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
             .ShouldBe(expectedIds.Take(CampaignCreationSetupResult.MaxSeasonChoices));
     }
 
+    /// <summary>Verifies campaign rows follow the contracted deterministic keys.</summary>
     [Fact]
     public async Task GetCampaignList_OrdersCampaignsByContractedKeys()
     {
