@@ -122,6 +122,47 @@ public sealed class HttpTeamRosterServiceTests
     }
 
     /// <summary>
+    /// Verifies exact lifecycle and graduation-year filters are reflected in returned rows.
+    /// </summary>
+    /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
+    /// <param name="graduationYear">The graduation year returned by the server.</param>
+    [Theory]
+    [InlineData(LifecycleStatus.Active, 2029)]
+    [InlineData(LifecycleStatus.Archived, 2028)]
+    public async Task GetRosterAsync_ReturnsServerError_WhenRowDoesNotMatchExactFilters(
+        LifecycleStatus lifecycleStatus,
+        int graduationYear)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new[]
+            {
+                new TeamRosterItem
+                {
+                    TeamId = 7,
+                    Name = "U16",
+                    GraduationYear = graduationYear,
+                    LifecycleStatus = lifecycleStatus,
+                    ActivePlacementCount = 0
+                }
+            })
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamRosterService(http).GetRosterAsync(
+            new GetTeamRosterInput
+            {
+                LifecycleStatus = "archived",
+                GraduationYear = 2029
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies invalid shared input is rejected before a lossy URL builder can normalize it.
     /// </summary>
     [Fact]

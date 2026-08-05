@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Nova.Shared.Clubs;
+using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using OneOf.Types;
 
@@ -126,5 +127,6 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
             && !string.IsNullOrWhiteSpace(request.ClubName)
             && request.RequestingUserId > 0
             && !string.IsNullOrWhiteSpace(request.RequestingUserName)
+            && request.Status == RequestStatus.Pending
             && request.CreatedAt != default;
 }

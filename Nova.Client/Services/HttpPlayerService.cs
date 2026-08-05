@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
@@ -22,6 +23,14 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
             return ServiceProblem.Validation(errors);
         }
 
+        var expectedPage = input.Page ?? GetPlayerRosterInput.DefaultPage;
+        var expectedPageSize = input.PageSize ?? GetPlayerRosterInput.DefaultPageSize;
+        var expectedLifecycleStatus = string.Equals(
+            input.LifecycleStatus,
+            "archived",
+            StringComparison.OrdinalIgnoreCase)
+                ? LifecycleStatus.Archived
+                : LifecycleStatus.Active;
         var url = GetPlayerRosterEndpoints.GetRosterUrl(
             input.ClubId,
             input.Search,
@@ -41,7 +50,12 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
 
         return await response.Content.ReadRequiredJsonAsync<PagedResult<PlayerListItem>>(
             "The server returned an invalid player roster response.",
-            IsValidRoster,
+            roster => IsValidRoster(
+                roster,
+                expectedPage,
+                expectedPageSize,
+                expectedLifecycleStatus,
+                input.GraduationYear),
             cancellationToken);
     }
 
@@ -49,28 +63,47 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
     /// Validates the portable invariants of a paged player-roster payload.
     /// </summary>
     /// <param name="roster">The roster to validate.</param>
+    /// <param name="expectedPage">The page requested by the caller.</param>
+    /// <param name="expectedPageSize">The page size requested by the caller.</param>
+    /// <param name="expectedLifecycleStatus">The lifecycle filter applied by the server.</param>
+    /// <param name="expectedGraduationYear">The optional exact graduation-year filter.</param>
     /// <returns><see langword="true"/> when the roster is structurally valid.</returns>
     /// <remarks>
     /// The total and page are separate reads, so concurrent changes can make the total lag the rows.
     /// </remarks>
-    private static bool IsValidRoster(PagedResult<PlayerListItem> roster)
+    private static bool IsValidRoster(
+        PagedResult<PlayerListItem> roster,
+        int expectedPage,
+        int expectedPageSize,
+        LifecycleStatus expectedLifecycleStatus,
+        int? expectedGraduationYear)
         => roster.Items is not null
-            && roster.Page > 0
-            && roster.PageSize > 0
-            && roster.PageSize <= GetPlayerRosterInput.MaxPageSize
+            && roster.Page == expectedPage
+            && roster.PageSize == expectedPageSize
             && roster.TotalCount >= 0
             && roster.Items.Count <= roster.PageSize
-            && roster.Items.All(IsValidPlayer);
+            && roster.Items.All(player => IsValidPlayer(
+                player,
+                expectedLifecycleStatus,
+                expectedGraduationYear));
 
     /// <summary>
     /// Validates the portable invariants of a player-roster row.
     /// </summary>
     /// <param name="player">The player row to validate.</param>
+    /// <param name="expectedLifecycleStatus">The lifecycle filter applied by the server.</param>
+    /// <param name="expectedGraduationYear">The optional exact graduation-year filter.</param>
     /// <returns><see langword="true"/> when the row is structurally valid.</returns>
-    private static bool IsValidPlayer(PlayerListItem player)
+    private static bool IsValidPlayer(
+        PlayerListItem player,
+        LifecycleStatus expectedLifecycleStatus,
+        int? expectedGraduationYear)
         => player is not null
             && player.PlayerId > 0
             && !string.IsNullOrWhiteSpace(player.DisplayName)
+            && player.LifecycleStatus == expectedLifecycleStatus
+            && (expectedGraduationYear is null
+                || player.GraduationYear == expectedGraduationYear)
             && player.CurrentTags is not null
             && player.ActiveCampaigns is not null
             && player.CurrentTags.All(tag => tag is not null

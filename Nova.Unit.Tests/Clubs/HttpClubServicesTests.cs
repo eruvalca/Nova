@@ -332,6 +332,34 @@ public class HttpClubServicesTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
+    /// <summary>
+    /// GetCurrentUserPendingRequestAsync rejects a non-pending successful response.
+    /// </summary>
+    [Fact]
+    public async Task GetCurrentUserPendingRequestAsync_ReturnsServerError_ForNonPendingResponse()
+    {
+        var dto = new ClubJoinRequestDto(
+            ClubJoinRequestId: 10,
+            ClubId: 5,
+            ClubName: "Liverpool",
+            RequestingUserId: 99,
+            RequestingUserName: "Test User",
+            Status: RequestStatus.Approved,
+            CreatedAt: DateTimeOffset.UtcNow);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(dto)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpClubJoinRequestService(httpClient)
+            .GetCurrentUserPendingRequestAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     #endregion
 
     #region HttpClubJoinRequestService.CreateJoinRequestAsync Tests

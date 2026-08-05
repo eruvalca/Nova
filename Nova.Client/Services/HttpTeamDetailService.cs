@@ -53,8 +53,7 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && detail.ActivePlacementImpacts.All(active =>
                 IsValidPlacement(active)
                 && active.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active
-                && detail.PlacementHistory.Any(history =>
-                    history.PlayerCampaignAssignmentId == active.PlayerCampaignAssignmentId));
+                && detail.PlacementHistory.Contains(active));
 
     /// <summary>
     /// Validates the portable invariants of a team-placement row.

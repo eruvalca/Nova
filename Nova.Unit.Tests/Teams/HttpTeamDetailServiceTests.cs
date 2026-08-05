@@ -170,6 +170,47 @@ public sealed class HttpTeamDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies active placement summaries must exactly match their placement-history record.
+    /// </summary>
+    [Fact]
+    public async Task GetTeamDetailAsync_ReturnsServerError_WhenActivePlacementDiffersFromHistory()
+    {
+        var history = new TeamPlacementImpactDto(
+            1,
+            2,
+            "Campaign",
+            CampaignStatus.Active,
+            new DateOnly(2025, 1, 1),
+            3,
+            "Player",
+            2028,
+            null,
+            PlacementOutcome.Assigned);
+        var active = history with { CampaignName = "Different Campaign" };
+        var payload = new TeamDetailDto(
+            7,
+            8,
+            "U16",
+            2028,
+            LifecycleStatus.Active,
+            [active],
+            [history]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
+            7,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies the truncation flag remains consistent with its shared total and bound.
     /// </summary>
     [Fact]

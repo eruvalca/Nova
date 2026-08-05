@@ -36,8 +36,8 @@ public sealed class HttpPlayerServiceTests
                 {
                     PlayerId = 10,
                     DisplayName = "Alex Archer",
-                    GraduationYear = 2030,
-                    LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active,
+                    GraduationYear = 2031,
+                    LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Archived,
                     CurrentTags = [],
                     ActiveCampaigns = [],
                     JoinedAt = new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)
@@ -226,6 +226,81 @@ public sealed class HttpPlayerServiceTests
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
             new GetPlayerRosterInput { ClubId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies page metadata must match the requested roster slice.
+    /// </summary>
+    /// <param name="responsePage">The page returned by the server.</param>
+    /// <param name="responsePageSize">The page size returned by the server.</param>
+    [Theory]
+    [InlineData(1, 25)]
+    [InlineData(2, 20)]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenPageMetadataDoesNotMatchRequest(
+        int responsePage,
+        int responsePageSize)
+    {
+        var payload = new PagedResult<PlayerListItem>(
+            [],
+            Page: responsePage,
+            PageSize: responsePageSize,
+            TotalCount: 0);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42, Page = 2, PageSize = 25 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies exact lifecycle and graduation-year filters are reflected in returned rows.
+    /// </summary>
+    /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
+    /// <param name="graduationYear">The graduation year returned by the server.</param>
+    [Theory]
+    [InlineData(Nova.Shared.Enums.LifecycleStatus.Active, 2031)]
+    [InlineData(Nova.Shared.Enums.LifecycleStatus.Archived, 2030)]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenRowDoesNotMatchExactFilters(
+        Nova.Shared.Enums.LifecycleStatus lifecycleStatus,
+        int graduationYear)
+    {
+        var player = new PlayerListItem
+        {
+            PlayerId = 10,
+            DisplayName = "Alex Archer",
+            GraduationYear = graduationYear,
+            LifecycleStatus = lifecycleStatus,
+            CurrentTags = [],
+            ActiveCampaigns = [],
+            JoinedAt = new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)
+        };
+        var payload = new PagedResult<PlayerListItem>([player], Page: 1, PageSize: 20, TotalCount: 1);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput
+            {
+                ClubId = 42,
+                LifecycleStatus = "archived",
+                GraduationYear = 2031
+            },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
