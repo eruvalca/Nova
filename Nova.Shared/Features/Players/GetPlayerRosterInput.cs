@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Nova.Shared.Validation;
 
 namespace Nova.Shared.Features.Players;
 
@@ -38,7 +39,7 @@ public sealed record GetPlayerRosterInput
     /// <summary>
     /// Optional lifecycle-status view filter. Allowed values: <c>active</c>, <c>archived</c>.
     /// </summary>
-    [RegularExpression("(?i)^(active|archived)$")]
+    [NotWhitespace, RegularExpression("(?i)^(active|archived)$")]
     public string? LifecycleStatus { get; init; }
 
     /// <summary>
@@ -56,13 +57,13 @@ public sealed record GetPlayerRosterInput
     /// <summary>
     /// Optional sort field. Allowed values: <c>displayName</c>, <c>joinedAt</c>.
     /// </summary>
-    [RegularExpression("(?i)^(displayName|joinedAt)$")]
+    [NotWhitespace, RegularExpression("(?i)^(displayName|joinedAt)$")]
     public string? SortBy { get; init; }
 
     /// <summary>
     /// Optional sort direction. Allowed values: <c>asc</c>, <c>desc</c>.
     /// </summary>
-    [RegularExpression("(?i)^(asc|desc)$")]
+    [NotWhitespace, RegularExpression("(?i)^(asc|desc)$")]
     public string? SortDirection { get; init; }
 
     /// <summary>

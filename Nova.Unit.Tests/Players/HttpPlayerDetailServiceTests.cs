@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services;
 using Nova.Shared.Enums;
@@ -70,6 +70,113 @@ public sealed class HttpPlayerDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies the client does not reject a date value currently permitted by the shared contract.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsDetail_WhenDateOfBirthIsMinimumValue()
+    {
+        var payload = new PlayerDetailDto(
+            42,
+            "Alex",
+            "Athlete",
+            DateOnly.MinValue,
+            null,
+            2028,
+            null,
+            LifecycleStatus.Active,
+            [],
+            []);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.DateOfBirth.ShouldBe(DateOnly.MinValue);
+    }
+
+    /// <summary>
+    /// Verifies detail rejects a success payload for a different player.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenResponsePlayerIdDoesNotMatch()
+    {
+        var payload = new PlayerDetailDto(
+            43,
+            "Alex",
+            "Athlete",
+            new DateOnly(2010, 2, 3),
+            null,
+            2028,
+            null,
+            LifecycleStatus.Active,
+            [],
+            []);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies malformed nested team summaries are rejected.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenHistoryTeamIsInvalid()
+    {
+        var history = new PlayerCampaignHistoryDto(
+            11,
+            12,
+            "Spring Tryouts",
+            CampaignStatus.Closed,
+            new DateOnly(2025, 3, 1),
+            null,
+            PlacementOutcome.Assigned,
+            new PlayerTeamSummaryDto(0, string.Empty, 2028, LifecycleStatus.Active),
+            [],
+            []);
+        var payload = new PlayerDetailDto(
+            42,
+            "Alex",
+            "Athlete",
+            new DateOnly(2010, 2, 3),
+            null,
+            2028,
+            null,
+            LifecycleStatus.Active,
+            [],
+            [history]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies the client maps unsuccessful responses into <see cref="ServiceProblem"/>.
     /// </summary>
     [Fact]
@@ -97,5 +204,267 @@ public sealed class HttpPlayerDetailServiceTests
     public void GetDetailUrl_BuildsCanonicalPlayerDetailRoute()
     {
         PlayerEndpoints.GetDetailUrl(123).ShouldBe("/api/players/123");
+    }
+
+    /// <summary>
+    /// Verifies invalid successful detail-response bodies become server errors.
+    /// </summary>
+    /// <param name="body">The invalid successful response body.</param>
+    [Theory]
+    [InlineData("null")]
+    [InlineData("")]
+    [InlineData("{not-json")]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies detail responses that violate portable player invariants are rejected.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenPlayerDetailInvariantIsInvalid()
+    {
+        var payload = new PlayerDetailDto(
+            PlayerId: 0,
+            FirstName: "Alex",
+            LastName: "Athlete",
+            DateOfBirth: new DateOnly(2010, 2, 3),
+            Gender: null,
+            GraduationYear: 2028,
+            JerseyNumber: null,
+            LifecycleStatus: LifecycleStatus.Active,
+            CurrentTraits: [],
+            CampaignHistory: []);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies history rows permit empty note and tag-application collections.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsDetail_WhenHistoryNestedCollectionsAreEmpty()
+    {
+        var history = new PlayerCampaignHistoryDto(
+            PlayerCampaignAssignmentId: 11,
+            CampaignId: 12,
+            CampaignName: "Spring Tryouts",
+            CampaignStatus: CampaignStatus.Closed,
+            CampaignStartDate: new DateOnly(2025, 3, 1),
+            TryoutNumber: null,
+            PlacementOutcome: PlacementOutcome.NotSelected,
+            Team: null,
+            Notes: [],
+            TagApplications: []);
+        var payload = new PlayerDetailDto(
+            PlayerId: 42,
+            FirstName: "Alex",
+            LastName: "Athlete",
+            DateOfBirth: new DateOnly(2010, 2, 3),
+            Gender: null,
+            GraduationYear: 2028,
+            JerseyNumber: null,
+            LifecycleStatus: LifecycleStatus.Active,
+            CurrentTraits: [],
+            CampaignHistory: [history]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        var returnedHistory = result.Value.CampaignHistory.Single();
+        returnedHistory.Notes.ShouldNotBeNull();
+        returnedHistory.Notes.ShouldBeEmpty();
+        returnedHistory.TagApplications.ShouldNotBeNull();
+        returnedHistory.TagApplications.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies null elements in nested history collections are rejected.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenHistoryContainsNullNote()
+    {
+        const string payload = """
+            {
+              "playerId": 42,
+              "firstName": "Alex",
+              "lastName": "Athlete",
+              "dateOfBirth": "2010-02-03",
+              "gender": null,
+              "graduationYear": 2028,
+              "jerseyNumber": null,
+              "lifecycleStatus": 0,
+              "currentTraits": [],
+              "campaignHistory": [{
+                "playerCampaignAssignmentId": 11,
+                "campaignId": 12,
+                "campaignName": "Spring Tryouts",
+                "campaignStatus": 1,
+                "campaignStartDate": "2025-03-01",
+                "tryoutNumber": null,
+                "placementOutcome": 1,
+                "team": null,
+                "notes": [null],
+                "tagApplications": []
+              }]
+            }
+            """;
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies nested evaluation notes retain newest-first ordering.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenNotesAreOutOfOrder()
+    {
+        var older = new PlayerEvaluationNoteDto(
+            1,
+            "Older",
+            5,
+            "Coach",
+            new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var newer = older with
+        {
+            NoteId = 2,
+            Content = "Newer",
+            CreatedAt = new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)
+        };
+        var history = new PlayerCampaignHistoryDto(
+            11,
+            12,
+            "Spring Tryouts",
+            CampaignStatus.Closed,
+            new DateOnly(2025, 3, 1),
+            null,
+            PlacementOutcome.NotSelected,
+            null,
+            [older, newer],
+            []);
+        var payload = new PlayerDetailDto(
+            42,
+            "Alex",
+            "Athlete",
+            new DateOnly(2010, 2, 3),
+            null,
+            2028,
+            null,
+            LifecycleStatus.Active,
+            [],
+            [history]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies nested tag applications retain newest-first ordering.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenTagApplicationsAreOutOfOrder()
+    {
+        var older = new PlayerTagApplicationDto(
+            1,
+            2,
+            "Speed",
+            "#001122",
+            false,
+            5,
+            "Coach",
+            new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var newer = older with
+        {
+            CampaignTagApplicationId = 2,
+            AppliedAt = new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)
+        };
+        var history = new PlayerCampaignHistoryDto(
+            11,
+            12,
+            "Spring Tryouts",
+            CampaignStatus.Closed,
+            new DateOnly(2025, 3, 1),
+            null,
+            PlacementOutcome.NotSelected,
+            null,
+            [],
+            [older, newer]);
+        var payload = new PlayerDetailDto(
+            42,
+            "Alex",
+            "Athlete",
+            new DateOnly(2010, 2, 3),
+            null,
+            2028,
+            null,
+            LifecycleStatus.Active,
+            [],
+            [history]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 }

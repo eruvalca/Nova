@@ -21,9 +21,52 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var detail = await response.Content.ReadFromJsonAsync<TeamDetailDto>(cancellationToken);
-        return detail is null
-            ? ServiceProblem.ServerError("The server returned an empty team detail response.")
-            : detail;
+        return await response.Content.ReadRequiredJsonAsync<TeamDetailDto>(
+            "The server returned an invalid team detail response.",
+            detail => IsValidDetail(detail, teamId),
+            cancellationToken);
     }
+
+    /// <summary>
+    /// Validates the portable invariants of a team-detail payload.
+    /// </summary>
+    /// <param name="detail">The team detail to validate.</param>
+    /// <param name="expectedTeamId">The team identifier requested by the caller.</param>
+    /// <returns><see langword="true"/> when the detail is structurally valid.</returns>
+    /// <remarks>
+    /// Placement totals and bounded rows are separate reads and may briefly disagree.
+    /// </remarks>
+    private static bool IsValidDetail(TeamDetailDto detail, long expectedTeamId)
+        => detail is not null
+            && detail.TeamId == expectedTeamId
+            && detail.ClubId > 0
+            && !string.IsNullOrWhiteSpace(detail.Name)
+            && detail.ActivePlacementImpacts is not null
+            && detail.PlacementHistory is not null
+            && detail.ActivePlacementImpactTotalCount >= 0
+            && detail.PlacementHistoryTotalCount >= 0
+            && detail.ActivePlacementImpacts.Count <= TeamDetailDto.MaxPlacementHistoryItems
+            && detail.PlacementHistory.Count <= TeamDetailDto.MaxPlacementHistoryItems
+            && detail.IsPlacementHistoryTruncated
+                == (detail.PlacementHistoryTotalCount > TeamDetailDto.MaxPlacementHistoryItems)
+            && detail.PlacementHistory.All(IsValidPlacement)
+            && detail.ActivePlacementImpacts.All(active =>
+                IsValidPlacement(active)
+                && active.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active
+                && detail.PlacementHistory.Any(history =>
+                    history.PlayerCampaignAssignmentId == active.PlayerCampaignAssignmentId));
+
+    /// <summary>
+    /// Validates the portable invariants of a team-placement row.
+    /// </summary>
+    /// <param name="placement">The placement row to validate.</param>
+    /// <returns><see langword="true"/> when the row is structurally valid.</returns>
+    private static bool IsValidPlacement(TeamPlacementImpactDto placement)
+        => placement is not null
+            && placement.PlayerCampaignAssignmentId > 0
+            && placement.CampaignId > 0
+            && !string.IsNullOrWhiteSpace(placement.CampaignName)
+            && placement.CampaignStartDate != default
+            && placement.PlayerId > 0
+            && !string.IsNullOrWhiteSpace(placement.PlayerDisplayName);
 }

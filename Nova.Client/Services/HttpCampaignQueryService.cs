@@ -1,5 +1,3 @@
-using System.Net.Http.Json;
-using System.Text.Json;
 using Nova.Shared.Campaigns;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
@@ -32,17 +30,10 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        try
-        {
-            var result = await response.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
-            return result is not null && IsValidCampaignList(result, input.Limit)
-                ? result
-                : ServiceProblem.ServerError("The server returned an invalid campaign list response.");
-        }
-        catch (JsonException)
-        {
-            return ServiceProblem.ServerError("The server returned an invalid campaign list response.");
-        }
+        return await response.Content.ReadRequiredJsonAsync<CampaignListResult>(
+            "The server returned an invalid campaign list response.",
+            result => IsValidCampaignList(result, input.Limit),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -55,17 +46,10 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        try
-        {
-            var result = await response.Content.ReadFromJsonAsync<CampaignCreationSetupResult>(cancellationToken);
-            return result is not null && IsValidCreationSetup(result)
-                ? result
-                : ServiceProblem.ServerError("The server returned an invalid campaign setup response.");
-        }
-        catch (JsonException)
-        {
-            return ServiceProblem.ServerError("The server returned an invalid campaign setup response.");
-        }
+        return await response.Content.ReadRequiredJsonAsync<CampaignCreationSetupResult>(
+            "The server returned an invalid campaign setup response.",
+            IsValidCreationSetup,
+            cancellationToken);
     }
 
     /// <summary>

@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json;
 using Nova.Shared.Campaigns;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
@@ -26,26 +25,10 @@ public sealed class HttpCampaignCreationService(HttpClient http) : ICampaignCrea
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        try
-        {
-            var result = await response.Content.ReadFromJsonAsync<CreateCampaignResult>(
-                cancellationToken);
-            if (result is null)
-            {
-                return ServiceProblem.ServerError(
-                    "The server returned an empty campaign creation response.");
-            }
-
-            return IsValidSuccessPayload(result, input.OperationId)
-                ? result
-                : ServiceProblem.ServerError(
-                    "The server returned an invalid campaign creation response.");
-        }
-        catch (JsonException)
-        {
-            return ServiceProblem.ServerError(
-                "The server returned an invalid campaign creation response.");
-        }
+        return await response.Content.ReadRequiredJsonAsync<CreateCampaignResult>(
+            "The server returned an invalid campaign creation response.",
+            result => IsValidSuccessPayload(result, input.OperationId),
+            cancellationToken);
     }
 
     private static bool IsValidSuccessPayload(

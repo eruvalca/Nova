@@ -22,8 +22,13 @@ public sealed class HttpClubMemberService(HttpClient http) : IClubMemberService
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var members = await response.Content.ReadFromJsonAsync<List<ClubMemberDto>>(cancellationToken);
-        return (members ?? []).AsReadOnly();
+        var result = await response.Content.ReadRequiredJsonAsync<List<ClubMemberDto>>(
+            "The server returned an invalid club member list response.",
+            members => members.All(IsValidMember),
+            cancellationToken);
+        return result.Match<ServiceResult<IReadOnlyList<ClubMemberDto>>>(
+            members => members.AsReadOnly(),
+            problem => problem);
     }
 
     /// <inheritdoc />
@@ -37,7 +42,18 @@ public sealed class HttpClubMemberService(HttpClient http) : IClubMemberService
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var result = await response.Content.ReadFromJsonAsync<bool>(cancellationToken);
-        return result;
+        return await response.Content.ReadRequiredJsonAsync<bool>(
+            "The server returned an invalid administrator assignment response.",
+            cancellationToken: cancellationToken);
     }
+
+    /// <summary>
+    /// Validates the portable invariants of a club-member success payload.
+    /// </summary>
+    /// <param name="member">The member to validate.</param>
+    /// <returns><see langword="true"/> when the member is structurally valid.</returns>
+    private static bool IsValidMember(ClubMemberDto member)
+        => member is not null
+            && member.UserId > 0
+            && !string.IsNullOrWhiteSpace(member.FullName);
 }

@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services;
 using Nova.Shared.Features.Players;
@@ -116,5 +116,152 @@ public sealed class HttpPlayerServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies an empty roster page is a valid successful response.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsEmptyPage_WhenItemsAreEmpty()
+    {
+        var payload = new PagedResult<PlayerListItem>([], Page: 1, PageSize: 20, TotalCount: 0);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.ShouldNotBeNull();
+        result.Value.Items.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies other invalid successful roster-response bodies become server errors.
+    /// </summary>
+    /// <param name="body">The invalid successful response body.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("{not-json")]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a roster response with an invalid page number is rejected.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenPageInvariantIsInvalid()
+    {
+        var payload = new PagedResult<PlayerListItem>([], Page: 0, PageSize: 20, TotalCount: 0);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies invalid shared input is rejected before a lossy URL builder can normalize it.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsValidationProblem_BeforeSendingInvalidInput()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK);
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 0, PageSize = 0 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        handler.LastRequest.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Verifies a roster response cannot exceed the shared page-size contract.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenPageSizeExceedsMaximum()
+    {
+        var payload = new PagedResult<PlayerListItem>(
+            [],
+            Page: 1,
+            PageSize: GetPlayerRosterInput.MaxPageSize + 1,
+            TotalCount: 0);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies an eventually consistent total may briefly lag valid returned rows.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsRows_WhenTotalTemporarilyLags()
+    {
+        var player = new PlayerListItem
+        {
+            PlayerId = 10,
+            DisplayName = "Alex Archer",
+            GraduationYear = 2030,
+            LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active,
+            CurrentTags = [],
+            ActiveCampaigns = [],
+            JoinedAt = new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)
+        };
+        var payload = new PagedResult<PlayerListItem>([player], Page: 1, PageSize: 20, TotalCount: 0);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Count.ShouldBe(1);
+        result.Value.TotalCount.ShouldBe(0);
     }
 }

@@ -59,6 +59,38 @@ public sealed class GetPlayerRosterContractTests
         errors.ShouldContainKey(nameof(GetPlayerRosterInput.LifecycleStatus));
     }
 
+    /// <summary>
+    /// Verifies explicitly blank optional choice values are not treated as omissions.
+    /// </summary>
+    /// <param name="propertyName">The optional choice property under test.</param>
+    [Theory]
+    [InlineData(nameof(GetPlayerRosterInput.LifecycleStatus))]
+    [InlineData(nameof(GetPlayerRosterInput.SortBy))]
+    [InlineData(nameof(GetPlayerRosterInput.SortDirection))]
+    public void GetPlayerRosterInput_ReturnsValidationError_ForBlankOption(string propertyName)
+    {
+        var input = propertyName switch
+        {
+            nameof(GetPlayerRosterInput.LifecycleStatus) => new GetPlayerRosterInput
+            {
+                ClubId = 42,
+                LifecycleStatus = " "
+            },
+            nameof(GetPlayerRosterInput.SortBy) => new GetPlayerRosterInput
+            {
+                ClubId = 42,
+                SortBy = " "
+            },
+            _ => new GetPlayerRosterInput
+            {
+                ClubId = 42,
+                SortDirection = " "
+            }
+        };
+
+        InputValidator.Validate(input).ShouldContainKey(propertyName);
+    }
+
     [Fact]
     public void GetRosterUrl_OmitsGraduationYear_WhenOutsideAllowedRange()
     {

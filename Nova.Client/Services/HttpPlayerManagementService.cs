@@ -22,8 +22,10 @@ public sealed class HttpPlayerManagementService(HttpClient http) : IPlayerManage
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var player = await response.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken);
-        return player!;
+        return await response.Content.ReadRequiredJsonAsync<PlayerDto>(
+            "The server returned an invalid player response.",
+            player => IsValidPlayer(player),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -41,7 +43,23 @@ public sealed class HttpPlayerManagementService(HttpClient http) : IPlayerManage
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var player = await response.Content.ReadFromJsonAsync<PlayerDto>(cancellationToken);
-        return player!;
+        return await response.Content.ReadRequiredJsonAsync<PlayerDto>(
+            "The server returned an invalid player response.",
+            player => IsValidPlayer(player, input.PlayerId),
+            cancellationToken);
     }
+
+    /// <summary>
+    /// Validates the portable invariants of a player success payload.
+    /// </summary>
+    /// <param name="player">The player to validate.</param>
+    /// <param name="expectedPlayerId">The expected player identifier, when known.</param>
+    /// <returns><see langword="true"/> when the player is structurally valid.</returns>
+    private static bool IsValidPlayer(PlayerDto player, long? expectedPlayerId = null)
+        => player is not null
+            && player.PlayerId > 0
+            && (expectedPlayerId is null || player.PlayerId == expectedPlayerId)
+            && player.ClubId > 0
+            && !string.IsNullOrWhiteSpace(player.FirstName)
+            && !string.IsNullOrWhiteSpace(player.LastName);
 }

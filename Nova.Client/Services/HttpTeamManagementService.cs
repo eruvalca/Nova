@@ -22,13 +22,10 @@ public sealed class HttpTeamManagementService(HttpClient http) : ITeamManagement
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var team = await response.Content.ReadFromJsonAsync<TeamDto>(cancellationToken);
-        if (team is null)
-        {
-            return ServiceProblem.ServerError("The server returned an empty team response.");
-        }
-
-        return team;
+        return await response.Content.ReadRequiredJsonAsync<TeamDto>(
+            "The server returned an invalid team response.",
+            team => IsValidTeam(team),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -45,12 +42,22 @@ public sealed class HttpTeamManagementService(HttpClient http) : ITeamManagement
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var team = await response.Content.ReadFromJsonAsync<TeamDto>(cancellationToken);
-        if (team is null)
-        {
-            return ServiceProblem.ServerError("The server returned an empty team response.");
-        }
-
-        return team;
+        return await response.Content.ReadRequiredJsonAsync<TeamDto>(
+            "The server returned an invalid team response.",
+            team => IsValidTeam(team, input.TeamId),
+            cancellationToken);
     }
+
+    /// <summary>
+    /// Validates the portable invariants of a team success payload.
+    /// </summary>
+    /// <param name="team">The team to validate.</param>
+    /// <param name="expectedTeamId">The expected team identifier, when known.</param>
+    /// <returns><see langword="true"/> when the team is structurally valid.</returns>
+    private static bool IsValidTeam(TeamDto team, long? expectedTeamId = null)
+        => team is not null
+            && team.TeamId > 0
+            && (expectedTeamId is null || team.TeamId == expectedTeamId)
+            && team.ClubId > 0
+            && !string.IsNullOrWhiteSpace(team.Name);
 }

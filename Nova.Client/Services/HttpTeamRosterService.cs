@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using Nova.Shared.Results;
 using Nova.Shared.Teams;
+using Nova.Shared.Validation;
 
 namespace Nova.Client.Services;
 
@@ -15,6 +16,12 @@ public sealed class HttpTeamRosterService(HttpClient http) : ITeamRosterService
         GetTeamRosterInput input,
         CancellationToken cancellationToken = default)
     {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
+
         using var response = await http.GetAsync(
             TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, input.GraduationYear),
             cancellationToken);
@@ -23,9 +30,23 @@ public sealed class HttpTeamRosterService(HttpClient http) : ITeamRosterService
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var teams = await response.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
-        return teams is null
-            ? ServiceProblem.ServerError("The server returned an empty team roster response.")
-            : teams.AsReadOnly();
+        var result = await response.Content.ReadRequiredJsonAsync<List<TeamRosterItem>>(
+            "The server returned an invalid team roster response.",
+            teams => teams.All(IsValidTeam),
+            cancellationToken);
+        return result.Match<ServiceResult<IReadOnlyList<TeamRosterItem>>>(
+            teams => teams.AsReadOnly(),
+            problem => problem);
     }
+
+    /// <summary>
+    /// Validates the portable invariants of a team-roster row.
+    /// </summary>
+    /// <param name="team">The team row to validate.</param>
+    /// <returns><see langword="true"/> when the row is structurally valid.</returns>
+    private static bool IsValidTeam(TeamRosterItem team)
+        => team is not null
+            && team.TeamId > 0
+            && !string.IsNullOrWhiteSpace(team.Name)
+            && team.ActivePlacementCount >= 0;
 }

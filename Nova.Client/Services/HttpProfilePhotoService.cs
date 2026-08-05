@@ -42,8 +42,15 @@ public sealed class HttpProfilePhotoService(HttpClient httpClient) : IProfilePho
             return ServiceProblem.NotFound();
         }
 
-        response.EnsureSuccessStatusCode();
-        var info = await response.Content.ReadFromJsonAsync<ProfilePhotoInfo>(cancellationToken);
-        return info is null ? ServiceProblem.NotFound() : info;
+        if (!response.IsSuccessStatusCode)
+        {
+            return await response.ToServiceProblemAsync(cancellationToken);
+        }
+
+        return await response.Content.ReadRequiredJsonAsync<ProfilePhotoInfo>(
+            "The server returned an invalid profile photo response.",
+            info => info.NovaUserId > 0
+                && (info.ContentType is null || !string.IsNullOrWhiteSpace(info.ContentType)),
+            cancellationToken);
     }
 }
