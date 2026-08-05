@@ -39,6 +39,10 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
             && !string.IsNullOrWhiteSpace(detail.LastName)
             && detail.GraduationYear is >= 2000 and <= 2100
             && detail.JerseyNumber is null or >= 0 and <= 9999
+            && detail.Gender is null
+                or Nova.Shared.Enums.Gender.Male
+                or Nova.Shared.Enums.Gender.Female
+                or Nova.Shared.Enums.Gender.Other
             && detail.LifecycleStatus is Nova.Shared.Enums.LifecycleStatus.Active
                 or Nova.Shared.Enums.LifecycleStatus.Archived
             && detail.CurrentTraits is not null

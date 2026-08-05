@@ -572,6 +572,38 @@ public sealed class HttpPlayerDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies player details reject undefined gender values.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenGenderIsUndefined()
+    {
+        var payload = new PlayerDetailDto(
+            42,
+            "Alex",
+            "Athlete",
+            new DateOnly(2010, 2, 3),
+            (Gender)99,
+            2028,
+            null,
+            LifecycleStatus.Active,
+            [],
+            []);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies history rows permit empty note and tag-application collections.
     /// </summary>
     [Fact]

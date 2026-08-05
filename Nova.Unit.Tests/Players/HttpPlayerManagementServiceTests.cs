@@ -213,6 +213,27 @@ public sealed class HttpPlayerManagementServiceTests
     }
 
     /// <summary>
+    /// Verifies player responses reject undefined gender values.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_ReturnsServerError_WhenGenderIsUndefined()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = JsonContent.Create(CreatePlayer() with { Gender = (Gender)99 })
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerManagementService(http).CreateAsync(
+            CreateInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies the client does not reject a date value currently permitted by the shared input contract.
     /// </summary>
     [Fact]

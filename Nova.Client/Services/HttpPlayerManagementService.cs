@@ -65,5 +65,6 @@ public sealed class HttpPlayerManagementService(HttpClient http) : IPlayerManage
             && !string.IsNullOrWhiteSpace(player.LastName)
             && player.GraduationYear is >= 2000 and <= 2100
             && player.JerseyNumber is null or >= 0 and <= 9999
+            && player.Gender is null or Gender.Male or Gender.Female or Gender.Other
             && player.LifecycleStatus is LifecycleStatus.Active or LifecycleStatus.Archived;
 }
