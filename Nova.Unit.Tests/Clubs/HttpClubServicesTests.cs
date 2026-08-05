@@ -786,6 +786,28 @@ public class HttpClubServicesTests
     }
 
     /// <summary>
+    /// GetClubJoinRequestsAsync rejects rows outside the contracted oldest-first identifier order.
+    /// </summary>
+    [Fact]
+    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenRequestsAreOutOfOrder()
+    {
+        var requests = new[] { CreateJoinRequest(11), CreateJoinRequest(10) };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(requests)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpClubJoinRequestService(httpClient).GetClubJoinRequestsAsync(
+            5,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// CreateJoinRequestAsync rejects a success payload for a different club.
     /// </summary>
     [Fact]

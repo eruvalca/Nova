@@ -25,6 +25,8 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
 
         var expectedPage = input.Page ?? GetPlayerRosterInput.DefaultPage;
         var expectedPageSize = input.PageSize ?? GetPlayerRosterInput.DefaultPageSize;
+        var expectedSortBy = input.SortBy ?? "displayName";
+        var expectedSortDirection = input.SortDirection ?? "asc";
         var expectedLifecycleStatus = string.Equals(
             input.LifecycleStatus,
             "archived",
@@ -55,7 +57,9 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
                 expectedPage,
                 expectedPageSize,
                 expectedLifecycleStatus,
-                input.GraduationYear),
+                input.GraduationYear,
+                expectedSortBy,
+                expectedSortDirection),
             cancellationToken);
     }
 
@@ -67,6 +71,8 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
     /// <param name="expectedPageSize">The page size requested by the caller.</param>
     /// <param name="expectedLifecycleStatus">The lifecycle filter applied by the server.</param>
     /// <param name="expectedGraduationYear">The optional exact graduation-year filter.</param>
+    /// <param name="expectedSortBy">The effective sort field requested by the caller.</param>
+    /// <param name="expectedSortDirection">The effective sort direction requested by the caller.</param>
     /// <returns><see langword="true"/> when the roster is structurally valid.</returns>
     /// <remarks>
     /// The total and page are separate reads, so concurrent changes can make the total lag the rows.
@@ -76,7 +82,9 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
         int expectedPage,
         int expectedPageSize,
         LifecycleStatus expectedLifecycleStatus,
-        int? expectedGraduationYear)
+        int? expectedGraduationYear,
+        string expectedSortBy,
+        string expectedSortDirection)
         => roster.Items is not null
             && roster.Page == expectedPage
             && roster.PageSize == expectedPageSize
@@ -85,7 +93,42 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
             && roster.Items.All(player => IsValidPlayer(
                 player,
                 expectedLifecycleStatus,
-                expectedGraduationYear));
+                expectedGraduationYear))
+            && ArePlayersOrdered(roster.Items, expectedSortBy, expectedSortDirection);
+
+    /// <summary>
+    /// Validates portable roster ordering keys for the requested sort.
+    /// </summary>
+    /// <param name="players">The roster rows to validate.</param>
+    /// <param name="sortBy">The effective sort field.</param>
+    /// <param name="sortDirection">The effective sort direction.</param>
+    /// <returns><see langword="true"/> when adjacent rows retain the contracted portable order.</returns>
+    private static bool ArePlayersOrdered(
+        IReadOnlyList<PlayerListItem> players,
+        string sortBy,
+        string sortDirection)
+    {
+        var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+        return players.Zip(players.Skip(1)).All(pair =>
+        {
+            if (string.Equals(sortBy, "joinedAt", StringComparison.OrdinalIgnoreCase))
+            {
+                return descending
+                    ? pair.First.JoinedAt > pair.Second.JoinedAt
+                        || (pair.First.JoinedAt == pair.Second.JoinedAt
+                            && pair.First.PlayerId < pair.Second.PlayerId)
+                    : pair.First.JoinedAt < pair.Second.JoinedAt
+                        || (pair.First.JoinedAt == pair.Second.JoinedAt
+                            && pair.First.PlayerId < pair.Second.PlayerId);
+            }
+
+            return !string.Equals(
+                    pair.First.DisplayName,
+                    pair.Second.DisplayName,
+                    StringComparison.Ordinal)
+                || pair.First.PlayerId < pair.Second.PlayerId;
+        });
+    }
 
     /// <summary>
     /// Validates the portable invariants of a player-roster row.

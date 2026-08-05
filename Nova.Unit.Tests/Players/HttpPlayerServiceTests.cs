@@ -308,6 +308,89 @@ public sealed class HttpPlayerServiceTests
     }
 
     /// <summary>
+    /// Verifies joined-date sorting preserves the requested direction.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenJoinedAtOrderIsIncorrect()
+    {
+        var older = CreatePlayer(1, "Older", new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var newer = CreatePlayer(2, "Newer", new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero));
+        var payload = new PagedResult<PlayerListItem>([older, newer], Page: 1, PageSize: 20, TotalCount: 2);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput
+            {
+                ClubId = 42,
+                SortBy = "joinedAt",
+                SortDirection = "desc"
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies the player identifier remains the ascending tie-breaker for joined-date sorting.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenJoinedAtTieBreakerIsIncorrect()
+    {
+        var joinedAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var payload = new PagedResult<PlayerListItem>(
+            [CreatePlayer(2, "Second", joinedAt), CreatePlayer(1, "First", joinedAt)],
+            Page: 1,
+            PageSize: 20,
+            TotalCount: 2);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42, SortBy = "joinedAt" },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies display-name sorting enforces its portable identifier tie-breaker.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenDisplayNameTieBreakerIsIncorrect()
+    {
+        var joinedAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var payload = new PagedResult<PlayerListItem>(
+            [CreatePlayer(2, "Same Name", joinedAt), CreatePlayer(1, "Same Name", joinedAt)],
+            Page: 1,
+            PageSize: 20,
+            TotalCount: 2);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies an eventually consistent total may briefly lag valid returned rows.
     /// </summary>
     [Fact]
@@ -339,4 +422,26 @@ public sealed class HttpPlayerServiceTests
         result.Value.Items.Count.ShouldBe(1);
         result.Value.TotalCount.ShouldBe(0);
     }
+
+    /// <summary>
+    /// Creates a structurally valid roster row for ordering tests.
+    /// </summary>
+    /// <param name="playerId">The player identifier.</param>
+    /// <param name="displayName">The player display name.</param>
+    /// <param name="joinedAt">The roster join timestamp.</param>
+    /// <returns>A valid active roster row.</returns>
+    private static PlayerListItem CreatePlayer(
+        long playerId,
+        string displayName,
+        DateTimeOffset joinedAt)
+        => new()
+        {
+            PlayerId = playerId,
+            DisplayName = displayName,
+            GraduationYear = 2030,
+            LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active,
+            CurrentTags = [],
+            ActiveCampaigns = [],
+            JoinedAt = joinedAt
+        };
 }

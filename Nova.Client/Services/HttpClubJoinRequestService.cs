@@ -78,7 +78,9 @@ public sealed class HttpClubJoinRequestService(HttpClient http) : IClubJoinReque
         var result = await response.Content.ReadRequiredJsonAsync<List<ClubJoinRequestDto>>(
             "The server returned an invalid join request list response.",
             requests => requests.All(request =>
-                IsValidJoinRequest(request) && request.ClubId == clubId),
+                IsValidJoinRequest(request) && request.ClubId == clubId)
+                && requests.Zip(requests.Skip(1)).All(pair =>
+                    pair.First.ClubJoinRequestId < pair.Second.ClubJoinRequestId),
             cancellationToken);
         return result.Match<ServiceResult<IReadOnlyList<ClubJoinRequestDto>>>(
             requests => requests.AsReadOnly(),
