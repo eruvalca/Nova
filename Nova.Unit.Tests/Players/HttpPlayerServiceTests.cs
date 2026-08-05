@@ -308,6 +308,35 @@ public sealed class HttpPlayerServiceTests
     }
 
     /// <summary>
+    /// Verifies roster rows always require a graduation year within the shared contract.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenGraduationYearIsOutOfRange()
+    {
+        var player = CreatePlayer(
+            10,
+            "Alex Archer",
+            new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)) with
+        {
+            GraduationYear = 1999
+        };
+        var payload = new PagedResult<PlayerListItem>([player], Page: 1, PageSize: 20, TotalCount: 1);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
+            new GetPlayerRosterInput { ClubId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies every returned row contains the requested active-campaign tag.
     /// </summary>
     [Fact]

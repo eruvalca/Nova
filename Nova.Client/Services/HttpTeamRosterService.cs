@@ -64,6 +64,7 @@ public sealed class HttpTeamRosterService(HttpClient http) : ITeamRosterService
             && team.TeamId > 0
             && !string.IsNullOrWhiteSpace(team.Name)
             && team.LifecycleStatus == expectedLifecycleStatus
+            && team.GraduationYear is >= 2000 and <= 2100
             && (expectedGraduationYear is null
                 || team.GraduationYear == expectedGraduationYear)
             && team.ActivePlacementCount >= 0;

@@ -147,6 +147,7 @@ public sealed class HttpPlayerService(HttpClient http) : IPlayerService
             && player.PlayerId > 0
             && !string.IsNullOrWhiteSpace(player.DisplayName)
             && player.LifecycleStatus == expectedLifecycleStatus
+            && player.GraduationYear is >= 2000 and <= 2100
             && (expectedGraduationYear is null
                 || player.GraduationYear == expectedGraduationYear)
             && player.CurrentTags is not null

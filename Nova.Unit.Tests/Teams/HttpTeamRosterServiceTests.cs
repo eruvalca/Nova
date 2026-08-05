@@ -122,6 +122,37 @@ public sealed class HttpTeamRosterServiceTests
     }
 
     /// <summary>
+    /// Verifies roster rows always require a graduation year within the shared contract.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterAsync_ReturnsServerError_WhenGraduationYearIsOutOfRange()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new[]
+            {
+                new TeamRosterItem
+                {
+                    TeamId = 7,
+                    Name = "U16",
+                    GraduationYear = 1999,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ActivePlacementCount = 0
+                }
+            })
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamRosterService(http).GetRosterAsync(
+            new GetTeamRosterInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies exact lifecycle and graduation-year filters are reflected in returned rows.
     /// </summary>
     /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>

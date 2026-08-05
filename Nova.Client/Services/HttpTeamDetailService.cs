@@ -74,6 +74,7 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && placement.CampaignStartDate != default
             && placement.PlayerId > 0
             && !string.IsNullOrWhiteSpace(placement.PlayerDisplayName)
+            && placement.PlayerGraduationYear is >= 2000 and <= 2100
             && placement.PlacementOutcome == Nova.Shared.Enums.PlacementOutcome.Assigned;
 
     /// <summary>

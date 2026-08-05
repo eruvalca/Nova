@@ -189,6 +189,30 @@ public sealed class HttpPlayerManagementServiceTests
     }
 
     /// <summary>
+    /// Verifies nullable jersey numbers retain the shared range in player responses.
+    /// </summary>
+    /// <param name="jerseyNumber">The invalid jersey number returned by the server.</param>
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(10000)]
+    public async Task CreateAsync_ReturnsServerError_WhenJerseyNumberIsOutOfRange(int jerseyNumber)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = JsonContent.Create(CreatePlayer() with { JerseyNumber = jerseyNumber })
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerManagementService(http).CreateAsync(
+            CreateInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies the client does not reject a date value currently permitted by the shared input contract.
     /// </summary>
     [Fact]

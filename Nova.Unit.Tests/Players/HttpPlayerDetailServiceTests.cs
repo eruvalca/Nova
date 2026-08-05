@@ -218,10 +218,16 @@ public sealed class HttpPlayerDetailServiceTests
     }
 
     /// <summary>
-    /// Verifies malformed nested team summaries are rejected.
+    /// Verifies nested team summaries require bounded years and defined lifecycle states.
     /// </summary>
-    [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenHistoryTeamIsInvalid()
+    /// <param name="graduationYear">The team graduation year returned by the server.</param>
+    /// <param name="lifecycleStatus">The team lifecycle status returned by the server.</param>
+    [Theory]
+    [InlineData(1999, LifecycleStatus.Active)]
+    [InlineData(2028, (LifecycleStatus)99)]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenHistoryTeamStateIsInvalid(
+        int graduationYear,
+        LifecycleStatus lifecycleStatus)
     {
         var history = new PlayerCampaignHistoryDto(
             11,
@@ -231,7 +237,7 @@ public sealed class HttpPlayerDetailServiceTests
             new DateOnly(2025, 3, 1),
             null,
             PlacementOutcome.Assigned,
-            new PlayerTeamSummaryDto(0, string.Empty, 2028, LifecycleStatus.Active),
+            new PlayerTeamSummaryDto(7, "U16", graduationYear, lifecycleStatus),
             [],
             []);
         var payload = new PlayerDetailDto(
@@ -512,6 +518,42 @@ public sealed class HttpPlayerDetailServiceTests
             graduationYear,
             null,
             lifecycleStatus,
+            [],
+            []);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies nullable jersey numbers retain the shared range in player details.
+    /// </summary>
+    /// <param name="jerseyNumber">The invalid jersey number returned by the server.</param>
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(10000)]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenJerseyNumberIsOutOfRange(
+        int jerseyNumber)
+    {
+        var payload = new PlayerDetailDto(
+            42,
+            "Alex",
+            "Athlete",
+            new DateOnly(2010, 2, 3),
+            null,
+            2028,
+            jerseyNumber,
+            LifecycleStatus.Active,
             [],
             []);
         using var response = new HttpResponseMessage(HttpStatusCode.OK)

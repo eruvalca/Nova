@@ -38,6 +38,7 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
             && !string.IsNullOrWhiteSpace(detail.FirstName)
             && !string.IsNullOrWhiteSpace(detail.LastName)
             && detail.GraduationYear is >= 2000 and <= 2100
+            && detail.JerseyNumber is null or >= 0 and <= 9999
             && detail.LifecycleStatus is Nova.Shared.Enums.LifecycleStatus.Active
                 or Nova.Shared.Enums.LifecycleStatus.Archived
             && detail.CurrentTraits is not null
@@ -106,7 +107,10 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
             Nova.Shared.Enums.PlacementOutcome.Assigned =>
                    history.Team is not null
                    && history.Team.TeamId > 0
-                   && !string.IsNullOrWhiteSpace(history.Team.Name),
+                   && !string.IsNullOrWhiteSpace(history.Team.Name)
+                   && history.Team.GraduationYear is >= 2000 and <= 2100
+                   && history.Team.LifecycleStatus is Nova.Shared.Enums.LifecycleStatus.Active
+                       or Nova.Shared.Enums.LifecycleStatus.Archived,
             Nova.Shared.Enums.PlacementOutcome.Undecided
                    or Nova.Shared.Enums.PlacementOutcome.NotSelected
                    or Nova.Shared.Enums.PlacementOutcome.Withdrawn => history.Team is null,

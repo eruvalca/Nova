@@ -136,6 +136,46 @@ public sealed class HttpTeamDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies placement rows require player graduation years within the shared contract.
+    /// </summary>
+    [Fact]
+    public async Task GetTeamDetailAsync_ReturnsServerError_WhenPlayerGraduationYearIsOutOfRange()
+    {
+        var placement = new TeamPlacementImpactDto(
+            1,
+            2,
+            "Campaign",
+            CampaignStatus.Closed,
+            new DateOnly(2025, 1, 1),
+            3,
+            "Player",
+            1999,
+            null,
+            PlacementOutcome.Assigned);
+        var payload = new TeamDetailDto(
+            7,
+            8,
+            "U16",
+            2028,
+            LifecycleStatus.Active,
+            [],
+            [placement]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
+            7,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies detail rejects a success payload for a different team.
     /// </summary>
     [Fact]
