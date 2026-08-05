@@ -177,6 +177,57 @@ public sealed class HttpPlayerDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies placement outcomes and team presence cannot contradict each other.
+    /// </summary>
+    /// <param name="outcome">The placement outcome returned by the server.</param>
+    /// <param name="includeTeam">Whether the response includes a team summary.</param>
+    [Theory]
+    [InlineData(PlacementOutcome.Assigned, false)]
+    [InlineData(PlacementOutcome.NotSelected, true)]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenPlacementTeamRelationshipIsInvalid(
+        PlacementOutcome outcome,
+        bool includeTeam)
+    {
+        var history = new PlayerCampaignHistoryDto(
+            11,
+            12,
+            "Spring Tryouts",
+            CampaignStatus.Closed,
+            new DateOnly(2025, 3, 1),
+            null,
+            outcome,
+            includeTeam
+                ? new PlayerTeamSummaryDto(7, "U16", 2028, LifecycleStatus.Active)
+                : null,
+            [],
+            []);
+        var payload = new PlayerDetailDto(
+            42,
+            "Alex",
+            "Athlete",
+            new DateOnly(2010, 2, 3),
+            null,
+            2028,
+            null,
+            LifecycleStatus.Active,
+            [],
+            [history]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies the client maps unsuccessful responses into <see cref="ServiceProblem"/>.
     /// </summary>
     [Fact]

@@ -100,10 +100,10 @@ public class HttpClubMemberServiceTests
     }
 
     /// <summary>
-    /// AssignClubAdminAsync accepts JSON false as a valid required Boolean value.
+    /// AssignClubAdminAsync rejects JSON false because success requires an affirmative acknowledgement.
     /// </summary>
     [Fact]
-    public async Task AssignClubAdminAsync_ReturnsFalse_WhenSuccessBodyIsFalse()
+    public async Task AssignClubAdminAsync_ReturnsServerError_WhenSuccessBodyIsFalse()
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -119,8 +119,8 @@ public class HttpClubMemberServiceTests
         var result = await service.AssignClubAdminAsync(input, TestContext.Current.CancellationToken);
 
         // Assert
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBeFalse();
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
     /// <summary>

@@ -145,7 +145,7 @@ public sealed class HttpTeamDetailServiceTests
             "Player",
             2028,
             null,
-            PlacementOutcome.NotSelected);
+            PlacementOutcome.Assigned);
         var payload = new TeamDetailDto(
             7,
             8,
@@ -211,6 +211,86 @@ public sealed class HttpTeamDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies active placement summaries contain every Active row from placement history.
+    /// </summary>
+    [Fact]
+    public async Task GetTeamDetailAsync_ReturnsServerError_WhenActivePlacementIsMissing()
+    {
+        var placement = new TeamPlacementImpactDto(
+            1,
+            2,
+            "Campaign",
+            CampaignStatus.Active,
+            new DateOnly(2025, 1, 1),
+            3,
+            "Player",
+            2028,
+            null,
+            PlacementOutcome.Assigned);
+        var payload = new TeamDetailDto(
+            7,
+            8,
+            "U16",
+            2028,
+            LifecycleStatus.Active,
+            [],
+            [placement]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
+            7,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies team placement rows require the Assigned outcome.
+    /// </summary>
+    [Fact]
+    public async Task GetTeamDetailAsync_ReturnsServerError_WhenPlacementOutcomeIsNotAssigned()
+    {
+        var placement = new TeamPlacementImpactDto(
+            1,
+            2,
+            "Campaign",
+            CampaignStatus.Closed,
+            new DateOnly(2025, 1, 1),
+            3,
+            "Player",
+            2028,
+            null,
+            PlacementOutcome.NotSelected);
+        var payload = new TeamDetailDto(
+            7,
+            8,
+            "U16",
+            2028,
+            LifecycleStatus.Active,
+            [],
+            [placement]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
+            7,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies the truncation flag remains consistent with its shared total and bound.
     /// </summary>
     [Fact]
@@ -253,7 +333,7 @@ public sealed class HttpTeamDetailServiceTests
                 $"Player {index}",
                 2028,
                 null,
-                PlacementOutcome.NotSelected))
+                PlacementOutcome.Assigned))
             .ToList();
         var payload = new TeamDetailDto(
             7,
@@ -294,7 +374,7 @@ public sealed class HttpTeamDetailServiceTests
             "Player",
             2028,
             null,
-            PlacementOutcome.NotSelected);
+            PlacementOutcome.Assigned);
         var payload = new TeamDetailDto(
             7,
             8,

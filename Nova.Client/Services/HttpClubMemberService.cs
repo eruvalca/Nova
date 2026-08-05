@@ -44,7 +44,8 @@ public sealed class HttpClubMemberService(HttpClient http) : IClubMemberService
 
         return await response.Content.ReadRequiredJsonAsync<bool>(
             "The server returned an invalid administrator assignment response.",
-            cancellationToken: cancellationToken);
+            assigned => assigned,
+            cancellationToken);
     }
 
     /// <summary>

@@ -50,10 +50,9 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && detail.IsPlacementHistoryTruncated
                 == (detail.PlacementHistoryTotalCount > TeamDetailDto.MaxPlacementHistoryItems)
             && detail.PlacementHistory.All(IsValidPlacement)
-            && detail.ActivePlacementImpacts.All(active =>
-                IsValidPlacement(active)
-                && active.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active
-                && detail.PlacementHistory.Contains(active));
+            && detail.ActivePlacementImpacts.SequenceEqual(
+                detail.PlacementHistory.Where(placement =>
+                    placement.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active));
 
     /// <summary>
     /// Validates the portable invariants of a team-placement row.
@@ -67,5 +66,6 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && !string.IsNullOrWhiteSpace(placement.CampaignName)
             && placement.CampaignStartDate != default
             && placement.PlayerId > 0
-            && !string.IsNullOrWhiteSpace(placement.PlayerDisplayName);
+            && !string.IsNullOrWhiteSpace(placement.PlayerDisplayName)
+            && placement.PlacementOutcome == Nova.Shared.Enums.PlacementOutcome.Assigned;
 }

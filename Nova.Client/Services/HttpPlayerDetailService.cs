@@ -47,15 +47,31 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
                 && history.CampaignId > 0
                 && !string.IsNullOrWhiteSpace(history.CampaignName)
                 && history.CampaignStartDate != default
-                && (history.Team is null
-                    || (history.Team.TeamId > 0
-                        && !string.IsNullOrWhiteSpace(history.Team.Name)))
+                && IsValidPlacementRelationship(history)
                 && history.Notes is not null
                 && history.TagApplications is not null
                 && history.Notes.All(IsValidNote)
                 && history.TagApplications.All(IsValidTagApplication)
                 && AreNotesOrdered(history.Notes)
                 && AreTagApplicationsOrdered(history.TagApplications));
+
+    /// <summary>
+    /// Validates that placement outcome and team presence satisfy the assignment contract.
+    /// </summary>
+    /// <param name="history">The campaign-history row to validate.</param>
+    /// <returns><see langword="true"/> when the outcome and team relationship is valid.</returns>
+    private static bool IsValidPlacementRelationship(PlayerCampaignHistoryDto history)
+        => history.PlacementOutcome switch
+        {
+            Nova.Shared.Enums.PlacementOutcome.Assigned =>
+                   history.Team is not null
+                   && history.Team.TeamId > 0
+                   && !string.IsNullOrWhiteSpace(history.Team.Name),
+            Nova.Shared.Enums.PlacementOutcome.Undecided
+                   or Nova.Shared.Enums.PlacementOutcome.NotSelected
+                   or Nova.Shared.Enums.PlacementOutcome.Withdrawn => history.Team is null,
+            _ => false
+        };
 
     /// <summary>
     /// Validates the portable invariants of an evaluation-note row.
