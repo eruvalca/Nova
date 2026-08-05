@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Nova.Shared.Enums;
 using Nova.Shared.Players;
 using Nova.Shared.Results;
 
@@ -61,5 +62,7 @@ public sealed class HttpPlayerManagementService(HttpClient http) : IPlayerManage
             && (expectedPlayerId is null || player.PlayerId == expectedPlayerId)
             && player.ClubId > 0
             && !string.IsNullOrWhiteSpace(player.FirstName)
-            && !string.IsNullOrWhiteSpace(player.LastName);
+            && !string.IsNullOrWhiteSpace(player.LastName)
+            && player.GraduationYear is >= 2000 and <= 2100
+            && player.LifecycleStatus is LifecycleStatus.Active or LifecycleStatus.Archived;
 }

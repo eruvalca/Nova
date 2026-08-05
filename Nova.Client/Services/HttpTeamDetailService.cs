@@ -42,6 +42,9 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && detail.TeamId == expectedTeamId
             && detail.ClubId > 0
             && !string.IsNullOrWhiteSpace(detail.Name)
+            && detail.GraduationYear is >= 2000 and <= 2100
+            && detail.LifecycleStatus is Nova.Shared.Enums.LifecycleStatus.Active
+                or Nova.Shared.Enums.LifecycleStatus.Archived
             && detail.ActivePlacementImpacts is not null
             && detail.PlacementHistory is not null
             && detail.ActivePlacementImpactTotalCount >= 0

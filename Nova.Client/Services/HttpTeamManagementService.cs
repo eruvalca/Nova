@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Shared.Teams;
 
@@ -59,5 +60,7 @@ public sealed class HttpTeamManagementService(HttpClient http) : ITeamManagement
             && team.TeamId > 0
             && (expectedTeamId is null || team.TeamId == expectedTeamId)
             && team.ClubId > 0
-            && !string.IsNullOrWhiteSpace(team.Name);
+            && !string.IsNullOrWhiteSpace(team.Name)
+            && team.GraduationYear is >= 2000 and <= 2100
+            && team.LifecycleStatus is LifecycleStatus.Active or LifecycleStatus.Archived;
 }

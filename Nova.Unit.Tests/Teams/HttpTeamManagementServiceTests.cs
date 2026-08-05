@@ -2,6 +2,7 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
+using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Shared.Teams;
 using Shouldly;
@@ -133,6 +134,40 @@ public sealed class HttpTeamManagementServiceTests
                 Name = "U16",
                 GraduationYear = 2028,
                 LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active
+            })
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamManagementService(http).CreateAsync(
+            new CreateTeamInput { Name = "U16", GraduationYear = 2028 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies bounded years and defined lifecycle states are required in team responses.
+    /// </summary>
+    /// <param name="graduationYear">The graduation year returned by the server.</param>
+    /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
+    [Theory]
+    [InlineData(1999, LifecycleStatus.Active)]
+    [InlineData(2028, (LifecycleStatus)99)]
+    public async Task CreateAsync_ReturnsServerError_WhenTeamStateIsInvalid(
+        int graduationYear,
+        LifecycleStatus lifecycleStatus)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = JsonContent.Create(new TeamDto
+            {
+                TeamId = 7,
+                ClubId = 42,
+                Name = "U16",
+                GraduationYear = graduationYear,
+                LifecycleStatus = lifecycleStatus
             })
         };
         var handler = new CapturingHandler(response);

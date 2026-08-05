@@ -37,6 +37,9 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
             && detail.PlayerId == expectedPlayerId
             && !string.IsNullOrWhiteSpace(detail.FirstName)
             && !string.IsNullOrWhiteSpace(detail.LastName)
+            && detail.GraduationYear is >= 2000 and <= 2100
+            && detail.LifecycleStatus is Nova.Shared.Enums.LifecycleStatus.Active
+                or Nova.Shared.Enums.LifecycleStatus.Archived
             && detail.CurrentTraits is not null
             && detail.CampaignHistory is not null
             && detail.CurrentTraits.All(trait => trait is not null

@@ -108,6 +108,34 @@ public sealed class HttpTeamDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies bounded years and defined lifecycle states are required in team details.
+    /// </summary>
+    /// <param name="graduationYear">The graduation year returned by the server.</param>
+    /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
+    [Theory]
+    [InlineData(1999, LifecycleStatus.Active)]
+    [InlineData(2028, (LifecycleStatus)99)]
+    public async Task GetTeamDetailAsync_ReturnsServerError_WhenTeamStateIsInvalid(
+        int graduationYear,
+        LifecycleStatus lifecycleStatus)
+    {
+        var payload = new TeamDetailDto(7, 8, "U16", graduationYear, lifecycleStatus, [], []);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
+            7,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies detail rejects a success payload for a different team.
     /// </summary>
     [Fact]

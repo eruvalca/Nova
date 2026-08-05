@@ -492,6 +492,44 @@ public sealed class HttpPlayerDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies bounded years and defined lifecycle states are required in player details.
+    /// </summary>
+    /// <param name="graduationYear">The graduation year returned by the server.</param>
+    /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
+    [Theory]
+    [InlineData(1999, LifecycleStatus.Active)]
+    [InlineData(2028, (LifecycleStatus)99)]
+    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenPlayerStateIsInvalid(
+        int graduationYear,
+        LifecycleStatus lifecycleStatus)
+    {
+        var payload = new PlayerDetailDto(
+            42,
+            "Alex",
+            "Athlete",
+            new DateOnly(2010, 2, 3),
+            null,
+            graduationYear,
+            null,
+            lifecycleStatus,
+            [],
+            []);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies history rows permit empty note and tag-application collections.
     /// </summary>
     [Fact]

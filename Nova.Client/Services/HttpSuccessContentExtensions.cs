@@ -26,7 +26,13 @@ internal static class HttpSuccessContentExtensions
         {
             try
             {
-                var value = await content.ReadFromJsonAsync<T>(cancellationToken);
+                var json = await content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+                if (json.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+                {
+                    return ServiceProblem.ServerError(errorDetail);
+                }
+
+                var value = json.Deserialize<T>(JsonSerializerOptions.Web);
                 return value is not null && (validator?.Invoke(value) ?? true)
                     ? value
                     : ServiceProblem.ServerError(errorDetail);

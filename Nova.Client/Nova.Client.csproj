@@ -15,4 +15,8 @@
     <ProjectReference Include="..\Nova.UI\Nova.UI.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nova.Unit.Tests" />
+  </ItemGroup>
+
 </Project>

@@ -158,6 +158,37 @@ public sealed class HttpPlayerManagementServiceTests
     }
 
     /// <summary>
+    /// Verifies bounded years and defined lifecycle states are required in player responses.
+    /// </summary>
+    /// <param name="graduationYear">The graduation year returned by the server.</param>
+    /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
+    [Theory]
+    [InlineData(1999, LifecycleStatus.Active)]
+    [InlineData(2028, (LifecycleStatus)99)]
+    public async Task CreateAsync_ReturnsServerError_WhenPlayerStateIsInvalid(
+        int graduationYear,
+        LifecycleStatus lifecycleStatus)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = JsonContent.Create(CreatePlayer() with
+            {
+                GraduationYear = graduationYear,
+                LifecycleStatus = lifecycleStatus
+            })
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerManagementService(http).CreateAsync(
+            CreateInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies the client does not reject a date value currently permitted by the shared input contract.
     /// </summary>
     [Fact]
