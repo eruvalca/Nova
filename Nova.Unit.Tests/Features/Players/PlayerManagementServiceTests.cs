@@ -4,7 +4,7 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Players;
 using Nova.Shared.Enums;
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;

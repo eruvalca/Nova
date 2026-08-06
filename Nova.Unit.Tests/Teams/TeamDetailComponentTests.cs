@@ -8,7 +8,7 @@ using NSubstitute;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using Nova.UI.Features.Teams.Pages;
 using OneOf.Types;
 using Shouldly;

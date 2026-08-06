@@ -1,7 +1,7 @@
-﻿using Bunit;
+using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Account;
+using Nova.Shared.Features.Account;
 using Nova.Shared.Results;
 using Nova.UI.Features.Account.Components;
 using NSubstitute;

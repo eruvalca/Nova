@@ -1,8 +1,8 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Account;
+using Nova.Shared.Features.Account;
 using Nova.Shared.Results;
 using Shouldly;
 

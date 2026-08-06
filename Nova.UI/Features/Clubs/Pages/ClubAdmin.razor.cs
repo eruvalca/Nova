@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components;
-using Nova.Shared.Account;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Account;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 using Nova.UI.Components;
 

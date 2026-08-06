@@ -1,5 +1,5 @@
 using Nova.Features.Shared;
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Security;
 
 namespace Nova.Features.Players;

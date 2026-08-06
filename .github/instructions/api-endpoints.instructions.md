@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova/Features/**/*.cs,Nova.Shared/**/*Endpoints.cs,Nova.Shared/**/*Input.cs,Nova.Client/Services/**/*.cs"
+applyTo: "Nova/Features/**/*.cs,Nova.Shared/Features/**/*Endpoints.cs,Nova.Shared/Features/**/*Input.cs,Nova.Client/Services/**/*.cs"
 description: "HTTP endpoint and WASM client rules: routes, handlers, contract fidelity, ProblemDetails, validation, metadata, authorization, antiforgery, and query binding."
 ---
 
@@ -15,7 +15,7 @@ description: "HTTP endpoint and WASM client rules: routes, handlers, contract fi
   already owns the same mutation and invariant unless a distinct external contract is intentional.
   Every endpoint needs an intended caller or an explicit external-consumer justification.
 - **All route strings must be constants in a static `*Endpoints` class in `Nova.Shared`** (one per
-  feature folder, e.g. `Nova.Shared/Clubs/ClubEndpoints.cs`). Never write inline route literals in
+  feature folder, e.g. `Nova.Shared/Features/Clubs/ClubEndpoints.cs`). Never write inline route literals in
   the mapping code or in WASM client services — server and client must consume the same constants.
 - For routes with dynamic segments, expose a URL-builder static method rather than the raw template.
 - Compose URL builders from the feature's existing route constants (especially `GroupPrefix`) instead

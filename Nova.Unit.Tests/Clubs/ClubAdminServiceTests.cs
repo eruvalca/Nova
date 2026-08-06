@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -7,7 +7,7 @@ using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.Unit.Tests.Account;

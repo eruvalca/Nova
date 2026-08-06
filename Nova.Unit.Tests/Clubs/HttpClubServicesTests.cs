@@ -1,8 +1,8 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using OneOf.Types;

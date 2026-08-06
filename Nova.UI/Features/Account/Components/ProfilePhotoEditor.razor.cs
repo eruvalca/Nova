@@ -1,8 +1,8 @@
-﻿using Cropper.Blazor.Components;
+using Cropper.Blazor.Components;
 using Cropper.Blazor.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
-using Nova.Shared.Photos;
+using Nova.Shared.Features.Photos;
 using Nova.UI.Components;
 
 namespace Nova.UI.Features.Account.Components;

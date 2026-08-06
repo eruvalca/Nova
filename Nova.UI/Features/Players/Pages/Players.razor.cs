@@ -3,7 +3,6 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Nova.Shared.Features.Players;
-using Nova.Shared.Players;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Components;

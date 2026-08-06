@@ -4,9 +4,9 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.Features.Players;
-using Nova.Shared.Campaigns;
+using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Enums;
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Shouldly;
 

@@ -4,7 +4,7 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Clubs;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.Shared.Validation;

@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Shared.Account;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Account;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 
 namespace Nova.Features.Clubs;

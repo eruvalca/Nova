@@ -44,7 +44,7 @@ public class ProfilePhotoValidatorTests
     [Fact]
     public void Validate_Fails_WhenContentExceedsMaxBytes()
     {
-        var oversized = new byte[Nova.Shared.Photos.ProfilePhotoConstraints.MaxBytes + 1];
+        var oversized = new byte[Nova.Shared.Features.Photos.ProfilePhotoConstraints.MaxBytes + 1];
         JpegBytes.CopyTo(oversized, 0);
 
         var errors = ProfilePhotoValidator.Validate(oversized, "image/jpeg");

@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Nova.Shared.Results;
 using Nova.Features.Teams;
 using Nova.Shared.Security;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using OneOf.Types;
 using Shouldly;
 

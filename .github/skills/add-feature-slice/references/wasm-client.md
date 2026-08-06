@@ -1,17 +1,17 @@
 # WASM Client Service Recipe
 
 After `add-api-endpoint` defines route constants and maps the endpoint, add a WebAssembly HTTP client
-service in `Nova.Client\Services\Http{Feature}Service.cs`. The service should implement the shared
-`I{Feature}Service` interface from `Nova.Shared\{Feature}\`, use `HttpClient`, and return the same
+service in `Nova.Client\Services\{Feature}\Http{Feature}Service.cs`. The service should implement the shared
+`I{Feature}Service` interface from `Nova.Shared\Features\{Feature}\`, use `HttpClient`, and return the same
 `ServiceResult<T>` contract as the server service.
 
 Canonical files:
 
-- `Nova.Client\Services\HttpCampaignCreationService.cs`
-- `Nova.Client\Services\HttpCampaignQueryService.cs`
+- `Nova.Client\Services\Campaigns\HttpCampaignCreationService.cs`
+- `Nova.Client\Services\Campaigns\HttpCampaignQueryService.cs`
 - `Nova.Client\Services\HttpSuccessContentExtensions.cs`
-- `Nova.Shared\Campaigns\CampaignEndpoints.cs`
-- `Nova.Shared\Campaigns\ICampaignQueryService.cs`
+- `Nova.Shared\Features\Campaigns\CampaignEndpoints.cs`
+- `Nova.Shared\Features\Campaigns\ICampaignQueryService.cs`
 
 ## Pattern
 
@@ -36,7 +36,7 @@ Canonical files:
 
 ```csharp
 using System.Net.Http.Json;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 
 namespace Nova.Client.Services;

@@ -1,5 +1,5 @@
 using Nova.Entities;
-using Nova.Shared.Account;
+using Nova.Shared.Features.Account;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Account;

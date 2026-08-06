@@ -5,7 +5,7 @@ using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
 

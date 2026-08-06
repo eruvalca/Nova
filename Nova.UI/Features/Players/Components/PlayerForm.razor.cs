@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Nova.Shared.Enums;
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Validation;
 
 namespace Nova.UI.Features.Players.Components;

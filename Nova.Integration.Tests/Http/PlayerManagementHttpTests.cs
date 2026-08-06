@@ -2,9 +2,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Enums;
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -322,7 +322,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         string state,
         CancellationToken cancellationToken)
     {
-        using var response = await client.PostAsJsonAsync(Nova.Shared.Clubs.ClubEndpoints.Create, new Nova.Shared.Clubs.CreateClubInput
+        using var response = await client.PostAsJsonAsync(Nova.Shared.Features.Clubs.ClubEndpoints.Create, new Nova.Shared.Features.Clubs.CreateClubInput
         {
             Name = name,
             City = city,
@@ -337,7 +337,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
 
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{Nova.Shared.Clubs.ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        using var response = await client.GetAsync($"{Nova.Shared.Features.Clubs.ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 

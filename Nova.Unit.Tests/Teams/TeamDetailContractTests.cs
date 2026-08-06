@@ -1,5 +1,5 @@
 using Nova.Shared.Enums;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Teams;

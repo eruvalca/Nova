@@ -4,7 +4,7 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Shared;
-using Nova.Shared.Campaigns;
+using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;

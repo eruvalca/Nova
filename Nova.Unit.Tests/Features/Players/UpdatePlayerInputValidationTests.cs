@@ -1,4 +1,4 @@
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Validation;
 using Shouldly;
 

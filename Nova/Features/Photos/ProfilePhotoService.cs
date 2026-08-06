@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Shared.Photos;
+using Nova.Shared.Features.Photos;
 using Nova.Shared.Results;
 using OneOf.Types;
 using SixLabors.ImageSharp;

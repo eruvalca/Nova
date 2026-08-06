@@ -3,7 +3,7 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using OneOf;
 using OneOf.Types;

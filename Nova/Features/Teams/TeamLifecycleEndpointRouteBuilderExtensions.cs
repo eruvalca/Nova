@@ -1,7 +1,7 @@
 using Nova.Features.Shared;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 
 namespace Nova.Features.Teams;
 

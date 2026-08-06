@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Features.Players;
 using Nova.Shared.Enums;
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;

@@ -3,7 +3,7 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using Nova.Shared.Validation;
 
 namespace Nova.Features.Teams;

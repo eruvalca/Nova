@@ -3,13 +3,12 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Nova.Client.Services;
 using Nova.Client.Telemetry;
-using Nova.Shared.Account;
-using Nova.Shared.Campaigns;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Account;
+using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Players;
-using Nova.Shared.Photos;
-using Nova.Shared.Players;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Photos;
+using Nova.Shared.Features.Teams;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 

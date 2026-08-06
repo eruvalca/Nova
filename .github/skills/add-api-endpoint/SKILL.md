@@ -14,11 +14,11 @@ Use this skill when adding or changing Nova minimal-API endpoints that are share
 
 ## Canonical Nova examples
 
-- Routes: `Nova.Shared\Clubs\ClubEndpoints.cs`
+- Routes: `Nova.Shared\Features\Clubs\ClubEndpoints.cs`
 - Mapping/handlers: `Nova\Features\Clubs\ClubEndpointRouteBuilderExtensions.cs`
-- WASM client: `Nova.Client\Services\HttpClubService.cs`
+- WASM client: `Nova.Client\Services\Clubs\HttpClubService.cs`
 - ToHttpResult: `Nova\Features\Shared\ServiceResultExtensions.cs`
-- Created resource contract: `Nova.Shared\Teams\TeamEndpoints.cs`,
+- Created resource contract: `Nova.Shared\Features\Teams\TeamEndpoints.cs`,
   `Nova\Features\Teams\TeamManagementEndpointRouteBuilderExtensions.cs`,
   `Nova.Integration.Tests\Http\TeamManagementHttpTests.cs`
 - Dead endpoint removal: the removed team graduation-year route, which duplicated normal team update.

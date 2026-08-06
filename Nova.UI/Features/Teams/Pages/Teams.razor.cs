@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using Nova.UI.Components;
 using Nova.UI.Features.Teams.Components;
 

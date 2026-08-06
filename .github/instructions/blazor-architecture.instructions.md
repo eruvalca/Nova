@@ -70,7 +70,13 @@ Nova.UI/
 
 - Routable pages go in `{Feature}/Pages`; non-routable components in `{Feature}/Components`.
 - Promote a component to `Shared/` only when a second feature actually needs it.
-- Mirror the same feature-based layout for server-side services in `Nova` and contracts in `Nova.Shared`.
+- Mirror the same feature-based layout for server-side services in `Nova` and contracts in `Nova.Shared`:
+  use `Nova/Features/{Feature}/` and `Nova.Shared/Features/{Feature}/` respectively.
+  `Nova.Shared` keeps non-feature concerns (`Results/`, `Security/`, `Validation/`, `Enums/`) at the
+  top level alongside `Features/`.
+- `Nova.Client/Services/` organizes HTTP client services by feature subfolder
+  (`Nova.Client/Services/{Feature}/Http{Feature}Service.cs`) without an extra `Features/` wrapper,
+  since the whole `Services/` directory is already feature-scoped.
 
 ## Component Conventions
 

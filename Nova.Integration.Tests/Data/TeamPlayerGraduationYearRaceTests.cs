@@ -7,9 +7,9 @@ using Nova.Entities;
 using Nova.Features.Players;
 using Nova.Features.Teams;
 using Nova.Shared.Enums;
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using Npgsql;
 using Shouldly;
 

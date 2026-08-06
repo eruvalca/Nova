@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Photos;
+using Nova.Shared.Features.Photos;
 using Nova.Shared.Results;
 using Shouldly;
 using SixLabors.ImageSharp;

@@ -2,8 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Clubs;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Clubs;
+using Nova.Shared.Features.Teams;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;

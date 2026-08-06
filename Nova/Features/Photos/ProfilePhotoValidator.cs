@@ -1,4 +1,4 @@
-using Nova.Shared.Photos;
+using Nova.Shared.Features.Photos;
 
 namespace Nova.Features.Photos;
 

@@ -1,7 +1,7 @@
 # Service Result Patterns Recipe
 
 Use this reference while implementing the shared interface and server service for a feature slice.
-Canonical examples: `Nova.Shared\Clubs\IClubService.cs`, `Nova.Shared\Clubs\ClubDto.cs`, and
+Canonical examples: `Nova.Shared\Features\Clubs\IClubService.cs`, `Nova.Shared\Features\Clubs\ClubDto.cs`, and
 `Nova\Features\Clubs\ClubService.cs`.
 
 ## Dual-Layer Validation

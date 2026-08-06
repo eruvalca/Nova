@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -6,7 +6,7 @@ using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Account;
-using Nova.Shared.Account;
+using Nova.Shared.Features.Account;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.Unit.Tests.Data;

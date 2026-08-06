@@ -8,15 +8,15 @@ attributes.
 
 ## The Single Source of Truth: Annotated Input Records
 
-Every input record lives in `Nova.Shared/{Feature}/` and carries its validation rules as attributes
+Every input record lives in `Nova.Shared/Features/{Feature}/` and carries its validation rules as attributes
 on explicit init-only properties:
 
 ```csharp
-// Nova.Shared/Clubs/CreateClubInput.cs
+// Nova.Shared/Features/Clubs/CreateClubInput.cs
 using System.ComponentModel.DataAnnotations;
 using Nova.Shared.Validation;
 
-namespace Nova.Shared.Clubs;
+namespace Nova.Shared.Features.Clubs;
 
 public sealed record CreateClubInput
 {
@@ -41,7 +41,7 @@ public sealed record CreateClubInput
 > on properties — it will not see positional-parameter attributes. Always use the explicit property
 > form shown above.
 
-Canonical file: `Nova.Shared\Clubs\CreateClubInput.cs`.
+Canonical file: `Nova.Shared\Features\Clubs\CreateClubInput.cs`.
 
 ## `[NotWhitespace]`
 

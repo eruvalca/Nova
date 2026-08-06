@@ -1,11 +1,11 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Nova.Components.Account;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Account;
-using Nova.Shared.Account;
+using Nova.Shared.Features.Account;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.Shared.Validation;

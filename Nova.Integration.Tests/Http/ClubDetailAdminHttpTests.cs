@@ -1,7 +1,7 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Shouldly;

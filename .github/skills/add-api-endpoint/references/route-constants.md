@@ -2,9 +2,9 @@
 
 Canonical Nova examples:
 
-- Routes: `Nova.Shared\Clubs\ClubEndpoints.cs`
+- Routes: `Nova.Shared\Features\Clubs\ClubEndpoints.cs`
 - Mapping/handlers: `Nova\Features\Clubs\ClubEndpointRouteBuilderExtensions.cs`
-- WASM client: `Nova.Client\Services\HttpClubService.cs`
+- WASM client: `Nova.Client\Services\Clubs\HttpClubService.cs`
 - Endpoint removal: the team graduation-year route removed in PR #53 because normal team update
   already owned the mutation.
 
@@ -23,14 +23,15 @@ command path.
 
 ### Structure
 
-Each feature gets one `*Endpoints` class in the matching `Nova.Shared/{Feature}/` folder:
+Each feature gets one `*Endpoints` class in the matching `Nova.Shared/Features/{Feature}/` folder:
 
 ```
 Nova.Shared/
-  Clubs/
-    ClubEndpoints.cs       ← GroupPrefix, per-route absolute constants, Relative siblings, URL builder methods
-  Photos/
-    PhotoEndpoints.cs
+  Features/
+    Clubs/
+      ClubEndpoints.cs       ← GroupPrefix, per-route absolute constants, Relative siblings, URL builder methods
+    Photos/
+      PhotoEndpoints.cs
 ```
 
 ### Naming Conventions

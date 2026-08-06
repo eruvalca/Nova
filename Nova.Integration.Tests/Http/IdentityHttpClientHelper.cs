@@ -1,6 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
-using Nova.Shared.Photos;
+using Nova.Shared.Features.Photos;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;

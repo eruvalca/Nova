@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services;
 using Nova.Shared.Results;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Teams;

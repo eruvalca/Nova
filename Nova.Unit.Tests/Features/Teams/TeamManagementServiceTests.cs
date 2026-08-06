@@ -5,7 +5,7 @@ using Nova.Entities;
 using Nova.Features.Teams;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 

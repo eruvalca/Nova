@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Shared.Account;
+using Nova.Shared.Features.Account;
 using Nova.Shared.Security;
 
 namespace Nova.Features.Account;

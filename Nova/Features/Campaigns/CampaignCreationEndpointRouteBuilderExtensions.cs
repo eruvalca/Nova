@@ -1,5 +1,5 @@
 using Nova.Features.Shared;
-using Nova.Shared.Campaigns;
+using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Security;
 
 namespace Nova.Features.Campaigns;

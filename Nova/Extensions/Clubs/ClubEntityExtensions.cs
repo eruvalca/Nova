@@ -1,5 +1,5 @@
 using Nova.Entities;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Clubs;
 
 namespace Nova.Extensions.Clubs;
 

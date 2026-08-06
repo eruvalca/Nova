@@ -9,7 +9,7 @@ using NSubstitute;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using TeamsPage = Nova.UI.Features.Teams.Pages.Teams;
 using OneOf.Types;
 using Shouldly;

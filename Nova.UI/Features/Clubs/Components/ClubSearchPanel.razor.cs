@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components;
-using Nova.Shared.Clubs;
+using Nova.Shared.Features.Clubs;
 
 namespace Nova.UI.Features.Clubs.Components;
 

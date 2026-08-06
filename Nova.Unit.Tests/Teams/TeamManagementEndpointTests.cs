@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Features.Teams;
 using Nova.Shared.Results;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Teams;

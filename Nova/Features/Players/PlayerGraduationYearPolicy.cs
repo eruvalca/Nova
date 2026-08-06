@@ -1,4 +1,4 @@
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using OneOf;
 
 namespace Nova.Features.Players;

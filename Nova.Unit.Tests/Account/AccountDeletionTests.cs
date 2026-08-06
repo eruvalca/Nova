@@ -1,6 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
-using Nova.Shared.Account;
-using Nova.Shared.Clubs;
+using System.ComponentModel.DataAnnotations;
+using Nova.Shared.Features.Account;
+using Nova.Shared.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Account;

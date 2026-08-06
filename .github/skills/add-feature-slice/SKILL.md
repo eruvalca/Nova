@@ -13,7 +13,7 @@ Use this orchestrator when adding a complete Nova vertical slice that crosses th
 
 Canonical examples: Clubs for mutations and
 `Nova\Features\Campaigns\CampaignQueryService.cs` /
-`Nova.Client\Services\HttpCampaignQueryService.cs` for a bounded read-only slice.
+`Nova.Client\Services\Campaigns\HttpCampaignQueryService.cs` for a bounded read-only slice.
 
 ## When to use
 
@@ -27,8 +27,8 @@ Canonical examples: Clubs for mutations and
 1. **Domain/persistence or decision policy, when needed** — invoke `add-domain-persistence` for entity,
    EF configuration, migration, tenancy, lifecycle, concurrency, or a non-trivial deterministic
    business-rule matrix. Logic-only policy work does not require entity or migration changes.
-2. **Input record + validation** — create `Nova.Shared\{Feature}\{Name}Input.cs`; follow [input-and-validation.md](references/input-and-validation.md).
-3. **Shared contract + server service** — add DTOs/interfaces in `Nova.Shared\{Feature}\` and implement
+2. **Input record + validation** — create `Nova.Shared\Features\{Feature}\{Name}Input.cs`; follow [input-and-validation.md](references/input-and-validation.md).
+3. **Shared contract + server service** — add DTOs/interfaces in `Nova.Shared\Features\{Feature}\` and implement
    `Nova\Features\{Feature}\{Feature}Service.cs`; follow
    [service-result-patterns.md](references/service-result-patterns.md). Keep authorization, EF,
    locking, persistence, and logging in the service; compose a feature-local pure policy when the
@@ -39,7 +39,7 @@ Canonical examples: Clubs for mutations and
    are eventually consistent.
 4. **Composition root** — register the server service in `Nova\Program.cs`; direct-construction unit tests do not verify DI registration.
 5. **HTTP endpoint** — invoke `add-api-endpoint`; do not duplicate that skill's endpoint details here.
-6. **WASM client service** — add `Nova.Client\Services\Http{Feature}Service.cs`; follow [wasm-client.md](references/wasm-client.md).
+6. **WASM client service** — add `Nova.Client\Services\{Feature}\Http{Feature}Service.cs`; follow [wasm-client.md](references/wasm-client.md).
 7. **UI (pages/components)** — invoke `add-blazor-ui` when the slice surfaces in the UI; it owns
    placement, the render-mode decision, lifecycle/persisted state, callbacks, and form wiring. Do not
    duplicate that skill's details here.

@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
-using Nova.Shared.Account;
+using Nova.Shared.Features.Account;
 
 namespace Nova.Components.Account.Pages.Manage;
 

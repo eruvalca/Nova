@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Campaigns;
+using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Unit.Tests.Data;

@@ -4,7 +4,7 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Teams;
 using Nova.Shared.Results;
-using Nova.Shared.Teams;
+using Nova.Shared.Features.Teams;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;

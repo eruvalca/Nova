@@ -45,7 +45,7 @@ In .NET 10, `builder.Services.AddValidation()` (registered globally in `Program.
 Annotate all input records in `Nova.Shared` with appropriate DataAnnotations. These drive both runtime enforcement and OpenAPI documentation:
 
 ```csharp
-// Nova.Shared/Clubs/CreateClubInput.cs
+// Nova.Shared/Features/Clubs/CreateClubInput.cs
 using Nova.Shared.Validation;
 
 public sealed record CreateClubInput

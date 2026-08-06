@@ -64,7 +64,8 @@ Nova.UI/
 - Start in the owning feature's folder. Put it in `Shared/` **only when a second feature actually
   needs it** — not in anticipation. `ConfirmDeleteDialog` earned `Shared/` because the Account area
   and club deletion both use it.
-- Mirror the same feature layout for server services in `Nova` and contracts in `Nova.Shared`.
+- Mirror the same feature layout for server services in `Nova/Features/{Feature}/` and contracts in
+  `Nova.Shared/Features/{Feature}/`.
 - A new feature means a new `Features/{Feature}/` folder with `Pages/` and `Components/`.
 
 ## 4. File set to create

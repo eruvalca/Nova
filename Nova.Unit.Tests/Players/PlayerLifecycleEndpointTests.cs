@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Nova.Features.Players;
-using Nova.Shared.Players;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Security;
 using Shouldly;
 
