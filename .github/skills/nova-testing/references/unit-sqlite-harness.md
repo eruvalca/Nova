@@ -6,16 +6,6 @@ Canonical files:
 - `Nova.Unit.Tests\Clubs\ClubJoinRequestServiceTests.cs` shows service tests that inject harness contexts through EF factories.
 - `Nova.Unit.Tests\Features\Photos\ProfilePhotoValidatorTests.cs` shows focused provider-agnostic validation tests.
 
-## When to use unit tests
-
-Default new tests to `Nova.Unit.Tests`. Add an integration test only when the behavior depends
-on the real provider (type mappings, migrations, database constraints, advisory locks,
-transaction races, SQL translation, collation).
-
-Use `Nova.Unit.Tests` for provider-agnostic logic: query-filter composition, interceptor branching, services, OneOf state.
-`LifecycleMutationLock` is a no-op under SQLite, so unit tests can cover guard branching but not
-cross-transaction serialization or close/archive-versus-write races.
-
 ## Harness internals
 
 `TenancyTestHarness` (`Nova.Unit.Tests/Data/TenancyTests.cs`) opens one in-memory SQLite
@@ -82,16 +72,3 @@ public void TenantContext_ReturnsOnlyCurrentClubsRows()
   accepting overload or parameter exists, leave the call as-is (or omit the token argument) rather
   than forcing unrelated refactors. Example: `await context.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken)`.
 - bunit and NSubstitute are available in both projects for component/service tests.
-
-## Run commands
-
-Both test projects use xUnit v3 on Microsoft.Testing.Platform (MTP) with Shouldly assertions.
-Run with `dotnet test --project <project>` — do NOT pass VSTest-only flags (`--nologo`,
-`--collect`, `--logger`); MTP rejects them.
-
-```powershell
-dotnet test --project Nova.Unit.Tests
-dotnet test --project Nova.Unit.Tests --filter-class "*Name"
-```
-
-Filter by class with `--filter-class "*Name"`.

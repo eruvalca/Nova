@@ -50,52 +50,6 @@ The extension automatically:
 2. Converts Validation problems to RFC 7807 ValidationProblemDetails with structured errors
 3. **Inserts the W3C trace ID** from `Activity.Current?.TraceId` into the extensions dictionary
 
-## Results Type Union (Optional)
-
-For endpoints that can emit multiple success types, use `Results<T1, T2, ...>`:
-
-```csharp
-private static async Task<Results<Ok<UserDto>, NotFound>> GetUserHandler(
-    long userId,
-    IUserService userService,
-    CancellationToken cancellationToken)
-{
-    var result = await userService.GetUserAsync(userId, cancellationToken);
-    return result.Match(
-        user => TypedResults.Ok(user),
-        problem => problem.Kind == ServiceProblemKind.NotFound
-            ? (Results<Ok<UserDto>, NotFound>)TypedResults.NotFound()
-            : throw new InvalidOperationException());
-}
-```
-
-For simplicity, prefer returning `IResult` unless OpenAPI documentation requires precise type information.
-
-## Trace ID Guarantee
-
-**Every ProblemDetails response must carry the W3C trace ID**. The `ToHttpResult` extension methods automatically insert `Activity.Current?.TraceId` into the response extensions. This is critical for correlating API errors back to server logs.
-
-Example with explicit logging:
-```csharp
-private static async Task<IResult> GetUserHandler(
-    long userId,
-    ILogger<UserHandler> logger,
-    IUserService userService,
-    CancellationToken cancellationToken)
-{
-    try
-    {
-        var result = await userService.GetUserAsync(userId, cancellationToken);
-        return result.ToHttpResult();
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Failed to get user {UserId}", userId);
-        return ServiceProblem.ServerError("An unexpected error occurred.").ToHttpResult();
-    }
-}
-```
-
 ## Endpoint Naming and OpenAPI
 
 Always use `WithName` for route names used in redirection and OpenAPI:
@@ -136,54 +90,6 @@ Use a shared route-name constant for the target GET. Then add a real HTTP test t
 
 `TeamManagementHttpTests.CreateTeam_ReturnsCreatedWithLocationHeader_ForClubAdmin` is the canonical
 test. Endpoint metadata tests cannot prove the route name and route values generate a usable URL.
-
-## Complete Endpoint Example
-
-```csharp
-/// <summary>
-/// Maps the user management endpoints.
-/// </summary>
-public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder endpoints)
-{
-    var group = endpoints
-        .MapGroup("/api/users")
-        .RequireAuthorization();
-
-    group.MapPost("", CreateUserHandler)
-        .Produces<UserDto>(StatusCodes.Status201Created)
-        .ProducesProblem(StatusCodes.Status400BadRequest)
-        .ProducesProblem(StatusCodes.Status409Conflict)
-        .ProducesProblem(StatusCodes.Status500InternalServerError)
-        .WithName("CreateUser");
-
-    group.MapGet("{userId:long}", GetUserHandler)
-        .Produces<UserDto>()
-        .ProducesProblem(StatusCodes.Status404NotFound)
-        .ProducesProblem(StatusCodes.Status401Unauthorized)
-        .WithName("GetUser");
-
-    return endpoints;
-}
-
-private static async Task<IResult> CreateUserHandler(
-    UserRegistrationInput input,
-    IUserRegistrationService userService,
-    CancellationToken cancellationToken)
-{
-    var result = await userService.RegisterAsync(input, cancellationToken);
-    return result.ToHttpResult(
-        user => TypedResults.CreatedAtRoute(user, "GetUser", new { userId = user.Id }));
-}
-
-private static async Task<IResult> GetUserHandler(
-    long userId,
-    IUserService userService,
-    CancellationToken cancellationToken)
-{
-    var result = await userService.GetUserAsync(userId, cancellationToken);
-    return result.ToHttpResult();
-}
-```
 
 ## Related Files
 

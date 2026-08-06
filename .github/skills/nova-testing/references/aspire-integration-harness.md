@@ -20,21 +20,6 @@ Canonical files:
 - `Nova.Integration.Tests\Http\TeamManagementHttpTests.cs` shows `201` + `Location` + follow coverage.
 - `Nova.Integration.Tests\Http\IdentityHttpClientHelper.cs` shows HTTP auth bootstrap for tests.
 
-## When to use integration tests
-
-Default new tests to `Nova.Unit.Tests`. Add an integration test only when the behavior depends
-on the real provider (type mappings, migrations, database constraints, advisory locks,
-transaction races, SQL translation, collation).
-
-Use `Nova.Integration.Tests` for Postgres-only behavior: production migrations,
-`timestamptz`/`DateOnly` mappings, database constraints, advisory locks, competing transactions,
-execution-strategy retries, ambiguous commits, and filter SQL translation.
-
-SQLite is not Postgres: it won't catch `timestamptz` offset requirements, identity-column
-semantics, case-sensitivity/collation, advisory-lock behavior, competing-transaction races, or SQL
-translation limits. If behavior uses provider-sensitive constructs, mirror one focused test in
-`Nova.Integration.Tests`.
-
 ## Retrying mutation fault injection
 
 Test retrying mutations against PostgreSQL in both failure modes:
@@ -137,29 +122,4 @@ private void ActAs(long? userId, long? clubId, bool isClubAdmin = false)
 }
 ```
 
-## Conventions and gotchas
-
-- One behavior per test; name `Subject_Outcome_Condition` style (e.g.
-  `Interceptor_Throws_OnCrossTenantAdd`). Use Shouldly (`ShouldBe`, `Should.Throw<T>`),
-  `[Theory]`/`[InlineData]` for case matrices.
-- xUnit v3: fixtures implement `IAsyncLifetime` with `ValueTask`; test classes get fixtures via
-  primary-constructor injection.
-- Prefer `Xunit.TestContext.Current.CancellationToken` over `CancellationToken.None` in tests
-  whenever the async API already accepts a `CancellationToken`. This keeps test cancellation tied
-  to the xUnit runner and preserves cancellation behavior during test interruption. If no token-
-  accepting overload or parameter exists, leave the call as-is (or omit the token argument) rather
-  than forcing unrelated refactors. Example: `await context.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken)`.
-- bunit and NSubstitute are available in both projects for component/service tests.
-
-## Run commands
-
-Both test projects use xUnit v3 on Microsoft.Testing.Platform (MTP) with Shouldly assertions.
-Run with `dotnet test --project <project>` — do NOT pass VSTest-only flags (`--nologo`,
-`--collect`, `--logger`); MTP rejects them.
-
-```powershell
-dotnet test --project Nova.Integration.Tests
-dotnet test --project Nova.Integration.Tests --filter-class "*Name"
-```
-
-Filter by class with `--filter-class "*Name"`.
+See `nova-testing/SKILL.md` for xUnit v3, Shouldly, naming, and run commands that apply to both harnesses.

@@ -12,9 +12,10 @@ description: "Nova C# coding conventions, Try-method contracts, editorconfig exp
 - Prefer pattern matching (`is`, `is not`, `switch` expressions, property patterns, list patterns) when it improves clarity.
 - Prefer null-propagation and null-coalescing operators (`?.`, `?[]`, `??`, `??=`) instead of verbose null checks.
 - Prefer collection expressions (`[]`, `[a, b, ..other]`) and modern collection initialization patterns.
+- Prefer target-typed `new()`, expression-bodied members where readable, inline `out` variables, and simplified initialization.
 - Prefer `string.Empty` over empty string literals for representing empty strings.
 - Eliminate unused parameters and unused value assignments.
-- Prefer the C# 8+ declaration form `using var x = ...;` over the braced `using (...) { }` form.
+- Prefer `using var x = ...;` over `using (...) { }` when the variable lifetime naturally ends at the enclosing scope.
 
 ## `Try*` contracts
 
@@ -77,12 +78,14 @@ Use **C# 14 extension blocks** to map domain entities to DTOs. Place one extensi
 - Every documented symbol must include a meaningful `<summary>` that explains purpose and behavior, not just a restatement of the symbol name.
 - Add `<param>` for each method or constructor parameter. Add `<returns>` for non-`void` return values, including `Task<T>` and `ValueTask<T>`.
 - Keep documentation behavior-accurate. When behavior changes, update docs in the same change.
+- Generated or third-party sources are excluded unless their generator supports documentation customization.
 
 ## Logging
 
 - Use source-generated logging via `partial` methods annotated with `[LoggerMessage]`.
-- Inject `ILogger<T>` via the constructor. Do not use `ILoggerFactory` directly outside DI composition.
+- Inject `ILogger<T>` via the constructor. Do not use `ILoggerFactory` directly outside DI composition except in factories or host-configuration components.
 - Mark classes `partial` when they contain source-generated logging methods.
+- For a static target, use a separate non-static partial logging helper or document why source generation cannot apply and pass an `ILogger` explicitly.
 - Define one logging method per distinct message; keep messages short, stable, and template-based for structured sinks.
 - Do not build log messages with interpolation or concatenation. Pass structured values as method parameters.
 - When logging exceptions, pass the `Exception` object as the first parameter and include only context values (operation name, resource id) needed to diagnose the failure. Do not swallow exceptions silently.

@@ -90,15 +90,6 @@ Do **not** rebuild a `Dictionary<string, string[]>` by hand with `string.IsNullO
 `.Length` checks for rules that an attribute already expresses. Add or change the attribute on the
 record instead.
 
-## Why the service still validates (dual-layer rationale)
-
-Endpoint-layer validation (`AddValidation()`) only runs for HTTP requests. Server-side Blazor (SSR)
-pages, background jobs, and tests call services directly via DI and never hit an endpoint. The
-service is therefore the authoritative validation boundary regardless of call path. Because both
-layers read the **same attributes**, calling `InputValidator.Validate<T>` in the service guarantees
-identical rules on every path. See
-`.github/instructions/service-layer.instructions.md` → **Dual-Layer Validation**.
-
 ## Adding a new input record
 
 1. Create the record in `Nova.Shared/{Feature}/{Name}Input.cs`.
@@ -114,12 +105,8 @@ identical rules on every path. See
 
 ## Documented exception: `ProfilePhotoValidator`
 
-`Nova/Features/Photos/ProfilePhotoValidator.cs` validates uploaded image bytes by sniffing magic
-bytes from a `ReadOnlySpan<byte>` and cross-checking the declared content type. This rule cannot be
-expressed as a DataAnnotations attribute on a model (there is no model property — the input is a raw
-byte span and an `IFormFile`), so it stays a standalone validator invoked manually in the upload
-handler. This is the **only** sanctioned exception to the "annotate the record + `InputValidator`"
-rule. New non-model validation (file size, content sniffing, streaming) follows the same
-manual-validator approach described in
-the `add-api-endpoint` skill (`references/validation-and-problemdetails.md`) → manual validation for non-model inputs.
+`Nova/Features/Photos/ProfilePhotoValidator.cs` validates uploaded image bytes by magic-byte sniffing —
+an approach that cannot be expressed as a DataAnnotation. It is the **only** sanctioned exception to
+the "annotate the record + `InputValidator`" rule. See
+`add-api-endpoint/references/validation-and-problemdetails.md` → manual validation for non-model inputs.
 

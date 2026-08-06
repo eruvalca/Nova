@@ -140,10 +140,3 @@ private void OnConfirmChanged(ChangeEventArgs e) => _confirmed = e.Value is true
 Note that a `select` bound to a nullable numeric filter usually needs a string projection property
 (`GraduationYearFilterText`) because `<option value="">` cannot bind to `int?` directly — see
 `Players.razor.cs`.
-
-## Anything interactive needs a render mode
-
-`@onclick`, `@onchange`, `@bind`, and `EventCallback` invocations from DOM events all require an
-effective interactive render mode. If the component or its host page has none, the handlers compile,
-render, and never run. Re-check [render-mode-decision.md](render-mode-decision.md) whenever you add
-the first handler to a component.

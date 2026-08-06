@@ -2,7 +2,7 @@
 name: add-domain-persistence
 description: >-
   Builds a Nova domain/persistence slice: deterministic domain policies, entities, EF configuration, tenant integrity, lifecycle/concurrency guards, retry-safe transactions, incremental migration, registration, and focused tests.
-  USE FOR: add a domain policy/decision as part of new domain work; add or change an entity, relationship, constraint, index, lifecycle state, domain service, optimistic concurrency, migration, tenant-owned persistence, advisory mutation lock, retrying transaction, ambiguous commit handling, idempotency key, provider-sensitive query, ILIKE escaping, bounded query ordering.
+  USE FOR: add a domain policy/decision; add or change an entity, relationship, constraint, index, lifecycle state, domain service, optimistic concurrency, migration, tenant-owned persistence, advisory mutation lock, retrying transaction, ambiguous commit, idempotency key, provider-sensitive query, ILIKE escaping, bounded query ordering.
   DO NOT USE FOR: extracting policy logic from an existing service without domain/persistence changes (use extract-functional-core), HTTP/WASM/UI feature slices (use add-feature-slice), a single endpoint (use add-api-endpoint), only writing/running tests (use nova-testing).
   INVOKES: nova-testing.
 ---

@@ -6,7 +6,7 @@ description: "EF Core setup, club-based multi-tenancy, tenant-safe query constru
 # EF Core & Tenancy
 
 The tenant is a club (`ClubEntity`). Users belong to at most one club and must only see data
-for their club. Full design history: `plans/dbcontext-tenancy-design.md`.
+for their club.
 
 ## DbContext selection — pick the right one
 
@@ -63,7 +63,7 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   delete behaviors, and indexes in configurations — not data annotations.
 - Declare each relationship in ONE configuration only (the dependent's, by convention here);
   duplicate declarations across files drift and have caused bugs.
-- Delete behavior (full matrix: `plans/dbcontext-tenancy-design.md`): club-owned content cascades from `Club`; `Club → NovaUsers` is `SetNull` (users survive club deletion); optional assignment FKs (e.g. `PlayerCampaignAssignment.Team`) are `SetNull`; audit columns never get FKs.
+- Delete behavior: club-owned content cascades from `Club`; `Club → NovaUsers` is `SetNull` (users survive club deletion); optional assignment FKs (e.g. `PlayerCampaignAssignment.Team`) are `SetNull`; audit columns never get FKs.
 - Club deletion is NOT interceptor-guarded (Club isn't tenant-owned) — any club-delete feature
   must be gated by `Policies.RequireClubAdmin` or `RequireAdmin`.
 
@@ -97,7 +97,8 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   `.UseApplicationServiceProvider(IdentityStoreServiceProvider.Instance)` or its model will
   silently differ from the migrations — at runtime this surfaces as a
   `PendingModelChangesWarning` exception from `MigrateAsync`.
-- After any model change, verify with `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext`.
+- After any model change, use the `add-domain-persistence` skill to add an incremental migration, then verify with `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext`.
+- `Nova/Program.cs` applies migrations at startup in Development only and seeds roles in all environments through the execution strategy.
 
 ## Testing data access
 

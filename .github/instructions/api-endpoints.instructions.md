@@ -89,7 +89,7 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 
 ## WASM success payloads
 
-- A success response with a required body must deserialize to that body. Treat an empty, `null`, malformed, or unexpected success payload as `ServiceProblem.ServerError`, never as an empty collection or default DTO that hides a contract defect.
+- A success response with a required body must deserialize to that body. Treat an empty, `null`, malformed, or unexpected success payload as `ServiceProblem.ServerError` (or a deliberate protocol exception consistent with the service contract), never as an empty collection or default DTO that hides a contract defect.
 
 ## Related
 

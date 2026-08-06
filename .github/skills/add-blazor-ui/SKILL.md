@@ -1,11 +1,16 @@
 ---
 name: add-blazor-ui
 description: >-
-  Recipe for building Nova Blazor pages and components: project placement, page-vs-component, the
-  render-mode decision tree, lifecycle selection, prerender/persisted state, parameters and
+  Recipe for building Nova Blazor pages and components: placement, page-vs-component,
+  render-mode decision tree, lifecycle selection, prerender/persisted state, parameters,
   EventCallbacks, binding, and EditForm validation.
-  USE FOR: add a Blazor page, add a Razor component, new .razor file, make a component interactive, choose a render mode, InteractiveAuto vs InteractiveServer vs static SSR, @rendermode, @onclick not firing / button does nothing, page vs component, where does this component go, add a [Parameter], Razor string parameter literal vs expression, EventCallback vs Action, child notifies parent, @bind / @bind:after, EditForm and validation in the UI, duplicate data load on prerender, [PersistentState], StateHasChanged, OnInitializedAsync vs OnParametersSet vs OnAfterRenderAsync, component code-behind, CSS isolation.
-  DO NOT USE FOR: server services or ServiceResult work (use add-feature-slice), HTTP endpoints or WASM client services (use add-api-endpoint), entities/EF/migrations (use add-domain-persistence), writing or running tests only (use nova-testing).
+  USE FOR: add a Blazor page or component, new .razor file, choose render mode, @onclick not
+  firing, page vs component, [Parameter], string literal vs expression, EventCallback vs Action,
+  @bind / @bind:after, EditForm, duplicate data load, [PersistentState], StateHasChanged,
+  OnInitializedAsync vs OnParametersSet vs OnAfterRenderAsync, code-behind, CSS isolation.
+  DO NOT USE FOR: server services/ServiceResult (use add-feature-slice), HTTP endpoints or WASM
+  services (use add-api-endpoint), entities/EF/migrations (use add-domain-persistence),
+  writing tests only (use nova-testing).
   INVOKES: nova-testing (component test step).
 ---
 
