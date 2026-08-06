@@ -56,6 +56,26 @@ public static class CampaignEndpoints
     public const string GetCreationSetupRouteName = "GetCampaignCreationSetup";
 
     /// <summary>
+    /// Updates an Active campaign's metadata (PUT).
+    /// </summary>
+    public const string UpdateCampaignMetadata = $"{GroupPrefix}/metadata";
+
+    /// <summary>
+    /// The relative metadata-update path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string UpdateCampaignMetadataRelative = "metadata";
+
+    /// <summary>
+    /// Updates a season's metadata (PUT).
+    /// </summary>
+    public const string UpdateSeasonMetadata = $"{GroupPrefix}/seasons/metadata";
+
+    /// <summary>
+    /// The relative season metadata-update path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string UpdateSeasonMetadataRelative = "seasons/metadata";
+
+    /// <summary>
     /// Builds a campaign-list URL from the accepted optional filters.
     /// </summary>
     /// <param name="status">The optional campaign status filter.</param>
