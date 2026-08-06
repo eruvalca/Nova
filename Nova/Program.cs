@@ -109,6 +109,8 @@ builder.Services.AddScoped<CampaignTagApplicationService>();
 builder.Services.AddScoped<CampaignLifecycleService>();
 builder.Services.AddScoped<ICampaignCreationService, CampaignCreationService>();
 builder.Services.AddScoped<ICampaignQueryService, CampaignQueryService>();
+builder.Services.AddScoped<ICampaignMetadataService, CampaignMetadataService>();
+builder.Services.AddScoped<ISeasonMetadataService, SeasonMetadataService>();
 builder.Services.AddScoped<IPlayerLifecycleService, PlayerLifecycleService>();
 builder.Services.AddScoped<IPlayerManagementService, PlayerManagementService>();
 builder.Services.AddScoped<ITeamManagementService, TeamManagementService>();
@@ -243,6 +245,7 @@ app.MapTeamRosterEndpoints();
 app.MapTeamDetailEndpoints();
 app.MapCampaignCreationEndpoints();
 app.MapCampaignQueryEndpoints();
+app.MapCampaignMetadataEndpoints();
 
 // Player detail and campaign-history query endpoint.
 app.MapPlayerEndpoints();
