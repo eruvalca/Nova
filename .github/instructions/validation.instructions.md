@@ -37,10 +37,7 @@ description: "Validation rules: DataAnnotations on input records as single sourc
 
 ## Dual-layer rationale
 
-Endpoint-layer validation (`AddValidation()`) runs only for HTTP requests; SSR pages, background jobs,
-and tests call services directly. The service is therefore the authoritative validation boundary on
-every path. Both layers read the same attributes. See
-`.github/instructions/service-layer.instructions.md` → **Dual-Layer Validation**.
+Endpoint-layer validation runs only for HTTP requests; SSR pages, background jobs, and direct-service callers bypass it. The service is therefore the authoritative validation boundary on every path. See `.github/instructions/service-layer.instructions.md` → **Dual-Layer Validation**.
 
 ## Structural validation versus contextual policies
 

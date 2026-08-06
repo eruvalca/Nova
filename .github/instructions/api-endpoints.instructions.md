@@ -33,25 +33,16 @@ description: "HTTP endpoint and WASM client rules: routes, handlers, contract fi
 - Convert service results with the `ToHttpResult` extensions in
   `Nova.Features.Shared.ServiceResultExtensions`. Prefer returning `IResult`; use `Results<T1, T2, …>`
   only when OpenAPI needs precise success-type information.
-- Keep endpoint metadata aligned with every status the handler can actually return, including
-  route/body mismatch 400s, conflicts, not-found results, and unexpected 500s. Client or service unit
-  tests do not prove that route registration, middleware, metadata, and status mapping agree.
+- Keep endpoint metadata aligned with every status the handler can return (route/body mismatch 400s, conflicts, not-found, 500s). Client or service unit tests do not prove route registration, middleware, metadata, and status mapping agree.
 - ⚠️ `TypedResults.CreatedAtRoute<TValue>` takes the **value first**:
   `CreatedAtRoute(value, routeName, routeValues)`. Putting the route name first compiles but throws
   at runtime. Only use `CreatedAtRoute` when a matching GET route exists; otherwise return
   `TypedResults.Created((string?)null, value)`.
-- A `CreatedAtRoute` contract is not complete until a real HTTP test asserts `201 Created`, validates
-  the generated `Location` header, follows it, and confirms the canonical GET resolves the resource.
-  Use a shared route-name constant so the GET mapping and create handler cannot drift.
+- A `CreatedAtRoute` contract is not complete until a real HTTP test asserts `201 Created`, validates the `Location` header, follows it, and confirms the GET resolves the resource. Use a shared route-name constant so the GET mapping and create handler cannot drift.
 
 ## Endpoint removal
 
-- Remove dead or superseded endpoints end to end in one change: shared route constants/builders,
-  input/DTO/interface members, server mapping and handler, WASM client method, DI registration when
-  no longer needed, UI callers, metadata, and tests.
-- Search for every removed symbol after editing. The removed team graduation-year endpoint is the
-  canonical example: graduation-year changes remain on the normal team update path instead of a
-  second mutation surface with a different problem shape.
+Remove dead endpoints end to end in one change: route constants/builders, input/DTO/interface members, server mapping and handler, WASM client method, DI registration, UI callers, metadata, and tests. Search for every removed symbol after editing.
 
 ## ProblemDetails and trace IDs
 
@@ -78,16 +69,10 @@ description: "HTTP endpoint and WASM client rules: routes, handlers, contract fi
 
 ## Validation at the endpoint layer
 
-- Validation is **dual-layer** (endpoint + service); both are always required — see
-  `.github/instructions/service-layer.instructions.md` → **Dual-Layer Validation**.
-- In .NET 10, `builder.Services.AddValidation()` (global in `Program.cs`) makes parameter validation
-  automatic and **opt-out**. Use `DisableValidation()` on endpoints where model binding does not apply
-  (streaming/multipart).
-- Annotate input records in `Nova.Shared` with DataAnnotations (see
-  `.github/instructions/validation.instructions.md`). On body endpoints declare
-  `.ProducesValidationProblem()` (not `.ProducesProblem(400)`).
-- For inputs not expressible as DataAnnotations (file size, content-type, streaming), validate manually
-  in the handler and return `ServiceProblem.Validation(...).ToHttpResult()`.
+- Validation is **dual-layer** (endpoint + service); both are always required — see `.github/instructions/service-layer.instructions.md` → **Dual-Layer Validation**.
+- `builder.Services.AddValidation()` (global in `Program.cs`) makes parameter validation automatic and opt-out. Use `DisableValidation()` on endpoints where model binding does not apply (streaming/multipart).
+- Annotate input records in `Nova.Shared` with DataAnnotations (see `.github/instructions/validation.instructions.md`). On body endpoints declare `.ProducesValidationProblem()` (not `.ProducesProblem(400)`).
+- For inputs not expressible as DataAnnotations (file size, content-type, streaming), validate manually in the handler and return `ServiceProblem.Validation(...).ToHttpResult()`.
 
 ## Optional `[AsParameters]` query properties
 
@@ -104,10 +89,7 @@ description: "HTTP endpoint and WASM client rules: routes, handlers, contract fi
 
 ## WASM success payloads
 
-- A successful response for an endpoint with a required body must deserialize to that body. Treat an
-  empty, `null`, malformed, or unexpected success payload as `ServiceProblem.ServerError` (or a
-  deliberate thrown protocol exception consistent with the service contract), never as an empty
-  collection or default DTO that hides a server/client contract defect.
+- A success response with a required body must deserialize to that body. Treat an empty, `null`, malformed, or unexpected success payload as `ServiceProblem.ServerError`, never as an empty collection or default DTO that hides a contract defect.
 
 ## Related
 

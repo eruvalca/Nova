@@ -32,9 +32,7 @@ Run the ordered decision tree in `.github/skills/add-blazor-ui/references/render
 before writing markup; it also covers per-instance `@rendermode` islands on static SSR pages.
 
 Interactive (Auto/WebAssembly) components must live in a project referenced by `Nova.Client` — i.e. `Nova.UI` or `Nova.Client` — never in `Nova`.
-Any page or component that relies on event handlers (`@onclick`, `@onchange`, submit callbacks),
-timers, or other interactive behavior must have an effective interactive render mode. Static SSR
-markup can compile and pass component tests while its handlers remain non-functional in the app.
+Any page or component that relies on event handlers, timers, or interactive behavior must have an effective interactive render mode; static SSR markup can compile and pass tests while its handlers remain non-functional in the deployed app.
 
 ## Prerendering and Persistent State
 
@@ -42,14 +40,8 @@ Interactive render modes (`InteractiveAuto`, `InteractiveWebAssembly`, `Interact
 
 - `OnInitializedAsync` runs during prerender and runs again after interactive attach unless state is restored.
 - Use `[PersistentState]` only on **public component properties** so state can be serialized/restored across prerender and attach.
-- Prevent duplicate startup fetches across prerender and attach by persisting an `Initialized` flag
-  and returning early when it is already set. Recipe:
-  `.github/skills/add-blazor-ui/references/lifecycle-and-state.md`.
-- When restoring persisted source data, also rebuild any derived collections, filter options, or
-  computed view state before returning from initialization. Persisting rows without reconstructing
-  their dependent UI state causes prerendered controls to disappear or drift after attach.
-- Keep explicit reload/refetch helper methods for user-triggered refresh actions (button clicks, retry flows, etc.); the `Initialized` guard is only for startup duplication.
-- Keep this guidance separate from `ExcludeFromInteractiveRouting`: `ExcludeFromInteractiveRouting` controls routing/rendering behavior, not duplicate initialization or persisted component data.
+- Prevent duplicate startup fetches by persisting an `Initialized` flag and returning early when it is already set. When restoring persisted source data, also rebuild any derived collections, filter options, or computed view state before returning. Recipe: `.github/skills/add-blazor-ui/references/lifecycle-and-state.md`.
+- Keep explicit reload/refetch helper methods for user-triggered refresh actions; the `Initialized` guard is only for startup duplication.
 
 ## Feature Folder Organization
 
@@ -58,14 +50,11 @@ Organize `Nova.UI` by feature, not by technical type:
 ```
 Nova.UI/
   Features/
-    Clubs/
-      Pages/        # routable components (@page)
-      Components/   # feature-specific non-routable components
-      Services/     # client-side service implementations / view logic
-    Members/
-      Pages/
-      Components/
-  Shared/           # cross-feature components (buttons, modals, etc.)
+    {Feature}/
+      Pages/       # @page (routable) components
+      Components/  # non-routable feature components
+      Services/    # client-side service implementations / view logic
+  Shared/          # cross-feature components
 ```
 
 - Routable pages go in `{Feature}/Pages`; non-routable components in `{Feature}/Components`.
@@ -74,9 +63,7 @@ Nova.UI/
   use `Nova/Features/{Feature}/` and `Nova.Shared/Features/{Feature}/` respectively.
   `Nova.Shared` keeps non-feature concerns (`Results/`, `Security/`, `Validation/`, `Enums/`) at the
   top level alongside `Features/`.
-- `Nova.Client/Services/` organizes HTTP client services by feature subfolder
-  (`Nova.Client/Services/{Feature}/Http{Feature}Service.cs`) without an extra `Features/` wrapper,
-  since the whole `Services/` directory is already feature-scoped.
+- `Nova.Client/Services/` organizes HTTP client services by feature subfolder (`Nova.Client/Services/{Feature}/Http{Feature}Service.cs`).
 
 ## Component Conventions
 
@@ -86,24 +73,22 @@ Nova.UI/
 - **Flow cancellation through async work**: pass `ComponentCancellationToken` to async operations (service methods, HTTP calls, EF/query calls exposed via services, delays, streams, etc.) so work stops promptly when the component is disposed.
 - **Extend disposal via `DisposeAsyncCore()`**: when component-specific async cleanup is needed, override `DisposeAsyncCore()` in the existing component inheritance chain instead of re-implementing `IAsyncDisposable` on the component.
 - **Choose the lifecycle method by purpose**: `OnInitializedAsync` for one-time data loading;
-  `OnParametersSet(Async)` to react to `[Parameter]`/`[SupplyParameterFromQuery]` values — it runs on
-  every parameter set, so guard one-time projection behind an applied-once flag or an actual-change
-  check; `OnAfterRenderAsync(firstRender)` only for DOM, JS interop, and `@ref` access, never for
-  data loading.
+  `OnParametersSet(Async)` to react to `[Parameter]`/`[SupplyParameterFromQuery]` values (it runs on
+  every parameter set, so guard one-time projection behind a flag or an actual-change check);
+  `OnAfterRenderAsync(firstRender)` only for DOM, JS interop, and `@ref` access, never for data loading.
 - **Use `EventCallback`/`EventCallback<T>` for child-to-parent notification**, never `Action`,
   `Action<T>`, or `Func<Task>`. `EventCallback` re-renders the parent that supplied the handler;
   `Action` does not, so the parent's UI silently goes stale.
 - **Do not call `StateHasChanged` defensively**: `ComponentBase` re-renders after lifecycle methods
   and component event handlers. Call it only when state changes outside those paths (timer, JS
   callback, non-UI service event), and marshal with `await InvokeAsync(StateHasChanged)`.
-- **Use properties where the framework requires properties**: component `[Parameter]` members must be `public` properties with `public` setters, and `[PersistentState]` persists `public` properties.
+- **Use properties where the framework requires them**: `[Parameter]` members must be `public` properties with `public` setters; `[PersistentState]` persists `public` properties. Prefer `private`/`protected` properties for computed values, normalization, or when getter/setter logic adds clarity.
 - **Don't mutate parameters directly for owned state**: if a child component needs to mutate parameter-derived state, do not write back to the `[Parameter]` property. Copy to private component state only on first load or when the incoming parameter value actually changes, then mutate that private state.
 - **Use fields for internal mutable UI state by default**: private fields are preferred for purely internal mutable state (`_loading`, `_error`, `_selectedId`, timers, `CancellationTokenSource`, etc.); Blazor doesn't gain reactivity from converting those values to properties.
 - **Mark string parameter expressions explicitly in Razor**: quoted text passed to a child component
   `string` parameter is a literal unless it is marked as a C# expression. Use
   `ErrorMessage="@_formError"` to pass a backing field; `ErrorMessage="_formError"` renders the field
   name. This is separate from the rule that the receiving `[Parameter]` member is a public property.
-- **Use private/protected properties when accessors add value**: prefer properties for computed values, normalization, or when getter/setter logic improves clarity.
 - **Preserve mutation feedback across refreshes**: when a successful mutation sets a status message
   and then reloads data, the reload helper must not clear that message before it can render. Clear
   feedback at an intentional user-action boundary instead.
@@ -116,10 +101,8 @@ Nova.UI/
 - For navigation and layout behavior (for example navbar collapse, alignment, spacing, borders, positioning), use Bootstrap-native markup and utility classes first.
 - Add custom CSS only when a specific requirement cannot be met with Bootstrap alone; keep those rules minimal and scoped in the component's `.razor.css`.
 - Avoid global stylesheet overrides for feature-specific UI when Bootstrap utilities or component-scoped styles can satisfy the requirement.
-- Use `rem` units for all custom CSS length values (font-size, spacing, padding, margin, width, height, etc.). Avoid `px` units in custom CSS; `px` is acceptable only for hairline borders (e.g., `border: 1px solid`) or when a pixel-exact value is a hard requirement.
-- Never interpolate persisted or user-controlled strings directly into an inline `style` attribute.
-  Normalize through a strict allowlist (for example, `#RRGGBB` for a color token) and use a safe
-  fallback.
+- Use `rem` units for all custom CSS length values; `px` is acceptable only for hairline borders (e.g., `border: 1px solid`) or pixel-exact requirements.
+- Never interpolate persisted or user-controlled strings directly into an inline `style` attribute; normalize through a strict allowlist (e.g., `#RRGGBB`) and use a safe fallback.
 
 ## Navigation and bounded data
 
@@ -133,25 +116,14 @@ Nova.UI/
 ## Data Access and Services from Components
 
 - Components never touch `DbContext` types directly. UI calls feature services; services own data access. See `.github/instructions/ef-core-tenancy.instructions.md` for context selection (`NovaDbContext`/`NovaReadDbContext`/`NovaAdminDbContext`).
-- Define service contracts in `Nova.Shared` (interfaces + DTOs + OneOf results). Provide:
-  - a server implementation in `Nova` (used by static SSR and InteractiveServer), and
-  - an HTTP-based implementation in `Nova.Client` calling minimal API endpoints in `Nova`, registered in `Nova.Client/Program.cs` (used when the component runs in WASM).
-    Register both sides so an `InteractiveAuto` component resolves the right implementation wherever it renders.
+- Define service contracts in `Nova.Shared` (interfaces + DTOs + OneOf results). Provide a server implementation in `Nova` (static SSR + InteractiveServer) and an HTTP-based implementation in `Nova.Client` (WASM), both registered so `InteractiveAuto` resolves the right one wherever it renders.
 - `HttpContext` is only available during static SSR in `Nova`. Never use it from interactive components or from `Nova.UI`/`Nova.Client`; flow user/tenant state through abstractions (e.g., `AuthenticationStateProvider`, `CurrentUserState` in `Nova.Shared`) instead.
-- Claims serialized into interactive/WASM authentication state are browser-visible. Serialize only
-  claims required by the UI when the framework supports selective inclusion; if a global
-  `SerializeAllClaims` switch is the only viable mechanism, document why it is required and do not
-  treat the serialized claims as secrets or as a replacement for server authorization.
+- Claims serialized into interactive/WASM authentication state are browser-visible. Serialize only claims required by the UI; if `SerializeAllClaims` is the only mechanism, document why and do not treat the claims as secrets or as a replacement for server authorization.
 - Keep Identity/Account pages in `Nova` as static SSR — they depend on `HttpContext`, cookies, and `SignInManager`.
 
 ## Related
 
-- `.github/skills/add-blazor-ui/` — the page/component build recipe: placement and page-vs-component,
-  render-mode decision tree, lifecycle and prerender state, parameters/`EventCallback`/binding, and
-  `EditForm` validation.
-- `.github/instructions/csharp-conventions.instructions.md` — XML docs, naming, OneOf, and logging in
-  code-behind files.
-- `.github/instructions/validation.instructions.md` — DataAnnotations on shared input records and
-  `InputValidator`, which UI form models must reuse rather than re-declare.
-- `.github/instructions/testing.instructions.md` — component/bUnit coverage and the render-mode
-  assertion requirement for interactive pages.
+- `.github/skills/add-blazor-ui/` — build recipe: placement, render-mode decision, lifecycle and prerender state, parameters/`EventCallback`/binding, and `EditForm` validation.
+- `.github/instructions/csharp-conventions.instructions.md` — XML docs, naming, OneOf, and logging in code-behind files.
+- `.github/instructions/validation.instructions.md` — DataAnnotations on shared input records and `InputValidator`.
+- `.github/instructions/testing.instructions.md` — bUnit coverage and render-mode assertion requirement for interactive pages.

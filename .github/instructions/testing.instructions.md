@@ -33,24 +33,9 @@ semantics, or SQL-translation limits.
 
 ## Aspire + Playwright validation (manual browser pass)
 
-Use this only when a ticket explicitly requires browser-level behavior validation (for example,
-interactive auth/claims propagation, UI mutation controls, or flow-level UX that unit/integration
-tests cannot fully prove).
+Use only when a ticket explicitly requires browser-level behavior validation (interactive auth, UI mutation controls, or flow-level UX that unit/integration tests cannot prove). For the procedure, use the **`aspire-playwright-validation`** skill.
 
-1. Start the app with Aspire from worktrees:
-   - `aspire start --isolated --non-interactive`
-2. Wait for the web resource before opening a browser:
-   - `aspire wait nova --non-interactive`
-3. Discover the frontend URL from Aspire state:
-   - `aspire describe --format Json`
-4. Execute the browser flow using Playwright MCP/CLI against that URL.
-5. Stop Aspire when done:
-   - `aspire stop --non-interactive`
-
-Rules:
-- Never guess the frontend URL; always read it from Aspire state.
-- Keep this pass focused and scenario-based (admin happy path + read-only role checks).
-- Clean temporary browser artifacts from repo paths after the run.
+Rules: never guess the frontend URL (always read it from `aspire describe --format Json`); keep the pass focused and scenario-based (admin happy path + read-only role checks); clean temporary browser artifacts from repo paths afterward.
 
 ## Conventions
 
@@ -67,37 +52,19 @@ Rules:
   (`ClubJoinRequestEntity`, `NovaUserEntity`, `NovaUserPhotoEntity`) need one test per visibility rule.
 - Never assert on global, unfiltered counts in integration tests (the database is shared across the
   collection — each test seeds its own data with database-generated ids).
-- For every new HTTP endpoint, add focused boundary coverage for route registration, anonymous and
-  role-policy behavior, success serialization, and each declared ProblemDetails shape/status that
-  cannot be proven by service or client unit tests. Keep provider-specific database assertions
-  separate from this HTTP contract coverage.
-- Exercise every route independently and prove the least-privileged allowed role; a creator or other
-  implicitly elevated user does not establish ordinary-member access. Test independent query
-  validation paths independently rather than combining invalid values.
-- For clients that validate required success bodies, cover one populated valid payload plus explicit
-  nested nulls, malformed JSON, invalid ID/date/count relationships, shared-bound violations, and
-  incorrect portable ordering. Use exact expected counts when proving lifecycle or tenant exclusion.
+- For every new HTTP endpoint, add boundary coverage for route registration, auth policy behavior, success serialization, and each declared ProblemDetails shape that cannot be proven by service or client unit tests. Keep provider-specific assertions separate.
+- Exercise every route independently; prove the least-privileged role (a creator or admin does not establish ordinary-member access). Test independent query-validation paths separately.
+- For clients validating success bodies: cover a populated payload, explicit nested nulls, malformed JSON, invalid ID/date/count relationships, shared-bound violations, and incorrect ordering. Use exact expected counts when proving lifecycle or tenant exclusion.
 - For `CreatedAtRoute`, assert `201 Created`, the exact `Location`, and a successful GET after
   following it. Route metadata alone cannot prove the generated URL is usable.
-- When application code probes uniqueness before writing, add a PostgreSQL race test that commits
-  the conflicting row through an independent context after the probe. Assert the unique constraint
-  is the final guard and the service maps the provider exception to `Conflict`.
-- For interactive pages with event handlers, include a render-mode assertion or a focused
-  Aspire/Playwright scenario; bUnit can invoke callbacks even when the deployed page would render as
-  static SSR.
-- Build culture-sensitive expected display strings (dates, numbers, currencies) with the same
-  explicit or current culture used by the component. Do not hard-code an English rendering unless
-  the product contract explicitly fixes that culture.
+- For uniqueness-probe patterns, add a PostgreSQL race test that commits a conflicting row through an independent context after the probe, asserting the unique constraint is the final guard and the exception maps to `Conflict`.
+- For interactive pages with event handlers, include a render-mode assertion or a focused Aspire/Playwright scenario; bUnit can invoke callbacks even when the deployed page would render as static SSR.
+- Build culture-sensitive expected display strings (dates, numbers, currencies) with the same explicit culture the component uses. Do not hard-code an English rendering unless the product contract fixes that culture.
 - bunit and NSubstitute are available in both projects for component/service tests.
-- Do not pass `null` or `null!` for required mock constructor dependencies. Supply a valid
-  `Substitute.For<T>()` (or a lightweight real implementation when clearer), and use
-  `Array.Empty<T>()` for empty validator or collaborator collections. Reserve nulls for tests that
-  intentionally exercise nullable behavior.
+- Do not pass `null` or `null!` for required mock dependencies; supply `Substitute.For<T>()` (or a real implementation) and `Array.Empty<T>()` for empty collections. Reserve nulls for tests that intentionally exercise nullable behavior.
 
 ## Related
 
-- `.github/skills/nova-testing/` — harness internals and the write/run workflow.
-- `.github/skills/nova-testing/references/blazor-component-tests.md` — bUnit component rendering,
-  `EventCallback` assertions, and the render-mode assertion recipe.
+- `.github/skills/nova-testing/` — harness internals, the write/run workflow, and `references/blazor-component-tests.md` for bUnit and render-mode assertions.
 - `.github/instructions/functional-core.instructions.md` — policy boundary and layered test coverage.
 - `Nova.Unit.Tests/Data/TenancyTests.cs`, `Nova.Integration.Tests/Data/NovaAppHostFixture.cs`.

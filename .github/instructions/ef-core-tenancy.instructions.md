@@ -37,18 +37,10 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   `NovaUserEntity` (bespoke filter: clubmates or self), `NovaUserPhotoEntity` (mirrors the user
   filter via `e.NovaUser.ClubId` — required dependents of a filtered principal must mirror the
   principal's filter or EF warns at startup).
-- Query filters may only reference fields/properties on the context instance
-  (`_bypassTenantFilter`, `_currentUser.ClubId`, `_currentUser.UserId`, `_currentUser.IsClubAdmin`)
-  so EF parameterizes them per instance. Keep `ICurrentUserProvider` members flat primitives for
-  this reason; `GetCurrentUserState()` (a OneOf union) exists for application/UI logic only.
+- Query filters may only reference fields/properties on the context instance (`_bypassTenantFilter`, `_currentUser.ClubId`, `_currentUser.UserId`, `_currentUser.IsClubAdmin`) so EF parameterizes them per instance. Keep `ICurrentUserProvider` members flat primitives; `GetCurrentUserState()` (a OneOf union) is for application/UI logic only.
 - EF allows ONE query filter per entity (`HasQueryFilter` replaces). Bespoke filters live in
   `ApplicationDbContext` after the generic loop — never add filters in entity configurations.
-- Do not set `ClubId` manually when creating entities via `NovaDbContext`;
-  `TenantSaveChangesInterceptor` stamps it from the current user (and throws if the user has no
-  club, or on any cross-tenant write). Under `NovaAdminDbContext` tenant guarding/stamping is
-  skipped, so admin code MUST set `ClubId` explicitly. The interceptor always stamps audit
-  fields (`CreatedAt`/`ModifiedAt` + `CreatedById`/`ModifiedById` — which are intentionally
-  FK-less).
+- Do not set `ClubId` manually when creating entities via `NovaDbContext`; `TenantSaveChangesInterceptor` stamps it from the current user (throws if the user has no club or on cross-tenant write). Under `NovaAdminDbContext` stamping is skipped — admin code MUST set `ClubId` explicitly. The interceptor always stamps `CreatedAt`/`ModifiedAt` + `CreatedById`/`ModifiedById` (intentionally FK-less).
 - Visibility belongs in query filters; ACTIONS (approve/reject/delete) belong in authorization
   policies (`Policies.RequireAdmin` / `RequireClubAdmin` / `RequireClubMember` in
   `Nova.Shared/Security/Policies.cs`).
@@ -61,11 +53,7 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 - `ICurrentUserProvider` (`Nova/Data/Tenancy/`) resolves the user from `IHttpContextAccessor`
   first, then the Blazor `AuthenticationStateProvider`. `NullCurrentUserProvider` is for design
   time and tests.
-- The club id travels as the `NovaClaimTypes.ClubId` claim, added by
-  `NovaUserClaimsPrincipalFactory`. When a user's club membership changes, call
-  `ClubMembershipClaimRefresher` (`RefreshCurrentUserAsync` for the acting user,
-  `MarkUserClaimsStaleAsync` for another user) and `Match` on its
-  `OneOf<Success, Error<string[]>>` result — do not ignore it.
+- The club id travels as the `NovaClaimTypes.ClubId` claim, added by `NovaUserClaimsPrincipalFactory`. When membership changes, call `ClubMembershipClaimRefresher` (`RefreshCurrentUserAsync` for the acting user or `MarkUserClaimsStaleAsync` for another) and `Match` its `OneOf<Success, Error<string[]>>` — do not ignore it.
 - New users get `Roles.StandardUser` at registration (see `Register.razor` / `ExternalLogin.razor`).
 
 ## Entities, configurations, relationships
@@ -75,39 +63,22 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   delete behaviors, and indexes in configurations — not data annotations.
 - Declare each relationship in ONE configuration only (the dependent's, by convention here);
   duplicate declarations across files drift and have caused bugs.
-- Delete behavior conventions (see `plans/dbcontext-tenancy-design.md` for the full matrix):
-  - Club-owned content cascades from `Club` (Postgres allows multiple cascade paths).
-  - `Club → NovaUsers` is `SetNull` (users survive club deletion).
-  - Optional "assignment" style FKs (e.g. `PlayerCampaignAssignment.Team`) are `SetNull`.
-  - Audit columns (`CreatedById`/`ModifiedById`) never get FKs.
+- Delete behavior (full matrix: `plans/dbcontext-tenancy-design.md`): club-owned content cascades from `Club`; `Club → NovaUsers` is `SetNull` (users survive club deletion); optional assignment FKs (e.g. `PlayerCampaignAssignment.Team`) are `SetNull`; audit columns never get FKs.
 - Club deletion is NOT interceptor-guarded (Club isn't tenant-owned) — any club-delete feature
   must be gated by `Policies.RequireClubAdmin` or `RequireAdmin`.
 
 ## Query construction and provider behavior
 
-- Keep filtering, deterministic ordering, `Skip`, and `Take` in SQL before materialization. Do not
-  load an entire tenant result set merely to sort or page in memory. If a test provider cannot
-  translate production behavior, isolate a provider-specific fallback and retain SQL-side execution
-  for PostgreSQL.
+- Keep filtering, deterministic ordering, `Skip`, and `Take` in SQL before materialization; do not load an entire tenant result set to sort or page in memory. For provider-incompatible behavior, isolate a fallback and retain SQL-side execution for PostgreSQL.
 - Avoid materializing identifier lists and feeding them back through large `Contains`/`IN`
   predicates when a mapped navigation can express the relationship directly. Navigation predicates
   keep SQL bounded and avoid parameter-list growth for long histories.
 - Use provider helpers such as `db.Database.IsNpgsql()`/`IsSqlite()` rather than comparing
   `ProviderName` strings. For PostgreSQL case-insensitive contains search, prefer
   `EF.Functions.ILike`; use a clearly isolated provider-compatible fallback for SQLite tests.
-- Treat user-supplied `LIKE`/`ILIKE` search text as a literal substring unless wildcard syntax is an
-  explicit product feature. Escape the escape character first, then `%` and `_`, and pass the same
-  explicit escape character to the PostgreSQL `ILike` overload. `TeamRosterQueryService` is the
-  canonical provider split and escape order.
-- If results are ordered in SQL before `Take`/`Skip` and then ordered again after materialization,
-  both orderings must use the same keys, directions, null semantics, and deterministic tie-breakers.
-  Otherwise the bounded SQL slice and the displayed order describe different result sets.
-  Prefer preserving the database-returned order after materialization; `TeamDetailQueryService` is
-  the canonical example.
-- A total count and its bounded rows are separate statements and are not an atomic snapshot by
-  default. Decide the contract explicitly: document and tolerate an eventually consistent total, or
-  use a provider-compatible snapshot only when product correctness requires it. Clients must not
-  enforce count relationships that the selected consistency contract cannot guarantee.
+- Treat user-supplied `LIKE`/`ILIKE` search text as a literal substring unless wildcard syntax is an explicit product feature. Escape the escape character first, then `%` and `_`, and pass the same explicit escape character to the PostgreSQL `ILike` overload.
+- If results are ordered in SQL before `Take`/`Skip` and then ordered again after materialization, both orderings must use the same keys, directions, null semantics, and deterministic tie-breakers — otherwise the bounded SQL slice and the displayed order describe different result sets. Prefer preserving the database-returned order after materialization.
+- A total count and its bounded rows are separate statements, not an atomic snapshot. Decide explicitly: document and tolerate eventual consistency, or use a provider-compatible snapshot only when correctness requires it. Clients must not enforce count relationships the contract cannot guarantee.
 - Validation and normalization must have one explicit behavior. If `[Range]` rejects a page size,
   do not also clamp it after validation; either reject or cap, and make the contract, service, and
   tests agree.
@@ -126,16 +97,8 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   `.UseApplicationServiceProvider(IdentityStoreServiceProvider.Instance)` or its model will
   silently differ from the migrations — at runtime this surfaces as a
   `PendingModelChangesWarning` exception from `MigrateAsync`.
-- After any model change: `dotnet ef migrations add <Name> --project Nova --context NovaDbContext`
-  then verify with `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext`.
-- The dev-startup block in `Nova/Program.cs` applies migrations (Development only) and seeds
-  roles (all environments) via the execution strategy.
+- After any model change, verify with `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext`.
 
 ## Testing data access
 
-See `.github/instructions/testing.instructions.md` for the full testing guide. In short:
-provider-agnostic tenancy logic is tested with `TenancyTestHarness` (in-memory SQLite) in
-`Nova.Unit.Tests/Data/TenancyTests.cs`; Postgres-specific behavior (production migrations,
-`timestamptz`/`DateOnly` mappings, filter SQL translation) runs against the real AppHost in
-`Nova.Integration.Tests/Data/PostgresTenancyTests.cs`. When adding a tenant-owned entity, add
-filter coverage: visible to its club, invisible to another club, cross-tenant writes rejected.
+See `.github/instructions/testing.instructions.md`. When adding a tenant-owned entity, add filter coverage: visible to its club, invisible to another club, cross-tenant writes rejected.

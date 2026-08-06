@@ -45,15 +45,7 @@ Construct problems via the `ServiceProblem` factory methods (`NotFound`, `Forbid
 
 ## OneOf preference rule
 
-**Default to native OneOf types** (Success, Error<T>, NotFound, Conflict) for operations that do not
-cross boundaries. Use **ServiceResult** only when the operation:
-
-1. is called from HTTP endpoints (needs ProblemDetails translation),
-2. is called from a WebAssembly client (needs client-side problem deserialization), or
-3. is part of a cross-tier contract.
-
-Examples: `ClubMembershipClaimRefresher` (single tier) → native OneOf; `IProfilePhotoService`
-(boundary-crossing) → ServiceResult.
+See `.github/instructions/csharp-conventions.instructions.md` → **Discriminated Unions** for the full OneOf vs ServiceResult boundary rule. In service operations: prefer native OneOf within a tier; use `ServiceResult<T>` only at HTTP endpoints, WASM boundaries, or cross-tier contracts.
 
 ## Trace ID guarantee
 
@@ -76,12 +68,7 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
   campaign → player → team → tag. When acquiring multiple locks of the same type, sort their
   identifiers ascending before locking. A writer may take a subsequence of the global order, but it
   must never reverse that order.
-- When the required lock set comes from mutable relationships, compute the candidates, acquire the
-  locks in global order, reload the guarded state, and detect relationships that appeared outside
-  the locked set. Fail with a retryable conflict rather than evaluating an invariant against an
-  unlocked row. The canonical global order for the team/player eligibility invariant is campaign,
-  players ascending, then team; `TeamManagementService.UpdateTeamAsync` takes the players-then-team
-  subsequence and follows it with an unlocked-placement fail-safe.
+- When the required lock set comes from mutable relationships, compute the candidates, acquire locks in global order, reload guarded state, and detect relationships that appeared outside the locked set. Fail with a retryable conflict rather than evaluating an invariant against an unlocked row. (`TeamManagementService.UpdateTeamAsync` is the canonical example.)
 - The lock is intentionally a no-op under SQLite. Add a PostgreSQL integration test for lifecycle
   races such as close-versus-write or archive-versus-placement.
 
@@ -93,30 +80,17 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
 - For inserts whose commit acknowledgement can be lost, generate a stable operation ID before the
   first attempt, enforce tenant-scoped uniqueness in the database, and use `verifySucceeded` to
   reconstruct the committed result instead of replaying a non-idempotent mutation.
-- When persisted state could have been produced by an earlier request, track whether the current
-  attempt reached `CommitAsync` and only treat that state as proof for an attempt that reached its
-  commit. `TeamLifecycleService` is the canonical example.
+- When persisted state could have been produced by an earlier request, track whether the current attempt reached `CommitAsync` and only treat that state as proof for an attempt that did commit.
 - Verify retry behavior with focused PostgreSQL integration tests; the SQLite harness cannot model
   provider execution strategies or ambiguous commits.
 
 ## Functional core boundary
 
-- When a service contains a non-trivial deterministic rule matrix, consider a feature-local pure
-  policy after applying the extraction triggers in
-  `.github/instructions/functional-core.instructions.md`.
-- Keep the service as the imperative shell: validate and authorize, query tenant-safe facts, acquire
-  transactions and lifecycle locks, reload freshness-sensitive state, call the policy once, then
-  apply effects, persist, handle concurrency, and log.
-- Do not introduce a policy for simple guards or move EF, authorization, locking, persistence, or
-  logging into the policy.
+Consider a feature-local pure policy when a service contains a non-trivial deterministic rule matrix. The service remains the imperative shell: validate, authorize, query tenant-safe facts, acquire locks, reload freshness-sensitive state, call the policy once, then apply effects, persist, handle concurrency, and log. Do not introduce a policy for simple guards or move EF, authorization, locking, persistence, or logging into the policy. See `.github/instructions/functional-core.instructions.md`.
 
 ## Logging
 
-- Log **warnings** for expected-but-noteworthy failures (validation errors, conflicts).
-- Log **errors** for unexpected failures (database/network exceptions).
-- Always include relevant context (user id, resource id, operation). Use source-generated
-  `[LoggerMessage]` methods.
-- Never log sensitive data (passwords, personal information).
+Follow source-generated `[LoggerMessage]` conventions from `.github/instructions/csharp-conventions.instructions.md`. In services: log `Warning` for expected-but-noteworthy failures (validation errors, conflicts), `Error` for unexpected exceptions (database/network). Always include user id, resource id, and operation in context. Never log sensitive data.
 
 ## Related
 

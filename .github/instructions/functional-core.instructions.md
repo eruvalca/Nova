@@ -67,14 +67,9 @@ and pass them explicitly.
 
 ## Testing
 
-- Test pure policies directly in `Nova.Unit.Tests` with constructed values, no database harness,
-  DI, mocks, logger, or service setup. Use `[Theory]` matrices when combinations are tabular.
-- Keep representative SQLite service tests for authorization, tenancy, projection, no-write
-  rejection, and effect application.
-- Keep PostgreSQL integration tests for migrations, provider translation, advisory locks,
-  constraints, concurrency, and transaction races.
-- Preserve behavior during extraction: result variants, messages, ordering, persistence effects,
-  lock order, and logging facts. Make intentional behavior changes separately.
+- Test pure policies directly in `Nova.Unit.Tests` with constructed values — no database harness, DI, mocks, logger, or service setup. Use `[Theory]` matrices when combinations are tabular.
+- Keep SQLite service tests for authorization, tenancy, projection, no-write rejection, and effect application; PostgreSQL integration tests for migrations, provider translation, advisory locks, constraints, concurrency, and transaction races.
+- Preserve behavior during extraction: result variants, messages, ordering, persistence effects, lock order, and logging facts. Make intentional behavior changes separately.
 
 ## Related
 
