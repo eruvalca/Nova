@@ -51,9 +51,9 @@ public sealed partial class SeasonMetadataService(
             return ServiceProblem.NotFound("The season was not found.");
         }
 
-        // Duplicate name check, excluding the current season
+        // Duplicate name check, excluding the current season, scoped to the current club
         var isDuplicate = await db.Seasons.AnyAsync(
-            s => s.Name == input.Name && s.SeasonId != input.SeasonId,
+            s => s.ClubId == clubId && s.Name == input.Name && s.SeasonId != input.SeasonId,
             cancellationToken);
         if (isDuplicate)
         {

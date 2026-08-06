@@ -231,6 +231,29 @@ public sealed class CampaignMetadataServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
     }
 
+    /// <summary>
+    /// Verifies that a club admin cannot move a campaign into a season belonging to a different club.
+    /// </summary>
+    [Fact]
+    public async Task UpdateAsync_ReturnsNotFound_WhenTargetSeasonBelongsToDifferentClub()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.UpdateAsync(
+            new UpdateCampaignMetadataInput
+            {
+                CampaignId = ActiveCampaignId,
+                Name = "Valid Name",
+                SeasonId = SeasonBId,   // Season B belongs to Club B
+                StartDate = new DateOnly(2026, 6, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
     private CampaignMetadataService CreateService()
     {
         IDbContextFactory<NovaDbContext> dbContextFactory =

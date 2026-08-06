@@ -73,7 +73,7 @@ public sealed partial class CampaignMetadataService(
         else
         {
             var targetSeason = await db.Seasons
-                .SingleOrDefaultAsync(s => s.SeasonId == input.SeasonId, cancellationToken);
+                .SingleOrDefaultAsync(s => s.SeasonId == input.SeasonId && s.ClubId == clubId, cancellationToken);
             if (targetSeason is null)
             {
                 LogSeasonNotFound(input.SeasonId, clubId);
