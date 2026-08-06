@@ -39,7 +39,49 @@ public sealed partial class SeasonMetadataService(
                 "You must be a club administrator to update season metadata.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await ExecuteWithFreshContextAsync(
+            db => UpdateSeasonMetadataAsync(db, input, actorUserId, clubId, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs a season metadata update inside EF Core's retrying execution strategy with a fresh
+    /// tenant context per attempt.
+    /// </summary>
+    /// <typeparam name="TResult">The result produced by the operation.</typeparam>
+    /// <param name="operation">The mutation to execute with a fresh tenant context.</param>
+    /// <param name="cancellationToken">A token that cancels strategy setup or the operation.</param>
+    /// <returns>The result returned by the successful execution-strategy attempt.</returns>
+    private async Task<TResult> ExecuteWithFreshContextAsync<TResult>(
+        Func<NovaDbContext, Task<TResult>> operation,
+        CancellationToken cancellationToken)
+    {
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            return await operation(db);
+        });
+    }
+
+    /// <summary>
+    /// Executes one transactional season metadata update attempt.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="input">The season metadata correction request.</param>
+    /// <param name="actorUserId">The authenticated club administrator identifier.</param>
+    /// <param name="clubId">The current tenant club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels database work.</param>
+    /// <returns>The updated metadata result or a ProblemDetails-mappable failure.</returns>
+    private async Task<ServiceResult<UpdateSeasonMetadataResult>> UpdateSeasonMetadataAsync(
+        NovaDbContext db,
+        UpdateSeasonMetadataInput input,
+        long actorUserId,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var season = await db.Seasons
