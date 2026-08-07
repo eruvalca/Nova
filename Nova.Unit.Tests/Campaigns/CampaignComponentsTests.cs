@@ -544,6 +544,7 @@ public sealed class CampaignComponentsTests : BunitContext
             cut.Find("tbody button").HasAttribute("disabled").ShouldBeTrue();
             cut.FindAll("button").First(button => button.TextContent.Trim() == "Edit season")
                 .HasAttribute("disabled").ShouldBeTrue();
+            cut.Find("#campaigns-view-filter").HasAttribute("disabled").ShouldBeTrue();
         });
 
         pendingUpdate.SetResult(new ServiceResult<UpdateCampaignMetadataResult>(

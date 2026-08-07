@@ -13,7 +13,7 @@
         <h1 class="mb-0">Campaigns</h1>
         <div class="d-flex flex-wrap align-items-center gap-2">
             <label for="campaigns-view-filter" class="visually-hidden">Campaign view</label>
-            <select id="campaigns-view-filter" class="form-select campaigns-view-select" value="@_statusFilter" @onchange="OnStatusFilterChangedAsync">
+            <select id="campaigns-view-filter" class="form-select campaigns-view-select" value="@_statusFilter" disabled="@_isMutating" @onchange="OnStatusFilterChangedAsync">
                 <option value="active">Active</option>
                 <option value="closed">Closed</option>
             </select>
@@ -68,7 +68,7 @@
     @if (_mutationConflict)
     {
         <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
-            <span>The save was rejected because the data changed since it was loaded. Reload to see the current state.</span>
+            <span>The save was rejected due to a conflict. Close the form and reload to see the current state before trying again.</span>
             <button type="button" class="btn btn-sm btn-outline-warning" @onclick="CloseFormAndReloadAsync">Close and reload</button>
         </div>
     }
