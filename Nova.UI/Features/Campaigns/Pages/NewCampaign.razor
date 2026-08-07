@@ -50,6 +50,14 @@
             informational and does not close the campaign.
         </div>
 
+        @if (_setup.TotalSeasonCount > _setup.Seasons.Count)
+        {
+            <div class="alert alert-info" role="status">
+                Only the newest @_setup.Seasons.Count of @_setup.TotalSeasonCount seasons are listed. To use an
+                older season, create the campaign in a listed season and correct it afterward from the campaign list.
+            </div>
+        }
+
         <CampaignCreateForm Heading="Campaign details"
                             Model="_createForm"
                             Seasons="_setup.Seasons"

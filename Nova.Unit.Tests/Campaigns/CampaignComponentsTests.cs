@@ -346,7 +346,71 @@ public sealed class CampaignComponentsTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Season load failed."));
 
         cut.Find("button.btn-outline-danger").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Edit campaign metadata");
+            cut.Markup.ShouldNotContain("Season load failed.");
+        });
+    }
+
+    [Fact]
+    public void Campaigns_ClosesEditForm_WhenViewChanges()
+    {
+        RegisterServices(isClubAdmin: true);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+
+        cut.Find("#campaigns-view-filter").Change("closed");
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Edit campaign metadata"));
+    }
+
+    [Fact]
+    public void Campaigns_ShowsFieldErrors_WhenMetadataUpdateReturnsEmptyDetail()
+    {
+        var metadataService = Substitute.For<ICampaignMetadataService>();
+        metadataService.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<UpdateCampaignMetadataResult>(
+                ServiceProblem.Validation(
+                    new Dictionary<string, string[]> { ["StartDate"] = ["The start date must be inside the season."] },
+                    detail: string.Empty))));
+
+        RegisterServices(isClubAdmin: true, metadataService: metadataService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("The start date must be inside the season."));
+    }
+
+    [Fact]
+    public void Campaigns_ShowsRetryableError_WhenMetadataUpdateThrowsTransportFailure()
+    {
+        var metadataService = Substitute.For<ICampaignMetadataService>();
+        metadataService.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ServiceResult<UpdateCampaignMetadataResult>>>(_ => throw new HttpRequestException("offline"));
+
+        RegisterServices(isClubAdmin: true, metadataService: metadataService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Could not reach the server. Check your connection and retry.");
+            cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeFalse();
+        });
     }
 
     [Fact]
@@ -590,6 +654,61 @@ public sealed class CampaignComponentsTests : BunitContext
             cut.Markup.ShouldContain("A campaign in a finite season must have a planned end date.");
             cut.Markup.ShouldNotContain("_formError");
         });
+    }
+
+    [Fact]
+    public void NewCampaign_ShowsRetryableError_WhenCreationThrowsTransportFailure()
+    {
+        var creationService = Substitute.For<ICampaignCreationService>();
+        creationService.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ServiceResult<CreateCampaignResult>>>(_ => throw new HttpRequestException("offline"));
+
+        RegisterServices(isClubAdmin: true, creationService: creationService);
+
+        var cut = Render<NewCampaignPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Current enrollment preview"));
+
+        cut.Find("#campaign-name").Change("Fall ID Camp");
+        cut.Find("#existing-season").Change("5");
+        cut.Find("button[type='submit']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Could not reach the server");
+            cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeFalse();
+        });
+    }
+
+    [Fact]
+    public void NewCampaign_ShowsSetupError_WhenSetupThrowsTransportFailure()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<ServiceResult<CampaignCreationSetupResult>>>(_ => throw new HttpRequestException("offline"));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<NewCampaignPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Could not reach the server. Check your connection and retry."));
+    }
+
+    [Fact]
+    public void NewCampaign_NotesSeasonTruncation_WhenMoreSeasonsExist()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
+            {
+                Seasons = CreateSeasonChoices(),
+                TotalSeasonCount = 150,
+                ActivePlayerCount = 34,
+                ActiveTeamCount = 6
+            })));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<NewCampaignPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Only the newest 1 of 150 seasons are listed."));
     }
 
     [Fact]

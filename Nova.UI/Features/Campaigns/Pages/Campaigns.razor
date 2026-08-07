@@ -151,7 +151,7 @@
                                             <td class="text-end">
                                                 @if (campaign.Status == CampaignStatus.Active)
                                                 {
-                                                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => BeginEditCampaignAsync(campaign, season.SeasonId)">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => BeginEditCampaignAsync(campaign, season)">
                                                         Edit
                                                     </button>
                                                 }

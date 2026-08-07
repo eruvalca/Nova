@@ -104,7 +104,25 @@ public partial class NewCampaign(
         _isLoading = true;
         _pageError = null;
 
-        var result = await campaignQueryService.GetCreationSetupAsync(ComponentCancellationToken);
+        ServiceResult<CampaignCreationSetupResult> result;
+        try
+        {
+            result = await campaignQueryService.GetCreationSetupAsync(ComponentCancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            if (ComponentCancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _pageError = "Could not reach the server. Check your connection and retry.";
+            _setup = null;
+            PersistStartupState();
+            _isLoading = false;
+            return;
+        }
+
         result.Switch(
             setup => _setup = setup,
             problem =>
@@ -115,7 +133,7 @@ public partial class NewCampaign(
                     return;
                 }
 
-                _pageError = problem.Detail ?? "Failed to load campaign creation setup. Please retry.";
+                _pageError = FirstNonBlank(problem.Detail, "Failed to load campaign creation setup. Please retry.");
                 _setup = null;
             });
 
@@ -153,24 +171,46 @@ public partial class NewCampaign(
         _isSubmitting = true;
         _formError = null;
 
-        var result = await campaignCreationService.CreateAsync(model.ToCreateInput(), ComponentCancellationToken);
-        result.Switch(
-            _ => navigationManager.NavigateTo("campaigns"),
-            problem =>
-            {
-                if (problem.Kind == ServiceProblemKind.Forbidden)
+        try
+        {
+            var result = await campaignCreationService.CreateAsync(model.ToCreateInput(), ComponentCancellationToken);
+            result.Switch(
+                _ => navigationManager.NavigateTo("campaigns"),
+                problem =>
                 {
-                    navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
-                    return;
-                }
+                    if (problem.Kind == ServiceProblemKind.Forbidden)
+                    {
+                        navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
+                        return;
+                    }
 
-                _formError = problem.Kind == ServiceProblemKind.Conflict
-                    ? problem.Detail ?? "A campaign with these details already exists. Review the campaign list before retrying."
-                    : problem.Detail ?? FlattenValidationErrors(problem) ?? "Failed to create the campaign. Please retry.";
-            });
+                    _formError = problem.Kind == ServiceProblemKind.Conflict
+                        ? FirstNonBlank(problem.Detail, "A campaign with these details already exists. Review the campaign list before retrying.")
+                        : FirstNonBlank(problem.Detail, FlattenValidationErrors(problem), "Failed to create the campaign. Please retry.");
+                });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            if (ComponentCancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
 
-        _isSubmitting = false;
+            _formError = "Could not reach the server. Check your connection and retry; the same request will resume safely.";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
     }
+
+    /// <summary>
+    /// Returns the first non-blank message from the supplied candidates.
+    /// </summary>
+    /// <param name="candidates">The candidate messages in preference order.</param>
+    /// <returns>The first non-blank candidate.</returns>
+    private static string FirstNonBlank(params string?[] candidates)
+        => candidates.First(candidate => !string.IsNullOrWhiteSpace(candidate))!;
 
     /// <summary>
     /// Flattens field-level validation messages when the problem carries no detail text.

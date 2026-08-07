@@ -70,9 +70,9 @@ public partial class Campaigns(
     private CampaignListItem? _editRetryCandidate;
 
     /// <summary>
-    /// The season identifier associated with <see cref="_editRetryCandidate"/>.
+    /// The season group associated with <see cref="_editRetryCandidate"/>.
     /// </summary>
-    private long _editRetrySeasonId;
+    private CampaignSeasonGroup? _editRetrySeason;
 
     /// <summary>
     /// The campaign metadata form state when a campaign correction is active.
@@ -241,7 +241,7 @@ public partial class Campaigns(
                     return;
                 }
 
-                _pageError = problem.Detail ?? "Failed to load campaigns. Please retry.";
+                _pageError = FirstNonBlank(problem.Detail, "Failed to load campaigns. Please retry.");
                 _list = null;
             });
 
@@ -259,7 +259,8 @@ public partial class Campaigns(
     }
 
     /// <summary>
-    /// Handles campaign view filter changes and reloads the list.
+    /// Handles campaign view filter changes: closes any open correction form, clears feedback,
+    /// and reloads the list.
     /// </summary>
     /// <param name="args">The change event arguments.</param>
     /// <returns>A task that completes when the reload finishes.</returns>
@@ -268,6 +269,7 @@ public partial class Campaigns(
         _statusFilter = string.Equals(args.Value?.ToString(), "closed", StringComparison.OrdinalIgnoreCase)
             ? "closed"
             : "active";
+        CancelMutationForm();
         _statusMessage = null;
         await LoadListAsync();
     }
@@ -279,12 +281,13 @@ public partial class Campaigns(
     /// <returns>A task that completes when the retry finishes.</returns>
     private async Task RetryAsync()
     {
-        if (_editRetryCandidate is not null)
+        if (_editRetryCandidate is not null && _editRetrySeason is not null)
         {
             var candidate = _editRetryCandidate;
-            var seasonId = _editRetrySeasonId;
+            var season = _editRetrySeason;
             _editRetryCandidate = null;
-            await BeginEditCampaignAsync(candidate, seasonId);
+            _editRetrySeason = null;
+            await BeginEditCampaignAsync(candidate, season);
             return;
         }
 
@@ -295,22 +298,45 @@ public partial class Campaigns(
     /// Opens the campaign metadata correction form for an Active campaign.
     /// </summary>
     /// <param name="campaign">The selected campaign row.</param>
-    /// <param name="seasonId">The identifier of the season group containing the campaign.</param>
+    /// <param name="season">The season group containing the campaign.</param>
     /// <returns>A task that completes when season choices are loaded and the form is ready.</returns>
-    private async Task BeginEditCampaignAsync(CampaignListItem campaign, long seasonId)
+    private async Task BeginEditCampaignAsync(CampaignListItem campaign, CampaignSeasonGroup season)
     {
         CancelMutationForm();
         _statusMessage = null;
+        var viewAtStart = _statusFilter;
 
         if (!await EnsureSeasonChoicesLoadedAsync())
         {
             _editRetryCandidate = campaign;
-            _editRetrySeasonId = seasonId;
+            _editRetrySeason = season;
             return;
         }
 
+        // A view change while season choices loaded must not reopen the form on the new view.
+        if (viewAtStart != _statusFilter)
+        {
+            return;
+        }
+
+        // The bounded setup payload may omit the campaign's current season; keep it selectable.
+        if (_seasonChoices.All(choice => choice.SeasonId != season.SeasonId))
+        {
+            _seasonChoices = _seasonChoices
+                .Prepend(new CampaignSeasonChoice
+                {
+                    SeasonId = season.SeasonId,
+                    Name = season.Name,
+                    StartDate = season.StartDate,
+                    EndDate = season.EndDate
+                })
+                .ToList()
+                .AsReadOnly();
+        }
+
         _editRetryCandidate = null;
-        _editCampaignForm = CampaignMetadataFormState.FromListItem(campaign, seasonId);
+        _editRetrySeason = null;
+        _editCampaignForm = CampaignMetadataFormState.FromListItem(campaign, season.SeasonId);
     }
 
     /// <summary>
@@ -335,12 +361,28 @@ public partial class Campaigns(
             return true;
         }
 
-        var result = await campaignQueryService.GetCreationSetupAsync(ComponentCancellationToken);
+        ServiceResult<CampaignCreationSetupResult> result;
+        try
+        {
+            result = await campaignQueryService.GetCreationSetupAsync(ComponentCancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            if (ComponentCancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            _pageError = "Could not reach the server. Check your connection and retry.";
+            return false;
+        }
+
         var loaded = false;
         result.Switch(
             setup =>
             {
                 _seasonChoices = setup.Seasons;
+                _pageError = null;
                 loaded = true;
             },
             problem =>
@@ -351,7 +393,7 @@ public partial class Campaigns(
                     return;
                 }
 
-                _pageError = problem.Detail ?? "Failed to load seasons. Please retry.";
+                _pageError = FirstNonBlank(problem.Detail, "Failed to load seasons. Please retry.");
             });
 
         return loaded;
@@ -372,16 +414,30 @@ public partial class Campaigns(
         _isMutating = true;
         _mutationError = null;
 
-        var result = await campaignMetadataService.UpdateAsync(model.ToUpdateInput(), ComponentCancellationToken);
-        await HandleMutationResultAsync(
-            result,
-            updated =>
+        try
+        {
+            var result = await campaignMetadataService.UpdateAsync(model.ToUpdateInput(), ComponentCancellationToken);
+            await HandleMutationResultAsync(
+                result,
+                updated =>
+                {
+                    _editCampaignForm = null;
+                    _statusMessage = $"Campaign \"{updated.Name}\" metadata updated.";
+                });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            if (ComponentCancellationToken.IsCancellationRequested)
             {
-                _editCampaignForm = null;
-                _statusMessage = $"Campaign \"{updated.Name}\" metadata updated.";
-            });
+                return;
+            }
 
-        _isMutating = false;
+            _mutationError = "Could not reach the server. Check your connection and retry.";
+        }
+        finally
+        {
+            _isMutating = false;
+        }
     }
 
     /// <summary>
@@ -399,16 +455,30 @@ public partial class Campaigns(
         _isMutating = true;
         _mutationError = null;
 
-        var result = await seasonMetadataService.UpdateAsync(model.ToUpdateInput(), ComponentCancellationToken);
-        await HandleMutationResultAsync(
-            result,
-            updated =>
+        try
+        {
+            var result = await seasonMetadataService.UpdateAsync(model.ToUpdateInput(), ComponentCancellationToken);
+            await HandleMutationResultAsync(
+                result,
+                updated =>
+                {
+                    _editSeasonForm = null;
+                    _statusMessage = $"Season \"{updated.Name}\" metadata updated.";
+                });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            if (ComponentCancellationToken.IsCancellationRequested)
             {
-                _editSeasonForm = null;
-                _statusMessage = $"Season \"{updated.Name}\" metadata updated.";
-            });
+                return;
+            }
 
-        _isMutating = false;
+            _mutationError = "Could not reach the server. Check your connection and retry.";
+        }
+        finally
+        {
+            _isMutating = false;
+        }
     }
 
     /// <summary>
@@ -437,8 +507,8 @@ public partial class Campaigns(
                 }
 
                 _mutationError = problem.Kind == ServiceProblemKind.Conflict
-                    ? problem.Detail ?? "This campaign is Closed. Reopen the campaign before editing its metadata."
-                    : problem.Detail ?? FlattenValidationErrors(problem) ?? "Failed to save changes. Please retry.";
+                    ? FirstNonBlank(problem.Detail, "This campaign is Closed. Reopen the campaign before editing its metadata.")
+                    : FirstNonBlank(problem.Detail, FlattenValidationErrors(problem), "Failed to save changes. Please retry.");
             });
 
         if (succeeded)
@@ -466,6 +536,14 @@ public partial class Campaigns(
         _loadListSource = null;
         return ValueTask.CompletedTask;
     }
+
+    /// <summary>
+    /// Returns the first non-blank message from the supplied candidates.
+    /// </summary>
+    /// <param name="candidates">The candidate messages in preference order.</param>
+    /// <returns>The first non-blank candidate.</returns>
+    private static string FirstNonBlank(params string?[] candidates)
+        => candidates.First(candidate => !string.IsNullOrWhiteSpace(candidate))!;
 
     /// <summary>
     /// Flattens field-level validation messages when the problem carries no detail text.
