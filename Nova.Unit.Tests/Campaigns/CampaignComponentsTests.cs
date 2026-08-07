@@ -431,6 +431,127 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Campaigns_SyncsViewQueryParam_WhenFilterChanges()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns?view=closed");
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("#campaigns-view-filter").Change("active");
+        cut.WaitForAssertion(() =>
+            navigationManager.Uri.ShouldContain("view=active"));
+    }
+
+    [Fact]
+    public void Campaigns_EditActions_HaveTargetSpecificAccessibleNames()
+    {
+        RegisterServices(isClubAdmin: true);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").GetAttribute("aria-label").ShouldBe("Edit campaign Summer Tryouts in Summer 2026");
+        cut.FindAll("button").First(button => button.TextContent.Trim() == "Edit season")
+            .GetAttribute("aria-label").ShouldBe("Edit season Summer 2026");
+    }
+
+    [Fact]
+    public void Campaigns_SupersedesEarlierEdit_WhenSeasonChoicesLoadIsPending()
+    {
+        var pendingSetup = new TaskCompletionSource<ServiceResult<CampaignCreationSetupResult>>();
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(pendingSetup.Task);
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.FindAll("button").First(button => button.TextContent.Trim() == "Edit season").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit season metadata"));
+
+        pendingSetup.SetResult(SuccessSetupResult());
+        Thread.Sleep(150);
+        cut.Markup.ShouldContain("Edit season metadata");
+        cut.Markup.ShouldNotContain("Edit campaign metadata");
+    }
+
+    [Fact]
+    public void Campaigns_ReloadsSeasonChoices_AfterSeasonMetadataUpdate()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessSetupResult()));
+
+        var seasonMetadataService = Substitute.For<ISeasonMetadataService>();
+        seasonMetadataService.UpdateAsync(Arg.Any<UpdateSeasonMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<UpdateSeasonMetadataResult>(
+                new UpdateSeasonMetadataResult(5, "Summer 2026 Updated", new DateOnly(2026, 6, 1), new DateOnly(2026, 8, 31)))));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService, seasonMetadataService: seasonMetadataService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        // Prime the season-choice cache, then rename the season.
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+        cut.FindAll("button").First(button => button.TextContent.Trim() == "Cancel").Click();
+
+        cut.FindAll("button").First(button => button.TextContent.Trim() == "Edit season").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit season metadata"));
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("metadata updated."));
+
+        // Reopening campaign edit must reload season choices with current names/dates.
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() =>
+            queryService.Received(2).GetCreationSetupAsync(Arg.Any<CancellationToken>()));
+    }
+
+    [Fact]
+    public void Campaigns_DisablesEditActions_WhileMutationIsPending()
+    {
+        var pendingUpdate = new TaskCompletionSource<ServiceResult<UpdateCampaignMetadataResult>>();
+        var metadataService = Substitute.For<ICampaignMetadataService>();
+        metadataService.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(pendingUpdate.Task);
+
+        RegisterServices(isClubAdmin: true, metadataService: metadataService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Find("tbody button").HasAttribute("disabled").ShouldBeTrue();
+            cut.FindAll("button").First(button => button.TextContent.Trim() == "Edit season")
+                .HasAttribute("disabled").ShouldBeTrue();
+        });
+
+        pendingUpdate.SetResult(new ServiceResult<UpdateCampaignMetadataResult>(
+            new UpdateCampaignMetadataResult(10, "Summer Tryouts", new DateOnly(2026, 6, 15), new DateOnly(2026, 6, 20), CampaignStatus.Active, 5, "Summer 2026")));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("metadata updated."));
+    }
+
+    [Fact]
     public void CampaignCreateForm_ShowsValidationMessages_WhenSubmittedInvalid()
     {
         var model = new CampaignCreateFormState
@@ -708,7 +829,7 @@ public sealed class CampaignComponentsTests : BunitContext
         RegisterServices(isClubAdmin: true, queryService: queryService);
 
         var cut = Render<NewCampaignPage>();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Only the newest 1 of 150 seasons are listed."));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Only the newest 1 of 150 seasons are available for"));
     }
 
     [Fact]

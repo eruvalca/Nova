@@ -111,7 +111,7 @@
                         </div>
                         @if (_canManageCampaigns && _statusFilter == "active")
                         {
-                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => BeginEditSeason(season)">
+                            <button type="button" class="btn btn-sm btn-outline-primary" aria-label="Edit season @season.Name" disabled="@_isMutating" @onclick="() => BeginEditSeason(season)">
                                 Edit season
                             </button>
                         }
@@ -151,7 +151,7 @@
                                             <td class="text-end">
                                                 @if (campaign.Status == CampaignStatus.Active)
                                                 {
-                                                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => BeginEditCampaignAsync(campaign, season)">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" aria-label="Edit campaign @campaign.Name in @season.Name" disabled="@_isMutating" @onclick="() => BeginEditCampaignAsync(campaign, season)">
                                                         Edit
                                                     </button>
                                                 }

@@ -55,6 +55,12 @@ public partial class Campaigns(
     private string _statusFilter = "active";
 
     /// <summary>
+    /// Version counter for edit-form selection; incremented whenever forms are closed or a new
+    /// edit begins so a stale begin-edit continuation cannot reopen a superseded form.
+    /// </summary>
+    private int _editVersion;
+
+    /// <summary>
     /// Version counter used to ignore stale list-load completions.
     /// </summary>
     private int _loadListVersion;
@@ -271,7 +277,22 @@ public partial class Campaigns(
             : "active";
         CancelMutationForm();
         _statusMessage = null;
+        SyncViewToUrl();
         await LoadListAsync();
+    }
+
+    /// <summary>
+    /// Synchronizes the active view filter into the URL query string without adding a history entry.
+    /// </summary>
+    private void SyncViewToUrl()
+    {
+        var uri = navigationManager.GetUriWithQueryParameters(
+            new Dictionary<string, object?> { ["view"] = _statusFilter });
+
+        if (!string.Equals(uri, navigationManager.Uri, StringComparison.Ordinal))
+        {
+            navigationManager.NavigateTo(uri, new NavigationOptions { ReplaceHistoryEntry = true });
+        }
     }
 
     /// <summary>
@@ -305,6 +326,7 @@ public partial class Campaigns(
         CancelMutationForm();
         _statusMessage = null;
         var viewAtStart = _statusFilter;
+        var editVersion = _editVersion;
 
         if (!await EnsureSeasonChoicesLoadedAsync())
         {
@@ -313,8 +335,9 @@ public partial class Campaigns(
             return;
         }
 
-        // A view change while season choices loaded must not reopen the form on the new view.
-        if (viewAtStart != _statusFilter)
+        // A view change or a newer edit selection while season choices loaded must not reopen
+        // this form.
+        if (viewAtStart != _statusFilter || editVersion != _editVersion)
         {
             return;
         }
@@ -464,6 +487,8 @@ public partial class Campaigns(
                 {
                     _editSeasonForm = null;
                     _statusMessage = $"Season \"{updated.Name}\" metadata updated.";
+                    // Invalidate cached season choices so the next campaign edit reloads current names/dates.
+                    _seasonChoices = [];
                 });
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
@@ -526,6 +551,8 @@ public partial class Campaigns(
         _editSeasonForm = null;
         _mutationError = null;
         _editRetryCandidate = null;
+        _editRetrySeason = null;
+        _editVersion++;
     }
 
     /// <inheritdoc />
