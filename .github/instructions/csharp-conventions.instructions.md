@@ -16,6 +16,7 @@ description: "Nova C# coding conventions, Try-method contracts, editorconfig exp
 - Prefer `string.Empty` over empty string literals for representing empty strings.
 - Eliminate unused parameters and unused value assignments.
 - Prefer `using var x = ...;` over `using (...) { }` when the variable lifetime naturally ends at the enclosing scope.
+- Before finalizing C# changes, run `dotnet format` with the narrowest scope that covers edited files/projects; use solution-wide formatting only for broad refactors.
 
 ## `Try*` contracts
 
