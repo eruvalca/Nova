@@ -24,14 +24,14 @@ public sealed class CampaignComponentsTests : BunitContext
     [Fact]
     public void CampaignsRoute_DeclaresInteractiveAutoRenderMode()
     {
-        var razorPath = Path.Combine(FindRepoRoot(), "Nova.UI", "Features", "Campaigns", "Pages", "Campaigns.razor");
+        var razorPath = Path.Join(FindRepoRoot(), "Nova.UI", "Features", "Campaigns", "Pages", "Campaigns.razor");
         File.ReadAllText(razorPath).ShouldContain("@rendermode InteractiveAuto");
     }
 
     [Fact]
     public void NewCampaignRoute_DeclaresInteractiveAutoRenderMode()
     {
-        var razorPath = Path.Combine(FindRepoRoot(), "Nova.UI", "Features", "Campaigns", "Pages", "NewCampaign.razor");
+        var razorPath = Path.Join(FindRepoRoot(), "Nova.UI", "Features", "Campaigns", "Pages", "NewCampaign.razor");
         File.ReadAllText(razorPath).ShouldContain("@rendermode InteractiveAuto");
     }
 
@@ -1032,7 +1032,7 @@ public sealed class CampaignComponentsTests : BunitContext
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            var gitDirectoryPath = Path.Combine(directory.FullName, ".git");
+            var gitDirectoryPath = Path.Join(directory.FullName, ".git");
             if (Directory.Exists(gitDirectoryPath) || File.Exists(gitDirectoryPath))
             {
                 return directory.FullName;

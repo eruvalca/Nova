@@ -45,7 +45,7 @@ public partial class NewCampaign(
     /// <summary>
     /// The create-campaign input model bound to the form.
     /// </summary>
-    private CampaignCreateFormState _createForm = CampaignCreateFormState.CreateDefault();
+    private readonly CampaignCreateFormState _createForm = CampaignCreateFormState.CreateDefault();
 
     /// <summary>
     /// Gets or sets the persisted startup setup snapshot used across prerender and interactive attach.
