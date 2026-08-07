@@ -684,6 +684,140 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Campaigns_ClearsStaleSetupError_WhenSwitchingToSeasonEdit()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignCreationSetupResult>(ServiceProblem.ServerError("Season load failed."))));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Season load failed."));
+
+        cut.FindAll("button").First(button => button.TextContent.Trim() == "Edit season").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Edit season metadata");
+            cut.Markup.ShouldNotContain("Season load failed.");
+        });
+    }
+
+    [Fact]
+    public void Campaigns_OffersCloseAndReload_WhenUpdateReturnsConflict()
+    {
+        var metadataService = Substitute.For<ICampaignMetadataService>();
+        metadataService.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<UpdateCampaignMetadataResult>(
+                ServiceProblem.Conflict("The campaign is Closed. Reopen the campaign before editing its metadata."))));
+
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessSetupResult()));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService, metadataService: metadataService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close and reload"));
+
+        cut.Find("button.btn-outline-warning").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldNotContain("Edit campaign metadata");
+            cut.Markup.ShouldNotContain("Close and reload");
+        });
+    }
+
+    [Fact]
+    public void Campaigns_DoesNotRetainFallbackSeason_InLaterEdits()
+    {
+        var groups = new[]
+        {
+            new CampaignSeasonGroup
+            {
+                SeasonId = 5,
+                Name = "Summer 2026",
+                StartDate = new DateOnly(2026, 6, 1),
+                EndDate = new DateOnly(2026, 8, 31),
+                Campaigns =
+                [
+                    new CampaignListItem
+                    {
+                        CampaignId = 10,
+                        Name = "Summer Tryouts",
+                        StartDate = new DateOnly(2026, 6, 15),
+                        PlannedEndDate = new DateOnly(2026, 6, 20),
+                        Status = CampaignStatus.Active,
+                        ParticipantCount = 12,
+                        UnresolvedCount = 3
+                    }
+                ]
+            },
+            new CampaignSeasonGroup
+            {
+                SeasonId = 6,
+                Name = "Old 2020",
+                StartDate = new DateOnly(2020, 1, 1),
+                EndDate = new DateOnly(2020, 6, 30),
+                Campaigns =
+                [
+                    new CampaignListItem
+                    {
+                        CampaignId = 12,
+                        Name = "Legacy Cup",
+                        StartDate = new DateOnly(2020, 2, 1),
+                        PlannedEndDate = null,
+                        Status = CampaignStatus.Active,
+                        ParticipantCount = 8,
+                        UnresolvedCount = 0
+                    }
+                ]
+            }
+        };
+
+        // The bounded setup payload omits the older season.
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(groups)));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessSetupResult()));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Legacy Cup"));
+
+        // Editing the out-of-window campaign prepends its current season for that edit only.
+        cut.FindAll("tbody button").First(button => button.GetAttribute("aria-label") == "Edit campaign Legacy Cup in Old 2020").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Edit campaign metadata");
+            cut.Markup.ShouldContain("Old 2020");
+        });
+        cut.FindAll("button").First(button => button.TextContent.Trim() == "Cancel").Click();
+
+        // A later edit of an in-window campaign must not retain the fallback season.
+        cut.FindAll("tbody button").First(button => button.GetAttribute("aria-label") == "Edit campaign Summer Tryouts in Summer 2026").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+        var formMarkup = cut.Find("#edit-campaign-season").InnerHtml;
+        formMarkup.ShouldContain("Summer 2026");
+        formMarkup.ShouldNotContain("Old 2020");
+    }
+
+    [Fact]
     public void CampaignCreateForm_ShowsValidationMessages_WhenSubmittedInvalid()
     {
         var model = new CampaignCreateFormState

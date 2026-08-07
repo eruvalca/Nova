@@ -101,6 +101,18 @@ public partial class Campaigns(
     private int _seasonChoiceTotalCount;
 
     /// <summary>
+    /// The per-edit season list passed to the campaign metadata form; may include the edited
+    /// campaign's current season when the bounded cache omits it.
+    /// </summary>
+    private IReadOnlyList<CampaignSeasonChoice> _editFormSeasonChoices = [];
+
+    /// <summary>
+    /// Indicates whether the active mutation ended in a lifecycle conflict (campaign closed
+    /// concurrently), which offers a close-and-reload affordance.
+    /// </summary>
+    private bool _mutationConflict;
+
+    /// <summary>
     /// Indicates whether a metadata correction mutation is in progress.
     /// </summary>
     private bool _isMutating;
@@ -359,10 +371,12 @@ public partial class Campaigns(
             return;
         }
 
-        // The bounded setup payload may omit the campaign's current season; keep it selectable.
-        if (_seasonChoices.All(choice => choice.SeasonId != season.SeasonId))
-        {
-            _seasonChoices = _seasonChoices
+        // The bounded setup payload may omit the campaign's current season; keep it selectable for
+        // this edit only without polluting the shared cached choices (which drive the truncation
+        // disclosure and later edits).
+        _editFormSeasonChoices = _seasonChoices.Any(choice => choice.SeasonId == season.SeasonId)
+            ? _seasonChoices
+            : _seasonChoices
                 .Prepend(new CampaignSeasonChoice
                 {
                     SeasonId = season.SeasonId,
@@ -372,7 +386,6 @@ public partial class Campaigns(
                 })
                 .ToList()
                 .AsReadOnly();
-        }
 
         _editRetryCandidate = null;
         _editRetrySeason = null;
@@ -387,6 +400,8 @@ public partial class Campaigns(
     {
         CancelMutationForm();
         _statusMessage = null;
+        // A stale setup-load error from a previous campaign edit must not linger above this form.
+        _pageError = null;
         _editSeasonForm = SeasonMetadataFormState.FromSeasonGroup(season);
     }
 
@@ -475,6 +490,7 @@ public partial class Campaigns(
 
         _isMutating = true;
         _mutationError = null;
+        _mutationConflict = false;
 
         try
         {
@@ -516,6 +532,7 @@ public partial class Campaigns(
 
         _isMutating = true;
         _mutationError = null;
+        _mutationConflict = false;
 
         try
         {
@@ -570,9 +587,14 @@ public partial class Campaigns(
                     return;
                 }
 
-                _mutationError = problem.Kind == ServiceProblemKind.Conflict
-                    ? FirstNonBlank(problem.Detail, "This campaign is Closed. Reopen the campaign before editing its metadata.")
-                    : FirstNonBlank(problem.Detail, FlattenValidationErrors(problem), "Failed to save changes. Please retry.");
+                if (problem.Kind == ServiceProblemKind.Conflict)
+                {
+                    _mutationError = FirstNonBlank(problem.Detail, "This campaign is Closed. Reopen the campaign before editing its metadata.");
+                    _mutationConflict = true;
+                    return;
+                }
+
+                _mutationError = FirstNonBlank(problem.Detail, FlattenValidationErrors(problem), "Failed to save changes. Please retry.");
             });
 
         if (succeeded)
@@ -591,7 +613,20 @@ public partial class Campaigns(
         _mutationError = null;
         _editRetryCandidate = null;
         _editRetrySeason = null;
+        _editFormSeasonChoices = [];
+        _mutationConflict = false;
         _editVersion++;
+    }
+
+    /// <summary>
+    /// Closes the conflicted edit form and reloads the list so it reflects the campaign's
+    /// current lifecycle state.
+    /// </summary>
+    /// <returns>A task that completes when the reload finishes.</returns>
+    private async Task CloseFormAndReloadAsync()
+    {
+        CancelMutationForm();
+        await LoadListAsync();
     }
 
     /// <inheritdoc />
