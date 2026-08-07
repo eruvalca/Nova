@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.UI.Components;
@@ -49,9 +48,10 @@ public partial class NewCampaign(
     private readonly CampaignCreateFormState _createForm = CampaignCreateFormState.CreateDefault();
 
     /// <summary>
-    /// The fingerprint of the last attempted creation payload, used to detect edits between retries.
+    /// The last attempted creation payload with the operation identifier normalized away, used to
+    /// detect field edits between retries via record equality.
     /// </summary>
-    private string? _lastAttemptFingerprint;
+    private CreateCampaignInput? _lastAttemptPayload;
 
     /// <summary>
     /// Gets or sets the persisted startup setup snapshot used across prerender and interactive attach.
@@ -178,8 +178,10 @@ public partial class NewCampaign(
         }
 
         var input = model.ToCreateInput() with { OperationId = _createForm.OperationId };
-        var fingerprint = Fingerprint(input);
-        if (_lastAttemptFingerprint is not null && _lastAttemptFingerprint != fingerprint)
+        // Record equality compares every payload field (including the nested inline season), so
+        // changed payloads can never collide the way a delimiter-joined string fingerprint could.
+        var payload = input with { OperationId = Guid.Empty };
+        if (_lastAttemptPayload is not null && _lastAttemptPayload != payload)
         {
             // The page model holds the canonical current-attempt identifier so the child form's
             // clone carries it into every later submission of the changed payload.
@@ -187,7 +189,7 @@ public partial class NewCampaign(
             input = input with { OperationId = _createForm.OperationId };
         }
 
-        _lastAttemptFingerprint = fingerprint;
+        _lastAttemptPayload = payload;
 
         _isSubmitting = true;
         _formError = null;
@@ -224,22 +226,6 @@ public partial class NewCampaign(
             _isSubmitting = false;
         }
     }
-
-    /// <summary>
-    /// Builds a stable fingerprint of the creation payload fields that define the logical request.
-    /// </summary>
-    /// <param name="input">The creation input to fingerprint.</param>
-    /// <returns>An ordinal fingerprint string for change detection across retries.</returns>
-    private static string Fingerprint(CreateCampaignInput input)
-        => string.Join(
-            '|',
-            input.Name,
-            input.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            input.PlannedEndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
-            input.ExistingSeasonId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
-            input.InlineSeason?.Name ?? string.Empty,
-            input.InlineSeason?.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
-            input.InlineSeason?.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty);
 
     /// <summary>
     /// Returns the first non-blank message from the supplied candidates.
