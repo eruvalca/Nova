@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.UI.Components;
