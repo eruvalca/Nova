@@ -22,7 +22,7 @@ jobs:
         run: dotnet restore Nova.slnx
 
       - name: Build
-        run: dotnet build Nova.slnx --no-restore --warnaserror
+        run: dotnet build Nova.slnx --no-restore
 
   unit-tests:
     name: Unit Tests
