@@ -1100,6 +1100,21 @@ public sealed class CampaignComponentsTests : BunitContext
             calls.Count.ShouldBe(2);
             calls[0]!.OperationId.ShouldNotBe(calls[1]!.OperationId);
         });
+
+        // A further identical retry of the changed payload must reuse the minted identifier,
+        // never the original one. Wait for the submit flag to reset before clicking again.
+        cut.WaitForAssertion(() =>
+            cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            var calls = creationService.ReceivedCalls()
+                .Select(call => call.GetArguments()[0] as CreateCampaignInput)
+                .Where(input => input is not null)
+                .ToList();
+            calls.Count.ShouldBe(3);
+            calls[2]!.OperationId.ShouldBe(calls[1]!.OperationId);
+        });
     }
 
     [Fact]

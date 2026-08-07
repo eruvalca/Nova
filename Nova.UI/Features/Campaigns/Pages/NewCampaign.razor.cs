@@ -177,11 +177,14 @@ public partial class NewCampaign(
             return;
         }
 
-        var input = model.ToCreateInput();
+        var input = model.ToCreateInput() with { OperationId = _createForm.OperationId };
         var fingerprint = Fingerprint(input);
         if (_lastAttemptFingerprint is not null && _lastAttemptFingerprint != fingerprint)
         {
-            input = input with { OperationId = Guid.CreateVersion7() };
+            // The page model holds the canonical current-attempt identifier so the child form's
+            // clone carries it into every later submission of the changed payload.
+            _createForm.OperationId = Guid.CreateVersion7();
+            input = input with { OperationId = _createForm.OperationId };
         }
 
         _lastAttemptFingerprint = fingerprint;
