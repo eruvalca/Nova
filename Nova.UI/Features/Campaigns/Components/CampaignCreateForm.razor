@@ -1,0 +1,104 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using Nova.Shared.Features.Campaigns
+
+<section class="card shadow-sm border-0">
+    <div class="card-body">
+        <h2 class="h5 mb-3">@Heading</h2>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert" aria-live="assertive">@ErrorMessage</div>
+        }
+
+        <EditForm Model="_localModel" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="visually-hidden" aria-live="polite" />
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="campaign-name" class="form-label">Campaign name</label>
+                    <InputText id="campaign-name" class="form-control" @bind-Value="_localModel.Name" />
+                    <ValidationMessage For="() => _localModel.Name" class="text-danger small" />
+                </div>
+                <div class="col-md-3">
+                    <label for="campaign-start-date" class="form-label">Start date</label>
+                    <InputDate id="campaign-start-date" class="form-control" @bind-Value="_localModel.StartDate" />
+                    <ValidationMessage For="() => _localModel.StartDate" class="text-danger small" />
+                </div>
+                <div class="col-md-3">
+                    <label for="campaign-planned-end-date" class="form-label">Planned end date <span class="text-muted">(optional)</span></label>
+                    <InputDate id="campaign-planned-end-date" class="form-control" @bind-Value="_localModel.PlannedEndDate" />
+                    <ValidationMessage For="() => _localModel.PlannedEndDate" class="text-danger small" />
+                </div>
+            </div>
+
+            <fieldset class="mt-4">
+                <legend class="fs-6 fw-semibold">Season</legend>
+                <InputRadioGroup @bind-Value="_localModel.UseInlineSeason">
+                    <div class="form-check">
+                        <InputRadio id="season-mode-existing"
+                                    class="form-check-input"
+                                    Value="false"
+                                    disabled="@(Seasons.Count == 0)" />
+                        <label class="form-check-label" for="season-mode-existing">
+                            Use an existing season
+                            @if (Seasons.Count == 0)
+                            {
+                                <span class="text-muted">(no seasons available yet)</span>
+                            }
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <InputRadio id="season-mode-inline" class="form-check-input" Value="true" />
+                        <label class="form-check-label" for="season-mode-inline">Create a new season</label>
+                    </div>
+                </InputRadioGroup>
+
+                @if (_localModel.UseInlineSeason)
+                {
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <label for="inline-season-name" class="form-label">Season name</label>
+                            <InputText id="inline-season-name" class="form-control" @bind-Value="_localModel.InlineSeasonName" />
+                            <ValidationMessage For="() => _localModel.InlineSeasonName" class="text-danger small" />
+                        </div>
+                        <div class="col-md-3">
+                            <label for="inline-season-start-date" class="form-label">Season start date</label>
+                            <InputDate id="inline-season-start-date" class="form-control" @bind-Value="_localModel.InlineSeasonStartDate" />
+                            <ValidationMessage For="() => _localModel.InlineSeasonStartDate" class="text-danger small" />
+                        </div>
+                        <div class="col-md-3">
+                            <label for="inline-season-end-date" class="form-label">Season end date <span class="text-muted">(optional)</span></label>
+                            <InputDate id="inline-season-end-date" class="form-control" @bind-Value="_localModel.InlineSeasonEndDate" />
+                            <ValidationMessage For="() => _localModel.InlineSeasonEndDate" class="text-danger small" />
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="mt-2">
+                        <label for="existing-season" class="form-label">Season</label>
+                        <InputSelect id="existing-season" class="form-select" @bind-Value="_localModel.ExistingSeasonId">
+                            <option value="">Select a season</option>
+                            @foreach (var season in Seasons)
+                            {
+                                <option value="@season.SeasonId">@season.Name (@FormatSeasonChoiceDates(season))</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="() => _localModel.ExistingSeasonId" class="text-danger small" />
+                    </div>
+                }
+            </fieldset>
+
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                    @if (IsSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                    }
+                    @SubmitButtonText
+                </button>
+                <button type="button" class="btn btn-outline-secondary" disabled="@IsSubmitting" @onclick="OnCancel">Cancel</button>
+            </div>
+        </EditForm>
+    </div>
+</section>

@@ -1,0 +1,64 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using Nova.Shared.Features.Campaigns
+
+<section class="card shadow-sm border-0">
+    <div class="card-body">
+        <h2 class="h5 mb-3">@Heading</h2>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert" aria-live="assertive">@ErrorMessage</div>
+        }
+
+        <EditForm Model="_localModel" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="visually-hidden" aria-live="polite" />
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="edit-campaign-name" class="form-label">Campaign name</label>
+                    <InputText id="edit-campaign-name" class="form-control" @bind-Value="_localModel.Name" />
+                    <ValidationMessage For="() => _localModel.Name" class="text-danger small" />
+                </div>
+                <div class="col-md-6">
+                    <label for="edit-campaign-season" class="form-label">Season</label>
+                    <InputSelect id="edit-campaign-season" class="form-select" @bind-Value="_localModel.SeasonId">
+                        <option value="0">Select a season</option>
+                        @foreach (var season in Seasons)
+                        {
+                            <option value="@season.SeasonId">@season.Name (@FormatSeasonChoiceDates(season))</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => _localModel.SeasonId" class="text-danger small" />
+                    @if (TotalSeasonCount > Seasons.Count)
+                    {
+                        <div class="form-text">
+                            Only the newest @Seasons.Count of @TotalSeasonCount seasons are available for selection.
+                        </div>
+                    }
+                </div>
+                <div class="col-md-6">
+                    <label for="edit-campaign-start-date" class="form-label">Start date</label>
+                    <InputDate id="edit-campaign-start-date" class="form-control" @bind-Value="_localModel.StartDate" />
+                    <ValidationMessage For="() => _localModel.StartDate" class="text-danger small" />
+                </div>
+                <div class="col-md-6">
+                    <label for="edit-campaign-planned-end-date" class="form-label">Planned end date <span class="text-muted">(optional)</span></label>
+                    <InputDate id="edit-campaign-planned-end-date" class="form-control" @bind-Value="_localModel.PlannedEndDate" />
+                    <ValidationMessage For="() => _localModel.PlannedEndDate" class="text-danger small" />
+                    <div class="form-text">The planned end date is informational and does not close the campaign.</div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                    @if (IsSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                    }
+                    @SubmitButtonText
+                </button>
+                <button type="button" class="btn btn-outline-secondary" disabled="@IsSubmitting" @onclick="OnCancel">Cancel</button>
+            </div>
+        </EditForm>
+    </div>
+</section>
