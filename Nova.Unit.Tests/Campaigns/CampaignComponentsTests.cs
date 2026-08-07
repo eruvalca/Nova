@@ -609,6 +609,81 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Campaigns_NotesSeasonTruncation_InEditForm()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
+            {
+                Seasons = CreateSeasonChoices(),
+                TotalSeasonCount = 150,
+                ActivePlayerCount = 34,
+                ActiveTeamCount = 6
+            })));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() =>
+            cut.Markup.ShouldContain("Only the newest 1 of 150 seasons are available for selection."));
+    }
+
+    [Fact]
+    public void Campaigns_KeepsFresherSeasonChoices_WhenStaleSetupCompletesLate()
+    {
+        var staleSetup = new TaskCompletionSource<ServiceResult<CampaignCreationSetupResult>>();
+        var freshSetup = new TaskCompletionSource<ServiceResult<CampaignCreationSetupResult>>();
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(staleSetup.Task, freshSetup.Task);
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        // First edit selection starts a slow setup load; a second selection supersedes it.
+        cut.Find("tbody button").Click();
+        cut.FindAll("button").First(button => button.TextContent.Trim() == "Edit season").Click();
+        cut.Find("tbody button").Click();
+
+        // The stale completion must not publish its payload or clear state.
+        staleSetup.SetResult(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
+        {
+            Seasons =
+            [
+                new CampaignSeasonChoice
+                {
+                    SeasonId = 99,
+                    Name = "Stale Season",
+                    StartDate = new DateOnly(2020, 1, 1),
+                    EndDate = null
+                }
+            ],
+            TotalSeasonCount = 1,
+            ActivePlayerCount = 0,
+            ActiveTeamCount = 0
+        }));
+        Thread.Sleep(150);
+        cut.Markup.ShouldNotContain("Stale Season");
+
+        freshSetup.SetResult(SuccessSetupResult());
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Edit campaign metadata");
+            cut.Markup.ShouldContain("Summer 2026");
+            cut.Markup.ShouldNotContain("Stale Season");
+        });
+    }
+
+    [Fact]
     public void CampaignCreateForm_ShowsValidationMessages_WhenSubmittedInvalid()
     {
         var model = new CampaignCreateFormState

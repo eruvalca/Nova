@@ -39,6 +39,14 @@ public partial class CampaignMetadataForm
     public IReadOnlyList<CampaignSeasonChoice> Seasons { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the total number of tenant seasons before the choice bound. When greater than
+    /// <see cref="Seasons"/>.Count, a truncation note is shown so administrators know older seasons
+    /// are not selectable.
+    /// </summary>
+    [Parameter]
+    public int TotalSeasonCount { get; set; }
+
+    /// <summary>
     /// Gets or sets the submit button text.
     /// </summary>
     [Parameter]

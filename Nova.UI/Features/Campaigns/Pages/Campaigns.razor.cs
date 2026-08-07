@@ -96,6 +96,11 @@ public partial class Campaigns(
     private IReadOnlyList<CampaignSeasonChoice> _seasonChoices = [];
 
     /// <summary>
+    /// The total number of tenant seasons before the choice bound, used to disclose truncation.
+    /// </summary>
+    private int _seasonChoiceTotalCount;
+
+    /// <summary>
     /// Indicates whether a metadata correction mutation is in progress.
     /// </summary>
     private bool _isMutating;
@@ -428,9 +433,12 @@ public partial class Campaigns(
         result.Switch(
             setup =>
             {
-                _seasonChoices = setup.Seasons;
+                // Only the current edit selection may publish the payload; a superseded
+                // completion must not replace fresher choices cached by a newer request.
                 if (isCurrent())
                 {
+                    _seasonChoices = setup.Seasons;
+                    _seasonChoiceTotalCount = setup.TotalSeasonCount;
                     _pageError = null;
                 }
 

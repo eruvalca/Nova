@@ -40,7 +40,7 @@ jobs:
         run: dotnet restore Nova.slnx
 
       - name: Test
-        run: dotnet test Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-restore --logger "console;verbosity=normal"
+        run: dotnet test Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-restore
 
   format-check:
     name: Format Check

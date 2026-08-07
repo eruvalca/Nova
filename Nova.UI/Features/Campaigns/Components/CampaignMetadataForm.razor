@@ -29,6 +29,12 @@
                         }
                     </InputSelect>
                     <ValidationMessage For="() => _localModel.SeasonId" class="text-danger small" />
+                    @if (TotalSeasonCount > Seasons.Count)
+                    {
+                        <div class="form-text">
+                            Only the newest @Seasons.Count of @TotalSeasonCount seasons are available for selection.
+                        </div>
+                    }
                 </div>
                 <div class="col-md-6">
                     <label for="edit-campaign-start-date" class="form-label">Start date</label>
