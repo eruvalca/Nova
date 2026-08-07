@@ -253,10 +253,13 @@ workflows on top of the existing server/HTTP services (no server or contract cha
   `InputValidator`.
 - `NavMenu.razor` gained a Campaigns link (before Players, per the product navigation order).
 
-Coverage: 27 bUnit tests (`CampaignComponentsTests`) plus NavMenu assertions; full suite 1016/1016;
+Coverage: 44 bUnit tests (`CampaignComponentsTests`) plus NavMenu assertions; full suite 1033/1033;
 solution build clean (only pre-existing NU1903 warnings). The Aspire + Playwright pass validated
 every acceptance criterion for both roles and fixed three real browser blockers (InputRadioGroup
-binding, field-error flattening, mobile date wrapping).
+binding, field-error flattening, mobile date wrapping). Three review passes added hardening:
+query-param-before-load and stale-load versioning, transport-failure retryability, edit-selection
+versioning, view-switch form dismissal (including same-component query navigation), season-cache
+invalidation, accessible action names, and season-truncation disclosure.
 
 ## Deployment Plan
 

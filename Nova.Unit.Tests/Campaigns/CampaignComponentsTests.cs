@@ -552,6 +552,63 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Campaigns_ClosesEditForm_WhenViewQueryNavigatesToClosed()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessSetupResult()));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns?view=closed");
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldNotContain("Edit campaign metadata");
+            queryService.Received().GetCampaignListAsync(
+                Arg.Is<GetCampaignListInput>(input =>
+                    input != null && string.Equals(input.Status, "closed", StringComparison.Ordinal)),
+                Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public void Campaigns_DoesNotInstallRetryState_WhenEditSelectionIsSuperseded()
+    {
+        var pendingSetup = new TaskCompletionSource<ServiceResult<CampaignCreationSetupResult>>();
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(pendingSetup.Task);
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.FindAll("button").First(button => button.TextContent.Trim() == "Edit season").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit season metadata"));
+
+        // The superseded campaign edit's setup load fails late; it must not publish its error
+        // or become the Retry target while the season form is open.
+        pendingSetup.SetResult(new ServiceResult<CampaignCreationSetupResult>(ServiceProblem.ServerError("Season load failed.")));
+        Thread.Sleep(150);
+        cut.Markup.ShouldContain("Edit season metadata");
+        cut.Markup.ShouldNotContain("Season load failed.");
+        cut.FindAll("button.btn-outline-danger").Count.ShouldBe(0);
+    }
+
+    [Fact]
     public void CampaignCreateForm_ShowsValidationMessages_WhenSubmittedInvalid()
     {
         var model = new CampaignCreateFormState

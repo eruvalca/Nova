@@ -144,6 +144,10 @@ public partial class Campaigns(
     {
         if (ApplyViewQueryToState() && Initialized)
         {
+            // A query-driven view change (e.g. enhanced navigation to ?view=closed) must close any
+            // open correction form and view-specific feedback before loading the new view.
+            CancelMutationForm();
+            _statusMessage = null;
             await LoadListAsync();
         }
     }
@@ -328,10 +332,18 @@ public partial class Campaigns(
         var viewAtStart = _statusFilter;
         var editVersion = _editVersion;
 
-        if (!await EnsureSeasonChoicesLoadedAsync())
+        if (!await EnsureSeasonChoicesLoadedAsync(editVersion, viewAtStart))
         {
-            _editRetryCandidate = campaign;
-            _editRetrySeason = season;
+            // Only the latest, same-view edit selection may install failure feedback or the
+            // retry target; stale continuations exit quietly.
+            if (editVersion == _editVersion
+                && viewAtStart == _statusFilter
+                && !ComponentCancellationToken.IsCancellationRequested)
+            {
+                _editRetryCandidate = campaign;
+                _editRetrySeason = season;
+            }
+
             return;
         }
 
@@ -374,15 +386,23 @@ public partial class Campaigns(
     }
 
     /// <summary>
-    /// Loads the season choices used by the campaign edit form when not already available.
+    /// Loads the season choices used by the campaign edit form when not already available. Failure
+    /// feedback is published only when the calling edit selection is still current and on the same
+    /// view.
     /// </summary>
+    /// <param name="editVersion">The edit-selection version captured by the caller.</param>
+    /// <param name="viewAtStart">The view filter captured by the caller.</param>
     /// <returns><see langword="true"/> when season choices are available; otherwise <see langword="false"/>.</returns>
-    private async Task<bool> EnsureSeasonChoicesLoadedAsync()
+    private async Task<bool> EnsureSeasonChoicesLoadedAsync(int editVersion, string viewAtStart)
     {
         if (_seasonChoices.Count > 0)
         {
             return true;
         }
+
+        var isCurrent = () => editVersion == _editVersion
+            && viewAtStart == _statusFilter
+            && !ComponentCancellationToken.IsCancellationRequested;
 
         ServiceResult<CampaignCreationSetupResult> result;
         try
@@ -396,7 +416,11 @@ public partial class Campaigns(
                 return false;
             }
 
-            _pageError = "Could not reach the server. Check your connection and retry.";
+            if (isCurrent())
+            {
+                _pageError = "Could not reach the server. Check your connection and retry.";
+            }
+
             return false;
         }
 
@@ -405,7 +429,11 @@ public partial class Campaigns(
             setup =>
             {
                 _seasonChoices = setup.Seasons;
-                _pageError = null;
+                if (isCurrent())
+                {
+                    _pageError = null;
+                }
+
                 loaded = true;
             },
             problem =>
@@ -416,7 +444,10 @@ public partial class Campaigns(
                     return;
                 }
 
-                _pageError = FirstNonBlank(problem.Detail, "Failed to load seasons. Please retry.");
+                if (isCurrent())
+                {
+                    _pageError = FirstNonBlank(problem.Detail, "Failed to load seasons. Please retry.");
+                }
             });
 
         return loaded;
