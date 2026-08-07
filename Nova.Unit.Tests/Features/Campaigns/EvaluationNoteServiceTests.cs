@@ -1,10 +1,10 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Campaigns;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 

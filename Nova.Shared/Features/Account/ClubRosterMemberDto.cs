@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Account;
+﻿namespace Nova.Shared.Features.Account;
 
 /// <summary>
 /// Represents a club member in the club-detail roster.

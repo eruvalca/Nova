@@ -1,4 +1,4 @@
-using Nova.Shared.Features.Clubs;
+﻿using Nova.Shared.Features.Clubs;
 using Nova.Shared.Validation;
 using Shouldly;
 

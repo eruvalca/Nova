@@ -1,4 +1,4 @@
-namespace Nova.Shared.Enums;
+﻿namespace Nova.Shared.Enums;
 
 /// <summary>
 /// Identifies lifecycle transitions that are durably recorded for a campaign.

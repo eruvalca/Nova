@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Campaigns;
+﻿namespace Nova.Shared.Features.Campaigns;
 
 /// <summary>
 /// Defines shared route constants for campaign command and query endpoints.

@@ -1,4 +1,4 @@
-using Nova.Shared.Security;
+﻿using Nova.Shared.Security;
 
 namespace Nova.Features.Clubs;
 

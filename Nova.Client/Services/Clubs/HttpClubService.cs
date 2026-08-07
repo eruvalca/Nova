@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 

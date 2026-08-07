@@ -1,6 +1,6 @@
-using System.Net.Http.Json;
-using Nova.Shared.Features.Clubs;
+﻿using System.Net.Http.Json;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 using OneOf.Types;
 

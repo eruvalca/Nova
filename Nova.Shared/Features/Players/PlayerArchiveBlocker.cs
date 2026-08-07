@@ -1,5 +1,5 @@
+﻿using System.Text.Json;
 using Nova.Shared.Results;
-using System.Text.Json;
 
 namespace Nova.Shared.Features.Players;
 

@@ -1,6 +1,6 @@
-using Nova.Shared.Enums;
-using Nova.Shared.Results;
+﻿using Nova.Shared.Enums;
 using Nova.Shared.Features.Teams;
+using Nova.Shared.Results;
 using Nova.Shared.Validation;
 
 namespace Nova.Client.Services;

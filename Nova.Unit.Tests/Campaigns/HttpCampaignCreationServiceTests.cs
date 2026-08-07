@@ -1,9 +1,9 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Shouldly;
 

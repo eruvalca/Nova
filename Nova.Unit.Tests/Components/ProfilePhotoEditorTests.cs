@@ -1,10 +1,10 @@
-using Bunit;
+﻿using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using NSubstitute;
 using Nova.Shared.Features.Photos;
 using Nova.Shared.Results;
 using Nova.UI.Features.Account.Components;
+using NSubstitute;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Components;

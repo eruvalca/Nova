@@ -1,4 +1,4 @@
-namespace Nova.Shared.Results;
+﻿namespace Nova.Shared.Results;
 
 /// <summary>
 /// Represents a marker value for conflict-oriented result unions.

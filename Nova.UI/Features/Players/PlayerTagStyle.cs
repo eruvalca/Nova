@@ -1,4 +1,4 @@
-namespace Nova.UI.Features.Players;
+﻿namespace Nova.UI.Features.Players;
 
 /// <summary>
 /// Provides safe badge-style helpers for player tag color rendering.

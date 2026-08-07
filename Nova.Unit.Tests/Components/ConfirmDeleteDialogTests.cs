@@ -1,4 +1,4 @@
-using Bunit;
+﻿using Bunit;
 using Nova.UI.Shared;
 using Shouldly;
 

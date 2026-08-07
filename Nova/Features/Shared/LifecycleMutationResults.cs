@@ -1,4 +1,4 @@
-namespace Nova.Features.Shared;
+﻿namespace Nova.Features.Shared;
 
 /// <summary>
 /// Reports that the current user is not authorized to mutate a record's lifecycle.

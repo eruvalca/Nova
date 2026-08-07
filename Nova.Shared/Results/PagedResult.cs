@@ -1,4 +1,4 @@
-namespace Nova.Shared.Results;
+﻿namespace Nova.Shared.Results;
 
 /// <summary>
 /// Represents a paged response with items and paging metadata.

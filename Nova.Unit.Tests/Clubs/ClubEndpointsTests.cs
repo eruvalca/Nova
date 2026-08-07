@@ -1,5 +1,5 @@
+﻿using Nova.Shared.Enums;
 using Nova.Shared.Features.Clubs;
-using Nova.Shared.Enums;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Clubs;

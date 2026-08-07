@@ -1,4 +1,4 @@
-using Nova.Features.Photos;
+﻿using Nova.Features.Photos;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Photos;

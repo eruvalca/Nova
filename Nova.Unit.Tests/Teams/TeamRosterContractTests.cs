@@ -1,4 +1,4 @@
-using Nova.Shared.Features.Teams;
+﻿using Nova.Shared.Features.Teams;
 using Nova.Shared.Validation;
 using Shouldly;
 

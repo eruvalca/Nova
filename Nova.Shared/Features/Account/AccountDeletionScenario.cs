@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Account;
+﻿namespace Nova.Shared.Features.Account;
 
 /// <summary>Identifies how a user's account deletion interacts with club ownership.</summary>
 public enum AccountDeletionScenario

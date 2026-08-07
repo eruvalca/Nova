@@ -1,4 +1,4 @@
-using Cropper.Blazor.Components;
+﻿using Cropper.Blazor.Components;
 using Cropper.Blazor.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;

@@ -1,14 +1,14 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
-using NSubstitute;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
-using Nova.Shared.Features.Teams;
 using Nova.UI.Features.Teams.Pages;
+using NSubstitute;
 using OneOf.Types;
 using Shouldly;
 using TeamDetailPage = Nova.UI.Features.Teams.Pages.TeamDetail;

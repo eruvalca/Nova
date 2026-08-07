@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Account;
+﻿namespace Nova.Shared.Features.Account;
 
 /// <summary>Server-only service that previews and executes deletion of the current user's account.</summary>
 public interface IAccountDeletionService

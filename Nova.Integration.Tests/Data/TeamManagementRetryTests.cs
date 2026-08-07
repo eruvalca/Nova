@@ -1,10 +1,10 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Teams;
-using Nova.Shared.Results;
 using Nova.Shared.Features.Teams;
+using Nova.Shared.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;

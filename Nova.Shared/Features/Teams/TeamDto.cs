@@ -1,4 +1,4 @@
-using Nova.Shared.Enums;
+﻿using Nova.Shared.Enums;
 
 namespace Nova.Shared.Features.Teams;
 

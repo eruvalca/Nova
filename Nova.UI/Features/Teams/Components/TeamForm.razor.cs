@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Validation;

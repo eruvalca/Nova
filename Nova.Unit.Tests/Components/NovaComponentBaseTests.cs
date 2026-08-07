@@ -1,6 +1,6 @@
+﻿using Bunit;
 using Nova.UI.Components;
 using Shouldly;
-using Bunit;
 
 namespace Nova.Unit.Tests.Components;
 

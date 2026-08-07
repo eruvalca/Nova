@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
@@ -8,8 +8,8 @@ using Nova.Features.Tags;
 using Nova.Features.Teams;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
 using Nova.Shared.Features.Teams;
+using Nova.Shared.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using OneOf;

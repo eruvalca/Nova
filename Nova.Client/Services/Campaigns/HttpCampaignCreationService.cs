@@ -1,6 +1,6 @@
-using System.Net.Http.Json;
-using Nova.Shared.Features.Campaigns;
+﻿using System.Net.Http.Json;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 
 namespace Nova.Client.Services;

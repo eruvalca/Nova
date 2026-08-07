@@ -1,4 +1,4 @@
-using Cropper.Blazor.Components;
+﻿using Cropper.Blazor.Components;
 using Microsoft.JSInterop;
 
 namespace Nova.UI.Features.Account.Components;

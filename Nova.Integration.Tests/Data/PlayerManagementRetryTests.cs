@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Players;
@@ -349,13 +349,13 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         long clubId,
         long actorUserId,
         Guid creationOperationId) => new()
-    {
-        FirstName = firstName,
-        LastName = "Idempotency",
-        DateOfBirth = new DateOnly(2012, 1, 1),
-        GraduationYear = 2030,
-        ClubId = clubId,
-        CreationOperationId = creationOperationId,
-        CreatedById = actorUserId
-    };
+        {
+            FirstName = firstName,
+            LastName = "Idempotency",
+            DateOfBirth = new DateOnly(2012, 1, 1),
+            GraduationYear = 2030,
+            ClubId = clubId,
+            CreationOperationId = creationOperationId,
+            CreatedById = actorUserId
+        };
 }

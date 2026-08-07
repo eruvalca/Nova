@@ -1,4 +1,4 @@
-namespace Nova.Components.Account;
+﻿namespace Nova.Components.Account;
 
 /// <summary>
 /// Defines the type of passkey operation to perform.

@@ -1,5 +1,5 @@
+﻿using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
-using Nova.Shared.Features.Teams;
 using OneOf.Types;
 
 namespace Nova.Client.Services;

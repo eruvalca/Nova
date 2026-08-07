@@ -1,4 +1,4 @@
-using Nova.Shared.Enums;
+﻿using Nova.Shared.Enums;
 using OneOf;
 
 namespace Nova.Features.Campaigns;

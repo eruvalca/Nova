@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Clubs;
+﻿namespace Nova.Shared.Features.Clubs;
 
 /// <summary>
 /// Represents a club returned from a service operation.

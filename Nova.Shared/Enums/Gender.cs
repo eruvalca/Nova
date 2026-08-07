@@ -1,4 +1,4 @@
-namespace Nova.Shared.Enums;
+﻿namespace Nova.Shared.Enums;
 
 /// <summary>
 /// Defines gender values that may be associated with a player profile.

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Nova.Shared.Results;
 
 namespace Nova.Shared.Features.Teams;

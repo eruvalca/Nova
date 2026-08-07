@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Nova.Shared.Enums;
 using Nova.Shared.Validation;
 

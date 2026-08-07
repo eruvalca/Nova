@@ -1,4 +1,4 @@
-namespace Nova.Components.Account;
+﻿namespace Nova.Components.Account;
 
 /// <summary>
 /// Model for capturing passkey operation input from HTML forms.

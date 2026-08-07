@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Features.Players;
 using Nova.Shared.Enums;

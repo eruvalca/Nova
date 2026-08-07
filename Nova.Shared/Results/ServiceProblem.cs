@@ -1,4 +1,4 @@
-namespace Nova.Shared.Results;
+﻿namespace Nova.Shared.Results;
 
 /// <summary>
 /// Represents a known problem from a service operation.

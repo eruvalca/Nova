@@ -1,4 +1,4 @@
-using Nova.Shared.Results;
+﻿using Nova.Shared.Results;
 using OneOf.Types;
 
 namespace Nova.Shared.Features.Teams;

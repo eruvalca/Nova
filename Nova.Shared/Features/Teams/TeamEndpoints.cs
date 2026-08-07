@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Teams;
+﻿namespace Nova.Shared.Features.Teams;
 
 /// <summary>
 /// Defines shared team-management routes used by the server and WebAssembly client.
