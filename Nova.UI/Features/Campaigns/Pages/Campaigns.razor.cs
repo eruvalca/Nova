@@ -55,9 +55,24 @@ public partial class Campaigns(
     private string _statusFilter = "active";
 
     /// <summary>
-    /// Indicates whether query-string filters have been applied to component state.
+    /// Version counter used to ignore stale list-load completions.
     /// </summary>
-    private bool _queryFiltersApplied;
+    private int _loadListVersion;
+
+    /// <summary>
+    /// Cancellation source for the in-flight list load; canceled and replaced by newer loads.
+    /// </summary>
+    private CancellationTokenSource? _loadListSource;
+
+    /// <summary>
+    /// The campaign edit target whose season-choice load failed, enabling Retry to resume the edit.
+    /// </summary>
+    private CampaignListItem? _editRetryCandidate;
+
+    /// <summary>
+    /// The season identifier associated with <see cref="_editRetryCandidate"/>.
+    /// </summary>
+    private long _editRetrySeasonId;
 
     /// <summary>
     /// The campaign metadata form state when a campaign correction is active.
@@ -119,22 +134,21 @@ public partial class Campaigns(
     protected int LoadedCampaignCount => _list?.Seasons.Sum(season => season.Campaigns.Count) ?? 0;
 
     /// <inheritdoc />
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        if (_queryFiltersApplied)
+        if (ApplyViewQueryToState() && Initialized)
         {
-            return;
+            await LoadListAsync();
         }
-
-        _queryFiltersApplied = true;
-        _statusFilter = string.Equals(ViewQuery, "closed", StringComparison.OrdinalIgnoreCase)
-            ? "closed"
-            : "active";
     }
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        // SupplyParameterFromQuery properties are assigned before initialization, so the
+        // requested view is available before the startup load and its persisted snapshot.
+        _ = ApplyViewQueryToState();
+
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
         _canManageCampaigns = authenticationState.User.IsInRole(Roles.ClubAdmin);
 
@@ -153,11 +167,33 @@ public partial class Campaigns(
     }
 
     /// <summary>
-    /// Reloads the campaign list using the currently selected view.
+    /// Applies the normalized view query-string value to component state.
+    /// </summary>
+    /// <returns><see langword="true"/> when the filter value changed; otherwise <see langword="false"/>.</returns>
+    private bool ApplyViewQueryToState()
+    {
+        var viewFromQuery = string.Equals(ViewQuery, "closed", StringComparison.OrdinalIgnoreCase)
+            ? "closed"
+            : "active";
+
+        var hasChanged = !string.Equals(_statusFilter, viewFromQuery, StringComparison.Ordinal);
+        _statusFilter = viewFromQuery;
+        return hasChanged;
+    }
+
+    /// <summary>
+    /// Reloads the campaign list using the currently selected view. Newer loads cancel and
+    /// supersede older in-flight loads so stale responses never overwrite fresher state.
     /// </summary>
     /// <returns>A task that completes when loading and state updates are finished.</returns>
     private async Task LoadListAsync()
     {
+        var version = Interlocked.Increment(ref _loadListVersion);
+        _loadListSource?.Cancel();
+        _loadListSource?.Dispose();
+        _loadListSource = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+        var requestToken = _loadListSource.Token;
+
         _isLoading = true;
         _pageError = null;
 
@@ -167,7 +203,34 @@ public partial class Campaigns(
             Limit = GetCampaignListInput.MaxLimit
         };
 
-        var result = await campaignQueryService.GetCampaignListAsync(input, ComponentCancellationToken);
+        ServiceResult<CampaignListResult> result;
+        try
+        {
+            result = await campaignQueryService.GetCampaignListAsync(input, requestToken);
+        }
+        catch (OperationCanceledException) when (requestToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            if (version != _loadListVersion || requestToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _pageError = "Failed to load campaigns. Please retry.";
+            _list = null;
+            PersistStartupState();
+            _isLoading = false;
+            return;
+        }
+
+        if (version != _loadListVersion || requestToken.IsCancellationRequested)
+        {
+            return;
+        }
+
         result.Switch(
             list => _list = list,
             problem =>
@@ -210,10 +273,23 @@ public partial class Campaigns(
     }
 
     /// <summary>
-    /// Reloads the list after a page-level error.
+    /// Retries the failed operation: resumes a pending campaign edit when its season-choice load
+    /// failed, otherwise reloads the list.
     /// </summary>
-    /// <returns>A task that completes when the reload finishes.</returns>
-    private Task ReloadAsync() => LoadListAsync();
+    /// <returns>A task that completes when the retry finishes.</returns>
+    private async Task RetryAsync()
+    {
+        if (_editRetryCandidate is not null)
+        {
+            var candidate = _editRetryCandidate;
+            var seasonId = _editRetrySeasonId;
+            _editRetryCandidate = null;
+            await BeginEditCampaignAsync(candidate, seasonId);
+            return;
+        }
+
+        await LoadListAsync();
+    }
 
     /// <summary>
     /// Opens the campaign metadata correction form for an Active campaign.
@@ -228,9 +304,12 @@ public partial class Campaigns(
 
         if (!await EnsureSeasonChoicesLoadedAsync())
         {
+            _editRetryCandidate = campaign;
+            _editRetrySeasonId = seasonId;
             return;
         }
 
+        _editRetryCandidate = null;
         _editCampaignForm = CampaignMetadataFormState.FromListItem(campaign, seasonId);
     }
 
@@ -376,6 +455,16 @@ public partial class Campaigns(
         _editCampaignForm = null;
         _editSeasonForm = null;
         _mutationError = null;
+        _editRetryCandidate = null;
+    }
+
+    /// <inheritdoc />
+    protected override ValueTask DisposeAsyncCore()
+    {
+        _loadListSource?.Cancel();
+        _loadListSource?.Dispose();
+        _loadListSource = null;
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>

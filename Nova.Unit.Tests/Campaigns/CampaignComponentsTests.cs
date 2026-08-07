@@ -280,6 +280,93 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Campaigns_AppliesClosedViewQuery_BeforeInitialLoad()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateClosedSeasonGroups())));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns?view=closed");
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Spring ID Camp"));
+
+        queryService.Received().GetCampaignListAsync(
+            Arg.Is<GetCampaignListInput>(input =>
+                input != null && string.Equals(input.Status, "closed", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+        queryService.DidNotReceive().GetCampaignListAsync(
+            Arg.Is<GetCampaignListInput>(input =>
+                input != null && string.Equals(input.Status, "active", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Campaigns_IgnoresStaleLoadCompletion_WhenViewChanges()
+    {
+        var pendingActive = new TaskCompletionSource<ServiceResult<CampaignListResult>>();
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                pendingActive.Task,
+                Task.FromResult(SuccessListResult(CreateClosedSeasonGroups())));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<CampaignsPage>();
+        cut.Find("#campaigns-view-filter").Change("closed");
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Spring ID Camp"));
+
+        // The superseded Active load completes late and must not overwrite the Closed view.
+        pendingActive.SetResult(SuccessListResult(CreateSeasonGroups()));
+        Thread.Sleep(150);
+        cut.Markup.ShouldContain("Spring ID Camp");
+        cut.Markup.ShouldNotContain("Summer Tryouts");
+    }
+
+    [Fact]
+    public void Campaigns_RetryResumesSeasonLoad_AfterEditSeasonChoicesFailure()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<CampaignCreationSetupResult>(ServiceProblem.ServerError("Season load failed."))),
+                Task.FromResult(SuccessSetupResult()));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Season load failed."));
+
+        cut.Find("button.btn-outline-danger").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+    }
+
+    [Fact]
+    public void Campaigns_HidesEditSeasonAction_InClosedView()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateClosedSeasonGroups())));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns?view=closed");
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Spring ID Camp"));
+
+        cut.Markup.ShouldNotContain("Edit season");
+    }
+
+    [Fact]
     public void CampaignCreateForm_ShowsValidationMessages_WhenSubmittedInvalid()
     {
         var model = new CampaignCreateFormState
