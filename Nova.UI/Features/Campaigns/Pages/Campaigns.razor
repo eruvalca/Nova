@@ -68,7 +68,7 @@
     @if (_mutationConflict)
     {
         <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
-            <span>The campaign's lifecycle changed while you were editing. Reload to see its current state.</span>
+            <span>The save was rejected because the data changed since it was loaded. Reload to see the current state.</span>
             <button type="button" class="btn btn-sm btn-outline-warning" @onclick="CloseFormAndReloadAsync">Close and reload</button>
         </div>
     }
