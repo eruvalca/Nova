@@ -910,6 +910,65 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
+    public void NewCampaign_ReusesOperationId_WhenRetryingIdenticalPayload()
+    {
+        var creationService = Substitute.For<ICampaignCreationService>();
+        creationService.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ServiceResult<CreateCampaignResult>>>(_ => throw new HttpRequestException("offline"));
+
+        RegisterServices(isClubAdmin: true, creationService: creationService);
+
+        var cut = Render<NewCampaignPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Current enrollment preview"));
+
+        cut.Find("#campaign-name").Change("Fall ID Camp");
+        cut.Find("#existing-season").Change("5");
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Could not reach the server"));
+
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            var calls = creationService.ReceivedCalls()
+                .Select(call => call.GetArguments()[0] as CreateCampaignInput)
+                .Where(input => input is not null)
+                .ToList();
+            calls.Count.ShouldBe(2);
+            calls[0]!.OperationId.ShouldBe(calls[1]!.OperationId);
+        });
+    }
+
+    [Fact]
+    public void NewCampaign_MintsNewOperationId_WhenPayloadChangesAfterFailure()
+    {
+        var creationService = Substitute.For<ICampaignCreationService>();
+        creationService.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ServiceResult<CreateCampaignResult>>>(_ => throw new HttpRequestException("offline"));
+
+        RegisterServices(isClubAdmin: true, creationService: creationService);
+
+        var cut = Render<NewCampaignPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Current enrollment preview"));
+
+        cut.Find("#campaign-name").Change("Fall ID Camp");
+        cut.Find("#existing-season").Change("5");
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Could not reach the server"));
+
+        cut.Find("#campaign-name").Change("Fall ID Camp 2026");
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            var calls = creationService.ReceivedCalls()
+                .Select(call => call.GetArguments()[0] as CreateCampaignInput)
+                .Where(input => input is not null)
+                .ToList();
+            calls.Count.ShouldBe(2);
+            calls[0]!.OperationId.ShouldNotBe(calls[1]!.OperationId);
+        });
+    }
+
+    [Fact]
     public void NewCampaign_ShowsRetryableError_WhenCreationThrowsTransportFailure()
     {
         var creationService = Substitute.For<ICampaignCreationService>();

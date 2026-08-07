@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using System.Globalization;
+using Microsoft.AspNetCore.Components;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.UI.Components;
@@ -46,6 +47,11 @@ public partial class NewCampaign(
     /// The create-campaign input model bound to the form.
     /// </summary>
     private readonly CampaignCreateFormState _createForm = CampaignCreateFormState.CreateDefault();
+
+    /// <summary>
+    /// The fingerprint of the last attempted creation payload, used to detect edits between retries.
+    /// </summary>
+    private string? _lastAttemptFingerprint;
 
     /// <summary>
     /// Gets or sets the persisted startup setup snapshot used across prerender and interactive attach.
@@ -158,6 +164,9 @@ public partial class NewCampaign(
 
     /// <summary>
     /// Creates the campaign from the validated form state and navigates to the campaign list.
+    /// The operation identifier is reused only while the payload is byte-identical to the previous
+    /// attempt so retries resume an ambiguous commit; editing any field after an attempt mints a new
+    /// identifier so the changed payload cannot be silently replaced by the replayed original.
     /// </summary>
     /// <param name="model">The validated form state.</param>
     /// <returns>A task that completes when the creation request finishes.</returns>
@@ -168,12 +177,21 @@ public partial class NewCampaign(
             return;
         }
 
+        var input = model.ToCreateInput();
+        var fingerprint = Fingerprint(input);
+        if (_lastAttemptFingerprint is not null && _lastAttemptFingerprint != fingerprint)
+        {
+            input = input with { OperationId = Guid.CreateVersion7() };
+        }
+
+        _lastAttemptFingerprint = fingerprint;
+
         _isSubmitting = true;
         _formError = null;
 
         try
         {
-            var result = await campaignCreationService.CreateAsync(model.ToCreateInput(), ComponentCancellationToken);
+            var result = await campaignCreationService.CreateAsync(input, ComponentCancellationToken);
             result.Switch(
                 _ => navigationManager.NavigateTo("campaigns"),
                 problem =>
@@ -203,6 +221,22 @@ public partial class NewCampaign(
             _isSubmitting = false;
         }
     }
+
+    /// <summary>
+    /// Builds a stable fingerprint of the creation payload fields that define the logical request.
+    /// </summary>
+    /// <param name="input">The creation input to fingerprint.</param>
+    /// <returns>An ordinal fingerprint string for change detection across retries.</returns>
+    private static string Fingerprint(CreateCampaignInput input)
+        => string.Join(
+            '|',
+            input.Name,
+            input.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            input.PlannedEndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
+            input.ExistingSeasonId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+            input.InlineSeason?.Name ?? string.Empty,
+            input.InlineSeason?.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
+            input.InlineSeason?.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty);
 
     /// <summary>
     /// Returns the first non-blank message from the supplied candidates.
