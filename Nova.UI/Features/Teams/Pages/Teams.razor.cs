@@ -1,9 +1,7 @@
 using System.Globalization;
-using System.Net.Http;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.Shared.Features.Teams;

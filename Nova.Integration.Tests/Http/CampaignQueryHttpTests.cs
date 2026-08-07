@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
@@ -53,8 +52,8 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         await using (var context = fixture.CreateAdminContext())
         {
             var userId = await context.Users.Where(u => u.NormalizedEmail == email.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
-            var season = new SeasonEntity { Name = "S", StartDate = new DateOnly(2026,1,1), ClubId = club.ClubId, CreatedById = userId };
-            var campaign = new CampaignEntity { Name = "C", StartDate = new DateOnly(2026,6,1), Status = CampaignStatus.Active, Season = season, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = userId };
+            var season = new SeasonEntity { Name = "S", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = userId };
+            var campaign = new CampaignEntity { Name = "C", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = userId };
             context.AddRange(season, campaign);
             await context.SaveChangesAsync(cancellationToken);
         }
@@ -157,10 +156,10 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
             var adminUserId = await context.Users.Where(u => u.NormalizedEmail == adminEmail.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
             var memberUserId = await context.Users.Where(u => u.NormalizedEmail == memberEmail.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
 
-            var seasonA = new SeasonEntity { Name = "SA", StartDate = new DateOnly(2026,1,1), ClubId = clubA.ClubId, CreatedById = adminUserId };
-            var seasonB = new SeasonEntity { Name = "SB", StartDate = new DateOnly(2026,1,1), ClubId = clubB.ClubId, CreatedById = memberUserId };
-            var campaignA = new CampaignEntity { Name = "CA", StartDate = new DateOnly(2026,6,1), Status = CampaignStatus.Active, Season = seasonA, SeasonId = seasonA.SeasonId, ClubId = clubA.ClubId, CreatedById = adminUserId };
-            var campaignB = new CampaignEntity { Name = "CB", StartDate = new DateOnly(2026,6,1), Status = CampaignStatus.Active, Season = seasonB, SeasonId = seasonB.SeasonId, ClubId = clubB.ClubId, CreatedById = memberUserId };
+            var seasonA = new SeasonEntity { Name = "SA", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = adminUserId };
+            var seasonB = new SeasonEntity { Name = "SB", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = memberUserId };
+            var campaignA = new CampaignEntity { Name = "CA", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = seasonA, SeasonId = seasonA.SeasonId, ClubId = clubA.ClubId, CreatedById = adminUserId };
+            var campaignB = new CampaignEntity { Name = "CB", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = seasonB, SeasonId = seasonB.SeasonId, ClubId = clubB.ClubId, CreatedById = memberUserId };
             var playerA = new PlayerEntity { FirstName = "A", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubA.ClubId, CreatedById = adminUserId };
             var playerB = new PlayerEntity { FirstName = "B", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubB.ClubId, CreatedById = memberUserId };
             var teamA = new TeamEntity { Name = "A Team", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubA.ClubId, CreatedById = adminUserId };

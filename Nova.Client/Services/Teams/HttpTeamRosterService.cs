@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Shared.Features.Teams;

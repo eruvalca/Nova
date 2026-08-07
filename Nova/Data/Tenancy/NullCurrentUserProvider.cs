@@ -1,7 +1,6 @@
+﻿using Nova.Shared.Security;
+
 namespace Nova.Data.Tenancy;
-
-using Nova.Shared.Security;
-
 /// <summary>
 /// An <see cref="ICurrentUserProvider"/> that represents no user. Used at design time
 /// (EF migrations) and in tests that do not require an authenticated user.

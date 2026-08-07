@@ -1,7 +1,6 @@
+﻿using Nova.Shared.Security;
+
 namespace Nova.Data.Tenancy;
-
-using Nova.Shared.Security;
-
 /// <summary>
 /// Provides information about the current authenticated user for tenancy enforcement.
 /// </summary>

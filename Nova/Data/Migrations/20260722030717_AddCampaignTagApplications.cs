@@ -17,12 +17,12 @@ public partial class AddCampaignTagApplications : Migration
         migrationBuilder.AddUniqueConstraint(
             name: "AK_PlayerTags_PlayerTagId_ClubId",
             table: "PlayerTags",
-            columns: new[] { "PlayerTagId", "ClubId" });
+            columns: ["PlayerTagId", "ClubId"]);
 
         migrationBuilder.AddUniqueConstraint(
             name: "AK_PlayerCampaignAssignments_PlayerCampaignAssignmentId_ClubId",
             table: "PlayerCampaignAssignments",
-            columns: new[] { "PlayerCampaignAssignmentId", "ClubId" });
+            columns: ["PlayerCampaignAssignmentId", "ClubId"]);
 
         migrationBuilder.CreateTable(
             name: "CampaignTagApplications",
@@ -51,13 +51,13 @@ public partial class AddCampaignTagApplications : Migration
                     name: "FK_CampaignTagApplications_PlayerCampaignAssignments_PlayerCam~",
                     columns: x => new { x.PlayerCampaignAssignmentId, x.ClubId },
                     principalTable: "PlayerCampaignAssignments",
-                    principalColumns: new[] { "PlayerCampaignAssignmentId", "ClubId" },
+                    principalColumns: ["PlayerCampaignAssignmentId", "ClubId"],
                     onDelete: ReferentialAction.Cascade);
                 table.ForeignKey(
                     name: "FK_CampaignTagApplications_PlayerTags_PlayerTagId_ClubId",
                     columns: x => new { x.PlayerTagId, x.ClubId },
                     principalTable: "PlayerTags",
-                    principalColumns: new[] { "PlayerTagId", "ClubId" },
+                    principalColumns: ["PlayerTagId", "ClubId"],
                     onDelete: ReferentialAction.Cascade);
             });
 
@@ -69,18 +69,18 @@ public partial class AddCampaignTagApplications : Migration
         migrationBuilder.CreateIndex(
             name: "IX_CampaignTagApplications_PlayerCampaignAssignmentId_ClubId",
             table: "CampaignTagApplications",
-            columns: new[] { "PlayerCampaignAssignmentId", "ClubId" });
+            columns: ["PlayerCampaignAssignmentId", "ClubId"]);
 
         migrationBuilder.CreateIndex(
             name: "IX_CampaignTagApplications_PlayerCampaignAssignmentId_PlayerTa~",
             table: "CampaignTagApplications",
-            columns: new[] { "PlayerCampaignAssignmentId", "PlayerTagId" },
+            columns: ["PlayerCampaignAssignmentId", "PlayerTagId"],
             unique: true);
 
         migrationBuilder.CreateIndex(
             name: "IX_CampaignTagApplications_PlayerTagId_ClubId",
             table: "CampaignTagApplications",
-            columns: new[] { "PlayerTagId", "ClubId" });
+            columns: ["PlayerTagId", "ClubId"]);
     }
 
     /// <inheritdoc />
