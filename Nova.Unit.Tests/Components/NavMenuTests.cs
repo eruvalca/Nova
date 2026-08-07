@@ -57,6 +57,7 @@ public class NavMenuTests
         // Assert
         cut.Markup.ShouldContain("Austin Strikers");
         cut.Markup.ShouldContain("href=\"Clubs/42\"");
+        cut.Markup.ShouldContain("href=\"campaigns\"");
         cut.Markup.ShouldContain("href=\"players\"");
         cut.Markup.ShouldContain("href=\"teams\"");
     }
@@ -98,6 +99,7 @@ public class NavMenuTests
 
         // Assert
         cut.Markup.ShouldNotContain("href=\"Clubs/");
+        cut.Markup.ShouldNotContain("href=\"campaigns\"");
         cut.Markup.ShouldNotContain("href=\"players\"");
         cut.Markup.ShouldNotContain("href=\"teams\"");
     }
