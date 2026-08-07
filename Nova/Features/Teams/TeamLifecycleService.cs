@@ -6,7 +6,6 @@ using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Shared.Features.Teams;
-using Nova.Shared.Validation;
 using OneOf;
 using OneOf.Types;
 

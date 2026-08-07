@@ -10,7 +10,6 @@ using Nova.Shared.Enums;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Nova.Shared.Features.Teams;
-using Npgsql;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;

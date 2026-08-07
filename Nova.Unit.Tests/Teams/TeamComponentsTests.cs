@@ -1,6 +1,4 @@
 using System.Security.Claims;
-using System.IO;
-using System.Net.Http;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;

@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using Nova.Shared.Results;
 using Nova.Shared.Features.Teams;
 
@@ -87,17 +86,17 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
         {
             if (pair.First.CampaignStatus != pair.Second.CampaignStatus)
             {
-               return pair.First.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active;
+                return pair.First.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active;
             }
 
             if (pair.First.CampaignStartDate != pair.Second.CampaignStartDate)
             {
-               return pair.First.CampaignStartDate > pair.Second.CampaignStartDate;
+                return pair.First.CampaignStartDate > pair.Second.CampaignStartDate;
             }
 
             if (pair.First.CampaignId != pair.Second.CampaignId)
             {
-               return pair.First.CampaignId > pair.Second.CampaignId;
+                return pair.First.CampaignId > pair.Second.CampaignId;
             }
 
             return !string.Equals(

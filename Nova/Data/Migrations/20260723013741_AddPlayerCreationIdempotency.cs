@@ -19,7 +19,7 @@ public partial class AddPlayerCreationIdempotency : Migration
         migrationBuilder.CreateIndex(
             name: "IX_Players_ClubId_CreationOperationId",
             table: "Players",
-            columns: new[] { "ClubId", "CreationOperationId" },
+            columns: ["ClubId", "CreationOperationId"],
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
     }

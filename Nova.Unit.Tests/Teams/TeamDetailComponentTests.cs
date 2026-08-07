@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
