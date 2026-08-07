@@ -1,4 +1,4 @@
-using Nova.Shared.Enums;
+﻿using Nova.Shared.Enums;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;

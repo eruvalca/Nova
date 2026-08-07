@@ -1,11 +1,11 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Teams;
 using Nova.Shared.Enums;
-using Nova.Shared.Results;
 using Nova.Shared.Features.Teams;
+using Nova.Shared.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -187,7 +187,8 @@ public sealed class TeamManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsConflict_ForArchivedTeam()    {
+    public async Task Update_ReturnsConflict_ForArchivedTeam()
+    {
         using (var db = _harness.CreateAdminContext())
         {
             var team = db.Teams.Single(t => t.TeamId == _teamId);

@@ -1,4 +1,4 @@
-namespace Nova.Shared.Security;
+﻿namespace Nova.Shared.Security;
 
 /// <summary>
 /// Defines authorization policy names used throughout the application.

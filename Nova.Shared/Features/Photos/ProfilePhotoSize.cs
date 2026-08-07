@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Photos;
+﻿namespace Nova.Shared.Features.Photos;
 
 /// <summary>
 /// Identifies which stored variant of a profile photo to retrieve.

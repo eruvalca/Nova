@@ -1,4 +1,4 @@
-namespace Nova.Shared.Results;
+﻿namespace Nova.Shared.Results;
 
 /// <summary>
 /// Defines the kinds of problems that can occur in service operations.

@@ -1,4 +1,4 @@
-namespace Nova.Shared.Enums;
+﻿namespace Nova.Shared.Enums;
 
 /// <summary>
 /// Represents the lifecycle state of a club join request.

@@ -1,4 +1,4 @@
-using Nova.Shared.Validation;
+﻿using Nova.Shared.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Validation;

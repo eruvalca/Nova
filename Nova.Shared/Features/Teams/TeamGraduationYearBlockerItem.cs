@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Teams;
+﻿namespace Nova.Shared.Features.Teams;
 
 /// <summary>
 /// Identifies an active assigned placement that would become ineligible for a proposed team

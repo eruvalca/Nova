@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
 using OneOf;
 using OneOf.Types;

@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Account;
+﻿namespace Nova.Shared.Features.Account;
 
 /// <summary>Describes the implications of deleting the current user's account.</summary>
 /// <param name="Scenario">Which deletion scenario applies.</param>

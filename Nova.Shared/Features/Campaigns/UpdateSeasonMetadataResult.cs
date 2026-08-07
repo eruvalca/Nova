@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Campaigns;
+﻿namespace Nova.Shared.Features.Campaigns;
 
 /// <summary>
 /// Contains the updated season metadata returned after a successful correction.

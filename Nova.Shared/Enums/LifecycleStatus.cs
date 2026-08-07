@@ -1,4 +1,4 @@
-namespace Nova.Shared.Enums;
+﻿namespace Nova.Shared.Enums;
 
 /// <summary>
 /// Identifies whether a persistent club record is available for current workflows or retained only for history.

@@ -1,4 +1,4 @@
-namespace Nova.Shared.Enums;
+﻿namespace Nova.Shared.Enums;
 
 /// <summary>
 /// Identifies whether a campaign is open for current mutations or closed for historical read-only access.

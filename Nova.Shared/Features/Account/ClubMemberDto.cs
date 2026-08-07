@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Account;
+﻿namespace Nova.Shared.Features.Account;
 
 /// <summary>A member of a club, used when selecting a new ClubAdmin.</summary>
 /// <param name="UserId">The member's user identifier.</param>

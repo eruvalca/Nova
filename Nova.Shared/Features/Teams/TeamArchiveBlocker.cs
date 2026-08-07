@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Teams;
+﻿namespace Nova.Shared.Features.Teams;
 
 /// <summary>
 /// Describes active-campaign placements that block team archival.

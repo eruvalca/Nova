@@ -1,4 +1,4 @@
-using Nova.Entities.Base;
+﻿using Nova.Entities.Base;
 
 namespace Nova.Entities;
 

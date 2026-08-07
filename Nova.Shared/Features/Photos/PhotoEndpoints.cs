@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Photos;
+﻿namespace Nova.Shared.Features.Photos;
 
 /// <summary>
 /// Defines the route constants for profile photo endpoints so the client and server agree on routes.

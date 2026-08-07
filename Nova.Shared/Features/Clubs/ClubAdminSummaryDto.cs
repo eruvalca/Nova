@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Clubs;
+﻿namespace Nova.Shared.Features.Clubs;
 
 /// <summary>
 /// Represents the club-admin summary payload for the club overview card.

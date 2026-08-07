@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Clubs;
+﻿namespace Nova.Shared.Features.Clubs;
 
 /// <summary>
 /// Represents a club member in the full club roster for the admin page.

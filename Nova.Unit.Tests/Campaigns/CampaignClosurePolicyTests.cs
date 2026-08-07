@@ -1,4 +1,4 @@
-using Nova.Features.Campaigns;
+﻿using Nova.Features.Campaigns;
 using Nova.Shared.Enums;
 using Shouldly;
 

@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
 using Nova.Shared.Results;

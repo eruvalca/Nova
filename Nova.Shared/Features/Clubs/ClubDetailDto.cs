@@ -1,4 +1,4 @@
-using Nova.Shared.Features.Account;
+﻿using Nova.Shared.Features.Account;
 
 namespace Nova.Shared.Features.Clubs;
 

@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,8 +8,8 @@ using Nova.Features.Players;
 using Nova.Features.Teams;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
 using Nova.Shared.Features.Teams;
+using Nova.Shared.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;

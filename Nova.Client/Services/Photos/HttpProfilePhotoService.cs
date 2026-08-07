@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using Nova.Shared.Features.Photos;
 using Nova.Shared.Results;

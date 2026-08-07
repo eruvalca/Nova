@@ -1,6 +1,6 @@
+﻿using System.Diagnostics;
 using Nova.Shared.Results;
 using OneOf;
-using System.Diagnostics;
 
 namespace Nova.Features.Shared;
 

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Shared.Enums;
 using Shouldly;

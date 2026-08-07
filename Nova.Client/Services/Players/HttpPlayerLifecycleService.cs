@@ -1,4 +1,4 @@
-using Nova.Shared.Features.Players;
+﻿using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using OneOf.Types;
 

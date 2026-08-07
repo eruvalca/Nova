@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Players;
+﻿namespace Nova.Shared.Features.Players;
 
 /// <summary>
 /// Identifies a single campaign placement that would become ineligible if the player's graduation

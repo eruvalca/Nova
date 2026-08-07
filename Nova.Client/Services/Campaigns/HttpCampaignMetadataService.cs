@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 

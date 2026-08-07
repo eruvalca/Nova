@@ -1,4 +1,4 @@
-using Nova.Shared.Features.Campaigns;
+﻿using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Validation;
 using Shouldly;
 

@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Photos;
+﻿namespace Nova.Shared.Features.Photos;
 
 /// <summary>
 /// Defines the validation constraints and variant sizes for profile photo uploads,

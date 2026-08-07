@@ -1,5 +1,5 @@
+﻿using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Enums;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
 

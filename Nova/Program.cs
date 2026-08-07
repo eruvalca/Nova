@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Cropper.Blazor.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -25,8 +25,8 @@ using Nova.Features.Teams;
 using Nova.Shared.Features.Account;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Players;
 using Nova.Shared.Features.Photos;
+using Nova.Shared.Features.Players;
 using Nova.Shared.Features.Teams;
 
 var builder = WebApplication.CreateBuilder(args);

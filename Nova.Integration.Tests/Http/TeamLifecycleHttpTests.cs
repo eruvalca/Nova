@@ -1,11 +1,11 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Clubs;
 using Nova.Shared.Enums;
-using Nova.Shared.Results;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Teams;
+using Nova.Shared.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;

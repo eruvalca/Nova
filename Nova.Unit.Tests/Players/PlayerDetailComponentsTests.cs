@@ -1,16 +1,16 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
-using NSubstitute;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
+using NSubstitute;
 using OneOf.Types;
-using PlayerDetailPage = Nova.UI.Features.Players.Pages.PlayerDetail;
 using Shouldly;
+using PlayerDetailPage = Nova.UI.Features.Players.Pages.PlayerDetail;
 
 namespace Nova.Unit.Tests.Players;
 

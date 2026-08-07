@@ -1,11 +1,11 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Results;
 using Nova.Features.Teams;
-using Nova.Shared.Security;
 using Nova.Shared.Features.Teams;
+using Nova.Shared.Results;
+using Nova.Shared.Security;
 using OneOf.Types;
 using Shouldly;
 

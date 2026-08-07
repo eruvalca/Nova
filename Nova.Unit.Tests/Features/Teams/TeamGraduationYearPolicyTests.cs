@@ -1,4 +1,4 @@
-using Nova.Features.Teams;
+﻿using Nova.Features.Teams;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Teams;

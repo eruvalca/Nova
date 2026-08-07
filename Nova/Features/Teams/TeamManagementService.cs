@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
@@ -6,8 +6,8 @@ using Nova.Entities;
 using Nova.Extensions.Teams;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
-using Nova.Shared.Results;
 using Nova.Shared.Features.Teams;
+using Nova.Shared.Results;
 using Nova.Shared.Validation;
 
 namespace Nova.Features.Teams;

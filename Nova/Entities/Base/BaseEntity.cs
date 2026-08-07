@@ -1,4 +1,4 @@
-namespace Nova.Entities.Base;
+﻿namespace Nova.Entities.Base;
 
 /// <summary>
 /// Represents the Base Entity persisted in the database.

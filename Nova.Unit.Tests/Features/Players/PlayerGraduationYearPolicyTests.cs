@@ -1,4 +1,4 @@
-using Nova.Features.Players;
+﻿using Nova.Features.Players;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Players;

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Shouldly;

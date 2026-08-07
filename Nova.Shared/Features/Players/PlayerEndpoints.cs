@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Players;
+﻿namespace Nova.Shared.Features.Players;
 
 /// <summary>
 /// Defines shared route constants for player endpoints so the client and server agree on routes.

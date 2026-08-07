@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Nova.Shared.Security;
 
 namespace Nova.Extensions.Security;

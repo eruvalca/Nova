@@ -1,4 +1,4 @@
-using System.Buffers.Text;
+﻿using System.Buffers.Text;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;

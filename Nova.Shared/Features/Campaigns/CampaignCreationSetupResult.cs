@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Campaigns;
+﻿namespace Nova.Shared.Features.Campaigns;
 
 /// <summary>
 /// Represents a season choice available while creating a campaign.

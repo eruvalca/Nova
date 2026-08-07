@@ -1,8 +1,8 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using NSubstitute;
 using Nova.Data.Tenancy;
 using Nova.Shared.Security;
+using NSubstitute;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Security;

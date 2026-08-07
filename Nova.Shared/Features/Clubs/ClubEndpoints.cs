@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Clubs;
+﻿namespace Nova.Shared.Features.Clubs;
 
 /// <summary>
 /// Defines the route constants for club and club join request endpoints so the client and server agree on routes.

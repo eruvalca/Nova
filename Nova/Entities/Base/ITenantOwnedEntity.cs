@@ -1,4 +1,4 @@
-namespace Nova.Entities.Base;
+﻿namespace Nova.Entities.Base;
 
 /// <summary>
 /// Marks an entity as owned by a club (tenant). Entities implementing this interface
