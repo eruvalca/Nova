@@ -245,41 +245,56 @@ public sealed partial class CampaignParticipantQueryService(
 
         var notesQuery = db.Notes
             .AsNoTracking()
-            .Where(note => note.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId)
-            .Select(note => new ParticipantNoteProjection(
-                note.NoteId,
-                note.Content,
-                note.CreatedById,
-                note.CreatedAt));
+            .Where(note => note.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId);
 
         var orderedNotes = isNpgsql
             ? await notesQuery
                 .OrderByDescending(note => note.CreatedAt)
                 .ThenByDescending(note => note.NoteId)
+                .Select(note => new ParticipantNoteProjection(
+                    note.NoteId,
+                    note.Content,
+                    note.CreatedById,
+                    note.CreatedAt))
                 .ToListAsync(cancellationToken)
-            : (await notesQuery.ToListAsync(cancellationToken))
+            : (await notesQuery
+                .Select(note => new ParticipantNoteProjection(
+                    note.NoteId,
+                    note.Content,
+                    note.CreatedById,
+                    note.CreatedAt))
+                .ToListAsync(cancellationToken))
                 .OrderByDescending(note => note.CreatedAt)
                 .ThenByDescending(note => note.NoteId)
                 .ToList();
 
         var tagApplicationsQuery = db.CampaignTagApplications
             .AsNoTracking()
-            .Where(application => application.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId)
-            .Select(application => new ParticipantTagProjection(
-                application.CampaignTagApplicationId,
-                application.PlayerTagId,
-                application.PlayerTag.Name,
-                application.PlayerTag.Color,
-                application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived,
-                application.CreatedById,
-                application.CreatedAt));
+            .Where(application => application.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId);
 
         var orderedTagApplications = isNpgsql
             ? await tagApplicationsQuery
                 .OrderByDescending(application => application.CreatedAt)
                 .ThenByDescending(application => application.CampaignTagApplicationId)
+                .Select(application => new ParticipantTagProjection(
+                    application.CampaignTagApplicationId,
+                    application.PlayerTagId,
+                    application.PlayerTag.Name,
+                    application.PlayerTag.Color,
+                    application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived,
+                    application.CreatedById,
+                    application.CreatedAt))
                 .ToListAsync(cancellationToken)
-            : (await tagApplicationsQuery.ToListAsync(cancellationToken))
+            : (await tagApplicationsQuery
+                .Select(application => new ParticipantTagProjection(
+                    application.CampaignTagApplicationId,
+                    application.PlayerTagId,
+                    application.PlayerTag.Name,
+                    application.PlayerTag.Color,
+                    application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived,
+                    application.CreatedById,
+                    application.CreatedAt))
+                .ToListAsync(cancellationToken))
                 .OrderByDescending(application => application.CreatedAt)
                 .ThenByDescending(application => application.CampaignTagApplicationId)
                 .ToList();

@@ -1,22 +1,18 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Results;
 using Nova.Shared.Validation;
 using Npgsql;
 using OneOf;
 using OneOf.Types;
 
 namespace Nova.Features.Campaigns;
-
-/// <summary>
-/// Reports the created campaign tag application identifier.
-/// </summary>
-/// <param name="CampaignTagApplicationId">The created campaign tag application identifier.</param>
-public readonly record struct CampaignTagApplicationMutationSuccess(long CampaignTagApplicationId);
 
 /// <summary>
 /// Reports that the current user is not authorized to mutate campaign tag applications.
@@ -39,8 +35,36 @@ public readonly record struct CampaignTagApplicationConflict(string Detail);
 public sealed partial class CampaignTagApplicationService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<CampaignTagApplicationService> logger)
+    ILogger<CampaignTagApplicationService> logger) : ICampaignTagApplicationService
 {
+    /// <inheritdoc />
+    async Task<ServiceResult<CampaignTagApplicationMutationSuccess>> ICampaignTagApplicationService.ApplyAsync(
+        ApplyCampaignTagApplicationInput input,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await ApplyAsync(input, cancellationToken);
+        return outcome.Match<ServiceResult<CampaignTagApplicationMutationSuccess>>(
+            success => success,
+            validation => ServiceProblem.Validation(validation.Value),
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
+
+    /// <inheritdoc />
+    async Task<ServiceResult<Success>> ICampaignTagApplicationService.RemoveAsync(
+        RemoveCampaignTagApplicationInput input,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await RemoveAsync(input, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            validation => ServiceProblem.Validation(validation.Value),
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
+
     /// <summary>
     /// Applies one active tag definition to one participation in an active campaign.
     /// </summary>
@@ -70,7 +94,33 @@ public sealed partial class CampaignTagApplicationService(
             return new CampaignTagApplicationForbidden("You must belong to a club to apply campaign tags.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await ExecuteWithFreshContextAsync(
+            db => ApplyMutationAsync(db, input, actorUserId, clubId, cancellationToken),
+            db => VerifyApplyCommittedAsync(db, input, clubId, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs one apply attempt inside a transaction on a fresh tenant context.
+    /// </summary>
+    /// <param name="db">The fresh tenant context created for this attempt.</param>
+    /// <param name="input">The target participation and tag-definition identifiers.</param>
+    /// <param name="actorUserId">The authorized acting user identifier.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Success, validation, not found, forbidden, or conflict information.</returns>
+    private async Task<OneOf<
+        CampaignTagApplicationMutationSuccess,
+        Error<IReadOnlyDictionary<string, string[]>>,
+        NotFound,
+        CampaignTagApplicationForbidden,
+        CampaignTagApplicationConflict>> ApplyMutationAsync(
+            NovaDbContext db,
+            ApplyCampaignTagApplicationInput input,
+            long actorUserId,
+            long clubId,
+            CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var participation = await db.PlayerCampaignAssignments
@@ -143,6 +193,50 @@ public sealed partial class CampaignTagApplicationService(
     }
 
     /// <summary>
+    /// Reconstructs a successful apply result when the commit outcome is uncertain.
+    /// </summary>
+    /// <param name="db">The fresh tenant context created for verification.</param>
+    /// <param name="input">The target participation and tag-definition identifiers.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Whether the apply committed, along with the reconstructed result when it did.</returns>
+    private static async Task<ExecutionResult<OneOf<
+        CampaignTagApplicationMutationSuccess,
+        Error<IReadOnlyDictionary<string, string[]>>,
+        NotFound,
+        CampaignTagApplicationForbidden,
+        CampaignTagApplicationConflict>>> VerifyApplyCommittedAsync(
+            NovaDbContext db,
+            ApplyCampaignTagApplicationInput input,
+            long clubId,
+            CancellationToken cancellationToken)
+    {
+        var application = await db.CampaignTagApplications
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId
+                    && candidate.PlayerTagId == input.PlayerTagId
+                    && candidate.ClubId == clubId,
+                cancellationToken);
+
+        return application is null
+            ? new ExecutionResult<OneOf<
+                CampaignTagApplicationMutationSuccess,
+                Error<IReadOnlyDictionary<string, string[]>>,
+                NotFound,
+                CampaignTagApplicationForbidden,
+                CampaignTagApplicationConflict>>(successful: false, default!)
+            : new ExecutionResult<OneOf<
+                CampaignTagApplicationMutationSuccess,
+                Error<IReadOnlyDictionary<string, string[]>>,
+                NotFound,
+                CampaignTagApplicationForbidden,
+                CampaignTagApplicationConflict>>(
+                    successful: true,
+                    new CampaignTagApplicationMutationSuccess(application.CampaignTagApplicationId));
+    }
+
+    /// <summary>
     /// Removes one campaign tag application when authorized by ownership or club-administrator role.
     /// </summary>
     /// <param name="input">The campaign tag application to remove.</param>
@@ -171,7 +265,33 @@ public sealed partial class CampaignTagApplicationService(
             return new CampaignTagApplicationForbidden("You must belong to a club to remove campaign tags.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await ExecuteWithFreshContextAsync(
+            db => RemoveMutationAsync(db, input, actorUserId, clubId, cancellationToken),
+            db => VerifyRemoveCommittedAsync(db, input, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs one remove attempt inside a transaction on a fresh tenant context.
+    /// </summary>
+    /// <param name="db">The fresh tenant context created for this attempt.</param>
+    /// <param name="input">The campaign tag application to remove.</param>
+    /// <param name="actorUserId">The authorized acting user identifier.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Success, validation, not found, forbidden, or conflict information.</returns>
+    private async Task<OneOf<
+        Success,
+        Error<IReadOnlyDictionary<string, string[]>>,
+        NotFound,
+        CampaignTagApplicationForbidden,
+        CampaignTagApplicationConflict>> RemoveMutationAsync(
+            NovaDbContext db,
+            RemoveCampaignTagApplicationInput input,
+            long actorUserId,
+            long clubId,
+            CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var application = await db.CampaignTagApplications
@@ -228,6 +348,75 @@ public sealed partial class CampaignTagApplicationService(
 
         LogRemoveSucceeded(input.CampaignTagApplicationId, actorUserId);
         return new Success();
+    }
+
+    /// <summary>
+    /// Reconstructs a successful remove result when the commit outcome is uncertain.
+    /// </summary>
+    /// <param name="db">The fresh tenant context created for verification.</param>
+    /// <param name="input">The campaign tag application to remove.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Whether the remove committed, along with the reconstructed result when it did.</returns>
+    private static async Task<ExecutionResult<OneOf<
+        Success,
+        Error<IReadOnlyDictionary<string, string[]>>,
+        NotFound,
+        CampaignTagApplicationForbidden,
+        CampaignTagApplicationConflict>>> VerifyRemoveCommittedAsync(
+            NovaDbContext db,
+            RemoveCampaignTagApplicationInput input,
+            CancellationToken cancellationToken)
+    {
+        var stillExists = await db.CampaignTagApplications
+            .AsNoTracking()
+            .AnyAsync(candidate => candidate.CampaignTagApplicationId == input.CampaignTagApplicationId, cancellationToken);
+
+        return stillExists
+            ? new ExecutionResult<OneOf<
+                Success,
+                Error<IReadOnlyDictionary<string, string[]>>,
+                NotFound,
+                CampaignTagApplicationForbidden,
+                CampaignTagApplicationConflict>>(successful: false, default!)
+            : new ExecutionResult<OneOf<
+                Success,
+                Error<IReadOnlyDictionary<string, string[]>>,
+                NotFound,
+                CampaignTagApplicationForbidden,
+                CampaignTagApplicationConflict>>(successful: true, new Success());
+    }
+
+    /// <summary>
+    /// Runs a campaign tag application mutation inside EF Core's retrying execution strategy and
+    /// verifies whether an ambiguous commit succeeded before allowing the strategy to replay the
+    /// mutation.
+    /// </summary>
+    /// <typeparam name="TResult">The result produced by the mutation attempt.</typeparam>
+    /// <param name="operation">The mutation to run with a fresh tenant context.</param>
+    /// <param name="verifySucceeded">The verification query to run with a fresh tenant context.</param>
+    /// <param name="cancellationToken">A token that cancels strategy setup, mutation, or verification.</param>
+    /// <returns>The mutation result or the reconstructed result from successful commit verification.</returns>
+    private async Task<TResult> ExecuteWithFreshContextAsync<TResult>(
+        Func<NovaDbContext, Task<TResult>> operation,
+        Func<NovaDbContext, Task<ExecutionResult<TResult>>> verifySucceeded,
+        CancellationToken cancellationToken)
+    {
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(
+            (Operation: operation, VerifySucceeded: verifySucceeded),
+            async (state, _) =>
+            {
+                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                return await state.Operation(db);
+            },
+            async (state, _) =>
+            {
+                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                return await state.VerifySucceeded(db);
+            },
+            cancellationToken);
     }
 
     /// <summary>

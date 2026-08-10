@@ -107,6 +107,7 @@ builder.Services.AddScoped<IPlayerService, PlayerService>();
 builder.Services.AddScoped<EvaluationNoteService>();
 builder.Services.AddScoped<CampaignPlacementService>();
 builder.Services.AddScoped<CampaignTagApplicationService>();
+builder.Services.AddScoped<ICampaignTagApplicationService>(services => services.GetRequiredService<CampaignTagApplicationService>());
 builder.Services.AddScoped<CampaignLifecycleService>();
 builder.Services.AddScoped<ICampaignCreationService, CampaignCreationService>();
 builder.Services.AddScoped<ICampaignQueryService, CampaignQueryService>();
@@ -249,6 +250,7 @@ app.MapCampaignCreationEndpoints();
 app.MapCampaignQueryEndpoints();
 app.MapCampaignParticipantEndpoints();
 app.MapCampaignMetadataEndpoints();
+app.MapCampaignTagApplicationEndpoints();
 
 // Player detail and campaign-history query endpoint.
 app.MapPlayerEndpoints();
