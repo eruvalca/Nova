@@ -94,9 +94,15 @@ public sealed partial class CampaignTagApplicationService(
             return new CampaignTagApplicationForbidden("You must belong to a club to apply campaign tags.");
         }
 
+        var commitTracker = new CommitAttemptTracker();
+
         return await ExecuteWithFreshContextAsync(
-            db => ApplyMutationAsync(db, input, actorUserId, clubId, cancellationToken),
-            db => VerifyApplyCommittedAsync(db, input, clubId, cancellationToken),
+            db =>
+            {
+                commitTracker.Reset();
+                return ApplyMutationAsync(db, input, actorUserId, clubId, commitTracker, cancellationToken);
+            },
+            db => VerifyApplyCommittedAsync(db, input, clubId, commitTracker, cancellationToken),
             cancellationToken);
     }
 
@@ -107,6 +113,7 @@ public sealed partial class CampaignTagApplicationService(
     /// <param name="input">The target participation and tag-definition identifiers.</param>
     /// <param name="actorUserId">The authorized acting user identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="commitTracker">Tracks whether this attempt reached <c>CommitAsync</c>.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Success, validation, not found, forbidden, or conflict information.</returns>
     private async Task<OneOf<
@@ -119,6 +126,7 @@ public sealed partial class CampaignTagApplicationService(
             ApplyCampaignTagApplicationInput input,
             long actorUserId,
             long clubId,
+            CommitAttemptTracker commitTracker,
             CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -180,6 +188,7 @@ public sealed partial class CampaignTagApplicationService(
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            commitTracker.MarkAttempted();
             await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
@@ -198,6 +207,7 @@ public sealed partial class CampaignTagApplicationService(
     /// <param name="db">The fresh tenant context created for verification.</param>
     /// <param name="input">The target participation and tag-definition identifiers.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="commitTracker">Tracks whether the most recent attempt reached <c>CommitAsync</c>.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Whether the apply committed, along with the reconstructed result when it did.</returns>
     private static async Task<ExecutionResult<OneOf<
@@ -209,8 +219,23 @@ public sealed partial class CampaignTagApplicationService(
             NovaDbContext db,
             ApplyCampaignTagApplicationInput input,
             long clubId,
+            CommitAttemptTracker commitTracker,
             CancellationToken cancellationToken)
     {
+        // A transient failure raised before the commit cannot have created the row. The row can only
+        // be credited to this request when the attempt actually reached CommitAsync; otherwise a
+        // concurrently created row (or an earlier request's row) must not masquerade as this one and
+        // the strategy replays so the fresh lookup produces the correct result.
+        if (!commitTracker.Attempted)
+        {
+            return new ExecutionResult<OneOf<
+                CampaignTagApplicationMutationSuccess,
+                Error<IReadOnlyDictionary<string, string[]>>,
+                NotFound,
+                CampaignTagApplicationForbidden,
+                CampaignTagApplicationConflict>>(successful: false, default!);
+        }
+
         var application = await db.CampaignTagApplications
             .AsNoTracking()
             .SingleOrDefaultAsync(
@@ -265,9 +290,15 @@ public sealed partial class CampaignTagApplicationService(
             return new CampaignTagApplicationForbidden("You must belong to a club to remove campaign tags.");
         }
 
+        var commitTracker = new CommitAttemptTracker();
+
         return await ExecuteWithFreshContextAsync(
-            db => RemoveMutationAsync(db, input, actorUserId, clubId, cancellationToken),
-            db => VerifyRemoveCommittedAsync(db, input, cancellationToken),
+            db =>
+            {
+                commitTracker.Reset();
+                return RemoveMutationAsync(db, input, actorUserId, clubId, commitTracker, cancellationToken);
+            },
+            db => VerifyRemoveCommittedAsync(db, input, commitTracker, cancellationToken),
             cancellationToken);
     }
 
@@ -278,6 +309,7 @@ public sealed partial class CampaignTagApplicationService(
     /// <param name="input">The campaign tag application to remove.</param>
     /// <param name="actorUserId">The authorized acting user identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="commitTracker">Tracks whether this attempt reached <c>CommitAsync</c>.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Success, validation, not found, forbidden, or conflict information.</returns>
     private async Task<OneOf<
@@ -290,6 +322,7 @@ public sealed partial class CampaignTagApplicationService(
             RemoveCampaignTagApplicationInput input,
             long actorUserId,
             long clubId,
+            CommitAttemptTracker commitTracker,
             CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -338,6 +371,7 @@ public sealed partial class CampaignTagApplicationService(
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            commitTracker.MarkAttempted();
             await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
@@ -355,6 +389,7 @@ public sealed partial class CampaignTagApplicationService(
     /// </summary>
     /// <param name="db">The fresh tenant context created for verification.</param>
     /// <param name="input">The campaign tag application to remove.</param>
+    /// <param name="commitTracker">Tracks whether the most recent attempt reached <c>CommitAsync</c>.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Whether the remove committed, along with the reconstructed result when it did.</returns>
     private static async Task<ExecutionResult<OneOf<
@@ -365,8 +400,23 @@ public sealed partial class CampaignTagApplicationService(
         CampaignTagApplicationConflict>>> VerifyRemoveCommittedAsync(
             NovaDbContext db,
             RemoveCampaignTagApplicationInput input,
+            CommitAttemptTracker commitTracker,
             CancellationToken cancellationToken)
     {
+        // A transient failure raised before the commit cannot have removed the row. Row absence is
+        // only proof of this attempt's ambiguous commit when the attempt actually reached
+        // CommitAsync; otherwise the missing row belongs to an earlier request and the strategy must
+        // replay so the fresh lookup produces the correct NotFound.
+        if (!commitTracker.Attempted)
+        {
+            return new ExecutionResult<OneOf<
+                Success,
+                Error<IReadOnlyDictionary<string, string[]>>,
+                NotFound,
+                CampaignTagApplicationForbidden,
+                CampaignTagApplicationConflict>>(successful: false, default!);
+        }
+
         var stillExists = await db.CampaignTagApplications
             .AsNoTracking()
             .AnyAsync(candidate => candidate.CampaignTagApplicationId == input.CampaignTagApplicationId, cancellationToken);
@@ -417,6 +467,24 @@ public sealed partial class CampaignTagApplicationService(
                 return await state.VerifySucceeded(db);
             },
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Tracks whether a remove attempt reached its commit, scoping ambiguous-commit verification to
+    /// attempts that could actually have removed the row.
+    /// </summary>
+    private sealed class CommitAttemptTracker
+    {
+        private int _attempted;
+
+        /// <summary>Gets a value indicating whether the current attempt reached its commit.</summary>
+        public bool Attempted => Volatile.Read(ref _attempted) == 1;
+
+        /// <summary>Clears the flag at the start of an execution-strategy attempt.</summary>
+        public void Reset() => Volatile.Write(ref _attempted, 0);
+
+        /// <summary>Marks that the current attempt is about to commit.</summary>
+        public void MarkAttempted() => Volatile.Write(ref _attempted, 1);
     }
 
     /// <summary>

@@ -117,6 +117,38 @@ internal sealed class FailFirstTeamReadInterceptor : DbCommandInterceptor
     }
 }
 
+/// <summary>
+/// Simulates one transient provider failure while a mutation attempt is still reading the campaign
+/// tag application, before it has written or committed anything.
+/// </summary>
+internal sealed class FailFirstCampaignTagApplicationReadInterceptor : DbCommandInterceptor
+{
+    private int _shouldFail = 1;
+    private int _failureCount;
+
+    /// <summary>
+    /// Gets the number of transient read failures injected by this interceptor.
+    /// </summary>
+    public int FailureCount => Volatile.Read(ref _failureCount);
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+        System.Data.Common.DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<System.Data.Common.DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.Contains("\"CampaignTagApplications\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _shouldFail, 0) == 1)
+        {
+            Interlocked.Increment(ref _failureCount);
+            throw new NpgsqlException("Simulated transient read failure.", new TimeoutException());
+        }
+
+        return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+    }
+}
+
 internal sealed class FailFirstSaveChangesInterceptor : SaveChangesInterceptor
 {
     private int _shouldFail = 1;
