@@ -52,6 +52,16 @@ public sealed partial class CampaignParticipantQueryService(
             return ServiceProblem.Validation(nameof(input.Page), "The page number is too large for the requested page size.");
         }
         var normalizedOutcome = NormalizeOutcome(input.Outcome);
+        if (input.GraduationYears?.Any(year => year <= 0) == true)
+        {
+            return ServiceProblem.Validation(nameof(input.GraduationYears), "Graduation years must be positive values.");
+        }
+
+        if (input.TagDefinitionIds?.Any(id => id <= 0) == true)
+        {
+            return ServiceProblem.Validation(nameof(input.TagDefinitionIds), "Tag-definition identifiers must be positive values.");
+        }
+
         var graduationYears = input.GraduationYears?.Where(year => year > 0).Distinct().ToArray();
         var tagDefinitionIds = input.TagDefinitionIds?.Where(id => id > 0).Distinct().ToArray();
 
@@ -316,13 +326,19 @@ public sealed partial class CampaignParticipantQueryService(
         var isActiveCampaign = assignment.CampaignStatus == CampaignStatus.Active;
         var isClubAdmin = currentUserProvider.IsClubAdmin;
         var canEditPlacement = isClubAdmin && isActiveCampaign;
-        var canEditNotes = isActiveCampaign && (isClubAdmin || orderedNotes.Any(note => note.CreatedById == currentUserId));
-        var canEditTags = isActiveCampaign && (isClubAdmin || orderedTagApplications.Any(application => application.CreatedById == currentUserId && !application.IsArchived));
-        var canArchiveTagDefinitions = isClubAdmin && isActiveCampaign;
+        var canAddNote = isActiveCampaign && currentUserId > 0;
+        var canEditNote = isActiveCampaign && (isClubAdmin || orderedNotes.Any(note => note.CreatedById == currentUserId));
+        var canDeleteNote = isActiveCampaign && (isClubAdmin || orderedNotes.Any(note => note.CreatedById == currentUserId));
+        var canApplyTag = isActiveCampaign && currentUserId > 0;
+        var canRemoveTagApplication = isActiveCampaign && (isClubAdmin || orderedTagApplications.Any(application => application.CreatedById == currentUserId && !application.IsArchived));
+        var canArchiveTagDefinitions = isClubAdmin;
         var capabilities = new CampaignParticipantCapabilitiesDto(
             canEditPlacement,
-            canEditNotes,
-            canEditTags,
+            canAddNote,
+            canEditNote,
+            canDeleteNote,
+            canApplyTag,
+            canRemoveTagApplication,
             canArchiveTagDefinitions);
 
         return new CampaignParticipantDetailDto(

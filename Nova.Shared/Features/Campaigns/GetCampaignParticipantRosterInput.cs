@@ -39,12 +39,12 @@ public sealed record GetCampaignParticipantRosterInput
     /// <summary>
     /// Optional graduation-year values to include via OR semantics.
     /// </summary>
-    public IReadOnlyList<int>? GraduationYears { get; init; }
+    public int[]? GraduationYears { get; init; }
 
     /// <summary>
     /// Optional tag-definition identifiers to include via OR semantics.
     /// </summary>
-    public IReadOnlyList<long>? TagDefinitionIds { get; init; }
+    public long[]? TagDefinitionIds { get; init; }
 
     /// <summary>
     /// Optional placement-outcome filter. Allowed values: <c>undecided</c>, <c>assigned</c>,

@@ -77,7 +77,10 @@ public sealed record CampaignParticipantTagApplicationDto(
 /// </summary>
 public sealed record CampaignParticipantCapabilitiesDto(
     bool CanEditPlacement,
-    bool CanEditNotes,
-    bool CanEditTags,
+    bool CanAddNote,
+    bool CanEditNote,
+    bool CanDeleteNote,
+    bool CanApplyTag,
+    bool CanRemoveTagApplication,
     bool CanArchiveTagDefinitions);
 

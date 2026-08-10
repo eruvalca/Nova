@@ -149,7 +149,7 @@ public static class CampaignEndpoints
             querySegments.Add($"search={Uri.EscapeDataString(input.Search.Trim())}");
         }
 
-        if (input.GraduationYears is { Count: > 0 })
+        if (input.GraduationYears is { Length: > 0 })
         {
             foreach (var graduationYear in input.GraduationYears.Where(year => year > 0).Distinct())
             {
@@ -157,7 +157,7 @@ public static class CampaignEndpoints
             }
         }
 
-        if (input.TagDefinitionIds is { Count: > 0 })
+        if (input.TagDefinitionIds is { Length: > 0 })
         {
             foreach (var tagDefinitionId in input.TagDefinitionIds.Where(id => id > 0).Distinct())
             {
