@@ -263,7 +263,7 @@ public sealed partial class CampaignParticipantQueryService(
 
         var orderedNotes = notes
             .OrderByDescending(note => note.CreatedAt)
-            .ThenBy(note => note.NoteId)
+            .ThenByDescending(note => note.NoteId)
             .ToList();
 
         var tagApplications = await db.CampaignTagApplications
@@ -281,7 +281,7 @@ public sealed partial class CampaignParticipantQueryService(
 
         var orderedTagApplications = tagApplications
             .OrderByDescending(application => application.CreatedAt)
-            .ThenBy(application => application.PlayerTagId)
+            .ThenByDescending(application => application.CampaignTagApplicationId)
             .ToList();
 
         var actorIds = orderedNotes

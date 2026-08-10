@@ -243,6 +243,51 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetParticipantDetail_OrdersNotesAndTagsByDescendingId_WhenTimestampsAreEqual()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        using (var admin = _harness.CreateAdminContext())
+        {
+            var sameInstant = DateTimeOffset.UtcNow;
+            admin.Notes.AddRange(
+                new NoteEntity { PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "First note", CreatedById = ClubAMemberId, CreatedAt = sameInstant },
+                new NoteEntity { PlayerCampaignAssignmentId = _assignmentAId, ClubId = ClubAId, Content = "Second note", CreatedById = ClubAMemberId, CreatedAt = sameInstant });
+            admin.SaveChanges();
+
+            var otherTag = admin.PlayerTags.Single(tag => tag.ClubId == ClubAId && tag.Name == "Other Tag");
+            var thirdTag = new PlayerTagEntity { Name = "Third Tag", Color = "Green", ClubId = ClubAId, CreatedById = ClubAMemberId, LifecycleStatus = LifecycleStatus.Active };
+            admin.PlayerTags.Add(thirdTag);
+            admin.SaveChanges();
+
+            admin.CampaignTagApplications.AddRange(
+                new CampaignTagApplicationEntity { PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = otherTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant },
+                new CampaignTagApplicationEntity { PlayerCampaignAssignmentId = _assignmentAId, PlayerTagId = thirdTag.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMemberId, CreatedAt = sameInstant });
+            admin.SaveChanges();
+        }
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetParticipantDetailAsync(
+            new GetCampaignParticipantDetailInput { CampaignId = _campaignAId, PlayerCampaignAssignmentId = _assignmentAId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        var pair = result.Value.Notes.Zip(result.Value.Notes.Skip(1));
+        pair.All(adjacent => adjacent.First.CreatedAt > adjacent.Second.CreatedAt
+                             || (adjacent.First.CreatedAt == adjacent.Second.CreatedAt && adjacent.First.NoteId > adjacent.Second.NoteId))
+            .ShouldBeTrue();
+        var tagPair = result.Value.AppliedTags.Zip(result.Value.AppliedTags.Skip(1));
+        tagPair.All(adjacent => adjacent.First.AppliedAt > adjacent.Second.AppliedAt
+                                || (adjacent.First.AppliedAt == adjacent.Second.AppliedAt && adjacent.First.CampaignTagApplicationId > adjacent.Second.CampaignTagApplicationId))
+            .ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task GetParticipantDetail_DoesNotExposePlacementEdit_WhenPlayerArchived()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;

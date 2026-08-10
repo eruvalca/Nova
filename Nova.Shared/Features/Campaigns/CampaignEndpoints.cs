@@ -165,9 +165,18 @@ public static class CampaignEndpoints
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(input.Outcome))
+        var normalizedOutcome = input.Outcome?.Trim().ToLowerInvariant() switch
         {
-            querySegments.Add($"outcome={Uri.EscapeDataString(input.Outcome.Trim())}");
+            "undecided" => "undecided",
+            "assigned" => "assigned",
+            "notselected" => "notselected",
+            "withdrawn" => "withdrawn",
+            _ => null
+        };
+
+        if (normalizedOutcome is not null)
+        {
+            querySegments.Add($"outcome={normalizedOutcome}");
         }
 
         if (input.TeamId is > 0)
@@ -175,14 +184,32 @@ public static class CampaignEndpoints
             querySegments.Add($"teamId={input.TeamId.Value}");
         }
 
-        if (!string.IsNullOrWhiteSpace(input.SortBy))
+        var normalizedSortBy = input.SortBy?.Trim().ToLowerInvariant() switch
         {
-            querySegments.Add($"sortBy={Uri.EscapeDataString(input.SortBy.Trim())}");
+            "displayname" => "displayName",
+            "graduationyear" => "graduationYear",
+            "tryoutnumber" => "tryoutNumber",
+            "assignmentid" => "assignmentId",
+            "outcome" => "outcome",
+            "teamname" => "teamName",
+            _ => null
+        };
+
+        if (normalizedSortBy is not null)
+        {
+            querySegments.Add($"sortBy={normalizedSortBy}");
         }
 
-        if (!string.IsNullOrWhiteSpace(input.SortDirection))
+        var normalizedSortDirection = input.SortDirection?.Trim().ToLowerInvariant() switch
         {
-            querySegments.Add($"sortDirection={Uri.EscapeDataString(input.SortDirection.Trim())}");
+            "asc" => "asc",
+            "desc" => "desc",
+            _ => null
+        };
+
+        if (normalizedSortDirection is not null)
+        {
+            querySegments.Add($"sortDirection={normalizedSortDirection}");
         }
 
         if (input.Page is > 0)
