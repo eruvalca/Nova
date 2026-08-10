@@ -152,6 +152,26 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetParticipantRoster_TreatsSearchWildcardsAsLiterals()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetParticipantRosterAsync(
+            new GetCampaignParticipantRosterInput { CampaignId = _campaignAId, Search = "%" },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.TotalCount.ShouldBe(0);
+        result.Value.Items.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task GetParticipantRoster_ReturnsNotFound_ForCrossTenantCampaign()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;

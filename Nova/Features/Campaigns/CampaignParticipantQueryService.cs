@@ -74,9 +74,9 @@ public sealed partial class CampaignParticipantQueryService(
             var likePattern = $"%{escapedSearch}%";
             var isNpgsql = db.Database.IsNpgsql();
             query = query.Where(assignment => isNpgsql
-                ? EF.Functions.ILike(assignment.Player.FirstName + " " + assignment.Player.LastName, likePattern)
-                    || EF.Functions.ILike(assignment.Player.FirstName, likePattern)
-                    || EF.Functions.ILike(assignment.Player.LastName, likePattern)
+                ? EF.Functions.ILike(assignment.Player.FirstName + " " + assignment.Player.LastName, likePattern, @"\")
+                    || EF.Functions.ILike(assignment.Player.FirstName, likePattern, @"\")
+                    || EF.Functions.ILike(assignment.Player.LastName, likePattern, @"\")
                 : (assignment.Player.FirstName + " " + assignment.Player.LastName).ToUpper().Contains(uppercaseSearch)
                     || assignment.Player.FirstName.ToUpper().Contains(uppercaseSearch)
                     || assignment.Player.LastName.ToUpper().Contains(uppercaseSearch));
