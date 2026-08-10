@@ -143,6 +143,48 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
+    public async Task GetParticipantDetailAsync_ReturnsServerError_WhenPlacementAndOrderingContractIsViolated()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new CampaignParticipantDetailDto(
+                101,
+                202,
+                "Avery Adams",
+                2028,
+                7,
+                PlacementOutcome.Assigned,
+                null,
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow.AddMinutes(-1),
+                CampaignStatus.Active,
+                Guid.NewGuid(),
+                [
+                    new CampaignParticipantNoteDto(2, "Older note", "A Member", DateTimeOffset.UtcNow.AddMinutes(-5), true, true),
+                    new CampaignParticipantNoteDto(1, "Newer note", "A Member", DateTimeOffset.UtcNow, true, true)
+                ],
+                [new CampaignParticipantTagApplicationDto(2, 401, "Blue", "Blue", false, "A Member", DateTimeOffset.UtcNow.AddMinutes(-2), true)],
+                new CampaignParticipantCapabilitiesDto(true, true, true, true)))
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
+        {
+            CampaignId = 42,
+            PlayerCampaignAssignmentId = 101
+        }, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
     public async Task GetParticipantRosterAsync_ReturnsServerError_WhenSuccessBodyIsInvalidJson()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)

@@ -84,6 +84,32 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies the roster endpoint rejects invalid explicit page-size values before the handler runs.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantRoster_ReturnsValidationProblem_ForInvalidPageSize()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("participant-roster-invalid-page-size");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        using var response = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = 1, Page = 1, PageSize = 101 }),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
     /// Verifies the detail endpoint returns non-disclosing not-found ProblemDetails for missing participants.
     /// </summary>
     [Fact]
@@ -131,6 +157,30 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies authenticated callers without a club receive forbidden responses for both routes.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantRoutes_ReturnForbidden_ForAuthenticatedUserWithoutClub()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("participant-no-club");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        using var rosterResponse = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = 1, Page = 1, PageSize = 50 }),
+            cancellationToken);
+        rosterResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        using var detailResponse = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantDetailUrl(1, 1),
+            cancellationToken);
+        detailResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>
     /// Verifies a current-club member can load a participant detail payload with the expected shape.
     /// </summary>
     [Fact]
@@ -159,6 +209,39 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         detail.AppliedTags[0].CanRemove.ShouldBeTrue();
         detail.Capabilities.CanAddNote.ShouldBeTrue();
         detail.Capabilities.CanApplyTag.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies cross-tenant campaign and assignment IDs are rejected with non-disclosing not-found responses.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantRoutes_ReturnNotFound_ForCrossTenantCampaignOrAssignment()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var currentClient = fixture.CreateNovaHttpClient();
+        var currentEmail = UniqueEmail("participant-cross-tenant-current");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(currentClient, currentEmail, Password, cancellationToken);
+        await UpdateUserAsync(currentEmail, clubId: null, cancellationToken);
+        await CreateClubAsync(currentClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(currentClient, cancellationToken);
+
+        using var otherClient = fixture.CreateNovaHttpClient();
+        var otherEmail = UniqueEmail("participant-cross-tenant-other");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(otherClient, otherEmail, Password, cancellationToken);
+        await UpdateUserAsync(otherEmail, clubId: null, cancellationToken);
+        var otherClub = await CreateClubAsync(otherClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(otherClient, cancellationToken);
+        var (campaignId, _, assignmentId) = await SeedRosterDataAsync(otherClub.ClubId, otherEmail, cancellationToken);
+
+        using var rosterResponse = await currentClient.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = campaignId, Page = 1, PageSize = 50 }),
+            cancellationToken);
+        rosterResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        using var detailResponse = await currentClient.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+            cancellationToken);
+        detailResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     /// <summary>
