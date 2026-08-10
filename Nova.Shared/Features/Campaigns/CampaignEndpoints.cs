@@ -151,7 +151,7 @@ public static class CampaignEndpoints
 
         if (input.GraduationYears is { Length: > 0 })
         {
-            foreach (var graduationYear in input.GraduationYears.Where(year => year > 0).Distinct())
+            foreach (var graduationYear in input.GraduationYears.Distinct())
             {
                 querySegments.Add($"graduationYears={graduationYear}");
             }
@@ -159,7 +159,7 @@ public static class CampaignEndpoints
 
         if (input.TagDefinitionIds is { Length: > 0 })
         {
-            foreach (var tagDefinitionId in input.TagDefinitionIds.Where(id => id > 0).Distinct())
+            foreach (var tagDefinitionId in input.TagDefinitionIds.Distinct())
             {
                 querySegments.Add($"tagDefinitionIds={tagDefinitionId}");
             }

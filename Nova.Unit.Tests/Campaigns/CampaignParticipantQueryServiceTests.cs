@@ -315,6 +315,108 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         result.Value.Capabilities.CanEditPlacement.ShouldBeFalse();
     }
 
+    public static TheoryData<string, string, string[]> SortDirectionCases => new()
+    {
+        { "displayName", "asc", new[] { "Avery Adams", "Brett Baker" } },
+        { "displayName", "desc", new[] { "Brett Baker", "Avery Adams" } },
+        { "assignmentId", "asc", new[] { "Avery Adams", "Brett Baker" } },
+        { "assignmentId", "desc", new[] { "Brett Baker", "Avery Adams" } },
+        { "graduationYear", "asc", new[] { "Avery Adams", "Brett Baker" } },
+        { "graduationYear", "desc", new[] { "Brett Baker", "Avery Adams" } },
+        { "tryoutNumber", "asc", new[] { "Avery Adams", "Brett Baker" } },
+        { "tryoutNumber", "desc", new[] { "Brett Baker", "Avery Adams" } },
+        { "outcome", "asc", new[] { "Brett Baker", "Avery Adams" } },
+        { "outcome", "desc", new[] { "Avery Adams", "Brett Baker" } },
+        { "teamName", "asc", new[] { "Brett Baker", "Avery Adams" } },
+        { "teamName", "desc", new[] { "Avery Adams", "Brett Baker" } },
+    };
+
+    /// <summary>
+    /// Verifies every documented sort key honors the requested direction over the seeded participants.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(SortDirectionCases))]
+    public async Task GetParticipantRoster_AppliesSortKeyAndDirection(string sortBy, string sortDirection, string[] expectedDisplayNames)
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetParticipantRosterAsync(
+            new GetCampaignParticipantRosterInput
+            {
+                CampaignId = _campaignAId,
+                SortBy = sortBy,
+                SortDirection = sortDirection,
+                PageSize = GetCampaignParticipantRosterInput.MaxPageSize
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Select(item => item.DisplayName).ShouldBe(expectedDisplayNames);
+    }
+
+    /// <summary>
+    /// Verifies equal sort keys are ordered by ascending assignment identifier in both directions.
+    /// </summary>
+    [Theory]
+    [InlineData("displayName")]
+    [InlineData("graduationYear")]
+    [InlineData("tryoutNumber")]
+    [InlineData("outcome")]
+    [InlineData("teamName")]
+    public async Task GetParticipantRoster_AppliesAscendingAssignmentIdTieBreaker(string sortBy)
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        long firstAssignmentId;
+        long secondAssignmentId;
+        using (var admin = _harness.CreateAdminContext())
+        {
+            var first = new PlayerEntity { FirstName = "Dana", LastName = "Davis", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
+            var second = new PlayerEntity { FirstName = "Dana", LastName = "Davis", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
+            admin.Players.AddRange(first, second);
+            admin.SaveChanges();
+
+            var firstAssignment = new PlayerCampaignAssignmentEntity { PlayerId = first.PlayerId, CampaignId = _campaignAId, ClubId = ClubAId, CreatedById = ClubAMemberId, PlacementOutcome = PlacementOutcome.Assigned, TeamId = _teamAId };
+            var secondAssignment = new PlayerCampaignAssignmentEntity { PlayerId = second.PlayerId, CampaignId = _campaignAId, ClubId = ClubAId, CreatedById = ClubAMemberId, PlacementOutcome = PlacementOutcome.Assigned, TeamId = _teamAId };
+            admin.PlayerCampaignAssignments.AddRange(firstAssignment, secondAssignment);
+            admin.SaveChanges();
+
+            firstAssignmentId = firstAssignment.PlayerCampaignAssignmentId;
+            secondAssignmentId = secondAssignment.PlayerCampaignAssignmentId;
+        }
+
+        foreach (var direction in new[] { "asc", "desc" })
+        {
+            var service = new CampaignParticipantQueryService(
+                new CampaignParticipantReadHarnessDbContextFactory(_harness),
+                _harness.CurrentUser,
+                NullLogger<CampaignParticipantQueryService>.Instance);
+
+            var result = await service.GetParticipantRosterAsync(
+                new GetCampaignParticipantRosterInput
+                {
+                    CampaignId = _campaignAId,
+                    SortBy = sortBy,
+                    SortDirection = direction,
+                    PageSize = GetCampaignParticipantRosterInput.MaxPageSize
+                },
+                TestContext.Current.CancellationToken);
+
+            result.IsSuccess.ShouldBeTrue();
+            var ids = result.Value.Items.Select(item => item.PlayerCampaignAssignmentId).ToArray();
+            ids.ShouldContain(firstAssignmentId);
+            ids.ShouldContain(secondAssignmentId);
+            Array.IndexOf(ids, firstAssignmentId).ShouldBeLessThan(Array.IndexOf(ids, secondAssignmentId));
+        }
+    }
+
     private void Seed()
     {
         using var admin = _harness.CreateAdminContext();

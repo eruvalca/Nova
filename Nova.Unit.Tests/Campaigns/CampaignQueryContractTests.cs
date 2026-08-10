@@ -93,8 +93,8 @@ public sealed class CampaignQueryContractTests
         {
             CampaignId = 42,
             Search = " A ",
-            GraduationYears = new[] { 2028, 2029, 0 },
-            TagDefinitionIds = new[] { 7L, 8L, -1L },
+            GraduationYears = new[] { 2028, 2029 },
+            TagDefinitionIds = new[] { 7L, 8L },
             Outcome = " ASSIGNED ",
             TeamId = 9,
             SortBy = " GRADUATIONYEAR ",
@@ -117,8 +117,6 @@ public sealed class CampaignQueryContractTests
         {
             CampaignId = 42,
             Search = " ",
-            GraduationYears = new[] { 0 },
-            TagDefinitionIds = new[] { 0L },
             Outcome = " invalid ",
             TeamId = 0,
             SortBy = " invalid ",
@@ -128,6 +126,56 @@ public sealed class CampaignQueryContractTests
         });
 
         url.ShouldBe("/api/campaigns/42/participants?page=1&pageSize=101");
+    }
+
+    /// <summary>
+    /// Verifies filter-element values are reflected faithfully rather than silently broadened;
+    /// the shared input validation is what rejects non-positive elements before a request is made.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantRosterUrl_ForwardsFilterElementsForServerValidation()
+    {
+        var url = CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput
+        {
+            CampaignId = 42,
+            GraduationYears = new[] { 2028, 2028, 0 },
+            TagDefinitionIds = new[] { 7L, 0L }
+        });
+
+        url.ShouldBe("/api/campaigns/42/participants?graduationYears=2028&graduationYears=0&tagDefinitionIds=7&tagDefinitionIds=0&page=1&pageSize=50");
+    }
+
+    /// <summary>
+    /// Verifies non-positive filter elements are rejected by the shared input validation.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantRosterInput_RejectsNonPositiveFilterElements()
+    {
+        var errors = InputValidator.Validate(new GetCampaignParticipantRosterInput
+        {
+            CampaignId = 1,
+            GraduationYears = new[] { 0 },
+            TagDefinitionIds = new[] { 0L }
+        });
+
+        errors.ShouldContainKey(nameof(GetCampaignParticipantRosterInput.GraduationYears));
+        errors.ShouldContainKey(nameof(GetCampaignParticipantRosterInput.TagDefinitionIds));
+    }
+
+    /// <summary>
+    /// Verifies positive filter elements satisfy the shared input validation.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantRosterInput_AcceptsPositiveFilterElements()
+    {
+        var errors = InputValidator.Validate(new GetCampaignParticipantRosterInput
+        {
+            CampaignId = 1,
+            GraduationYears = new[] { 2028, 2029 },
+            TagDefinitionIds = new[] { 7L, 8L }
+        });
+
+        errors.ShouldBeEmpty();
     }
 
     /// <summary>

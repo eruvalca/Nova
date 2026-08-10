@@ -6,7 +6,7 @@ namespace Nova.Shared.Features.Campaigns;
 /// <summary>
 /// Request input for paged campaign-participant roster queries.
 /// </summary>
-public sealed record GetCampaignParticipantRosterInput
+public sealed record GetCampaignParticipantRosterInput : IValidatableObject
 {
     /// <summary>
     /// The default 1-based page number for roster queries.
@@ -83,4 +83,22 @@ public sealed record GetCampaignParticipantRosterInput
     /// </summary>
     [Range(1, MaxPageSize)]
     public int? PageSize { get; init; } = DefaultPageSize;
+
+    /// <inheritdoc />
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (GraduationYears?.Any(year => year <= 0) == true)
+        {
+            yield return new ValidationResult(
+                "Graduation years must be positive values.",
+                new[] { nameof(GraduationYears) });
+        }
+
+        if (TagDefinitionIds?.Any(id => id <= 0) == true)
+        {
+            yield return new ValidationResult(
+                "Tag-definition identifiers must be positive values.",
+                new[] { nameof(TagDefinitionIds) });
+        }
+    }
 }

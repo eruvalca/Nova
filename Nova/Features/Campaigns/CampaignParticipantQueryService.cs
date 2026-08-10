@@ -52,18 +52,8 @@ public sealed partial class CampaignParticipantQueryService(
             return ServiceProblem.Validation(nameof(input.Page), "The page number is too large for the requested page size.");
         }
         var normalizedOutcome = NormalizeOutcome(input.Outcome);
-        if (input.GraduationYears?.Any(year => year <= 0) == true)
-        {
-            return ServiceProblem.Validation(nameof(input.GraduationYears), "Graduation years must be positive values.");
-        }
-
-        if (input.TagDefinitionIds?.Any(id => id <= 0) == true)
-        {
-            return ServiceProblem.Validation(nameof(input.TagDefinitionIds), "Tag-definition identifiers must be positive values.");
-        }
-
-        var graduationYears = input.GraduationYears?.Where(year => year > 0).Distinct().ToArray();
-        var tagDefinitionIds = input.TagDefinitionIds?.Where(id => id > 0).Distinct().ToArray();
+        var graduationYears = input.GraduationYears?.Distinct().ToArray();
+        var tagDefinitionIds = input.TagDefinitionIds?.Distinct().ToArray();
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
         var campaignExists = await db.Campaigns
