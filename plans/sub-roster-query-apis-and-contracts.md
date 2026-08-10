@@ -52,7 +52,7 @@ Status: Complete
 
 ### Phase Summary
 
-Added focused unit coverage for the service behavior and the new WASM HTTP client contract validation, including repeated-query generation and malformed success-payload handling. The existing integration coverage for roster/detail routes and non-disclosing not-found behavior was also preserved and validated alongside the unit suite.
+Added focused unit coverage for the service behavior and the new WASM HTTP client contract validation, including repeated-query generation and malformed success-payload handling. HTTP integration coverage for the roster/detail routes and non-disclosing not-found behavior lives in `CampaignParticipantHttpTests.cs` (Aspire/Postgres harness); the unit suite recorded above was the command validated for this phase.
 
 ## Final Recap
 

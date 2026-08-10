@@ -245,6 +245,34 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies the roster endpoint applies default paging when both query values are omitted at the endpoint boundary.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantRoster_AppliesDefaultPaging_WhenPageAndPageSizeAreOmitted()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("participant-roster-default-paging");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (campaignId, _, _) = await SeedRosterDataAsync(club.ClubId, email, cancellationToken);
+
+        using var response = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = campaignId, Page = null, PageSize = null }),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var roster = await response.Content.ReadFromJsonAsync<PagedResult<CampaignParticipantRosterItem>>(cancellationToken);
+        roster.ShouldNotBeNull();
+        roster.Page.ShouldBe(GetCampaignParticipantRosterInput.DefaultPage);
+        roster.PageSize.ShouldBe(GetCampaignParticipantRosterInput.DefaultPageSize);
+        roster.TotalCount.ShouldBe(1);
+        roster.Items.Count.ShouldBe(1);
+    }
+
+    /// <summary>
     /// Verifies wildcard characters are treated as literals when the PostgreSQL search branch is used.
     /// </summary>
     [Fact]

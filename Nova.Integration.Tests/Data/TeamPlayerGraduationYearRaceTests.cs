@@ -430,7 +430,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
         /// <summary>
         /// Creates a tenant context asynchronously.
         /// </summary>
-        /// <param name="cancellationToken">A token that cancels context creation.</param>
+        /// <param name="_">A token that cancels context creation.</param>
         /// <returns>A new tenant context.</returns>
         public ValueTask<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
             => ValueTask.FromResult(fixture.CreateTenantContext());
