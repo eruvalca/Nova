@@ -151,19 +151,17 @@ public static class CampaignEndpoints
 
         if (input.GraduationYears is { Count: > 0 })
         {
-            var graduationYears = string.Join(',', input.GraduationYears.Where(year => year > 0).Select(year => year.ToString()));
-            if (!string.IsNullOrWhiteSpace(graduationYears))
+            foreach (var graduationYear in input.GraduationYears.Where(year => year > 0).Distinct())
             {
-                querySegments.Add($"graduationYears={Uri.EscapeDataString(graduationYears)}");
+                querySegments.Add($"graduationYears={graduationYear}");
             }
         }
 
         if (input.TagDefinitionIds is { Count: > 0 })
         {
-            var tagDefinitionIds = string.Join(',', input.TagDefinitionIds.Where(id => id > 0).Select(id => id.ToString()));
-            if (!string.IsNullOrWhiteSpace(tagDefinitionIds))
+            foreach (var tagDefinitionId in input.TagDefinitionIds.Where(id => id > 0).Distinct())
             {
-                querySegments.Add($"tagDefinitionIds={Uri.EscapeDataString(tagDefinitionIds)}");
+                querySegments.Add($"tagDefinitionIds={tagDefinitionId}");
             }
         }
 

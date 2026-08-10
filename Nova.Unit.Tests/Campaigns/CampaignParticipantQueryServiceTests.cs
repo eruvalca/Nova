@@ -107,8 +107,10 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.DisplayName.ShouldBe("Avery Adams");
+        result.Value.CampaignStatus.ShouldBe(CampaignStatus.Active);
+        result.Value.ConcurrencyToken.ShouldNotBe(Guid.Empty);
         result.Value.Notes.ShouldContain(note => note.Content == "Seed note");
-        result.Value.AppliedTags.ShouldContain(tag => tag.TagName == "Blue Tag");
+        result.Value.AppliedTags.ShouldContain(tag => tag.TagName == "Blue Tag" && tag.ActorDisplayName == "A Member");
         result.Value.Capabilities.CanEditNotes.ShouldBeTrue();
     }
 

@@ -167,6 +167,8 @@ public sealed partial class CampaignParticipantQueryService(
                 assignment.PlacementOutcome,
                 assignment.TeamId,
                 assignment.Team != null ? assignment.Team.Name : null,
+                assignment.Campaign.Status,
+                assignment.ConcurrencyToken,
                 assignment.CreatedAt,
                 assignment.ModifiedAt))
             .FirstOrDefaultAsync(cancellationToken);
@@ -237,14 +239,16 @@ public sealed partial class CampaignParticipantQueryService(
             .AsReadOnly();
 
         var tagDtos = orderedTagApplications
-            .Select(application => new CampaignParticipantTagSummaryDto(
+            .Select(application => new CampaignParticipantTagApplicationDto(
                 application.PlayerTagId,
                 application.TagName,
                 application.TagColor,
-                application.IsArchived))
+                application.IsArchived,
+                actorDisplayNames.GetValueOrDefault(application.CreatedById) ?? "Unknown user",
+                application.CreatedAt))
             .ToList()
             .AsReadOnly();
-
+ 
         return new CampaignParticipantDetailDto(
             assignment.PlayerCampaignAssignmentId,
             assignment.PlayerId,
@@ -257,6 +261,8 @@ public sealed partial class CampaignParticipantQueryService(
                 : new CampaignParticipantTeamSummaryDto(assignment.TeamId.Value, assignment.TeamName ?? string.Empty),
             assignment.CreatedAt,
             assignment.ModifiedAt,
+            assignment.CampaignStatus,
+            assignment.ConcurrencyToken,
             noteDtos,
             tagDtos,
             new CampaignParticipantCapabilitiesDto(true, true, true, true));
@@ -345,6 +351,8 @@ public sealed partial class CampaignParticipantQueryService(
         PlacementOutcome PlacementOutcome,
         long? TeamId,
         string? TeamName,
+        CampaignStatus CampaignStatus,
+        Guid ConcurrencyToken,
         DateTimeOffset CreatedAt,
         DateTimeOffset? ModifiedAt);
 

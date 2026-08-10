@@ -45,8 +45,10 @@ public sealed record CampaignParticipantDetailDto(
     CampaignParticipantTeamSummaryDto? Team,
     DateTimeOffset CreatedAt,
     DateTimeOffset? ModifiedAt,
+    CampaignStatus CampaignStatus,
+    Guid ConcurrencyToken,
     IReadOnlyList<CampaignParticipantNoteDto> Notes,
-    IReadOnlyList<CampaignParticipantTagSummaryDto> AppliedTags,
+    IReadOnlyList<CampaignParticipantTagApplicationDto> AppliedTags,
     CampaignParticipantCapabilitiesDto Capabilities);
 
 /// <summary>
@@ -57,6 +59,17 @@ public sealed record CampaignParticipantNoteDto(
     string Content,
     string AuthorDisplayName,
     DateTimeOffset CreatedAt);
+
+/// <summary>
+/// Tag application summary attached to a participant detail payload.
+/// </summary>
+public sealed record CampaignParticipantTagApplicationDto(
+    long PlayerTagId,
+    string TagName,
+    string TagColor,
+    bool IsArchived,
+    string ActorDisplayName,
+    DateTimeOffset AppliedAt);
 
 /// <summary>
 /// Capability flags exposed to the caller for the participant detail view.

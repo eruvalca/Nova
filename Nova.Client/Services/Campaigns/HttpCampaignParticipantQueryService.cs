@@ -75,9 +75,10 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
             && !string.IsNullOrWhiteSpace(item.DisplayName)
             && item.GraduationYear > 0
             && item.PlacementOutcome is >= PlacementOutcome.Undecided and <= PlacementOutcome.Withdrawn
-            && (item.Team is null || item.Team.TeamId > 0)
-            && item.AppliedTags is not null;
-
+           && (item.Team is null || (item.Team.TeamId > 0 && !string.IsNullOrWhiteSpace(item.Team.TeamName)))
+           && item.AppliedTags is not null
+           && item.AppliedTags.All(tag => tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName));
+ 
     private static bool IsValidDetail(CampaignParticipantDetailDto detail)
         => detail.PlayerCampaignAssignmentId > 0
             && detail.PlayerId > 0
@@ -85,6 +86,10 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
             && detail.GraduationYear > 0
             && detail.PlacementOutcome is >= PlacementOutcome.Undecided and <= PlacementOutcome.Withdrawn
             && detail.Notes is not null
+            && detail.Notes.All(note => note.NoteId > 0 && !string.IsNullOrWhiteSpace(note.Content) && !string.IsNullOrWhiteSpace(note.AuthorDisplayName))
             && detail.AppliedTags is not null
-            && detail.Capabilities is not null;
+            && detail.AppliedTags.All(tag => tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.ActorDisplayName))
+            && detail.Capabilities is not null
+            && detail.ConcurrencyToken != Guid.Empty
+            && detail.CampaignStatus is >= CampaignStatus.Active and <= CampaignStatus.Closed;
 }
