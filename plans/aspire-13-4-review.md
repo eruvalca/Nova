@@ -48,24 +48,27 @@ only remaining env vars are `ASPNETCORE_ENVIRONMENT` and `DOTNET_ENVIRONMENT`.
 Verified with `ConvertFrom-Json`; no other repo references to the removed variables
 exist. No code change in AppHost.cs was needed.
 
-## Phase 2: Consider pinning Postgres image tag (floating "18")
+## Phase 2: Consider pinning the Postgres image (floating "18")
 
 Status: Not started
 
-Aspire 13.4 bumped the default Postgres image from 17.6 to 18.3. Nova already pins
-`WithImageTag("18")` in `Nova.AppHost/AppHost.cs`, so the 17→18 on-disk data layout
-break does not apply to Nova's existing `WithDataVolume()` (the volume was created
-under the 18 layout). However, `"18"` is a floating major tag — a future 18.x image
-with a breaking layout change would affect the existing volume without warning.
+Aspire 13.4 bumped the default Postgres image from 17.6 to 18.3, and Nova already
+pins `WithImageTag("18")` in `Nova.AppHost/AppHost.cs`, so the 17→18 on-disk data
+layout change is already behind it. Postgres minor releases within major 18 are
+storage-compatible, so a later 18.x image cannot recreate that layout break. The
+real decision is a general image-pinning tradeoff: keeping the floating `"18"` tag
+picks up bug/security fixes automatically but gives loose reproducibility; pinning
+`"18.3"` (or a digest) improves reproducibility but stalls updates until manually
+bumped, and exact reproducibility requires a digest.
 
-- [ ] Decide whether to pin a specific patch tag (e.g. `"18.3"`) in `Nova.AppHost/AppHost.cs` for reproducibility, or keep floating `"18"`
-- [ ] If pinning, confirm the pinned tag's data layout is compatible with the existing dev volume
-- [ ] Update the integration-test comment in `NovaAppHostFixture.cs` if the tag changes (it strips volumes, so tests are unaffected)
+- [ ] Decide whether to pin a specific tag (e.g. `"18.3"`) or digest in `Nova.AppHost/AppHost.cs` for reproducibility, or keep floating `"18"` for automatic bug/security updates
+- [ ] If pinning, verify the chosen 18.x image still boots against the existing dev volume (storage-compatible within major 18)
+- [ ] Run `Nova.Integration.Tests` against the chosen tag; `NovaAppHostFixture` strips volumes, so persisted-volume compatibility is covered by the AppHost smoke check, not the tests
 
 ### Verification Plan
 
-- `aspire run` (or `dotnet run --project Nova.AppHost`) — Postgres 18 container starts and `novadb` is reachable; existing dev volume mounts without the "18+ data layout" startup error.
-- `Nova.Integration.Tests` — `NovaAppHostFixture` still boots the AppHost and applies migrations (volumes are stripped in tests, so unaffected by tag choice).
+- `aspire run` (or `dotnet run --project Nova.AppHost`) — Postgres 18 container starts and `novadb` is reachable; the existing dev volume mounts without a startup error.
+- `Nova.Integration.Tests` — `NovaAppHostFixture` still boots the AppHost and applies migrations (volumes are stripped in tests, so they are unaffected by the tag choice).
 
 ### Phase Summary
 
@@ -73,26 +76,30 @@ _(write when phase completes)_
 
 ## Phase 3: Adopt `--search` CLI diagnostics in the monitoring workflow
 
-Status: Not started
+Status: Complete
 
 Aspire 13.4 adds `--search` to `aspire logs` and the `aspire otel` commands
 (logs/traces), plus field filters, and `aspire doctor` now reports CLI + AppHost SDK
 versions. These make agent-driven diagnostics faster (search applied server-side
-before streaming). No code change is required; the value is in the workflow and any
-documented commands in the repo's monitoring skill / testing instructions.
+before streaming). No code change was required — the repo's skill references already
+document the `--search` forms, so this phase was verification-only.
 
-- [ ] Review `.agents/skills/aspire-monitoring/` and `.github/instructions/` docs for log/trace lookup commands that should mention `--search`
-- [ ] Update doc examples to use `aspire logs --search "..."`, `aspire otel logs --search`, `aspire otel traces --search` where applicable
-- [ ] Optionally run `aspire doctor` output through the CI docs / onboarding notes so CLI↔SDK version mismatches are caught early
+- [x] Review `.agents/skills/aspire-monitoring/` and `.github/instructions/` docs for log/trace lookup commands that should mention `--search`
+- [x] Update doc examples to use `aspire logs --search "..."`, `aspire otel logs --search`, `aspire otel traces --search` where applicable
+- [ ] Optional: surface `aspire doctor` version output in the CI docs / onboarding notes so CLI↔SDK version mismatches are caught early
 
 ### Verification Plan
 
-- `aspire doctor` reports both CLI version and AppHost SDK version (13.4.6) — no mismatch.
-- Docs reference the `--search` forms with concrete Nova examples (e.g. filtering by a route or error term).
+- `aspire doctor` reports the Aspire CLI version (13.4.6) — confirmed 4/4 checks pass.
+- Docs reference the `--search` forms — confirmed already present in `.agents/skills/aspire-monitoring/references/monitoring.md:31-42` and `.agents/skills/aspire-orchestration/references/agent-workflows.md:65-67`.
 
 ### Phase Summary
 
-_(write when phase completes)_
+The `--search` adoption was already complete before this review: the repo's
+`aspire-monitoring` and `aspire-orchestration` skill references document `--search`
+for OTEL logs/spans, console logs, and traces. Verified during PR review; no doc
+updates were needed. Only the optional `aspire doctor` onboarding follow-up remains,
+deferred as a nice-to-have.
 
 ## Phase 4: Evaluate typed resource commands / WithProcessCommand (optional)
 
