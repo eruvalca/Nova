@@ -67,3 +67,6 @@ Filter by class with `--filter-class "*Name"`.
    permitted role and exact counts for lifecycle or tenancy exclusions.
 13. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
    Repeat `--filter-class` for multiple classes; do not combine class names with `|`.
+14. Before committing, run `dotnet format Nova.slnx` to apply repo formatting rules, then confirm
+   `dotnet format Nova.slnx --verify-no-changes` exits 0. CI's `format-check` job runs the same
+   verify command and fails on any drift.

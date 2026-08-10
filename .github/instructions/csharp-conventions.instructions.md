@@ -16,7 +16,7 @@ description: "Nova C# coding conventions, Try-method contracts, editorconfig exp
 - Prefer `string.Empty` over empty string literals for representing empty strings.
 - Eliminate unused parameters and unused value assignments.
 - Prefer `using var x = ...;` over `using (...) { }` when the variable lifetime naturally ends at the enclosing scope.
-- Before finalizing C# changes, run `dotnet format` with the narrowest scope that covers edited files/projects; use solution-wide formatting only for broad refactors.
+- **Always run `dotnet format` before committing C# changes** so code aligns with the repo's `.editorconfig` rules. Apply formatting with `dotnet format Nova.slnx` (or the narrowest scope covering the edited files/projects), then verify locally with `dotnet format Nova.slnx --verify-no-changes` (exit 0 = clean). The CI `format-check` job runs exactly `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic` and fails on any formatting drift, so do not commit until this check passes. Use solution-wide formatting only for broad refactors.
 
 ## `Try*` contracts
 
