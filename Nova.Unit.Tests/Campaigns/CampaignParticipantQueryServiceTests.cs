@@ -111,7 +111,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             {
                 CampaignId = _campaignAId,
                 Search = "avery",
-                GraduationYears = [2028],
+                GraduationYears = [2028, 2029],
                 TagDefinitionIds = [_tagAId],
                 Outcome = "assigned",
                 TeamId = _teamAId,
@@ -125,7 +125,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             {
                 CampaignId = _campaignAId,
                 Search = "avery",
-                GraduationYears = [2028],
+                GraduationYears = [2028, 2029],
                 TagDefinitionIds = [_tagAId],
                 Outcome = "assigned",
                 TeamId = _teamAId,
