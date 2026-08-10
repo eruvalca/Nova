@@ -22,6 +22,7 @@ using Nova.Features.Photos;
 using Nova.Features.Players;
 using Nova.Features.Tags;
 using Nova.Features.Teams;
+using Nova.ServiceDefaults;
 using Nova.Shared.Features.Account;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Clubs;

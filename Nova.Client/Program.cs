@@ -2,6 +2,11 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Nova.Client.Services;
+using Nova.Client.Services.Campaigns;
+using Nova.Client.Services.Clubs;
+using Nova.Client.Services.Photos;
+using Nova.Client.Services.Players;
+using Nova.Client.Services.Teams;
 using Nova.Client.Telemetry;
 using Nova.Shared.Features.Account;
 using Nova.Shared.Features.Campaigns;
