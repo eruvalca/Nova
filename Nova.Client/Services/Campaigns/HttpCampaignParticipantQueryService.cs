@@ -81,9 +81,9 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
             && !string.IsNullOrWhiteSpace(item.DisplayName)
             && item.GraduationYear > 0
             && item.PlacementOutcome is >= PlacementOutcome.Undecided and <= PlacementOutcome.Withdrawn
-           && (item.Team is null || (item.Team.TeamId > 0 && !string.IsNullOrWhiteSpace(item.Team.TeamName)))
+           && (item.Team is null || (item.Team is not null && item.Team.TeamId > 0 && !string.IsNullOrWhiteSpace(item.Team.TeamName)))
            && item.AppliedTags is not null
-           && item.AppliedTags.All(tag => tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName));
+           && item.AppliedTags.All(tag => tag is not null && tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.TagColor));
 
     private static bool IsValidDetail(CampaignParticipantDetailDto detail, long expectedPlayerCampaignAssignmentId)
         => detail.PlayerCampaignAssignmentId == expectedPlayerCampaignAssignmentId
@@ -92,9 +92,9 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
             && detail.GraduationYear > 0
             && detail.PlacementOutcome is >= PlacementOutcome.Undecided and <= PlacementOutcome.Withdrawn
             && detail.Notes is not null
-            && detail.Notes.All(note => note.NoteId > 0 && !string.IsNullOrWhiteSpace(note.Content) && !string.IsNullOrWhiteSpace(note.AuthorDisplayName))
+           && detail.Notes.All(note => note is not null && note.NoteId > 0 && !string.IsNullOrWhiteSpace(note.Content) && !string.IsNullOrWhiteSpace(note.AuthorDisplayName))
             && detail.AppliedTags is not null
-            && detail.AppliedTags.All(tag => tag.CampaignTagApplicationId > 0 && tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.ActorDisplayName))
+           && detail.AppliedTags.All(tag => tag is not null && tag.CampaignTagApplicationId > 0 && tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.TagColor) && !string.IsNullOrWhiteSpace(tag.ActorDisplayName))
             && detail.Capabilities is not null
             && detail.ConcurrencyToken != Guid.Empty
             && detail.CampaignStatus is >= CampaignStatus.Active and <= CampaignStatus.Closed;

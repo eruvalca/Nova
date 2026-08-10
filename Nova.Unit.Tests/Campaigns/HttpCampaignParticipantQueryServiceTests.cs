@@ -35,10 +35,11 @@ public sealed class HttpCampaignParticipantQueryServiceTests
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) };
         });
 
-        var service = new HttpCampaignParticipantQueryService(new HttpClient(handler)
+        using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
-        });
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
 
         var result = await service.GetParticipantRosterAsync(new GetCampaignParticipantRosterInput
         {
@@ -83,6 +84,45 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                     Guid.NewGuid(),
                     [new CampaignParticipantNoteDto(1, "", "A Member", DateTimeOffset.UtcNow)],
                     [new CampaignParticipantTagApplicationDto(0, 401, "Blue", "Blue", false, "", DateTimeOffset.UtcNow)],
+                    new CampaignParticipantCapabilitiesDto(true, true, true, true)))
+            }));
+
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
+        {
+            CampaignId = 42,
+            PlayerCampaignAssignmentId = 101
+        }, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task GetParticipantDetailAsync_ReturnsServerError_ForNullOrBlankNestedTagData()
+    {
+        var handler = new RecordingHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new CampaignParticipantDetailDto(
+                    101,
+                    202,
+                    "Avery Adams",
+                    2028,
+                    7,
+                    PlacementOutcome.Assigned,
+                    new CampaignParticipantTeamSummaryDto(301, "Alpha"),
+                    DateTimeOffset.UtcNow,
+                    null,
+                    CampaignStatus.Active,
+                    Guid.NewGuid(),
+                    [new CampaignParticipantNoteDto(1, "Hello", "A Member", DateTimeOffset.UtcNow)],
+                    [null!, new CampaignParticipantTagApplicationDto(2, 401, "Blue", string.Empty, false, "A Member", DateTimeOffset.UtcNow)],
                     new CampaignParticipantCapabilitiesDto(true, true, true, true)))
             }));
 
