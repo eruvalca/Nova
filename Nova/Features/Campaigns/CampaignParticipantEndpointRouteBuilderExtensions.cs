@@ -1,4 +1,4 @@
-using Nova.Features.Shared;
+﻿using Nova.Features.Shared;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
