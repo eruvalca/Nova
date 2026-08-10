@@ -185,6 +185,76 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
+    public async Task GetParticipantDetailAsync_ReturnsSuccess_ForValidPayload()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var payload = new CampaignParticipantDetailDto(
+            101,
+            202,
+            "Avery Adams",
+            2028,
+            7,
+            PlacementOutcome.Assigned,
+            new CampaignParticipantTeamSummaryDto(301, "Alpha"),
+            now,
+            null,
+            CampaignStatus.Active,
+            Guid.NewGuid(),
+            [
+                new CampaignParticipantNoteDto(2, "Newer note", "A Member", now, true, true),
+                new CampaignParticipantNoteDto(1, "Older note", "A Member", now.AddMinutes(-5), true, true)
+            ],
+            [
+                new CampaignParticipantTagApplicationDto(3, 401, "Blue", "Blue", false, "A Member", now, true),
+                new CampaignParticipantTagApplicationDto(2, 402, "Gold", "Gold", false, "A Member", now.AddMinutes(-2), true)
+            ],
+            new CampaignParticipantCapabilitiesDto(true, true, true, true));
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
+        {
+            CampaignId = 42,
+            PlayerCampaignAssignmentId = 101
+        }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PlayerCampaignAssignmentId.ShouldBe(101);
+        result.Value.PlayerId.ShouldBe(202);
+        result.Value.DisplayName.ShouldBe("Avery Adams");
+        result.Value.GraduationYear.ShouldBe(2028);
+        result.Value.TryoutNumber.ShouldBe(7);
+        result.Value.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
+        result.Value.Team.ShouldNotBeNull();
+        result.Value.Team!.TeamId.ShouldBe(301);
+        result.Value.Team.TeamName.ShouldBe("Alpha");
+        result.Value.CampaignStatus.ShouldBe(CampaignStatus.Active);
+        result.Value.ConcurrencyToken.ShouldNotBe(Guid.Empty);
+        result.Value.Capabilities.ShouldNotBeNull();
+        result.Value.Capabilities!.CanAddNote.ShouldBeTrue();
+        result.Value.Capabilities.CanApplyTag.ShouldBeTrue();
+        result.Value.Notes.Count.ShouldBe(2);
+        result.Value.Notes[0].NoteId.ShouldBe(2);
+        result.Value.Notes[0].Content.ShouldBe("Newer note");
+        result.Value.Notes[0].CanEdit.ShouldBeTrue();
+        result.Value.Notes[0].CanDelete.ShouldBeTrue();
+        result.Value.Notes[1].NoteId.ShouldBe(1);
+        result.Value.AppliedTags.Count.ShouldBe(2);
+        result.Value.AppliedTags[0].CampaignTagApplicationId.ShouldBe(3);
+        result.Value.AppliedTags[0].TagName.ShouldBe("Blue");
+        result.Value.AppliedTags[0].CanRemove.ShouldBeTrue();
+        result.Value.AppliedTags[1].CampaignTagApplicationId.ShouldBe(2);
+    }
+
+    [Fact]
     public async Task GetParticipantRosterAsync_ReturnsServerError_WhenSuccessBodyIsInvalidJson()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)

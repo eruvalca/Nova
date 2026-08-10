@@ -241,22 +241,28 @@ public sealed partial class CampaignParticipantQueryService(
             return ServiceProblem.NotFound();
         }
 
-        var notes = await db.Notes
+        var isNpgsql = db.Database.IsNpgsql();
+
+        var notesQuery = db.Notes
             .AsNoTracking()
             .Where(note => note.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId)
             .Select(note => new ParticipantNoteProjection(
                 note.NoteId,
                 note.Content,
                 note.CreatedById,
-                note.CreatedAt))
-            .ToListAsync(cancellationToken);
+                note.CreatedAt));
 
-        var orderedNotes = notes
-            .OrderByDescending(note => note.CreatedAt)
-            .ThenByDescending(note => note.NoteId)
-            .ToList();
+        var orderedNotes = isNpgsql
+            ? await notesQuery
+                .OrderByDescending(note => note.CreatedAt)
+                .ThenByDescending(note => note.NoteId)
+                .ToListAsync(cancellationToken)
+            : (await notesQuery.ToListAsync(cancellationToken))
+                .OrderByDescending(note => note.CreatedAt)
+                .ThenByDescending(note => note.NoteId)
+                .ToList();
 
-        var tagApplications = await db.CampaignTagApplications
+        var tagApplicationsQuery = db.CampaignTagApplications
             .AsNoTracking()
             .Where(application => application.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId)
             .Select(application => new ParticipantTagProjection(
@@ -266,13 +272,17 @@ public sealed partial class CampaignParticipantQueryService(
                 application.PlayerTag.Color,
                 application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived,
                 application.CreatedById,
-                application.CreatedAt))
-            .ToListAsync(cancellationToken);
+                application.CreatedAt));
 
-        var orderedTagApplications = tagApplications
-            .OrderByDescending(application => application.CreatedAt)
-            .ThenByDescending(application => application.CampaignTagApplicationId)
-            .ToList();
+        var orderedTagApplications = isNpgsql
+            ? await tagApplicationsQuery
+                .OrderByDescending(application => application.CreatedAt)
+                .ThenByDescending(application => application.CampaignTagApplicationId)
+                .ToListAsync(cancellationToken)
+            : (await tagApplicationsQuery.ToListAsync(cancellationToken))
+                .OrderByDescending(application => application.CreatedAt)
+                .ThenByDescending(application => application.CampaignTagApplicationId)
+                .ToList();
 
         var actorIds = orderedNotes
             .Select(note => note.CreatedById)
@@ -353,6 +363,11 @@ public sealed partial class CampaignParticipantQueryService(
             capabilities);
     }
 
+    /// <summary>
+    /// Escapes LIKE wildcard characters so a user-provided search term is matched literally.
+    /// </summary>
+    /// <param name="value">The raw search term to escape.</param>
+    /// <returns>The search term with backslash, percent, and underscore characters escaped.</returns>
     private static string EscapeLikePattern(string value)
     {
         return value
@@ -361,6 +376,11 @@ public sealed partial class CampaignParticipantQueryService(
             .Replace("_", "\\_");
     }
 
+    /// <summary>
+    /// Normalizes a placement-outcome filter string to its enum value, ignoring case and whitespace.
+    /// </summary>
+    /// <param name="outcome">The raw outcome filter, or <see langword="null"/> when absent.</param>
+    /// <returns>The parsed <see cref="PlacementOutcome"/>, or <see langword="null"/> when blank or unparseable.</returns>
     private static PlacementOutcome? NormalizeOutcome(string? outcome)
         => string.IsNullOrWhiteSpace(outcome)
             ? null
@@ -368,6 +388,13 @@ public sealed partial class CampaignParticipantQueryService(
                 ? parsedOutcome
                 : null;
 
+    /// <summary>
+    /// Applies the requested roster sort key and direction with a stable assignment-id tie-breaker.
+    /// </summary>
+    /// <param name="query">The filtered roster query to order.</param>
+    /// <param name="sortBy">The requested sort key.</param>
+    /// <param name="sortDirection">The requested sort direction.</param>
+    /// <returns>The query with ordering applied.</returns>
     private static IQueryable<PlayerCampaignAssignmentEntity> ApplyOrdering(
         IQueryable<PlayerCampaignAssignmentEntity> query,
         string sortBy,
@@ -402,12 +429,24 @@ public sealed partial class CampaignParticipantQueryService(
         };
     }
 
+    /// <summary>
+    /// Logs a roster read rejected because the caller is not scoped to a club.
+    /// </summary>
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "User {UserId} attempted to access a campaign roster without a club scope.")]
     private partial void LogForbiddenRosterAccess(long userId);
 
+    /// <summary>
+    /// Logs a participant-detail read rejected because the caller is not scoped to a club.
+    /// </summary>
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="campaignId">The campaign whose participant detail was requested.</param>
     [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "User {UserId} attempted to access campaign {CampaignId} participant detail without a club scope.")]
     private partial void LogForbiddenDetailAccess(long userId, long campaignId);
 
+    /// <summary>
+    /// Projection of one roster row, flattened from the assignment and its player.
+    /// </summary>
     private sealed record RosterPageRow(
         long PlayerCampaignAssignmentId,
         long PlayerId,
@@ -419,6 +458,9 @@ public sealed partial class CampaignParticipantQueryService(
         long? TeamId,
         string? TeamName);
 
+    /// <summary>
+    /// Projection of one tag application attached to a roster row.
+    /// </summary>
     private sealed record RosterTagSummaryRow(
         long PlayerCampaignAssignmentId,
         long PlayerTagId,
@@ -426,6 +468,9 @@ public sealed partial class CampaignParticipantQueryService(
         string TagColor,
         bool IsArchived);
 
+    /// <summary>
+    /// Projection of one participant detail, flattened from the assignment and its player.
+    /// </summary>
     private sealed record ParticipantDetailProjection(
         long PlayerCampaignAssignmentId,
         long PlayerId,
@@ -442,12 +487,18 @@ public sealed partial class CampaignParticipantQueryService(
         DateTimeOffset CreatedAt,
         DateTimeOffset? ModifiedAt);
 
+    /// <summary>
+    /// Projection of one note attached to a participant assignment.
+    /// </summary>
     private sealed record ParticipantNoteProjection(
         long NoteId,
         string Content,
         long CreatedById,
         DateTimeOffset CreatedAt);
 
+    /// <summary>
+    /// Projection of one tag application attached to a participant assignment.
+    /// </summary>
     private sealed record ParticipantTagProjection(
         long CampaignTagApplicationId,
         long PlayerTagId,
@@ -456,8 +507,4 @@ public sealed partial class CampaignParticipantQueryService(
         bool IsArchived,
         long CreatedById,
         DateTimeOffset CreatedAt);
-
-    private sealed record ActorDisplayNameProjection(
-        long UserId,
-        string DisplayName);
 }

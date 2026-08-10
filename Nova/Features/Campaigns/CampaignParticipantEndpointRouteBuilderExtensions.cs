@@ -46,6 +46,13 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
         }
     }
 
+    /// <summary>
+    /// Handles the campaign participant roster GET request and converts the service result to an HTTP response.
+    /// </summary>
+    /// <param name="input">The paged roster query parameters.</param>
+    /// <param name="campaignParticipantQueryService">The service that resolves the roster query.</param>
+    /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
+    /// <returns>The HTTP result for the roster page.</returns>
     private static async Task<IResult> GetParticipantRosterHandler(
         [AsParameters] GetCampaignParticipantRosterInput input,
         ICampaignParticipantQueryService campaignParticipantQueryService,
@@ -55,6 +62,13 @@ internal static class CampaignParticipantEndpointRouteBuilderExtensions
         return result.ToHttpResult();
     }
 
+    /// <summary>
+    /// Handles the campaign participant detail GET request and converts the service result to an HTTP response.
+    /// </summary>
+    /// <param name="input">The participant detail query parameters.</param>
+    /// <param name="campaignParticipantQueryService">The service that resolves the detail query.</param>
+    /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
+    /// <returns>The HTTP result for the participant detail.</returns>
     private static async Task<IResult> GetParticipantDetailHandler(
         [AsParameters] GetCampaignParticipantDetailInput input,
         ICampaignParticipantQueryService campaignParticipantQueryService,

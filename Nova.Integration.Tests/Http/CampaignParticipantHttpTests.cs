@@ -353,7 +353,7 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         context.AddRange(season, campaign, player, playerTag);
         await context.SaveChangesAsync(cancellationToken);
 
-        var assignment = new PlayerCampaignAssignmentEntity { PlayerId = player.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.Assigned, TryoutNumber = 7 };
+        var assignment = new PlayerCampaignAssignmentEntity { PlayerId = player.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.Undecided, TryoutNumber = 7 };
         context.Add(assignment);
         await context.SaveChangesAsync(cancellationToken);
 
@@ -390,7 +390,7 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
                 CampaignId = campaign.CampaignId,
                 ClubId = clubId,
                 CreatedById = user.Id,
-                PlacementOutcome = PlacementOutcome.Assigned,
+                PlacementOutcome = PlacementOutcome.Undecided,
                 TryoutNumber = 1
             }));
         await context.SaveChangesAsync(cancellationToken);
