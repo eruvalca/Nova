@@ -48,22 +48,28 @@ only remaining env vars are `ASPNETCORE_ENVIRONMENT` and `DOTNET_ENVIRONMENT`.
 Verified with `ConvertFrom-Json`; no other repo references to the removed variables
 exist. No code change in AppHost.cs was needed.
 
-## Phase 2: Consider pinning the Postgres image (floating "18")
+## Phase 2: Postgres image pinning (floating major "18")
 
-Status: Not started
+Status: Decided
 
 Aspire 13.4 bumped the default Postgres image from 17.6 to 18.3, and Nova already
 pins `WithImageTag("18")` in `Nova.AppHost/AppHost.cs`, so the 17→18 on-disk data
-layout change is already behind it. Postgres minor releases within major 18 are
-storage-compatible, so a later 18.x image cannot recreate that layout break. The
-real decision is a general image-pinning tradeoff: keeping the floating `"18"` tag
-picks up bug/security fixes automatically but gives loose reproducibility; pinning
-`"18.3"` (or a digest) improves reproducibility but stalls updates until manually
-bumped, and exact reproducibility requires a digest.
+layout change is already behind it. **Decision: keep the floating major tag `"18"`.**
 
-- [ ] Decide whether to pin a specific tag (e.g. `"18.3"`) or digest in `Nova.AppHost/AppHost.cs` for reproducibility, or keep floating `"18"` for automatic bug/security updates
-- [ ] If pinning, verify the chosen 18.x image still boots against the existing dev volume (storage-compatible within major 18)
-- [ ] Run `Nova.Integration.Tests` against the chosen tag; `NovaAppHostFixture` strips volumes, so persisted-volume compatibility is covered by the AppHost smoke check, not the tests
+Postgres minor releases within a major never change the on-disk format, so any
+18.y image mounts the existing dev volume without a layout migration — a floating
+`"18"` tag cannot recreate the 17→18 break. The `18` tag tracks the latest 18.y, so
+it picks up bug/security fixes automatically; the only cost is loose reproducibility
+(a later `aspire run` may pull a newer 18.y), which is acceptable for a dev AppHost
+with a data volume. Downgrading to 17 was rejected: it would reintroduce the
+major-layout question and require an explicit `pg_upgrade`/dump-restore to reach 18
+later. Reserve a minor (`"18.3"`) or digest pin for a future need such as CI parity
+with a specific image or byte-exact reproducibility.
+
+- [x] Decide: keep `WithImageTag("18")` — floating major tag for automatic bug/security fixes within major 18
+- [x] Reject downgrade to major 17 — would reintroduce the major-layout migration and require an explicit upgrade later
+- [ ] Optional follow-up: pin `"18.3"` or a digest only if CI parity or byte-exact reproducibility is ever required
+- [ ] If the tag is ever pinned to a specific minor, boot the AppHost against the existing dev volume (storage-compatible within major 18) and run `Nova.Integration.Tests`; `NovaAppHostFixture` strips volumes, so persisted-volume compatibility is covered by the AppHost smoke check, not the tests
 
 ### Verification Plan
 
@@ -72,7 +78,13 @@ bumped, and exact reproducibility requires a digest.
 
 ### Phase Summary
 
-_(write when phase completes)_
+Decided to keep the floating major `"18"` tag already set in
+`Nova.AppHost/AppHost.cs`. Minor releases within major 18 are storage-compatible,
+so no layout risk; the floating tag keeps automatic bug/security fixes while
+accepting loose reproducibility, which is fine for a dev volume. Postgres 17 was
+considered and rejected (it would reintroduce a future major-layout migration). No
+code change was needed. Minor/digest pinning remains documented as an optional
+follow-up for CI parity or byte-exact reproducibility.
 
 ## Phase 3: Adopt `--search` CLI diagnostics in the monitoring workflow
 
