@@ -375,6 +375,66 @@ internal sealed class AdvisoryLockGateInterceptor : DbCommandInterceptor
 }
 
 /// <summary>
+/// Pauses the first removal-receipt prune so a competing removal in the same club can prune the same
+/// expired receipts concurrently, reproducing the overlapping-prune race between different campaigns.
+/// The prune is either the set-based delete produced by ExecuteDeleteAsync (a single DELETE command)
+/// or, on providers that cannot translate the age filter to SQL, the load-and-remove fallback whose
+/// receipts SELECT has already buffered the expired rows when the reader is returned. Both hooks
+/// fire after the prune has decided which receipts to delete but before the delete reaches the
+/// database, so the paused removal replays a zero-row delete after the competing removal commits.
+/// </summary>
+internal sealed class GateReceiptDeleteInterceptor : DbCommandInterceptor
+{
+    private readonly TaskCompletionSource _deleteAttempted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _release =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _shouldGate = 1;
+
+    /// <summary>Waits until the first receipt prune is about to execute.</summary>
+    public Task WaitForDeleteAttemptAsync(CancellationToken cancellationToken) =>
+        _deleteAttempted.Task.WaitAsync(cancellationToken);
+
+    /// <summary>Allows the paused receipt prune to proceed.</summary>
+    public void Release() => _release.TrySetResult();
+
+    /// <inheritdoc />
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        await GateIfReceiptPruneAsync(command, cancellationToken);
+        return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        await GateIfReceiptPruneAsync(command, cancellationToken);
+        return await base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    private async ValueTask GateIfReceiptPruneAsync(DbCommand command, CancellationToken cancellationToken)
+    {
+        if (IsReceiptPrune(command) && Interlocked.Exchange(ref _shouldGate, 0) == 1)
+        {
+            _deleteAttempted.TrySetResult();
+            await _release.Task.WaitAsync(cancellationToken);
+        }
+    }
+
+    private static bool IsReceiptPrune(DbCommand command) =>
+        command.CommandText.Contains("DELETE FROM \"CampaignTagApplicationRemovalReceipts\"", StringComparison.Ordinal)
+        || command.CommandText.Contains("FROM \"CampaignTagApplicationRemovalReceipts\"", StringComparison.Ordinal);
+}
+
+/// <summary>
 /// Commits an independent write immediately after the team duplicate-name probe runs, reproducing
 /// the window in which another request inserts a conflicting team between the probe and the save.
 /// </summary>

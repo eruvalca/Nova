@@ -389,6 +389,18 @@ public sealed partial class CampaignTagApplicationService(
     private static async Task PruneExpiredRemovalReceiptsAsync(NovaDbContext db, CancellationToken cancellationToken)
     {
         var retentionCutoff = DateTimeOffset.UtcNow.AddDays(-RemovalReceiptRetentionDays);
+        if (db.Database.IsNpgsql())
+        {
+            // A set-based delete is idempotent: two concurrent removals in the same club that both
+            // select the same expired receipts will not fight over tracked deletes. After one
+            // transaction deletes them, the other's DELETE affects zero rows instead of throwing
+            // DbUpdateConcurrencyException. It also avoids loading every receipt on each removal.
+            await db.CampaignTagApplicationRemovalReceipts
+                .Where(receipt => receipt.CreatedAt < retentionCutoff)
+                .ExecuteDeleteAsync(cancellationToken);
+            return;
+        }
+
         // SQLite cannot translate DateTimeOffset comparisons to SQL, so the tenant-filtered candidate
         // set is loaded and the age filter is applied in memory. Receipts are pruned daily, keeping
         // the per-club set small and the table bounded.
