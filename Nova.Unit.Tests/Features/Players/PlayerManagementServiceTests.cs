@@ -18,7 +18,7 @@ namespace Nova.Unit.Tests.Features.Players;
 file sealed class HarnessDbContextFactory(TenancyTestHarness harness) : IDbContextFactory<NovaDbContext>
 {
     public NovaDbContext CreateDbContext() => harness.CreateTenantContext();
-    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
         => Task.FromResult(harness.CreateTenantContext());
 }
 

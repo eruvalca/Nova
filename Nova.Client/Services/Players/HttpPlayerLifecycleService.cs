@@ -2,7 +2,7 @@
 using Nova.Shared.Results;
 using OneOf.Types;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Players;
 
 /// <summary>
 /// WebAssembly client implementation of <see cref="IPlayerLifecycleService"/> that calls player lifecycle minimal API endpoints.

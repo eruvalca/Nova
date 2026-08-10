@@ -369,9 +369,9 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         /// <summary>
         /// Creates a tenant context asynchronously.
         /// </summary>
-        /// <param name="cancellationToken">A token that cancels context creation.</param>
+        /// <param name="_">A token that cancels context creation.</param>
         /// <returns>A new tenant context.</returns>
-        public ValueTask<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+        public ValueTask<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
             => ValueTask.FromResult(fixture.CreateTenantContext());
     }
 }

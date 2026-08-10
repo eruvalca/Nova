@@ -28,7 +28,7 @@ internal sealed class RetryingTenantDbContextFactory(
     public NovaDbContext CreateDbContext() => CreateContext();
 
     /// <inheritdoc />
-    public ValueTask<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+    public ValueTask<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
         => ValueTask.FromResult(CreateContext());
 
     /// <summary>

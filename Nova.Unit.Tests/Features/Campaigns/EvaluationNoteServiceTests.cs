@@ -20,7 +20,7 @@ file sealed class HarnessDbContextFactory(TenancyTestHarness harness) : IDbConte
     public NovaDbContext CreateDbContext() => harness.CreateTenantContext();
 
     /// <inheritdoc />
-    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
         => Task.FromResult(harness.CreateTenantContext());
 }
 
@@ -224,7 +224,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     [Fact]
     public async Task Edit_ReturnsConflict_ForClosedCampaign()
     {
-        long closedNoteId = SeedNote(_closedAssignmentId, ClubAId, ClubAMember1Id);
+        var closedNoteId = SeedNote(_closedAssignmentId, ClubAId, ClubAMember1Id);
 
         ActAs(ClubAMember1Id, ClubAId);
         var sut = CreateService();
@@ -260,7 +260,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     [Fact]
     public async Task Delete_Succeeds_ForAuthor()
     {
-        long noteId = SeedNote(_assignmentId, ClubAId, ClubAMember1Id);
+        var noteId = SeedNote(_assignmentId, ClubAId, ClubAMember1Id);
         ActAs(ClubAMember1Id, ClubAId);
         var sut = CreateService();
 
@@ -273,7 +273,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     [Fact]
     public async Task Delete_Succeeds_ForClubAdmin()
     {
-        long noteId = SeedNote(_assignmentId, ClubAId, ClubAMember1Id);
+        var noteId = SeedNote(_assignmentId, ClubAId, ClubAMember1Id);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var sut = CreateService();
 
@@ -286,7 +286,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     [Fact]
     public async Task Delete_ReturnsForbidden_ForNonAuthorNonAdmin()
     {
-        long noteId = SeedNote(_assignmentId, ClubAId, ClubAMember1Id);
+        var noteId = SeedNote(_assignmentId, ClubAId, ClubAMember1Id);
         ActAs(ClubAMember2Id, ClubAId, isClubAdmin: false);
         var sut = CreateService();
 
@@ -299,7 +299,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     [Fact]
     public async Task Delete_ReturnsConflict_ForClosedCampaign()
     {
-        long noteId = SeedNote(_closedAssignmentId, ClubAId, ClubAMember1Id);
+        var noteId = SeedNote(_closedAssignmentId, ClubAId, ClubAMember1Id);
         ActAs(ClubAMember1Id, ClubAId);
         var sut = CreateService();
 

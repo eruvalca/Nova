@@ -27,7 +27,7 @@ public sealed class TraceParentPropagatingHandler : DelegatingHandler
 
             if (!request.Headers.Contains("traceparent"))
             {
-                string traceParent = activity is not null
+                var traceParent = activity is not null
                     ? CreateTraceParentValue(activity.TraceId, activity.SpanId, "01")
                     : CreateFallbackTraceParentValue();
 

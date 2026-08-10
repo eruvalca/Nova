@@ -3,7 +3,7 @@ using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Teams;
 
 /// <summary>
 /// WebAssembly client implementation of <see cref="ITeamRosterService"/>.

@@ -190,7 +190,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
     private sealed class FixtureDbContextFactory(NovaAppHostFixture fixture) : IDbContextFactory<Nova.Data.NovaDbContext>
     {
         public Nova.Data.NovaDbContext CreateDbContext() => fixture.CreateTenantContext();
-        public Task<Nova.Data.NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+        public Task<Nova.Data.NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
             => Task.FromResult(fixture.CreateTenantContext());
     }
 }

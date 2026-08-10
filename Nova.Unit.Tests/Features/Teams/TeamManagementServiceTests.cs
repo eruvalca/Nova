@@ -301,7 +301,7 @@ public sealed class TeamManagementServiceTests : IDisposable
     {
         public NovaDbContext CreateDbContext() => harness.CreateTenantContext();
 
-        public Task<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+        public Task<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
             => Task.FromResult(harness.CreateTenantContext());
     }
 }
