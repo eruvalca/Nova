@@ -41,4 +41,10 @@ public class CampaignTagApplicationEntity : BaseEntity, ITenantOwnedEntity
     /// Gets or sets the club owning this campaign tag application.
     /// </summary>
     public ClubEntity Club { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the stable identifier used to verify an idempotent apply transaction.
+    /// Applications created before request-scoped apply verification support have no identifier.
+    /// </summary>
+    public Guid? CreationOperationId { get; set; }
 }

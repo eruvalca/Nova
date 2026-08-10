@@ -161,6 +161,28 @@ public sealed class HttpCampaignTagApplicationServiceTests
     }
 
     /// <summary>
+    /// Verifies malformed success JSON becomes an explicit server error.
+    /// </summary>
+    [Fact]
+    public async Task ApplyAsync_ReturnsServerError_ForMalformedSuccessPayload()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = new StringContent("{not-json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignTagApplicationService(http).ApplyAsync(
+            ValidApplyInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        result.Problem.Detail.ShouldBe("The server returned an invalid campaign tag application response.");
+    }
+
+    /// <summary>
     /// Verifies a successful JSON null response is rejected as an invalid payload.
     /// </summary>
     [Fact]
