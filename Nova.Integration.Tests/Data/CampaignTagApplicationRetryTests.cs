@@ -186,6 +186,62 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a removal prunes receipts older than the retention window so the durable verification
+    /// artifact does not accumulate unboundedly, while the current operation's receipt is retained.
+    /// </summary>
+    [Fact]
+    public async Task RemoveCampaignTagApplication_PrunesExpiredRemovalReceipts()
+    {
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var suffix = Guid.NewGuid().ToString("N");
+        var (clubId, _, _, _, applicationId) = await SeedTagApplicationDataAsync(actorUserId, suffix, applied: true);
+
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        // Backdate a receipt from an earlier removal beyond the retention window.
+        var staleOperationId = Guid.CreateVersion7();
+        await using (var seed = fixture.CreateAdminContext())
+        {
+            var staleReceipt = new CampaignTagApplicationRemovalReceiptEntity
+            {
+                RemovalOperationId = staleOperationId,
+                CampaignTagApplicationId = applicationId,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            seed.CampaignTagApplicationRemovalReceipts.Add(staleReceipt);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            staleReceipt.CreatedAt = DateTimeOffset.UtcNow.AddDays(-2);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            new NoOpInterceptor());
+        var service = new CampaignTagApplicationService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<CampaignTagApplicationService>.Instance);
+
+        var result = await ((ICampaignTagApplicationService)service).RemoveAsync(
+            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = applicationId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+
+        await using var verify = fixture.CreateAdminContext();
+        var staleRemains = await verify.CampaignTagApplicationRemovalReceipts
+            .AnyAsync(receipt => receipt.RemovalOperationId == staleOperationId, TestContext.Current.CancellationToken);
+        staleRemains.ShouldBeFalse("expired receipts must be pruned during removal");
+        var freshReceiptCount = await verify.CampaignTagApplicationRemovalReceipts
+            .CountAsync(receipt => receipt.CampaignTagApplicationId == applicationId, TestContext.Current.CancellationToken);
+        freshReceiptCount.ShouldBe(1, "the current removal's receipt must survive for verification");
+    }
+
+    /// <summary>
     /// Seeds one club, campaign, player, tag, participation, and optional tag application owned by it.
     /// </summary>
     /// <param name="actorUserId">The creating user identifier.</param>

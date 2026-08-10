@@ -56,6 +56,13 @@ internal sealed class RetryingTenantDbContextFactory(
 }
 
 /// <summary>
+/// A no-op interceptor used when a test exercises the mutation path without injecting failures.
+/// </summary>
+internal sealed class NoOpInterceptor : DbCommandInterceptor
+{
+}
+
+/// <summary>
 /// Simulates one transient failure after the database has committed a transaction but before the
 /// application receives a successful commit result.
 /// </summary>

@@ -322,13 +322,17 @@ through authorized HTTP endpoints and a typed WASM client, end to end:
 
 ## Deployment Plan
 
-No schema or migration changes — this feature adds only endpoints, a client, and DI registration, all
-in code. Steps:
+This feature adds one database migration: `AddCampaignTagApplicationOperationIds` creates the
+nullable, filtered-unique `CreationOperationId` on `CampaignTagApplications` and the
+`CampaignTagApplicationRemovalReceipts` table (durable request-scoped remove verification).
+Steps:
 
 1. Merge the PR into `main`; CI builds `Nova.slnx`, runs `dotnet format --verify-no-changes`, the full
    unit suite, and the integration suites (Postgres via Aspire).
-2. No database migration to apply; the `CampaignTagApplication`, `PlayerTag`, and
-   `PlayerCampaignAssignment` tables already exist from the PR #72 migration.
+2. Apply the new `AddCampaignTagApplicationOperationIds` migration to the production database *before*
+   deploying the server (`Nova`). Without it the new columns/table are missing and both mutation
+   endpoints fail. The `CampaignTagApplication`, `PlayerTag`, and `PlayerCampaignAssignment` tables
+   already exist from the PR #72 migration.
 3. Deploy the server (`Nova`) and WASM assets (`Nova.Client`) as usual. The two new routes are
    authenticated via the existing `RequireClubMember` policy, so no new configuration/secrets needed.
 4. Client-side: nothing to configure — the WASM service reads shared route constants.

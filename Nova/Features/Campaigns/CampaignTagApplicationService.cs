@@ -37,6 +37,13 @@ public sealed partial class CampaignTagApplicationService(
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignTagApplicationService> logger) : ICampaignTagApplicationService
 {
+    /// <summary>
+    /// How long durable removal receipts are retained before the next removal prunes them. Verification
+    /// runs immediately after commit, so a one-day window keeps the table bounded without affecting
+    /// ambiguous-commit detection.
+    /// </summary>
+    private const int RemovalReceiptRetentionDays = 1;
+
     /// <inheritdoc />
     async Task<ServiceResult<CampaignTagApplicationMutationSuccess>> ICampaignTagApplicationService.ApplyAsync(
         ApplyCampaignTagApplicationInput input,
@@ -345,6 +352,8 @@ public sealed partial class CampaignTagApplicationService(
             return new CampaignTagApplicationForbidden("Only the applying user or a club administrator can remove this tag application.");
         }
 
+        await PruneExpiredRemovalReceiptsAsync(db, cancellationToken);
+
         db.CampaignTagApplicationRemovalReceipts.Add(new CampaignTagApplicationRemovalReceiptEntity
         {
             RemovalOperationId = removalOperationId,
@@ -367,6 +376,30 @@ public sealed partial class CampaignTagApplicationService(
 
         LogRemoveSucceeded(input.CampaignTagApplicationId, actorUserId);
         return new Success();
+    }
+
+    /// <summary>
+    /// Deletes removal receipts older than the retention window so the durable verification artifact
+    /// does not accumulate unboundedly with tag removals. Runs inside the remove transaction so a
+    /// transient-failure retry replays the prune along with the delete, and the tenant filter scopes
+    /// the prune to the current club.
+    /// </summary>
+    /// <param name="db">The fresh tenant context created for this attempt.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    private static async Task PruneExpiredRemovalReceiptsAsync(NovaDbContext db, CancellationToken cancellationToken)
+    {
+        var retentionCutoff = DateTimeOffset.UtcNow.AddDays(-RemovalReceiptRetentionDays);
+        // SQLite cannot translate DateTimeOffset comparisons to SQL, so the tenant-filtered candidate
+        // set is loaded and the age filter is applied in memory. Receipts are pruned daily, keeping
+        // the per-club set small and the table bounded.
+        var expiredReceipts = (await db.CampaignTagApplicationRemovalReceipts
+                .ToListAsync(cancellationToken))
+            .Where(receipt => receipt.CreatedAt < retentionCutoff)
+            .ToList();
+        if (expiredReceipts.Count > 0)
+        {
+            db.CampaignTagApplicationRemovalReceipts.RemoveRange(expiredReceipts);
+        }
     }
 
     /// <summary>

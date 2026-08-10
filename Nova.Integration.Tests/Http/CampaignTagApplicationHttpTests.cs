@@ -424,6 +424,103 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies removing another club's tag application id is non-disclosing and leaves the row intact.
+    /// </summary>
+    [Fact]
+    public async Task RemoveCampaignTagApplication_ReturnsNotFound_ForCrossTenantApplication()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        using var ownerClient = fixture.CreateNovaHttpClient();
+        var ownerEmail = UniqueEmail("tag-remove-owner-club");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(ownerClient, ownerEmail, Password, cancellationToken);
+        await UpdateUserAsync(ownerEmail, clubId: null, cancellationToken);
+        var ownerClub = await CreateClubAsync(ownerClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(ownerClient, cancellationToken);
+        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(ownerClub.ClubId, ownerEmail, cancellationToken);
+
+        using var applyResponse = await ownerClient.PostAsJsonAsync(
+            CampaignEndpoints.ApplyCampaignTagApplication,
+            ValidApplyInput(assignmentId, tagId),
+            cancellationToken);
+        applyResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var applied = await applyResponse.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
+
+        using var otherClient = fixture.CreateNovaHttpClient();
+        var otherEmail = UniqueEmail("tag-remove-other-club");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(otherClient, otherEmail, Password, cancellationToken);
+        await UpdateUserAsync(otherEmail, clubId: null, cancellationToken);
+        var otherClub = await CreateClubAsync(otherClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(otherClient, cancellationToken);
+        otherClub.ClubId.ShouldNotBe(ownerClub.ClubId);
+
+        using var removeResponse = await otherClient.DeleteAsync(
+            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId),
+            cancellationToken);
+
+        removeResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        await AssertApplicationPersistedAsync(applied.CampaignTagApplicationId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Verifies removing a tag application from a closed campaign conflicts and leaves the row intact.
+    /// </summary>
+    [Fact]
+    public async Task RemoveCampaignTagApplication_ReturnsConflict_ForClosedCampaign()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("tag-remove-closed");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(club.ClubId, email, cancellationToken, closedCampaign: true);
+        var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
+
+        using var removeResponse = await client.DeleteAsync(
+            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId),
+            cancellationToken);
+
+        removeResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        using var document = await JsonDocument.ParseAsync(
+            await removeResponse.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("detail").GetString()
+            .ShouldBe("Closed campaigns are read-only and cannot remove tag applications.");
+        await AssertApplicationPersistedAsync(applicationId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Verifies removing a tag application whose tag definition is archived conflicts and leaves the row intact.
+    /// </summary>
+    [Fact]
+    public async Task RemoveCampaignTagApplication_ReturnsConflict_ForArchivedTagDefinition()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("tag-remove-archived");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(club.ClubId, email, cancellationToken, archivedTag: true);
+        var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
+
+        using var removeResponse = await client.DeleteAsync(
+            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId),
+            cancellationToken);
+
+        removeResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        using var document = await JsonDocument.ParseAsync(
+            await removeResponse.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("detail").GetString()
+            .ShouldBe("Archived tag definitions cannot be changed.");
+        await AssertApplicationPersistedAsync(applicationId, cancellationToken);
+    }
+
+    /// <summary>
     /// Verifies deleting with a non-positive route value returns validation ProblemDetails.
     /// </summary>
     [Fact]
@@ -577,6 +674,50 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         await context.SaveChangesAsync(cancellationToken);
 
         return (campaign.CampaignId, playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId);
+    }
+
+    /// <summary>
+    /// Inserts a tag application row directly via the admin context, bypassing the apply endpoint's
+    /// lifecycle guards so boundary tests can start from a closed campaign or archived tag.
+    /// </summary>
+    /// <param name="clubId">The owning club identifier.</param>
+    /// <param name="tagId">The tag definition identifier.</param>
+    /// <param name="assignmentId">The participation identifier.</param>
+    /// <param name="email">A registered user email whose database row provides the created-by identifier.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The new tag application identifier.</returns>
+    private async Task<long> InsertTagApplicationAsync(
+        long clubId,
+        long tagId,
+        long assignmentId,
+        string email,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+        var application = new CampaignTagApplicationEntity
+        {
+            PlayerCampaignAssignmentId = assignmentId,
+            PlayerTagId = tagId,
+            ClubId = clubId,
+            CreatedById = user.Id
+        };
+        context.Add(application);
+        await context.SaveChangesAsync(cancellationToken);
+        return application.CampaignTagApplicationId;
+    }
+
+    /// <summary>
+    /// Asserts the given tag application row still exists after a rejected removal attempt.
+    /// </summary>
+    /// <param name="applicationId">The tag application identifier.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    private async Task AssertApplicationPersistedAsync(long applicationId, CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var persisted = await context.CampaignTagApplications
+            .SingleOrDefaultAsync(candidate => candidate.CampaignTagApplicationId == applicationId, cancellationToken);
+        persisted.ShouldNotBeNull();
     }
 
     /// <summary>
