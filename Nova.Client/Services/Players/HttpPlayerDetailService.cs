@@ -1,7 +1,7 @@
 ﻿using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Players;
 
 /// <summary>
 /// WebAssembly HTTP implementation of <see cref="IPlayerDetailService"/>.

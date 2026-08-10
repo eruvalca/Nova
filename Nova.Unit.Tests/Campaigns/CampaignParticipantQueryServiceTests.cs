@@ -15,7 +15,7 @@ file sealed class CampaignParticipantReadHarnessDbContextFactory(TenancyTestHarn
 {
     public NovaReadDbContext CreateDbContext() => harness.CreateReadContext();
 
-    public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+    public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken _ = default)
         => Task.FromResult(harness.CreateReadContext());
 }
 

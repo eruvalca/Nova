@@ -34,20 +34,20 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
         var club = await CreateClubAsync(adminClient, "Roundtrip Rangers", "Round Rock", "TX", cancellationToken);
         await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
-        var seeded = await SeedResolvedPlayerAsync(club.ClubId, cancellationToken);
+        var (playerId, teamId, activeCampaignId, historicalCampaignId) = await SeedResolvedPlayerAsync(club.ClubId, cancellationToken);
 
-        using (var archive = await adminClient.PostAsync(PlayerEndpoints.ArchiveUrl(seeded.PlayerId), content: null, cancellationToken))
+        using (var archive = await adminClient.PostAsync(PlayerEndpoints.ArchiveUrl(playerId), content: null, cancellationToken))
         {
             archive.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
-        using (var restore = await adminClient.PostAsync(PlayerEndpoints.RestoreUrl(seeded.PlayerId), content: null, cancellationToken))
+        using (var restore = await adminClient.PostAsync(PlayerEndpoints.RestoreUrl(playerId), content: null, cancellationToken))
         {
             restore.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
         await using var verify = fixture.CreateAdminContext();
-        var player = await verify.Players.SingleAsync(p => p.PlayerId == seeded.PlayerId, cancellationToken);
+        var player = await verify.Players.SingleAsync(p => p.PlayerId == playerId, cancellationToken);
         player.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
         player.ArchivedAt.ShouldBeNull();
         player.ArchivedById.ShouldBeNull();
@@ -64,8 +64,8 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
             .ToListAsync(cancellationToken);
 
         assignments.Count.ShouldBe(2);
-        assignments.ShouldContain(a => a.CampaignId == seeded.ActiveCampaignId && a.PlacementOutcome == PlacementOutcome.Assigned && a.TeamId == seeded.TeamId);
-        assignments.ShouldContain(a => a.CampaignId == seeded.HistoricalCampaignId && a.PlacementOutcome == PlacementOutcome.Assigned && a.TeamId == seeded.TeamId);
+        assignments.ShouldContain(a => a.CampaignId == activeCampaignId && a.PlacementOutcome == PlacementOutcome.Assigned && a.TeamId == teamId);
+        assignments.ShouldContain(a => a.CampaignId == historicalCampaignId && a.PlacementOutcome == PlacementOutcome.Assigned && a.TeamId == teamId);
     }
 
     /// <summary>
@@ -83,18 +83,18 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
         var club = await CreateClubAsync(adminClient, "Blocker Borough", "Dallas", "TX", cancellationToken);
         await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
-        var seeded = await SeedBlockedPlayerAsync(club.ClubId, cancellationToken);
+        var (playerId, campaignId, participationId) = await SeedBlockedPlayerAsync(club.ClubId, cancellationToken);
 
-        using var archive = await adminClient.PostAsync(PlayerEndpoints.ArchiveUrl(seeded.PlayerId), content: null, cancellationToken);
+        using var archive = await adminClient.PostAsync(PlayerEndpoints.ArchiveUrl(playerId), content: null, cancellationToken);
         archive.StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
         var problem = await archive.ToServiceProblemAsync(cancellationToken);
         problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
         problem.TryGetArchiveBlockers(out var blockers).ShouldBeTrue();
         blockers.Count.ShouldBe(1);
-        blockers[0].CampaignId.ShouldBe(seeded.CampaignId);
+        blockers[0].CampaignId.ShouldBe(campaignId);
         blockers[0].CampaignName.ShouldBe("Active Blocker Campaign");
-        blockers[0].ParticipationIds.ShouldBe([seeded.ParticipationId]);
+        blockers[0].ParticipationIds.ShouldBe([participationId]);
     }
 
     /// <summary>
@@ -133,10 +133,8 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
             forbidden.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
-        using (var notFound = await clubAAdminClient.PostAsync(PlayerEndpoints.ArchiveUrl(clubBPlayerId), content: null, cancellationToken))
-        {
-            notFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        }
+        using var notFound = await clubAAdminClient.PostAsync(PlayerEndpoints.ArchiveUrl(clubBPlayerId), content: null, cancellationToken);
+        notFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     /// <summary>

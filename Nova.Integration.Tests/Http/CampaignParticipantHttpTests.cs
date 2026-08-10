@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -34,14 +34,14 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
-        var seed = await SeedRosterDataAsync(club.ClubId, email, cancellationToken);
+        var (campaignId, tagId, _) = await SeedRosterDataAsync(club.ClubId, email, cancellationToken);
 
         using var response = await client.GetAsync(
             CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput
             {
-                CampaignId = seed.CampaignId,
+                CampaignId = campaignId,
                 GraduationYears = [2028, 2029],
-                TagDefinitionIds = [seed.TagId],
+                TagDefinitionIds = [tagId],
                 Page = 1,
                 PageSize = 50
             }),
@@ -69,10 +69,10 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
-        var seed = await SeedRosterDataAsync(club.ClubId, email, cancellationToken);
+        var (campaignId, _, assignmentId) = await SeedRosterDataAsync(club.ClubId, email, cancellationToken);
 
         using var response = await client.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(seed.CampaignId, seed.AssignmentId + 1),
+            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId + 1),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);

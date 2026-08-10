@@ -23,7 +23,7 @@ file sealed class CampaignReadHarnessDbContextFactory(TenancyTestHarness harness
     /// <summary>Creates an asynchronous read context.</summary>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A tenant-filtered read context.</returns>
-    public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+    public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken _ = default)
         => Task.FromResult(harness.CreateReadContext());
 }
 

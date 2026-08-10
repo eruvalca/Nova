@@ -11,7 +11,6 @@ namespace Nova.UI.Features.Account.Components;
 /// </summary>
 public partial class AssignClubAdminPanel(IClubMemberService clubMemberService, NavigationManager navigationManager) : NovaComponentBase
 {
-    private IReadOnlyList<ClubMemberDto> _members = [];
     private long? _selectedUserId;
     private bool _loading = true;
     private bool _submitting;
@@ -22,11 +21,7 @@ public partial class AssignClubAdminPanel(IClubMemberService clubMemberService, 
     /// Persisted across prerender → interactive attach to avoid duplicate initial fetch.
     /// </summary>
     [PersistentState]
-    public IReadOnlyList<ClubMemberDto> Members
-    {
-        get => _members;
-        set => _members = value ?? [];
-    }
+    public IReadOnlyList<ClubMemberDto> Members { get; set; } = [];
 
     /// <summary>
     /// The initial-load error message shown when club members cannot be fetched.

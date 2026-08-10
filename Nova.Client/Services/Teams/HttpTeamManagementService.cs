@@ -3,7 +3,7 @@ using Nova.Shared.Enums;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Teams;
 
 /// <summary>
 /// WebAssembly client implementation of <see cref="ITeamManagementService"/> that calls the

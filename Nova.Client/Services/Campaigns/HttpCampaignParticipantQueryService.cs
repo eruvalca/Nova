@@ -3,7 +3,7 @@ using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Campaigns;
 
 /// <summary>
 /// WebAssembly HTTP implementation of <see cref="ICampaignParticipantQueryService"/>.
@@ -84,7 +84,7 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
            && (item.Team is null || (item.Team.TeamId > 0 && !string.IsNullOrWhiteSpace(item.Team.TeamName)))
            && item.AppliedTags is not null
            && item.AppliedTags.All(tag => tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName));
- 
+
     private static bool IsValidDetail(CampaignParticipantDetailDto detail, long expectedPlayerCampaignAssignmentId)
         => detail.PlayerCampaignAssignmentId == expectedPlayerCampaignAssignmentId
             && detail.PlayerId > 0

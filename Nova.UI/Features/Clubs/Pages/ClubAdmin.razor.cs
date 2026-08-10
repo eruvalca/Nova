@@ -63,10 +63,7 @@ public partial class ClubAdmin(
     private string? _status;
 
     /// <inheritdoc />
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadAsync();
-    }
+    protected override Task OnInitializedAsync() => LoadAsync();
 
     /// <summary>
     /// Loads the club summary, roster, and pending join requests for the current club.

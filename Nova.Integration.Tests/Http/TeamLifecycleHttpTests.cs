@@ -90,21 +90,21 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
         using var adminClient = fixture.CreateNovaHttpClient();
 
         var club = await RegisterClubAdminAsync(adminClient, "team-lifecycle-blockers-admin", "Blocker Bandits", cancellationToken);
-        var seeded = await SeedBlockedTeamAsync(club.ClubId, cancellationToken);
+        var (teamId, campaignId, placementId) = await SeedBlockedTeamAsync(club.ClubId, cancellationToken);
 
-        using var archive = await adminClient.PostAsync(TeamEndpoints.ArchiveUrl(seeded.TeamId), content: null, cancellationToken);
+        using var archive = await adminClient.PostAsync(TeamEndpoints.ArchiveUrl(teamId), content: null, cancellationToken);
         archive.StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
         var problem = await archive.ToServiceProblemAsync(cancellationToken);
         problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
         TeamLifecycleProblemExtensions.TryGetArchiveBlockers(problem, out var blockers).ShouldBeTrue();
         blockers.Count.ShouldBe(1);
-        blockers[0].CampaignId.ShouldBe(seeded.CampaignId);
+        blockers[0].CampaignId.ShouldBe(campaignId);
         blockers[0].CampaignName.ShouldBe("Active Team Blocker Campaign");
-        blockers[0].PlacementIds.ShouldBe([seeded.PlacementId]);
+        blockers[0].PlacementIds.ShouldBe([placementId]);
 
         await using var verify = fixture.CreateAdminContext();
-        var team = await verify.Teams.SingleAsync(candidate => candidate.TeamId == seeded.TeamId, cancellationToken);
+        var team = await verify.Teams.SingleAsync(candidate => candidate.TeamId == teamId, cancellationToken);
         team.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
     }
 
@@ -141,10 +141,8 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
             notFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         }
 
-        using (var restoreNotFound = await clubAAdminClient.PostAsync(TeamEndpoints.RestoreUrl(clubBTeamId), content: null, cancellationToken))
-        {
-            restoreNotFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        }
+        using var restoreNotFound = await clubAAdminClient.PostAsync(TeamEndpoints.RestoreUrl(clubBTeamId), content: null, cancellationToken);
+        restoreNotFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     /// <summary>

@@ -3,7 +3,7 @@ using Nova.Shared.Features.Account;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Clubs;
 
 /// <summary>
 /// WebAssembly client implementation of <see cref="IClubMemberService"/> that calls the server's

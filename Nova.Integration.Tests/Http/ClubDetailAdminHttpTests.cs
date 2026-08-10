@@ -67,22 +67,16 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
             noClubResponse.Headers.Location.OriginalString.ShouldContain("/Account/AccessDenied");
         }
 
-        using (var memberResponse = await memberClient.GetAsync(detailRoute, cancellationToken))
-        {
-            memberResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        }
+        using var memberResponse = await memberClient.GetAsync(detailRoute, cancellationToken);
+        memberResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        using (var adminResponse = await clubAdminClient.GetAsync(detailRoute, cancellationToken))
-        {
-            adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        }
+        using var adminResponse = await clubAdminClient.GetAsync(detailRoute, cancellationToken);
+        adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        using (var otherClubAdminResponse = await otherClubAdminClient.GetAsync(detailRoute, cancellationToken))
-        {
-            otherClubAdminResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
-            otherClubAdminResponse.Headers.Location.ShouldNotBeNull();
-            otherClubAdminResponse.Headers.Location.OriginalString.ShouldContain("/Account/AccessDenied");
-        }
+        using var otherClubAdminResponse = await otherClubAdminClient.GetAsync(detailRoute, cancellationToken);
+        otherClubAdminResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
+        otherClubAdminResponse.Headers.Location.ShouldNotBeNull();
+        otherClubAdminResponse.Headers.Location.OriginalString.ShouldContain("/Account/AccessDenied");
     }
 
     /// <summary>
@@ -147,12 +141,10 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
             adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         }
 
-        using (var otherClubAdminResponse = await otherClubAdminClient.GetAsync(adminRoute, cancellationToken))
-        {
-            otherClubAdminResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
-            otherClubAdminResponse.Headers.Location.ShouldNotBeNull();
-            otherClubAdminResponse.Headers.Location.OriginalString.ShouldContain("/Account/AccessDenied");
-        }
+        using var otherClubAdminResponse = await otherClubAdminClient.GetAsync(adminRoute, cancellationToken);
+        otherClubAdminResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
+        otherClubAdminResponse.Headers.Location.ShouldNotBeNull();
+        otherClubAdminResponse.Headers.Location.OriginalString.ShouldContain("/Account/AccessDenied");
     }
 
     /// <summary>

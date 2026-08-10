@@ -4,7 +4,7 @@ using Nova.Shared.Features.Photos;
 using Nova.Shared.Results;
 using OneOf.Types;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Photos;
 
 /// <summary>
 /// WebAssembly implementation of <see cref="IProfilePhotoService"/> that calls the server's

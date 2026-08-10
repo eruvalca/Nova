@@ -420,7 +420,7 @@ public partial class Campaigns(
             return true;
         }
 
-        var isCurrent = () => editVersion == _editVersion
+        bool IsCurrent() => editVersion == _editVersion
             && viewAtStart == _statusFilter
             && !ComponentCancellationToken.IsCancellationRequested;
 
@@ -436,7 +436,7 @@ public partial class Campaigns(
                 return false;
             }
 
-            if (isCurrent())
+            if (IsCurrent())
             {
                 _pageError = "Could not reach the server. Check your connection and retry.";
             }
@@ -450,7 +450,7 @@ public partial class Campaigns(
             {
                 // Only the current edit selection may publish the payload; a superseded
                 // completion must not replace fresher choices cached by a newer request.
-                if (isCurrent())
+                if (IsCurrent())
                 {
                     _seasonChoices = setup.Seasons;
                     _seasonChoiceTotalCount = setup.TotalSeasonCount;
@@ -467,7 +467,7 @@ public partial class Campaigns(
                     return;
                 }
 
-                if (isCurrent())
+                if (IsCurrent())
                 {
                     _pageError = FirstNonBlank(problem.Detail, "Failed to load seasons. Please retry.");
                 }
