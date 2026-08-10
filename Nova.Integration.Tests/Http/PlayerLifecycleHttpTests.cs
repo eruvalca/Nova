@@ -53,7 +53,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
         player.ArchivedById.ShouldBeNull();
 
         var assignments = await verify.PlayerCampaignAssignments
-            .Where(assignment => assignment.PlayerId == seeded.PlayerId)
+            .Where(assignment => assignment.PlayerId == playerId)
             .OrderBy(assignment => assignment.CampaignId)
             .Select(assignment => new
             {

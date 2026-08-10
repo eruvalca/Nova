@@ -53,7 +53,34 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         roster.TotalCount.ShouldBe(1);
         roster.Items.Count.ShouldBe(1);
         roster.Items[0].DisplayName.ShouldBe("Avery Adams");
-        roster.Items[0].AppliedTags.ShouldContain(tag => tag.PlayerTagId == seed.TagId);
+        roster.Items[0].AppliedTags.ShouldContain(tag => tag.PlayerTagId == tagId);
+    }
+
+    /// <summary>
+    /// Verifies the roster endpoint returns non-disclosing not-found ProblemDetails for missing campaigns.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantRoster_ReturnsNotFoundProblem_ForMissingCampaign()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("participant-roster-missing-campaign");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        await SeedRosterDataAsync(club.ClubId, email, cancellationToken);
+
+        using var response = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = 999_999, Page = 1, PageSize = 50 }),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.NotFound);
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
     }
 
     /// <summary>

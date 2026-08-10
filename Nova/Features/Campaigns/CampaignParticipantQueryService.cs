@@ -313,15 +313,17 @@ public sealed partial class CampaignParticipantQueryService(
             .ToList()
             .AsReadOnly();
 
-        var canEditNotes = assignment.CampaignStatus == CampaignStatus.Active
-            && (currentUserProvider.IsClubAdmin || orderedNotes.Any(note => note.CreatedById == currentUserId));
-        var canEditTags = assignment.CampaignStatus == CampaignStatus.Active
-            && (currentUserProvider.IsClubAdmin || orderedTagApplications.Any(application => application.CreatedById == currentUserId && !application.IsArchived));
+        var isActiveCampaign = assignment.CampaignStatus == CampaignStatus.Active;
+        var isClubAdmin = currentUserProvider.IsClubAdmin;
+        var canEditPlacement = isClubAdmin && isActiveCampaign;
+        var canEditNotes = isActiveCampaign && (isClubAdmin || orderedNotes.Any(note => note.CreatedById == currentUserId));
+        var canEditTags = isActiveCampaign && (isClubAdmin || orderedTagApplications.Any(application => application.CreatedById == currentUserId && !application.IsArchived));
+        var canArchiveTagDefinitions = isClubAdmin && isActiveCampaign;
         var capabilities = new CampaignParticipantCapabilitiesDto(
-            currentUserProvider.IsClubAdmin && assignment.CampaignStatus == CampaignStatus.Active,
+            canEditPlacement,
             canEditNotes,
             canEditTags,
-            currentUserProvider.IsClubAdmin && assignment.CampaignStatus == CampaignStatus.Active);
+            canArchiveTagDefinitions);
 
         return new CampaignParticipantDetailDto(
             assignment.PlayerCampaignAssignmentId,

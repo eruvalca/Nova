@@ -1,5 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
+using System.Text;
+using Microsoft.AspNetCore.Mvc;
 using Nova.Client.Services;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
@@ -84,10 +86,11 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                     new CampaignParticipantCapabilitiesDto(true, true, true, true)))
             }));
 
-        var service = new HttpCampaignParticipantQueryService(new HttpClient(handler)
+        using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
-        });
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
 
         var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
         {
@@ -97,6 +100,111 @@ public sealed class HttpCampaignParticipantQueryServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task GetParticipantRosterAsync_ReturnsServerError_WhenSuccessBodyIsInvalidJson()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{not-json", Encoding.UTF8, "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetParticipantRosterAsync(new GetCampaignParticipantRosterInput
+        {
+            CampaignId = 42,
+            Page = 1,
+            PageSize = 50
+        }, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task GetParticipantRosterAsync_ReturnsServerError_WhenPageSizeIsExceeded()
+    {
+        var payload = new PagedResult<CampaignParticipantRosterItem>(
+            [
+                new CampaignParticipantRosterItem(
+                    101,
+                    202,
+                    "Avery Adams",
+                    2028,
+                    7,
+                    PlacementOutcome.Assigned,
+                    new CampaignParticipantTeamSummaryDto(301, "Alpha"),
+                    [new CampaignParticipantTagSummaryDto(401, "Blue", "Blue", false)]),
+                new CampaignParticipantRosterItem(
+                    102,
+                    203,
+                    "Brett Baker",
+                    2029,
+                    8,
+                    PlacementOutcome.Undecided,
+                    new CampaignParticipantTeamSummaryDto(302, "Beta"),
+                    [])
+            ],
+            1,
+            1,
+            2);
+
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetParticipantRosterAsync(new GetCampaignParticipantRosterInput
+        {
+            CampaignId = 42,
+            Page = 1,
+            PageSize = 1
+        }, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task GetParticipantDetailAsync_ReturnsProblem_WhenServerReturnsProblemDetails()
+    {
+        var problemDetails = new ProblemDetails
+        {
+            Title = "Not Found",
+            Detail = "Participant not found.",
+            Status = (int)HttpStatusCode.NotFound
+        };
+        using var response = new HttpResponseMessage(HttpStatusCode.NotFound)
+        {
+            Content = JsonContent.Create(problemDetails)
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
+        {
+            CampaignId = 42,
+            PlayerCampaignAssignmentId = 101
+        }, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
     private sealed class RecordingHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> callback) : HttpMessageHandler
