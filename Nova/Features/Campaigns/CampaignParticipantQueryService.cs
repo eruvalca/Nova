@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
@@ -57,22 +57,15 @@ public sealed partial class CampaignParticipantQueryService(
 
         if (!string.IsNullOrWhiteSpace(normalizedSearch))
         {
-            var isNpgsql = db.Database.IsNpgsql();
             var uppercaseSearch = normalizedSearch.ToUpperInvariant();
-            if (isNpgsql)
-            {
-                query = query.Where(assignment =>
-                    EF.Functions.ILike(assignment.Player.FirstName + " " + assignment.Player.LastName, $"%{normalizedSearch}%")
+            var isNpgsql = db.Database.IsNpgsql();
+            query = query.Where(assignment => isNpgsql
+                ? EF.Functions.ILike(assignment.Player.FirstName + " " + assignment.Player.LastName, $"%{normalizedSearch}%")
                     || EF.Functions.ILike(assignment.Player.FirstName, $"%{normalizedSearch}%")
-                    || EF.Functions.ILike(assignment.Player.LastName, $"%{normalizedSearch}%"));
-            }
-            else
-            {
-                query = query.Where(assignment =>
-                    (assignment.Player.FirstName + " " + assignment.Player.LastName).ToUpper().Contains(uppercaseSearch)
+                    || EF.Functions.ILike(assignment.Player.LastName, $"%{normalizedSearch}%")
+                : (assignment.Player.FirstName + " " + assignment.Player.LastName).ToUpper().Contains(uppercaseSearch)
                     || assignment.Player.FirstName.ToUpper().Contains(uppercaseSearch)
                     || assignment.Player.LastName.ToUpper().Contains(uppercaseSearch));
-            }
         }
 
         if (graduationYears is { Length: > 0 })
