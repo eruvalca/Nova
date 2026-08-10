@@ -106,25 +106,25 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     [Fact]
     public async Task GetParticipantDetailAsync_ReturnsServerError_ForNullOrBlankNestedTagData()
     {
-        var handler = new RecordingHandler(_ =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new CampaignParticipantDetailDto(
-                    101,
-                    202,
-                    "Avery Adams",
-                    2028,
-                    7,
-                    PlacementOutcome.Assigned,
-                    new CampaignParticipantTeamSummaryDto(301, "Alpha"),
-                    DateTimeOffset.UtcNow,
-                    null,
-                    CampaignStatus.Active,
-                    Guid.NewGuid(),
-                    [new CampaignParticipantNoteDto(1, "Hello", "A Member", DateTimeOffset.UtcNow)],
-                    [null!, new CampaignParticipantTagApplicationDto(2, 401, "Blue", string.Empty, false, "A Member", DateTimeOffset.UtcNow)],
-                    new CampaignParticipantCapabilitiesDto(true, true, true, true)))
-            }));
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new CampaignParticipantDetailDto(
+                101,
+                202,
+                "Avery Adams",
+                2028,
+                7,
+                PlacementOutcome.Assigned,
+                new CampaignParticipantTeamSummaryDto(301, "Alpha"),
+                DateTimeOffset.UtcNow,
+                null,
+                CampaignStatus.Active,
+                Guid.NewGuid(),
+                [new CampaignParticipantNoteDto(1, "Hello", "A Member", DateTimeOffset.UtcNow)],
+                [null!, new CampaignParticipantTagApplicationDto(2, 401, "Blue", string.Empty, false, "A Member", DateTimeOffset.UtcNow)],
+                new CampaignParticipantCapabilitiesDto(true, true, true, true)))
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
 
         using var http = new HttpClient(handler)
         {

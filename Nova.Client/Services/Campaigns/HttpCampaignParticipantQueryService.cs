@@ -81,7 +81,7 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
             && !string.IsNullOrWhiteSpace(item.DisplayName)
             && item.GraduationYear > 0
             && item.PlacementOutcome is >= PlacementOutcome.Undecided and <= PlacementOutcome.Withdrawn
-           && (item.Team is null || (item.Team is not null && item.Team.TeamId > 0 && !string.IsNullOrWhiteSpace(item.Team.TeamName)))
+           && (item.Team is null || (item.Team?.TeamId > 0 && !string.IsNullOrWhiteSpace(item.Team?.TeamName)))
            && item.AppliedTags is not null
            && item.AppliedTags.All(tag => tag is not null && tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.TagColor));
 
