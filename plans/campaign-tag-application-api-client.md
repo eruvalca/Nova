@@ -4,7 +4,10 @@ Expose the completed `CampaignTagApplicationService` add/remove foundation (issu
 authorized HTTP endpoints and a typed WebAssembly client, so the participant drawer can apply and
 remove tags and refresh participant detail (issue #70). Reuses the existing
 `ApplyCampaignTagApplicationInput` / `RemoveCampaignTagApplicationInput` records unchanged; adds no
-new entities, migrations, tag-definition CRUD, or applied-tags list endpoint.
+tag-definition CRUD or applied-tags list endpoint. Durable request-specific verification of
+ambiguous commit outcomes required two persistence additions agreed during review: a
+`CampaignTagApplicationRemovalReceipt` entity and an incremental migration
+(`AddCampaignTagApplicationOperationIds`) adding the operation-ID columns and the receipt table.
 
 Scope (confirmed with user):
 
@@ -26,8 +29,9 @@ Scope (confirmed with user):
 - **WASM client**: `HttpCampaignTagApplicationService` (PostAsJsonAsync for apply reading the 201 body;
   DeleteAsync for remove, 204 → `Success`); DI registration in `Nova.Client/Program.cs`.
 - **Tests**: WASM client unit tests (`FakeHttpMessageHandler`) and HTTP boundary integration tests.
-- **Out of scope**: entities, migrations, duplicate-policy reimplementation, tag CRUD,
-  participant-detail queries, drawer UI, placement, append-only history.
+- **Out of scope**: entity or migration work beyond the agreed removal-receipt entity and
+  operation-ID migration, duplicate-policy reimplementation, tag CRUD, participant-detail queries,
+  drawer UI, placement, append-only history.
 
 ## For Future Agents
 
