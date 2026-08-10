@@ -110,6 +110,100 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
     }
 
+    /// <summary>
+    /// Verifies anonymous callers receive an unauthorized response for both participant routes.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantRoutes_ReturnUnauthorized_ForAnonymousCaller()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var anonymousClient = fixture.CreateNovaHttpClient();
+
+        using var rosterResponse = await anonymousClient.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = 1, Page = 1, PageSize = 50 }),
+            cancellationToken);
+        rosterResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+        using var detailResponse = await anonymousClient.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantDetailUrl(1, 1),
+            cancellationToken);
+        detailResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// Verifies a current-club member can load a participant detail payload with the expected shape.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantDetail_ReturnsPayload_ForCurrentClubMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("participant-detail-success");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (campaignId, _, assignmentId) = await SeedRosterDataAsync(club.ClubId, email, cancellationToken);
+
+        using var response = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var detail = await response.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        detail.ShouldNotBeNull();
+        detail.PlayerCampaignAssignmentId.ShouldBe(assignmentId);
+        detail.Notes.Count.ShouldBe(1);
+        detail.Notes[0].CanEdit.ShouldBeTrue();
+        detail.Notes[0].CanDelete.ShouldBeTrue();
+        detail.AppliedTags[0].CanRemove.ShouldBeTrue();
+        detail.Capabilities.CanAddNote.ShouldBeTrue();
+        detail.Capabilities.CanApplyTag.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies wildcard characters are treated as literals when the PostgreSQL search branch is used.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantRoster_TreatsSearchWildcardsAsLiterals_OnPostgresLikeBranch()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("participant-wildcards");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var campaignId = await SeedWildcardSearchDataAsync(club.ClubId, email, cancellationToken);
+
+        using var percentResponse = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = campaignId, Search = "%", Page = 1, PageSize = 50 }),
+            cancellationToken);
+        percentResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var percentRoster = await percentResponse.Content.ReadFromJsonAsync<PagedResult<CampaignParticipantRosterItem>>(cancellationToken);
+        percentRoster.ShouldNotBeNull();
+        percentRoster.TotalCount.ShouldBe(1);
+        percentRoster.Items[0].DisplayName.ShouldBe("A% Player");
+
+        using var underscoreResponse = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = campaignId, Search = "_", Page = 1, PageSize = 50 }),
+            cancellationToken);
+        underscoreResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var underscoreRoster = await underscoreResponse.Content.ReadFromJsonAsync<PagedResult<CampaignParticipantRosterItem>>(cancellationToken);
+        underscoreRoster.ShouldNotBeNull();
+        underscoreRoster.TotalCount.ShouldBe(1);
+        underscoreRoster.Items[0].DisplayName.ShouldBe("A_Player");
+
+        using var backslashResponse = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = campaignId, Search = "\\", Page = 1, PageSize = 50 }),
+            cancellationToken);
+        backslashResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var backslashRoster = await backslashResponse.Content.ReadFromJsonAsync<PagedResult<CampaignParticipantRosterItem>>(cancellationToken);
+        backslashRoster.ShouldNotBeNull();
+        backslashRoster.TotalCount.ShouldBe(1);
+        backslashRoster.Items[0].DisplayName.ShouldBe("A\\Player");
+    }
+
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";
 
     private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
@@ -157,5 +251,39 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         await context.SaveChangesAsync(cancellationToken);
 
         return (campaign.CampaignId, playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId);
+    }
+
+    private async Task<long> SeedWildcardSearchDataAsync(long clubId, string email, CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+        var season = new SeasonEntity { Name = "Wildcard Search Season", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+        var campaign = new CampaignEntity { Name = "Wildcard Search Campaign", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = user.Id };
+        context.AddRange(season, campaign);
+        await context.SaveChangesAsync(cancellationToken);
+
+        var players = new[]
+        {
+            new PlayerEntity { FirstName = "A%", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id },
+            new PlayerEntity { FirstName = "A_", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id },
+            new PlayerEntity { FirstName = "A\\", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id }
+        };
+
+        context.Players.AddRange(players);
+        await context.SaveChangesAsync(cancellationToken);
+
+        context.PlayerCampaignAssignments.AddRange(
+            players.Select(player => new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                ClubId = clubId,
+                CreatedById = user.Id,
+                PlacementOutcome = PlacementOutcome.Assigned,
+                TryoutNumber = 1
+            }));
+        await context.SaveChangesAsync(cancellationToken);
+
+        return campaign.CampaignId;
     }
 }

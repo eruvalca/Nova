@@ -21,7 +21,7 @@ public partial class AssignClubAdminPanel(IClubMemberService clubMemberService, 
     /// Persisted across prerender → interactive attach to avoid duplicate initial fetch.
     /// </summary>
     [PersistentState]
-    public IReadOnlyList<ClubMemberDto> Members { get; set; } = [];
+    public IReadOnlyList<ClubMemberDto>? Members { get; set; } = [];
 
     /// <summary>
     /// The initial-load error message shown when club members cannot be fetched.

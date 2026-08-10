@@ -233,13 +233,41 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         result.Value.ConcurrencyToken.ShouldNotBe(Guid.Empty);
         result.Value.Notes.ShouldContain(note => note.Content == "Seed note");
         result.Value.AppliedTags.ShouldContain(tag => tag.CampaignTagApplicationId > 0 && tag.TagName == "Blue Tag" && tag.ActorDisplayName == "A Member");
+        result.Value.Notes[0].CanEdit.ShouldBeTrue();
+        result.Value.Notes[0].CanDelete.ShouldBeTrue();
+        result.Value.AppliedTags[0].CanRemove.ShouldBeTrue();
         result.Value.Capabilities.CanAddNote.ShouldBeTrue();
-        result.Value.Capabilities.CanEditNote.ShouldBeTrue();
-        result.Value.Capabilities.CanDeleteNote.ShouldBeTrue();
         result.Value.Capabilities.CanApplyTag.ShouldBeTrue();
-        result.Value.Capabilities.CanRemoveTagApplication.ShouldBeTrue();
         result.Value.Capabilities.CanEditPlacement.ShouldBeFalse();
         result.Value.Capabilities.CanArchiveTagDefinitions.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GetParticipantDetail_DoesNotExposePlacementEdit_WhenPlayerArchived()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        using (var admin = _harness.CreateAdminContext())
+        {
+            var player = admin.Players.Single(candidate => candidate.ClubId == ClubAId && candidate.FirstName == "Avery");
+            player.LifecycleStatus = LifecycleStatus.Archived;
+            player.ArchivedAt = DateTimeOffset.UtcNow;
+            player.ArchivedById = ClubAMemberId;
+            admin.SaveChanges();
+        }
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetParticipantDetailAsync(
+            new GetCampaignParticipantDetailInput { CampaignId = _campaignAId, PlayerCampaignAssignmentId = _assignmentAId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Capabilities.CanEditPlacement.ShouldBeFalse();
     }
 
     private void Seed()

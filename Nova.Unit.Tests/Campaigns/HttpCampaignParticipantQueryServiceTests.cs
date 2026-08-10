@@ -82,9 +82,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                     null,
                     CampaignStatus.Active,
                     Guid.NewGuid(),
-                    [new CampaignParticipantNoteDto(1, "", "A Member", DateTimeOffset.UtcNow)],
-                    [new CampaignParticipantTagApplicationDto(0, 401, "Blue", "Blue", false, "", DateTimeOffset.UtcNow)],
-                    new CampaignParticipantCapabilitiesDto(true, true, true, true, true, true, true)))
+                    [new CampaignParticipantNoteDto(1, "", "A Member", DateTimeOffset.UtcNow, true, true)],
+                    [new CampaignParticipantTagApplicationDto(0, 401, "Blue", "Blue", false, "", DateTimeOffset.UtcNow, true)],
+                    new CampaignParticipantCapabilitiesDto(true, true, true, true)))
             }));
 
         using var http = new HttpClient(handler)
@@ -120,9 +120,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                 null,
                 CampaignStatus.Active,
                 Guid.NewGuid(),
-                [new CampaignParticipantNoteDto(1, "Hello", "A Member", DateTimeOffset.UtcNow)],
-                [null!, new CampaignParticipantTagApplicationDto(2, 401, "Blue", string.Empty, false, "A Member", DateTimeOffset.UtcNow)],
-                new CampaignParticipantCapabilitiesDto(true, true, true, true, true, true, true)))
+                [new CampaignParticipantNoteDto(1, "Hello", "A Member", DateTimeOffset.UtcNow, true, true)],
+                [null!, new CampaignParticipantTagApplicationDto(2, 401, "Blue", string.Empty, false, "A Member", DateTimeOffset.UtcNow, true)],
+                new CampaignParticipantCapabilitiesDto(true, true, true, true)))
         };
         var handler = new RecordingHandler(_ => Task.FromResult(response));
 

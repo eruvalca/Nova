@@ -58,7 +58,9 @@ public sealed record CampaignParticipantNoteDto(
     long NoteId,
     string Content,
     string AuthorDisplayName,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool CanEdit,
+    bool CanDelete);
 
 /// <summary>
 /// Tag application summary attached to a participant detail payload.
@@ -70,7 +72,8 @@ public sealed record CampaignParticipantTagApplicationDto(
     string TagColor,
     bool IsArchived,
     string ActorDisplayName,
-    DateTimeOffset AppliedAt);
+    DateTimeOffset AppliedAt,
+    bool CanRemove);
 
 /// <summary>
 /// Capability flags exposed to the caller for the participant detail view.
@@ -78,9 +81,6 @@ public sealed record CampaignParticipantTagApplicationDto(
 public sealed record CampaignParticipantCapabilitiesDto(
     bool CanEditPlacement,
     bool CanAddNote,
-    bool CanEditNote,
-    bool CanDeleteNote,
     bool CanApplyTag,
-    bool CanRemoveTagApplication,
     bool CanArchiveTagDefinitions);
 

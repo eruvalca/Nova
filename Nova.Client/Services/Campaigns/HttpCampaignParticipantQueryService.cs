@@ -95,10 +95,11 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
             && detail.GraduationYear > 0
             && detail.PlacementOutcome is >= PlacementOutcome.Undecided and <= PlacementOutcome.Withdrawn
             && detail.Notes is not null
-           && detail.Notes.All(note => note is not null && note.NoteId > 0 && !string.IsNullOrWhiteSpace(note.Content) && !string.IsNullOrWhiteSpace(note.AuthorDisplayName))
+            && detail.Notes.All(note => note is not null && note.NoteId > 0 && !string.IsNullOrWhiteSpace(note.Content) && !string.IsNullOrWhiteSpace(note.AuthorDisplayName))
             && detail.AppliedTags is not null
-           && detail.AppliedTags.All(tag => tag is not null && tag.CampaignTagApplicationId > 0 && tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.TagColor) && !string.IsNullOrWhiteSpace(tag.ActorDisplayName))
+            && detail.AppliedTags.All(tag => tag is not null && tag.CampaignTagApplicationId > 0 && tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.TagColor) && !string.IsNullOrWhiteSpace(tag.ActorDisplayName))
             && detail.Capabilities is not null
+            && (detail.Team is null || (detail.Team.TeamId > 0 && !string.IsNullOrWhiteSpace(detail.Team.TeamName)))
             && detail.ConcurrencyToken != Guid.Empty
             && detail.CampaignStatus is >= CampaignStatus.Active and <= CampaignStatus.Closed;
 }

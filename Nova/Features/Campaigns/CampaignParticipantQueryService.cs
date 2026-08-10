@@ -240,6 +240,7 @@ public sealed partial class CampaignParticipantQueryService(
                 assignment.TeamId,
                 assignment.Team != null ? assignment.Team.Name : null,
                 assignment.Campaign.Status,
+                assignment.Player.LifecycleStatus,
                 assignment.ConcurrencyToken,
                 assignment.CreatedAt,
                 assignment.ModifiedAt))
@@ -302,43 +303,45 @@ public sealed partial class CampaignParticipantQueryService(
                     row => string.Join(" ", new[] { row.FirstName, row.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))),
                     EqualityComparer<long>.Default);
 
+        var isActiveCampaign = assignment.CampaignStatus == CampaignStatus.Active;
+        var isClubAdmin = currentUserProvider.IsClubAdmin;
+        var canEditPlacement = isClubAdmin && isActiveCampaign && assignment.PlayerLifecycleStatus == LifecycleStatus.Active;
+        var canAddNote = isActiveCampaign && currentUserId > 0;
+        var canApplyTag = isActiveCampaign && currentUserId > 0;
+        var canArchiveTagDefinitions = isClubAdmin;
+
         var noteDtos = orderedNotes
-            .Select(note => new CampaignParticipantNoteDto(
-                note.NoteId,
-                note.Content,
-                actorDisplayNames.GetValueOrDefault(note.CreatedById) ?? "Unknown user",
-                note.CreatedAt))
+            .Select(note =>
+            {
+                var canEditOrDeleteNote = isActiveCampaign && (isClubAdmin || note.CreatedById == currentUserId);
+                return new CampaignParticipantNoteDto(
+                    note.NoteId,
+                    note.Content,
+                    actorDisplayNames.GetValueOrDefault(note.CreatedById) ?? "Unknown user",
+                    note.CreatedAt,
+                    canEditOrDeleteNote,
+                    canEditOrDeleteNote);
+            })
             .ToList()
             .AsReadOnly();
 
         var tagDtos = orderedTagApplications
             .Select(application => new CampaignParticipantTagApplicationDto(
-               application.CampaignTagApplicationId,
-               application.PlayerTagId,
-               application.TagName,
-               application.TagColor,
-               application.IsArchived,
-               actorDisplayNames.GetValueOrDefault(application.CreatedById) ?? "Unknown user",
-               application.CreatedAt))
+                application.CampaignTagApplicationId,
+                application.PlayerTagId,
+                application.TagName,
+                application.TagColor,
+                application.IsArchived,
+                actorDisplayNames.GetValueOrDefault(application.CreatedById) ?? "Unknown user",
+                application.CreatedAt,
+                isActiveCampaign && (isClubAdmin || (application.CreatedById == currentUserId && !application.IsArchived))))
             .ToList()
             .AsReadOnly();
 
-        var isActiveCampaign = assignment.CampaignStatus == CampaignStatus.Active;
-        var isClubAdmin = currentUserProvider.IsClubAdmin;
-        var canEditPlacement = isClubAdmin && isActiveCampaign;
-        var canAddNote = isActiveCampaign && currentUserId > 0;
-        var canEditNote = isActiveCampaign && (isClubAdmin || orderedNotes.Any(note => note.CreatedById == currentUserId));
-        var canDeleteNote = isActiveCampaign && (isClubAdmin || orderedNotes.Any(note => note.CreatedById == currentUserId));
-        var canApplyTag = isActiveCampaign && currentUserId > 0;
-        var canRemoveTagApplication = isActiveCampaign && (isClubAdmin || orderedTagApplications.Any(application => application.CreatedById == currentUserId && !application.IsArchived));
-        var canArchiveTagDefinitions = isClubAdmin;
         var capabilities = new CampaignParticipantCapabilitiesDto(
             canEditPlacement,
             canAddNote,
-            canEditNote,
-            canDeleteNote,
             canApplyTag,
-            canRemoveTagApplication,
             canArchiveTagDefinitions);
 
         return new CampaignParticipantDetailDto(
@@ -444,6 +447,7 @@ public sealed partial class CampaignParticipantQueryService(
         long? TeamId,
         string? TeamName,
         CampaignStatus CampaignStatus,
+        LifecycleStatus PlayerLifecycleStatus,
         Guid ConcurrencyToken,
         DateTimeOffset CreatedAt,
         DateTimeOffset? ModifiedAt);

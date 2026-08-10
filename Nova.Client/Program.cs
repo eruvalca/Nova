@@ -1,4 +1,4 @@
-using Cropper.Blazor.Extensions;
+﻿using Cropper.Blazor.Extensions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Nova.Client.Services;
