@@ -94,7 +94,7 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         var email = UniqueEmail("participant-roster-invalid-page-size");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, clubId: null, cancellationToken);
-        var club = await CreateClubAsync(client, cancellationToken);
+        await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         using var response = await client.GetAsync(
