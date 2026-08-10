@@ -86,6 +86,36 @@ public static class CampaignEndpoints
     public const string GetCampaignParticipantDetailRouteName = "GetCampaignParticipantDetail";
 
     /// <summary>
+    /// Applies a tag definition to a campaign participation (POST).
+    /// </summary>
+    public const string ApplyCampaignTagApplication = $"{GroupPrefix}/tag-applications";
+
+    /// <summary>
+    /// The relative apply path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string ApplyCampaignTagApplicationRelative = "tag-applications";
+
+    /// <summary>
+    /// The route name assigned to campaign tag application.
+    /// </summary>
+    public const string ApplyCampaignTagApplicationRouteName = "ApplyCampaignTagApplication";
+
+    /// <summary>
+    /// Removes a campaign tag application (DELETE).
+    /// </summary>
+    public const string RemoveCampaignTagApplication = $"{GroupPrefix}/tag-applications/{{campaignTagApplicationId:long}}";
+
+    /// <summary>
+    /// The relative remove path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string RemoveCampaignTagApplicationRelative = "tag-applications/{campaignTagApplicationId:long}";
+
+    /// <summary>
+    /// The route name assigned to campaign tag application removal.
+    /// </summary>
+    public const string RemoveCampaignTagApplicationRouteName = "RemoveCampaignTagApplication";
+
+    /// <summary>
     /// Updates an Active campaign's metadata (PUT).
     /// </summary>
     public const string UpdateCampaignMetadata = $"{GroupPrefix}/metadata";
@@ -236,4 +266,12 @@ public static class CampaignEndpoints
     /// <returns>The detail URL.</returns>
     public static string GetCampaignParticipantDetailUrl(long campaignId, long playerCampaignAssignmentId)
         => $"{GroupPrefix}/{campaignId}/participants/{playerCampaignAssignmentId}";
+
+    /// <summary>
+    /// Builds a campaign tag application removal URL.
+    /// </summary>
+    /// <param name="campaignTagApplicationId">The campaign tag application identifier.</param>
+    /// <returns>The removal URL.</returns>
+    public static string RemoveCampaignTagApplicationUrl(long campaignTagApplicationId)
+        => $"{GroupPrefix}/tag-applications/{campaignTagApplicationId}";
 }

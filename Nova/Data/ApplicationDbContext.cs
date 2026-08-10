@@ -85,6 +85,10 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// </summary>
     public DbSet<CampaignTagApplicationEntity> CampaignTagApplications => Set<CampaignTagApplicationEntity>();
     /// <summary>
+    /// Gets the Campaign Tag Application Removal Receipts.
+    /// </summary>
+    public DbSet<CampaignTagApplicationRemovalReceiptEntity> CampaignTagApplicationRemovalReceipts => Set<CampaignTagApplicationRemovalReceiptEntity>();
+    /// <summary>
     /// Gets the Campaign Lifecycle Events.
     /// </summary>
     public DbSet<CampaignLifecycleEventEntity> CampaignLifecycleEvents => Set<CampaignLifecycleEventEntity>();

@@ -22,6 +22,10 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
 
     private readonly TenancyTestHarness _harness = new();
 
+    // Assigned during Seed() so tests reference the same durable operation identifiers.
+    private Guid _clubARemovalOperationId;
+    private Guid _clubBRemovalOperationId;
+
     /// <summary>
     /// Initializes campaign tag application data for two tenants.
     /// </summary>
@@ -57,6 +61,42 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         {
             PlayerCampaignAssignmentId = ClubBAssignmentId,
             PlayerTagId = ClubBTagId,
+            ClubId = ClubBId,
+            CreatedById = ClubAUserId
+        });
+
+        var exception = Should.Throw<InvalidOperationException>(() => db.SaveChanges());
+
+        exception.Message.ShouldContain("Cross-tenant");
+    }
+
+    /// <summary>
+    /// Verifies removal receipts are visible only to their owning club.
+    /// </summary>
+    [Fact]
+    public void TenantContext_FiltersRemovalReceiptsToCurrentClub()
+    {
+        ActAs(ClubAUserId, ClubAId);
+        using var db = _harness.CreateTenantContext();
+
+        var receipts = db.CampaignTagApplicationRemovalReceipts.ToList();
+
+        receipts.Count.ShouldBe(1);
+        receipts.ShouldAllBe(receipt => receipt.ClubId == ClubAId);
+    }
+
+    /// <summary>
+    /// Verifies the save interceptor rejects removal receipts explicitly assigned to another tenant.
+    /// </summary>
+    [Fact]
+    public void TenantContext_RejectsCrossTenantRemovalReceiptWrite()
+    {
+        ActAs(ClubAUserId, ClubAId);
+        using var db = _harness.CreateTenantContext();
+        db.CampaignTagApplicationRemovalReceipts.Add(new CampaignTagApplicationRemovalReceiptEntity
+        {
+            RemovalOperationId = Guid.CreateVersion7(),
+            CampaignTagApplicationId = 1501,
             ClubId = ClubBId,
             CreatedById = ClubAUserId
         });
@@ -250,6 +290,24 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
                 CampaignTagApplicationId = 1501,
                 PlayerCampaignAssignmentId = ClubBAssignmentId,
                 PlayerTagId = ClubBTagId,
+                ClubId = ClubBId,
+                CreatedById = ClubBUserId
+            });
+
+        _clubARemovalOperationId = Guid.CreateVersion7();
+        _clubBRemovalOperationId = Guid.CreateVersion7();
+        db.CampaignTagApplicationRemovalReceipts.AddRange(
+            new CampaignTagApplicationRemovalReceiptEntity
+            {
+                RemovalOperationId = _clubARemovalOperationId,
+                CampaignTagApplicationId = 1500,
+                ClubId = ClubAId,
+                CreatedById = ClubAUserId
+            },
+            new CampaignTagApplicationRemovalReceiptEntity
+            {
+                RemovalOperationId = _clubBRemovalOperationId,
+                CampaignTagApplicationId = 1501,
                 ClubId = ClubBId,
                 CreatedById = ClubBUserId
             });

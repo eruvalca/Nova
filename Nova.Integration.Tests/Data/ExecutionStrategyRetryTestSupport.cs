@@ -56,6 +56,13 @@ internal sealed class RetryingTenantDbContextFactory(
 }
 
 /// <summary>
+/// A no-op interceptor used when a test exercises the mutation path without injecting failures.
+/// </summary>
+internal sealed class NoOpInterceptor : DbCommandInterceptor
+{
+}
+
+/// <summary>
 /// Simulates one transient failure after the database has committed a transaction but before the
 /// application receives a successful commit result.
 /// </summary>
@@ -107,6 +114,38 @@ internal sealed class FailFirstTeamReadInterceptor : DbCommandInterceptor
         CancellationToken cancellationToken = default)
     {
         if (command.CommandText.Contains("FROM \"Teams\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _shouldFail, 0) == 1)
+        {
+            Interlocked.Increment(ref _failureCount);
+            throw new NpgsqlException("Simulated transient read failure.", new TimeoutException());
+        }
+
+        return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Simulates one transient provider failure while a mutation attempt is still reading the campaign
+/// tag application, before it has written or committed anything.
+/// </summary>
+internal sealed class FailFirstCampaignTagApplicationReadInterceptor : DbCommandInterceptor
+{
+    private int _shouldFail = 1;
+    private int _failureCount;
+
+    /// <summary>
+    /// Gets the number of transient read failures injected by this interceptor.
+    /// </summary>
+    public int FailureCount => Volatile.Read(ref _failureCount);
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+        System.Data.Common.DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<System.Data.Common.DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.Contains("\"CampaignTagApplications\"", StringComparison.Ordinal)
             && Interlocked.Exchange(ref _shouldFail, 0) == 1)
         {
             Interlocked.Increment(ref _failureCount);
@@ -333,6 +372,66 @@ internal sealed class AdvisoryLockGateInterceptor : DbCommandInterceptor
 
     private static bool IsAdvisoryLock(DbCommand command) =>
         command.CommandText.Contains("pg_advisory_xact_lock", StringComparison.Ordinal);
+}
+
+/// <summary>
+/// Pauses the first removal-receipt prune so a competing removal in the same club can prune the same
+/// expired receipts concurrently, reproducing the overlapping-prune race between different campaigns.
+/// The prune is either the set-based delete produced by ExecuteDeleteAsync (a single DELETE command)
+/// or, on providers that cannot translate the age filter to SQL, the load-and-remove fallback whose
+/// receipts SELECT has already buffered the expired rows when the reader is returned. Both hooks
+/// fire after the prune has decided which receipts to delete but before the delete reaches the
+/// database, so the paused removal replays a zero-row delete after the competing removal commits.
+/// </summary>
+internal sealed class GateReceiptDeleteInterceptor : DbCommandInterceptor
+{
+    private readonly TaskCompletionSource _deleteAttempted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _release =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _shouldGate = 1;
+
+    /// <summary>Waits until the first receipt prune is about to execute.</summary>
+    public Task WaitForDeleteAttemptAsync(CancellationToken cancellationToken) =>
+        _deleteAttempted.Task.WaitAsync(cancellationToken);
+
+    /// <summary>Allows the paused receipt prune to proceed.</summary>
+    public void Release() => _release.TrySetResult();
+
+    /// <inheritdoc />
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        await GateIfReceiptPruneAsync(command, cancellationToken);
+        return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        await GateIfReceiptPruneAsync(command, cancellationToken);
+        return await base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    private async ValueTask GateIfReceiptPruneAsync(DbCommand command, CancellationToken cancellationToken)
+    {
+        if (IsReceiptPrune(command) && Interlocked.Exchange(ref _shouldGate, 0) == 1)
+        {
+            _deleteAttempted.TrySetResult();
+            await _release.Task.WaitAsync(cancellationToken);
+        }
+    }
+
+    private static bool IsReceiptPrune(DbCommand command) =>
+        command.CommandText.Contains("DELETE FROM \"CampaignTagApplicationRemovalReceipts\"", StringComparison.Ordinal)
+        || command.CommandText.Contains("FROM \"CampaignTagApplicationRemovalReceipts\"", StringComparison.Ordinal);
 }
 
 /// <summary>
