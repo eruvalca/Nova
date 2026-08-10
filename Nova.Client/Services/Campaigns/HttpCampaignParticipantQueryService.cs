@@ -76,14 +76,17 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
             && result.Items.All(item => item is not null && IsValidRosterItem(item));
 
     private static bool IsValidRosterItem(CampaignParticipantRosterItem item)
-        => item.PlayerCampaignAssignmentId > 0
-            && item.PlayerId > 0
-            && !string.IsNullOrWhiteSpace(item.DisplayName)
-            && item.GraduationYear > 0
-            && item.PlacementOutcome is >= PlacementOutcome.Undecided and <= PlacementOutcome.Withdrawn
-           && (item.Team is null || (item.Team?.TeamId > 0 && !string.IsNullOrWhiteSpace(item.Team?.TeamName)))
+    {
+        var team = item.Team;
+        return item.PlayerCampaignAssignmentId > 0
+           && item.PlayerId > 0
+           && !string.IsNullOrWhiteSpace(item.DisplayName)
+           && item.GraduationYear > 0
+           && item.PlacementOutcome is >= PlacementOutcome.Undecided and <= PlacementOutcome.Withdrawn
+           && (team is null || (team.TeamId > 0 && !string.IsNullOrWhiteSpace(team.TeamName)))
            && item.AppliedTags is not null
            && item.AppliedTags.All(tag => tag is not null && tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.TagColor));
+    }
 
     private static bool IsValidDetail(CampaignParticipantDetailDto detail, long expectedPlayerCampaignAssignmentId)
         => detail.PlayerCampaignAssignmentId == expectedPlayerCampaignAssignmentId
