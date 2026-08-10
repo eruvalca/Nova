@@ -79,7 +79,7 @@ public sealed record GetCampaignParticipantRosterInput
     public int? Page { get; init; } = DefaultPage;
 
     /// <summary>
-    /// The optional page size. The service applies <see cref="DefaultPageSize"/> when omitted and clamps to <see cref="MaxPageSize"/>.
+    /// The optional page size. The service applies <see cref="DefaultPageSize"/> when omitted, and validation rejects values above <see cref="MaxPageSize"/>.
     /// </summary>
     [Range(1, MaxPageSize)]
     public int? PageSize { get; init; } = DefaultPageSize;

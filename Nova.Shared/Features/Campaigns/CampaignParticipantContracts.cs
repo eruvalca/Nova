@@ -64,6 +64,7 @@ public sealed record CampaignParticipantNoteDto(
 /// Tag application summary attached to a participant detail payload.
 /// </summary>
 public sealed record CampaignParticipantTagApplicationDto(
+    long CampaignTagApplicationId,
     long PlayerTagId,
     string TagName,
     string TagColor,

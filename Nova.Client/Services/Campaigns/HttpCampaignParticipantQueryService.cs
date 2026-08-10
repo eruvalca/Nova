@@ -22,6 +22,9 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
             return ServiceProblem.Validation(errors);
         }
 
+        var expectedPage = input.Page ?? GetCampaignParticipantRosterInput.DefaultPage;
+        var expectedPageSize = input.PageSize ?? GetCampaignParticipantRosterInput.DefaultPageSize;
+
         using var response = await http.GetAsync(
             CampaignEndpoints.GetCampaignParticipantRosterUrl(input),
             cancellationToken);
@@ -32,7 +35,7 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
 
         return await response.Content.ReadRequiredJsonAsync<PagedResult<CampaignParticipantRosterItem>>(
             "The server returned an invalid campaign participant roster response.",
-            result => IsValidRoster(result),
+            result => IsValidRoster(result, expectedPage, expectedPageSize),
             cancellationToken);
     }
 
@@ -57,16 +60,19 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
 
         return await response.Content.ReadRequiredJsonAsync<CampaignParticipantDetailDto>(
             "The server returned an invalid campaign participant detail response.",
-            IsValidDetail,
+            detail => IsValidDetail(detail, input.PlayerCampaignAssignmentId),
             cancellationToken);
     }
 
-    private static bool IsValidRoster(PagedResult<CampaignParticipantRosterItem> result)
-        => result.Page >= 1
-            && result.PageSize >= 1
-            && result.PageSize <= GetCampaignParticipantRosterInput.MaxPageSize
+    private static bool IsValidRoster(
+        PagedResult<CampaignParticipantRosterItem> result,
+        int expectedPage,
+        int expectedPageSize)
+        => result.Items is not null
+            && result.Page == expectedPage
+            && result.PageSize == expectedPageSize
             && result.TotalCount >= 0
-            && result.Items is not null
+            && result.Items.Count <= result.PageSize
             && result.Items.All(item => item is not null && IsValidRosterItem(item));
 
     private static bool IsValidRosterItem(CampaignParticipantRosterItem item)
@@ -79,8 +85,8 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
            && item.AppliedTags is not null
            && item.AppliedTags.All(tag => tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName));
  
-    private static bool IsValidDetail(CampaignParticipantDetailDto detail)
-        => detail.PlayerCampaignAssignmentId > 0
+    private static bool IsValidDetail(CampaignParticipantDetailDto detail, long expectedPlayerCampaignAssignmentId)
+        => detail.PlayerCampaignAssignmentId == expectedPlayerCampaignAssignmentId
             && detail.PlayerId > 0
             && !string.IsNullOrWhiteSpace(detail.DisplayName)
             && detail.GraduationYear > 0
@@ -88,7 +94,7 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
             && detail.Notes is not null
             && detail.Notes.All(note => note.NoteId > 0 && !string.IsNullOrWhiteSpace(note.Content) && !string.IsNullOrWhiteSpace(note.AuthorDisplayName))
             && detail.AppliedTags is not null
-            && detail.AppliedTags.All(tag => tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.ActorDisplayName))
+            && detail.AppliedTags.All(tag => tag.CampaignTagApplicationId > 0 && tag.PlayerTagId > 0 && !string.IsNullOrWhiteSpace(tag.TagName) && !string.IsNullOrWhiteSpace(tag.ActorDisplayName))
             && detail.Capabilities is not null
             && detail.ConcurrencyToken != Guid.Empty
             && detail.CampaignStatus is >= CampaignStatus.Active and <= CampaignStatus.Closed;

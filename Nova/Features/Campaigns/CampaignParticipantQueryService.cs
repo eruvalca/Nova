@@ -47,6 +47,10 @@ public sealed partial class CampaignParticipantQueryService(
         var normalizedSortDirection = string.IsNullOrWhiteSpace(input.SortDirection) ? "asc" : input.SortDirection.Trim();
         var page = input.Page ?? GetCampaignParticipantRosterInput.DefaultPage;
         var pageSize = input.PageSize ?? GetCampaignParticipantRosterInput.DefaultPageSize;
+        if (page < 1 || pageSize < 1 || page > int.MaxValue / pageSize)
+        {
+            return ServiceProblem.Validation(nameof(input.Page), "The page number is too large for the requested page size.");
+        }
         var normalizedOutcome = NormalizeOutcome(input.Outcome);
         var graduationYears = input.GraduationYears?.Where(year => year > 0).Distinct().ToArray();
         var tagDefinitionIds = input.TagDefinitionIds?.Where(id => id > 0).Distinct().ToArray();
@@ -85,7 +89,18 @@ public sealed partial class CampaignParticipantQueryService(
 
         if (tagDefinitionIds is { Length: > 0 })
         {
-            query = query.Where(assignment => assignment.CampaignTagApplications.Any(application => tagDefinitionIds.Contains(application.PlayerTagId)));
+            var visibleTagIds = await db.PlayerTags
+                .AsNoTracking()
+                .Where(tag => tag.ClubId == currentClubId && tagDefinitionIds.Contains(tag.PlayerTagId))
+                .Select(tag => tag.PlayerTagId)
+                .ToArrayAsync(cancellationToken);
+
+            if (visibleTagIds.Length != tagDefinitionIds.Length)
+            {
+                return ServiceProblem.NotFound();
+            }
+
+            query = query.Where(assignment => assignment.CampaignTagApplications.Any(application => visibleTagIds.Contains(application.PlayerTagId)));
         }
 
         if (normalizedOutcome is not null)
@@ -95,6 +110,14 @@ public sealed partial class CampaignParticipantQueryService(
 
         if (input.TeamId is not null)
         {
+            var teamExists = await db.Teams
+                .AsNoTracking()
+                .AnyAsync(team => team.ClubId == currentClubId && team.TeamId == input.TeamId.Value, cancellationToken);
+            if (!teamExists)
+            {
+                return ServiceProblem.NotFound();
+            }
+
             query = query.Where(assignment => assignment.TeamId == input.TeamId.Value);
         }
 
@@ -236,6 +259,7 @@ public sealed partial class CampaignParticipantQueryService(
             .AsNoTracking()
             .Where(application => application.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId)
             .Select(application => new ParticipantTagProjection(
+                application.CampaignTagApplicationId,
                 application.PlayerTagId,
                 application.PlayerTag.Name,
                 application.PlayerTag.Color,
@@ -279,19 +303,24 @@ public sealed partial class CampaignParticipantQueryService(
 
         var tagDtos = orderedTagApplications
             .Select(application => new CampaignParticipantTagApplicationDto(
-                application.PlayerTagId,
-                application.TagName,
-                application.TagColor,
-                application.IsArchived,
-                actorDisplayNames.GetValueOrDefault(application.CreatedById) ?? "Unknown user",
-                application.CreatedAt))
+               application.CampaignTagApplicationId,
+               application.PlayerTagId,
+               application.TagName,
+               application.TagColor,
+               application.IsArchived,
+               actorDisplayNames.GetValueOrDefault(application.CreatedById) ?? "Unknown user",
+               application.CreatedAt))
             .ToList()
             .AsReadOnly();
- 
+
+        var canEditNotes = assignment.CampaignStatus == CampaignStatus.Active
+            && (currentUserProvider.IsClubAdmin || orderedNotes.Any(note => note.CreatedById == currentUserId));
+        var canEditTags = assignment.CampaignStatus == CampaignStatus.Active
+            && (currentUserProvider.IsClubAdmin || orderedTagApplications.Any(application => application.CreatedById == currentUserId && !application.IsArchived));
         var capabilities = new CampaignParticipantCapabilitiesDto(
             currentUserProvider.IsClubAdmin && assignment.CampaignStatus == CampaignStatus.Active,
-            assignment.CampaignStatus == CampaignStatus.Active,
-            assignment.CampaignStatus == CampaignStatus.Active,
+            canEditNotes,
+            canEditTags,
             currentUserProvider.IsClubAdmin && assignment.CampaignStatus == CampaignStatus.Active);
 
         return new CampaignParticipantDetailDto(
@@ -322,16 +351,11 @@ public sealed partial class CampaignParticipantQueryService(
     }
 
     private static PlacementOutcome? NormalizeOutcome(string? outcome)
-    {
-        if (string.IsNullOrWhiteSpace(outcome))
-        {
-            return null;
-        }
-
-        return Enum.TryParse<PlacementOutcome>(outcome.Trim(), true, out var parsedOutcome)
-            ? parsedOutcome
-            : null;
-    }
+        => string.IsNullOrWhiteSpace(outcome)
+            ? null
+            : Enum.TryParse<PlacementOutcome>(outcome.Trim(), true, out var parsedOutcome)
+                ? parsedOutcome
+                : null;
 
     private static IQueryable<PlayerCampaignAssignmentEntity> ApplyOrdering(
         IQueryable<PlayerCampaignAssignmentEntity> query,
@@ -413,6 +437,7 @@ public sealed partial class CampaignParticipantQueryService(
         DateTimeOffset CreatedAt);
 
     private sealed record ParticipantTagProjection(
+        long CampaignTagApplicationId,
         long PlayerTagId,
         string TagName,
         string TagColor,

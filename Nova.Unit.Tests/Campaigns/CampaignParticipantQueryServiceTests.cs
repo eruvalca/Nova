@@ -63,12 +63,50 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
 
+        using (var admin = _harness.CreateAdminContext())
+        {
+            var player = new PlayerEntity
+            {
+                FirstName = "Avery",
+                LastName = "Barnes",
+                DateOfBirth = new DateOnly(2010, 1, 1),
+                GraduationYear = 2028,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = ClubAId,
+                CreatedById = ClubAMemberId
+            };
+            admin.Players.Add(player);
+            admin.SaveChanges();
+
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = _campaignAId,
+                ClubId = ClubAId,
+                CreatedById = ClubAMemberId,
+                PlacementOutcome = PlacementOutcome.Assigned,
+                TeamId = _teamAId,
+                TryoutNumber = 9
+            };
+            admin.PlayerCampaignAssignments.Add(assignment);
+            admin.SaveChanges();
+
+            admin.CampaignTagApplications.Add(new CampaignTagApplicationEntity
+            {
+                PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
+                PlayerTagId = _tagAId,
+                ClubId = ClubAId,
+                CreatedById = ClubAMemberId
+            });
+            admin.SaveChanges();
+        }
+
         var service = new CampaignParticipantQueryService(
             new CampaignParticipantReadHarnessDbContextFactory(_harness),
             _harness.CurrentUser,
             NullLogger<CampaignParticipantQueryService>.Instance);
 
-        var result = await service.GetParticipantRosterAsync(
+        var pageOne = await service.GetParticipantRosterAsync(
             new GetCampaignParticipantRosterInput
             {
                 CampaignId = _campaignAId,
@@ -78,16 +116,39 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
                 Outcome = "assigned",
                 TeamId = _teamAId,
                 Page = 1,
-                PageSize = 50
+                PageSize = 1
             },
             TestContext.Current.CancellationToken);
 
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.TotalCount.ShouldBe(1);
-        result.Value.Items.Count.ShouldBe(1);
-        result.Value.Items[0].DisplayName.ShouldBe("Avery Adams");
-        result.Value.Items[0].Team.ShouldNotBeNull();
-        result.Value.Items[0].AppliedTags.ShouldContain(tag => tag.PlayerTagId == _tagAId);
+        var pageTwo = await service.GetParticipantRosterAsync(
+            new GetCampaignParticipantRosterInput
+            {
+                CampaignId = _campaignAId,
+                Search = "avery",
+                GraduationYears = [2028],
+                TagDefinitionIds = [_tagAId],
+                Outcome = "assigned",
+                TeamId = _teamAId,
+                Page = 2,
+                PageSize = 1
+            },
+            TestContext.Current.CancellationToken);
+
+        pageOne.IsSuccess.ShouldBeTrue();
+        pageOne.Value.TotalCount.ShouldBe(2);
+        pageOne.Value.Page.ShouldBe(1);
+        pageOne.Value.PageSize.ShouldBe(1);
+        pageOne.Value.Items.Count.ShouldBe(1);
+        pageOne.Value.Items[0].DisplayName.ShouldBe("Avery Adams");
+        pageOne.Value.Items[0].Team.ShouldNotBeNull();
+        pageOne.Value.Items[0].AppliedTags.ShouldContain(tag => tag.PlayerTagId == _tagAId);
+
+        pageTwo.IsSuccess.ShouldBeTrue();
+        pageTwo.Value.TotalCount.ShouldBe(2);
+        pageTwo.Value.Page.ShouldBe(2);
+        pageTwo.Value.PageSize.ShouldBe(1);
+        pageTwo.Value.Items.Count.ShouldBe(1);
+        pageTwo.Value.Items[0].DisplayName.ShouldBe("Avery Barnes");
     }
 
     [Fact]
@@ -129,7 +190,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         result.Value.CampaignStatus.ShouldBe(CampaignStatus.Active);
         result.Value.ConcurrencyToken.ShouldNotBe(Guid.Empty);
         result.Value.Notes.ShouldContain(note => note.Content == "Seed note");
-        result.Value.AppliedTags.ShouldContain(tag => tag.TagName == "Blue Tag" && tag.ActorDisplayName == "A Member");
+        result.Value.AppliedTags.ShouldContain(tag => tag.CampaignTagApplicationId > 0 && tag.TagName == "Blue Tag" && tag.ActorDisplayName == "A Member");
         result.Value.Capabilities.CanEditNotes.ShouldBeTrue();
         result.Value.Capabilities.CanEditPlacement.ShouldBeFalse();
         result.Value.Capabilities.CanEditTags.ShouldBeTrue();
