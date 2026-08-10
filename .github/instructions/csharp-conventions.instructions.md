@@ -16,7 +16,7 @@ description: "Nova C# coding conventions, Try-method contracts, editorconfig exp
 - Prefer `string.Empty` over empty string literals for representing empty strings.
 - Eliminate unused parameters and unused value assignments.
 - Prefer `using var x = ...;` over `using (...) { }` when the variable lifetime naturally ends at the enclosing scope.
-- Before finalizing C# changes, run `dotnet format` with the narrowest scope that covers edited files/projects; use solution-wide formatting only for broad refactors.
+- **Always run the formatting check before committing any C# changes**: `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`. If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with the `--verify-no-changes` command.
 
 ## `Try*` contracts
 
@@ -33,8 +33,8 @@ description: "Nova C# coding conventions, Try-method contracts, editorconfig exp
 - Use `OneOf<T1, … , TN>` for method return types that can produce one of several known result shapes (success, validation failure, not found, conflict).
 - **Prefer native OneOf types** (Success, Error<T>, NotFound, Conflict) for service operations within a single tier or that do not cross boundaries.
 - **Use ServiceResult<T>** (defined in `Nova.Shared.Results`) only when the operation crosses service boundaries: HTTP endpoints, WebAssembly client calls, or shared interfaces that span tiers.
-  - Example: `ClubMembershipClaimRefresher` (internal, single tier) → native OneOf.
-  - Example: `IProfilePhotoService` (boundary-crossing interface) → ServiceResult.
+    - Example: `ClubMembershipClaimRefresher` (internal, single tier) → native OneOf.
+    - Example: `IProfilePhotoService` (boundary-crossing interface) → ServiceResult.
 - Handle unions exhaustively with `Match` when branches produce a value and `Switch` for side-effect-only branches. Prefer named handlers or domain-named lambda parameters for multi-case flows.
 - Do not branch on positional members such as `IsT0`, `IsT1`, `AsT0`, or `AsT1` in production code; their meaning changes when union ordering changes.
 - Keep union variants domain-oriented; avoid broad catch-all variants such as `object` or `string` when a dedicated type is more precise.
