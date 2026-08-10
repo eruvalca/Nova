@@ -52,17 +52,27 @@ public sealed partial class CampaignParticipantQueryService(
         var tagDefinitionIds = input.TagDefinitionIds?.Where(id => id > 0).Distinct().ToArray();
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var campaignExists = await db.Campaigns
+            .AsNoTracking()
+            .AnyAsync(campaign => campaign.ClubId == currentClubId && campaign.CampaignId == input.CampaignId, cancellationToken);
+        if (!campaignExists)
+        {
+            return ServiceProblem.NotFound();
+        }
+
         var query = db.PlayerCampaignAssignments
             .Where(assignment => assignment.ClubId == currentClubId && assignment.CampaignId == input.CampaignId);
 
         if (!string.IsNullOrWhiteSpace(normalizedSearch))
         {
             var uppercaseSearch = normalizedSearch.ToUpperInvariant();
+            var escapedSearch = EscapeLikePattern(normalizedSearch);
+            var likePattern = $"%{escapedSearch}%";
             var isNpgsql = db.Database.IsNpgsql();
             query = query.Where(assignment => isNpgsql
-                ? EF.Functions.ILike(assignment.Player.FirstName + " " + assignment.Player.LastName, $"%{normalizedSearch}%")
-                    || EF.Functions.ILike(assignment.Player.FirstName, $"%{normalizedSearch}%")
-                    || EF.Functions.ILike(assignment.Player.LastName, $"%{normalizedSearch}%")
+                ? EF.Functions.ILike(assignment.Player.FirstName + " " + assignment.Player.LastName, likePattern)
+                    || EF.Functions.ILike(assignment.Player.FirstName, likePattern)
+                    || EF.Functions.ILike(assignment.Player.LastName, likePattern)
                 : (assignment.Player.FirstName + " " + assignment.Player.LastName).ToUpper().Contains(uppercaseSearch)
                     || assignment.Player.FirstName.ToUpper().Contains(uppercaseSearch)
                     || assignment.Player.LastName.ToUpper().Contains(uppercaseSearch));
@@ -89,7 +99,8 @@ public sealed partial class CampaignParticipantQueryService(
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var projectedRows = await query
+        var orderedQuery = ApplyOrdering(query, normalizedSortBy, normalizedSortDirection);
+        var pageAssignments = await orderedQuery
             .Select(assignment => new RosterPageRow(
                 assignment.PlayerCampaignAssignmentId,
                 assignment.PlayerId,
@@ -99,18 +110,38 @@ public sealed partial class CampaignParticipantQueryService(
                 assignment.TryoutNumber,
                 assignment.PlacementOutcome,
                 assignment.TeamId,
-                assignment.Team != null ? assignment.Team.Name : null,
-                assignment.CampaignTagApplications.Select(application => new RosterTagSummaryRow(
+                assignment.Team != null ? assignment.Team.Name : null))
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        if (pageAssignments.Count == 0)
+        {
+            return new PagedResult<CampaignParticipantRosterItem>([], page, pageSize, totalCount);
+        }
+
+        var assignmentIds = pageAssignments.Select(row => row.PlayerCampaignAssignmentId).ToArray();
+        var tagRows = assignmentIds.Length == 0
+            ? []
+            : await db.CampaignTagApplications
+                .AsNoTracking()
+                .Where(application => assignmentIds.Contains(application.PlayerCampaignAssignmentId))
+                .Select(application => new RosterTagSummaryRow(
+                    application.PlayerCampaignAssignmentId,
                     application.PlayerTagId,
                     application.PlayerTag.Name,
                     application.PlayerTag.Color,
-                    application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived)).ToList()))
-            .ToListAsync(cancellationToken);
+                    application.PlayerTag.LifecycleStatus == LifecycleStatus.Archived))
+                .ToListAsync(cancellationToken);
 
-        var orderedRows = ApplyOrdering(projectedRows, normalizedSortBy, normalizedSortDirection);
-        var pageRows = orderedRows
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+        var tagsByAssignmentId = tagRows
+            .GroupBy(row => row.PlayerCampaignAssignmentId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(row => new CampaignParticipantTagSummaryDto(row.PlayerTagId, row.TagName, row.TagColor, row.IsArchived)).ToList().AsReadOnly(),
+                EqualityComparer<long>.Default);
+
+        var pageRows = pageAssignments
             .Select(row => new CampaignParticipantRosterItem(
                 row.PlayerCampaignAssignmentId,
                 row.PlayerId,
@@ -121,7 +152,7 @@ public sealed partial class CampaignParticipantQueryService(
                 row.TeamId is null
                     ? null
                     : new CampaignParticipantTeamSummaryDto(row.TeamId.Value, row.TeamName ?? string.Empty),
-                row.Tags.Select(tag => new CampaignParticipantTagSummaryDto(tag.PlayerTagId, tag.TagName, tag.TagColor, tag.IsArchived)).ToList().AsReadOnly()))
+                tagsByAssignmentId.GetValueOrDefault(row.PlayerCampaignAssignmentId, [])))
             .ToList()
             .AsReadOnly();
 
@@ -151,6 +182,14 @@ public sealed partial class CampaignParticipantQueryService(
         }
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var campaignExists = await db.Campaigns
+            .AsNoTracking()
+            .AnyAsync(campaign => campaign.ClubId == currentClubId && campaign.CampaignId == input.CampaignId, cancellationToken);
+        if (!campaignExists)
+        {
+            return ServiceProblem.NotFound();
+        }
+
         var assignment = await db.PlayerCampaignAssignments
             .AsNoTracking()
             .Where(assignment =>
@@ -249,6 +288,12 @@ public sealed partial class CampaignParticipantQueryService(
             .ToList()
             .AsReadOnly();
  
+        var capabilities = new CampaignParticipantCapabilitiesDto(
+            currentUserProvider.IsClubAdmin && assignment.CampaignStatus == CampaignStatus.Active,
+            assignment.CampaignStatus == CampaignStatus.Active,
+            assignment.CampaignStatus == CampaignStatus.Active,
+            currentUserProvider.IsClubAdmin && assignment.CampaignStatus == CampaignStatus.Active);
+
         return new CampaignParticipantDetailDto(
             assignment.PlayerCampaignAssignmentId,
             assignment.PlayerId,
@@ -265,7 +310,15 @@ public sealed partial class CampaignParticipantQueryService(
             assignment.ConcurrencyToken,
             noteDtos,
             tagDtos,
-            new CampaignParticipantCapabilitiesDto(true, true, true, true));
+            capabilities);
+    }
+
+    private static string EscapeLikePattern(string value)
+    {
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
     }
 
     private static PlacementOutcome? NormalizeOutcome(string? outcome)
@@ -280,40 +333,37 @@ public sealed partial class CampaignParticipantQueryService(
             : null;
     }
 
-    private static IReadOnlyList<RosterPageRow> ApplyOrdering(
-        IReadOnlyList<RosterPageRow> rows,
+    private static IQueryable<PlayerCampaignAssignmentEntity> ApplyOrdering(
+        IQueryable<PlayerCampaignAssignmentEntity> query,
         string sortBy,
         string sortDirection)
     {
         var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
-        return sortBy.ToLowerInvariant() switch
+        var normalizedSortBy = string.IsNullOrWhiteSpace(sortBy) ? "displayname" : sortBy.Trim();
+        return normalizedSortBy.ToLowerInvariant() switch
         {
             "assignmentid" => descending
-                ? rows.OrderByDescending(row => row.PlayerCampaignAssignmentId).ThenBy(row => row.PlayerCampaignAssignmentId).ToList().AsReadOnly()
-                : rows.OrderBy(row => row.PlayerCampaignAssignmentId).ThenBy(row => row.PlayerCampaignAssignmentId).ToList().AsReadOnly(),
+                ? query.OrderByDescending(assignment => assignment.PlayerCampaignAssignmentId).ThenBy(assignment => assignment.PlayerCampaignAssignmentId)
+                : query.OrderBy(assignment => assignment.PlayerCampaignAssignmentId).ThenBy(assignment => assignment.PlayerCampaignAssignmentId),
             "graduationyear" => descending
-                ? rows.OrderByDescending(row => row.GraduationYear).ThenBy(row => row.PlayerCampaignAssignmentId).ToList().AsReadOnly()
-                : rows.OrderBy(row => row.GraduationYear).ThenBy(row => row.PlayerCampaignAssignmentId).ToList().AsReadOnly(),
+                ? query.OrderByDescending(assignment => assignment.Player.GraduationYear).ThenBy(assignment => assignment.PlayerCampaignAssignmentId)
+                : query.OrderBy(assignment => assignment.Player.GraduationYear).ThenBy(assignment => assignment.PlayerCampaignAssignmentId),
             "tryoutnumber" => descending
-                ? rows.OrderByDescending(row => row.TryoutNumber ?? int.MinValue).ThenBy(row => row.PlayerCampaignAssignmentId).ToList().AsReadOnly()
-                : rows.OrderBy(row => row.TryoutNumber ?? int.MaxValue).ThenBy(row => row.PlayerCampaignAssignmentId).ToList().AsReadOnly(),
+                ? query.OrderByDescending(assignment => assignment.TryoutNumber ?? int.MinValue).ThenBy(assignment => assignment.PlayerCampaignAssignmentId)
+                : query.OrderBy(assignment => assignment.TryoutNumber ?? int.MaxValue).ThenBy(assignment => assignment.PlayerCampaignAssignmentId),
             "outcome" => descending
-                ? rows.OrderByDescending(row => row.PlacementOutcome).ThenBy(row => row.PlayerCampaignAssignmentId).ToList().AsReadOnly()
-                : rows.OrderBy(row => row.PlacementOutcome).ThenBy(row => row.PlayerCampaignAssignmentId).ToList().AsReadOnly(),
+                ? query.OrderByDescending(assignment => assignment.PlacementOutcome).ThenBy(assignment => assignment.PlayerCampaignAssignmentId)
+                : query.OrderBy(assignment => assignment.PlacementOutcome).ThenBy(assignment => assignment.PlayerCampaignAssignmentId),
             "teamname" => descending
-                ? rows.OrderByDescending(row => row.TeamName ?? string.Empty, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.PlayerCampaignAssignmentId).ToList().AsReadOnly()
-                : rows.OrderBy(row => row.TeamName ?? string.Empty, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.PlayerCampaignAssignmentId).ToList().AsReadOnly(),
+                ? query.OrderByDescending(assignment => assignment.Team != null ? assignment.Team.Name : string.Empty).ThenBy(assignment => assignment.PlayerCampaignAssignmentId)
+                : query.OrderBy(assignment => assignment.Team != null ? assignment.Team.Name : string.Empty).ThenBy(assignment => assignment.PlayerCampaignAssignmentId),
             _ => descending
-                ? rows.OrderByDescending(row => row.LastName, StringComparer.OrdinalIgnoreCase)
-                    .ThenByDescending(row => row.FirstName, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(row => row.PlayerCampaignAssignmentId)
-                    .ToList()
-                    .AsReadOnly()
-                : rows.OrderBy(row => row.LastName, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(row => row.FirstName, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(row => row.PlayerCampaignAssignmentId)
-                    .ToList()
-                    .AsReadOnly()
+                ? query.OrderByDescending(assignment => assignment.Player.LastName)
+                    .ThenByDescending(assignment => assignment.Player.FirstName)
+                    .ThenBy(assignment => assignment.PlayerCampaignAssignmentId)
+                : query.OrderBy(assignment => assignment.Player.LastName)
+                    .ThenBy(assignment => assignment.Player.FirstName)
+                    .ThenBy(assignment => assignment.PlayerCampaignAssignmentId)
         };
     }
 
@@ -332,10 +382,10 @@ public sealed partial class CampaignParticipantQueryService(
         int? TryoutNumber,
         PlacementOutcome PlacementOutcome,
         long? TeamId,
-        string? TeamName,
-        IReadOnlyList<RosterTagSummaryRow> Tags);
+        string? TeamName);
 
     private sealed record RosterTagSummaryRow(
+        long PlayerCampaignAssignmentId,
         long PlayerTagId,
         string TagName,
         string TagColor,

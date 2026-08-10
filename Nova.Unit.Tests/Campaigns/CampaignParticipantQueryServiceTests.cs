@@ -91,6 +91,25 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetParticipantRoster_ReturnsNotFound_ForCrossTenantCampaign()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetParticipantRosterAsync(
+            new GetCampaignParticipantRosterInput { CampaignId = _campaignBId },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
+    [Fact]
     public async Task GetParticipantDetail_ReturnsNotesAndTagsForAssignment()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -112,6 +131,9 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         result.Value.Notes.ShouldContain(note => note.Content == "Seed note");
         result.Value.AppliedTags.ShouldContain(tag => tag.TagName == "Blue Tag" && tag.ActorDisplayName == "A Member");
         result.Value.Capabilities.CanEditNotes.ShouldBeTrue();
+        result.Value.Capabilities.CanEditPlacement.ShouldBeFalse();
+        result.Value.Capabilities.CanEditTags.ShouldBeTrue();
+        result.Value.Capabilities.CanArchiveTagDefinitions.ShouldBeFalse();
     }
 
     private void Seed()
