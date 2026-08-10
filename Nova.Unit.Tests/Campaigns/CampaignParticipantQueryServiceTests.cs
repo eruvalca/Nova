@@ -315,6 +315,35 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         result.Value.Capabilities.CanEditPlacement.ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task GetParticipantDetail_DoesNotExposeTagRemoval_WhenTagDefinitionArchived()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+
+        using (var admin = _harness.CreateAdminContext())
+        {
+            var tag = admin.PlayerTags.Single(candidate => candidate.ClubId == ClubAId && candidate.Name == "Blue Tag");
+            tag.LifecycleStatus = LifecycleStatus.Archived;
+            tag.ArchivedAt = DateTimeOffset.UtcNow;
+            tag.ArchivedById = ClubAMemberId;
+            admin.SaveChanges();
+        }
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetParticipantDetailAsync(
+            new GetCampaignParticipantDetailInput { CampaignId = _campaignAId, PlayerCampaignAssignmentId = _assignmentAId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.AppliedTags.Single(tag => tag.TagName == "Blue Tag").CanRemove.ShouldBeFalse();
+    }
+
     public static TheoryData<string, string, string[]> SortDirectionCases => new()
     {
         { "displayName", "asc", new[] { "Avery Adams", "Brett Baker" } },

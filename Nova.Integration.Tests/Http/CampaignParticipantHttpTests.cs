@@ -137,6 +137,41 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies the detail endpoint rejects non-positive route values with validation ProblemDetails.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantDetail_ReturnsValidationProblem_ForNonPositiveRouteValues()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("participant-detail-invalid-route");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        using var campaignResponse = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantDetailUrl(0, 1),
+            cancellationToken);
+        campaignResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using var campaignDocument = await JsonDocument.ParseAsync(
+            await campaignResponse.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        campaignDocument.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        campaignDocument.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+
+        using var assignmentResponse = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantDetailUrl(1, 0),
+            cancellationToken);
+        assignmentResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using var assignmentDocument = await JsonDocument.ParseAsync(
+            await assignmentResponse.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        assignmentDocument.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        assignmentDocument.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
     /// Verifies anonymous callers receive an unauthorized response for both participant routes.
     /// </summary>
     [Fact]

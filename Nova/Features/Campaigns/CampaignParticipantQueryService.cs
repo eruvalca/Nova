@@ -334,7 +334,7 @@ public sealed partial class CampaignParticipantQueryService(
                 application.IsArchived,
                 actorDisplayNames.GetValueOrDefault(application.CreatedById) ?? "Unknown user",
                 application.CreatedAt,
-                isActiveCampaign && (isClubAdmin || (application.CreatedById == currentUserId && !application.IsArchived))))
+                isActiveCampaign && !application.IsArchived && (isClubAdmin || application.CreatedById == currentUserId)))
             .ToList()
             .AsReadOnly();
 
