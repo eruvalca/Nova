@@ -469,10 +469,7 @@ public partial class Players(
 
         var result = await playerDetailService.GetPlayerDetailAsync(player.PlayerId, ComponentCancellationToken);
         result.Switch(
-            detail =>
-            {
-                _editForm = PlayerFormState.FromDetail(detail);
-            },
+            detail => _editForm = PlayerFormState.FromDetail(detail),
             problem => _mutationError = problem.Detail ?? "Could not load player details for editing.");
 
         _isMutating = false;

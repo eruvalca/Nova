@@ -32,7 +32,7 @@ public sealed class TestDbContextFactory<TContext> : IDbContextFactory<TContext>
     /// <summary>
     /// Creates a new instance of the DbContext asynchronously.
     /// </summary>
-    /// <param name="cancellationToken">A token to observe while waiting for the task to complete.</param>
+    /// <param name="_">A token to observe while waiting for the task to complete.</param>
     /// <returns>A task that represents the asynchronous operation. The task result is a new instance of <typeparamref name="TContext"/>.</returns>
-    public ValueTask<TContext> CreateDbContextAsync(CancellationToken cancellationToken = default) => ValueTask.FromResult(_factory());
+    public ValueTask<TContext> CreateDbContextAsync(CancellationToken _ = default) => ValueTask.FromResult(_factory());
 }

@@ -68,7 +68,7 @@ public sealed class CampaignQueryContractTests
     }
 
     /// <summary>
-    /// Verifies both accepted status values are case-insensitive.
+    /// Verifies both accepted campaign status values are case-insensitive.
     /// </summary>
     /// <param name="status">The status spelling to validate.</param>
     [Theory]
@@ -81,5 +81,129 @@ public sealed class CampaignQueryContractTests
         var errors = InputValidator.Validate(new GetCampaignListInput { Status = status });
 
         errors.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies the roster URL builder normalizes accepted filters and sorts.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantRosterUrl_BuildsExpectedUrl()
+    {
+        var url = CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput
+        {
+            CampaignId = 42,
+            Search = " A ",
+            GraduationYears = new[] { 2028, 2029 },
+            TagDefinitionIds = new[] { 7L, 8L },
+            Outcome = " ASSIGNED ",
+            TeamId = 9,
+            SortBy = " GRADUATIONYEAR ",
+            SortDirection = " DESC ",
+            Page = 2,
+            PageSize = 25
+        });
+
+        url.ShouldBe("/api/campaigns/42/participants?search=A&graduationYears=2028&graduationYears=2029&tagDefinitionIds=7&tagDefinitionIds=8&outcome=assigned&teamId=9&sortBy=graduationYear&sortDirection=desc&page=2&pageSize=25");
+    }
+
+    /// <summary>
+    /// Verifies unsupported outcome/sort values are omitted while paging is still forwarded
+    /// so server-side bounds validation can reject out-of-range page sizes.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantRosterUrl_OmitsInvalidOptionalValues()
+    {
+        var url = CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput
+        {
+            CampaignId = 42,
+            Search = " ",
+            Outcome = " invalid ",
+            TeamId = 0,
+            SortBy = " invalid ",
+            SortDirection = " invalid ",
+            Page = 1,
+            PageSize = 101
+        });
+
+        url.ShouldBe("/api/campaigns/42/participants?page=1&pageSize=101");
+    }
+
+    /// <summary>
+    /// Verifies filter-element values are reflected faithfully rather than silently broadened;
+    /// the shared input validation is what rejects non-positive elements before a request is made.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantRosterUrl_ForwardsFilterElementsForServerValidation()
+    {
+        var url = CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput
+        {
+            CampaignId = 42,
+            GraduationYears = new[] { 2028, 2028, 0 },
+            TagDefinitionIds = new[] { 7L, 0L }
+        });
+
+        url.ShouldBe("/api/campaigns/42/participants?graduationYears=2028&graduationYears=0&tagDefinitionIds=7&tagDefinitionIds=0&page=1&pageSize=50");
+    }
+
+    /// <summary>
+    /// Verifies non-positive filter elements are rejected by the shared input validation.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantRosterInput_RejectsNonPositiveFilterElements()
+    {
+        var errors = InputValidator.Validate(new GetCampaignParticipantRosterInput
+        {
+            CampaignId = 1,
+            GraduationYears = new[] { 0 },
+            TagDefinitionIds = new[] { 0L }
+        });
+
+        errors.ShouldContainKey(nameof(GetCampaignParticipantRosterInput.GraduationYears));
+        errors.ShouldContainKey(nameof(GetCampaignParticipantRosterInput.TagDefinitionIds));
+    }
+
+    /// <summary>
+    /// Verifies positive filter elements satisfy the shared input validation.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantRosterInput_AcceptsPositiveFilterElements()
+    {
+        var errors = InputValidator.Validate(new GetCampaignParticipantRosterInput
+        {
+            CampaignId = 1,
+            GraduationYears = new[] { 2028, 2029 },
+            TagDefinitionIds = new[] { 7L, 8L }
+        });
+
+        errors.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies the roster input applies default paging when omitted.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantRosterInput_DefaultsToPageOneAndPageSizeFifty_WhenOmitted()
+    {
+        var input = new GetCampaignParticipantRosterInput { CampaignId = 1 };
+
+        input.Page.ShouldBe(GetCampaignParticipantRosterInput.DefaultPage);
+        input.PageSize.ShouldBe(GetCampaignParticipantRosterInput.DefaultPageSize);
+        InputValidator.Validate(input).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies both accepted sort directions are case-insensitive.
+    /// </summary>
+    /// <param name="direction">The direction spelling to validate.</param>
+    [Theory]
+    [InlineData("asc")]
+    [InlineData("ASC")]
+    [InlineData("desc")]
+    [InlineData("DESC")]
+    public void GetCampaignParticipantRosterInput_AcceptsSupportedSortDirectionsCaseInsensitively(string direction)
+    {
+        var input = new GetCampaignParticipantRosterInput { CampaignId = 1, SortDirection = direction };
+
+        InputValidator.Validate(input).ShouldBeEmpty();
     }
 }

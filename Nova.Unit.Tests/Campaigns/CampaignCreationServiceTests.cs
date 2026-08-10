@@ -22,7 +22,7 @@ file sealed class CampaignHarnessDbContextFactory(TenancyTestHarness harness)
     public NovaDbContext CreateDbContext() => harness.CreateTenantContext();
 
     /// <inheritdoc />
-    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
         => Task.FromResult(harness.CreateTenantContext());
 }
 

@@ -248,8 +248,8 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
         return new CampaignParticipationSeed(
             club.ClubId,
             actorUserId,
-            players.Select(player => player.PlayerId).ToArray(),
-            campaigns.Select(campaign => campaign.CampaignId).ToArray(),
+            [.. players.Select(player => player.PlayerId)],
+            [.. campaigns.Select(campaign => campaign.CampaignId)],
             team.TeamId,
             assignment.PlayerCampaignAssignmentId);
     }

@@ -2,7 +2,7 @@
 using Nova.Shared.Results;
 using OneOf.Types;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Teams;
 
 /// <summary>
 /// WebAssembly client implementation of <see cref="ITeamLifecycleService"/> that calls team lifecycle endpoints.

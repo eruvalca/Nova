@@ -3,7 +3,7 @@ using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Players;
 
 /// <summary>
 /// WebAssembly client implementation of <see cref="IPlayerService"/> that calls player-roster APIs.

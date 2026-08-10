@@ -1,7 +1,7 @@
 ﻿using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Teams;
 
 /// <summary>
 /// WebAssembly HTTP implementation of <see cref="ITeamDetailService"/>.

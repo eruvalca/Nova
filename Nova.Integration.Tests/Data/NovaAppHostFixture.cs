@@ -45,19 +45,19 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
 {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(5);
 
-    private DistributedApplication? _app;
-    private string? _connectionString;
-    private BlobContainerClient? _profilePhotosContainer;
+    private DistributedApplication? App { get; set; }
+    private string? ConnectionStringValue { get; set; }
+    private BlobContainerClient? ProfilePhotosContainerValue { get; set; }
 
     /// <summary>Gets the mutable current-user provider used by all contexts created by this fixture.</summary>
     public FakeCurrentUserProvider CurrentUser { get; } = new();
 
     /// <summary>Gets the connection string for the live "novadb" PostgreSQL database.</summary>
-    public string ConnectionString => _connectionString
+    public string ConnectionString => ConnectionStringValue
         ?? throw new InvalidOperationException("The AppHost has not been started.");
 
     /// <summary>Gets the blob container client for the live "profile-photos" container (Azurite emulator).</summary>
-    public BlobContainerClient ProfilePhotosContainer => _profilePhotosContainer
+    public BlobContainerClient ProfilePhotosContainer => ProfilePhotosContainerValue
         ?? throw new InvalidOperationException("The AppHost has not been started.");
 
     /// <inheritdoc />
@@ -70,19 +70,19 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
 
         RemoveDataVolumes(builder);
 
-        _app = await builder.BuildAsync(cancellationToken);
-        await _app.StartAsync(cancellationToken);
+        App = await builder.BuildAsync(cancellationToken);
+        await App.StartAsync(cancellationToken);
 
         // Healthy means the app is serving and the database is reachable.
-        await _app.ResourceNotifications.WaitForResourceHealthyAsync("nova", cancellationToken);
+        await App.ResourceNotifications.WaitForResourceHealthyAsync("nova", cancellationToken);
 
-        _connectionString = await _app.GetConnectionStringAsync("novadb", cancellationToken)
+        ConnectionStringValue = await App.GetConnectionStringAsync("novadb", cancellationToken)
             ?? throw new InvalidOperationException("No connection string was resolved for 'novadb'.");
 
-        var blobConnectionString = await _app.GetConnectionStringAsync("profile-photos", cancellationToken)
+        var blobConnectionString = await App.GetConnectionStringAsync("profile-photos", cancellationToken)
             ?? throw new InvalidOperationException("No connection string was resolved for 'profile-photos'.");
-        _profilePhotosContainer = CreateBlobContainerClient(blobConnectionString);
-        await _profilePhotosContainer.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        ProfilePhotosContainerValue = CreateBlobContainerClient(blobConnectionString);
+        await ProfilePhotosContainerValue.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
 
         // The app only migrates at startup in the Development environment, which the testing
         // builder does not guarantee — apply the production migrations explicitly. Migrations
@@ -94,9 +94,9 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_app is not null)
+        if (App is not null)
         {
-            await _app.DisposeAsync();
+            await App.DisposeAsync();
         }
     }
 
@@ -130,7 +130,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// <returns>A new client owned by the caller.</returns>
     public HttpClient CreateNovaHttpClient(bool allowAutoRedirect = false)
     {
-        var app = _app ?? throw new InvalidOperationException("The AppHost has not been started.");
+        var app = App ?? throw new InvalidOperationException("The AppHost has not been started.");
 
         // Prefer the https endpoint so UseHttpsRedirection does not turn every request into a 307.
         Uri baseAddress;

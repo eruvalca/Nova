@@ -3,7 +3,7 @@ using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Campaigns;
 
 /// <summary>
 /// WebAssembly HTTP implementation of <see cref="ICampaignQueryService"/>.

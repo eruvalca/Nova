@@ -4,7 +4,7 @@ using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 using OneOf.Types;
 
-namespace Nova.Client.Services;
+namespace Nova.Client.Services.Clubs;
 
 /// <summary>
 /// WebAssembly client implementation of <see cref="IClubJoinRequestService"/> that calls the server's

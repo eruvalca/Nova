@@ -19,7 +19,7 @@ public partial class CreateClubForm(IClubService clubService)
     /// <summary>
     /// The form model bound to the create-club input fields.
     /// </summary>
-    private FormModel _input = new();
+    private readonly FormModel _input = new();
 
     /// <summary>
     /// Whether a submission is currently in progress. Prevents double-submission.
@@ -44,14 +44,8 @@ public partial class CreateClubForm(IClubService clubService)
             ComponentCancellationToken);
 
         result.Switch(
-            club =>
-            {
-                _ = OnClubCreated.InvokeAsync(club);
-            },
-            problem =>
-            {
-                _error = problem.Detail ?? "An error occurred creating the club. Please try again.";
-            });
+            club => _ = OnClubCreated.InvokeAsync(club),
+            problem => _error = problem.Detail ?? "An error occurred creating the club. Please try again.");
 
         _submitting = false;
     }
