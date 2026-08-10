@@ -100,6 +100,92 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies an apply whose commit reached the database but surfaced a transient failure is
+    /// reported as success rather than replayed into a spurious conflict.
+    /// </summary>
+    [Fact]
+    public async Task ApplyCampaignTagApplication_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    {
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var suffix = Guid.NewGuid().ToString("N");
+        var (clubId, _, tagId, assignmentId, _) = await SeedTagApplicationDataAsync(actorUserId, suffix);
+
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor);
+        var service = new CampaignTagApplicationService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<CampaignTagApplicationService>.Instance);
+
+        var result = await ((ICampaignTagApplicationService)service).ApplyAsync(
+            new ApplyCampaignTagApplicationInput
+            {
+                PlayerCampaignAssignmentId = assignmentId,
+                PlayerTagId = tagId
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        failureInterceptor.FailureCount.ShouldBe(1);
+
+        await using var verify = fixture.CreateAdminContext();
+        var persisted = await verify.CampaignTagApplications
+            .SingleOrDefaultAsync(
+                candidate => candidate.CampaignTagApplicationId == result.Value.CampaignTagApplicationId,
+                TestContext.Current.CancellationToken);
+        persisted.ShouldNotBeNull();
+        persisted.PlayerCampaignAssignmentId.ShouldBe(assignmentId);
+        persisted.PlayerTagId.ShouldBe(tagId);
+    }
+
+    /// <summary>
+    /// Verifies a remove whose commit reached the database but surfaced a transient failure is
+    /// reported as success rather than replayed into a spurious not-found.
+    /// </summary>
+    [Fact]
+    public async Task RemoveCampaignTagApplication_ReportsSuccess_WhenCommitSucceedsButTransientFailureSurfaces()
+    {
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var suffix = Guid.NewGuid().ToString("N");
+        var (clubId, _, _, _, applicationId) = await SeedTagApplicationDataAsync(actorUserId, suffix, applied: true);
+
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor);
+        var service = new CampaignTagApplicationService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<CampaignTagApplicationService>.Instance);
+
+        var result = await ((ICampaignTagApplicationService)service).RemoveAsync(
+            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = applicationId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        failureInterceptor.FailureCount.ShouldBe(1);
+
+        await using var verify = fixture.CreateAdminContext();
+        var persisted = await verify.CampaignTagApplications
+            .SingleOrDefaultAsync(
+                candidate => candidate.CampaignTagApplicationId == applicationId,
+                TestContext.Current.CancellationToken);
+        persisted.ShouldBeNull();
+    }
+
+    /// <summary>
     /// Seeds one club, campaign, player, tag, participation, and optional tag application owned by it.
     /// </summary>
     /// <param name="actorUserId">The creating user identifier.</param>

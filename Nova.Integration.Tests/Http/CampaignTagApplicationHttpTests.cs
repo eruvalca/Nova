@@ -320,22 +320,31 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     public async Task RemoveCampaignTagApplication_ReturnsNoContent_AndDeletesRow_ForOwner()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        using var client = fixture.CreateNovaHttpClient();
-        var email = UniqueEmail("tag-remove-owner-success");
-        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
-        await UpdateUserAsync(email, clubId: null, cancellationToken);
-        var club = await CreateClubAsync(client, cancellationToken);
-        await RefreshClubMembershipCookieAsync(client, cancellationToken);
-        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(club.ClubId, email, cancellationToken);
 
-        using var applyResponse = await client.PostAsJsonAsync(
+        // The club creator becomes a ClubAdmin by the create-club flow, so a second
+        // non-admin user is required to prove ordinary owner apply/remove access.
+        using var adminClient = fixture.CreateNovaHttpClient();
+        var adminEmail = UniqueEmail("tag-remove-owner-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
+        await UpdateUserAsync(adminEmail, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(adminClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
+
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var memberEmail = UniqueEmail("tag-remove-owner-member");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
+        await UpdateUserAsync(memberEmail, club.ClubId, cancellationToken);
+        await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
+        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(club.ClubId, adminEmail, cancellationToken);
+
+        using var applyResponse = await memberClient.PostAsJsonAsync(
             CampaignEndpoints.ApplyCampaignTagApplication,
             ValidApplyInput(assignmentId, tagId),
             cancellationToken);
         applyResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
         var applied = await applyResponse.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
 
-        using var removeResponse = await client.DeleteAsync(
+        using var removeResponse = await memberClient.DeleteAsync(
             CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId),
             cancellationToken);
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
