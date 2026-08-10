@@ -41,6 +41,7 @@ builder.Services.AddScoped<ITeamDetailService, HttpTeamDetailService>();
 builder.Services.AddScoped<IPlayerDetailService, HttpPlayerDetailService>();
 builder.Services.AddScoped<ICampaignCreationService, HttpCampaignCreationService>();
 builder.Services.AddScoped<ICampaignQueryService, HttpCampaignQueryService>();
+builder.Services.AddScoped<ICampaignParticipantQueryService, HttpCampaignParticipantQueryService>();
 builder.Services.AddScoped<ICampaignMetadataService, HttpCampaignMetadataService>();
 builder.Services.AddScoped<ISeasonMetadataService, HttpSeasonMetadataService>();
 

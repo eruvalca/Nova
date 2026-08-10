@@ -56,6 +56,36 @@ public static class CampaignEndpoints
     public const string GetCreationSetupRouteName = "GetCampaignCreationSetup";
 
     /// <summary>
+    /// Gets the campaign-participant roster route.
+    /// </summary>
+    public const string GetCampaignParticipantRoster = $"{GroupPrefix}/{{campaignId:long}}/participants";
+
+    /// <summary>
+    /// Gets the campaign-participant roster route relative to the campaign group.
+    /// </summary>
+    public const string GetCampaignParticipantRosterRelative = "{campaignId:long}/participants";
+
+    /// <summary>
+    /// Gets the route name assigned to the campaign participant roster.
+    /// </summary>
+    public const string GetCampaignParticipantRosterRouteName = "GetCampaignParticipantRoster";
+
+    /// <summary>
+    /// Gets the campaign-participant detail route.
+    /// </summary>
+    public const string GetCampaignParticipantDetail = $"{GroupPrefix}/{{campaignId:long}}/participants/{{playerCampaignAssignmentId:long}}";
+
+    /// <summary>
+    /// Gets the campaign-participant detail route relative to the campaign group.
+    /// </summary>
+    public const string GetCampaignParticipantDetailRelative = "{campaignId:long}/participants/{playerCampaignAssignmentId:long}";
+
+    /// <summary>
+    /// Gets the route name assigned to the campaign participant detail.
+    /// </summary>
+    public const string GetCampaignParticipantDetailRouteName = "GetCampaignParticipantDetail";
+
+    /// <summary>
     /// Updates an Active campaign's metadata (PUT).
     /// </summary>
     public const string UpdateCampaignMetadata = $"{GroupPrefix}/metadata";
@@ -105,4 +135,80 @@ public static class CampaignEndpoints
             ? GetCampaignList
             : $"{GetCampaignList}?{string.Join('&', querySegments)}";
     }
+
+    /// <summary>
+    /// Builds a campaign-participant roster URL from the accepted optional filters.
+    /// </summary>
+    /// <param name="input">The roster query input.</param>
+    /// <returns>The roster URL.</returns>
+    public static string GetCampaignParticipantRosterUrl(GetCampaignParticipantRosterInput input)
+    {
+        var querySegments = new List<string>();
+        if (!string.IsNullOrWhiteSpace(input.Search))
+        {
+            querySegments.Add($"search={Uri.EscapeDataString(input.Search.Trim())}");
+        }
+
+        if (input.GraduationYears is { Count: > 0 })
+        {
+            var graduationYears = string.Join(',', input.GraduationYears.Where(year => year > 0).Select(year => year.ToString()));
+            if (!string.IsNullOrWhiteSpace(graduationYears))
+            {
+                querySegments.Add($"graduationYears={Uri.EscapeDataString(graduationYears)}");
+            }
+        }
+
+        if (input.TagDefinitionIds is { Count: > 0 })
+        {
+            var tagDefinitionIds = string.Join(',', input.TagDefinitionIds.Where(id => id > 0).Select(id => id.ToString()));
+            if (!string.IsNullOrWhiteSpace(tagDefinitionIds))
+            {
+                querySegments.Add($"tagDefinitionIds={Uri.EscapeDataString(tagDefinitionIds)}");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.Outcome))
+        {
+            querySegments.Add($"outcome={Uri.EscapeDataString(input.Outcome.Trim())}");
+        }
+
+        if (input.TeamId is > 0)
+        {
+            querySegments.Add($"teamId={input.TeamId.Value}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.SortBy))
+        {
+            querySegments.Add($"sortBy={Uri.EscapeDataString(input.SortBy.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.SortDirection))
+        {
+            querySegments.Add($"sortDirection={Uri.EscapeDataString(input.SortDirection.Trim())}");
+        }
+
+        if (input.Page is > 0)
+        {
+            querySegments.Add($"page={input.Page.Value}");
+        }
+
+        if (input.PageSize is > 0)
+        {
+            querySegments.Add($"pageSize={input.PageSize.Value}");
+        }
+
+        var baseUrl = $"{GroupPrefix}/{input.CampaignId}/participants";
+        return querySegments.Count == 0
+            ? baseUrl
+            : $"{baseUrl}?{string.Join('&', querySegments)}";
+    }
+
+    /// <summary>
+    /// Builds a campaign-participant detail URL.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier.</param>
+    /// <param name="playerCampaignAssignmentId">The participant assignment identifier.</param>
+    /// <returns>The detail URL.</returns>
+    public static string GetCampaignParticipantDetailUrl(long campaignId, long playerCampaignAssignmentId)
+        => $"{GroupPrefix}/{campaignId}/participants/{playerCampaignAssignmentId}";
 }
