@@ -212,6 +212,53 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a least-privileged club member (without the ClubAdmin role) can load both participant routes.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantRoutes_ReturnPayload_ForLeastPrivilegedClubMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        // The club creator becomes a ClubAdmin by the create-club flow, so a second
+        // non-admin user is required to prove ordinary member access to both routes.
+        using var adminClient = fixture.CreateNovaHttpClient();
+        var adminEmail = UniqueEmail("participant-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
+        await UpdateUserAsync(adminEmail, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(adminClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
+
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var memberEmail = UniqueEmail("participant-least-privileged");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
+        await UpdateUserAsync(memberEmail, club.ClubId, cancellationToken);
+        await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
+        var (campaignId, _, assignmentId) = await SeedRosterDataAsync(club.ClubId, memberEmail, cancellationToken);
+
+        using var rosterResponse = await memberClient.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = campaignId, Page = 1, PageSize = 50 }),
+            cancellationToken);
+        rosterResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var roster = await rosterResponse.Content.ReadFromJsonAsync<PagedResult<CampaignParticipantRosterItem>>(cancellationToken);
+        roster.ShouldNotBeNull();
+        roster.TotalCount.ShouldBe(1);
+
+        using var detailResponse = await memberClient.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+            cancellationToken);
+        detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
+        detail.ShouldNotBeNull();
+        detail.Notes[0].CanEdit.ShouldBeTrue();
+        detail.Notes[0].CanDelete.ShouldBeTrue();
+        detail.AppliedTags[0].CanRemove.ShouldBeTrue();
+        detail.Capabilities.CanAddNote.ShouldBeTrue();
+        detail.Capabilities.CanApplyTag.ShouldBeTrue();
+        detail.Capabilities.CanEditPlacement.ShouldBeFalse();
+        detail.Capabilities.CanArchiveTagDefinitions.ShouldBeFalse();
+    }
+
+    /// <summary>
     /// Verifies cross-tenant campaign and assignment IDs are rejected with non-disclosing not-found responses.
     /// </summary>
     [Fact]
