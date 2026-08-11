@@ -12,9 +12,9 @@ Scope (confirmed with user):
 - **Routes** (flat "evaluation-notes" group under `/api/campaigns`, `RequireClubMember` at group level):
   - `POST /api/campaigns/evaluation-notes` — body `AddEvaluationNoteInput` → `201 Created` + body
     `{ "noteId": N }` (no Location; no canonical GET for a note — the drawer refreshes participant detail).
-  - `PUT /api/campaigns/evaluation-notes/{noteId:long}` — route param is authoritative; body
-    `EditEvaluationNoteInput` supplies content (handler passes `input with { NoteId = noteId }`) →
-    `204 NoContent`.
+  - `PUT /api/campaigns/evaluation-notes/{noteId:long}` — route param is authoritative; Content-only
+    body `PutEvaluationNoteInput` (handler constructs `EditEvaluationNoteInput { NoteId = noteId,
+    Content = body.Content }`) → `204 NoContent`.
   - `DELETE /api/campaigns/evaluation-notes/{noteId:long}` — route param matching `DeleteAsync(long)` →
     `204 NoContent`.
 - **Shared contracts** (Nova.Shared): add `EvaluationNoteMutationSuccess(long NoteId)` (mirrors
@@ -162,11 +162,12 @@ Suggested executor: orchestrator
 
     private static async Task<IResult> EditEvaluationNoteHandler(
         long noteId,
-        EditEvaluationNoteInput input,
+        PutEvaluationNoteInput body,
         ICampaignEvaluationNoteService service,
         CancellationToken cancellationToken)
     {
-        var result = await service.EditAsync(input with { NoteId = noteId }, cancellationToken);
+        var result = await service.EditAsync(
+            new EditEvaluationNoteInput { NoteId = noteId, Content = body.Content }, cancellationToken);
         return result.ToHttpResult(_ => TypedResults.NoContent());
     }
 
@@ -227,7 +228,7 @@ Tests updated: `EvaluationNoteServiceTests.Add_Succeeds_ForClubMember` now asser
 `result.AsT0.NoteId.ShouldBeGreaterThan(0)`; all 5 `CampaignParticipantNoteDto` constructions in
 `HttpCampaignParticipantQueryServiceTests.cs` pass `null` for the new `ModifiedAt`.
 
-Nothing is committed yet; Phase 1 is staged for a commit. Phase 2 (WASM client `HttpCampaignEvaluationNoteService`
+Phase 1 is committed (`537af4e`). Phase 2 (WASM client `HttpCampaignEvaluationNoteService`
 + `HttpCampaignEvaluationNoteServiceTests`) is next.
 
 ## Phase 2: WASM client and client unit tests
@@ -387,9 +388,9 @@ only through participant detail), drawer UI, append-only history, rich text, con
 No schema, migration, or infrastructure changes are required; this is code-only.
 
 1. Merge the Phase 1/2/3 commits for issue #71 into `main`.
-2. CI runs the existing suite: `dotnet build Nova.slnx`, `dotnet test --project Nova.Unit.Tests`
-   (SQLite harness), and `dotnet test --project Nova.Integration.Tests` (Aspire/Postgres; requires a
-   healthy Docker daemon on the runner).
+2. CI runs the existing suite: `dotnet build Nova.slnx` and `dotnet test --project Nova.Unit.Tests`
+   (SQLite harness). Integration tests (`dotnet test --project Nova.Integration.Tests`, Aspire/Postgres;
+   requires a healthy Docker daemon) are not part of CI and run manually.
 3. Deploy the `Nova` (server) and `Nova.Client` (WASM) apps together — the WASM client calls the new
    `/api/campaigns/evaluation-notes` endpoints at runtime, so the server must ship first (or
    atomically with the client). No configuration changes.
