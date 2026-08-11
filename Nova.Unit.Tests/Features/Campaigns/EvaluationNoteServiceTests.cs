@@ -69,6 +69,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         }, TestContext.Current.CancellationToken);
 
         result.IsT0.ShouldBeTrue(); // Success
+        result.AsT0.NoteId.ShouldBeGreaterThan(0);
 
         using var db = _harness.CreateAdminContext();
         var addedNote = db.Notes

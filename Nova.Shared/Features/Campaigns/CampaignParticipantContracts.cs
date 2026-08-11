@@ -86,6 +86,7 @@ public sealed record CampaignParticipantDetailDto(
 /// <param name="Content">The note content.</param>
 /// <param name="AuthorDisplayName">The display name of the note author.</param>
 /// <param name="CreatedAt">When the note was created.</param>
+/// <param name="ModifiedAt">When the note was last modified, when it has been edited.</param>
 /// <param name="CanEdit">Whether the caller can edit this note.</param>
 /// <param name="CanDelete">Whether the caller can delete this note.</param>
 public sealed record CampaignParticipantNoteDto(
@@ -93,6 +94,7 @@ public sealed record CampaignParticipantNoteDto(
     string Content,
     string AuthorDisplayName,
     DateTimeOffset CreatedAt,
+    DateTimeOffset? ModifiedAt,
     bool CanEdit,
     bool CanDelete);
 

@@ -105,6 +105,7 @@ builder.Services.AddScoped<IAccountDeletionService, AccountDeletionService>();
 builder.Services.AddScoped<IClubMemberService, ClubMemberService>();
 builder.Services.AddScoped<IPlayerService, PlayerService>();
 builder.Services.AddScoped<EvaluationNoteService>();
+builder.Services.AddScoped<ICampaignEvaluationNoteService>(services => services.GetRequiredService<EvaluationNoteService>());
 builder.Services.AddScoped<CampaignPlacementService>();
 builder.Services.AddScoped<CampaignTagApplicationService>();
 builder.Services.AddScoped<ICampaignTagApplicationService>(services => services.GetRequiredService<CampaignTagApplicationService>());
@@ -251,6 +252,7 @@ app.MapCampaignQueryEndpoints();
 app.MapCampaignParticipantEndpoints();
 app.MapCampaignMetadataEndpoints();
 app.MapCampaignTagApplicationEndpoints();
+app.MapCampaignEvaluationNoteEndpoints();
 
 // Player detail and campaign-history query endpoint.
 app.MapPlayerEndpoints();

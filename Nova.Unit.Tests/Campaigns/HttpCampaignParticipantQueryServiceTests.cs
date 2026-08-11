@@ -82,7 +82,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                     null,
                     CampaignStatus.Active,
                     Guid.NewGuid(),
-                    [new CampaignParticipantNoteDto(1, "", "A Member", DateTimeOffset.UtcNow, true, true)],
+                    [new CampaignParticipantNoteDto(1, "", "A Member", DateTimeOffset.UtcNow, null, true, true)],
                     [new CampaignParticipantTagApplicationDto(0, 401, "Blue", "Blue", false, "", DateTimeOffset.UtcNow, true)],
                     new CampaignParticipantCapabilitiesDto(true, true, true, true)))
             }));
@@ -120,7 +120,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                 null,
                 CampaignStatus.Active,
                 Guid.NewGuid(),
-                [new CampaignParticipantNoteDto(1, "Hello", "A Member", DateTimeOffset.UtcNow, true, true)],
+                [new CampaignParticipantNoteDto(1, "Hello", "A Member", DateTimeOffset.UtcNow, null, true, true)],
                 [null!, new CampaignParticipantTagApplicationDto(2, 401, "Blue", string.Empty, false, "A Member", DateTimeOffset.UtcNow, true)],
                 new CampaignParticipantCapabilitiesDto(true, true, true, true)))
         };
@@ -160,14 +160,94 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                 CampaignStatus.Active,
                 Guid.NewGuid(),
                 [
-                    new CampaignParticipantNoteDto(2, "Older note", "A Member", DateTimeOffset.UtcNow.AddMinutes(-5), true, true),
-                    new CampaignParticipantNoteDto(1, "Newer note", "A Member", DateTimeOffset.UtcNow, true, true)
+                    new CampaignParticipantNoteDto(2, "Older note", "A Member", DateTimeOffset.UtcNow.AddMinutes(-5), null, true, true),
+                    new CampaignParticipantNoteDto(1, "Newer note", "A Member", DateTimeOffset.UtcNow, null, true, true)
                 ],
                 [new CampaignParticipantTagApplicationDto(2, 401, "Blue", "Blue", false, "A Member", DateTimeOffset.UtcNow.AddMinutes(-2), true)],
                 new CampaignParticipantCapabilitiesDto(true, true, true, true)))
         };
         var handler = new RecordingHandler(_ => Task.FromResult(response));
 
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
+        {
+            CampaignId = 42,
+            PlayerCampaignAssignmentId = 101
+        }, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task GetParticipantDetailAsync_ReturnsSuccess_WhenNoteModifiedAtFollowsCreatedAt()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var payload = new CampaignParticipantDetailDto(
+            101,
+            202,
+            "Avery Adams",
+            2028,
+            7,
+            PlacementOutcome.Assigned,
+            new CampaignParticipantTeamSummaryDto(301, "Alpha"),
+            now,
+            null,
+            CampaignStatus.Active,
+            Guid.NewGuid(),
+            [new CampaignParticipantNoteDto(1, "Hello", "A Member", now, now.AddMinutes(5), true, true)],
+            [new CampaignParticipantTagApplicationDto(1, 401, "Blue", "Blue", false, "A Member", now, true)],
+            new CampaignParticipantCapabilitiesDto(true, true, true, true));
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
+        {
+            CampaignId = 42,
+            PlayerCampaignAssignmentId = 101
+        }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Notes.Count.ShouldBe(1);
+        result.Value.Notes[0].ModifiedAt.ShouldBe(now.AddMinutes(5));
+    }
+
+    [Fact]
+    public async Task GetParticipantDetailAsync_ReturnsServerError_WhenNoteModifiedAtPrecedesCreatedAt()
+    {
+        var now = DateTimeOffset.UtcNow;
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new CampaignParticipantDetailDto(
+                101,
+                202,
+                "Avery Adams",
+                2028,
+                7,
+                PlacementOutcome.Assigned,
+                new CampaignParticipantTeamSummaryDto(301, "Alpha"),
+                now,
+                null,
+                CampaignStatus.Active,
+                Guid.NewGuid(),
+                [new CampaignParticipantNoteDto(1, "Hello", "A Member", now, now.AddMinutes(-5), true, true)],
+                [new CampaignParticipantTagApplicationDto(1, 401, "Blue", "Blue", false, "A Member", now, true)],
+                new CampaignParticipantCapabilitiesDto(true, true, true, true)))
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -201,8 +281,8 @@ public sealed class HttpCampaignParticipantQueryServiceTests
             CampaignStatus.Active,
             Guid.NewGuid(),
             [
-                new CampaignParticipantNoteDto(2, "Newer note", "A Member", now, true, true),
-                new CampaignParticipantNoteDto(1, "Older note", "A Member", now.AddMinutes(-5), true, true)
+                new CampaignParticipantNoteDto(2, "Newer note", "A Member", now, null, true, true),
+                new CampaignParticipantNoteDto(1, "Older note", "A Member", now.AddMinutes(-5), null, true, true)
             ],
             [
                 new CampaignParticipantTagApplicationDto(3, 401, "Blue", "Blue", false, "A Member", now, true),

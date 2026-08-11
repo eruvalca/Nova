@@ -73,6 +73,10 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// </summary>
     public DbSet<NoteEntity> Notes => Set<NoteEntity>();
     /// <summary>
+    /// Gets the Evaluation Note Mutation Receipts.
+    /// </summary>
+    public DbSet<EvaluationNoteMutationReceiptEntity> EvaluationNoteMutationReceipts => Set<EvaluationNoteMutationReceiptEntity>();
+    /// <summary>
     /// Gets the Player Photos.
     /// </summary>
     public DbSet<PlayerPhotoEntity> PlayerPhotos => Set<PlayerPhotoEntity>();

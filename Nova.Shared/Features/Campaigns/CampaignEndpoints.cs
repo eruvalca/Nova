@@ -126,6 +126,51 @@ public static class CampaignEndpoints
     public const string UpdateCampaignMetadataRelative = "metadata";
 
     /// <summary>
+    /// Adds an evaluation note to a campaign participation (POST).
+    /// </summary>
+    public const string AddEvaluationNote = $"{GroupPrefix}/evaluation-notes";
+
+    /// <summary>
+    /// The relative add path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string AddEvaluationNoteRelative = "evaluation-notes";
+
+    /// <summary>
+    /// The route name assigned to evaluation note addition.
+    /// </summary>
+    public const string AddEvaluationNoteRouteName = "AddEvaluationNote";
+
+    /// <summary>
+    /// Edits an evaluation note (PUT).
+    /// </summary>
+    public const string EditEvaluationNoteTemplate = $"{GroupPrefix}/evaluation-notes/{{noteId:long}}";
+
+    /// <summary>
+    /// The relative edit path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string EditEvaluationNoteRelative = "evaluation-notes/{noteId:long}";
+
+    /// <summary>
+    /// The route name assigned to evaluation note editing.
+    /// </summary>
+    public const string EditEvaluationNoteRouteName = "EditEvaluationNote";
+
+    /// <summary>
+    /// Deletes an evaluation note (DELETE).
+    /// </summary>
+    public const string DeleteEvaluationNoteTemplate = $"{GroupPrefix}/evaluation-notes/{{noteId:long}}";
+
+    /// <summary>
+    /// The relative delete path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string DeleteEvaluationNoteRelative = "evaluation-notes/{noteId:long}";
+
+    /// <summary>
+    /// The route name assigned to evaluation note deletion.
+    /// </summary>
+    public const string DeleteEvaluationNoteRouteName = "DeleteEvaluationNote";
+
+    /// <summary>
     /// Updates a season's metadata (PUT).
     /// </summary>
     public const string UpdateSeasonMetadata = $"{GroupPrefix}/seasons/metadata";
@@ -274,4 +319,20 @@ public static class CampaignEndpoints
     /// <returns>The removal URL.</returns>
     public static string RemoveCampaignTagApplicationUrl(long campaignTagApplicationId)
         => $"{GroupPrefix}/tag-applications/{campaignTagApplicationId}";
+
+    /// <summary>
+    /// Builds an evaluation note edit URL.
+    /// </summary>
+    /// <param name="noteId">The evaluation note identifier.</param>
+    /// <returns>The edit URL.</returns>
+    public static string EditEvaluationNoteUrl(long noteId)
+        => $"{GroupPrefix}/evaluation-notes/{noteId}";
+
+    /// <summary>
+    /// Builds an evaluation note deletion URL.
+    /// </summary>
+    /// <param name="noteId">The evaluation note identifier.</param>
+    /// <returns>The deletion URL.</returns>
+    public static string DeleteEvaluationNoteUrl(long noteId)
+        => $"{GroupPrefix}/evaluation-notes/{noteId}";
 }

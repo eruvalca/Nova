@@ -255,14 +255,16 @@ public sealed partial class CampaignParticipantQueryService(
                     note.NoteId,
                     note.Content,
                     note.CreatedById,
-                    note.CreatedAt))
+                    note.CreatedAt,
+                    note.ModifiedAt))
                 .ToListAsync(cancellationToken)
             : (await notesQuery
                 .Select(note => new ParticipantNoteProjection(
                     note.NoteId,
                     note.Content,
                     note.CreatedById,
-                    note.CreatedAt))
+                    note.CreatedAt,
+                    note.ModifiedAt))
                 .ToListAsync(cancellationToken))
                 .OrderByDescending(note => note.CreatedAt)
                 .ThenByDescending(note => note.NoteId)
@@ -334,6 +336,7 @@ public sealed partial class CampaignParticipantQueryService(
                     note.Content,
                     actorDisplayNames.GetValueOrDefault(note.CreatedById) ?? "Unknown user",
                     note.CreatedAt,
+                    note.ModifiedAt,
                     canEditOrDeleteNote,
                     canEditOrDeleteNote);
             })
@@ -509,7 +512,8 @@ public sealed partial class CampaignParticipantQueryService(
         long NoteId,
         string Content,
         long CreatedById,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? ModifiedAt);
 
     /// <summary>
     /// Projection of one tag application attached to a participant assignment.

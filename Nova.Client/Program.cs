@@ -50,5 +50,6 @@ builder.Services.AddScoped<ICampaignParticipantQueryService, HttpCampaignPartici
 builder.Services.AddScoped<ICampaignMetadataService, HttpCampaignMetadataService>();
 builder.Services.AddScoped<ISeasonMetadataService, HttpSeasonMetadataService>();
 builder.Services.AddScoped<ICampaignTagApplicationService, HttpCampaignTagApplicationService>();
+builder.Services.AddScoped<ICampaignEvaluationNoteService, HttpCampaignEvaluationNoteService>();
 
 await builder.Build().RunAsync();
