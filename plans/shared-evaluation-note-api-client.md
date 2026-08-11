@@ -328,17 +328,21 @@ Suggested executor: sub-agent with smaller model (well-specified after Phases 1�
 
 - `dotnet build Nova.slnx` — builds clean. ✅ 0 errors (8 pre-existing NU1903 warnings).
 - `dotnet test --project Nova.Integration.Tests --filter-class "*EvaluationNoteHttpTests"` — all
-  boundary tests pass. ✅ **15/15 passed** (35s). **Docker caveat**: these are Aspire/Postgres
+  boundary tests pass. ✅ **17/17 passed** (43s). **Docker caveat**: these are Aspire/Postgres
   integration tests; if the Docker daemon is unhealthy on the runner, they will not start
   (environment issue, not code) — Docker 29.6.2 confirmed available for this run. Note: use the
   leading-wildcard-only filter (no trailing `*`; a trailing `*` → exit 5 "Zero tests ran").
-- `dotnet test --project Nova.Unit.Tests` — full unit suite still green. ✅ **1110/1110 passed** (11s).
+- `dotnet test --project Nova.Integration.Tests --filter-class "*EvaluationNoteRetryTests"` —
+  transient-failure coverage for add/edit/delete. ✅ **6/6 passed** (25s) using
+  `FailFirstNoteReadInterceptor` (pre-commit read failure) and `FailFirstCommittedTransactionInterceptor`
+  (ambiguous commit), modeled on `CampaignTagApplicationRetryTests.cs`.
+- `dotnet test --project Nova.Unit.Tests` — full unit suite still green. ✅ **1112/1112 passed** (11s).
 - `dotnet build Nova.slnx` and `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic` — clean.
   ✅ 0 errors; ✅ 0 of 483 files formatted.
 
 ### Phase Summary
 
-`Nova.Integration.Tests\Http\EvaluationNoteHttpTests.cs` (15 tests) exercises the full HTTP boundary
+`Nova.Integration.Tests\Http\EvaluationNoteHttpTests.cs` (17 tests) exercises the full HTTP boundary
 for the note API, modeled on `CampaignTagApplicationHttpTests.cs`: add (201 + `{ "noteId": N }`,
 detail refresh, cross-tenant 404, blank-content 400, closed-campaign 409), edit (204, `ModifiedAt`
 set ≥ `CreatedAt` with author unchanged, non-author 403, cross-tenant 404, closed 409), delete (204,
@@ -373,15 +377,19 @@ participant drawer.
   reading the 201 body, PutAsJsonAsync edit, DeleteAsync delete), DI registration in
   `Nova.Client/Program.cs`, 11 client unit tests, and `HttpCampaignParticipantQueryServiceTests` DTO
   updates for the new `ModifiedAt`.
-- **Phase 3** (this commit): 15 HTTP boundary integration tests in
+- **Phase 3** (this commit): 17 HTTP boundary integration tests in
   `Nova.Integration.Tests/Http/EvaluationNoteHttpTests.cs`, plus a retry-strategy transaction fix in
   `EvaluationNoteService` (transactions now run inside `CreateExecutionStrategy().ExecuteAsync` with
   fresh contexts per attempt, per `service-layer.instructions.md`). The fix was required because the
   direct `BeginTransactionAsync` calls threw under `NpgsqlRetryingExecutionStrategy` on PostgreSQL.
+- **Phase 4** (this commit): 6 transient-failure integration tests in
+  `Nova.Integration.Tests/Data/EvaluationNoteRetryTests.cs` (pre-commit read failures and ambiguous
+  commits for add/edit/delete) using the new `FailFirstNoteReadInterceptor` fault-injection interceptor.
 
-Verification: integration tests 15/15, unit tests 1110/1110, solution build 0 errors, `dotnet format`
-clean. Out-of-scope items held per plan: entities/migrations, notes-list endpoint (notes stay readable
-only through participant detail), drawer UI, append-only history, rich text, concurrency token.
+Verification: integration tests 23/23 (17 HTTP + 6 retry), unit tests 1112/1112, solution build 0
+errors, `dotnet format` clean. Out-of-scope items held per plan: entities/migrations, notes-list
+endpoint (notes stay readable only through participant detail), drawer UI, append-only history, rich
+text, concurrency token.
 
 ## Deployment Plan
 
