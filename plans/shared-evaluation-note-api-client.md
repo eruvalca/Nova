@@ -232,11 +232,11 @@ Nothing is committed yet; Phase 1 is staged for a commit. Phase 2 (WASM client `
 
 ## Phase 2: WASM client and client unit tests
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator
 
-- [ ] Add `Nova.Client\Services\Campaigns\HttpCampaignEvaluationNoteService.cs` (model on
+- [x] Add `Nova.Client\Services\Campaigns\HttpCampaignEvaluationNoteService.cs` (model on
       `HttpCampaignTagApplicationService.cs`):
   - `public sealed class HttpCampaignEvaluationNoteService(HttpClient http) : ICampaignEvaluationNoteService`.
   - `AddAsync`: `PostAsJsonAsync(CampaignEndpoints.AddEvaluationNote, input, ct)` → non-success →
@@ -246,16 +246,16 @@ Suggested executor: orchestrator
     non-success → `ToServiceProblemAsync(ct)`; success → `new Success()`.
   - `DeleteAsync`: `DeleteAsync(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), ct)` → non-success →
     `ToServiceProblemAsync(ct)`; success → `new Success()`.
-- [ ] Register in `Nova.Client\Program.cs` after line 52:
+- [x] Register in `Nova.Client\Program.cs` after line 52:
       `builder.Services.AddScoped<ICampaignEvaluationNoteService, HttpCampaignEvaluationNoteService>();`.
-- [ ] Add `Nova.Unit.Tests\Campaigns\HttpCampaignEvaluationNoteServiceTests.cs` using the existing
+- [x] Add `Nova.Unit.Tests\Campaigns\HttpCampaignEvaluationNoteServiceTests.cs` using the existing
       `FakeHttpMessageHandler` pattern (see `HttpCampaignTagApplicationServiceTests`):
   - Add: POST to `CampaignEndpoints.AddEvaluationNote`, 201 with `{"noteId": 7}` → success `NoteId == 7`;
     POST 400/403/404/409 with a ProblemDetails body → `ServiceProblem.Validation/Forbidden/NotFound/Conflict`.
   - Edit: PUT to `CampaignEndpoints.EditEvaluationNoteUrl(7)`, 204 → `Success`; PUT 409 → Conflict.
   - Delete: DELETE to `CampaignEndpoints.DeleteEvaluationNoteUrl(7)`, 204 → `Success`; DELETE 404 → NotFound.
   - Use `TestContext.Current.CancellationToken` and assert the exact route constant used per request.
-- [ ] Update `Nova.Unit.Tests\Campaigns\HttpCampaignParticipantQueryServiceTests.cs` — add the `ModifiedAt`
+- [x] Update `Nova.Unit.Tests\Campaigns\HttpCampaignParticipantQueryServiceTests.cs` — add the `ModifiedAt`
       argument to all 5 `CampaignParticipantNoteDto` constructions (lines 85, 123, 163–164, 204–205);
       use `null` where the scenario does not exercise ModifiedAt, and a non-null value where the test
       verifies editing.
@@ -271,7 +271,26 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+WASM client `HttpCampaignEvaluationNoteService` added at
+`Nova.Client\Services\Campaigns\HttpCampaignEvaluationNoteService.cs`, modeled on
+`HttpCampaignTagApplicationService`: `AddAsync` POSTs to `CampaignEndpoints.AddEvaluationNote` and
+reads the 201 body via `ReadRequiredJsonAsync<EvaluationNoteMutationSuccess>(..., result => result.NoteId > 0, ct)`;
+`EditAsync` PUTs to `CampaignEndpoints.EditEvaluationNoteUrl(input.NoteId)`; `DeleteAsync` DELETEs to
+`CampaignEndpoints.DeleteEvaluationNoteUrl(noteId)`. Non-success responses flow through
+`ToServiceProblemAsync`. Registered in `Nova.Client\Program.cs` with
+`AddScoped<ICampaignEvaluationNoteService, HttpCampaignEvaluationNoteService>()`.
+
+11 client unit tests added at `Nova.Unit.Tests\Campaigns\HttpCampaignEvaluationNoteServiceTests.cs`
+(FakeHttpMessageHandler pattern). The validation test uses a 400 body with an `errors` dictionary —
+matching the real `ProducesValidationProblem` shape — so `ToServiceProblemAsync` maps it to
+`ServiceProblemKind.Validation` (a plain 400 body maps to BadRequest; see
+`HttpResponseMessageExtensionsTests`). `HttpCampaignParticipantQueryServiceTests` update (5 `null`
+`ModifiedAt` args) was completed during Phase 1.
+
+Verification results: `dotnet test --filter-class "*HttpCampaignEvaluationNoteServiceTests"` → 11/11
+passed; `--filter-class "*HttpCampaignParticipantQueryServiceTests"` → 8/8 passed;
+`dotnet format Nova.slnx --verify-no-changes` → clean. Build: 0 errors (8 pre-existing NU1903
+vulnerability warnings, not from this work).
 
 ## Phase 3: HTTP boundary integration tests
 
