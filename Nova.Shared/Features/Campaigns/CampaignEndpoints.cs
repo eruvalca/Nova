@@ -143,7 +143,7 @@ public static class CampaignEndpoints
     /// <summary>
     /// Edits an evaluation note (PUT).
     /// </summary>
-    public const string EditEvaluationNote = $"{GroupPrefix}/evaluation-notes/{{noteId:long}}";
+    public const string EditEvaluationNoteTemplate = $"{GroupPrefix}/evaluation-notes/{{noteId:long}}";
 
     /// <summary>
     /// The relative edit path within <see cref="GroupPrefix"/>.
@@ -158,7 +158,7 @@ public static class CampaignEndpoints
     /// <summary>
     /// Deletes an evaluation note (DELETE).
     /// </summary>
-    public const string DeleteEvaluationNote = $"{GroupPrefix}/evaluation-notes/{{noteId:long}}";
+    public const string DeleteEvaluationNoteTemplate = $"{GroupPrefix}/evaluation-notes/{{noteId:long}}";
 
     /// <summary>
     /// The relative delete path within <see cref="GroupPrefix"/>.

@@ -59,10 +59,10 @@ Suggested executor: orchestrator
   - `AddEvaluationNote` = `$"{GroupPrefix}/evaluation-notes"`,
     `AddEvaluationNoteRelative` = `"evaluation-notes"`,
     `AddEvaluationNoteRouteName` = `"AddEvaluationNote"`.
-  - `EditEvaluationNote` = `$"{GroupPrefix}/evaluation-notes/{{noteId:long}}"`,
+  - `EditEvaluationNoteTemplate` = `$"{GroupPrefix}/evaluation-notes/{{noteId:long}}"`,
     `EditEvaluationNoteRelative` = `"evaluation-notes/{noteId:long}"`,
     `EditEvaluationNoteRouteName` = `"EditEvaluationNote"`.
-  - `DeleteEvaluationNote` = `$"{GroupPrefix}/evaluation-notes/{{noteId:long}}"`,
+  - `DeleteEvaluationNoteTemplate` = `$"{GroupPrefix}/evaluation-notes/{{noteId:long}}"`,
     `DeleteEvaluationNoteRelative` = `"evaluation-notes/{noteId:long}"`,
     `DeleteEvaluationNoteRouteName` = `"DeleteEvaluationNote"`.
   - `public static string EditEvaluationNoteUrl(long noteId)` and

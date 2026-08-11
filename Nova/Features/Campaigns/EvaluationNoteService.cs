@@ -107,6 +107,7 @@ public sealed partial class EvaluationNoteService(
     /// <param name="input">The validated note input.</param>
     /// <param name="actorUserId">The authorized acting user identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>
     /// Success on add; not-found, forbidden, or conflict information otherwise.
@@ -255,6 +256,7 @@ public sealed partial class EvaluationNoteService(
     /// <param name="input">The validated note input.</param>
     /// <param name="actorUserId">The authorized acting user identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>
     /// Success on edit; not-found, forbidden, or conflict information otherwise.
@@ -389,6 +391,7 @@ public sealed partial class EvaluationNoteService(
     /// <param name="noteId">The identifier of the note to delete.</param>
     /// <param name="actorUserId">The authorized acting user identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>
     /// Success on deletion; not-found, forbidden, or conflict information otherwise.
