@@ -153,7 +153,8 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
            && note.NoteId > 0
            && !string.IsNullOrWhiteSpace(note.Content)
            && !string.IsNullOrWhiteSpace(note.AuthorDisplayName)
-           && note.CreatedAt != default(DateTimeOffset);
+           && note.CreatedAt != default(DateTimeOffset)
+           && (note.ModifiedAt is null || note.ModifiedAt >= note.CreatedAt);
 
     /// <summary>
     /// Validates the structural shape of a single applied tag.

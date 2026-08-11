@@ -79,17 +79,19 @@ internal static class EvaluationNoteEndpointRouteBuilderExtensions
     /// Edits one evaluation note.
     /// </summary>
     /// <param name="noteId">The evaluation note identifier to edit.</param>
-    /// <param name="input">The updated note content.</param>
+    /// <param name="body">The updated note content.</param>
     /// <param name="service">The campaign evaluation note service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
     /// <returns>A no-content response on success or ProblemDetails on failure.</returns>
     private static async Task<IResult> EditEvaluationNoteHandler(
         long noteId,
-        EditEvaluationNoteInput input,
+        PutEvaluationNoteInput body,
         ICampaignEvaluationNoteService service,
         CancellationToken cancellationToken)
     {
-        var result = await service.EditAsync(input with { NoteId = noteId }, cancellationToken);
+        var result = await service.EditAsync(
+            new EditEvaluationNoteInput { NoteId = noteId, Content = body.Content },
+            cancellationToken);
         return result.ToHttpResult(_ => TypedResults.NoContent());
     }
 

@@ -37,7 +37,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
 
         using var editResponse = await anonymousClient.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(42),
-            ValidEditInput(42, "Note"),
+            ValidEditInput("Note"),
             cancellationToken);
         editResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
@@ -68,7 +68,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
 
         using var editResponse = await client.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(42),
-            ValidEditInput(42, "Note"),
+            ValidEditInput("Note"),
             cancellationToken);
         editResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
@@ -261,7 +261,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
 
         using var editResponse = await memberClient.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(added.NoteId),
-            ValidEditInput(added.NoteId, "Revised content."),
+            ValidEditInput("Revised content."),
             cancellationToken);
         editResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
@@ -327,7 +327,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
 
         using var editResponse = await otherMemberClient.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(added.NoteId),
-            ValidEditInput(added.NoteId, "Sneaky edit."),
+            ValidEditInput("Sneaky edit."),
             cancellationToken);
 
         editResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -357,7 +357,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
 
         using var editResponse = await client.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(noteId),
-            ValidEditInput(noteId, "Attempted edit."),
+            ValidEditInput("Attempted edit."),
             cancellationToken);
 
         editResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -402,7 +402,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
 
         using var editResponse = await otherClient.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(added.NoteId),
-            ValidEditInput(added.NoteId, "Cross-tenant edit."),
+            ValidEditInput("Cross-tenant edit."),
             cancellationToken);
 
         editResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -608,14 +608,36 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
                 && note.AuthorDisplayName == "Test User");
     }
 
+    /// <summary>
+    /// Generates a unique e-mail address for a test user.
+    /// </summary>
+    /// <param name="prefix">A stable prefix included in the address.</param>
+    /// <returns>A unique e-mail address.</returns>
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";
 
+    /// <summary>
+    /// Creates a valid add-note request.
+    /// </summary>
+    /// <param name="assignmentId">The player campaign assignment the note is attached to.</param>
+    /// <param name="content">The note content.</param>
+    /// <returns>A valid request for server serialization.</returns>
     private static AddEvaluationNoteInput ValidAddInput(long assignmentId, string content)
         => new() { PlayerCampaignAssignmentId = assignmentId, Content = content };
 
-    private static EditEvaluationNoteInput ValidEditInput(long noteId, string content)
-        => new() { NoteId = noteId, Content = content };
+    /// <summary>
+    /// Creates a valid edit-note request body.
+    /// </summary>
+    /// <param name="content">The note content.</param>
+    /// <returns>A valid request body for server serialization.</returns>
+    private static PutEvaluationNoteInput ValidEditInput(string content)
+        => new() { Content = content };
 
+    /// <summary>
+    /// Creates a club and returns the resulting club DTO.
+    /// </summary>
+    /// <param name="client">The HTTP client used to create the club.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The created club.</returns>
     private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {
         using var response = await client.PostAsJsonAsync(
@@ -626,12 +648,25 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;
     }
 
+    /// <summary>
+    /// Completes the club-membership flow so the client carries the refreshed membership cookie.
+    /// </summary>
+    /// <param name="client">The HTTP client whose membership cookie should be refreshed.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>A task that completes when the cookie has been refreshed.</returns>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
+    /// <summary>
+    /// Updates a user's club membership directly in the database.
+    /// </summary>
+    /// <param name="email">The user's e-mail address.</param>
+    /// <param name="clubId">The club identifier to assign, or <see langword="null"/> to clear membership.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>A task that completes when the user has been updated.</returns>
     private async Task UpdateUserAsync(string email, long? clubId, CancellationToken cancellationToken)
     {
         await using var context = fixture.CreateAdminContext();

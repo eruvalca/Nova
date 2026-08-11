@@ -24,13 +24,21 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
         /// </summary>
         public HttpRequestMessage? LastRequest { get; private set; }
 
+        /// <summary>
+        /// Gets the serialized body of the request sent by the client.
+        /// </summary>
+        public string? LastRequestBody { get; private set; }
+
         /// <inheritdoc />
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             LastRequest = request;
-            return Task.FromResult(response);
+            LastRequestBody = request.Content is null
+                ? null
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+            return response;
         }
     }
 
@@ -231,6 +239,9 @@ public sealed class HttpCampaignEvaluationNoteServiceTests
         handler.LastRequest.ShouldNotBeNull();
         handler.LastRequest.Method.ShouldBe(HttpMethod.Put);
         handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(CampaignEndpoints.EditEvaluationNoteUrl(7));
+        handler.LastRequestBody.ShouldNotBeNull();
+        handler.LastRequestBody.ShouldContain("\"content\":\"Updated evaluation note content.\"");
+        handler.LastRequestBody.ShouldNotContain("noteId");
     }
 
     /// <summary>

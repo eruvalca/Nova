@@ -38,7 +38,7 @@ public sealed class HttpCampaignEvaluationNoteService(HttpClient http) : ICampai
     {
         using var response = await http.PutAsJsonAsync(
             CampaignEndpoints.EditEvaluationNoteUrl(input.NoteId),
-            input,
+            new PutEvaluationNoteInput { Content = input.Content },
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
