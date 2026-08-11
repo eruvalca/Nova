@@ -26,6 +26,8 @@ public sealed partial class EvaluationNoteService(
     ICurrentUserProvider currentUserProvider,
     ILogger<EvaluationNoteService> logger) : ICampaignEvaluationNoteService
 {
+    private const int MutationReceiptRetentionDays = 1;
+
     /// <inheritdoc />
     async Task<ServiceResult<EvaluationNoteMutationSuccess>> ICampaignEvaluationNoteService.AddAsync(
         AddEvaluationNoteInput input,
@@ -168,6 +170,22 @@ public sealed partial class EvaluationNoteService(
         };
         db.Notes.Add(note);
 
+        await PruneExpiredMutationReceiptsAsync(db, cancellationToken);
+
+        // Persist the note first so its database-generated identifier can be recorded on the
+        // durable mutation receipt written in the same transaction. The receipt survives later
+        // note edits and deletes, keeping ambiguous-commit verification tied to this operation.
+        await db.SaveChangesAsync(cancellationToken);
+
+        db.EvaluationNoteMutationReceipts.Add(new EvaluationNoteMutationReceiptEntity
+        {
+            OperationId = creationOperationId,
+            NoteId = note.NoteId,
+            MutationType = EvaluationNoteMutationType.Added,
+            ClubId = clubId,
+            CreatedById = actorUserId
+        });
+
         await db.SaveChangesAsync(cancellationToken);
         commitAttempted.MarkAttempted();
         await transaction.CommitAsync(cancellationToken);
@@ -177,8 +195,8 @@ public sealed partial class EvaluationNoteService(
     }
 
     /// <summary>
-    /// Verifies whether an add that may have committed ambiguously is visible to the tenant, and
-    /// reconstructs the add result when it is.
+    /// Verifies whether an add that may have committed ambiguously left a durable mutation receipt,
+    /// and reconstructs the add result when it did.
     /// </summary>
     /// <param name="db">The fresh tenant context created for this verification attempt.</param>
     /// <param name="creationOperationId">The stable identifier for the logical creation operation.</param>
@@ -196,14 +214,18 @@ public sealed partial class EvaluationNoteService(
             long clubId,
             CancellationToken cancellationToken)
     {
-        var note = await db.Notes
+        // The durable mutation receipt is written in the same transaction as the note and has no
+        // foreign key to the note row, so it still proves this request's add committed even when a
+        // concurrent delete removed the note before verification ran. Replaying would otherwise
+        // resurrect a note the user deliberately deleted.
+        var receipt = await db.EvaluationNoteMutationReceipts
             .AsNoTracking()
             .SingleOrDefaultAsync(
-                candidate => candidate.ClubId == clubId
-                    && candidate.CreationOperationId == creationOperationId,
+                candidate => candidate.OperationId == creationOperationId
+                    && candidate.ClubId == clubId,
                 cancellationToken);
 
-        return note is null
+        return receipt is null
             ? new ExecutionResult<OneOf<
                 EvaluationNoteMutationSuccess,
                 Error<IReadOnlyDictionary<string, string[]>>,
@@ -217,7 +239,7 @@ public sealed partial class EvaluationNoteService(
                 LifecycleForbidden,
                 LifecycleConflict>>(
                     successful: true,
-                    new EvaluationNoteMutationSuccess(note.NoteId));
+                    new EvaluationNoteMutationSuccess(receipt.NoteId));
     }
 
     /// <summary>
@@ -247,9 +269,11 @@ public sealed partial class EvaluationNoteService(
             return new LifecycleForbidden("You must be an approved club member to edit evaluation notes.");
         }
 
+        var editOperationId = Guid.CreateVersion7();
+
         return await ExecuteWithFreshContextAsync(
-            (db, commitAttempted) => EditNoteAsync(db, input, actorUserId, clubId, commitAttempted, cancellationToken),
-            db => VerifyEditCommittedAsync(db, input, clubId, cancellationToken),
+            (db, commitAttempted) => EditNoteAsync(db, input, actorUserId, clubId, editOperationId, commitAttempted, cancellationToken),
+            db => VerifyEditCommittedAsync(db, editOperationId, clubId, cancellationToken),
             cancellationToken);
     }
 
@@ -260,6 +284,7 @@ public sealed partial class EvaluationNoteService(
     /// <param name="input">The validated note input.</param>
     /// <param name="actorUserId">The authorized acting user identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="editOperationId">The stable identifier for this logical edit operation.</param>
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>
@@ -270,6 +295,7 @@ public sealed partial class EvaluationNoteService(
         EditEvaluationNoteInput input,
         long actorUserId,
         long clubId,
+        Guid editOperationId,
         CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
@@ -311,6 +337,20 @@ public sealed partial class EvaluationNoteService(
 
         note.Content = input.Content;
 
+        await PruneExpiredMutationReceiptsAsync(db, cancellationToken);
+
+        // Record a durable edit receipt in the same transaction as the content change so an
+        // ambiguous-commit retry can verify THIS operation applied without comparing mutable note
+        // content (which a newer concurrent edit could legitimately change).
+        db.EvaluationNoteMutationReceipts.Add(new EvaluationNoteMutationReceiptEntity
+        {
+            OperationId = editOperationId,
+            NoteId = note.NoteId,
+            MutationType = EvaluationNoteMutationType.Edited,
+            ClubId = clubId,
+            CreatedById = actorUserId
+        });
+
         await db.SaveChangesAsync(cancellationToken);
         commitAttempted.MarkAttempted();
         await transaction.CommitAsync(cancellationToken);
@@ -320,11 +360,11 @@ public sealed partial class EvaluationNoteService(
     }
 
     /// <summary>
-    /// Verifies whether an edit that may have committed ambiguously is visible to the tenant, and
-    /// reconstructs the edit result when it is.
+    /// Verifies whether an edit that may have committed ambiguously left a durable mutation receipt,
+    /// and reconstructs the edit result when it did.
     /// </summary>
     /// <param name="db">The fresh tenant context created for this verification attempt.</param>
-    /// <param name="input">The validated note input.</param>
+    /// <param name="editOperationId">The stable identifier for the logical edit operation.</param>
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Whether the edit committed, along with the reconstructed result when it did.</returns>
@@ -335,19 +375,22 @@ public sealed partial class EvaluationNoteService(
         LifecycleForbidden,
         LifecycleConflict>>> VerifyEditCommittedAsync(
             NovaDbContext db,
-            EditEvaluationNoteInput input,
+            Guid editOperationId,
             long clubId,
             CancellationToken cancellationToken)
     {
-        var note = await db.Notes
+        // The durable edit receipt is written in the same transaction as the content change, so it
+        // proves THIS request's edit committed even when a newer concurrent edit changed the note
+        // content before verification ran. Comparing note content instead would fail verification
+        // and cause a replay that overwrites the newer edit.
+        var receiptExists = await db.EvaluationNoteMutationReceipts
             .AsNoTracking()
-            .SingleOrDefaultAsync(
-                candidate => candidate.NoteId == input.NoteId
-                    && candidate.ClubId == clubId
-                    && candidate.Content == input.Content,
+            .AnyAsync(
+                candidate => candidate.OperationId == editOperationId
+                    && candidate.ClubId == clubId,
                 cancellationToken);
 
-        return note is null
+        return !receiptExists
             ? new ExecutionResult<OneOf<
                 Success,
                 Error<IReadOnlyDictionary<string, string[]>>,
@@ -360,6 +403,42 @@ public sealed partial class EvaluationNoteService(
                 NotFound,
                 LifecycleForbidden,
                 LifecycleConflict>>(successful: true, new Success());
+    }
+
+    /// <summary>
+    /// Deletes mutation receipts older than the retention window so the durable verification
+    /// artifact does not accumulate unboundedly with note mutations. Runs inside the mutation
+    /// transaction so a transient-failure retry replays the prune along with the mutation, and the
+    /// tenant filter scopes the prune to the current club.
+    /// </summary>
+    /// <param name="db">The fresh tenant context created for this attempt.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    private static async Task PruneExpiredMutationReceiptsAsync(NovaDbContext db, CancellationToken cancellationToken)
+    {
+        var retentionCutoff = DateTimeOffset.UtcNow.AddDays(-MutationReceiptRetentionDays);
+        if (db.Database.IsNpgsql())
+        {
+            // A set-based delete is idempotent: two concurrent mutations in the same club that both
+            // select the same expired receipts will not fight over tracked deletes. After one
+            // transaction deletes them, the other's DELETE affects zero rows instead of throwing
+            // DbUpdateConcurrencyException. It also avoids loading every receipt on each mutation.
+            await db.EvaluationNoteMutationReceipts
+                .Where(receipt => receipt.CreatedAt < retentionCutoff)
+                .ExecuteDeleteAsync(cancellationToken);
+            return;
+        }
+
+        // SQLite cannot translate DateTimeOffset comparisons to SQL, so the tenant-filtered candidate
+        // set is loaded and the age filter is applied in memory. Receipts are pruned daily, keeping
+        // the per-club set small and the table bounded.
+        var expiredReceipts = (await db.EvaluationNoteMutationReceipts
+                .ToListAsync(cancellationToken))
+            .Where(receipt => receipt.CreatedAt < retentionCutoff)
+            .ToList();
+        if (expiredReceipts.Count > 0)
+        {
+            db.EvaluationNoteMutationReceipts.RemoveRange(expiredReceipts);
+        }
     }
 
     /// <summary>

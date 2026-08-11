@@ -5,6 +5,7 @@ using Nova.Features.Campaigns;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
+using OneOf.Types;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -170,6 +171,94 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies an add whose commit reached the database but surfaced a transient failure does not
+    /// replay the mutation when a concurrent delete removed the note before verification ran.
+    /// </summary>
+    /// <remarks>
+    /// The first add commits ambiguously and pauses just before its receipt-verification read. A
+    /// competing delete then removes the created note and commits. Verification consults the durable
+    /// operation receipt (which survives the delete) rather than the now-deleted note row, so the
+    /// paused add reports success and never re-inserts the note.
+    /// </remarks>
+    [Fact]
+    public async Task AddNote_AmbiguousCommitThenConcurrentDelete_DoesNotResurrectNote()
+    {
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var suffix = Guid.NewGuid().ToString("N");
+        var (clubId, _, assignmentId, _) = await SeedNoteDataAsync(actorUserId, suffix, withNote: false);
+
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var gateInterceptor = new GateReceiptVerificationInterceptor();
+        var addFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor,
+            gateInterceptor);
+        var deleteFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            new NoOpInterceptor());
+        var addService = new EvaluationNoteService(
+            addFactory,
+            fixture.CurrentUser,
+            NullLogger<EvaluationNoteService>.Instance);
+        var deleteService = new EvaluationNoteService(
+            deleteFactory,
+            fixture.CurrentUser,
+            NullLogger<EvaluationNoteService>.Instance);
+
+        Task<ServiceResult<EvaluationNoteMutationSuccess>> addTask;
+        try
+        {
+            // The add pauses after its ambiguous commit, just before verification reads the receipt.
+            addTask = ((ICampaignEvaluationNoteService)addService).AddAsync(
+                new AddEvaluationNoteInput
+                {
+                    PlayerCampaignAssignmentId = assignmentId,
+                    Content = $"Added note content {suffix}"
+                },
+                TestContext.Current.CancellationToken);
+            await gateInterceptor.WaitForVerificationAttemptAsync(TestContext.Current.CancellationToken);
+
+            // The commit is durable, so the note is visible; a competing delete removes it.
+            long noteId;
+            await using (var locate = fixture.CreateAdminContext())
+            {
+                noteId = await locate.Notes
+                    .Where(candidate => candidate.PlayerCampaignAssignmentId == assignmentId)
+                    .Select(candidate => candidate.NoteId)
+                    .SingleAsync(TestContext.Current.CancellationToken);
+            }
+
+            var deleteResult = await ((ICampaignEvaluationNoteService)deleteService).DeleteAsync(
+                noteId,
+                TestContext.Current.CancellationToken);
+            deleteResult.IsSuccess.ShouldBeTrue("the delete must commit while the add is paused at verification");
+
+            gateInterceptor.Release();
+            var addResult = await addTask;
+            addResult.IsSuccess.ShouldBeTrue(
+                "the paused add must verify against its durable receipt and report success");
+        }
+        finally
+        {
+            gateInterceptor.Release();
+        }
+
+        failureInterceptor.FailureCount.ShouldBe(1);
+        await using var verify = fixture.CreateAdminContext();
+        var resurrected = await verify.Notes
+            .AnyAsync(
+                candidate => candidate.PlayerCampaignAssignmentId == assignmentId,
+                TestContext.Current.CancellationToken);
+        resurrected.ShouldBeFalse("the delete must remain authoritative and the add must not replay");
+    }
+
+    /// <summary>
     /// Verifies a transient failure raised before any commit does not let edit verification convert a
     /// genuine not-found into a success or apply the edit.
     /// </summary>
@@ -257,6 +346,84 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
                 TestContext.Current.CancellationToken);
         persisted.ShouldNotBeNull();
         persisted.Content.ShouldBe(editedContent);
+    }
+
+    /// <summary>
+    /// Verifies an edit whose commit reached the database but surfaced a transient failure does not
+    /// replay the mutation when a newer edit committed before verification ran.
+    /// </summary>
+    /// <remarks>
+    /// The first edit commits ambiguously and pauses just before its receipt-verification read. A
+    /// newer edit then commits different content. Verification consults the first edit's durable
+    /// operation receipt rather than comparing note content, so the paused edit reports success and
+    /// never overwrites the newer content.
+    /// </remarks>
+    [Fact]
+    public async Task EditNote_AmbiguousCommitThenNewerEdit_DoesNotOverwriteNewerContent()
+    {
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var suffix = Guid.NewGuid().ToString("N");
+        var (clubId, _, _, noteId) = await SeedNoteDataAsync(actorUserId, suffix);
+
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var gateInterceptor = new GateReceiptVerificationInterceptor();
+        var firstFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor,
+            gateInterceptor);
+        var secondFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            new NoOpInterceptor());
+        var firstService = new EvaluationNoteService(
+            firstFactory,
+            fixture.CurrentUser,
+            NullLogger<EvaluationNoteService>.Instance);
+        var secondService = new EvaluationNoteService(
+            secondFactory,
+            fixture.CurrentUser,
+            NullLogger<EvaluationNoteService>.Instance);
+
+        Task<ServiceResult<Success>> firstEdit;
+        try
+        {
+            // The first edit pauses after its ambiguous commit, just before verification reads the receipt.
+            firstEdit = ((ICampaignEvaluationNoteService)firstService).EditAsync(
+                new EditEvaluationNoteInput { NoteId = noteId, Content = "First edit content" },
+                TestContext.Current.CancellationToken);
+            await gateInterceptor.WaitForVerificationAttemptAsync(TestContext.Current.CancellationToken);
+
+            // A newer edit commits different content while the first edit is paused.
+            var newerResult = await ((ICampaignEvaluationNoteService)secondService).EditAsync(
+                new EditEvaluationNoteInput { NoteId = noteId, Content = "Newer edit content" },
+                TestContext.Current.CancellationToken);
+            newerResult.IsSuccess.ShouldBeTrue("the newer edit must commit while the first is paused at verification");
+
+            gateInterceptor.Release();
+            var firstResult = await firstEdit;
+            firstResult.IsSuccess.ShouldBeTrue(
+                "the paused edit must verify against its durable receipt and report success");
+        }
+        finally
+        {
+            gateInterceptor.Release();
+        }
+
+        failureInterceptor.FailureCount.ShouldBe(1);
+        await using var verify = fixture.CreateAdminContext();
+        var persisted = await verify.Notes
+            .SingleOrDefaultAsync(
+                candidate => candidate.NoteId == noteId,
+                TestContext.Current.CancellationToken);
+        persisted.ShouldNotBeNull();
+        persisted.Content.ShouldBe(
+            "Newer edit content",
+            "the newer edit must survive and the paused edit must not replay");
     }
 
     /// <summary>
