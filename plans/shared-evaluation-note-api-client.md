@@ -294,11 +294,11 @@ vulnerability warnings, not from this work).
 
 ## Phase 3: HTTP boundary integration tests
 
-Status: Not started
+Status: Complete
 
 Suggested executor: sub-agent with smaller model (well-specified after Phases 1–2 land)
 
-- [ ] Add `Nova.Integration.Tests\Http\EvaluationNoteHttpTests.cs` (model on
+- [x] Add `Nova.Integration.Tests\Http\EvaluationNoteHttpTests.cs` (model on
       `CampaignTagApplicationHttpTests.cs`):
   - Seed an Active campaign participation and a Closed campaign participation in separate clubs.
   - **Add**: 201 + body `{ "noteId": N }` with N > 0; note visible in a subsequent participant-detail
@@ -313,25 +313,87 @@ Suggested executor: sub-agent with smaller model (well-specified after Phases 1�
   - **Anonymous / not-a-member**: 401 for anonymous requests on all three verbs; 403 for a user with no club.
   - **Refresh flow** (issue #68): POST add → GET participant detail → assert the added note appears
     (mirror of the tag-application "mutation reflected in detail" test).
+- [x] **Fix `EvaluationNoteService` retry-strategy transaction bug** (found while running Phase 3
+      tests): the service opened `BeginTransactionAsync` directly, which throws under
+      `NpgsqlRetryingExecutionStrategy` (`InvalidOperationException: The configured execution strategy
+      'NpgsqlRetryingExecutionStrategy' does not support user-initiated transactions`). Extract each
+      mutation body into a private `AddNoteAsync`/`EditNoteAsync`/`DeleteNoteAsync` method that opens
+      the transaction on a caller-provided fresh context, and add a private
+      `ExecuteWithFreshContextAsync<TResult>` helper mirroring `TeamManagementService` (strategy from a
+      factory context, fresh context per attempt). The `AcquireCampaignMutationLockAsync` + reload +
+      closed-409 checks stay inside the transaction.
 
 ### Verification Plan
 
-- `dotnet build Nova.slnx` — builds clean.
-- `dotnet test --project Nova.Integration.Tests --filter-class "*EvaluationNoteHttpTests*"` — all
-  boundary tests pass. **Docker caveat**: these are Aspire/Postgres integration tests; if the Docker
-  daemon is unhealthy on the runner, they will not start (environment issue, not code) — re-run when
-  Docker is available, and record that in the Phase Summary.
-- `dotnet test --project Nova.Unit.Tests` — full unit suite still green.
+- `dotnet build Nova.slnx` — builds clean. ✅ 0 errors (8 pre-existing NU1903 warnings).
+- `dotnet test --project Nova.Integration.Tests --filter-class "*EvaluationNoteHttpTests"` — all
+  boundary tests pass. ✅ **15/15 passed** (35s). **Docker caveat**: these are Aspire/Postgres
+  integration tests; if the Docker daemon is unhealthy on the runner, they will not start
+  (environment issue, not code) — Docker 29.6.2 confirmed available for this run. Note: use the
+  leading-wildcard-only filter (no trailing `*`; a trailing `*` → exit 5 "Zero tests ran").
+- `dotnet test --project Nova.Unit.Tests` — full unit suite still green. ✅ **1110/1110 passed** (11s).
 - `dotnet build Nova.slnx` and `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic` — clean.
+  ✅ 0 errors; ✅ 0 of 483 files formatted.
 
 ### Phase Summary
 
-_(write when phase completes)_
+`Nova.Integration.Tests\Http\EvaluationNoteHttpTests.cs` (15 tests) exercises the full HTTP boundary
+for the note API, modeled on `CampaignTagApplicationHttpTests.cs`: add (201 + `{ "noteId": N }`,
+detail refresh, cross-tenant 404, blank-content 400, closed-campaign 409), edit (204, `ModifiedAt`
+set ≥ `CreatedAt` with author unchanged, non-author 403, cross-tenant 404, closed 409), delete (204,
+detail no longer shows note, non-author 403, cross-tenant 404, closed 409), plus anonymous 401 /
+no-club 403 on all three verbs.
+
+**Retry-strategy fix**: the initial run had 12 of 15 tests failing with HTTP 500. Server logs showed
+`NpgsqlRetryingExecutionStrategy` throwing `InvalidOperationException` on `BeginTransactionAsync`.
+`EvaluationNoteService` was refactored to run each transaction inside
+`CreateExecutionStrategy().ExecuteAsync` with a fresh `NovaDbContext` per attempt (new private
+`ExecuteWithFreshContextAsync<TResult>` helper mirroring `TeamManagementService`; mutation bodies
+moved to private `AddNoteAsync`/`EditNoteAsync`/`DeleteNoteAsync` taking the fresh context). The
+advisory mutation lock + campaign reload + closed-409 guard stay inside the transaction. Validation
+and membership checks remain outside the strategy. After the fix all 15 integration tests pass; the
+full 1110-test unit suite, solution build, and `dotnet format` are clean. No entity/migration changes
+were needed (per plan scope). Phase 3 committed alongside the fix.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Issue #71 is complete: the existing `EvaluationNoteService` add/edit/delete foundation (issue #15) is
+now exposed through authorized HTTP endpoints and a typed WebAssembly client, ready for the issue #70
+participant drawer.
+
+- **Phase 1** (commit `537af4e`): shared contracts (`EvaluationNoteMutationSuccess`,
+  `ICampaignEvaluationNoteService`), route constants + URL builders in `CampaignEndpoints`,
+  `DateTimeOffset? ModifiedAt` on `CampaignParticipantNoteDto`, the
+  `EvaluationNoteEndpointRouteBuilderExtensions` (POST 201 / PUT 204 / DELETE 204 under
+  `/api/campaigns/evaluation-notes`, `RequireClubMember` group, `DisableAntiforgery()`), explicit
+  interface implementations on `EvaluationNoteService`, and DI + `MapCampaignEvaluationNoteEndpoints()`
+  in `Nova/Program.cs`.
+- **Phase 2** (commit `f581dc1`): `HttpCampaignEvaluationNoteService` WASM client (PostAsJsonAsync add
+  reading the 201 body, PutAsJsonAsync edit, DeleteAsync delete), DI registration in
+  `Nova.Client/Program.cs`, 11 client unit tests, and `HttpCampaignParticipantQueryServiceTests` DTO
+  updates for the new `ModifiedAt`.
+- **Phase 3** (this commit): 15 HTTP boundary integration tests in
+  `Nova.Integration.Tests/Http/EvaluationNoteHttpTests.cs`, plus a retry-strategy transaction fix in
+  `EvaluationNoteService` (transactions now run inside `CreateExecutionStrategy().ExecuteAsync` with
+  fresh contexts per attempt, per `service-layer.instructions.md`). The fix was required because the
+  direct `BeginTransactionAsync` calls threw under `NpgsqlRetryingExecutionStrategy` on PostgreSQL.
+
+Verification: integration tests 15/15, unit tests 1110/1110, solution build 0 errors, `dotnet format`
+clean. Out-of-scope items held per plan: entities/migrations, notes-list endpoint (notes stay readable
+only through participant detail), drawer UI, append-only history, rich text, concurrency token.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+No schema, migration, or infrastructure changes are required; this is code-only.
+
+1. Merge the Phase 1/2/3 commits for issue #71 into `main`.
+2. CI runs the existing suite: `dotnet build Nova.slnx`, `dotnet test --project Nova.Unit.Tests`
+   (SQLite harness), and `dotnet test --project Nova.Integration.Tests` (Aspire/Postgres; requires a
+   healthy Docker daemon on the runner).
+3. Deploy the `Nova` (server) and `Nova.Client` (WASM) apps together — the WASM client calls the new
+   `/api/campaigns/evaluation-notes` endpoints at runtime, so the server must ship first (or
+   atomically with the client). No configuration changes.
+4. Post-deploy smoke check: as an approved club member, POST a note to an Active campaign
+   participation and confirm `201` + `{ "noteId": N }`; PUT a content edit and confirm `204` and that
+   participant detail shows updated `Content` and non-null `ModifiedAt`; DELETE and confirm `204` and
+   that the note disappears from participant detail. Anonymous requests must return `401`.
