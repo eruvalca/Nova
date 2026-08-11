@@ -95,7 +95,7 @@ public sealed partial class EvaluationNoteService(
         }
 
         return await ExecuteWithFreshContextAsync(
-            db => AddNoteAsync(db, input, actorUserId, clubId, cancellationToken),
+            (db, commitAttempted) => AddNoteAsync(db, input, actorUserId, clubId, commitAttempted, cancellationToken),
             db => VerifyAddCommittedAsync(db, input, clubId, cancellationToken),
             cancellationToken);
     }
@@ -116,6 +116,7 @@ public sealed partial class EvaluationNoteService(
         AddEvaluationNoteInput input,
         long actorUserId,
         long clubId,
+        CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -155,6 +156,7 @@ public sealed partial class EvaluationNoteService(
         db.Notes.Add(note);
 
         await db.SaveChangesAsync(cancellationToken);
+        commitAttempted.MarkAttempted();
         await transaction.CommitAsync(cancellationToken);
 
         LogNoteAdded(note.NoteId, input.PlayerCampaignAssignmentId, actorUserId);
@@ -182,18 +184,19 @@ public sealed partial class EvaluationNoteService(
             CancellationToken cancellationToken)
     {
         // Notes have no durable operation key, so the tenant-scoped content fingerprint identifies the
-        // row this request created. Two concurrent identical adds could theoretically be credited to
-        // one request; both rows carry the same content and assignment, so the reconstructed id remains
-        // faithful, and the strategy replays for a genuine pre-commit failure. This cross-request race
-        // is a named deferred follow-up rather than a schema change (issue 71 scopes out entities and
-        // migrations).
+        // row this request created. The model permits multiple notes with the same content on one
+        // assignment, so the lookup is ordered by the newest matching note (NoteId is the
+        // auto-incrementing primary key) to stay deterministic and non-throwing when a concurrent
+        // identical add committed as well. This cross-request race is a named deferred follow-up
+        // rather than a schema change (issue 71 scopes out entities and migrations).
         var note = await db.Notes
             .AsNoTracking()
-            .SingleOrDefaultAsync(
+            .Where(
                 candidate => candidate.ClubId == clubId
                     && candidate.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId
-                    && candidate.Content == input.Content,
-                cancellationToken);
+                    && candidate.Content == input.Content)
+            .OrderByDescending(candidate => candidate.NoteId)
+            .FirstOrDefaultAsync(cancellationToken);
 
         return note is null
             ? new ExecutionResult<OneOf<
@@ -240,7 +243,7 @@ public sealed partial class EvaluationNoteService(
         }
 
         return await ExecuteWithFreshContextAsync(
-            db => EditNoteAsync(db, input, actorUserId, clubId, cancellationToken),
+            (db, commitAttempted) => EditNoteAsync(db, input, actorUserId, clubId, commitAttempted, cancellationToken),
             db => VerifyEditCommittedAsync(db, input, clubId, cancellationToken),
             cancellationToken);
     }
@@ -261,6 +264,7 @@ public sealed partial class EvaluationNoteService(
         EditEvaluationNoteInput input,
         long actorUserId,
         long clubId,
+        CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -302,6 +306,7 @@ public sealed partial class EvaluationNoteService(
         note.Content = input.Content;
 
         await db.SaveChangesAsync(cancellationToken);
+        commitAttempted.MarkAttempted();
         await transaction.CommitAsync(cancellationToken);
 
         LogNoteEdited(input.NoteId, actorUserId);
@@ -372,7 +377,7 @@ public sealed partial class EvaluationNoteService(
         }
 
         return await ExecuteWithFreshContextAsync(
-            db => DeleteNoteAsync(db, noteId, actorUserId, clubId, cancellationToken),
+            (db, commitAttempted) => DeleteNoteAsync(db, noteId, actorUserId, clubId, commitAttempted, cancellationToken),
             db => VerifyDeleteCommittedAsync(db, noteId, clubId, cancellationToken),
             cancellationToken);
     }
@@ -393,6 +398,7 @@ public sealed partial class EvaluationNoteService(
         long noteId,
         long actorUserId,
         long clubId,
+        CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -433,6 +439,7 @@ public sealed partial class EvaluationNoteService(
 
         db.Notes.Remove(note);
         await db.SaveChangesAsync(cancellationToken);
+        commitAttempted.MarkAttempted();
         await transaction.CommitAsync(cancellationToken);
 
         LogNoteDeleted(noteId, actorUserId);
@@ -480,33 +487,66 @@ public sealed partial class EvaluationNoteService(
     /// <summary>
     /// Runs an evaluation-note mutation inside EF Core's retrying execution strategy and verifies
     /// whether an ambiguous commit succeeded before allowing the strategy to replay the mutation.
+    /// Verification only runs for an attempt that reached its commit; a transient failure raised
+    /// before the commit cannot have applied the mutation, so the observed state belongs to an
+    /// earlier request and must not be credited to this one.
     /// </summary>
     /// <typeparam name="TResult">The result produced by the mutation attempt.</typeparam>
-    /// <param name="operation">The mutation to run with a fresh tenant context.</param>
+    /// <param name="operation">The mutation to run with a fresh tenant context and commit tracker.</param>
     /// <param name="verifySucceeded">The verification query to run with a fresh tenant context.</param>
     /// <param name="cancellationToken">A token that cancels strategy setup, mutation, or verification.</param>
     /// <returns>The mutation result or the reconstructed result from successful commit verification.</returns>
     private async Task<TResult> ExecuteWithFreshContextAsync<TResult>(
-        Func<NovaDbContext, Task<TResult>> operation,
+        Func<NovaDbContext, CommitAttemptTracker, Task<TResult>> operation,
         Func<NovaDbContext, Task<ExecutionResult<TResult>>> verifySucceeded,
         CancellationToken cancellationToken)
     {
         await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
 
+        // Records whether the most recent attempt reached CommitAsync. Verification is only
+        // meaningful for that attempt: a transient failure raised before the commit cannot have
+        // applied the mutation, so the observed state belongs to some earlier request and must
+        // not be mistaken for this one's ambiguous commit.
+        var commitAttempted = new CommitAttemptTracker();
+
         return await strategy.ExecuteAsync(
-            (Operation: operation, VerifySucceeded: verifySucceeded),
+            (Operation: operation, VerifySucceeded: verifySucceeded, CommitAttempted: commitAttempted),
             async (state, _) =>
             {
+                state.CommitAttempted.Reset();
                 await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-                return await state.Operation(db);
+                return await state.Operation(db, state.CommitAttempted);
             },
             async (state, _) =>
             {
+                if (!state.CommitAttempted.Attempted)
+                {
+                    return new ExecutionResult<TResult>(successful: false, default!);
+                }
+
                 await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
                 return await state.VerifySucceeded(db);
             },
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Tracks whether a mutation attempt reached its commit, scoping ambiguous-commit verification
+    /// to attempts that could actually have applied the mutation.
+    /// </summary>
+    private sealed class CommitAttemptTracker
+    {
+        private int _attempted;
+
+        /// <summary>Gets a value indicating whether the current attempt reached its commit.</summary>
+        public bool Attempted => Volatile.Read(ref _attempted) == 1;
+
+        /// <summary>Clears the flag at the start of an execution-strategy attempt.</summary>
+        public void Reset() => Volatile.Write(ref _attempted, 0);
+
+        /// <summary>Marks that the current attempt is about to commit.</summary>
+        public void MarkAttempted() => Volatile.Write(ref _attempted, 1);
     }
 
     /// <summary>Logs a note mutation request that failed input validation.</summary>
