@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
@@ -95,6 +96,7 @@ public sealed partial class EvaluationNoteService(
 
         return await ExecuteWithFreshContextAsync(
             db => AddNoteAsync(db, input, actorUserId, clubId, cancellationToken),
+            db => VerifyAddCommittedAsync(db, input, clubId, cancellationToken),
             cancellationToken);
     }
 
@@ -160,6 +162,57 @@ public sealed partial class EvaluationNoteService(
     }
 
     /// <summary>
+    /// Verifies whether an add that may have committed ambiguously is visible to the tenant, and
+    /// reconstructs the add result when it is.
+    /// </summary>
+    /// <param name="db">The fresh tenant context created for this verification attempt.</param>
+    /// <param name="input">The validated note input.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Whether the add committed, along with the reconstructed result when it did.</returns>
+    private static async Task<ExecutionResult<OneOf<
+        EvaluationNoteMutationSuccess,
+        Error<IReadOnlyDictionary<string, string[]>>,
+        NotFound,
+        LifecycleForbidden,
+        LifecycleConflict>>> VerifyAddCommittedAsync(
+            NovaDbContext db,
+            AddEvaluationNoteInput input,
+            long clubId,
+            CancellationToken cancellationToken)
+    {
+        // Notes have no durable operation key, so the tenant-scoped content fingerprint identifies the
+        // row this request created. Two concurrent identical adds could theoretically be credited to
+        // one request; both rows carry the same content and assignment, so the reconstructed id remains
+        // faithful, and the strategy replays for a genuine pre-commit failure. This cross-request race
+        // is a named deferred follow-up rather than a schema change (issue 71 scopes out entities and
+        // migrations).
+        var note = await db.Notes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.ClubId == clubId
+                    && candidate.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId
+                    && candidate.Content == input.Content,
+                cancellationToken);
+
+        return note is null
+            ? new ExecutionResult<OneOf<
+                EvaluationNoteMutationSuccess,
+                Error<IReadOnlyDictionary<string, string[]>>,
+                NotFound,
+                LifecycleForbidden,
+                LifecycleConflict>>(successful: false, default!)
+            : new ExecutionResult<OneOf<
+                EvaluationNoteMutationSuccess,
+                Error<IReadOnlyDictionary<string, string[]>>,
+                NotFound,
+                LifecycleForbidden,
+                LifecycleConflict>>(
+                    successful: true,
+                    new EvaluationNoteMutationSuccess(note.NoteId));
+    }
+
+    /// <summary>
     /// Edits the content of an existing evaluation note.
     /// Only the original author or a club administrator may edit a note while the campaign is Active.
     /// </summary>
@@ -188,6 +241,7 @@ public sealed partial class EvaluationNoteService(
 
         return await ExecuteWithFreshContextAsync(
             db => EditNoteAsync(db, input, actorUserId, clubId, cancellationToken),
+            db => VerifyEditCommittedAsync(db, input, clubId, cancellationToken),
             cancellationToken);
     }
 
@@ -255,6 +309,49 @@ public sealed partial class EvaluationNoteService(
     }
 
     /// <summary>
+    /// Verifies whether an edit that may have committed ambiguously is visible to the tenant, and
+    /// reconstructs the edit result when it is.
+    /// </summary>
+    /// <param name="db">The fresh tenant context created for this verification attempt.</param>
+    /// <param name="input">The validated note input.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Whether the edit committed, along with the reconstructed result when it did.</returns>
+    private static async Task<ExecutionResult<OneOf<
+        Success,
+        Error<IReadOnlyDictionary<string, string[]>>,
+        NotFound,
+        LifecycleForbidden,
+        LifecycleConflict>>> VerifyEditCommittedAsync(
+            NovaDbContext db,
+            EditEvaluationNoteInput input,
+            long clubId,
+            CancellationToken cancellationToken)
+    {
+        var note = await db.Notes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.NoteId == input.NoteId
+                    && candidate.ClubId == clubId
+                    && candidate.Content == input.Content,
+                cancellationToken);
+
+        return note is null
+            ? new ExecutionResult<OneOf<
+                Success,
+                Error<IReadOnlyDictionary<string, string[]>>,
+                NotFound,
+                LifecycleForbidden,
+                LifecycleConflict>>(successful: false, default!)
+            : new ExecutionResult<OneOf<
+                Success,
+                Error<IReadOnlyDictionary<string, string[]>>,
+                NotFound,
+                LifecycleForbidden,
+                LifecycleConflict>>(successful: true, new Success());
+    }
+
+    /// <summary>
     /// Deletes an evaluation note.
     /// Only the original author or a club administrator may delete a note while the campaign is Active.
     /// </summary>
@@ -276,6 +373,7 @@ public sealed partial class EvaluationNoteService(
 
         return await ExecuteWithFreshContextAsync(
             db => DeleteNoteAsync(db, noteId, actorUserId, clubId, cancellationToken),
+            db => VerifyDeleteCommittedAsync(db, noteId, clubId, cancellationToken),
             cancellationToken);
     }
 
@@ -342,25 +440,73 @@ public sealed partial class EvaluationNoteService(
     }
 
     /// <summary>
-    /// Runs an evaluation-note mutation inside EF Core's retrying execution strategy while creating a
-    /// fresh tenant context for each execution attempt.
+    /// Verifies whether a delete that may have committed ambiguously is absent from the tenant, and
+    /// reconstructs the delete result when it is.
+    /// </summary>
+    /// <param name="db">The fresh tenant context created for this verification attempt.</param>
+    /// <param name="noteId">The identifier of the note that was deleted.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Whether the delete committed, along with the reconstructed result when it did.</returns>
+    private static async Task<ExecutionResult<OneOf<
+        Success,
+        NotFound,
+        LifecycleForbidden,
+        LifecycleConflict>>> VerifyDeleteCommittedAsync(
+            NovaDbContext db,
+            long noteId,
+            long clubId,
+            CancellationToken cancellationToken)
+    {
+        var note = await db.Notes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.NoteId == noteId && candidate.ClubId == clubId,
+                cancellationToken);
+
+        return note is not null
+            ? new ExecutionResult<OneOf<
+                Success,
+                NotFound,
+                LifecycleForbidden,
+                LifecycleConflict>>(successful: false, default!)
+            : new ExecutionResult<OneOf<
+                Success,
+                NotFound,
+                LifecycleForbidden,
+                LifecycleConflict>>(successful: true, new Success());
+    }
+
+    /// <summary>
+    /// Runs an evaluation-note mutation inside EF Core's retrying execution strategy and verifies
+    /// whether an ambiguous commit succeeded before allowing the strategy to replay the mutation.
     /// </summary>
     /// <typeparam name="TResult">The result produced by the mutation attempt.</typeparam>
     /// <param name="operation">The mutation to run with a fresh tenant context.</param>
-    /// <param name="cancellationToken">A token that cancels the strategy setup or mutation attempt.</param>
-    /// <returns>The result returned by the successful execution-strategy attempt.</returns>
+    /// <param name="verifySucceeded">The verification query to run with a fresh tenant context.</param>
+    /// <param name="cancellationToken">A token that cancels strategy setup, mutation, or verification.</param>
+    /// <returns>The mutation result or the reconstructed result from successful commit verification.</returns>
     private async Task<TResult> ExecuteWithFreshContextAsync<TResult>(
         Func<NovaDbContext, Task<TResult>> operation,
+        Func<NovaDbContext, Task<ExecutionResult<TResult>>> verifySucceeded,
         CancellationToken cancellationToken)
     {
         await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
 
-        return await strategy.ExecuteAsync(async () =>
-        {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return await operation(db);
-        });
+        return await strategy.ExecuteAsync(
+            (Operation: operation, VerifySucceeded: verifySucceeded),
+            async (state, _) =>
+            {
+                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                return await state.Operation(db);
+            },
+            async (state, _) =>
+            {
+                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                return await state.VerifySucceeded(db);
+            },
+            cancellationToken);
     }
 
     /// <summary>Logs a note mutation request that failed input validation.</summary>
