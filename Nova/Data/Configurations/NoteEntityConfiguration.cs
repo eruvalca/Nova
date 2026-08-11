@@ -20,6 +20,10 @@ public class NoteEntityConfiguration : IEntityTypeConfiguration<NoteEntity>
         builder.Property(e => e.NoteId)
             .ValueGeneratedOnAdd();
 
+        builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
+            .IsUnique()
+            .HasFilter("\"CreationOperationId\" IS NOT NULL");
+
         builder
             .HasOne(e => e.PlayerCampaignAssignment)
             .WithMany(p => p.Notes)

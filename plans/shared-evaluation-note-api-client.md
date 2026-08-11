@@ -4,7 +4,7 @@ Expose the completed `EvaluationNoteService` add/edit/delete foundation (issue #
 authorized HTTP endpoints and a typed WebAssembly client, so a participant drawer (issue #70) can
 add, edit, and delete evaluation notes and refresh participant detail (issue #68). Reuses
 `AddEvaluationNoteInput` / `EditEvaluationNoteInput` unchanged and the existing
-`EvaluationNoteService` (no second service, no entity/migration work). Adds no notes-list endpoint —
+`EvaluationNoteService` (no second service). Adds no notes-list endpoint —
 notes stay readable only through the existing participant-detail payload.
 
 Scope (confirmed with user):
@@ -35,8 +35,9 @@ Scope (confirmed with user):
   PutAsJsonAsync for edit; DeleteAsync for delete, 204 → `Success`); DI registration in `Nova.Client/Program.cs`.
 - **Tests**: WASM client unit tests (`FakeHttpMessageHandler`), update the 5 `CampaignParticipantNoteDto`
   test constructions for the new `ModifiedAt` argument, and HTTP boundary integration tests.
-- **Out of scope**: entities, migrations, replacement service, participant-detail queries, drawer UI,
-  append-only history, rich text, concurrency token, notes-list endpoint.
+- **Out of scope**: replacement service, participant-detail queries, drawer UI, append-only history,
+  rich text, concurrency token, notes-list endpoint. A review-driven persistence correction adds a
+  nullable note creation-operation ID and filtered unique index for safe ambiguous-commit verification.
 
 ## For Future Agents
 
@@ -333,9 +334,9 @@ Suggested executor: sub-agent with smaller model (well-specified after Phases 1�
   (environment issue, not code) — Docker 29.6.2 confirmed available for this run. Note: use the
   leading-wildcard-only filter (no trailing `*`; a trailing `*` → exit 5 "Zero tests ran").
 - `dotnet test --project Nova.Integration.Tests --filter-class "*EvaluationNoteRetryTests"` —
-  transient-failure coverage for add/edit/delete. ✅ **6/6 passed** (25s) using
+  transient-failure and idempotency coverage for add/edit/delete. ✅ **8/8 passed** (28s) using
   `FailFirstNoteReadInterceptor` (pre-commit read failure) and `FailFirstCommittedTransactionInterceptor`
-  (ambiguous commit), modeled on `CampaignTagApplicationRetryTests.cs`.
+  (ambiguous commit), plus pre-commit failure and operation-ID uniqueness coverage.
 - `dotnet test --project Nova.Unit.Tests` — full unit suite still green. ✅ **1112/1112 passed** (11s).
 - `dotnet build Nova.slnx` and `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic` — clean.
   ✅ 0 errors; ✅ 0 of 483 files formatted.
@@ -357,8 +358,8 @@ no-club 403 on all three verbs.
 moved to private `AddNoteAsync`/`EditNoteAsync`/`DeleteNoteAsync` taking the fresh context). The
 advisory mutation lock + campaign reload + closed-409 guard stay inside the transaction. Validation
 and membership checks remain outside the strategy. After the fix all 15 integration tests pass; the
-full 1110-test unit suite, solution build, and `dotnet format` are clean. No entity/migration changes
-were needed (per plan scope). Phase 3 committed alongside the fix.
+full 1110-test unit suite, solution build, and `dotnet format` are clean. A later review correction
+adds durable operation-ID verification for note creation. Phase 3 committed alongside the fix.
 
 ## Final Recap
 
@@ -382,27 +383,31 @@ participant drawer.
   `EvaluationNoteService` (transactions now run inside `CreateExecutionStrategy().ExecuteAsync` with
   fresh contexts per attempt, per `service-layer.instructions.md`). The fix was required because the
   direct `BeginTransactionAsync` calls threw under `NpgsqlRetryingExecutionStrategy` on PostgreSQL.
-- **Phase 4** (this commit): 6 transient-failure integration tests in
+- **Phase 4** (this commit): 8 retry/idempotency integration tests in
   `Nova.Integration.Tests/Data/EvaluationNoteRetryTests.cs` (pre-commit read failures and ambiguous
-  commits for add/edit/delete) using the new `FailFirstNoteReadInterceptor` fault-injection interceptor.
+  commits for add/edit/delete, duplicate operation-ID rejection, and an identical-content regression)
+  using the new note fault-injection interceptors. Add verification now uses a stable
+  `CreationOperationId` persisted on `NoteEntity` with a tenant-scoped filtered unique index.
 
-Verification: integration tests 23/23 (17 HTTP + 6 retry), unit tests 1112/1112, solution build 0
-errors, `dotnet format` clean. Out-of-scope items held per plan: entities/migrations, notes-list
-endpoint (notes stay readable only through participant detail), drawer UI, append-only history, rich
-text, concurrency token.
+Verification: integration tests 25/25 (17 HTTP + 8 retry), unit tests 1112/1112, solution build 0
+errors, `dotnet format` clean. Out-of-scope items held per plan: notes-list endpoint (notes stay
+readable only through participant detail), drawer UI, append-only history, rich text, concurrency
+token.
 
 ## Deployment Plan
 
-No schema, migration, or infrastructure changes are required; this is code-only.
+The incremental `AddNoteCreationOperationId` migration adds a nullable UUID column and a filtered
+unique index on `(ClubId, CreationOperationId)`. Existing notes remain valid with null operation IDs.
 
 1. Merge the Phase 1/2/3 commits for issue #71 into `main`.
 2. CI runs the existing suite: `dotnet build Nova.slnx` and `dotnet test --project Nova.Unit.Tests`
    (SQLite harness). Integration tests (`dotnet test --project Nova.Integration.Tests`, Aspire/Postgres;
    requires a healthy Docker daemon) are not part of CI and run manually.
-3. Deploy the `Nova` (server) and `Nova.Client` (WASM) apps together — the WASM client calls the new
+3. Apply the database migration before deploying the updated server.
+4. Deploy the `Nova` (server) and `Nova.Client` (WASM) apps together — the WASM client calls the new
    `/api/campaigns/evaluation-notes` endpoints at runtime, so the server must ship first (or
    atomically with the client). No configuration changes.
-4. Post-deploy smoke check: as an approved club member, POST a note to an Active campaign
+5. Post-deploy smoke check: as an approved club member, POST a note to an Active campaign
    participation and confirm `201` + `{ "noteId": N }`; PUT a content edit and confirm `204` and that
    participant detail shows updated `Content` and non-null `ModifiedAt`; DELETE and confirm `204` and
    that the note disappears from participant detail. Anonymous requests must return `401`.

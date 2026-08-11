@@ -93,6 +93,36 @@ internal sealed class FailFirstCommittedTransactionInterceptor : DbTransactionIn
 }
 
 /// <summary>
+/// Simulates one transient failure immediately before the database commits a transaction.
+/// </summary>
+internal sealed class FailFirstTransactionCommitInterceptor : DbTransactionInterceptor
+{
+    private int _shouldFail = 1;
+    private int _failureCount;
+
+    /// <summary>
+    /// Gets the number of pre-commit failures injected by this interceptor.
+    /// </summary>
+    public int FailureCount => Volatile.Read(ref _failureCount);
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult> TransactionCommittingAsync(
+        DbTransaction transaction,
+        TransactionEventData eventData,
+        InterceptionResult result,
+        CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.Exchange(ref _shouldFail, 0) == 1)
+        {
+            Interlocked.Increment(ref _failureCount);
+            throw new NpgsqlException("Simulated transaction commit failure.", new TimeoutException());
+        }
+
+        return ValueTask.FromResult(result);
+    }
+}
+
+/// <summary>
 /// Simulates one transient provider failure while a mutation attempt is still reading, before it
 /// has written or committed anything.
 /// </summary>

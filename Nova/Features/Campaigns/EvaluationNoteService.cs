@@ -94,9 +94,18 @@ public sealed partial class EvaluationNoteService(
             return new LifecycleForbidden("You must be an approved club member to add evaluation notes.");
         }
 
+        var creationOperationId = Guid.CreateVersion7();
+
         return await ExecuteWithFreshContextAsync(
-            (db, commitAttempted) => AddNoteAsync(db, input, actorUserId, clubId, commitAttempted, cancellationToken),
-            db => VerifyAddCommittedAsync(db, input, clubId, cancellationToken),
+            (db, commitAttempted) => AddNoteAsync(
+                db,
+                input,
+                actorUserId,
+                clubId,
+                creationOperationId,
+                commitAttempted,
+                cancellationToken),
+            db => VerifyAddCommittedAsync(db, creationOperationId, clubId, cancellationToken),
             cancellationToken);
     }
 
@@ -107,6 +116,7 @@ public sealed partial class EvaluationNoteService(
     /// <param name="input">The validated note input.</param>
     /// <param name="actorUserId">The authorized acting user identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="creationOperationId">The stable identifier for this logical creation operation.</param>
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>
@@ -117,6 +127,7 @@ public sealed partial class EvaluationNoteService(
         AddEvaluationNoteInput input,
         long actorUserId,
         long clubId,
+        Guid creationOperationId,
         CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
@@ -150,6 +161,7 @@ public sealed partial class EvaluationNoteService(
         var note = new NoteEntity
         {
             Content = input.Content,
+            CreationOperationId = creationOperationId,
             PlayerCampaignAssignmentId = participation.PlayerCampaignAssignmentId,
             ClubId = default,
             CreatedById = default
@@ -169,7 +181,7 @@ public sealed partial class EvaluationNoteService(
     /// reconstructs the add result when it is.
     /// </summary>
     /// <param name="db">The fresh tenant context created for this verification attempt.</param>
-    /// <param name="input">The validated note input.</param>
+    /// <param name="creationOperationId">The stable identifier for the logical creation operation.</param>
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Whether the add committed, along with the reconstructed result when it did.</returns>
@@ -180,24 +192,16 @@ public sealed partial class EvaluationNoteService(
         LifecycleForbidden,
         LifecycleConflict>>> VerifyAddCommittedAsync(
             NovaDbContext db,
-            AddEvaluationNoteInput input,
+            Guid creationOperationId,
             long clubId,
             CancellationToken cancellationToken)
     {
-        // Notes have no durable operation key, so the tenant-scoped content fingerprint identifies the
-        // row this request created. The model permits multiple notes with the same content on one
-        // assignment, so the lookup is ordered by the newest matching note (NoteId is the
-        // auto-incrementing primary key) to stay deterministic and non-throwing when a concurrent
-        // identical add committed as well. This cross-request race is a named deferred follow-up
-        // rather than a schema change (issue 71 scopes out entities and migrations).
         var note = await db.Notes
             .AsNoTracking()
-            .Where(
+            .SingleOrDefaultAsync(
                 candidate => candidate.ClubId == clubId
-                    && candidate.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId
-                    && candidate.Content == input.Content)
-            .OrderByDescending(candidate => candidate.NoteId)
-            .FirstOrDefaultAsync(cancellationToken);
+                    && candidate.CreationOperationId == creationOperationId,
+                cancellationToken);
 
         return note is null
             ? new ExecutionResult<OneOf<

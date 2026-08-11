@@ -13,6 +13,11 @@ public class NoteEntity : BaseEntity, ITenantOwnedEntity
     public long NoteId { get; set; } = default;
 
     /// <summary>
+    /// Gets or sets the stable identifier for the logical note-creation operation.
+    /// </summary>
+    public Guid? CreationOperationId { get; set; }
+
+    /// <summary>
     /// Gets or sets the note content.
     /// </summary>
     public required string Content { get; set; }

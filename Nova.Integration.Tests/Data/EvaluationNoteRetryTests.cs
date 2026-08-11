@@ -18,6 +18,27 @@ namespace Nova.Integration.Tests.Data;
 public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
 {
     /// <summary>
+    /// Verifies PostgreSQL rejects two notes in the same club with the same creation-operation
+    /// identifier.
+    /// </summary>
+    [Fact]
+    public async Task CreationOperationId_RejectsDuplicateWithinClub()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var suffix = Guid.NewGuid().ToString("N");
+        var creationOperationId = Guid.CreateVersion7();
+        var (clubId, _, assignmentId, _) = await SeedNoteDataAsync(actorUserId, suffix, withNote: false);
+
+        await using var db = fixture.CreateAdminContext();
+        db.Notes.AddRange(
+            CreateNote("First note", assignmentId, clubId, actorUserId, creationOperationId),
+            CreateNote("Second note", assignmentId, clubId, actorUserId, creationOperationId));
+
+        await Should.ThrowAsync<DbUpdateException>(() => db.SaveChangesAsync(cancellationToken));
+    }
+
+    /// <summary>
     /// Verifies a transient failure raised before any commit does not let add verification convert a
     /// genuine not-found into a success.
     /// </summary>
@@ -103,6 +124,49 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
         persisted.ShouldNotBeNull();
         persisted.PlayerCampaignAssignmentId.ShouldBe(assignmentId);
         persisted.Content.ShouldBe(content);
+    }
+
+    /// <summary>
+    /// Verifies a failed commit is retried instead of being mistaken for an older identical note.
+    /// </summary>
+    [Fact]
+    public async Task AddNote_RetriesFailedCommit_WhenIdenticalNoteAlreadyExists()
+    {
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var suffix = Guid.NewGuid().ToString("N");
+        var (clubId, _, assignmentId, existingNoteId) = await SeedNoteDataAsync(actorUserId, suffix);
+        var content = $"Original note content {suffix}";
+
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var failureInterceptor = new FailFirstTransactionCommitInterceptor();
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor);
+        var service = new EvaluationNoteService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<EvaluationNoteService>.Instance);
+
+        var result = await ((ICampaignEvaluationNoteService)service).AddAsync(
+            new AddEvaluationNoteInput { PlayerCampaignAssignmentId = assignmentId, Content = content },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.NoteId.ShouldNotBe(existingNoteId);
+        failureInterceptor.FailureCount.ShouldBe(1);
+
+        await using var verify = fixture.CreateAdminContext();
+        var persistedNoteIds = await verify.Notes
+            .Where(candidate => candidate.PlayerCampaignAssignmentId == assignmentId
+                && candidate.Content == content)
+            .OrderBy(candidate => candidate.NoteId)
+            .Select(candidate => candidate.NoteId)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        persistedNoteIds.ShouldBe([existingNoteId, result.Value.NoteId]);
     }
 
     /// <summary>
@@ -369,4 +433,22 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
 
         return (club.ClubId, campaign.CampaignId, assignment.PlayerCampaignAssignmentId, noteId);
     }
+
+    /// <summary>
+    /// Creates a note entity for direct database constraint verification.
+    /// </summary>
+    private static NoteEntity CreateNote(
+        string content,
+        long assignmentId,
+        long clubId,
+        long actorUserId,
+        Guid creationOperationId)
+        => new()
+        {
+            Content = content,
+            CreationOperationId = creationOperationId,
+            PlayerCampaignAssignmentId = assignmentId,
+            ClubId = clubId,
+            CreatedById = actorUserId
+        };
 }
