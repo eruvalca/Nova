@@ -82,7 +82,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                     null,
                     CampaignStatus.Active,
                     Guid.NewGuid(),
-                    [new CampaignParticipantNoteDto(1, "", "A Member", DateTimeOffset.UtcNow, true, true)],
+                    [new CampaignParticipantNoteDto(1, "", "A Member", DateTimeOffset.UtcNow, null, true, true)],
                     [new CampaignParticipantTagApplicationDto(0, 401, "Blue", "Blue", false, "", DateTimeOffset.UtcNow, true)],
                     new CampaignParticipantCapabilitiesDto(true, true, true, true)))
             }));
@@ -120,7 +120,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                 null,
                 CampaignStatus.Active,
                 Guid.NewGuid(),
-                [new CampaignParticipantNoteDto(1, "Hello", "A Member", DateTimeOffset.UtcNow, true, true)],
+                [new CampaignParticipantNoteDto(1, "Hello", "A Member", DateTimeOffset.UtcNow, null, true, true)],
                 [null!, new CampaignParticipantTagApplicationDto(2, 401, "Blue", string.Empty, false, "A Member", DateTimeOffset.UtcNow, true)],
                 new CampaignParticipantCapabilitiesDto(true, true, true, true)))
         };
@@ -160,8 +160,8 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                 CampaignStatus.Active,
                 Guid.NewGuid(),
                 [
-                    new CampaignParticipantNoteDto(2, "Older note", "A Member", DateTimeOffset.UtcNow.AddMinutes(-5), true, true),
-                    new CampaignParticipantNoteDto(1, "Newer note", "A Member", DateTimeOffset.UtcNow, true, true)
+                    new CampaignParticipantNoteDto(2, "Older note", "A Member", DateTimeOffset.UtcNow.AddMinutes(-5), null, true, true),
+                    new CampaignParticipantNoteDto(1, "Newer note", "A Member", DateTimeOffset.UtcNow, null, true, true)
                 ],
                 [new CampaignParticipantTagApplicationDto(2, 401, "Blue", "Blue", false, "A Member", DateTimeOffset.UtcNow.AddMinutes(-2), true)],
                 new CampaignParticipantCapabilitiesDto(true, true, true, true)))
@@ -201,8 +201,8 @@ public sealed class HttpCampaignParticipantQueryServiceTests
             CampaignStatus.Active,
             Guid.NewGuid(),
             [
-                new CampaignParticipantNoteDto(2, "Newer note", "A Member", now, true, true),
-                new CampaignParticipantNoteDto(1, "Older note", "A Member", now.AddMinutes(-5), true, true)
+                new CampaignParticipantNoteDto(2, "Newer note", "A Member", now, null, true, true),
+                new CampaignParticipantNoteDto(1, "Older note", "A Member", now.AddMinutes(-5), null, true, true)
             ],
             [
                 new CampaignParticipantTagApplicationDto(3, 401, "Blue", "Blue", false, "A Member", now, true),

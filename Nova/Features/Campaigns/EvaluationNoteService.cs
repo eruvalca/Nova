@@ -5,6 +5,7 @@ using Nova.Entities;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Results;
 using Nova.Shared.Validation;
 using OneOf;
 using OneOf.Types;
@@ -22,8 +23,49 @@ namespace Nova.Features.Campaigns;
 public sealed partial class EvaluationNoteService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<EvaluationNoteService> logger)
+    ILogger<EvaluationNoteService> logger) : ICampaignEvaluationNoteService
 {
+    /// <inheritdoc />
+    async Task<ServiceResult<EvaluationNoteMutationSuccess>> ICampaignEvaluationNoteService.AddAsync(
+        AddEvaluationNoteInput input,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await AddAsync(input, cancellationToken);
+        return outcome.Match<ServiceResult<EvaluationNoteMutationSuccess>>(
+            success => success,
+            validation => ServiceProblem.Validation(validation.Value),
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
+
+    /// <inheritdoc />
+    async Task<ServiceResult<Success>> ICampaignEvaluationNoteService.EditAsync(
+        EditEvaluationNoteInput input,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await EditAsync(input, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            validation => ServiceProblem.Validation(validation.Value),
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
+
+    /// <inheritdoc />
+    async Task<ServiceResult<Success>> ICampaignEvaluationNoteService.DeleteAsync(
+        long noteId,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await DeleteAsync(noteId, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
+
     /// <summary>
     /// Adds a new evaluation note to a campaign participation record.
     /// Any club member may add notes while the campaign is Active.
@@ -33,7 +75,7 @@ public sealed partial class EvaluationNoteService(
     /// <returns>
     /// Success on add; validation errors, not-found, forbidden, or conflict information otherwise.
     /// </returns>
-    public async Task<OneOf<Success, Error<IReadOnlyDictionary<string, string[]>>, NotFound, LifecycleForbidden, LifecycleConflict>> AddAsync(
+    public async Task<OneOf<EvaluationNoteMutationSuccess, Error<IReadOnlyDictionary<string, string[]>>, NotFound, LifecycleForbidden, LifecycleConflict>> AddAsync(
         AddEvaluationNoteInput input,
         CancellationToken cancellationToken = default)
     {
@@ -92,7 +134,7 @@ public sealed partial class EvaluationNoteService(
         await transaction.CommitAsync(cancellationToken);
 
         LogNoteAdded(note.NoteId, input.PlayerCampaignAssignmentId, actorUserId);
-        return new Success();
+        return new EvaluationNoteMutationSuccess(note.NoteId);
     }
 
     /// <summary>
