@@ -370,6 +370,60 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies blank note content is rejected on PUT with validation ProblemDetails and the row is unchanged.
+    /// </summary>
+    [Fact]
+    public async Task EditEvaluationNote_ReturnsValidationProblem_ForBlankContent()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("note-edit-blank");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(club.ClubId, email, cancellationToken);
+        var noteId = await InsertNoteAsync(club.ClubId, assignmentId, email, "Original content.", cancellationToken);
+
+        using var editResponse = await client.PutAsJsonAsync(
+            CampaignEndpoints.EditEvaluationNoteUrl(noteId),
+            ValidEditInput("   "),
+            cancellationToken);
+
+        editResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var errors = await ReadErrorsAsync(editResponse, cancellationToken);
+        errors.ShouldContainKey(nameof(PutEvaluationNoteInput.Content));
+        await AssertNotePersistedAsync(noteId, "Original content.", cancellationToken);
+    }
+
+    /// <summary>
+    /// Verifies overlong note content is rejected on PUT with validation ProblemDetails and the row is unchanged.
+    /// </summary>
+    [Fact]
+    public async Task EditEvaluationNote_ReturnsValidationProblem_ForOverlongContent()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("note-edit-overlong");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(club.ClubId, email, cancellationToken);
+        var noteId = await InsertNoteAsync(club.ClubId, assignmentId, email, "Original content.", cancellationToken);
+
+        using var editResponse = await client.PutAsJsonAsync(
+            CampaignEndpoints.EditEvaluationNoteUrl(noteId),
+            ValidEditInput(new string('x', 4001)),
+            cancellationToken);
+
+        editResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var errors = await ReadErrorsAsync(editResponse, cancellationToken);
+        errors.ShouldContainKey(nameof(PutEvaluationNoteInput.Content));
+        await AssertNotePersistedAsync(noteId, "Original content.", cancellationToken);
+    }
+
+    /// <summary>
     /// Verifies editing another club's note identifier is non-disclosing and leaves the row intact.
     /// </summary>
     [Fact]
