@@ -334,9 +334,11 @@ Suggested executor: sub-agent with smaller model (well-specified after Phases 1�
   (environment issue, not code) — Docker 29.6.2 confirmed available for this run. Note: use the
   leading-wildcard-only filter (no trailing `*`; a trailing `*` → exit 5 "Zero tests ran").
 - `dotnet test --project Nova.Integration.Tests --filter-class "*EvaluationNoteRetryTests"` —
-  transient-failure and idempotency coverage for add/edit/delete. ✅ **8/8 passed** (28s) using
+  transient-failure and idempotency coverage for add/edit/delete. ✅ **10/10 passed** using
   `FailFirstNoteReadInterceptor` (pre-commit read failure) and `FailFirstCommittedTransactionInterceptor`
-  (ambiguous commit), plus pre-commit failure and operation-ID uniqueness coverage.
+  (ambiguous commit), plus pre-commit failure, operation-ID uniqueness, and the two interleaving
+  regression tests (add must not resurrect a concurrently deleted note; edit must not overwrite newer
+  content committed before verification).
 - `dotnet test --project Nova.Unit.Tests` — full unit suite still green. ✅ **1112/1112 passed** (11s).
 - `dotnet build Nova.slnx` and `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic` — clean.
   ✅ 0 errors; ✅ 0 of 483 files formatted.
@@ -383,13 +385,21 @@ participant drawer.
   `EvaluationNoteService` (transactions now run inside `CreateExecutionStrategy().ExecuteAsync` with
   fresh contexts per attempt, per `service-layer.instructions.md`). The fix was required because the
   direct `BeginTransactionAsync` calls threw under `NpgsqlRetryingExecutionStrategy` on PostgreSQL.
-- **Phase 4** (this commit): 8 retry/idempotency integration tests in
+- **Phase 4** (this commit): 10 retry/idempotency integration tests in
   `Nova.Integration.Tests/Data/EvaluationNoteRetryTests.cs` (pre-commit read failures and ambiguous
-  commits for add/edit/delete, duplicate operation-ID rejection, and an identical-content regression)
-  using the new note fault-injection interceptors. Add verification now uses a stable
-  `CreationOperationId` persisted on `NoteEntity` with a tenant-scoped filtered unique index.
+  commits for add/edit/delete, duplicate operation-ID rejection, an identical-content regression, and
+  two interleaving tests that pause ambiguous-commit verification while a competing mutation commits).
+  Add verification uses a stable `CreationOperationId` persisted on `NoteEntity` with a tenant-scoped
+  filtered unique index.
+- **Phase 5** (this commit): durable operation receipts for the two review findings. Every add/edit/
+  delete commits an immutable `EvaluationNoteMutationReceipt` in the same transaction; the receipt
+  carries no FK to the note row, so ambiguous-commit verification consults it instead of the mutable
+  row. This prevents an add from resurrecting a note deleted after its ambiguous commit and prevents
+  an edit from overwriting newer content committed before its verification ran. Two new interleaving
+  regression tests gate the verification SELECT to deterministically interleave the competing
+  mutation.
 
-Verification: integration tests 25/25 (17 HTTP + 8 retry), unit tests 1112/1112, solution build 0
+Verification: integration tests 27/27 (17 HTTP + 10 retry), unit tests 1112/1112, solution build 0
 errors, `dotnet format` clean. Out-of-scope items held per plan: notes-list endpoint (notes stay
 readable only through participant detail), drawer UI, append-only history, rich text, concurrency
 token.
