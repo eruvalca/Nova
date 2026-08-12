@@ -22,11 +22,6 @@ public partial class TagDefinitionManager(
     NavigationManager navigationManager) : NovaComponentBase
 {
     /// <summary>
-    /// The maximum number of tag definitions returned by the query service.
-    /// </summary>
-    private const int ResultLimit = 100;
-
-    /// <summary>
     /// Gets or sets the loaded tag definitions, persisted across prerender and interactive attach.
     /// </summary>
     [PersistentState]

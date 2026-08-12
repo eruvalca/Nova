@@ -101,19 +101,19 @@
         <div class="d-flex flex-wrap gap-2 mb-3">
             <div class="btn-group" role="group" aria-label="Tag lifecycle filter">
                 <button type="button" class="btn btn-sm @(LifecycleView == "active" ? "btn-primary" : "btn-outline-primary")"
-                        disabled="@_isLoading" @onclick="@(() => ApplyViewAsync("active"))">Active</button>
+                        disabled="@(_isLoading || _isMutating)" @onclick="@(() => ApplyViewAsync("active"))">Active</button>
                 <button type="button" class="btn btn-sm @(LifecycleView == "archived" ? "btn-primary" : "btn-outline-primary")"
-                        disabled="@_isLoading" @onclick="@(() => ApplyViewAsync("archived"))">Archived</button>
+                        disabled="@(_isLoading || _isMutating)" @onclick="@(() => ApplyViewAsync("archived"))">Archived</button>
                 <button type="button" class="btn btn-sm @(LifecycleView == "all" ? "btn-primary" : "btn-outline-primary")"
-                        disabled="@_isLoading" @onclick="@(() => ApplyViewAsync("all"))">All</button>
+                        disabled="@(_isLoading || _isMutating)" @onclick="@(() => ApplyViewAsync("all"))">All</button>
             </div>
 
             <div class="input-group input-group-sm tag-search">
-                <input type="text" class="form-control" placeholder="Search names" aria-label="Search tag names" @bind="_searchInput" @bind:event="oninput" />
-                <button type="button" class="btn btn-outline-secondary" @onclick="ApplySearchAsync">Search</button>
+                <input type="text" class="form-control" placeholder="Search names" aria-label="Search tag names" disabled="@(_isLoading || _isMutating)" @bind="_searchInput" @bind:event="oninput" />
+                <button type="button" class="btn btn-outline-secondary" disabled="@(_isLoading || _isMutating)" @onclick="ApplySearchAsync">Search</button>
                 @if (!string.IsNullOrEmpty(AppliedSearch))
                 {
-                    <button type="button" class="btn btn-outline-secondary" aria-label="Clear search" @onclick="ClearSearchAsync">&times;</button>
+                    <button type="button" class="btn btn-outline-secondary" aria-label="Clear search" disabled="@(_isLoading || _isMutating)" @onclick="ClearSearchAsync">&times;</button>
                 }
             </div>
         </div>
@@ -155,9 +155,9 @@
                     </div>
                 }
 
-                @if (Tags.Count >= ResultLimit)
+                @if (Tags.Count >= TagDefinitionLimits.MaxTagDefinitions)
                 {
-                    <p class="text-muted small mb-0">Showing the first @ResultLimit results. Refine your search to see more.</p>
+                    <p class="text-muted small mb-0">Showing the first @TagDefinitionLimits.MaxTagDefinitions results. Refine your search to see more.</p>
                 }
             </div>
         }
