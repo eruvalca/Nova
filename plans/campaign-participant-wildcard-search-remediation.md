@@ -17,7 +17,7 @@ Status: Complete
 
 ### Verification Plan
 
-- Run the focused unit coverage for the roster service: `dotnet test Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantQueryServiceTests"`
+- Run the focused unit coverage for the roster service: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantQueryServiceTests"`
 - Expected result: the wildcard search service tests pass, including literal `%` and `_` handling in the functional contract.
 
 ### Phase Summary
@@ -37,7 +37,7 @@ Status: Complete
 
 ### Verification Plan
 
-- Run the campaign participant HTTP integration class: `dotnet test Nova.Integration.Tests/Nova.Integration.Tests.csproj --filter-class "*CampaignParticipantHttpTests"`
+- Run the campaign participant HTTP integration class: `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --filter-class "*CampaignParticipantHttpTests"`
 - Expected result: the class passes and the wildcard-search regression is covered at the API boundary.
 
 ### Phase Summary
