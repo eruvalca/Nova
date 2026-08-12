@@ -7,11 +7,9 @@ description: "Nova C# coding conventions, Try-method contracts, editorconfig exp
 
 ## Formatting
 
-C# style — file-scoped namespaces, braces on all control flow, `var`, expression-bodied members,
-pattern matching, null-propagation, primary constructors, target-typed `new`, inline `out`,
-`using var`, collection expressions, `string.Empty`, and naming — is enforced by `.editorconfig`.
-
-- **Run the formatting check before committing any C# changes**: `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`. If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with `--verify-no-changes`.
+C# style is enforced by `.editorconfig`; do not hand-format. Run the formatting check before
+committing any C# changes: `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`.
+If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with `--verify-no-changes`.
 
 ## `Try*` contracts
 

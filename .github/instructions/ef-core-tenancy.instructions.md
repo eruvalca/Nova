@@ -102,4 +102,4 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 
 ## Testing data access
 
-See `.github/instructions/testing.instructions.md`. When adding a tenant-owned entity, add filter coverage: visible to its club, invisible to another club, cross-tenant writes rejected.
+See `.github/instructions/testing.instructions.md` for the required tenancy filter-coverage tests.
