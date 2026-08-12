@@ -430,7 +430,7 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         var season = new SeasonEntity { Name = "Roster Season", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
         var campaign = new CampaignEntity { Name = "Roster Campaign", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = user.Id };
         var player = new PlayerEntity { FirstName = "Avery", LastName = "Adams", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
-        var playerTag = new PlayerTagEntity { Name = "Roster Tag", Color = "Blue", ClubId = clubId, CreatedById = user.Id, LifecycleStatus = LifecycleStatus.Active };
+        var playerTag = new PlayerTagEntity { Name = "Roster Tag", NormalizedName = "ROSTER TAG", Color = "Blue", ClubId = clubId, CreatedById = user.Id, LifecycleStatus = LifecycleStatus.Active };
 
         context.AddRange(season, campaign, player, playerTag);
         await context.SaveChangesAsync(cancellationToken);

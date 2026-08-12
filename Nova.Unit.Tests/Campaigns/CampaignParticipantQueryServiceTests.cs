@@ -257,7 +257,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             admin.SaveChanges();
 
             var otherTag = admin.PlayerTags.Single(tag => tag.ClubId == ClubAId && tag.Name == "Other Tag");
-            var thirdTag = new PlayerTagEntity { Name = "Third Tag", Color = "Green", ClubId = ClubAId, CreatedById = ClubAMemberId, LifecycleStatus = LifecycleStatus.Active };
+            var thirdTag = new PlayerTagEntity { Name = "Third Tag", NormalizedName = "THIRD TAG", Color = "Green", ClubId = ClubAId, CreatedById = ClubAMemberId, LifecycleStatus = LifecycleStatus.Active };
             admin.PlayerTags.Add(thirdTag);
             admin.SaveChanges();
 
@@ -478,8 +478,8 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
             new PlayerEntity { FirstName = "Cora", LastName = "Clark", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubBId, CreatedById = ClubBMemberId });
 
         admin.PlayerTags.AddRange(
-            new PlayerTagEntity { Name = "Blue Tag", Color = "Blue", ClubId = ClubAId, CreatedById = ClubAMemberId, LifecycleStatus = LifecycleStatus.Active },
-            new PlayerTagEntity { Name = "Other Tag", Color = "Red", ClubId = ClubAId, CreatedById = ClubAMemberId, LifecycleStatus = LifecycleStatus.Active });
+            new PlayerTagEntity { Name = "Blue Tag", NormalizedName = "BLUE TAG", Color = "Blue", ClubId = ClubAId, CreatedById = ClubAMemberId, LifecycleStatus = LifecycleStatus.Active },
+            new PlayerTagEntity { Name = "Other Tag", NormalizedName = "OTHER TAG", Color = "Red", ClubId = ClubAId, CreatedById = ClubAMemberId, LifecycleStatus = LifecycleStatus.Active });
 
         admin.SaveChanges();
 

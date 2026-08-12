@@ -20,6 +20,7 @@ public class PlayerTagEntityConfiguration : IEntityTypeConfiguration<PlayerTagEn
         builder.Property(e => e.PlayerTagId)
             .ValueGeneratedOnAdd();
         builder.HasAlternateKey(e => new { e.PlayerTagId, e.ClubId });
+        builder.HasIndex(e => new { e.ClubId, e.NormalizedName }).IsUnique();
         builder.Property(e => e.LifecycleStatus)
             .IsConcurrencyToken();
 

@@ -12,9 +12,15 @@ public class PlayerTagEntity : ArchivableEntity, ITenantOwnedEntity
     /// </summary>
     public long PlayerTagId { get; set; } = default;
     /// <summary>
-    /// Gets or sets the Name.
+    /// Gets or sets the display name.
     /// </summary>
     public required string Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets the canonical normalized name used for club-scoped uniqueness checks.
+    /// </summary>
+    public string NormalizedName { get; set; } = string.Empty;
+
     /// <summary>
     /// Gets or sets the Color.
     /// </summary>
