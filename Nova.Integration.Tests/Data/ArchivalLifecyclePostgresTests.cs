@@ -160,6 +160,7 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
             LifecycleTarget.TagDefinition => new PlayerTagEntity
             {
                 Name = $"Tag {suffix}",
+                NormalizedName = $"TAG {suffix}".ToUpperInvariant(),
                 Color = "#ffffff",
                 ClubId = club.ClubId,
                 CreatedById = actorUserId

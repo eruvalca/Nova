@@ -537,6 +537,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         {
             PlayerTagId = TagDefinitionId,
             Name = "Fast",
+            NormalizedName = "FAST",
             Color = "#ffffff",
             ClubId = ClubAId,
             CreatedById = ClubAAdminId
@@ -580,6 +581,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             {
                 PlayerTagId = ClubBTagDefinitionId,
                 Name = "Other",
+                NormalizedName = "OTHER",
                 Color = "#000000",
                 ClubId = ClubBId,
                 CreatedById = ClubBAdminId

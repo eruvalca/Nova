@@ -64,7 +64,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .WithName("GetActiveTagDefinitions");
 
-            readGroup.MapGet(TagDefinitionEndpoints.ListArchivedRelative, GetArchivedTagDefinitionsHandler)
+            adminGroup.MapGet(TagDefinitionEndpoints.ListArchivedRelative, GetArchivedTagDefinitionsHandler)
                 .Produces<IReadOnlyList<TagDefinitionSummary>>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status403Forbidden)

@@ -263,6 +263,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             {
                 PlayerTagId = ClubATagId,
                 Name = "A Tag",
+                NormalizedName = "A TAG",
                 Color = "#00AA00",
                 ClubId = ClubAId,
                 CreatedById = ClubAUserId
@@ -271,6 +272,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             {
                 PlayerTagId = ClubBTagId,
                 Name = "B Tag",
+                NormalizedName = "B TAG",
                 Color = "#0000AA",
                 ClubId = ClubBId,
                 CreatedById = ClubBUserId

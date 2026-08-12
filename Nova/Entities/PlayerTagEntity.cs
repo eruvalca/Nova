@@ -19,7 +19,7 @@ public class PlayerTagEntity : ArchivableEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the canonical normalized name used for club-scoped uniqueness checks.
     /// </summary>
-    public string NormalizedName { get; set; } = string.Empty;
+    public required string NormalizedName { get; set; }
 
     /// <summary>
     /// Gets or sets the Color.

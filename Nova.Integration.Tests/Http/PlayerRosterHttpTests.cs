@@ -211,6 +211,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
         var defenderTag = new PlayerTagEntity
         {
             Name = "Defender",
+            NormalizedName = "DEFENDER",
             Color = "#0055AA",
             ClubId = clubId,
             CreatedById = actorUserId

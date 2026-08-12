@@ -385,6 +385,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
             {
                 PlayerTagId = ActiveTagId,
                 Name = "Active",
+                NormalizedName = "ACTIVE",
                 Color = "#00FF00",
                 ClubId = ClubAId,
                 CreatedById = ClubAAdminId
@@ -393,6 +394,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
             {
                 PlayerTagId = SecondaryActiveTagId,
                 Name = "Secondary Active",
+                NormalizedName = "SECONDARY ACTIVE",
                 Color = "#00AAFF",
                 ClubId = ClubAId,
                 CreatedById = ClubAAdminId
@@ -401,6 +403,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
             {
                 PlayerTagId = ArchivedTagId,
                 Name = "Archived",
+                NormalizedName = "ARCHIVED",
                 Color = "#FF0000",
                 ClubId = ClubAId,
                 LifecycleStatus = LifecycleStatus.Archived,
@@ -412,6 +415,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
             {
                 PlayerTagId = ClubBTagId,
                 Name = "B Tag",
+                NormalizedName = "B TAG",
                 Color = "#0000FF",
                 ClubId = ClubBId,
                 CreatedById = ClubBMemberId

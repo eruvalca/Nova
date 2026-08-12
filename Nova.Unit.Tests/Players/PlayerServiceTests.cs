@@ -280,6 +280,7 @@ public sealed class PlayerServiceTests : IDisposable
         var defenderTag = new PlayerTagEntity
         {
             Name = "Defender",
+            NormalizedName = "DEFENDER",
             Color = "#0055AA",
             ClubId = ClubAId,
             CreatedById = ClubAUserId
@@ -287,6 +288,7 @@ public sealed class PlayerServiceTests : IDisposable
         var keeperTag = new PlayerTagEntity
         {
             Name = "Keeper",
+            NormalizedName = "KEEPER",
             Color = "#228B22",
             ClubId = ClubAId,
             CreatedById = ClubAUserId

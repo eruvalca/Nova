@@ -650,6 +650,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         var playerTag = new PlayerTagEntity
         {
             Name = $"Tag {suffix}",
+            NormalizedName = $"TAG {suffix}".ToUpperInvariant(),
             Color = "#00CC00",
             LifecycleStatus = archivedTag ? LifecycleStatus.Archived : LifecycleStatus.Active,
             ArchivedAt = archivedTag ? DateTimeOffset.UtcNow.AddDays(-1) : null,

@@ -182,6 +182,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         var tagA = new PlayerTagEntity
         {
             Name = $"Tag A {suffix}",
+            NormalizedName = $"TAG A {suffix}".ToUpperInvariant(),
             Color = "#00CC00",
             ClubId = clubA.ClubId,
             CreatedById = actorUserId
@@ -189,6 +190,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         var tagB = new PlayerTagEntity
         {
             Name = $"Tag B {suffix}",
+            NormalizedName = $"TAG B {suffix}".ToUpperInvariant(),
             Color = "#0000CC",
             ClubId = clubB.ClubId,
             CreatedById = actorUserId

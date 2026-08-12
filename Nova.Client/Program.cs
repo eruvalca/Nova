@@ -6,6 +6,7 @@ using Nova.Client.Services.Campaigns;
 using Nova.Client.Services.Clubs;
 using Nova.Client.Services.Photos;
 using Nova.Client.Services.Players;
+using Nova.Client.Services.Tags;
 using Nova.Client.Services.Teams;
 using Nova.Client.Telemetry;
 using Nova.Shared.Features.Account;
@@ -13,6 +14,7 @@ using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Photos;
 using Nova.Shared.Features.Players;
+using Nova.Shared.Features.Tags;
 using Nova.Shared.Features.Teams;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -51,5 +53,6 @@ builder.Services.AddScoped<ICampaignMetadataService, HttpCampaignMetadataService
 builder.Services.AddScoped<ISeasonMetadataService, HttpSeasonMetadataService>();
 builder.Services.AddScoped<ICampaignTagApplicationService, HttpCampaignTagApplicationService>();
 builder.Services.AddScoped<ICampaignEvaluationNoteService, HttpCampaignEvaluationNoteService>();
+builder.Services.AddScoped<ITagDefinitionService, HttpTagDefinitionService>();
 
 await builder.Build().RunAsync();

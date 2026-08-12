@@ -76,7 +76,15 @@ public sealed partial class TagDefinitionService(
         };
 
         db.PlayerTags.Add(tagDefinition);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            LogDuplicateName(clubId, normalizedName);
+            return ServiceProblem.Conflict($"A tag definition named '{normalizedName}' already exists in this club.");
+        }
 
         return new TagDefinitionMutationSuccess { TagDefinitionId = tagDefinition.PlayerTagId };
     }
@@ -112,6 +120,8 @@ public sealed partial class TagDefinitionService(
         var normalizedNameKey = NormalizeNameKey(normalizedName);
 
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireTagMutationLockAsync(input.TagDefinitionId, cancellationToken);
         var tagDefinition = await db.PlayerTags
             .SingleOrDefaultAsync(tag => tag.PlayerTagId == input.TagDefinitionId, cancellationToken);
 
@@ -144,7 +154,22 @@ public sealed partial class TagDefinitionService(
         tagDefinition.Color = normalizedColor;
         tagDefinition.ModifiedById = actorUserId;
         tagDefinition.ModifiedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            LogArchiveUpdateBlocked(input.TagDefinitionId, clubId);
+            return ServiceProblem.Conflict("The tag definition changed while you were editing it. Reload it and try again.");
+        }
+        catch (DbUpdateException)
+        {
+            LogDuplicateName(clubId, normalizedName);
+            return ServiceProblem.Conflict($"A tag definition named '{normalizedName}' already exists in this club.");
+        }
 
         return new TagDefinitionMutationSuccess { TagDefinitionId = tagDefinition.PlayerTagId };
     }
@@ -193,17 +218,29 @@ public sealed partial class TagDefinitionService(
         CancellationToken cancellationToken)
     {
         var normalizedInput = input ?? new GetTagDefinitionsInput();
+        var validationErrors = InputValidator.Validate(normalizedInput);
+        if (validationErrors.Count > 0)
+        {
+            return ServiceProblem.Validation(validationErrors);
+        }
+
         if (currentUserProvider.UserId is not long || currentUserProvider.ClubId is not long clubId)
         {
             return ServiceProblem.Forbidden("You must be signed in and in a club to view tag definitions.");
         }
 
+        if (includeArchived && !currentUserProvider.IsClubAdmin)
+        {
+            return ServiceProblem.Forbidden("You must be a club administrator to view archived tag definitions.");
+        }
+
         var limit = Math.Clamp(normalizedInput.Limit ?? 50, 1, 100);
 
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var lifecycleStatus = includeArchived ? LifecycleStatus.Archived : LifecycleStatus.Active;
         var query = db.PlayerTags
             .Where(tag => tag.ClubId == clubId)
-            .Where(tag => includeArchived || tag.LifecycleStatus == LifecycleStatus.Active)
+            .Where(tag => tag.LifecycleStatus == lifecycleStatus)
             .OrderBy(tag => tag.Name)
             .ThenBy(tag => tag.PlayerTagId)
             .Take(limit)

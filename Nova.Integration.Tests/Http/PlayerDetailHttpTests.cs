@@ -152,6 +152,7 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
         var tag = new PlayerTagEntity
         {
             Name = "Agility",
+            NormalizedName = "AGILITY",
             Color = "#0055AA",
             ClubId = clubId,
             CreatedById = actorUserId

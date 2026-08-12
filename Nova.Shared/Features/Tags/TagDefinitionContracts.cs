@@ -59,11 +59,6 @@ public sealed record UpdateTagDefinitionInput
 public sealed record GetTagDefinitionsInput
 {
     /// <summary>
-    /// Gets a value indicating whether archived tag definitions should be included.
-    /// </summary>
-    public bool IncludeArchived { get; init; }
-
-    /// <summary>
     /// Gets the maximum number of results to return.
     /// </summary>
     [Range(1, 100)]

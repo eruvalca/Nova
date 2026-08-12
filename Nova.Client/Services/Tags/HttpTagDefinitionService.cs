@@ -47,7 +47,8 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
         GetTagDefinitionsInput? input = null,
         CancellationToken cancellationToken = default)
     {
-        var url = input is null ? $"{TagDefinitionEndpoints.GroupPrefix}/active" : $"{TagDefinitionEndpoints.GroupPrefix}/active?limit={Math.Clamp(input.Limit ?? 50, 1, 100)}";
+        var limit = Math.Clamp(input?.Limit ?? 50, 1, 100);
+        var url = $"{TagDefinitionEndpoints.GroupPrefix}/active?limit={limit}";
         using var response = await http.GetAsync(url, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -56,7 +57,7 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
 
         return await response.Content.ReadRequiredJsonAsync<IReadOnlyList<TagDefinitionSummary>>(
             "The server returned an invalid active-tag-definition list.",
-            list => list is not null,
+            list => IsValidActiveTagDefinitionList(list),
             cancellationToken);
     }
 
@@ -64,7 +65,8 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
         GetTagDefinitionsInput? input = null,
         CancellationToken cancellationToken = default)
     {
-        var url = input is null ? $"{TagDefinitionEndpoints.GroupPrefix}/archived" : $"{TagDefinitionEndpoints.GroupPrefix}/archived?limit={Math.Clamp(input.Limit ?? 50, 1, 100)}";
+        var limit = Math.Clamp(input?.Limit ?? 50, 1, 100);
+        var url = $"{TagDefinitionEndpoints.GroupPrefix}/archived?limit={limit}";
         using var response = await http.GetAsync(url, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -77,14 +79,25 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
             cancellationToken);
     }
 
-    private static bool IsValidArchivedTagDefinitionList(IReadOnlyList<TagDefinitionSummary>? list)
+    private static bool IsValidTagDefinitionList(IReadOnlyList<TagDefinitionSummary>? list)
         => list is not null
             && list.Count <= 100
             && list.All(tag => tag.TagDefinitionId > 0
                 && !string.IsNullOrWhiteSpace(tag.Name)
-                && tag.Color.Length == 7
-                && tag.LifecycleStatus == LifecycleStatus.Archived
-                && tag.ArchivedAt.HasValue);
+                && tag.Name.Length <= 80
+                && tag.Color is { Length: 7 }
+                && tag.Color.StartsWith('#')
+                && tag.Color[1..].All(char.IsAsciiHexDigit)
+                && tag.CreatedAt != default
+                && tag.ArchivedAt is not null == (tag.LifecycleStatus == LifecycleStatus.Archived));
+
+    private static bool IsValidActiveTagDefinitionList(IReadOnlyList<TagDefinitionSummary>? list)
+        => IsValidTagDefinitionList(list)
+            && list!.All(tag => tag.LifecycleStatus == LifecycleStatus.Active && tag.ArchivedAt is null);
+
+    private static bool IsValidArchivedTagDefinitionList(IReadOnlyList<TagDefinitionSummary>? list)
+        => IsValidTagDefinitionList(list)
+            && list!.All(tag => tag.LifecycleStatus == LifecycleStatus.Archived && tag.ArchivedAt.HasValue);
 
     public async Task<ServiceResult<TagDefinitionMutationSuccess>> ArchiveAsync(
         long tagDefinitionId,

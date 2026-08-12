@@ -286,6 +286,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             {
                 PlayerTagId = LeadershipTagId,
                 Name = "Leadership",
+                NormalizedName = "LEADERSHIP",
                 Color = "#112233",
                 ClubId = ClubAId,
                 CreatedById = ClubAOtherUserId
@@ -294,6 +295,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             {
                 PlayerTagId = AgilityTagId,
                 Name = "Agility",
+                NormalizedName = "AGILITY",
                 Color = "#334455",
                 ClubId = ClubAId,
                 CreatedById = ClubAOtherUserId
@@ -302,6 +304,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             {
                 PlayerTagId = ArchivedTagId,
                 Name = "Archived Tag",
+                NormalizedName = "ARCHIVED TAG",
                 Color = "#778899",
                 LifecycleStatus = LifecycleStatus.Archived,
                 ArchivedAt = DateTimeOffset.UtcNow.AddDays(-10),

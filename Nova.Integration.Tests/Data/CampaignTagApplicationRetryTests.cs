@@ -377,6 +377,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         var playerTag = new PlayerTagEntity
         {
             Name = $"Tag Retry Tag 2 {suffix}",
+            NormalizedName = $"TAG RETRY TAG 2 {suffix}".ToUpperInvariant(),
             Color = "#00CC00",
             LifecycleStatus = LifecycleStatus.Active,
             ClubId = clubId,
@@ -468,6 +469,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         var playerTag = new PlayerTagEntity
         {
             Name = $"Tag Retry Tag {suffix}",
+            NormalizedName = $"TAG RETRY TAG {suffix}".ToUpperInvariant(),
             Color = "#00CC00",
             LifecycleStatus = LifecycleStatus.Active,
             ClubId = club.ClubId,
