@@ -69,3 +69,4 @@ Filter by class with `--filter-class "*Name"`.
     permitted role and exact counts for lifecycle or tenancy exclusions.
 13. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
     Repeat `--filter-class` for multiple classes; do not combine class names with `|`.
+14. Before commit or PR, run the relevant integration tests for provider/HTTP changes and confirm they pass.
