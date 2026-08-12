@@ -22,37 +22,31 @@ namespace Nova.Data.Migrations
                 defaultValue: "");
 
             migrationBuilder.Sql(@"
-WITH ranked AS (
-    SELECT ""PlayerTagId"",
-           ROW_NUMBER() OVER (
-               PARTITION BY ""ClubId"", UPPER(TRIM(""Name""))
-               ORDER BY ""PlayerTagId"" ASC
-           ) AS row_number
+-- Canonical winner per (ClubId, normalized name) is the lowest PlayerTagId.
+WITH group_min AS (
+    SELECT ""ClubId"",
+           UPPER(TRIM(""Name"")) AS normalized_name,
+           MIN(""PlayerTagId"") AS winner_id
     FROM ""PlayerTags""
-),
-duplicate_tags AS (
-    SELECT t.""PlayerTagId"" AS duplicate_id,
-           winner.""PlayerTagId"" AS winner_id
-    FROM ""PlayerTags"" t
-    JOIN ranked r ON r.""PlayerTagId"" = t.""PlayerTagId""
-    JOIN ""PlayerTags"" winner
-      ON winner.""ClubId"" = t.""ClubId""
-     AND UPPER(TRIM(winner.""Name"")) = UPPER(TRIM(t.""Name""))
-     AND winner.""PlayerTagId"" < t.""PlayerTagId""
-    WHERE r.row_number > 1
+    GROUP BY ""ClubId"", UPPER(TRIM(""Name""))
 )
 UPDATE ""CampaignTagApplications"" a
-SET ""PlayerTagId"" = d.winner_id
-FROM duplicate_tags d
-WHERE a.""PlayerTagId"" = d.duplicate_id;
+SET ""PlayerTagId"" = g.winner_id
+FROM ""PlayerTags"" t
+JOIN group_min g
+  ON g.""ClubId"" = t.""ClubId""
+ AND g.normalized_name = UPPER(TRIM(t.""Name""))
+WHERE a.""PlayerTagId"" = t.""PlayerTagId""
+  AND t.""PlayerTagId"" <> g.winner_id;
 
 DELETE FROM ""PlayerTags"" t
 WHERE t.""PlayerTagId"" IN (
-    SELECT duplicate_id
-    FROM (
-        SELECT DISTINCT d.duplicate_id
-        FROM duplicate_tags d
-    ) AS duplicates
+    SELECT t2.""PlayerTagId""
+    FROM ""PlayerTags"" t2
+    JOIN ""PlayerTags"" winner
+      ON winner.""ClubId"" = t2.""ClubId""
+     AND UPPER(TRIM(winner.""Name"")) = UPPER(TRIM(t2.""Name""))
+     AND winner.""PlayerTagId"" < t2.""PlayerTagId""
 );
 
 UPDATE ""PlayerTags"" SET ""NormalizedName"" = UPPER(TRIM(""Name""));

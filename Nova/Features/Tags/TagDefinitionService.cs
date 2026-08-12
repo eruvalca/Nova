@@ -119,7 +119,55 @@ public sealed partial class TagDefinitionService(
 
         var normalizedNameKey = NormalizeNameKey(normalizedName);
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await ExecuteWithFreshContextAsync(
+            db => UpdateTagAsync(db, input, normalizedName, normalizedColor, normalizedNameKey, actorUserId, clubId, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs a tag-definition mutation inside EF Core's retrying execution strategy while creating a
+    /// fresh tenant context for each execution attempt.
+    /// </summary>
+    /// <typeparam name="TResult">The result produced by the mutation attempt.</typeparam>
+    /// <param name="operation">The mutation to run with a fresh tenant context.</param>
+    /// <param name="cancellationToken">A token that cancels the strategy setup or mutation attempt.</param>
+    /// <returns>The result returned by the successful execution-strategy attempt.</returns>
+    private async Task<TResult> ExecuteWithFreshContextAsync<TResult>(
+        Func<NovaDbContext, Task<TResult>> operation,
+        CancellationToken cancellationToken)
+    {
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            return await operation(db);
+        });
+    }
+
+    /// <summary>
+    /// Applies one tag-definition update inside a single transaction using a fresh tenant context.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="input">The requested tag-definition details.</param>
+    /// <param name="normalizedName">The trimmed tag name.</param>
+    /// <param name="normalizedColor">The trimmed tag color.</param>
+    /// <param name="normalizedNameKey">The case-insensitive uniqueness key for the tag name.</param>
+    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Success, validation, forbidden, not-found, or conflict information.</returns>
+    private async Task<ServiceResult<TagDefinitionMutationSuccess>> UpdateTagAsync(
+        NovaDbContext db,
+        UpdateTagDefinitionInput input,
+        string normalizedName,
+        string normalizedColor,
+        string normalizedNameKey,
+        long actorUserId,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await db.AcquireTagMutationLockAsync(input.TagDefinitionId, cancellationToken);
         var tagDefinition = await db.PlayerTags
