@@ -85,7 +85,7 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
 
         foreach (var character in color.AsSpan(1))
         {
-            if (!Uri.IsHexDigit(character))
+            if (character is not (>= '0' and <= '9' or >= 'A' and <= 'F'))
             {
                 return false;
             }

@@ -6,7 +6,7 @@ namespace Nova.Extensions.Tags;
 /// <summary>
 /// Provides mapping extension members for <see cref="PlayerTagEntity"/>.
 /// </summary>
-internal static class TagEntityExtensions
+internal static class PlayerTagEntityExtensions
 {
     extension(PlayerTagEntity tag)
     {

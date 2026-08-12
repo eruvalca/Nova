@@ -62,7 +62,7 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
             && !string.IsNullOrWhiteSpace(dto.Name)
             && dto.Name.Length <= 100
             && IsValidColor(dto.Color)
-            && dto.LifecycleStatus is LifecycleStatus.Active or LifecycleStatus.Archived;
+            && dto.LifecycleStatus == LifecycleStatus.Active;
 
     /// <summary>
     /// Validates a tag color as the normalized <c>#RRGGBB</c> hex form the server promises.
@@ -78,7 +78,7 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
 
         foreach (var character in color.AsSpan(1))
         {
-            if (!Uri.IsHexDigit(character))
+            if (character is not (>= '0' and <= '9' or >= 'A' and <= 'F'))
             {
                 return false;
             }
