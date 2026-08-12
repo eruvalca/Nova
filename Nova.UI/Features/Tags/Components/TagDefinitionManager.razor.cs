@@ -62,6 +62,8 @@ public partial class TagDefinitionManager(
     private string _searchInput = string.Empty;
     private TagDefinitionDto? _archiveTarget;
     private TagDefinitionDto? _restoreTarget;
+    private int _loadVersion;
+    private CancellationTokenSource? _loadSource;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -85,6 +87,14 @@ public partial class TagDefinitionManager(
     /// <returns>A task that completes when the list has been refreshed.</returns>
     private async Task LoadTagsAsync()
     {
+        // Cancel any in-flight load and bump a monotonic version so a slower earlier request cannot
+        // overwrite rows for filters that are no longer selected.
+        var version = Interlocked.Increment(ref _loadVersion);
+        _loadSource?.Cancel();
+        _loadSource?.Dispose();
+        _loadSource = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+        var requestToken = _loadSource.Token;
+
         _isLoading = true;
         Error = null;
         Tags = null;
@@ -94,17 +104,27 @@ public partial class TagDefinitionManager(
         {
             result = await queryService.GetManagementListAsync(
                 new GetTagDefinitionsInput { Search = AppliedSearch, LifecycleStatus = LifecycleView },
-                ComponentCancellationToken);
+                requestToken);
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (requestToken.IsCancellationRequested)
         {
             return;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
+            if (version != _loadVersion || requestToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _ = ex;
             Error = "Failed to load tag definitions. Please retry.";
             _isLoading = false;
+            return;
+        }
+
+        if (version != _loadVersion || requestToken.IsCancellationRequested)
+        {
             return;
         }
 
