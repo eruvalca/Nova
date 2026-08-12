@@ -31,7 +31,15 @@ public sealed partial class TagDefinitionService(
         CreateTagDefinitionInput input,
         CancellationToken cancellationToken = default)
     {
-        var validationErrors = InputValidator.Validate(input);
+        var normalizedName = NormalizeName(input.Name);
+        var normalizedColor = NormalizeColor(input.Color);
+        var normalizedInput = new CreateTagDefinitionInput
+        {
+            Name = normalizedName,
+            Color = normalizedColor
+        };
+
+        var validationErrors = InputValidator.Validate(normalizedInput);
         if (validationErrors.Count > 0)
         {
             return ServiceProblem.Validation(validationErrors);
@@ -45,9 +53,7 @@ public sealed partial class TagDefinitionService(
             return ServiceProblem.Forbidden("You must be a club administrator to create tag definitions.");
         }
 
-        var normalizedName = NormalizeName(input.Name);
         var normalizedNameKey = NormalizeNameKey(normalizedName);
-        var normalizedColor = NormalizeColor(input.Color);
 
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var nameExists = await db.PlayerTags
@@ -80,7 +86,16 @@ public sealed partial class TagDefinitionService(
         UpdateTagDefinitionInput input,
         CancellationToken cancellationToken = default)
     {
-        var validationErrors = InputValidator.Validate(input);
+        var normalizedName = NormalizeName(input.Name);
+        var normalizedColor = NormalizeColor(input.Color);
+        var normalizedInput = new UpdateTagDefinitionInput
+        {
+            TagDefinitionId = input.TagDefinitionId,
+            Name = normalizedName,
+            Color = normalizedColor
+        };
+
+        var validationErrors = InputValidator.Validate(normalizedInput);
         if (validationErrors.Count > 0)
         {
             return ServiceProblem.Validation(validationErrors);
@@ -94,9 +109,7 @@ public sealed partial class TagDefinitionService(
             return ServiceProblem.Forbidden("You must be a club administrator to edit tag definitions.");
         }
 
-        var normalizedName = NormalizeName(input.Name);
         var normalizedNameKey = NormalizeNameKey(normalizedName);
-        var normalizedColor = NormalizeColor(input.Color);
 
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var tagDefinition = await db.PlayerTags

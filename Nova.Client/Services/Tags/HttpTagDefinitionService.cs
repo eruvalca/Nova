@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Results;
 
@@ -72,9 +73,18 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
 
         return await response.Content.ReadRequiredJsonAsync<IReadOnlyList<TagDefinitionSummary>>(
             "The server returned an invalid archived-tag-definition list.",
-            list => list is not null,
+            list => IsValidArchivedTagDefinitionList(list),
             cancellationToken);
     }
+
+    private static bool IsValidArchivedTagDefinitionList(IReadOnlyList<TagDefinitionSummary>? list)
+        => list is not null
+            && list.Count <= 100
+            && list.All(tag => tag.TagDefinitionId > 0
+                && !string.IsNullOrWhiteSpace(tag.Name)
+                && tag.Color.Length == 7
+                && tag.LifecycleStatus == LifecycleStatus.Archived
+                && tag.ArchivedAt.HasValue);
 
     public async Task<ServiceResult<TagDefinitionMutationSuccess>> ArchiveAsync(
         long tagDefinitionId,
