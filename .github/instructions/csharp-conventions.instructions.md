@@ -5,19 +5,13 @@ description: "Nova C# coding conventions, Try-method contracts, editorconfig exp
 
 # C# Conventions
 
-- Prefer modern C# language features and syntax by default, while preserving behavior and readability.
-- Prefer primary constructors for classes and structs when parameters are primarily for DI or state initialization.
-- Prefer file-scoped namespace declarations over block-scoped namespaces.
-- Use braces for all control-flow blocks (`if`, `else`, `for`, `foreach`, `while`, `do`, `switch`, `try`/`catch`/`finally`, and `lock`), including single-line bodies.
-- Prefer pattern matching (`is`, `is not`, `switch` expressions, property patterns, list patterns) when it improves clarity.
-- Prefer null-propagation and null-coalescing operators (`?.`, `?[]`, `??`, `??=`) instead of verbose null checks.
-- Prefer collection expressions (`[]`, `[a, b, ..other]`) and modern collection initialization patterns.
-- Prefer target-typed `new()`, expression-bodied members where readable, inline `out` variables, and simplified initialization.
-- Prefer `string.Empty` over empty string literals for representing empty strings.
-- Eliminate unused parameters and unused value assignments.
-- Prefer `using var x = ...;` over `using (...) { }` when the variable lifetime naturally ends at the enclosing scope.
-- **Always run the formatting check before committing any C# changes**: `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`. If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with the `--verify-no-changes` command.
-- **Before commit or PR, ensure the relevant integration tests pass for provider-boundary or HTTP changes.**
+## Formatting
+
+C# style — file-scoped namespaces, braces on all control flow, `var`, expression-bodied members,
+pattern matching, null-propagation, primary constructors, target-typed `new`, inline `out`,
+`using var`, collection expressions, `string.Empty`, and naming — is enforced by `.editorconfig`.
+
+- **Run the formatting check before committing any C# changes**: `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`. If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with `--verify-no-changes`.
 
 ## `Try*` contracts
 
@@ -42,7 +36,6 @@ description: "Nova C# coding conventions, Try-method contracts, editorconfig exp
 - Use the OneOf source generator for a reused union shape, a public/service contract with several cases, or a union whose domain identity improves signatures. Keep a simple, single-use two-case policy as native `OneOf<T0, T1>`.
 - Document each possible case in XML docs so callers understand expected flows.
 - Internal pure policies use native `OneOf` with domain-named outcomes; `ServiceResult` remains at cross-tier boundaries. See `.github/instructions/functional-core.instructions.md`.
-- Prefer feature-local `*Policy` names for deterministic cross-entity decisions. Keep policies free of ambient or mutable static state.
 
 ## Operation Input Naming
 

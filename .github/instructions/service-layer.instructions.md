@@ -11,23 +11,12 @@ description: "Service-layer rules: validation, ServiceResult, retry-safe transac
 
 ## Dual-Layer Validation
 
-Validation must occur at **both** layers, because the service is the authoritative boundary for every
-call path:
-
-- **Endpoint layer** (DataAnnotations + `AddValidation()`): fast rejection of structurally invalid
-  HTTP requests before the handler runs.
-- **Service layer** (`InputValidator.Validate<T>(input)`): re-runs the same DataAnnotations plus
-  business rules — authoritative for all callers.
-
-| Caller | Endpoint validation runs? | Service validation runs? |
-|---|---|---|
-| WASM client → HTTP endpoint → service | ✅ | ✅ |
-| SSR page → service directly | ❌ | ✅ |
-| Background job → service directly | ❌ | ✅ |
-| Integration test → service directly | ❌ | ✅ |
-
-Both layers read the **same attributes**, so calling `InputValidator.Validate<T>` in the service
-guarantees identical rules on every path. See `.github/instructions/validation.instructions.md`.
+Validate at **both** layers. The **endpoint** (DataAnnotations + `AddValidation()`) fast-rejects
+structurally invalid HTTP requests before the handler runs; the **service**
+(`InputValidator.Validate<T>(input)`) re-runs the same attributes plus business rules and is the
+authoritative boundary for every caller. SSR pages, background jobs, and direct callers bypass
+endpoint validation, so both layers read the **same attributes**. See
+`.github/instructions/validation.instructions.md`.
 
 ## ServiceProblem / ServiceResult types
 

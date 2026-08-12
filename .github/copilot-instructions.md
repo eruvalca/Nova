@@ -7,6 +7,13 @@
 - The shared models, interfaces, endpoints, results, validation, and utilities project is `Nova.Shared/Nova.Shared.csproj`.
 - Aspire instrumentation is configured in `Nova.AppHost/Nova.AppHost.csproj` and `Nova.ServiceDefaults/Nova.ServiceDefaults.csproj`.
 
+## Build & validation
+
+- Build: `dotnet build Nova.slnx`
+- Format check (required before commit): `dotnet format Nova.slnx --verify-no-changes`; apply fixes with `dotnet format Nova.slnx`
+- Unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`
+- Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj`
+
 ## Targeted Instructions
 
 Detailed repo conventions live in targeted instruction files so they only load when relevant:

@@ -57,13 +57,9 @@ and pass them explicitly.
 - Keep orchestration in the application `*Service`.
 - Prefer `internal static` policies with immutable `*State`, `*Facts`, or `*Context` values and
   domain-named outcomes. Do not add DI registration or a mock-only interface for a pure policy.
-- Return native `OneOf` outcomes from an internal policy. Map them to `ServiceResult` only at a
-  cross-tier service boundary.
-- Consume policy outcomes with exhaustive `Match` for value-producing branches or `Switch` for
-  side-effect-only branches. Do not use positional `IsTn`/`AsTn` checks in the shell.
-- Use a source-generated named OneOf union when a result shape is reused, forms a public or service
-  contract with several cases, or benefits from a domain name. Do not generate a wrapper for every
-  small, single-use policy result.
+- Return native `OneOf` outcomes from an internal policy; map them to `ServiceResult` only at a
+  cross-tier service boundary. Define and consume unions per
+  `.github/instructions/csharp-conventions.instructions.md` → Discriminated Unions.
 
 ## Testing
 
