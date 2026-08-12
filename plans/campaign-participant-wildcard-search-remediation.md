@@ -24,7 +24,7 @@ Status: Complete
 
 Confirmed the Postgres `ILIKE` branch in [Nova/Features/Campaigns/CampaignParticipantQueryService.cs](Nova/Features/Campaigns/CampaignParticipantQueryService.cs) escapes `\`, `%`, and `_` before the pattern is evaluated, so wildcard characters are treated as literals. The SQLite fallback remains case-insensitive but literal as well.
 
-Verification result: `dotnet test Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantQueryServiceTests"` passed with 36/36 tests successful.
+Verification result: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantQueryServiceTests"` passed with 36/36 tests successful.
 
 ## Phase 2: Tighten integration coverage for literal wildcard search
 
