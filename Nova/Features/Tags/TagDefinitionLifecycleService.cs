@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Entities;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Tags;
@@ -22,6 +23,8 @@ public sealed partial class TagDefinitionLifecycleService(
     ICurrentUserProvider currentUserProvider,
     ILogger<TagDefinitionLifecycleService> logger) : ITagDefinitionLifecycleService
 {
+    private const int MutationReceiptRetentionDays = 1;
+
     /// <inheritdoc />
     public async Task<ServiceResult<Success>> ArchiveAsync(
         long tagDefinitionId,
@@ -77,8 +80,13 @@ public sealed partial class TagDefinitionLifecycleService(
         // not be mistaken for this one's ambiguous commit.
         var commitAttempted = new CommitAttemptTracker();
 
+        // The operation identifier is stable across execution-strategy retries so the durable
+        // receipt written on a successful commit can be matched to THIS request during verification,
+        // independent of any newer lifecycle transition that may overwrite the mutable status.
+        var transitionOperationId = Guid.CreateVersion7();
+
         return await strategy.ExecuteAsync(
-            (TagDefinitionId: tagDefinitionId, TargetStatus: targetStatus, ActorUserId: actorUserId, ClubId: clubId, CommitAttempted: commitAttempted),
+            (TagDefinitionId: tagDefinitionId, TargetStatus: targetStatus, ActorUserId: actorUserId, ClubId: clubId, TransitionOperationId: transitionOperationId, CommitAttempted: commitAttempted),
             async (state, token) =>
             {
                 state.CommitAttempted.Reset();
@@ -89,6 +97,7 @@ public sealed partial class TagDefinitionLifecycleService(
                     state.TargetStatus,
                     state.ActorUserId,
                     state.ClubId,
+                    state.TransitionOperationId,
                     state.CommitAttempted,
                     token);
             },
@@ -102,7 +111,7 @@ public sealed partial class TagDefinitionLifecycleService(
                 }
 
                 await using var db = await dbContextFactory.CreateDbContextAsync(token);
-                return await VerifyTransitionCommittedAsync(db, state.TagDefinitionId, state.TargetStatus, state.ClubId, token);
+                return await VerifyTransitionCommittedAsync(db, state.TagDefinitionId, state.TargetStatus, state.ClubId, state.TransitionOperationId, token);
             },
             cancellationToken);
     }
@@ -130,15 +139,16 @@ public sealed partial class TagDefinitionLifecycleService(
     /// execution strategy can report success instead of replaying the attempt.
     /// </summary>
     /// <remarks>
-    /// The execution strategy invokes this only after a transient failure interrupted an attempt
-    /// that had already reached its commit, so finding the target status applied means this
-    /// operation's commit reached the database. Without it a replay would observe the applied status
-    /// and return a spurious conflict to a caller whose archive or restore actually succeeded.
+    /// Verification relies on the durable mutation receipt written in the same transaction as the
+    /// status change, not on the mutable lifecycle status. A newer archive/restore could overwrite
+    /// the status before verification runs, so reading the status would fail verification and cause
+    /// a replay that reverses the newer transition.
     /// </remarks>
     /// <param name="db">The fresh tenant context used for verification.</param>
     /// <param name="tagDefinitionId">The tag-definition identifier that was being mutated.</param>
-    /// <param name="targetStatus">The lifecycle status the interrupted attempt was applying.</param>
+    /// <param name="targetStatus">The lifecycle status the interrupted attempt was applying, for logging.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="transitionOperationId">The stable identifier for this logical transition operation.</param>
     /// <param name="cancellationToken">A token that cancels the verification query.</param>
     /// <returns>A successful result when the transition is already persisted; otherwise unsuccessful.</returns>
     private async Task<ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>> VerifyTransitionCommittedAsync(
@@ -146,14 +156,17 @@ public sealed partial class TagDefinitionLifecycleService(
         long tagDefinitionId,
         LifecycleStatus targetStatus,
         long clubId,
+        Guid transitionOperationId,
         CancellationToken cancellationToken)
     {
-        var appliedStatus = await db.PlayerTags
-            .Where(candidate => candidate.PlayerTagId == tagDefinitionId && candidate.ClubId == clubId)
-            .Select(candidate => (LifecycleStatus?)candidate.LifecycleStatus)
-            .SingleOrDefaultAsync(cancellationToken);
+        var receiptExists = await db.TagDefinitionMutationReceipts
+            .AsNoTracking()
+            .AnyAsync(
+                candidate => candidate.OperationId == transitionOperationId
+                    && candidate.ClubId == clubId,
+                cancellationToken);
 
-        if (appliedStatus == targetStatus)
+        if (receiptExists)
         {
             LogTagTransitionCommitVerified(tagDefinitionId, targetStatus);
             return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>(
@@ -174,6 +187,7 @@ public sealed partial class TagDefinitionLifecycleService(
     /// <param name="targetStatus">The lifecycle status to apply.</param>
     /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="transitionOperationId">The stable identifier for this logical transition operation.</param>
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Internal lifecycle outcomes before boundary mapping to shared service contracts.</returns>
@@ -183,6 +197,7 @@ public sealed partial class TagDefinitionLifecycleService(
         LifecycleStatus targetStatus,
         long actorUserId,
         long clubId,
+        Guid transitionOperationId,
         CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
@@ -217,6 +232,22 @@ public sealed partial class TagDefinitionLifecycleService(
             tagDefinition.ArchivedById = null;
         }
 
+        await PruneExpiredMutationReceiptsAsync(db, cancellationToken);
+
+        // Record a durable receipt in the same transaction as the status change so an
+        // ambiguous-commit retry can verify THIS transition applied without comparing the mutable
+        // status (which a newer archive/restore could legitimately overwrite).
+        db.TagDefinitionMutationReceipts.Add(new TagDefinitionMutationReceiptEntity
+        {
+            OperationId = transitionOperationId,
+            PlayerTagId = tagDefinitionId,
+            MutationType = targetStatus == LifecycleStatus.Archived
+                ? TagDefinitionMutationType.Archived
+                : TagDefinitionMutationType.Restored,
+            ClubId = clubId,
+            CreatedById = actorUserId
+        });
+
         try
         {
             await db.SaveChangesAsync(cancellationToken);
@@ -231,6 +262,36 @@ public sealed partial class TagDefinitionLifecycleService(
 
         LogTagLifecycleChanged(tagDefinitionId, targetStatus, actorUserId);
         return new Success();
+    }
+
+    /// <summary>
+    /// Removes tag-definition mutation receipts older than the retention window. Receipts exist only
+    /// to resolve ambiguous-commit verification, so keeping them beyond the retention window is
+    /// unnecessary storage growth.
+    /// </summary>
+    /// <param name="db">The tenant context for the current execution attempt.</param>
+    /// <param name="cancellationToken">A token that cancels the delete operation.</param>
+    private static async Task PruneExpiredMutationReceiptsAsync(NovaDbContext db, CancellationToken cancellationToken)
+    {
+        var retentionCutoff = DateTimeOffset.UtcNow.AddDays(-MutationReceiptRetentionDays);
+        if (db.Database.IsNpgsql())
+        {
+            await db.TagDefinitionMutationReceipts
+                .Where(receipt => receipt.CreatedAt < retentionCutoff)
+                .ExecuteDeleteAsync(cancellationToken);
+            return;
+        }
+
+        // SQLite cannot translate DateTimeOffset comparisons to SQL, so the tenant-filtered candidate
+        // set is loaded and the age filter is applied in memory.
+        var expiredReceipts = (await db.TagDefinitionMutationReceipts
+                .ToListAsync(cancellationToken))
+            .Where(receipt => receipt.CreatedAt < retentionCutoff)
+            .ToList();
+        if (expiredReceipts.Count > 0)
+        {
+            db.TagDefinitionMutationReceipts.RemoveRange(expiredReceipts);
+        }
     }
 
     /// <summary>
