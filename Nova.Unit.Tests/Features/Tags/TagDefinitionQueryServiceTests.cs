@@ -142,6 +142,51 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
         result.Value.Single().PlayerTagId.ShouldBe(ClubBForwardTagId);
     }
 
+    [Fact]
+    public async Task GetManagementListAsync_ReturnsAtMostHundredRows_WhenClubHasMore()
+    {
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        SeedExtraActiveTags(150);
+
+        var result = await CreateService().GetManagementListAsync(
+            new GetTagDefinitionsInput(), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Count.ShouldBe(TagDefinitionLimits.MaxTagDefinitions);
+    }
+
+    [Fact]
+    public async Task GetChoicesAsync_ReturnsAtMostHundredActiveRows_WhenClubHasMore()
+    {
+        ActAs(ClubAMemberId, ClubAId, isAdmin: false);
+        SeedExtraActiveTags(150);
+
+        var result = await CreateService().GetChoicesAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Count.ShouldBe(TagDefinitionLimits.MaxTagDefinitions);
+        result.Value.ShouldAllBe(tag => tag.LifecycleStatus == LifecycleStatus.Active);
+    }
+
+    private void SeedExtraActiveTags(int count)
+    {
+        using var db = _harness.CreateAdminContext();
+        for (var i = 0; i < count; i++)
+        {
+            db.PlayerTags.Add(new PlayerTagEntity
+            {
+                PlayerTagId = 1000 + i,
+                Name = $"Bound{i}",
+                NormalizedName = $"BOUND{i}",
+                Color = "#AABBCC",
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId
+            });
+        }
+
+        db.SaveChanges();
+    }
+
     private TagDefinitionQueryService CreateService()
     {
         IDbContextFactory<NovaReadDbContext> readDbFactory =

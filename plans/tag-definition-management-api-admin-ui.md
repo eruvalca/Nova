@@ -211,6 +211,6 @@ Implemented issue #66's sub-task: **Tag definition management API and admin UI**
 
 ## Deployment Plan
 
-1. Apply the EF Core migration `20260812172008_AddTagDefinitionUniquenessAndCreationOperationId` to each environment's PostgreSQL database (`dotnet ef database update --project Nova --context NovaDbContext`). The migration backfills `NormalizedName` (`upper(trim("Name"))`) before creating the filtered unique indexes.
+1. Apply the EF Core migrations `20260812172008_AddTagDefinitionUniquenessAndCreationOperationId` and `20260812203606_AddTagDefinitionMutationReceipts` to each environment's PostgreSQL database (`dotnet ef database update --project Nova --context NovaDbContext`). The first migration backfills `NormalizedName` (`upper(trim("Name"))`) before creating the filtered unique indexes; the second adds the durable mutation-receipt table used to resolve ambiguous-commit retries for tag-definition mutations.
 2. Deploy the `Nova` server, `Nova.Client` WASM, and `Nova.UI` shared library builds together (the shared `Nova.UI` output must be built serially to avoid a parallel webcil race).
 3. No seed data or config changes are required; the tag-definition feature is available immediately to club administrators in the club admin area.

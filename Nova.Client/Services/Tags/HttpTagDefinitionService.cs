@@ -45,7 +45,7 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
 
         return await response.Content.ReadRequiredJsonAsync<TagDefinitionDto>(
             "The server returned an invalid tag-definition response.",
-            dto => IsValidTagDefinition(dto, input.TagId),
+            dto => IsValidTagDefinition(dto, input.TagId, requiredStatus: null),
             cancellationToken);
     }
 
@@ -54,15 +54,25 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
     /// </summary>
     /// <param name="dto">The tag definition to validate.</param>
     /// <param name="expectedTagId">The expected tag-definition identifier, when known.</param>
+    /// <param name="requiredStatus">
+    /// The lifecycle status the payload must carry, or <see langword="null"/> to accept any defined
+    /// status. Update passes <see langword="null"/> because its ambiguous-commit verifier re-reads the
+    /// current row, so a concurrent archive can legitimately return an <see cref="LifecycleStatus.Archived"/>
+    /// snapshot after a successful update; create always requires <see cref="LifecycleStatus.Active"/>.
+    /// </param>
     /// <returns><see langword="true"/> when the tag definition is structurally valid.</returns>
-    private static bool IsValidTagDefinition(TagDefinitionDto dto, long? expectedTagId = null)
+    private static bool IsValidTagDefinition(
+        TagDefinitionDto dto,
+        long? expectedTagId = null,
+        LifecycleStatus? requiredStatus = LifecycleStatus.Active)
         => dto is not null
             && dto.PlayerTagId > 0
             && (expectedTagId is null || dto.PlayerTagId == expectedTagId)
             && !string.IsNullOrWhiteSpace(dto.Name)
             && dto.Name.Length <= 100
             && IsValidColor(dto.Color)
-            && dto.LifecycleStatus == LifecycleStatus.Active;
+            && Enum.IsDefined(dto.LifecycleStatus)
+            && (requiredStatus is null || dto.LifecycleStatus == requiredStatus);
 
     /// <summary>
     /// Validates a tag color as the normalized <c>#RRGGBB</c> hex form the server promises.

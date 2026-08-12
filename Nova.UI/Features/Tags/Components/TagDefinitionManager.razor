@@ -101,10 +101,13 @@
         <div class="d-flex flex-wrap gap-2 mb-3">
             <div class="btn-group" role="group" aria-label="Tag lifecycle filter">
                 <button type="button" class="btn btn-sm @(LifecycleView == "active" ? "btn-primary" : "btn-outline-primary")"
+                        aria-pressed="@(LifecycleView == "active")"
                         disabled="@(_isLoading || _isMutating)" @onclick="@(() => ApplyViewAsync("active"))">Active</button>
                 <button type="button" class="btn btn-sm @(LifecycleView == "archived" ? "btn-primary" : "btn-outline-primary")"
+                        aria-pressed="@(LifecycleView == "archived")"
                         disabled="@(_isLoading || _isMutating)" @onclick="@(() => ApplyViewAsync("archived"))">Archived</button>
                 <button type="button" class="btn btn-sm @(LifecycleView == "all" ? "btn-primary" : "btn-outline-primary")"
+                        aria-pressed="@(LifecycleView == "all")"
                         disabled="@(_isLoading || _isMutating)" @onclick="@(() => ApplyViewAsync("all"))">All</button>
             </div>
 
