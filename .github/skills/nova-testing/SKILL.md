@@ -1,9 +1,9 @@
 ---
 name: nova-testing
 description: >-
-  Write and run Nova tests: pick the right harness (in-memory SQLite tenancy unit tests vs Aspire Postgres integration tests) and run them on Microsoft.Testing.Platform.
-  USE FOR: write a unit test, add an integration test, run tests, dotnet test, which test project, tenancy test harness, NovaAppHostFixture, lifecycle race tests, uniqueness probe race, execution-strategy retry tests, transient fault injection, ambiguous commit verification, migration verification, filter tests, CreatedAtRoute Location test, MTP flags, bUnit component tests, Razor literal parameter regression, render-mode assertion.
-  DO NOT USE FOR: domain/persistence work (use add-domain-persistence), building full features (use add-feature-slice), or adding endpoints (use add-api-endpoint).
+    Write and run Nova tests: pick the right harness (in-memory SQLite tenancy unit tests vs Aspire Postgres integration tests) and run them on Microsoft.Testing.Platform.
+    USE FOR: write a unit test, add an integration test, run tests, dotnet test, which test project, tenancy test harness, NovaAppHostFixture, lifecycle race tests, uniqueness probe race, execution-strategy retry tests, transient fault injection, ambiguous commit verification, migration verification, filter tests, CreatedAtRoute Location test, MTP flags, bUnit component tests, Razor literal parameter regression, render-mode assertion.
+    DO NOT USE FOR: domain/persistence work (use add-domain-persistence), building full features (use add-feature-slice), or adding endpoints (use add-api-endpoint).
 ---
 
 # Nova Testing
@@ -19,11 +19,11 @@ Use this skill when writing or running Nova tests. Read the relevant reference b
 
 ## Choose the harness
 
-| Test shape | Project | Database | Use for |
-| --- | --- | --- | --- |
-| Pure policy | `Nova.Unit.Tests` | None | Deterministic decisions over constructed immutable facts; no harness, DI, mocks, or logger |
-| Service shell | `Nova.Unit.Tests` | Shared in-memory SQLite (`EnsureCreated()`) | Query filters, interceptors, authorization, tenancy, effects, and OneOf state |
-| Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via Aspire AppHost | Migrations, constraints, advisory locks, transaction races, execution-strategy retries, ambiguous commits, and SQL translation |
+| Test shape    | Project                  | Database                                    | Use for                                                                                                                        |
+| ------------- | ------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Pure policy   | `Nova.Unit.Tests`        | None                                        | Deterministic decisions over constructed immutable facts; no harness, DI, mocks, or logger                                     |
+| Service shell | `Nova.Unit.Tests`        | Shared in-memory SQLite (`EnsureCreated()`) | Query filters, interceptors, authorization, tenancy, effects, and OneOf state                                                  |
+| Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via Aspire AppHost       | Migrations, constraints, advisory locks, transaction races, execution-strategy retries, ambiguous commits, and SQL translation |
 
 Default new tests to `Nova.Unit.Tests`. Add an integration test only when the behavior depends
 on the real provider (type mappings, migrations, database constraints, advisory locks,
@@ -32,15 +32,17 @@ transaction races, execution-strategy retries, ambiguous commits, SQL translatio
 ## Run commands
 
 Both test projects use xUnit v3 on Microsoft.Testing.Platform (MTP) with Shouldly assertions.
-Run with `dotnet test --project <project>` — do NOT pass VSTest-only flags (`--nologo`,
-`--collect`, `--logger`); MTP rejects them.
+Use the explicit `--project` form and avoid bare csproj invocation, which has been observed to fail
+MTP test discovery in this repo:
 
 ```powershell
-dotnet test --project Nova.Unit.Tests
-dotnet test --project Nova.Integration.Tests
-dotnet test --project Nova.Unit.Tests --filter-class "*Name"
+dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj
+dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj
+dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*Name"
+dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --filter-class "*CampaignParticipantHttpTests"
 ```
 
+Do not pass VSTest-only flags (`--nologo`, `--collect`, `--logger`); MTP rejects them.
 Filter by class with `--filter-class "*Name"`.
 
 ## Checklist
@@ -62,8 +64,9 @@ Filter by class with `--filter-class "*Name"`.
    PostgreSQL context after the probe and assert the database violation maps to `Conflict`.
 10. For `CreatedAtRoute`, assert `201`, exact `Location`, and a successful GET after following it.
 11. For strict HTTP clients, test a populated valid body and table-driven malformed/invalid 2xx
-   payloads, including nested nulls, invalid relationships, bounds, and portable ordering.
+    payloads, including nested nulls, invalid relationships, bounds, and portable ordering.
 12. Exercise each endpoint and query-validation path independently, using the least-privileged
-   permitted role and exact counts for lifecycle or tenancy exclusions.
+    permitted role and exact counts for lifecycle or tenancy exclusions.
 13. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
-   Repeat `--filter-class` for multiple classes; do not combine class names with `|`.
+    Repeat `--filter-class` for multiple classes; do not combine class names with `|`.
+14. Before commit or PR, run the relevant integration tests for provider/HTTP changes and confirm they pass.

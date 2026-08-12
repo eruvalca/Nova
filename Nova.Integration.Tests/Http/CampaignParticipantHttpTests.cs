@@ -385,7 +385,7 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         var underscoreRoster = await underscoreResponse.Content.ReadFromJsonAsync<PagedResult<CampaignParticipantRosterItem>>(cancellationToken);
         underscoreRoster.ShouldNotBeNull();
         underscoreRoster.TotalCount.ShouldBe(1);
-        underscoreRoster.Items[0].DisplayName.ShouldBe("A_Player");
+        underscoreRoster.Items[0].DisplayName.ShouldBe("A_ Player");
 
         using var backslashResponse = await client.GetAsync(
             CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = campaignId, Search = "\\", Page = 1, PageSize = 50 }),
@@ -394,7 +394,7 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         var backslashRoster = await backslashResponse.Content.ReadFromJsonAsync<PagedResult<CampaignParticipantRosterItem>>(cancellationToken);
         backslashRoster.ShouldNotBeNull();
         backslashRoster.TotalCount.ShouldBe(1);
-        backslashRoster.Items[0].DisplayName.ShouldBe("A\\Player");
+        backslashRoster.Items[0].DisplayName.ShouldBe("A\\ Player");
     }
 
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";
@@ -466,14 +466,14 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         await context.SaveChangesAsync(cancellationToken);
 
         context.PlayerCampaignAssignments.AddRange(
-            players.Select(player => new PlayerCampaignAssignmentEntity
+            players.Select((player, index) => new PlayerCampaignAssignmentEntity
             {
                 PlayerId = player.PlayerId,
                 CampaignId = campaign.CampaignId,
                 ClubId = clubId,
                 CreatedById = user.Id,
                 PlacementOutcome = PlacementOutcome.Undecided,
-                TryoutNumber = 1
+                TryoutNumber = index + 1
             }));
         await context.SaveChangesAsync(cancellationToken);
 

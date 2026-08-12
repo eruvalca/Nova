@@ -17,6 +17,7 @@ description: "Nova C# coding conventions, Try-method contracts, editorconfig exp
 - Eliminate unused parameters and unused value assignments.
 - Prefer `using var x = ...;` over `using (...) { }` when the variable lifetime naturally ends at the enclosing scope.
 - **Always run the formatting check before committing any C# changes**: `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`. If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with the `--verify-no-changes` command.
+- **Before commit or PR, ensure the relevant integration tests pass for provider-boundary or HTTP changes.**
 
 ## `Try*` contracts
 
