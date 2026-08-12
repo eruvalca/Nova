@@ -19,12 +19,6 @@ public sealed partial class TagDefinitionQueryService(
     ICurrentUserProvider currentUserProvider,
     ILogger<TagDefinitionQueryService> logger) : ITagDefinitionQueryService
 {
-    /// <summary>
-    /// The maximum number of tag definitions returned by either query, keeping the
-    /// projections bounded for large clubs.
-    /// </summary>
-    private const int MaxTagDefinitions = 100;
-
     /// <inheritdoc />
     public async Task<ServiceResult<IReadOnlyList<TagDefinitionDto>>> GetManagementListAsync(
         GetTagDefinitionsInput input,
@@ -65,7 +59,7 @@ public sealed partial class TagDefinitionQueryService(
         var rows = await query
             .OrderBy(tag => tag.Name)
             .ThenBy(tag => tag.PlayerTagId)
-            .Take(MaxTagDefinitions)
+            .Take(TagDefinitionLimits.MaxTagDefinitions)
             .Select(tag => new TagDefinitionDto
             {
                 PlayerTagId = tag.PlayerTagId,
@@ -94,7 +88,7 @@ public sealed partial class TagDefinitionQueryService(
             .Where(tag => tag.ClubId == clubId && tag.LifecycleStatus == LifecycleStatus.Active)
             .OrderBy(tag => tag.Name)
             .ThenBy(tag => tag.PlayerTagId)
-            .Take(MaxTagDefinitions)
+            .Take(TagDefinitionLimits.MaxTagDefinitions)
             .Select(tag => new TagDefinitionDto
             {
                 PlayerTagId = tag.PlayerTagId,

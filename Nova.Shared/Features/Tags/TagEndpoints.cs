@@ -64,7 +64,15 @@ public static class TagEndpoints
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            querySegments.Add($"search={Uri.EscapeDataString(search.Trim())}");
+            var normalizedSearch = search.Trim();
+            if (normalizedSearch.Length > TagDefinitionLimits.MaxSearchLength)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(search),
+                    $"The tag-name search term exceeds the maximum length of {TagDefinitionLimits.MaxSearchLength} characters.");
+            }
+
+            querySegments.Add($"search={Uri.EscapeDataString(normalizedSearch)}");
         }
 
         var normalizedLifecycleStatus = lifecycleStatus?.Trim().ToLowerInvariant() switch

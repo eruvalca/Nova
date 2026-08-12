@@ -11,7 +11,7 @@ public sealed record GetTagDefinitionsInput
     /// <summary>
     /// Gets the optional case-insensitive tag-definition-name search term.
     /// </summary>
-    [MaxLength(100)]
+    [MaxLength(TagDefinitionLimits.MaxSearchLength)]
     public string? Search { get; init; }
 
     /// <summary>

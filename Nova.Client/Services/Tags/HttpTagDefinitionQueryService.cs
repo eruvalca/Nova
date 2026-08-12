@@ -32,7 +32,8 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
 
         var result = await response.Content.ReadRequiredJsonAsync<List<TagDefinitionDto>>(
             "The server returned an invalid tag-definition list response.",
-            tags => tags.All(tag => IsValidForView(tag, input.LifecycleStatus)),
+            tags => tags.Count <= TagDefinitionLimits.MaxTagDefinitions
+                && tags.All(tag => IsValidForView(tag, input.LifecycleStatus)),
             cancellationToken);
         return result.Match<ServiceResult<IReadOnlyList<TagDefinitionDto>>>(
             tags => tags.AsReadOnly(),
@@ -51,7 +52,7 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
 
         var result = await response.Content.ReadRequiredJsonAsync<List<TagDefinitionDto>>(
             "The server returned an invalid tag-definition choices response.",
-            tags => tags.All(IsValidChoice),
+            tags => tags.Count <= TagDefinitionLimits.MaxTagDefinitions && tags.All(IsValidChoice),
             cancellationToken);
         return result.Match<ServiceResult<IReadOnlyList<TagDefinitionDto>>>(
             tags => tags.AsReadOnly(),
@@ -75,9 +76,9 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
     /// </summary>
     /// <param name="color">The color to validate.</param>
     /// <returns><see langword="true"/> when the color matches the shared contract.</returns>
-    private static bool IsValidColor(string color)
+    private static bool IsValidColor(string? color)
     {
-        if (color.Length != 7 || color[0] != '#')
+        if (color is null || color.Length != 7 || color[0] != '#')
         {
             return false;
         }

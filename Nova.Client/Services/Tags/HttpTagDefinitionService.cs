@@ -69,9 +69,9 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
     /// </summary>
     /// <param name="color">The color to validate.</param>
     /// <returns><see langword="true"/> when the color matches the shared contract.</returns>
-    private static bool IsValidColor(string color)
+    private static bool IsValidColor(string? color)
     {
-        if (color.Length != 7 || color[0] != '#')
+        if (color is null || color.Length != 7 || color[0] != '#')
         {
             return false;
         }
