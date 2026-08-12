@@ -109,7 +109,7 @@
             </div>
 
             <div class="input-group input-group-sm tag-search">
-                <input type="text" class="form-control" placeholder="Search names" @bind="_searchInput" @bind:event="oninput" />
+                <input type="text" class="form-control" placeholder="Search names" aria-label="Search tag names" @bind="_searchInput" @bind:event="oninput" />
                 <button type="button" class="btn btn-outline-secondary" @onclick="ApplySearchAsync">Search</button>
                 @if (!string.IsNullOrEmpty(AppliedSearch))
                 {

@@ -60,6 +60,30 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
             && dto.PlayerTagId > 0
             && (expectedTagId is null || dto.PlayerTagId == expectedTagId)
             && !string.IsNullOrWhiteSpace(dto.Name)
-            && !string.IsNullOrWhiteSpace(dto.Color)
+            && dto.Name.Length <= 100
+            && IsValidColor(dto.Color)
             && dto.LifecycleStatus is LifecycleStatus.Active or LifecycleStatus.Archived;
+
+    /// <summary>
+    /// Validates a tag color as the normalized <c>#RRGGBB</c> hex form the server promises.
+    /// </summary>
+    /// <param name="color">The color to validate.</param>
+    /// <returns><see langword="true"/> when the color matches the shared contract.</returns>
+    private static bool IsValidColor(string color)
+    {
+        if (color.Length != 7 || color[0] != '#')
+        {
+            return false;
+        }
+
+        foreach (var character in color.AsSpan(1))
+        {
+            if (!Uri.IsHexDigit(character))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

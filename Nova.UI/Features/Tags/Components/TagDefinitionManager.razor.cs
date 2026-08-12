@@ -92,6 +92,7 @@ public partial class TagDefinitionManager(
     {
         _isLoading = true;
         Error = null;
+        Tags = null;
 
         ServiceResult<IReadOnlyList<TagDefinitionDto>> result;
         try
