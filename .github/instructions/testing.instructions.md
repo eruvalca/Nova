@@ -13,11 +13,11 @@ description: "Testing rules: project and harness selection, HTTP/UI boundary cov
 
 Both projects use **xUnit v3 on Microsoft.Testing.Platform (MTP)** with **Shouldly** assertions.
 
-| Test shape | Project | Database | Use for |
-| --- | --- | --- | --- |
-| Pure policy | `Nova.Unit.Tests` | None | Deterministic business decisions over constructed immutable facts; no harness, DI, mocks, or logger |
-| Service shell | `Nova.Unit.Tests` | Shared in-memory SQLite (`EnsureCreated()`) | Query-filter composition, interceptor branching, authorization, tenancy, effects, OneOf state |
-| Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via the Aspire AppHost | Production migrations, mappings, constraints, advisory locks, transaction races, execution-strategy retries, ambiguous commits, filter SQL translation |
+| Test shape    | Project                  | Database                                    | Use for                                                                                                                                                |
+| ------------- | ------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Pure policy   | `Nova.Unit.Tests`        | None                                        | Deterministic business decisions over constructed immutable facts; no harness, DI, mocks, or logger                                                    |
+| Service shell | `Nova.Unit.Tests`        | Shared in-memory SQLite (`EnsureCreated()`) | Query-filter composition, interceptor branching, authorization, tenancy, effects, OneOf state                                                          |
+| Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via the Aspire AppHost   | Production migrations, mappings, constraints, advisory locks, transaction races, execution-strategy retries, ambiguous commits, filter SQL translation |
 
 **Default new tests to `Nova.Unit.Tests`.** Add an integration test only when behavior depends on the
 real provider (type mappings, migrations, constraints, advisory locks, transaction races,
@@ -27,7 +27,11 @@ semantics, or SQL-translation limits.
 
 ## Run commands
 
-- Run with `dotnet test --project <project>`.
+- Use the explicit MTP form: `dotnet test --project <project>`.
+- Prefer the project path form that includes `--project`, for example:
+    - `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`
+    - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --filter-class "*CampaignParticipantHttpTests"`
+- Bare invocation such as `dotnet test <project>.csproj` can fail to discover tests in this xUnit v3/MTP setup, so avoid it in repo instructions and scripts.
 - **Do NOT pass VSTest-only flags** (`--nologo`, `--collect`, `--logger`) — MTP rejects them.
 - Filter by class with `--filter-class "*Name"`.
 
