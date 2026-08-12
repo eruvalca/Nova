@@ -66,6 +66,7 @@ public partial class TagDefinitionManager(
     private string? _statusMessage;
     private string _searchInput = string.Empty;
     private TagDefinitionDto? _archiveTarget;
+    private TagDefinitionDto? _restoreTarget;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -353,12 +354,36 @@ public partial class TagDefinitionManager(
     }
 
     /// <summary>
-    /// Restores an archived tag definition, then reloads the list.
+    /// Opens the restore confirmation panel for a tag definition.
     /// </summary>
     /// <param name="tag">The tag definition to restore.</param>
-    /// <returns>A task that completes when the mutation and reload have finished.</returns>
-    private async Task RestoreAsync(TagDefinitionDto tag)
+    private void BeginRestore(TagDefinitionDto tag)
     {
+        _restoreTarget = tag;
+        _actionError = null;
+        _statusMessage = null;
+    }
+
+    /// <summary>
+    /// Closes the restore confirmation panel without mutating data.
+    /// </summary>
+    private void CancelRestore()
+    {
+        _restoreTarget = null;
+        _actionError = null;
+    }
+
+    /// <summary>
+    /// Restores the selected tag definition, then reloads the list.
+    /// </summary>
+    /// <returns>A task that completes when the mutation and reload have finished.</returns>
+    private async Task ConfirmRestoreAsync()
+    {
+        if (_restoreTarget is null)
+        {
+            return;
+        }
+
         _isMutating = true;
         _actionError = null;
         _statusMessage = null;
@@ -366,7 +391,7 @@ public partial class TagDefinitionManager(
         ServiceResult<Success> result;
         try
         {
-            result = await lifecycleService.RestoreAsync(tag.PlayerTagId, ComponentCancellationToken);
+            result = await lifecycleService.RestoreAsync(_restoreTarget.PlayerTagId, ComponentCancellationToken);
         }
         catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
         {
@@ -381,10 +406,12 @@ public partial class TagDefinitionManager(
         }
 
         var success = false;
+        var restoredName = _restoreTarget.Name;
         result.Switch(
             _ =>
             {
-                _statusMessage = $"Restored tag \"{tag.Name}\".";
+                _statusMessage = $"Restored tag \"{restoredName}\".";
+                _restoreTarget = null;
                 success = true;
             },
             problem => HandleActionProblem(problem, "Could not restore tag."));

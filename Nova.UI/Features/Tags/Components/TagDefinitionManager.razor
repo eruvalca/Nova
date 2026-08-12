@@ -84,6 +84,20 @@
             </div>
         }
 
+        @if (_restoreTarget is not null)
+        {
+            <div class="alert alert-info d-flex flex-column flex-md-row justify-content-between align-items-start gap-2" role="alert">
+                <div>
+                    <strong>Restore "@_restoreTarget.Name"?</strong>
+                    <p class="mb-0 small">Restored tags become available for new evaluations.</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-success" disabled="@_isMutating" @onclick="ConfirmRestoreAsync">Restore</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelRestore">Cancel</button>
+                </div>
+            </div>
+        }
+
         <div class="d-flex flex-wrap gap-2 mb-3">
             <div class="btn-group" role="group" aria-label="Tag lifecycle filter">
                 <button type="button" class="btn btn-sm @(LifecycleView == "active" ? "btn-primary" : "btn-outline-primary")"
@@ -134,7 +148,7 @@
                                 }
                                 else
                                 {
-                                    <button type="button" class="btn btn-sm btn-outline-success" disabled="@_isMutating" @onclick="@(() => RestoreAsync(tag))">Restore</button>
+                                    <button type="button" class="btn btn-sm btn-outline-success" disabled="@_isMutating" @onclick="@(() => BeginRestore(tag))">Restore</button>
                                 }
                             </div>
                         </div>

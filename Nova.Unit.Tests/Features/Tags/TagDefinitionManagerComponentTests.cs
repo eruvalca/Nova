@@ -93,7 +93,7 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public void Restore_CallsLifecycleService_AndShowsConfirmation()
+    public void Restore_ConfirmsThenCallsLifecycleService()
     {
         var tag = CreateArchivedTag(id: 11, name: "Legacy");
         var lifecycleService = Substitute.For<ITagDefinitionLifecycleService>();
@@ -107,6 +107,9 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
 
         var restoreButton = cut.FindAll("button").Single(button => button.TextContent.Trim() == "Restore");
         restoreButton.Click();
+        cut.Markup.ShouldContain("Restore \"Legacy\"?");
+
+        cut.Find("button.btn-success").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Restored tag \"Legacy\"."));
         lifecycleService.Received(1).RestoreAsync(11, Arg.Any<CancellationToken>());

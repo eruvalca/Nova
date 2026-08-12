@@ -32,7 +32,7 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
 
         var result = await response.Content.ReadRequiredJsonAsync<List<TagDefinitionDto>>(
             "The server returned an invalid tag-definition list response.",
-            tags => tags.All(IsValidTagDefinition),
+            tags => tags.All(tag => IsValidForView(tag, input.LifecycleStatus)),
             cancellationToken);
         return result.Match<ServiceResult<IReadOnlyList<TagDefinitionDto>>>(
             tags => tags.AsReadOnly(),
@@ -68,6 +68,28 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
             && dto.PlayerTagId > 0
             && !string.IsNullOrWhiteSpace(dto.Name)
             && !string.IsNullOrWhiteSpace(dto.Color);
+
+    /// <summary>
+    /// Validates that a management-list row is structurally valid, carries a defined lifecycle, and
+    /// matches the requested view so a stale or malformed response cannot surface mismatched rows.
+    /// </summary>
+    /// <param name="dto">The tag-definition row to validate.</param>
+    /// <param name="lifecycleStatus">The requested lifecycle view.</param>
+    /// <returns><see langword="true"/> when the row is structurally valid and matches the requested view.</returns>
+    private static bool IsValidForView(TagDefinitionDto dto, string? lifecycleStatus)
+    {
+        if (!IsValidTagDefinition(dto) || !Enum.IsDefined(dto.LifecycleStatus))
+        {
+            return false;
+        }
+
+        return lifecycleStatus?.Trim().ToLowerInvariant() switch
+        {
+            "active" => dto.LifecycleStatus == LifecycleStatus.Active,
+            "archived" => dto.LifecycleStatus == LifecycleStatus.Archived,
+            _ => true
+        };
+    }
 
     /// <summary>
     /// Validates that a choices row is structurally valid and carries an active lifecycle, since the
