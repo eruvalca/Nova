@@ -1,0 +1,151 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using Nova.Shared.Enums
+@using Nova.Shared.Features.Tags
+@using Nova.UI.Features.Players
+
+<section class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2 mb-3">
+            <div>
+                <h2 class="h4 mb-1">Tags</h2>
+                <p class="text-muted small mb-0">Manage the tag definitions available for player evaluations.</p>
+            </div>
+            <button type="button" class="btn btn-primary" disabled="@_isLoading" @onclick="StartCreate">Add tag</button>
+        </div>
+
+        @if (Error is not null)
+        {
+            <div class="alert alert-danger" role="alert">@Error</div>
+        }
+
+        @if (_actionError is not null)
+        {
+            <div class="alert alert-danger" role="alert">@_actionError</div>
+        }
+
+        @if (_statusMessage is not null)
+        {
+            <div class="alert alert-success" role="alert">@_statusMessage</div>
+        }
+
+        @if (_showForm && _form is not null)
+        {
+            <div class="border rounded p-3 mb-3">
+                <h3 class="h6 mb-3">@(_form.IsEdit ? "Edit tag" : "New tag")</h3>
+
+                @if (_formError is not null)
+                {
+                    <div class="alert alert-danger" role="alert">@_formError</div>
+                }
+
+                <EditForm Model="_form" OnValidSubmit="SubmitFormAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <label for="tag-name" class="form-label">Name</label>
+                            <InputText id="tag-name" class="form-control" @bind-Value="_form.Name" />
+                            <ValidationMessage For="() => _form.Name" class="text-danger small" />
+                        </div>
+                        <div class="col-md-5">
+                            <label for="tag-color" class="form-label">Color</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <InputText id="tag-color" type="color" class="form-control form-control-color" @bind-Value="_form.Color" />
+                                <span class="text-muted small text-uppercase">@_form.Color</span>
+                            </div>
+                            <ValidationMessage For="() => _form.Color" class="text-danger small" />
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <button type="submit" class="btn btn-primary" disabled="@_isMutating">
+                            @if (_isMutating)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                            }
+                            @(_form.IsEdit ? "Save" : "Create")
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" disabled="@_isMutating" @onclick="CancelForm">Cancel</button>
+                    </div>
+                </EditForm>
+            </div>
+        }
+
+        @if (_archiveTarget is not null)
+        {
+            <div class="alert alert-warning d-flex flex-column flex-md-row justify-content-between align-items-start gap-2" role="alert">
+                <div>
+                    <strong>Archive "@_archiveTarget.Name"?</strong>
+                    <p class="mb-0 small">Archived tags remain on existing players but are hidden from new evaluations.</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-warning" disabled="@_isMutating" @onclick="ConfirmArchiveAsync">Archive</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelArchive">Cancel</button>
+                </div>
+            </div>
+        }
+
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <div class="btn-group" role="group" aria-label="Tag lifecycle filter">
+                <button type="button" class="btn btn-sm @(LifecycleView == "active" ? "btn-primary" : "btn-outline-primary")"
+                        disabled="@_isLoading" @onclick="@(() => ApplyViewAsync("active"))">Active</button>
+                <button type="button" class="btn btn-sm @(LifecycleView == "archived" ? "btn-primary" : "btn-outline-primary")"
+                        disabled="@_isLoading" @onclick="@(() => ApplyViewAsync("archived"))">Archived</button>
+                <button type="button" class="btn btn-sm @(LifecycleView == "all" ? "btn-primary" : "btn-outline-primary")"
+                        disabled="@_isLoading" @onclick="@(() => ApplyViewAsync("all"))">All</button>
+            </div>
+
+            <div class="input-group input-group-sm tag-search">
+                <input type="text" class="form-control" placeholder="Search names" @bind="_searchInput" @bind:event="oninput" />
+                <button type="button" class="btn btn-outline-secondary" @onclick="ApplySearchAsync">Search</button>
+                @if (!string.IsNullOrEmpty(AppliedSearch))
+                {
+                    <button type="button" class="btn btn-outline-secondary" aria-label="Clear search" @onclick="ClearSearchAsync">&times;</button>
+                }
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <p class="text-muted mb-0">Loading tags&hellip;</p>
+        }
+        else if (Tags is null || Tags.Count == 0)
+        {
+            <p class="text-muted mb-0">No tags found.</p>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var tag in Tags)
+                {
+                    <div class="border rounded p-3">
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="tag-swatch" style="@PlayerTagStyle.BuildBadgeStyle(tag.Color)" aria-hidden="true"></span>
+                                <div>
+                                    <div class="fw-semibold">@tag.Name</div>
+                                    <span class="@LifecycleBadgeClass(tag.LifecycleStatus)">@LifecycleLabel(tag.LifecycleStatus)</span>
+                                </div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                @if (tag.LifecycleStatus == LifecycleStatus.Active)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-primary" disabled="@_isMutating" @onclick="@(() => StartEdit(tag))">Edit</button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_isMutating" @onclick="@(() => BeginArchive(tag))">Archive</button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-success" disabled="@_isMutating" @onclick="@(() => RestoreAsync(tag))">Restore</button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (Tags.Count >= ResultLimit)
+                {
+                    <p class="text-muted small mb-0">Showing the first @ResultLimit results. Refine your search to see more.</p>
+                }
+            </div>
+        }
+    </div>
+</section>

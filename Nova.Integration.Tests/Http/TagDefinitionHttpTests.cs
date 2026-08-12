@@ -1,0 +1,321 @@
+using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Nova.Integration.Tests.Data;
+using Nova.Shared.Enums;
+using Nova.Shared.Features.Clubs;
+using Nova.Shared.Features.Tags;
+using Shouldly;
+
+namespace Nova.Integration.Tests.Http;
+
+/// <summary>
+/// End-to-end HTTP coverage for tag-definition management, lifecycle, and query endpoints,
+/// focused on the response contract that route-metadata assertions cannot prove: status codes,
+/// DTO projection, case-insensitive uniqueness, and the active-only choices read path.
+/// </summary>
+/// <param name="fixture">The shared AppHost fixture.</param>
+[Collection(NovaAppHostCollection.Name)]
+public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
+{
+    private const string Password = "Test#Passw0rd!";
+
+    /// <summary>
+    /// Verifies creating a tag definition returns 201 with the persisted DTO, a normalized color, and
+    /// the active lifecycle state. No <c>Location</c> header is asserted because the create handler
+    /// returns a null location.
+    /// </summary>
+    [Fact]
+    public async Task CreateTagDefinition_ReturnsCreated_ForClubAdmin()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        await RegisterClubAdminAsync(client, "tag-create-admin", "Create Club", cancellationToken);
+
+        var name = $"Tag-{Guid.CreateVersion7():N}";
+        using var response = await client.PostAsJsonAsync(
+            TagEndpoints.Create,
+            new CreateTagDefinitionInput { Name = name, Color = "#1a2b3c" },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var created = await response.Content.ReadFromJsonAsync<TagDefinitionDto>(cancellationToken);
+        created.ShouldNotBeNull();
+        created.Name.ShouldBe(name);
+        created.Color.ShouldBe("#1A2B3C");
+        created.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
+        created.PlayerTagId.ShouldBeGreaterThan(0);
+    }
+
+    /// <summary>
+    /// Verifies the create endpoint rejects anonymous callers.
+    /// </summary>
+    [Fact]
+    public async Task CreateTagDefinition_ReturnsUnauthorized_ForAnonymous()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        using var response = await client.PostAsJsonAsync(
+            TagEndpoints.Create,
+            new CreateTagDefinitionInput { Name = "Anonymous Tag", Color = "#AABBCC" },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// Verifies a second create with the same name in a different case is rejected as a conflict by
+    /// the case-insensitive <c>(ClubId, NormalizedName)</c> unique index.
+    /// </summary>
+    [Fact]
+    public async Task CreateTagDefinition_ReturnsConflict_ForDuplicateNameIgnoringCase()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        var club = await RegisterClubAdminAsync(client, "tag-create-duplicate-admin", "Duplicate Club", cancellationToken);
+
+        var name = $"Dup-{Guid.CreateVersion7():N}";
+        await CreateTagAsync(client, name, "#112233", cancellationToken);
+
+        using var duplicate = await client.PostAsJsonAsync(
+            TagEndpoints.Create,
+            new CreateTagDefinitionInput { Name = name.ToUpperInvariant(), Color = "#445566" },
+            cancellationToken);
+
+        duplicate.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+
+        await using var verify = fixture.CreateAdminContext();
+        var count = await verify.PlayerTags
+            .CountAsync(tag => tag.ClubId == club.ClubId && tag.NormalizedName == name.ToUpperInvariant(), cancellationToken);
+        count.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// Verifies updating a tag definition returns 200 with the replacement name and normalized color.
+    /// </summary>
+    [Fact]
+    public async Task UpdateTagDefinition_ReturnsOk_ForClubAdmin()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        await RegisterClubAdminAsync(client, "tag-update-admin", "Update Club", cancellationToken);
+
+        var created = await CreateTagAsync(client, $"Before-{Guid.CreateVersion7():N}", "#AA0000", cancellationToken);
+
+        var newName = $"After-{Guid.CreateVersion7():N}";
+        using var response = await client.PutAsJsonAsync(
+            TagEndpoints.UpdateUrl(created.PlayerTagId),
+            new UpdateTagDefinitionInput { TagId = created.PlayerTagId, Name = newName, Color = "#00aa00" },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var updated = await response.Content.ReadFromJsonAsync<TagDefinitionDto>(cancellationToken);
+        updated.ShouldNotBeNull();
+        updated.PlayerTagId.ShouldBe(created.PlayerTagId);
+        updated.Name.ShouldBe(newName);
+        updated.Color.ShouldBe("#00AA00");
+        updated.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
+    }
+
+    /// <summary>
+    /// Verifies a route/body tag identifier mismatch is rejected before any persistence.
+    /// </summary>
+    [Fact]
+    public async Task UpdateTagDefinition_ReturnsBadRequest_ForRouteBodyMismatch()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        await RegisterClubAdminAsync(client, "tag-update-mismatch-admin", "Mismatch Club", cancellationToken);
+
+        var created = await CreateTagAsync(client, $"Mismatch-{Guid.CreateVersion7():N}", "#111111", cancellationToken);
+
+        using var response = await client.PutAsJsonAsync(
+            TagEndpoints.UpdateUrl(created.PlayerTagId + 1),
+            new UpdateTagDefinitionInput { TagId = created.PlayerTagId, Name = "Unchanged", Color = "#222222" },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// Verifies archiving and restoring a tag definition round-trips through the lifecycle states.
+    /// </summary>
+    [Fact]
+    public async Task ArchiveThenRestoreTagDefinition_ReturnsNoContent_AndFlipsLifecycle()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        await RegisterClubAdminAsync(client, "tag-lifecycle-admin", "Lifecycle Club", cancellationToken);
+
+        var created = await CreateTagAsync(client, $"Lifecycle-{Guid.CreateVersion7():N}", "#333333", cancellationToken);
+
+        using (var archive = await client.PostAsync(TagEndpoints.ArchiveUrl(created.PlayerTagId), null, cancellationToken))
+        {
+            archive.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+
+        var archived = await ListTagsAsync(client, lifecycleStatus: "archived", cancellationToken: cancellationToken);
+        archived.ShouldContain(tag => tag.PlayerTagId == created.PlayerTagId);
+
+        using (var restore = await client.PostAsync(TagEndpoints.RestoreUrl(created.PlayerTagId), null, cancellationToken))
+        {
+            restore.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+
+        var active = await ListTagsAsync(client, lifecycleStatus: "active", cancellationToken: cancellationToken);
+        active.ShouldContain(tag => tag.PlayerTagId == created.PlayerTagId);
+    }
+
+    /// <summary>
+    /// Verifies the management list honors lifecycle and search filters and returns the matching set.
+    /// </summary>
+    [Fact]
+    public async Task GetTagDefinitions_ReturnsFilteredList_ForClubAdmin()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        await RegisterClubAdminAsync(client, "tag-list-admin", "List Club", cancellationToken);
+
+        var alpha = await CreateTagAsync(client, $"Alpha-{Guid.CreateVersion7():N}", "#AAAAAA", cancellationToken);
+        var beta = await CreateTagAsync(client, $"Beta-{Guid.CreateVersion7():N}", "#BBBBBB", cancellationToken);
+        var gamma = await CreateTagAsync(client, $"Gamma-{Guid.CreateVersion7():N}", "#CCCCCC", cancellationToken);
+
+        using (await client.PostAsync(TagEndpoints.ArchiveUrl(gamma.PlayerTagId), null, cancellationToken))
+        {
+        }
+
+        var active = await ListTagsAsync(client, lifecycleStatus: "active", cancellationToken: cancellationToken);
+        active.Select(tag => tag.PlayerTagId).ShouldBe([alpha.PlayerTagId, beta.PlayerTagId], ignoreOrder: true);
+
+        var archived = await ListTagsAsync(client, lifecycleStatus: "archived", cancellationToken: cancellationToken);
+        archived.Select(tag => tag.PlayerTagId).ShouldBe([gamma.PlayerTagId]);
+
+        var search = await ListTagsAsync(client, search: "alp", cancellationToken: cancellationToken);
+        search.Select(tag => tag.PlayerTagId).ShouldBe([alpha.PlayerTagId]);
+    }
+
+    /// <summary>
+    /// Verifies the evaluator choices read path returns only active tag definitions and excludes
+    /// archived ones, even when the caller is also a club administrator.
+    /// </summary>
+    [Fact]
+    public async Task GetTagDefinitionChoices_ReturnsOnlyActive_ForClubAdmin()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        await RegisterClubAdminAsync(client, "tag-choices-admin", "Choices Club", cancellationToken);
+
+        var activeOne = await CreateTagAsync(client, $"Choice-One-{Guid.CreateVersion7():N}", "#111111", cancellationToken);
+        var activeTwo = await CreateTagAsync(client, $"Choice-Two-{Guid.CreateVersion7():N}", "#222222", cancellationToken);
+        var archived = await CreateTagAsync(client, $"Choice-Archived-{Guid.CreateVersion7():N}", "#333333", cancellationToken);
+
+        using (await client.PostAsync(TagEndpoints.ArchiveUrl(archived.PlayerTagId), null, cancellationToken))
+        {
+        }
+
+        using var response = await client.GetAsync(TagEndpoints.GetChoicesUrl(), cancellationToken);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var choices = await response.Content.ReadFromJsonAsync<List<TagDefinitionDto>>(cancellationToken);
+        choices.ShouldNotBeNull();
+        choices.Select(tag => tag.PlayerTagId).ShouldBe([activeOne.PlayerTagId, activeTwo.PlayerTagId], ignoreOrder: true);
+        choices.ShouldNotContain(tag => tag.PlayerTagId == archived.PlayerTagId);
+    }
+
+    /// <summary>
+    /// Creates a tag definition through the HTTP API and returns its DTO.
+    /// </summary>
+    private async Task<TagDefinitionDto> CreateTagAsync(
+        HttpClient client,
+        string name,
+        string color,
+        CancellationToken cancellationToken)
+    {
+        using var response = await client.PostAsJsonAsync(
+            TagEndpoints.Create,
+            new CreateTagDefinitionInput { Name = name, Color = color },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var created = await response.Content.ReadFromJsonAsync<TagDefinitionDto>(cancellationToken);
+        created.ShouldNotBeNull();
+        return created;
+    }
+
+    /// <summary>
+    /// Retrieves the management list with the supplied filters.
+    /// </summary>
+    private async Task<List<TagDefinitionDto>> ListTagsAsync(
+        HttpClient client,
+        string? search = null,
+        string? lifecycleStatus = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await client.GetAsync(TagEndpoints.GetListUrl(search, lifecycleStatus), cancellationToken);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var tags = await response.Content.ReadFromJsonAsync<List<TagDefinitionDto>>(cancellationToken);
+        tags.ShouldNotBeNull();
+        return tags;
+    }
+
+    /// <summary>
+    /// Registers a new user, creates a club for them, and refreshes their membership claims so they
+    /// act as that club's administrator.
+    /// </summary>
+    private async Task<ClubDto> RegisterClubAdminAsync(
+        HttpClient client,
+        string emailPrefix,
+        string clubName,
+        CancellationToken cancellationToken)
+    {
+        var email = $"{emailPrefix}-{Guid.CreateVersion7():N}@example.com";
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, "Club", "Admin", cancellationToken);
+
+        using var response = await client.PostAsJsonAsync(ClubEndpoints.Create, new CreateClubInput
+        {
+            Name = $"{clubName} {Guid.CreateVersion7():N}",
+            City = "Austin",
+            State = "TX"
+        }, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
+        club.ShouldNotBeNull();
+
+        using var refresh = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        refresh.StatusCode.ShouldBe(HttpStatusCode.Found);
+
+        return club;
+    }
+
+    /// <summary>
+    /// Updates seeded Identity user names using the admin context.
+    /// </summary>
+    private async Task UpdateUserAsync(
+        string email,
+        string firstName,
+        string lastName,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var normalizedEmail = email.ToUpperInvariant();
+        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
+        user.FirstName = firstName;
+        user.LastName = lastName;
+        user.ClubId = null;
+        context.Users.Update(user);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+}

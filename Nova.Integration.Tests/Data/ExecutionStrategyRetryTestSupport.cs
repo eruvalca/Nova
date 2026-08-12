@@ -274,6 +274,38 @@ internal sealed class FailFirstNoteReadInterceptor : DbCommandInterceptor
         || commandText.Contains("\"Notes\"", StringComparison.Ordinal);
 }
 
+/// <summary>
+/// Simulates one transient provider failure while a tag-definition mutation attempt is still reading
+/// the tag definition, before it has written or committed anything.
+/// </summary>
+internal sealed class FailFirstPlayerTagReadInterceptor : DbCommandInterceptor
+{
+    private int _shouldFail = 1;
+    private int _failureCount;
+
+    /// <summary>
+    /// Gets the number of transient read failures injected by this interceptor.
+    /// </summary>
+    public int FailureCount => Volatile.Read(ref _failureCount);
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+        System.Data.Common.DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<System.Data.Common.DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.Contains("FROM \"PlayerTags\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _shouldFail, 0) == 1)
+        {
+            Interlocked.Increment(ref _failureCount);
+            throw new NpgsqlException("Simulated transient read failure.", new TimeoutException());
+        }
+
+        return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+    }
+}
+
 internal sealed class FailFirstSaveChangesInterceptor : SaveChangesInterceptor
 {
     private int _shouldFail = 1;
@@ -576,6 +608,41 @@ internal sealed class InsertAfterTeamExistsProbeInterceptor(Func<Task> insertCon
     {
         if (command.CommandText.Contains("EXISTS", StringComparison.Ordinal)
             && command.CommandText.Contains("\"Teams\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _shouldInsert, 0) == 1)
+        {
+            await insertConflictAsync();
+            Interlocked.Increment(ref _insertCount);
+        }
+
+        return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Commits an independent write immediately after the tag-definition duplicate-name probe runs,
+/// reproducing the window in which another request inserts a conflicting tag between the probe and
+/// the save.
+/// </summary>
+/// <param name="insertConflictAsync">The independent write to commit once, after the first probe.</param>
+internal sealed class InsertAfterPlayerTagExistsProbeInterceptor(Func<Task> insertConflictAsync) : DbCommandInterceptor
+{
+    private int _shouldInsert = 1;
+    private int _insertCount;
+
+    /// <summary>
+    /// Gets the number of conflicting writes this interceptor committed.
+    /// </summary>
+    public int InsertCount => Volatile.Read(ref _insertCount);
+
+    /// <inheritdoc />
+    public override async ValueTask<System.Data.Common.DbDataReader> ReaderExecutedAsync(
+        System.Data.Common.DbCommand command,
+        CommandExecutedEventData eventData,
+        System.Data.Common.DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.Contains("EXISTS", StringComparison.Ordinal)
+            && command.CommandText.Contains("\"PlayerTags\"", StringComparison.Ordinal)
             && Interlocked.Exchange(ref _shouldInsert, 0) == 1)
         {
             await insertConflictAsync();

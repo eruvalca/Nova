@@ -3,6 +3,8 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Tags;
+using Nova.Shared.Results;
 using OneOf;
 using OneOf.Types;
 
@@ -17,29 +19,33 @@ namespace Nova.Features.Tags;
 public sealed partial class TagDefinitionLifecycleService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<TagDefinitionLifecycleService> logger)
+    ILogger<TagDefinitionLifecycleService> logger) : ITagDefinitionLifecycleService
 {
-    /// <summary>
-    /// Archives a tag definition while preserving existing player associations.
-    /// </summary>
-    /// <param name="tagDefinitionId">The tag-definition identifier to archive.</param>
-    /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    /// <returns>Success, not found, forbidden, or conflict information.</returns>
-    public Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> ArchiveAsync(
+    /// <inheritdoc />
+    public async Task<ServiceResult<Success>> ArchiveAsync(
         long tagDefinitionId,
         CancellationToken cancellationToken = default)
-        => TransitionAsync(tagDefinitionId, LifecycleStatus.Archived, cancellationToken);
+    {
+        var outcome = await TransitionAsync(tagDefinitionId, LifecycleStatus.Archived, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
 
-    /// <summary>
-    /// Restores an archived tag definition to active use and clears archive provenance.
-    /// </summary>
-    /// <param name="tagDefinitionId">The tag-definition identifier to restore.</param>
-    /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    /// <returns>Success, not found, forbidden, or conflict information.</returns>
-    public Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> RestoreAsync(
+    /// <inheritdoc />
+    public async Task<ServiceResult<Success>> RestoreAsync(
         long tagDefinitionId,
         CancellationToken cancellationToken = default)
-        => TransitionAsync(tagDefinitionId, LifecycleStatus.Active, cancellationToken);
+    {
+        var outcome = await TransitionAsync(tagDefinitionId, LifecycleStatus.Active, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
 
     /// <summary>
     /// Applies the requested tag-definition lifecycle status after authorization checks.
@@ -61,51 +67,56 @@ public sealed partial class TagDefinitionLifecycleService(
             return new LifecycleForbidden("You must be a club administrator to change tag-definition lifecycle state.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.AcquireTagMutationLockAsync(tagDefinitionId, cancellationToken);
-        var tagDefinition = await db.PlayerTags
-            .SingleOrDefaultAsync(candidate => candidate.PlayerTagId == tagDefinitionId, cancellationToken);
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>(async () =>
+        {
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            await db.AcquireTagMutationLockAsync(tagDefinitionId, cancellationToken);
+            var tagDefinition = await db.PlayerTags
+                .SingleOrDefaultAsync(candidate => candidate.PlayerTagId == tagDefinitionId, cancellationToken);
 
-        if (tagDefinition is null || tagDefinition.ClubId != clubId)
-        {
-            LogTagNotFound(tagDefinitionId, clubId);
-            return new NotFound();
-        }
+            if (tagDefinition is null || tagDefinition.ClubId != clubId)
+            {
+                LogTagNotFound(tagDefinitionId, clubId);
+                return new NotFound();
+            }
 
-        if (tagDefinition.LifecycleStatus == targetStatus)
-        {
-            LogTagLifecycleConflict(tagDefinitionId, targetStatus);
-            return new LifecycleConflict(
-                $"The tag definition is already {targetStatus.ToString().ToLowerInvariant()}.");
-        }
+            if (tagDefinition.LifecycleStatus == targetStatus)
+            {
+                LogTagLifecycleConflict(tagDefinitionId, targetStatus);
+                return new LifecycleConflict(
+                    $"The tag definition is already {targetStatus.ToString().ToLowerInvariant()}.");
+            }
 
-        if (targetStatus == LifecycleStatus.Archived)
-        {
-            tagDefinition.LifecycleStatus = LifecycleStatus.Archived;
-            tagDefinition.ArchivedAt = DateTimeOffset.UtcNow;
-            tagDefinition.ArchivedById = actorUserId;
-        }
-        else
-        {
-            tagDefinition.LifecycleStatus = LifecycleStatus.Active;
-            tagDefinition.ArchivedAt = null;
-            tagDefinition.ArchivedById = null;
-        }
+            if (targetStatus == LifecycleStatus.Archived)
+            {
+                tagDefinition.LifecycleStatus = LifecycleStatus.Archived;
+                tagDefinition.ArchivedAt = DateTimeOffset.UtcNow;
+                tagDefinition.ArchivedById = actorUserId;
+            }
+            else
+            {
+                tagDefinition.LifecycleStatus = LifecycleStatus.Active;
+                tagDefinition.ArchivedAt = null;
+                tagDefinition.ArchivedById = null;
+            }
 
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            LogTagLifecycleConcurrencyConflict(tagDefinitionId);
-            return new LifecycleConflict("The tag definition's lifecycle changed. Reload it and try again.");
-        }
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                LogTagLifecycleConcurrencyConflict(tagDefinitionId);
+                return new LifecycleConflict("The tag definition's lifecycle changed. Reload it and try again.");
+            }
 
-        LogTagLifecycleChanged(tagDefinitionId, targetStatus, actorUserId);
-        return new Success();
+            LogTagLifecycleChanged(tagDefinitionId, targetStatus, actorUserId);
+            return new Success();
+        });
     }
 
     /// <summary>

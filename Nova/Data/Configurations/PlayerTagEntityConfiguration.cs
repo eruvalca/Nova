@@ -23,6 +23,14 @@ public class PlayerTagEntityConfiguration : IEntityTypeConfiguration<PlayerTagEn
         builder.Property(e => e.LifecycleStatus)
             .IsConcurrencyToken();
 
+        builder.HasIndex(e => new { e.ClubId, e.NormalizedName })
+            .IsUnique()
+            .HasFilter("\"NormalizedName\" IS NOT NULL");
+        builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
+            .IsUnique()
+            .HasFilter("\"CreationOperationId\" IS NOT NULL");
+        builder.HasIndex(e => new { e.ClubId, e.LifecycleStatus });
+
         var lifecycleStatusColumn = $"\"{nameof(PlayerTagEntity.LifecycleStatus)}\"";
         var archivedAtColumn = $"\"{nameof(PlayerTagEntity.ArchivedAt)}\"";
         var archivedByIdColumn = $"\"{nameof(PlayerTagEntity.ArchivedById)}\"";

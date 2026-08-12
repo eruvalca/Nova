@@ -181,8 +181,8 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             TagDefinitionId,
             TestContext.Current.CancellationToken);
 
-        archiveResult.IsT0.ShouldBeTrue();
-        restoreResult.IsT0.ShouldBeTrue();
+        archiveResult.IsSuccess.ShouldBeTrue();
+        restoreResult.IsSuccess.ShouldBeTrue();
 
         await using var verify = _harness.CreateAdminContext();
         var tag = await verify.PlayerTags
@@ -244,7 +244,8 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             TagDefinitionId,
             TestContext.Current.CancellationToken);
 
-        result.IsT3.ShouldBeTrue();
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
     }
 
     /// <summary>
@@ -262,7 +263,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             TestContext.Current.CancellationToken)).IsT0.ShouldBeTrue();
         (await CreateTagService().ArchiveAsync(
             TagDefinitionId,
-            TestContext.Current.CancellationToken)).IsT0.ShouldBeTrue();
+            TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
 
         await using var db = _harness.CreateTenantContext();
 
@@ -368,7 +369,16 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
                 });
         }
 
-        return await CreateTagService().ArchiveAsync(id, TestContext.Current.CancellationToken);
+        var tagResult = await CreateTagService().ArchiveAsync(id, TestContext.Current.CancellationToken);
+        return tagResult.Match<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>(
+            success => success,
+            problem => problem.Kind switch
+            {
+                ServiceProblemKind.NotFound => new NotFound(),
+                ServiceProblemKind.Forbidden => new LifecycleForbidden(problem.Detail ?? string.Empty),
+                ServiceProblemKind.Conflict => new LifecycleConflict(problem.Detail ?? string.Empty),
+                _ => throw new InvalidOperationException($"Unexpected tag archive problem: {problem.Kind}.")
+            });
     }
 
     /// <summary>
