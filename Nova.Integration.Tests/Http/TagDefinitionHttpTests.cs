@@ -232,6 +232,48 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a non-administrator club member can read the active-only choices but cannot create or
+    /// archive tag definitions, covering the <c>RequireEvaluator</c> read policy and the
+    /// <c>RequireClubAdmin</c> mutation policy.
+    /// </summary>
+    [Fact]
+    public async Task NonAdminClubMember_CanReadChoices_ButCannotMutate()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+
+        var club = await RegisterClubAdminAsync(adminClient, "tag-member-admin", "Member Club", cancellationToken);
+        var adminCreated = await CreateTagAsync(adminClient, $"Admin-{Guid.CreateVersion7():N}", "#111111", cancellationToken);
+
+        var memberEmail = UniqueEmail("tag-member");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
+        await AssignClubMembershipAsync(memberEmail, club.ClubId, cancellationToken);
+        await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
+
+        using (var choices = await memberClient.GetAsync(TagEndpoints.GetChoicesUrl(), cancellationToken))
+        {
+            choices.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var rows = await choices.Content.ReadFromJsonAsync<List<TagDefinitionDto>>(cancellationToken);
+            rows.ShouldNotBeNull();
+            rows.Select(tag => tag.PlayerTagId).ShouldContain(adminCreated.PlayerTagId);
+        }
+
+        using (var create = await memberClient.PostAsJsonAsync(
+            TagEndpoints.Create,
+            new CreateTagDefinitionInput { Name = $"Member-{Guid.CreateVersion7():N}", Color = "#222222" },
+            cancellationToken))
+        {
+            create.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        }
+
+        using (var archive = await memberClient.PostAsync(TagEndpoints.ArchiveUrl(adminCreated.PlayerTagId), null, cancellationToken))
+        {
+            archive.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        }
+    }
+
+    /// <summary>
     /// Creates a tag definition through the HTTP API and returns its DTO.
     /// </summary>
     private async Task<TagDefinitionDto> CreateTagAsync(
@@ -318,4 +360,34 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         context.Users.Update(user);
         await context.SaveChangesAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Assigns an existing Identity user to a club so their membership cookie carries the club claim.
+    /// </summary>
+    private async Task AssignClubMembershipAsync(
+        string email,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var user = await context.Users.SingleAsync(
+            candidate => candidate.NormalizedEmail == email.ToUpperInvariant(),
+            cancellationToken);
+        user.ClubId = clubId;
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Refreshes the club membership cookie so the client carries an up-to-date club claim.
+    /// </summary>
+    private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
+    {
+        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        response.StatusCode.ShouldBe(HttpStatusCode.Found);
+    }
+
+    /// <summary>
+    /// Builds a unique registration email for a test user.
+    /// </summary>
+    private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";
 }

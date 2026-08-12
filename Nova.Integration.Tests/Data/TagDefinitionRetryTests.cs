@@ -284,6 +284,67 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a create that loses the race to the unique normalized-name index is translated into a
+    /// conflict instead of letting the provider exception escape.
+    /// </summary>
+    /// <remarks>
+    /// The service probes for a duplicate before inserting, so the losing create can only reach the
+    /// database constraint when the conflicting tag definition appears after that probe. Committing the
+    /// conflicting definition from an independent context immediately after the probe reproduces that
+    /// window deterministically instead of relying on two creates interleaving by chance.
+    /// </remarks>
+    [Fact]
+    public async Task Create_ReportsConflict_WhenDuplicateAppearsAfterTheProbe()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var suffix = Guid.NewGuid().ToString("N");
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var contestedName = $"Contested Create {suffix}";
+        long clubId;
+
+        ActAs(userId: null, clubId: null, isAdmin: false);
+
+        await using (var seed = fixture.CreateAdminContext())
+        {
+            clubId = await SeedClubAsync(seed, $"Tag Create Conflict Club {suffix}", actorUserId, cancellationToken);
+        }
+
+        ActAs(actorUserId, clubId, isAdmin: true);
+
+        var conflictInterceptor = new InsertAfterPlayerTagExistsProbeInterceptor(async () =>
+        {
+            await using var conflicting = fixture.CreateAdminContext();
+            conflicting.PlayerTags.Add(CreateTag(contestedName, clubId, actorUserId));
+            await conflicting.SaveChangesAsync(CancellationToken.None);
+        });
+
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            conflictInterceptor);
+        var service = new TagDefinitionService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionService>.Instance);
+
+        var result = await service.CreateAsync(
+            new CreateTagDefinitionInput { Name = contestedName, Color = "#0A0B0C" },
+            cancellationToken);
+
+        conflictInterceptor.InsertCount.ShouldBe(1);
+        result.IsProblem.ShouldBeTrue("the losing create must surface as a conflict, not a provider exception");
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+
+        await using var verify = fixture.CreateAdminContext();
+        var names = await verify.PlayerTags
+            .Where(tag => tag.ClubId == clubId)
+            .Select(tag => tag.Name)
+            .ToListAsync(cancellationToken);
+
+        names.ShouldBe([contestedName]);
+    }
+
+    /// <summary>
     /// Sets the current simulated user for the fixture-backed tenant contexts.
     /// </summary>
     /// <param name="userId">The simulated user identifier.</param>

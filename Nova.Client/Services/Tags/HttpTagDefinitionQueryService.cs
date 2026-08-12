@@ -1,3 +1,4 @@
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
@@ -50,7 +51,7 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
 
         var result = await response.Content.ReadRequiredJsonAsync<List<TagDefinitionDto>>(
             "The server returned an invalid tag-definition choices response.",
-            tags => tags.All(IsValidTagDefinition),
+            tags => tags.All(IsValidChoice),
             cancellationToken);
         return result.Match<ServiceResult<IReadOnlyList<TagDefinitionDto>>>(
             tags => tags.AsReadOnly(),
@@ -67,4 +68,13 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
             && dto.PlayerTagId > 0
             && !string.IsNullOrWhiteSpace(dto.Name)
             && !string.IsNullOrWhiteSpace(dto.Color);
+
+    /// <summary>
+    /// Validates that a choices row is structurally valid and carries an active lifecycle, since the
+    /// choices endpoint only ever returns active tag definitions.
+    /// </summary>
+    /// <param name="dto">The tag-definition row to validate.</param>
+    /// <returns><see langword="true"/> when the row is an active, structurally valid choice.</returns>
+    private static bool IsValidChoice(TagDefinitionDto dto)
+        => IsValidTagDefinition(dto) && dto.LifecycleStatus == LifecycleStatus.Active;
 }
