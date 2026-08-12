@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
@@ -94,6 +95,29 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies an invalid create body is rejected with validation ProblemDetails naming both fields,
+    /// proving automatic endpoint validation runs before the handler.
+    /// </summary>
+    [Fact]
+    public async Task CreateTagDefinition_ReturnsValidationProblem_ForInvalidBody()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        await RegisterClubAdminAsync(client, "tag-create-invalid-admin", "Invalid Create Club", cancellationToken);
+
+        using var response = await client.PostAsJsonAsync(
+            TagEndpoints.Create,
+            new CreateTagDefinitionInput { Name = "", Color = "not-a-color" },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var errors = await ReadErrorsAsync(response, cancellationToken);
+        errors.ShouldContainKey(nameof(CreateTagDefinitionInput.Name));
+        errors.ShouldContainKey(nameof(CreateTagDefinitionInput.Color));
+    }
+
+    /// <summary>
     /// Verifies updating a tag definition returns 200 with the replacement name and normalized color.
     /// </summary>
     [Fact]
@@ -141,6 +165,30 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// Verifies an invalid update body is rejected with validation ProblemDetails naming both fields,
+    /// proving automatic endpoint validation runs before the handler's route/body mismatch check.
+    /// </summary>
+    [Fact]
+    public async Task UpdateTagDefinition_ReturnsValidationProblem_ForInvalidBody()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        await RegisterClubAdminAsync(client, "tag-update-invalid-admin", "Invalid Update Club", cancellationToken);
+        var created = await CreateTagAsync(client, $"InvalidUpdate-{Guid.CreateVersion7():N}", "#111111", cancellationToken);
+
+        using var response = await client.PutAsJsonAsync(
+            TagEndpoints.UpdateUrl(created.PlayerTagId),
+            new UpdateTagDefinitionInput { TagId = created.PlayerTagId, Name = "", Color = "not-a-color" },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var errors = await ReadErrorsAsync(response, cancellationToken);
+        errors.ShouldContainKey(nameof(UpdateTagDefinitionInput.Name));
+        errors.ShouldContainKey(nameof(UpdateTagDefinitionInput.Color));
     }
 
     /// <summary>
@@ -200,6 +248,28 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
 
         var search = await ListTagsAsync(client, search: "alp", cancellationToken: cancellationToken);
         search.Select(tag => tag.PlayerTagId).ShouldBe([alpha.PlayerTagId]);
+    }
+
+    /// <summary>
+    /// Verifies an invalid lifecycle query value is rejected with correlated validation ProblemDetails,
+    /// proving automatic query validation runs before the handler.
+    /// </summary>
+    [Fact]
+    public async Task GetTagDefinitions_ReturnsValidationProblem_ForInvalidLifecycleStatus()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        await RegisterClubAdminAsync(client, "tag-list-invalid-admin", "Invalid List Club", cancellationToken);
+
+        using var response = await client.GetAsync(
+            $"{TagEndpoints.GetListTemplate}?lifecycleStatus=bogus",
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
+        document.ShouldNotBeNull();
+        document.RootElement.TryGetProperty("traceId", out _).ShouldBeTrue();
     }
 
     /// <summary>
@@ -390,4 +460,23 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// Builds a unique registration email for a test user.
     /// </summary>
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";
+
+    /// <summary>
+    /// Reads the <c>errors</c> dictionary from a validation ProblemDetails payload.
+    /// </summary>
+    /// <param name="response">The problem-details response.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The validation error dictionary.</returns>
+    private static async Task<Dictionary<string, string[]>> ReadErrorsAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        var errors = document.RootElement.GetProperty("errors");
+        return errors.EnumerateObject().ToDictionary(
+            property => property.Name,
+            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+    }
 }
