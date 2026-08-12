@@ -1,0 +1,19 @@
+@if (_loading)
+{
+    <p class="text-muted">Loading tag definitions…</p>
+}
+else if ((Active?.Count ?? 0) == 0)
+{
+    <p class="text-muted">No active tag definitions.</p>
+}
+else
+{
+    <ul class="list-inline mb-0">
+        @foreach (var tag in Active!)
+        {
+            <li class="list-inline-item">
+                <span class="badge" style="@TagBadgeStyle(tag)">@tag.Name</span>
+            </li>
+        }
+    </ul>
+}

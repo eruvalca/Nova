@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using Nova.Shared.Security
+@using Nova.UI.Features.Tags.Components
 
 <PageTitle>Club Administration</PageTitle>
 
@@ -179,6 +180,13 @@
                         }
                     </div>
                 }
+            </div>
+        </section>
+
+        <section class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h2 class="h4 mb-3">Tag Definitions</h2>
+                <TagDefinitionManagementPanel @rendermode="InteractiveAuto" />
             </div>
         </section>
     </div>

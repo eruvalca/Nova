@@ -1,0 +1,147 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+@if (_loading)
+{
+    <p class="text-muted">Loading tag definitions…</p>
+}
+else if (LoadError is not null)
+{
+    <div class="alert alert-danger" role="alert" aria-live="assertive">@LoadError</div>
+}
+else
+{
+    @if (_status is not null)
+    {
+        <div class="alert alert-success" role="alert" aria-live="polite">@_status</div>
+    }
+
+    @if (_mutationError is not null)
+    {
+        <div class="alert alert-danger" role="alert" aria-live="assertive">@_mutationError</div>
+    }
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h3 class="h5 mb-0">Active tag definitions</h3>
+        <button type="button" class="btn btn-primary btn-sm" @onclick="ShowCreateForm">Add tag definition</button>
+    </div>
+
+    @if (_showCreateForm)
+    {
+        <EditForm Model="_createForm" OnValidSubmit="HandleCreateAsync">
+            <DataAnnotationsValidator />
+            <div class="row g-3 mb-4">
+                <div class="col-md-5">
+                    <label for="tag-create-name" class="form-label">Name</label>
+                    <InputText id="tag-create-name" class="form-control" @bind-Value="_createForm.Name" />
+                    <ValidationMessage For="() => _createForm.Name" class="text-danger small" />
+                </div>
+                <div class="col-md-4">
+                    <label for="tag-create-color" class="form-label">Color</label>
+                    <div class="d-flex align-items-center gap-2">
+                        <input id="tag-create-color" type="color" class="form-control form-control-color"
+                               @bind-value="_createForm.Color" @bind-value:event="oninput" />
+                        <span class="badge" style="@CreateColorPreviewStyle">Preview</span>
+                    </div>
+                    <ValidationMessage For="() => _createForm.Color" class="text-danger small" />
+                </div>
+                <div class="col-md-3 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@_submitting">Create</button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelCreateForm">Cancel</button>
+                </div>
+            </div>
+        </EditForm>
+    }
+
+    @if ((Active?.Count ?? 0) == 0)
+    {
+        <div class="alert alert-warning" role="alert">No active tag definitions yet. Add one to get started.</div>
+    }
+    else
+    {
+        <ul class="list-group mb-4">
+            @foreach (var tag in Active!)
+            {
+                <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                    <span class="badge" style="@TagBadgeStyle(tag)">@tag.Name</span>
+                    <span class="text-muted small flex-grow-1">
+                        Created @tag.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")
+                    </span>
+
+                    @if (_editingTagId == tag.TagDefinitionId)
+                    {
+                        <EditForm Model="_editForm" OnValidSubmit="HandleUpdateAsync" class="w-100">
+                            <DataAnnotationsValidator />
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-5">
+                                    <label for="@($"tag-edit-name-{tag.TagDefinitionId}")" class="form-label">Name</label>
+                                    <InputText id="@($"tag-edit-name-{tag.TagDefinitionId}")" class="form-control" @bind-Value="_editForm.Name" />
+                                    <ValidationMessage For="() => _editForm.Name" class="text-danger small" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="@($"tag-edit-color-{tag.TagDefinitionId}")" class="form-label">Color</label>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <input id="@($"tag-edit-color-{tag.TagDefinitionId}")" type="color" class="form-control form-control-color"
+                                               @bind-value="_editForm.Color" @bind-value:event="oninput" />
+                                        <span class="badge" style="@EditColorPreviewStyle">Preview</span>
+                                    </div>
+                                    <ValidationMessage For="() => _editForm.Color" class="text-danger small" />
+                                </div>
+                                <div class="col-md-3 d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary btn-sm" disabled="@_submitting">Save</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelEdit">Cancel</button>
+                                </div>
+                            </div>
+                        </EditForm>
+                    }
+                    else
+                    {
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => BeginEdit(tag)">Edit</button>
+                            @if (_confirmingArchiveId == tag.TagDefinitionId)
+                            {
+                                <span class="text-muted small align-self-center">Archive this tag?</span>
+                                <button type="button" class="btn btn-danger btn-sm" disabled="@_submitting" @onclick="ConfirmArchiveAsync">Yes, archive</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelArchive">Cancel</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn btn-outline-danger btn-sm" @onclick="() => BeginArchive(tag)">Archive</button>
+                            }
+                        </div>
+                    }
+                </li>
+            }
+        </ul>
+    }
+
+    <h3 class="h5 mb-3">Archived tag definitions</h3>
+    @if ((Archived?.Count ?? 0) == 0)
+    {
+        <p class="text-muted">No archived tag definitions.</p>
+    }
+    else
+    {
+        <ul class="list-group">
+            @foreach (var tag in Archived!)
+            {
+                <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                    <span class="badge" style="@TagBadgeStyle(tag)">@tag.Name</span>
+                    <span class="text-muted small flex-grow-1">
+                        Archived @(tag.ArchivedAt?.ToLocalTime().ToString("MMM d, yyyy") ?? "recently")
+                    </span>
+
+                    @if (_confirmingRestoreId == tag.TagDefinitionId)
+                    {
+                        <span class="text-muted small align-self-center">Restore this tag?</span>
+                        <button type="button" class="btn btn-success btn-sm" disabled="@_submitting" @onclick="ConfirmRestoreAsync">Yes, restore</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelRestore">Cancel</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-outline-success btn-sm" @onclick="() => BeginRestore(tag)">Restore</button>
+                    }
+                </li>
+            }
+        </ul>
+    }
+}

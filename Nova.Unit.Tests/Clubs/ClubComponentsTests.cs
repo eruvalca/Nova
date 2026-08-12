@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Account;
 using Nova.Shared.Features.Clubs;
+using Nova.Shared.Features.Tags;
 using Nova.Shared.Results;
 using Nova.UI.Features.Clubs.Components;
 using Nova.UI.Features.Clubs.Pages;
@@ -41,15 +42,28 @@ public class ClubComponentsTests : BunitContext
     /// <param name="clubDetailService">Optional substitute; a default mock is created when <see langword="null"/>.</param>
     private void SetupServices(IClubJoinRequestService? joinRequestService = null,
         IClubService? clubService = null,
-        IClubDetailService? clubDetailService = null)
+        IClubDetailService? clubDetailService = null,
+        ITagDefinitionService? tagDefinitionService = null)
     {
         joinRequestService ??= Substitute.For<IClubJoinRequestService>();
         clubService ??= Substitute.For<IClubService>();
         clubDetailService ??= Substitute.For<IClubDetailService>();
+        tagDefinitionService ??= Substitute.For<ITagDefinitionService>();
+
+        // ClubDetail hosts the read-only ActiveTagDefinitionsPanel, which fetches active
+        // tag definitions during initialization. Default to an empty list so the panel
+        // renders its empty state without throwing on a null result.
+        tagDefinitionService
+            .GetActiveAsync(Arg.Any<GetTagDefinitionsInput?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult((ServiceResult<IReadOnlyList<TagDefinitionSummary>>)new List<TagDefinitionSummary>()));
+        tagDefinitionService
+            .GetArchivedAsync(Arg.Any<GetTagDefinitionsInput?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult((ServiceResult<IReadOnlyList<TagDefinitionSummary>>)new List<TagDefinitionSummary>()));
 
         Services.AddSingleton(joinRequestService);
         Services.AddSingleton(clubService);
         Services.AddSingleton(clubDetailService);
+        Services.AddSingleton(tagDefinitionService);
 
         // ClubOnboarding now injects AuthenticationStateProvider to guard against club members
         // navigating back to the onboarding page. Register a fake that returns an authenticated

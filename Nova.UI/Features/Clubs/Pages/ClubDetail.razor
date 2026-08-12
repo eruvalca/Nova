@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
 @using Nova.Shared.Security
+@using Nova.UI.Features.Tags.Components
 
 <PageTitle>@(_club?.Name ?? "Club Details")</PageTitle>
 
@@ -51,5 +52,8 @@
                 }
             </ul>
         }
+
+        <h2 class="h4 mt-4">Active Tags</h2>
+        <ActiveTagDefinitionsPanel />
     }
 </div>
