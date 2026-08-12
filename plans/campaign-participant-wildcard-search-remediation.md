@@ -22,7 +22,7 @@ Status: Complete
 
 ### Phase Summary
 
-Confirmed the Postgres `ILIKE` branch in [Nova/Features/Campaigns/CampaignParticipantQueryService.cs](Nova/Features/Campaigns/CampaignParticipantQueryService.cs) escapes `\`, `%`, and `_` before the pattern is evaluated, so wildcard characters are treated as literals. The SQLite fallback remains case-insensitive but literal as well.
+Confirmed the Postgres `ILIKE` branch in [../Nova/Features/Campaigns/CampaignParticipantQueryService.cs](../Nova/Features/Campaigns/CampaignParticipantQueryService.cs) escapes `\`, `%`, and `_` before the pattern is evaluated, so wildcard characters are treated as literals. The SQLite fallback remains case-insensitive but literal as well.
 
 Verification result: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantQueryServiceTests"` passed with 36/36 tests successful.
 
@@ -42,7 +42,7 @@ Status: Complete
 
 ### Phase Summary
 
-The HTTP regression test was added in [Nova.Integration.Tests/Http/CampaignParticipantHttpTests.cs](Nova.Integration.Tests/Http/CampaignParticipantHttpTests.cs) to assert literal matching for `%`, `_`, and `\` in the participant roster search. This guards the exact Postgres branch that would otherwise treat these as wildcards.
+The HTTP regression test was added in [../Nova.Integration.Tests/Http/CampaignParticipantHttpTests.cs](../Nova.Integration.Tests/Http/CampaignParticipantHttpTests.cs) to assert literal matching for `%`, `_`, and `\` in the participant roster search. This guards the exact Postgres branch that would otherwise treat these as wildcards.
 
 ## Final Recap
 
