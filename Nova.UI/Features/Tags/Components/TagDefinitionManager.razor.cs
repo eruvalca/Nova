@@ -138,7 +138,7 @@ public partial class TagDefinitionManager(
                     return;
                 }
 
-                Error = problem.Detail ?? "Failed to load tag definitions.";
+                Error = FirstNonBlank(problem.Detail, FlattenValidationErrors(problem), "Failed to load tag definitions.");
             });
 
         _isLoading = false;
@@ -453,7 +453,7 @@ public partial class TagDefinitionManager(
             return;
         }
 
-        _formError = problem.Detail ?? fallback;
+        _formError = FirstNonBlank(problem.Detail, FlattenValidationErrors(problem), fallback);
     }
 
     /// <summary>
@@ -469,8 +469,26 @@ public partial class TagDefinitionManager(
             return;
         }
 
-        _actionError = problem.Detail ?? fallback;
+        _actionError = FirstNonBlank(problem.Detail, FlattenValidationErrors(problem), fallback);
     }
+
+    /// <summary>
+    /// Returns the first non-blank candidate, used to prefer detail text over field-level validation messages.
+    /// </summary>
+    /// <param name="candidates">The ordered candidate messages.</param>
+    /// <returns>The first non-blank message.</returns>
+    private static string FirstNonBlank(params string?[] candidates)
+        => candidates.First(candidate => !string.IsNullOrWhiteSpace(candidate))!;
+
+    /// <summary>
+    /// Flattens field-level validation messages when the problem carries no detail text.
+    /// </summary>
+    /// <param name="problem">The service problem.</param>
+    /// <returns>The joined field messages, or <see langword="null"/> when the problem has no errors.</returns>
+    private static string? FlattenValidationErrors(ServiceProblem problem)
+        => problem.Errors is { Count: > 0 }
+            ? string.Join(" ", problem.Errors.SelectMany(pair => pair.Value))
+            : null;
 
     /// <summary>
     /// Gets the Bootstrap badge CSS class for a tag's lifecycle status.

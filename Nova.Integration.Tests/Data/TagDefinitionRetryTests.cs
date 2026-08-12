@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Tags;
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Results;
 using Shouldly;
@@ -342,6 +343,197 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
             .ToListAsync(cancellationToken);
 
         names.ShouldBe([contestedName]);
+    }
+
+    /// <summary>
+    /// Verifies an update that committed ambiguously, then lost a race to a newer edit, still reports
+    /// success via its durable receipt without replaying and overwriting the newer content.
+    /// </summary>
+    /// <remarks>
+    /// The first update commits ambiguously and pauses just before its receipt-verification read. A
+    /// newer update then commits different content. Verification consults the first update's durable
+    /// operation receipt rather than comparing the mutable name/color, so the paused update reports
+    /// success and never overwrites the newer content.
+    /// </remarks>
+    [Fact]
+    public async Task Update_AmbiguousCommitThenNewerEdit_DoesNotOverwriteNewerContent()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var suffix = Guid.NewGuid().ToString("N");
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        long clubId;
+        long tagId;
+
+        ActAs(userId: null, clubId: null, isAdmin: false);
+
+        await using (var seed = fixture.CreateAdminContext())
+        {
+            clubId = await SeedClubAsync(seed, $"Tag Update Race Club {suffix}", actorUserId, cancellationToken);
+
+            var tag = CreateTag($"Original Race Tag {suffix}", clubId, actorUserId);
+            seed.PlayerTags.Add(tag);
+            await seed.SaveChangesAsync(cancellationToken);
+            tagId = tag.PlayerTagId;
+        }
+
+        ActAs(actorUserId, clubId, isAdmin: true);
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var gateInterceptor = new GateReceiptVerificationInterceptor("\"TagDefinitionMutationReceipts\"");
+        var firstFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor,
+            gateInterceptor);
+        var secondFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            new NoOpInterceptor());
+        var firstService = new TagDefinitionService(
+            firstFactory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionService>.Instance);
+        var secondService = new TagDefinitionService(
+            secondFactory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionService>.Instance);
+
+        Task<ServiceResult<TagDefinitionDto>> firstEdit;
+        try
+        {
+            // The first update pauses after its ambiguous commit, just before verification reads the receipt.
+            firstEdit = firstService.UpdateAsync(
+                new UpdateTagDefinitionInput { TagId = tagId, Name = "First edit name", Color = "#111111" },
+                cancellationToken);
+            await gateInterceptor.WaitForVerificationAttemptAsync(cancellationToken);
+
+            // A newer update commits different content while the first is paused at verification.
+            var newerResult = await secondService.UpdateAsync(
+                new UpdateTagDefinitionInput { TagId = tagId, Name = "Newer edit name", Color = "#222222" },
+                cancellationToken);
+            newerResult.IsSuccess.ShouldBeTrue("the newer edit must commit while the first is paused at verification");
+
+            gateInterceptor.Release();
+            var firstResult = await firstEdit;
+            firstResult.IsSuccess.ShouldBeTrue(
+                "the paused edit must verify against its durable receipt and report success");
+        }
+        finally
+        {
+            gateInterceptor.Release();
+        }
+
+        failureInterceptor.FailureCount.ShouldBe(1);
+        await using var verify = fixture.CreateAdminContext();
+        var persisted = await verify.PlayerTags
+            .Where(tag => tag.PlayerTagId == tagId)
+            .Select(tag => new { tag.Name, tag.Color })
+            .SingleAsync(cancellationToken);
+        persisted.Name.ShouldBe("Newer edit name", "the newer edit must survive and the paused edit must not replay");
+        persisted.Color.ShouldBe("#222222");
+    }
+
+    /// <summary>
+    /// Verifies an archive transition that committed ambiguously is verified via its durable receipt
+    /// (not the mutable lifecycle status) and reports success without replaying the transition.
+    /// </summary>
+    [Fact]
+    public async Task Archive_VerifiesCommittedTransition_AfterAmbiguousCommitFailure()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var suffix = Guid.NewGuid().ToString("N");
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        long clubId;
+        long tagId;
+
+        ActAs(userId: null, clubId: null, isAdmin: false);
+
+        await using (var seed = fixture.CreateAdminContext())
+        {
+            clubId = await SeedClubAsync(seed, $"Tag Archive Ambiguous Club {suffix}", actorUserId, cancellationToken);
+
+            var tag = CreateTag($"Archive Ambiguous Tag {suffix}", clubId, actorUserId);
+            seed.PlayerTags.Add(tag);
+            await seed.SaveChangesAsync(cancellationToken);
+            tagId = tag.PlayerTagId;
+        }
+
+        ActAs(actorUserId, clubId, isAdmin: true);
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor);
+        var service = new TagDefinitionLifecycleService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionLifecycleService>.Instance);
+
+        var result = await service.ArchiveAsync(tagId, cancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        failureInterceptor.FailureCount.ShouldBe(1);
+
+        await using var verify = fixture.CreateAdminContext();
+        var status = await verify.PlayerTags
+            .Where(tag => tag.PlayerTagId == tagId)
+            .Select(tag => tag.LifecycleStatus)
+            .SingleAsync(cancellationToken);
+        status.ShouldBe(LifecycleStatus.Archived);
+    }
+
+    /// <summary>
+    /// Verifies a restore transition that committed ambiguously is verified via its durable receipt
+    /// (not the mutable lifecycle status) and reports success without replaying the transition.
+    /// </summary>
+    [Fact]
+    public async Task Restore_VerifiesCommittedTransition_AfterAmbiguousCommitFailure()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var suffix = Guid.NewGuid().ToString("N");
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        long clubId;
+        long tagId;
+
+        ActAs(userId: null, clubId: null, isAdmin: false);
+
+        await using (var seed = fixture.CreateAdminContext())
+        {
+            clubId = await SeedClubAsync(seed, $"Tag Restore Ambiguous Club {suffix}", actorUserId, cancellationToken);
+
+            var tag = CreateTag($"Restore Ambiguous Tag {suffix}", clubId, actorUserId);
+            tag.LifecycleStatus = LifecycleStatus.Archived;
+            tag.ArchivedAt = DateTimeOffset.UtcNow;
+            tag.ArchivedById = actorUserId;
+            seed.PlayerTags.Add(tag);
+            await seed.SaveChangesAsync(cancellationToken);
+            tagId = tag.PlayerTagId;
+        }
+
+        ActAs(actorUserId, clubId, isAdmin: true);
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var factory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor);
+        var service = new TagDefinitionLifecycleService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionLifecycleService>.Instance);
+
+        var result = await service.RestoreAsync(tagId, cancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        failureInterceptor.FailureCount.ShouldBe(1);
+
+        await using var verify = fixture.CreateAdminContext();
+        var status = await verify.PlayerTags
+            .Where(tag => tag.PlayerTagId == tagId)
+            .Select(tag => tag.LifecycleStatus)
+            .SingleAsync(cancellationToken);
+        status.ShouldBe(LifecycleStatus.Active);
     }
 
     /// <summary>

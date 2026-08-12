@@ -97,12 +97,13 @@ internal sealed class FailFirstCommittedTransactionInterceptor : DbTransactionIn
 /// Pauses the first receipt-verification SELECT that runs after an ambiguous commit, so a test can
 /// deterministically commit a competing operation in the window between the ambiguous commit and this
 /// request's verification. The gate fires only on the read issued by ambiguous-commit verification
-/// (which targets the evaluation-note mutation receipt table); the set-based prune and the mutation
+/// (which targets the named mutation receipt table); the set-based prune and the mutation
 /// writes never reach the reader hook, so the first verification of the first attempt is the single
 /// pause point. Pair it with <see cref="FailFirstCommittedTransactionInterceptor"/> to produce the
 /// ambiguous commit that precedes the gated verification.
 /// </summary>
-internal sealed class GateReceiptVerificationInterceptor : DbCommandInterceptor
+/// <param name="receiptTableName">The quoted mutation-receipt table name to gate on.</param>
+internal sealed class GateReceiptVerificationInterceptor(string receiptTableName = "\"EvaluationNoteMutationReceipts\"") : DbCommandInterceptor
 {
     private readonly TaskCompletionSource _verificationAttempted =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -133,14 +134,14 @@ internal sealed class GateReceiptVerificationInterceptor : DbCommandInterceptor
         return await base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
     }
 
-    private static bool IsReceiptVerification(DbCommand command)
+    private bool IsReceiptVerification(DbCommand command)
     {
         // The ambiguous-commit verification issues a plain SELECT over the receipt table
-        // (SingleOrDefaultAsync). Npgsql also dispatches INSERT ... RETURNING through the reader
-        // hook, so require the command to actually be a SELECT to avoid gating the mutation writes.
+        // (SingleOrDefaultAsync/AnyAsync). Npgsql also dispatches INSERT ... RETURNING through the
+        // reader hook, so require the command to actually be a SELECT to avoid gating the mutation writes.
         var text = command.CommandText.TrimStart();
         return text.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
-            && text.Contains("\"EvaluationNoteMutationReceipts\"", StringComparison.Ordinal);
+            && text.Contains(receiptTableName, StringComparison.Ordinal);
     }
 }
 
