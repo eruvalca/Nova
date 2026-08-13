@@ -528,4 +528,17 @@ public partial class TagDefinitionManager(
     /// Navigates to the access-denied page when authorization fails at the service boundary.
     /// </summary>
     private void NavigateToAccessDenied() => navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
+
+    /// <summary>
+    /// Cancels and disposes the load-linked cancellation token source so the final in-flight load is
+    /// torn down when the component is disposed.
+    /// </summary>
+    /// <returns>A completed task.</returns>
+    protected override ValueTask DisposeAsyncCore()
+    {
+        _loadSource?.Cancel();
+        _loadSource?.Dispose();
+        _loadSource = null;
+        return ValueTask.CompletedTask;
+    }
 }

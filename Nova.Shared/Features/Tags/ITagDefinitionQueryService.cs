@@ -18,7 +18,7 @@ public interface ITagDefinitionQueryService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves active tag-definition choices for approved evaluators and administrators.
+    /// Retrieves active tag-definition choices for authenticated club members.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The active tag definitions or a service problem.</returns>

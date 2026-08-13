@@ -30,11 +30,6 @@ public sealed partial class TagDefinitionService(
     private const string DuplicateTagDefinitionMessage =
         "A tag definition with that name already exists.";
 
-    /// <summary>
-    /// The number of days a tag-definition mutation receipt is retained before it is pruned.
-    /// </summary>
-    private const int MutationReceiptRetentionDays = 1;
-
     /// <inheritdoc />
     public async Task<ServiceResult<TagDefinitionDto>> CreateAsync(
         CreateTagDefinitionInput input,
@@ -130,24 +125,6 @@ public sealed partial class TagDefinitionService(
                 return await state.VerifySucceeded(db);
             },
             cancellationToken);
-    }
-
-    /// <summary>
-    /// Tracks whether a mutation attempt reached its commit, scoping ambiguous-commit verification
-    /// to attempts that could actually have applied the mutation.
-    /// </summary>
-    private sealed class CommitAttemptTracker
-    {
-        private int _attempted;
-
-        /// <summary>Gets a value indicating whether the current attempt reached its commit.</summary>
-        public bool Attempted => Volatile.Read(ref _attempted) == 1;
-
-        /// <summary>Clears the flag at the start of an execution-strategy attempt.</summary>
-        public void Reset() => Volatile.Write(ref _attempted, 0);
-
-        /// <summary>Marks that the current attempt is about to commit.</summary>
-        public void MarkAttempted() => Volatile.Write(ref _attempted, 1);
     }
 
     /// <summary>
@@ -309,7 +286,7 @@ public sealed partial class TagDefinitionService(
         tagDefinition.NormalizedName = normalizedName;
         tagDefinition.Color = input.Color.Trim().ToUpperInvariant();
 
-        await PruneExpiredMutationReceiptsAsync(db, cancellationToken);
+        await TagDefinitionMutationReceipts.PruneExpiredAsync(db, cancellationToken);
 
         // Record a durable update receipt in the same transaction as the field changes so an
         // ambiguous-commit retry can verify THIS update applied without comparing mutable
@@ -380,37 +357,6 @@ public sealed partial class TagDefinitionService(
         return tagDefinition is null
             ? new ExecutionResult<ServiceResult<TagDefinitionDto>>(successful: false, default!)
             : new ExecutionResult<ServiceResult<TagDefinitionDto>>(successful: true, tagDefinition.ToTagDefinitionDto());
-    }
-
-    /// <summary>
-    /// Deletes tag-definition mutation receipts older than the retention window so the durable
-    /// verification artifact does not accumulate unboundedly with tag mutations. Runs inside the
-    /// mutation transaction so a transient-failure retry replays the prune along with the mutation,
-    /// and the tenant filter scopes the prune to the current club.
-    /// </summary>
-    /// <param name="db">The fresh tenant context created for this attempt.</param>
-    /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    private static async Task PruneExpiredMutationReceiptsAsync(NovaDbContext db, CancellationToken cancellationToken)
-    {
-        var retentionCutoff = DateTimeOffset.UtcNow.AddDays(-MutationReceiptRetentionDays);
-        if (db.Database.IsNpgsql())
-        {
-            await db.TagDefinitionMutationReceipts
-                .Where(receipt => receipt.CreatedAt < retentionCutoff)
-                .ExecuteDeleteAsync(cancellationToken);
-            return;
-        }
-
-        // SQLite cannot translate DateTimeOffset comparisons to SQL, so the tenant-filtered candidate
-        // set is loaded and the age filter is applied in memory.
-        var expiredReceipts = (await db.TagDefinitionMutationReceipts
-                .ToListAsync(cancellationToken))
-            .Where(receipt => receipt.CreatedAt < retentionCutoff)
-            .ToList();
-        if (expiredReceipts.Count > 0)
-        {
-            db.TagDefinitionMutationReceipts.RemoveRange(expiredReceipts);
-        }
     }
 
     /// <summary>

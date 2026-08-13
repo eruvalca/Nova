@@ -23,8 +23,6 @@ public sealed partial class TagDefinitionLifecycleService(
     ICurrentUserProvider currentUserProvider,
     ILogger<TagDefinitionLifecycleService> logger) : ITagDefinitionLifecycleService
 {
-    private const int MutationReceiptRetentionDays = 1;
-
     /// <inheritdoc />
     public async Task<ServiceResult<Success>> ArchiveAsync(
         long tagDefinitionId,
@@ -114,24 +112,6 @@ public sealed partial class TagDefinitionLifecycleService(
                 return await VerifyTransitionCommittedAsync(db, state.TagDefinitionId, state.TargetStatus, state.ClubId, state.TransitionOperationId, token);
             },
             cancellationToken);
-    }
-
-    /// <summary>
-    /// Tracks whether a lifecycle attempt reached its commit, scoping ambiguous-commit verification
-    /// to attempts that could actually have applied the transition.
-    /// </summary>
-    private sealed class CommitAttemptTracker
-    {
-        private int _attempted;
-
-        /// <summary>Gets a value indicating whether the current attempt reached its commit.</summary>
-        public bool Attempted => Volatile.Read(ref _attempted) == 1;
-
-        /// <summary>Clears the flag at the start of an execution-strategy attempt.</summary>
-        public void Reset() => Volatile.Write(ref _attempted, 0);
-
-        /// <summary>Marks that the current attempt is about to commit.</summary>
-        public void MarkAttempted() => Volatile.Write(ref _attempted, 1);
     }
 
     /// <summary>
@@ -255,7 +235,7 @@ public sealed partial class TagDefinitionLifecycleService(
             tagDefinition.ArchivedById = null;
         }
 
-        await PruneExpiredMutationReceiptsAsync(db, cancellationToken);
+        await TagDefinitionMutationReceipts.PruneExpiredAsync(db, cancellationToken);
 
         // Record a durable receipt in the same transaction as the status change so an
         // ambiguous-commit retry can verify THIS transition applied without comparing the mutable
@@ -285,36 +265,6 @@ public sealed partial class TagDefinitionLifecycleService(
 
         LogTagLifecycleChanged(tagDefinitionId, targetStatus, actorUserId);
         return new Success();
-    }
-
-    /// <summary>
-    /// Removes tag-definition mutation receipts older than the retention window. Receipts exist only
-    /// to resolve ambiguous-commit verification, so keeping them beyond the retention window is
-    /// unnecessary storage growth.
-    /// </summary>
-    /// <param name="db">The tenant context for the current execution attempt.</param>
-    /// <param name="cancellationToken">A token that cancels the delete operation.</param>
-    private static async Task PruneExpiredMutationReceiptsAsync(NovaDbContext db, CancellationToken cancellationToken)
-    {
-        var retentionCutoff = DateTimeOffset.UtcNow.AddDays(-MutationReceiptRetentionDays);
-        if (db.Database.IsNpgsql())
-        {
-            await db.TagDefinitionMutationReceipts
-                .Where(receipt => receipt.CreatedAt < retentionCutoff)
-                .ExecuteDeleteAsync(cancellationToken);
-            return;
-        }
-
-        // SQLite cannot translate DateTimeOffset comparisons to SQL, so the tenant-filtered candidate
-        // set is loaded and the age filter is applied in memory.
-        var expiredReceipts = (await db.TagDefinitionMutationReceipts
-                .ToListAsync(cancellationToken))
-            .Where(receipt => receipt.CreatedAt < retentionCutoff)
-            .ToList();
-        if (expiredReceipts.Count > 0)
-        {
-            db.TagDefinitionMutationReceipts.RemoveRange(expiredReceipts);
-        }
     }
 
     /// <summary>

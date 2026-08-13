@@ -9,7 +9,7 @@ using Nova.Shared.Validation;
 namespace Nova.Features.Tags;
 
 /// <summary>
-/// Provides tenant-safe, read-only tag-definition projections for club administrators and evaluators.
+/// Provides tenant-safe, read-only tag-definition projections for club administrators and club members.
 /// </summary>
 /// <param name="readDbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club context.</param>
@@ -85,10 +85,12 @@ public sealed partial class TagDefinitionQueryService(
             || currentUserProvider.ClubId is not long clubId)
         {
             LogTagDefinitionsForbidden(currentUserProvider.UserId ?? 0, isManagement: false);
-            return ServiceProblem.Forbidden("You must be an approved club member to view tag definitions.");
+            return ServiceProblem.Forbidden("You must be a club member to view tag definitions.");
         }
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        // The create/restore paths cap active definitions at TagDefinitionLimits.MaxActiveTagDefinitions,
+        // so this Take is a defensive bound that only binds for legacy clubs already above the cap.
         var rows = await db.PlayerTags
             .Where(tag => tag.ClubId == clubId && tag.LifecycleStatus == LifecycleStatus.Active)
             .OrderBy(tag => tag.Name)
