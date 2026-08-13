@@ -205,8 +205,10 @@ public sealed partial class TagDefinitionLifecycleService(
         await db.AcquireTagMutationLockAsync(tagDefinitionId, cancellationToken);
 
         // Restoring increases the club's active-definition count, so serialize with creation and other
-        // restores on the club-level lock before the active-count probe below. Creation acquires only
-        // this lock, so no path holds a tag lock while waiting on the club lock.
+        // restores on the club-level lock before the active-count probe below. Restore already holds the
+        // tag lock here, so it waits on the club lock while holding a tag lock; this is deadlock-free
+        // because no path holds the club lock while waiting on a tag lock (creation, the only other club
+        // lock holder, never takes a tag lock).
         if (targetStatus == LifecycleStatus.Active)
         {
             await db.AcquireClubRosterLockAsync(clubId, cancellationToken);

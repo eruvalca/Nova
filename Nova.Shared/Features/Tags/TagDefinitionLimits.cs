@@ -13,9 +13,10 @@ public static class TagDefinitionLimits
 
     /// <summary>
     /// The maximum number of simultaneously-active tag definitions a club may own. Enforced during
-    /// creation so the active-only choices query never silently truncates the selectable set: a club
-    /// cannot exceed this many active definitions, so the bounded choices read always returns the
-    /// complete active set.
+    /// creation and restore so the active-only choices query never silently truncates the selectable
+    /// set: a club cannot exceed this many active definitions, so the bounded choices read always
+    /// returns the complete active set, and a restore that would push a club over the limit is
+    /// rejected with a conflict.
     /// </summary>
     public const int MaxActiveTagDefinitions = 100;
 
