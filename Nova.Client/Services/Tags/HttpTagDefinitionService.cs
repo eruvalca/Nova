@@ -25,7 +25,7 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
 
         return await response.Content.ReadRequiredJsonAsync<TagDefinitionDto>(
             "The server returned an invalid tag-definition response.",
-            dto => IsValidTagDefinition(dto),
+            dto => IsValidTagDefinition(dto, requiredStatus: null),
             cancellationToken);
     }
 
@@ -56,15 +56,15 @@ public sealed class HttpTagDefinitionService(HttpClient http) : ITagDefinitionSe
     /// <param name="expectedTagId">The expected tag-definition identifier, when known.</param>
     /// <param name="requiredStatus">
     /// The lifecycle status the payload must carry, or <see langword="null"/> to accept any defined
-    /// status. Update passes <see langword="null"/> because its ambiguous-commit verifier re-reads the
-    /// current row, so a concurrent archive can legitimately return an <see cref="LifecycleStatus.Archived"/>
-    /// snapshot after a successful update; create always requires <see cref="LifecycleStatus.Active"/>.
+    /// status. Both create and update pass <see langword="null"/> because their ambiguous-commit
+    /// verifiers re-read the current row, so a concurrent archive can legitimately return an
+    /// <see cref="LifecycleStatus.Archived"/> snapshot after a successful mutation.
     /// </param>
     /// <returns><see langword="true"/> when the tag definition is structurally valid.</returns>
     private static bool IsValidTagDefinition(
         TagDefinitionDto dto,
         long? expectedTagId = null,
-        LifecycleStatus? requiredStatus = LifecycleStatus.Active)
+        LifecycleStatus? requiredStatus = null)
         => dto is not null
             && dto.PlayerTagId > 0
             && (expectedTagId is null || dto.PlayerTagId == expectedTagId)

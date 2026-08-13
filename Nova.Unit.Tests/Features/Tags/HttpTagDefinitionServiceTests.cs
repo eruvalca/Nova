@@ -88,11 +88,11 @@ public sealed class HttpTagDefinitionServiceTests
     }
 
     /// <summary>
-    /// Verifies create still requires an active payload, since create's success contract is a newly
-    /// created active definition.
+    /// Verifies create accepts an archived snapshot: a concurrent archive can commit between the
+    /// create and its ambiguous-commit verification, which re-reads the current row.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_WhenResponseLifecycleIsArchived()
+    public async Task CreateAsync_ReturnsSuccess_WhenResponseLifecycleIsArchived()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
@@ -105,8 +105,8 @@ public sealed class HttpTagDefinitionServiceTests
             new CreateTagDefinitionInput { Name = "Forward", Color = "#ff0000" },
             TestContext.Current.CancellationToken);
 
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.LifecycleStatus.ShouldBe(LifecycleStatus.Archived);
     }
 
     [Fact]

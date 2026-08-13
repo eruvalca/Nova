@@ -4,6 +4,7 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Tags;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Tags;
 using Nova.Shared.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -137,6 +138,39 @@ public sealed class TagDefinitionLifecycleServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+    }
+
+    [Fact]
+    public async Task Restore_ReturnsConflict_WhenActiveLimitReached()
+    {
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+
+        using (var seed = _harness.CreateAdminContext())
+        {
+            // The constructor seeds one active tag; fill the remainder of the active-definition cap.
+            for (var i = 0; i < TagDefinitionLimits.MaxActiveTagDefinitions - 1; i++)
+            {
+                seed.PlayerTags.Add(new PlayerTagEntity
+                {
+                    PlayerTagId = 1000 + i,
+                    Name = $"Cap {i}",
+                    NormalizedName = $"CAP {i}",
+                    Color = "#000000",
+                    ClubId = ClubAId,
+                    CreatedById = ClubAAdminId
+                });
+            }
+            seed.SaveChanges();
+        }
+
+        var result = await CreateService().RestoreAsync(ArchivedTagId, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+
+        using var db = _harness.CreateAdminContext();
+        var tag = db.PlayerTags.Single(t => t.PlayerTagId == ArchivedTagId);
+        tag.LifecycleStatus.ShouldBe(LifecycleStatus.Archived);
     }
 
     [Fact]

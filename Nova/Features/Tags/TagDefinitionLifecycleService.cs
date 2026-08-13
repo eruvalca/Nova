@@ -203,6 +203,15 @@ public sealed partial class TagDefinitionLifecycleService(
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await db.AcquireTagMutationLockAsync(tagDefinitionId, cancellationToken);
+
+        // Restoring increases the club's active-definition count, so serialize with creation and other
+        // restores on the club-level lock before the active-count probe below. Creation acquires only
+        // this lock, so no path holds a tag lock while waiting on the club lock.
+        if (targetStatus == LifecycleStatus.Active)
+        {
+            await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
+        }
+
         var tagDefinition = await db.PlayerTags
             .SingleOrDefaultAsync(candidate => candidate.PlayerTagId == tagDefinitionId, cancellationToken);
 
@@ -217,6 +226,18 @@ public sealed partial class TagDefinitionLifecycleService(
             LogTagLifecycleConflict(tagDefinitionId, targetStatus);
             return new LifecycleConflict(
                 $"The tag definition is already {targetStatus.ToString().ToLowerInvariant()}.");
+        }
+
+        // Restore cannot push the club above the active-definition cap: the bounded active-only choices
+        // query guarantees completeness, so a restore that would overflow must be rejected instead.
+        if (targetStatus == LifecycleStatus.Active
+            && await db.PlayerTags.CountAsync(
+                tag => tag.ClubId == clubId && tag.LifecycleStatus == LifecycleStatus.Active,
+                cancellationToken) >= TagDefinitionLimits.MaxActiveTagDefinitions)
+        {
+            LogTagRestoreActiveLimitReached(clubId);
+            return new LifecycleConflict(
+                $"This club already has the maximum of {TagDefinitionLimits.MaxActiveTagDefinitions} active tag definitions. Archive an existing tag before restoring this one.");
         }
 
         if (targetStatus == LifecycleStatus.Archived)
@@ -317,6 +338,13 @@ public sealed partial class TagDefinitionLifecycleService(
     /// <param name="status">The already-current lifecycle status.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "PlayerTagId={TagDefinitionId} is already in lifecycle status {Status}.")]
     private partial void LogTagLifecycleConflict(long tagDefinitionId, LifecycleStatus status);
+
+    /// <summary>
+    /// Logs a restore rejected because the club already holds the maximum number of active tag definitions.
+    /// </summary>
+    /// <param name="clubId">The club whose active-definition cap would be exceeded.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Tag-definition restore rejected: ClubId={ClubId} is at the active-definition limit.")]
+    private partial void LogTagRestoreActiveLimitReached(long clubId);
 
     /// <summary>
     /// Logs a lifecycle transition rejected because the tag definition changed concurrently.

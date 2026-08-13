@@ -10,7 +10,7 @@
                 <h2 class="h4 mb-1">Tags</h2>
                 <p class="text-muted small mb-0">Manage the tag definitions available for player evaluations.</p>
             </div>
-            <button type="button" class="btn btn-primary" disabled="@_isLoading" @onclick="StartCreate">Add tag</button>
+            <button type="button" class="btn btn-primary" disabled="@(_isLoading || _isMutating)" @onclick="StartCreate">Add tag</button>
         </div>
 
         @if (Error is not null)
