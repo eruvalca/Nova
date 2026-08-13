@@ -10,9 +10,21 @@
 ## Build & validation
 
 - Build: `dotnet build Nova.slnx`
+- Run: `dotnet run --project Nova.AppHost` (Aspire provisions PostgreSQL 18 and the Azurite blob emulator for `profile-photos`, and exposes the dashboard plus `/health`/`/alive`). `Nova` has no usable connection string or blob client without the AppHost.
+- OpenAPI document: `/openapi` (Development only).
 - Format check (required before commit): `dotnet format Nova.slnx --verify-no-changes`; apply fixes with `dotnet format Nova.slnx`
 - Unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`
-- Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj`
+- Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — CI runs build and unit tests only, so run these locally before merge.
+
+## Repository decisions
+
+- Package versions are managed centrally in `Directory.Packages.props` (`ManagePackageVersionsCentrally`). Add or update versions there — never put a `Version` attribute on a `PackageReference`.
+- SDK version is pinned in `global.json` (roll-forward `latestFeature`).
+- Identity emails are no-ops (`IdentityNoOpEmailSender`, `RequireConfirmedAccount = false`) and no external login providers are registered. Do not build features that assume email delivery or third-party login.
+
+## References
+
+- Product domain documentation (MVP brief, workflows, screen designs, feature plans): `plans/`
 
 ## Targeted Instructions
 

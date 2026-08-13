@@ -43,6 +43,16 @@ Interactive render modes (`InteractiveAuto`, `InteractiveWebAssembly`, `Interact
 - Prevent duplicate startup fetches by persisting an `Initialized` flag and returning early when it is already set. When restoring persisted source data, also rebuild any derived collections, filter options, or computed view state before returning. Recipe: `.github/skills/add-blazor-ui/references/lifecycle-and-state.md`.
 - Keep explicit reload/refetch helper methods for user-triggered refresh actions; the `Initialized` guard is only for startup duplication.
 
+## Onboarding Gates (claim-gated routes)
+
+Two pipeline middlewares in `Nova/Program.cs` redirect every authenticated request until onboarding claims are satisfied:
+
+1. `ProfilePhotoGateMiddleware` — users lacking the `NovaClaimTypes.HasProfilePhoto` claim are redirected to `/Account/ProfilePhoto`.
+2. `ClubOnboardingGateMiddleware` — users with a photo but without the `NovaClaimTypes.ClubId` claim are redirected to `/Clubs/Onboarding`.
+
+- Any new signed-in page or route sits behind these gates automatically. A route that must be reachable pre-onboarding needs an explicit exemption in the middleware (`/Account`, `/api`, `/_framework`, `/_content`, `/_blazor`, `/health`, `/alive`, `/not-found`, `/Error`, `/favicon`, and files with a path extension are exempt; `/Clubs` is additionally exempt from the club gate).
+- The gates read **claims, not the database**. After a photo upload or membership change, refresh claims with `ClubMembershipClaimRefresher` (see `.github/instructions/ef-core-tenancy.instructions.md`) or users loop through redirects until their cookie updates.
+
 ## Feature Folder Organization
 
 Organize `Nova.UI` by feature, not by technical type:
