@@ -381,6 +381,50 @@ public sealed partial class CampaignParticipantQueryService(
             capabilities);
     }
 
+    /// <inheritdoc />
+    public async Task<ServiceResult<IReadOnlyList<int>>> GetRosterGraduationYearsAsync(
+        GetCampaignParticipantGraduationYearsInput input,
+        CancellationToken cancellationToken = default)
+    {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
+
+        if (currentUserProvider.UserId is not long currentUserId)
+        {
+            return ServiceProblem.Forbidden("You must be signed in to view campaign participants.");
+        }
+
+        if (currentUserProvider.ClubId is not long currentClubId)
+        {
+            LogForbiddenGraduationYearsAccess(currentUserId, input.CampaignId);
+            return ServiceProblem.Forbidden("You do not have permission to view this campaign roster.");
+        }
+
+        await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var campaignExists = await db.Campaigns
+            .AsNoTracking()
+            .AnyAsync(campaign => campaign.ClubId == currentClubId && campaign.CampaignId == input.CampaignId, cancellationToken);
+        if (!campaignExists)
+        {
+            return ServiceProblem.NotFound();
+        }
+
+        // No artificial bound is needed: distinct graduation years over one campaign roster are
+        // inherently small (a handful of class years), so the server never truncates the result.
+        var years = await db.PlayerCampaignAssignments
+            .AsNoTracking()
+            .Where(assignment => assignment.ClubId == currentClubId && assignment.CampaignId == input.CampaignId)
+            .Select(assignment => assignment.Player.GraduationYear)
+            .Distinct()
+            .OrderBy(year => year)
+            .ToListAsync(cancellationToken);
+
+        return years.AsReadOnly();
+    }
+
     /// <summary>
     /// Escapes LIKE wildcard characters so a user-provided search term is matched literally.
     /// </summary>
@@ -461,6 +505,14 @@ public sealed partial class CampaignParticipantQueryService(
     /// <param name="campaignId">The campaign whose participant detail was requested.</param>
     [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "User {UserId} attempted to access campaign {CampaignId} participant detail without a club scope.")]
     private partial void LogForbiddenDetailAccess(long userId, long campaignId);
+
+    /// <summary>
+    /// Logs a graduation-years read rejected because the caller is not scoped to a club.
+    /// </summary>
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="campaignId">The campaign whose roster graduation years were requested.</param>
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "User {UserId} attempted to read campaign {CampaignId} roster graduation years without a club scope.")]
+    private partial void LogForbiddenGraduationYearsAccess(long userId, long campaignId);
 
     /// <summary>
     /// Projection of one roster row, flattened from the assignment and its player.

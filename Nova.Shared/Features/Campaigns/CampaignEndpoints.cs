@@ -101,6 +101,21 @@ public static class CampaignEndpoints
     public const string GetCampaignParticipantDetailRouteName = "GetCampaignParticipantDetail";
 
     /// <summary>
+    /// Gets the campaign-participant graduation-years route.
+    /// </summary>
+    public const string GetCampaignParticipantGraduationYears = $"{GroupPrefix}/{{campaignId:long}}/participants/graduation-years";
+
+    /// <summary>
+    /// Gets the campaign-participant graduation-years route relative to the campaign group.
+    /// </summary>
+    public const string GetCampaignParticipantGraduationYearsRelative = "{campaignId:long}/participants/graduation-years";
+
+    /// <summary>
+    /// Gets the route name assigned to the campaign participant graduation years.
+    /// </summary>
+    public const string GetCampaignParticipantGraduationYearsRouteName = "GetCampaignParticipantGraduationYears";
+
+    /// <summary>
     /// Applies a tag definition to a campaign participation (POST).
     /// </summary>
     public const string ApplyCampaignTagApplication = $"{GroupPrefix}/tag-applications";
@@ -334,6 +349,14 @@ public static class CampaignEndpoints
     /// <returns>The detail URL.</returns>
     public static string GetCampaignParticipantDetailUrl(long campaignId, long playerCampaignAssignmentId)
         => $"{GroupPrefix}/{campaignId}/participants/{playerCampaignAssignmentId}";
+
+    /// <summary>
+    /// Builds a campaign-participant graduation-years URL.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier.</param>
+    /// <returns>The graduation-years URL.</returns>
+    public static string GetCampaignParticipantGraduationYearsUrl(long campaignId)
+        => $"{GroupPrefix}/{campaignId}/participants/graduation-years";
 
     /// <summary>
     /// Builds a campaign tag application removal URL.

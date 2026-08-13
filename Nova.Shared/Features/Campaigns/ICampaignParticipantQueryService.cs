@@ -26,4 +26,14 @@ public interface ICampaignParticipantQueryService
     Task<ServiceResult<CampaignParticipantDetailDto>> GetParticipantDetailAsync(
         GetCampaignParticipantDetailInput input,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Loads the distinct graduation years present in a campaign roster, in ascending order.
+    /// </summary>
+    /// <param name="input">The campaign identifier for the roster.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The distinct graduation years in ascending order, or a service problem.</returns>
+    Task<ServiceResult<IReadOnlyList<int>>> GetRosterGraduationYearsAsync(
+        GetCampaignParticipantGraduationYearsInput input,
+        CancellationToken cancellationToken = default);
 }

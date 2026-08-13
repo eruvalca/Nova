@@ -229,4 +229,49 @@ public sealed class CampaignQueryContractTests
 
         InputValidator.Validate(input).ShouldBeEmpty();
     }
+
+    /// <summary>
+    /// Verifies the graduation-years URL builder produces the shared route shape.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantGraduationYearsUrl_BuildsExpectedUrl()
+    {
+        CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(42)
+            .ShouldBe("/api/campaigns/42/participants/graduation-years");
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years route constant matches the URL builder output.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantGraduationYears_ConstantMatchesUrlBuilder()
+    {
+        var url = CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(42);
+
+        url.ShouldBe(CampaignEndpoints.GetCampaignParticipantGraduationYears.Replace("{campaignId:long}", "42"));
+        CampaignEndpoints.GetCampaignParticipantGraduationYearsRelative.ShouldBe("{campaignId:long}/participants/graduation-years");
+        CampaignEndpoints.GetCampaignParticipantGraduationYearsRouteName.ShouldBe("GetCampaignParticipantGraduationYears");
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years input rejects a non-positive campaign identifier.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantGraduationYearsInput_RejectsNonPositiveCampaignId()
+    {
+        var errors = InputValidator.Validate(new GetCampaignParticipantGraduationYearsInput { CampaignId = 0 });
+
+        errors.ShouldContainKey(nameof(GetCampaignParticipantGraduationYearsInput.CampaignId));
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years input accepts a positive campaign identifier.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantGraduationYearsInput_AcceptsPositiveCampaignId()
+    {
+        var errors = InputValidator.Validate(new GetCampaignParticipantGraduationYearsInput { CampaignId = 42 });
+
+        errors.ShouldBeEmpty();
+    }
 }

@@ -152,36 +152,36 @@ Phase 2 next: graduation-years choices query (see below).
 
 ## Phase 2: Distinct graduation-years choices query
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator for the service query (tenant-safe EF construction); client +
 tests can be delegated once the route and shape are fixed.
 
-- [ ] Add `GetCampaignParticipantGraduationYearsInput` to `Nova.Shared/Features/Campaigns/` —
+- [x] Add `GetCampaignParticipantGraduationYearsInput` to `Nova.Shared/Features/Campaigns/` —
       `required long CampaignId` with `[Range(1, long.MaxValue)]`.
-- [ ] Extend `ICampaignParticipantQueryService` with
+- [x] Extend `ICampaignParticipantQueryService` with
       `GetRosterGraduationYearsAsync(GetCampaignParticipantGraduationYearsInput,
       CancellationToken)` returning `ServiceResult<IReadOnlyList<int>>` (ascending).
-- [ ] Implement in `Nova/Features/Campaigns/CampaignParticipantQueryService.cs`: same
+- [x] Implement in `Nova/Features/Campaigns/CampaignParticipantQueryService.cs`: same
       authorization + tenant guard as the roster query, then a distinct projection of
       `Player.GraduationYear` over the campaign's assignments, `OrderBy` ascending. No artificial
       bound needed (distinct years over one roster are inherently small) — note the reasoning in
       the method's XML docs.
-- [ ] Add route constants to `CampaignEndpoints`: `GetCampaignParticipantGraduationYears =
+- [x] Add route constants to `CampaignEndpoints`: `GetCampaignParticipantGraduationYears =
       $"{GroupPrefix}/{{campaignId:long}}/participants/graduation-years"`, relative + route name,
       and a URL builder. (No conflict: `graduation-years` cannot match the `:long` detail route
       parameter.)
-- [ ] Map `GET` in `Nova/Features/Campaigns/CampaignParticipantEndpointRouteBuilderExtensions.cs`
+- [x] Map `GET` in `Nova/Features/Campaigns/CampaignParticipantEndpointRouteBuilderExtensions.cs`
       with the same metadata/auth conventions as the roster endpoint.
-- [ ] Extend `Nova.Client/Services/Campaigns/HttpCampaignParticipantQueryService.cs` with the
+- [x] Extend `Nova.Client/Services/Campaigns/HttpCampaignParticipantQueryService.cs` with the
       matching method and strict response validation (list of ints).
-- [ ] Tests in `Nova.Unit.Tests/Campaigns/CampaignParticipantQueryServiceTests.cs`: returns
+- [x] Tests in `Nova.Unit.Tests/Campaigns/CampaignParticipantQueryServiceTests.cs`: returns
       distinct ascending years; empty list when the campaign has no participants; forbidden with
       no club; `NotFound`/tenant isolation for another club's campaign; validation rejects
       `CampaignId <= 0`.
-- [ ] Tests in `Nova.Unit.Tests/Campaigns/HttpCampaignParticipantQueryServiceTests.cs`: correct
+- [x] Tests in `Nova.Unit.Tests/Campaigns/HttpCampaignParticipantQueryServiceTests.cs`: correct
       URL, parses list, rejects malformed payload.
-- [ ] Endpoint tests in `Nova.Integration.Tests/Http/CampaignParticipantHttpTests.cs` (run with
+- [x] Endpoint tests in `Nova.Integration.Tests/Http/CampaignParticipantHttpTests.cs` (run with
       the AppHost in Phase 6).
 
 ### Verification Plan
@@ -191,7 +191,30 @@ tests can be delegated once the route and shape are fixed.
 
 ### Phase Summary
 
-_(write when phase completes)_
+Production contract shipped: `GetCampaignParticipantGraduationYearsInput` (`required long
+CampaignId`, `[Range(1, long.MaxValue)]`, `MaxGraduationYears = 20` client-bound constant),
+`GetRosterGraduationYearsAsync` on `ICampaignParticipantQueryService` (validation →
+UserId/ClubId guards → tenant-guarded campaign-exists check → distinct ascending
+`Player.GraduationYear` projection over the campaign's assignments, no server-side bound —
+roster class years are inherently few, reasoning in method XML docs), route `GET
+/api/campaigns/{campaignId:long}/participants/graduation-years` (`GetCampaignParticipantGraduationYears`
++ relative + route name + `GetCampaignParticipantGraduationYearsUrl(long)` builder), the mapped
+`GET` with full metadata/`Produces` conventions, and the WASM client method with strict
+`IsValidGraduationYears` payload validation (bounded ≤ 20, positive, strictly ascending).
+
+Verification results:
+- `dotnet build Nova.slnx` — clean build, 0 warnings, 0 errors (~48s).
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — **1,251 passed, 0 failed**
+  (17 new: 6 service, 7 client, 4 contract).
+- Integration tests written (`CampaignParticipantHttpTests.cs`: 200 ascending years, 400
+  non-positive route value, 401 anonymous, 403 no club, 404 cross-tenant) but **not executed** —
+  deferred to Phase 6 with the other endpoint tests.
+- Format: per-file `--include` for all Phase 2 files passes clean (exit 0). Two fixes applied by
+  `dotnet format`: CHARSET on the new input contract file and a missing final newline in the
+  client test file. Repo-wide CHARSET breakage on Tag-feature files remains pre-existing (see
+  Phase 1 summary).
+
+Phase 3 next: workspace shell page (see below).
 
 ## Phase 3: Workspace shell page (route, tab bar, header, entry link)
 
