@@ -97,12 +97,13 @@ internal sealed class FailFirstCommittedTransactionInterceptor : DbTransactionIn
 /// Pauses the first receipt-verification SELECT that runs after an ambiguous commit, so a test can
 /// deterministically commit a competing operation in the window between the ambiguous commit and this
 /// request's verification. The gate fires only on the read issued by ambiguous-commit verification
-/// (which targets the evaluation-note mutation receipt table); the set-based prune and the mutation
+/// (which targets the named mutation receipt table); the set-based prune and the mutation
 /// writes never reach the reader hook, so the first verification of the first attempt is the single
 /// pause point. Pair it with <see cref="FailFirstCommittedTransactionInterceptor"/> to produce the
 /// ambiguous commit that precedes the gated verification.
 /// </summary>
-internal sealed class GateReceiptVerificationInterceptor : DbCommandInterceptor
+/// <param name="receiptTableName">The quoted mutation-receipt table name to gate on.</param>
+internal sealed class GateReceiptVerificationInterceptor(string receiptTableName = "\"EvaluationNoteMutationReceipts\"") : DbCommandInterceptor
 {
     private readonly TaskCompletionSource _verificationAttempted =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -133,14 +134,14 @@ internal sealed class GateReceiptVerificationInterceptor : DbCommandInterceptor
         return await base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
     }
 
-    private static bool IsReceiptVerification(DbCommand command)
+    private bool IsReceiptVerification(DbCommand command)
     {
         // The ambiguous-commit verification issues a plain SELECT over the receipt table
-        // (SingleOrDefaultAsync). Npgsql also dispatches INSERT ... RETURNING through the reader
-        // hook, so require the command to actually be a SELECT to avoid gating the mutation writes.
+        // (SingleOrDefaultAsync/AnyAsync). Npgsql also dispatches INSERT ... RETURNING through the
+        // reader hook, so require the command to actually be a SELECT to avoid gating the mutation writes.
         var text = command.CommandText.TrimStart();
         return text.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
-            && text.Contains("\"EvaluationNoteMutationReceipts\"", StringComparison.Ordinal);
+            && text.Contains(receiptTableName, StringComparison.Ordinal);
     }
 }
 
@@ -272,6 +273,38 @@ internal sealed class FailFirstNoteReadInterceptor : DbCommandInterceptor
     private static bool IsNoteServiceRead(string commandText) =>
         commandText.Contains("\"PlayerCampaignAssignments\"", StringComparison.Ordinal)
         || commandText.Contains("\"Notes\"", StringComparison.Ordinal);
+}
+
+/// <summary>
+/// Simulates one transient provider failure while a tag-definition mutation attempt is still reading
+/// the tag definition, before it has written or committed anything.
+/// </summary>
+internal sealed class FailFirstPlayerTagReadInterceptor : DbCommandInterceptor
+{
+    private int _shouldFail = 1;
+    private int _failureCount;
+
+    /// <summary>
+    /// Gets the number of transient read failures injected by this interceptor.
+    /// </summary>
+    public int FailureCount => Volatile.Read(ref _failureCount);
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+        System.Data.Common.DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<System.Data.Common.DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.Contains("FROM \"PlayerTags\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _shouldFail, 0) == 1)
+        {
+            Interlocked.Increment(ref _failureCount);
+            throw new NpgsqlException("Simulated transient read failure.", new TimeoutException());
+        }
+
+        return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+    }
 }
 
 internal sealed class FailFirstSaveChangesInterceptor : SaveChangesInterceptor
@@ -576,6 +609,41 @@ internal sealed class InsertAfterTeamExistsProbeInterceptor(Func<Task> insertCon
     {
         if (command.CommandText.Contains("EXISTS", StringComparison.Ordinal)
             && command.CommandText.Contains("\"Teams\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _shouldInsert, 0) == 1)
+        {
+            await insertConflictAsync();
+            Interlocked.Increment(ref _insertCount);
+        }
+
+        return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Commits an independent write immediately after the tag-definition duplicate-name probe runs,
+/// reproducing the window in which another request inserts a conflicting tag between the probe and
+/// the save.
+/// </summary>
+/// <param name="insertConflictAsync">The independent write to commit once, after the first probe.</param>
+internal sealed class InsertAfterPlayerTagExistsProbeInterceptor(Func<Task> insertConflictAsync) : DbCommandInterceptor
+{
+    private int _shouldInsert = 1;
+    private int _insertCount;
+
+    /// <summary>
+    /// Gets the number of conflicting writes this interceptor committed.
+    /// </summary>
+    public int InsertCount => Volatile.Read(ref _insertCount);
+
+    /// <inheritdoc />
+    public override async ValueTask<System.Data.Common.DbDataReader> ReaderExecutedAsync(
+        System.Data.Common.DbCommand command,
+        CommandExecutedEventData eventData,
+        System.Data.Common.DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.Contains("EXISTS", StringComparison.Ordinal)
+            && command.CommandText.Contains("\"PlayerTags\"", StringComparison.Ordinal)
             && Interlocked.Exchange(ref _shouldInsert, 0) == 1)
         {
             await insertConflictAsync();

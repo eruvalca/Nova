@@ -69,6 +69,10 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// </summary>
     public DbSet<PlayerTagEntity> PlayerTags => Set<PlayerTagEntity>();
     /// <summary>
+    /// Gets the Tag Definition Mutation Receipts.
+    /// </summary>
+    public DbSet<TagDefinitionMutationReceiptEntity> TagDefinitionMutationReceipts => Set<TagDefinitionMutationReceiptEntity>();
+    /// <summary>
     /// Gets the Notes.
     /// </summary>
     public DbSet<NoteEntity> Notes => Set<NoteEntity>();

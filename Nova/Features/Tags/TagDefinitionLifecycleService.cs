@@ -1,8 +1,12 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Entities;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Tags;
+using Nova.Shared.Results;
 using OneOf;
 using OneOf.Types;
 
@@ -17,29 +21,33 @@ namespace Nova.Features.Tags;
 public sealed partial class TagDefinitionLifecycleService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<TagDefinitionLifecycleService> logger)
+    ILogger<TagDefinitionLifecycleService> logger) : ITagDefinitionLifecycleService
 {
-    /// <summary>
-    /// Archives a tag definition while preserving existing player associations.
-    /// </summary>
-    /// <param name="tagDefinitionId">The tag-definition identifier to archive.</param>
-    /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    /// <returns>Success, not found, forbidden, or conflict information.</returns>
-    public Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> ArchiveAsync(
+    /// <inheritdoc />
+    public async Task<ServiceResult<Success>> ArchiveAsync(
         long tagDefinitionId,
         CancellationToken cancellationToken = default)
-        => TransitionAsync(tagDefinitionId, LifecycleStatus.Archived, cancellationToken);
+    {
+        var outcome = await TransitionAsync(tagDefinitionId, LifecycleStatus.Archived, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
 
-    /// <summary>
-    /// Restores an archived tag definition to active use and clears archive provenance.
-    /// </summary>
-    /// <param name="tagDefinitionId">The tag-definition identifier to restore.</param>
-    /// <param name="cancellationToken">A token that cancels the database operation.</param>
-    /// <returns>Success, not found, forbidden, or conflict information.</returns>
-    public Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> RestoreAsync(
+    /// <inheritdoc />
+    public async Task<ServiceResult<Success>> RestoreAsync(
         long tagDefinitionId,
         CancellationToken cancellationToken = default)
-        => TransitionAsync(tagDefinitionId, LifecycleStatus.Active, cancellationToken);
+    {
+        var outcome = await TransitionAsync(tagDefinitionId, LifecycleStatus.Active, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
 
     /// <summary>
     /// Applies the requested tag-definition lifecycle status after authorization checks.
@@ -61,9 +69,131 @@ public sealed partial class TagDefinitionLifecycleService(
             return new LifecycleForbidden("You must be a club administrator to change tag-definition lifecycle state.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+
+        // Records whether the most recent attempt reached CommitAsync. Verification is only
+        // meaningful for that attempt: a transient failure raised before the commit cannot have
+        // applied the transition, so the observed status belongs to some earlier request and must
+        // not be mistaken for this one's ambiguous commit.
+        var commitAttempted = new CommitAttemptTracker();
+
+        // The operation identifier is stable across execution-strategy retries so the durable
+        // receipt written on a successful commit can be matched to THIS request during verification,
+        // independent of any newer lifecycle transition that may overwrite the mutable status.
+        var transitionOperationId = Guid.CreateVersion7();
+
+        return await strategy.ExecuteAsync(
+            (TagDefinitionId: tagDefinitionId, TargetStatus: targetStatus, ActorUserId: actorUserId, ClubId: clubId, TransitionOperationId: transitionOperationId, CommitAttempted: commitAttempted),
+            async (state, token) =>
+            {
+                state.CommitAttempted.Reset();
+                await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                return await ApplyTransitionAsync(
+                    db,
+                    state.TagDefinitionId,
+                    state.TargetStatus,
+                    state.ActorUserId,
+                    state.ClubId,
+                    state.TransitionOperationId,
+                    state.CommitAttempted,
+                    token);
+            },
+            async (state, token) =>
+            {
+                if (!state.CommitAttempted.Attempted)
+                {
+                    return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>(
+                        successful: false,
+                        default!);
+                }
+
+                await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                return await VerifyTransitionCommittedAsync(db, state.TagDefinitionId, state.TargetStatus, state.ClubId, state.TransitionOperationId, token);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Determines whether an ambiguous commit already applied the requested transition so the
+    /// execution strategy can report success instead of replaying the attempt.
+    /// </summary>
+    /// <remarks>
+    /// Verification relies on the durable mutation receipt written in the same transaction as the
+    /// status change, not on the mutable lifecycle status. A newer archive/restore could overwrite
+    /// the status before verification runs, so reading the status would fail verification and cause
+    /// a replay that reverses the newer transition.
+    /// </remarks>
+    /// <param name="db">The fresh tenant context used for verification.</param>
+    /// <param name="tagDefinitionId">The tag-definition identifier that was being mutated.</param>
+    /// <param name="targetStatus">The lifecycle status the interrupted attempt was applying, for logging.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="transitionOperationId">The stable identifier for this logical transition operation.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>A successful result when the transition is already persisted; otherwise unsuccessful.</returns>
+    private async Task<ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>> VerifyTransitionCommittedAsync(
+        NovaDbContext db,
+        long tagDefinitionId,
+        LifecycleStatus targetStatus,
+        long clubId,
+        Guid transitionOperationId,
+        CancellationToken cancellationToken)
+    {
+        var receiptExists = await db.TagDefinitionMutationReceipts
+            .AsNoTracking()
+            .AnyAsync(
+                candidate => candidate.OperationId == transitionOperationId
+                    && candidate.ClubId == clubId,
+                cancellationToken);
+
+        if (receiptExists)
+        {
+            LogTagTransitionCommitVerified(tagDefinitionId, targetStatus);
+            return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>(
+                successful: true,
+                new Success());
+        }
+
+        return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>(
+            successful: false,
+            default!);
+    }
+
+    /// <summary>
+    /// Applies one lifecycle transition attempt inside a single transaction using a fresh tenant context.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="tagDefinitionId">The tag-definition identifier to mutate.</param>
+    /// <param name="targetStatus">The lifecycle status to apply.</param>
+    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="transitionOperationId">The stable identifier for this logical transition operation.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Internal lifecycle outcomes before boundary mapping to shared service contracts.</returns>
+    private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> ApplyTransitionAsync(
+        NovaDbContext db,
+        long tagDefinitionId,
+        LifecycleStatus targetStatus,
+        long actorUserId,
+        long clubId,
+        Guid transitionOperationId,
+        CommitAttemptTracker commitAttempted,
+        CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await db.AcquireTagMutationLockAsync(tagDefinitionId, cancellationToken);
+
+        // Restoring increases the club's active-definition count, so serialize with creation and other
+        // restores on the club-level lock before the active-count probe below. Restore already holds the
+        // tag lock here, so it waits on the club lock while holding a tag lock; this is deadlock-free
+        // because no path holds the club lock while waiting on a tag lock (creation, the only other club
+        // lock holder, never takes a tag lock).
+        if (targetStatus == LifecycleStatus.Active)
+        {
+            await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
+        }
+
         var tagDefinition = await db.PlayerTags
             .SingleOrDefaultAsync(candidate => candidate.PlayerTagId == tagDefinitionId, cancellationToken);
 
@@ -80,6 +210,18 @@ public sealed partial class TagDefinitionLifecycleService(
                 $"The tag definition is already {targetStatus.ToString().ToLowerInvariant()}.");
         }
 
+        // Restore cannot push the club above the active-definition cap: the bounded active-only choices
+        // query guarantees completeness, so a restore that would overflow must be rejected instead.
+        if (targetStatus == LifecycleStatus.Active
+            && await db.PlayerTags.CountAsync(
+                tag => tag.ClubId == clubId && tag.LifecycleStatus == LifecycleStatus.Active,
+                cancellationToken) >= TagDefinitionLimits.MaxActiveTagDefinitions)
+        {
+            LogTagRestoreActiveLimitReached(clubId);
+            return new LifecycleConflict(
+                $"This club already has the maximum of {TagDefinitionLimits.MaxActiveTagDefinitions} active tag definitions. Archive an existing tag before restoring this one.");
+        }
+
         if (targetStatus == LifecycleStatus.Archived)
         {
             tagDefinition.LifecycleStatus = LifecycleStatus.Archived;
@@ -93,9 +235,26 @@ public sealed partial class TagDefinitionLifecycleService(
             tagDefinition.ArchivedById = null;
         }
 
+        await TagDefinitionMutationReceipts.PruneExpiredAsync(db, cancellationToken);
+
+        // Record a durable receipt in the same transaction as the status change so an
+        // ambiguous-commit retry can verify THIS transition applied without comparing the mutable
+        // status (which a newer archive/restore could legitimately overwrite).
+        db.TagDefinitionMutationReceipts.Add(new TagDefinitionMutationReceiptEntity
+        {
+            OperationId = transitionOperationId,
+            PlayerTagId = tagDefinitionId,
+            MutationType = targetStatus == LifecycleStatus.Archived
+                ? TagDefinitionMutationType.Archived
+                : TagDefinitionMutationType.Restored,
+            ClubId = clubId,
+            CreatedById = actorUserId
+        });
+
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            commitAttempted.MarkAttempted();
             await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
@@ -133,6 +292,13 @@ public sealed partial class TagDefinitionLifecycleService(
     private partial void LogTagLifecycleConflict(long tagDefinitionId, LifecycleStatus status);
 
     /// <summary>
+    /// Logs a restore rejected because the club already holds the maximum number of active tag definitions.
+    /// </summary>
+    /// <param name="clubId">The club whose active-definition cap would be exceeded.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Tag-definition restore rejected: ClubId={ClubId} is at the active-definition limit.")]
+    private partial void LogTagRestoreActiveLimitReached(long clubId);
+
+    /// <summary>
     /// Logs a lifecycle transition rejected because the tag definition changed concurrently.
     /// </summary>
     /// <param name="tagDefinitionId">The concurrently changed tag-definition identifier.</param>
@@ -147,4 +313,12 @@ public sealed partial class TagDefinitionLifecycleService(
     /// <param name="actorUserId">The acting administrator identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "PlayerTagId={TagDefinitionId} lifecycle changed to {Status} by UserId={ActorUserId}.")]
     private partial void LogTagLifecycleChanged(long tagDefinitionId, LifecycleStatus status, long actorUserId);
+
+    /// <summary>
+    /// Logs an ambiguous commit that verification confirmed had already applied the transition.
+    /// </summary>
+    /// <param name="tagDefinitionId">The verified tag-definition identifier.</param>
+    /// <param name="status">The lifecycle status found already applied.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "PlayerTagId={TagDefinitionId} transition to {Status} was already committed before the transient failure; skipping replay.")]
+    private partial void LogTagTransitionCommitVerified(long tagDefinitionId, LifecycleStatus status);
 }

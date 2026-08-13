@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Nova.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations
 {
     [DbContext(typeof(NovaDbContext))]
-    partial class NovaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260812172008_AddTagDefinitionUniquenessAndCreationOperationId")]
+    partial class AddTagDefinitionUniquenessAndCreationOperationId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -968,48 +971,6 @@ namespace Nova.Data.Migrations
                     b.ToTable("Seasons");
                 });
 
-            modelBuilder.Entity("Nova.Entities.TagDefinitionMutationReceiptEntity", b =>
-                {
-                    b.Property<long>("TagDefinitionMutationReceiptId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("TagDefinitionMutationReceiptId"));
-
-                    b.Property<long>("ClubId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("CreatedById")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset?>("ModifiedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("ModifiedById")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("MutationType")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("OperationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("PlayerTagId")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("TagDefinitionMutationReceiptId");
-
-                    b.HasIndex("ClubId");
-
-                    b.HasIndex("OperationId")
-                        .IsUnique();
-
-                    b.ToTable("TagDefinitionMutationReceipts");
-                });
-
             modelBuilder.Entity("Nova.Entities.TeamEntity", b =>
                 {
                     b.Property<long>("TeamId")
@@ -1401,17 +1362,6 @@ namespace Nova.Data.Migrations
                 {
                     b.HasOne("Nova.Entities.ClubEntity", "Club")
                         .WithMany("Seasons")
-                        .HasForeignKey("ClubId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Club");
-                });
-
-            modelBuilder.Entity("Nova.Entities.TagDefinitionMutationReceiptEntity", b =>
-                {
-                    b.HasOne("Nova.Entities.ClubEntity", "Club")
-                        .WithMany()
                         .HasForeignKey("ClubId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

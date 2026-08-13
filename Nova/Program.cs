@@ -28,6 +28,7 @@ using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Photos;
 using Nova.Shared.Features.Players;
+using Nova.Shared.Features.Tags;
 using Nova.Shared.Features.Teams;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -122,7 +123,10 @@ builder.Services.AddScoped<TeamLifecycleService>();
 builder.Services.AddScoped<ITeamLifecycleService>(services => services.GetRequiredService<TeamLifecycleService>());
 builder.Services.AddScoped<ITeamRosterService, TeamRosterQueryService>();
 builder.Services.AddScoped<ITeamDetailService, TeamDetailQueryService>();
+builder.Services.AddScoped<ITagDefinitionService, TagDefinitionService>();
+builder.Services.AddScoped<ITagDefinitionQueryService, TagDefinitionQueryService>();
 builder.Services.AddScoped<TagDefinitionLifecycleService>();
+builder.Services.AddScoped<ITagDefinitionLifecycleService>(services => services.GetRequiredService<TagDefinitionLifecycleService>());
 
 var novaDbConnectionString = builder.Configuration.GetConnectionString("novadb");
 var tenantInterceptor = new TenantSaveChangesInterceptor();
@@ -247,6 +251,7 @@ app.MapTeamManagementEndpoints();
 app.MapTeamLifecycleEndpoints();
 app.MapTeamRosterEndpoints();
 app.MapTeamDetailEndpoints();
+app.MapTagDefinitionEndpoints();
 app.MapCampaignCreationEndpoints();
 app.MapCampaignQueryEndpoints();
 app.MapCampaignParticipantEndpoints();
