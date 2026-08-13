@@ -128,6 +128,70 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Create_ReturnsConflict_WhenActiveLimitReached()
+    {
+        using (var db = _harness.CreateAdminContext())
+        {
+            for (var i = 0; i < TagDefinitionLimits.MaxActiveTagDefinitions; i++)
+            {
+                db.PlayerTags.Add(new PlayerTagEntity
+                {
+                    Name = $"Limit Tag {i}",
+                    NormalizedName = $"LIMIT TAG {i}",
+                    Color = "#111111",
+                    ClubId = ClubBId,
+                    CreatedById = ClubBAdminId
+                });
+            }
+
+            db.SaveChanges();
+        }
+
+        ActAs(ClubBAdminId, ClubBId, isAdmin: true);
+        var result = await CreateService().CreateAsync(
+            new CreateTagDefinitionInput { Name = "Overflow", Color = "#1a2b3c" },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+
+        using var verifyDb = _harness.CreateAdminContext();
+        verifyDb.PlayerTags.Count(tag => tag.ClubId == ClubBId)
+            .ShouldBe(TagDefinitionLimits.MaxActiveTagDefinitions);
+    }
+
+    [Fact]
+    public async Task Create_IgnoresArchivedTags_WhenEnforcingActiveLimit()
+    {
+        using (var db = _harness.CreateAdminContext())
+        {
+            for (var i = 0; i < TagDefinitionLimits.MaxActiveTagDefinitions; i++)
+            {
+                db.PlayerTags.Add(new PlayerTagEntity
+                {
+                    Name = $"Archived Limit Tag {i}",
+                    NormalizedName = $"ARCHIVED LIMIT TAG {i}",
+                    Color = "#111111",
+                    ClubId = ClubBId,
+                    CreatedById = ClubBAdminId,
+                    LifecycleStatus = LifecycleStatus.Archived,
+                    ArchivedAt = DateTimeOffset.UtcNow,
+                    ArchivedById = ClubBAdminId
+                });
+            }
+
+            db.SaveChanges();
+        }
+
+        ActAs(ClubBAdminId, ClubBId, isAdmin: true);
+        var result = await CreateService().CreateAsync(
+            new CreateTagDefinitionInput { Name = "First Active", Color = "#1a2b3c" },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Create_ReturnsValidation_ForInvalidColor()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);

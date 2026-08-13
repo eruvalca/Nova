@@ -302,9 +302,9 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies a non-administrator club member can read the active-only choices but cannot create or
-    /// archive tag definitions, covering the <c>RequireEvaluator</c> read policy and the
-    /// <c>RequireClubAdmin</c> mutation policy.
+    /// Verifies a non-administrator club member can read the active-only choices but is denied every
+    /// management operation, covering the <c>RequireEvaluator</c> read policy and the
+    /// <c>RequireClubAdmin</c> policy across create, update, archive, restore, and the management list.
     /// </summary>
     [Fact]
     public async Task NonAdminClubMember_CanReadChoices_ButCannotMutate()
@@ -340,6 +340,36 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         using (var archive = await memberClient.PostAsync(TagEndpoints.ArchiveUrl(adminCreated.PlayerTagId), null, cancellationToken))
         {
             archive.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        }
+
+        using (var update = await memberClient.PutAsJsonAsync(
+            TagEndpoints.UpdateUrl(adminCreated.PlayerTagId),
+            new UpdateTagDefinitionInput
+            {
+                TagId = adminCreated.PlayerTagId,
+                Name = adminCreated.Name,
+                Color = "#333333"
+            },
+            cancellationToken))
+        {
+            update.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        }
+
+        using (var list = await memberClient.GetAsync(TagEndpoints.GetListUrl(), cancellationToken))
+        {
+            list.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        }
+
+        // Archive as the administrator so the member's restore attempt is denied purely by
+        // authorization rather than a 404 for an active definition.
+        using (var adminArchive = await adminClient.PostAsync(TagEndpoints.ArchiveUrl(adminCreated.PlayerTagId), null, cancellationToken))
+        {
+            adminArchive.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+
+        using (var restore = await memberClient.PostAsync(TagEndpoints.RestoreUrl(adminCreated.PlayerTagId), null, cancellationToken))
+        {
+            restore.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
     }
 

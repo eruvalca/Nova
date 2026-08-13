@@ -185,6 +185,17 @@ public sealed partial class TagDefinitionService(
             return ServiceProblem.Conflict(DuplicateTagDefinitionMessage);
         }
 
+        // Enforce the club-wide active-definition cap so the active-only choices query is guaranteed
+        // to return the complete selectable set rather than silently truncating past the bound.
+        if (await db.PlayerTags.CountAsync(
+                tag => tag.ClubId == clubId && tag.LifecycleStatus == LifecycleStatus.Active,
+                cancellationToken) >= TagDefinitionLimits.MaxActiveTagDefinitions)
+        {
+            LogTagDefinitionActiveLimitReached(clubId);
+            return ServiceProblem.Conflict(
+                $"This club already has the maximum of {TagDefinitionLimits.MaxActiveTagDefinitions} active tag definitions. Archive an existing tag before creating a new one.");
+        }
+
         var tagDefinition = new PlayerTagEntity
         {
             Name = name,
@@ -478,6 +489,11 @@ public sealed partial class TagDefinitionService(
     /// <param name="clubId">The current club identifier.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Duplicate tag-definition name rejected for ClubId={ClubId}.")]
     private partial void LogDuplicateTagDefinitionName(long clubId);
+
+    /// <summary>Logs a tag-definition creation rejected because the club reached its active-definition cap.</summary>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Tag-definition creation rejected: ClubId={ClubId} reached the active-definition limit.")]
+    private partial void LogTagDefinitionActiveLimitReached(long clubId);
 
     /// <summary>Logs a successful tag-definition creation.</summary>
     /// <param name="tagId">The created tag-definition identifier.</param>
