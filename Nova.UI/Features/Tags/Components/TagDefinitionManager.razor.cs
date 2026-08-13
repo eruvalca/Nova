@@ -28,6 +28,13 @@ public partial class TagDefinitionManager(
     public IReadOnlyList<TagDefinitionDto>? Tags { get; set; }
 
     /// <summary>
+    /// Gets or sets whether more matching rows exist beyond the bounded page, persisted across
+    /// prerender and interactive attach so the truncation notice survives the interactive re-attach.
+    /// </summary>
+    [PersistentState]
+    public bool HasMore { get; set; }
+
+    /// <summary>
     /// Gets or sets the initial-load error message, persisted across prerender and interactive attach.
     /// </summary>
     [PersistentState]
@@ -98,8 +105,9 @@ public partial class TagDefinitionManager(
         _isLoading = true;
         Error = null;
         Tags = null;
+        HasMore = false;
 
-        ServiceResult<IReadOnlyList<TagDefinitionDto>> result;
+        ServiceResult<TagDefinitionListResult> result;
         try
         {
             result = await queryService.GetManagementListAsync(
@@ -129,7 +137,11 @@ public partial class TagDefinitionManager(
         }
 
         result.Switch(
-            tags => Tags = tags,
+            list =>
+            {
+                Tags = list.Items;
+                HasMore = list.HasMore;
+            },
             problem =>
             {
                 if (problem.Kind == ServiceProblemKind.Forbidden)

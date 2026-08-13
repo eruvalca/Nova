@@ -67,7 +67,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
                 .WithName("RestoreTagDefinition");
 
             managementGroup.MapGet(TagEndpoints.GetListRelative, GetTagDefinitionsHandler)
-                .Produces<IReadOnlyList<TagDefinitionDto>>()
+                .Produces<TagDefinitionListResult>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)

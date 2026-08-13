@@ -125,11 +125,11 @@
         {
             <p class="text-muted mb-0">Loading tags&hellip;</p>
         }
-        else if (Tags is null || Tags.Count == 0)
+        else if (Error is null && (Tags is null || Tags.Count == 0))
         {
             <p class="text-muted mb-0">No tags found.</p>
         }
-        else
+        else if (Tags is { Count: > 0 })
         {
             <div class="d-flex flex-column gap-2">
                 @foreach (var tag in Tags)
@@ -159,7 +159,7 @@
                     </div>
                 }
 
-                @if (Tags.Count >= TagDefinitionLimits.MaxTagDefinitions)
+                @if (HasMore)
                 {
                     <p class="text-muted small mb-0">Showing the first @TagDefinitionLimits.MaxTagDefinitions results. Refine your search to see more.</p>
                 }

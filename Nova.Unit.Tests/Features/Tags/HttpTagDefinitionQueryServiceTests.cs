@@ -31,7 +31,7 @@ public sealed class HttpTagDefinitionQueryServiceTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(new List<TagDefinitionDto> { ValidDto() })
+            Content = JsonContent.Create(new TagDefinitionListResult { Items = [ValidDto()], HasMore = false })
         };
         var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
@@ -41,7 +41,8 @@ public sealed class HttpTagDefinitionQueryServiceTests
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Count.ShouldBe(1);
+        result.Value.Items.Count.ShouldBe(1);
+        result.Value.HasMore.ShouldBeFalse();
         handler.LastRequest!.Method.ShouldBe(HttpMethod.Get);
         handler.LastRequest.RequestUri!.PathAndQuery.ShouldBe(TagEndpoints.GetListUrl());
     }
@@ -51,7 +52,7 @@ public sealed class HttpTagDefinitionQueryServiceTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(new List<TagDefinitionDto> { ValidDto() })
+            Content = JsonContent.Create(new TagDefinitionListResult { Items = [ValidDto()], HasMore = false })
         };
         var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
@@ -137,7 +138,7 @@ public sealed class HttpTagDefinitionQueryServiceTests
             .ToList();
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(rows)
+            Content = JsonContent.Create(new TagDefinitionListResult { Items = rows, HasMore = true })
         };
         var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
@@ -155,7 +156,7 @@ public sealed class HttpTagDefinitionQueryServiceTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(new List<TagDefinitionDto> { ValidDto(playerTagId: 0) })
+            Content = JsonContent.Create(new TagDefinitionListResult { Items = [ValidDto(playerTagId: 0)], HasMore = false })
         };
         var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
@@ -176,13 +177,31 @@ public sealed class HttpTagDefinitionQueryServiceTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(new List<TagDefinitionDto> { ValidDto(lifecycleStatus: LifecycleStatus.Active) })
+            Content = JsonContent.Create(new TagDefinitionListResult { Items = [ValidDto(lifecycleStatus: LifecycleStatus.Active)], HasMore = false })
         };
         var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetManagementListAsync(
             new GetTagDefinitionsInput { LifecycleStatus = "archived" },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task GetManagementListAsync_ReturnsServerError_WhenHasMoreButPageNotFull()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new TagDefinitionListResult { Items = [ValidDto()], HasMore = true })
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTagDefinitionQueryService(http).GetManagementListAsync(
+            new GetTagDefinitionsInput(),
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();

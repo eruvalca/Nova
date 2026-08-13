@@ -12,8 +12,8 @@ public interface ITagDefinitionQueryService
     /// </summary>
     /// <param name="input">The optional management filters.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>The matching tag definitions or a service problem.</returns>
-    Task<ServiceResult<IReadOnlyList<TagDefinitionDto>>> GetManagementListAsync(
+    /// <returns>The bounded matching tag definitions (with truncation metadata) or a service problem.</returns>
+    Task<ServiceResult<TagDefinitionListResult>> GetManagementListAsync(
         GetTagDefinitionsInput input,
         CancellationToken cancellationToken = default);
 

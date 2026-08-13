@@ -6,6 +6,7 @@ using Nova.Features.Tags;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Results;
+using OneOf.Types;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -534,6 +535,107 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
             .Select(tag => tag.LifecycleStatus)
             .SingleAsync(cancellationToken);
         status.ShouldBe(LifecycleStatus.Active);
+    }
+
+    /// <summary>
+    /// Verifies the shared club-roster advisory lock serializes a create-new against a restore-archived
+    /// when both would push the club toward the active-definition cap, so exactly one mutation succeeds
+    /// and the club never exceeds the cap.
+    /// </summary>
+    /// <remarks>
+    /// Creation acquires the club-roster lock before its active-count probe; restore acquires its tag
+    /// lock first and then the same club-roster lock before its probe. The gate pauses creation after it
+    /// has acquired the club lock, so the restore is deterministically queued behind it and observes the
+    /// post-create active count of exactly the cap, returning a conflict instead of overflowing.
+    /// </remarks>
+    [Fact]
+    public async Task CreateAndRestore_AdvisoryClubLock_AllowsExactlyOnePastTheActiveCap()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var suffix = Guid.NewGuid().ToString("N");
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        long clubId;
+        long archivedTagId;
+
+        ActAs(userId: null, clubId: null, isAdmin: false);
+
+        await using (var seed = fixture.CreateAdminContext())
+        {
+            clubId = await SeedClubAsync(seed, $"Tag Cap Race Club {suffix}", actorUserId, cancellationToken);
+
+            // One below the cap so a single create-new succeeds; the archived definition is the restore
+            // contender that would push the club past the cap.
+            for (var i = 0; i < TagDefinitionLimits.MaxActiveTagDefinitions - 1; i++)
+            {
+                seed.PlayerTags.Add(CreateTag($"Active Cap Tag {suffix} {i}", clubId, actorUserId));
+            }
+
+            var archived = CreateTag($"Archived Cap Tag {suffix}", clubId, actorUserId);
+            archived.LifecycleStatus = LifecycleStatus.Archived;
+            archived.ArchivedAt = DateTimeOffset.UtcNow;
+            archived.ArchivedById = actorUserId;
+            seed.PlayerTags.Add(archived);
+
+            await seed.SaveChangesAsync(cancellationToken);
+            archivedTagId = archived.PlayerTagId;
+        }
+
+        ActAs(actorUserId, clubId, isAdmin: true);
+
+        var gate = new AdvisoryLockGateInterceptor();
+        var createFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            gate);
+        var restoreFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            new NoOpInterceptor());
+        var createService = new TagDefinitionService(
+            createFactory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionService>.Instance);
+        var restoreService = new TagDefinitionLifecycleService(
+            restoreFactory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionLifecycleService>.Instance);
+
+        Task<ServiceResult<TagDefinitionDto>> create;
+        Task<ServiceResult<Success>> restore;
+        try
+        {
+            // Creation acquires the club-roster lock and pauses on it, holding the lock.
+            create = createService.CreateAsync(
+                new CreateTagDefinitionInput { Name = $"New Cap Tag {suffix}", Color = "#123456" },
+                cancellationToken);
+            await gate.WaitForAcquiredAsync(cancellationToken);
+
+            // Restore acquires its tag lock (a different key) and then queues behind creation on the
+            // shared club-roster lock.
+            restore = restoreService.RestoreAsync(archivedTagId, cancellationToken);
+
+            gate.Release();
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        var createResult = await create;
+        var restoreResult = await restore;
+
+        createResult.IsSuccess.ShouldBeTrue(
+            "creation holds the club lock first and must land the final slot under the cap");
+        restoreResult.IsProblem.ShouldBeTrue(
+            "restore is serialized behind creation and must observe the cap already reached");
+        restoreResult.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+
+        await using var verify = fixture.CreateAdminContext();
+        var activeCount = await verify.PlayerTags
+            .CountAsync(
+                tag => tag.ClubId == clubId && tag.LifecycleStatus == LifecycleStatus.Active,
+                cancellationToken);
+        activeCount.ShouldBe(TagDefinitionLimits.MaxActiveTagDefinitions);
     }
 
     /// <summary>

@@ -44,7 +44,8 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
             new GetTagDefinitionsInput(), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Select(tag => tag.Name).ShouldBe(["Defender", "Forward", "Goalkeeper"]);
+        result.Value.Items.Select(tag => tag.Name).ShouldBe(["Defender", "Forward", "Goalkeeper"]);
+        result.Value.HasMore.ShouldBeFalse();
     }
 
     [Fact]
@@ -56,7 +57,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
             new GetTagDefinitionsInput { LifecycleStatus = "active" }, TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Select(tag => tag.Name).ShouldBe(["Defender", "Forward"]);
+        result.Value.Items.Select(tag => tag.Name).ShouldBe(["Defender", "Forward"]);
     }
 
     [Fact]
@@ -68,7 +69,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
             new GetTagDefinitionsInput { LifecycleStatus = "archived" }, TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Select(tag => tag.Name).ShouldBe(["Goalkeeper"]);
+        result.Value.Items.Select(tag => tag.Name).ShouldBe(["Goalkeeper"]);
     }
 
     [Fact]
@@ -80,7 +81,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
             new GetTagDefinitionsInput { Search = "WARD" }, TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Select(tag => tag.Name).ShouldBe(["Forward"]);
+        result.Value.Items.Select(tag => tag.Name).ShouldBe(["Forward"]);
     }
 
     [Fact]
@@ -152,7 +153,23 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
             new GetTagDefinitionsInput(), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.Count.ShouldBe(TagDefinitionLimits.MaxTagDefinitions);
+        result.Value.Items.Count.ShouldBe(TagDefinitionLimits.MaxTagDefinitions);
+        result.Value.HasMore.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetManagementListAsync_HasMoreIsFalse_WhenExactlyAtTheCap()
+    {
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        // Club A is seeded with three tags; topping up to exactly the cap must not set HasMore.
+        SeedExtraActiveTags(TagDefinitionLimits.MaxTagDefinitions - 3);
+
+        var result = await CreateService().GetManagementListAsync(
+            new GetTagDefinitionsInput(), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Count.ShouldBe(TagDefinitionLimits.MaxTagDefinitions);
+        result.Value.HasMore.ShouldBeFalse();
     }
 
     [Fact]

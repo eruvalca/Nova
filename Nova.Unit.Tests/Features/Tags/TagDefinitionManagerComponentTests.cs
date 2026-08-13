@@ -123,17 +123,67 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
         File.ReadAllText(razorPath).ShouldContain("@rendermode=\"InteractiveAuto\"");
     }
 
+    [Fact]
+    public void LoadFailure_ShowsError_ButNotTheEmptyState()
+    {
+        var queryService = Substitute.For<ITagDefinitionQueryService>();
+        queryService.GetManagementListAsync(Arg.Any<GetTagDefinitionsInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<TagDefinitionListResult>(
+                ServiceProblem.ServerError("Failed to load tag definitions."))));
+
+        RegisterServices(queryService: queryService);
+
+        var cut = Render<TagDefinitionManager>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Failed to load tag definitions."));
+        cut.Markup.ShouldNotContain("No tags found.");
+    }
+
+    [Fact]
+    public void List_DoesNotShowTruncationNotice_WhenExactlyAtTheCap()
+    {
+        var tags = Enumerable.Range(1, TagDefinitionLimits.MaxTagDefinitions)
+            .Select(i => CreateActiveTag(id: i, name: $"Tag{i}"))
+            .ToList();
+
+        RegisterServices(tags: tags, hasMore: false);
+
+        var cut = Render<TagDefinitionManager>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Tag1"));
+        cut.Markup.ShouldNotContain("Showing the first");
+    }
+
+    [Fact]
+    public void List_ShowsTruncationNotice_WhenMoreRowsExistBeyondTheCap()
+    {
+        var tags = Enumerable.Range(1, TagDefinitionLimits.MaxTagDefinitions)
+            .Select(i => CreateActiveTag(id: i, name: $"Tag{i}"))
+            .ToList();
+
+        RegisterServices(tags: tags, hasMore: true);
+
+        var cut = Render<TagDefinitionManager>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Showing the first"));
+    }
+
     private void RegisterServices(
         IReadOnlyList<TagDefinitionDto>? tags = null,
+        bool hasMore = false,
         ITagDefinitionQueryService? queryService = null,
         ITagDefinitionService? managementService = null,
         ITagDefinitionLifecycleService? lifecycleService = null)
     {
         tags ??= [CreateActiveTag()];
 
-        queryService ??= Substitute.For<ITagDefinitionQueryService>();
-        queryService.GetManagementListAsync(Arg.Any<GetTagDefinitionsInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TagDefinitionDto>>(tags.ToList().AsReadOnly())));
+        if (queryService is null)
+        {
+            queryService = Substitute.For<ITagDefinitionQueryService>();
+            queryService.GetManagementListAsync(Arg.Any<GetTagDefinitionsInput>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new ServiceResult<TagDefinitionListResult>(
+                    new TagDefinitionListResult { Items = tags.ToList().AsReadOnly(), HasMore = hasMore })));
+        }
 
         managementService ??= Substitute.For<ITagDefinitionService>();
         lifecycleService ??= Substitute.For<ITagDefinitionLifecycleService>();

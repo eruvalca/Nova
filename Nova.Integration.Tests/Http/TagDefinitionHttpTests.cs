@@ -406,9 +406,9 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         using var response = await client.GetAsync(TagEndpoints.GetListUrl(search, lifecycleStatus), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var tags = await response.Content.ReadFromJsonAsync<List<TagDefinitionDto>>(cancellationToken);
-        tags.ShouldNotBeNull();
-        return tags;
+        var result = await response.Content.ReadFromJsonAsync<TagDefinitionListResult>(cancellationToken);
+        result.ShouldNotBeNull();
+        return result.Items.ToList();
     }
 
     /// <summary>

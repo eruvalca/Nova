@@ -12,7 +12,7 @@ namespace Nova.Client.Services.Tags;
 public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinitionQueryService
 {
     /// <inheritdoc />
-    public async Task<ServiceResult<IReadOnlyList<TagDefinitionDto>>> GetManagementListAsync(
+    public async Task<ServiceResult<TagDefinitionListResult>> GetManagementListAsync(
         GetTagDefinitionsInput input,
         CancellationToken cancellationToken = default)
     {
@@ -30,13 +30,15 @@ public sealed class HttpTagDefinitionQueryService(HttpClient http) : ITagDefinit
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var result = await response.Content.ReadRequiredJsonAsync<List<TagDefinitionDto>>(
+        var result = await response.Content.ReadRequiredJsonAsync<TagDefinitionListResult>(
             "The server returned an invalid tag-definition list response.",
-            tags => tags.Count <= TagDefinitionLimits.MaxTagDefinitions
-                && tags.All(tag => IsValidForView(tag, input.LifecycleStatus)),
+            list => list.Items is not null
+                && list.Items.Count <= TagDefinitionLimits.MaxTagDefinitions
+                && (!list.HasMore || list.Items.Count == TagDefinitionLimits.MaxTagDefinitions)
+                && list.Items.All(tag => IsValidForView(tag, input.LifecycleStatus)),
             cancellationToken);
-        return result.Match<ServiceResult<IReadOnlyList<TagDefinitionDto>>>(
-            tags => tags.AsReadOnly(),
+        return result.Match<ServiceResult<TagDefinitionListResult>>(
+            list => list,
             problem => problem);
     }
 

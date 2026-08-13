@@ -20,7 +20,7 @@ public sealed partial class TagDefinitionQueryService(
     ILogger<TagDefinitionQueryService> logger) : ITagDefinitionQueryService
 {
     /// <inheritdoc />
-    public async Task<ServiceResult<IReadOnlyList<TagDefinitionDto>>> GetManagementListAsync(
+    public async Task<ServiceResult<TagDefinitionListResult>> GetManagementListAsync(
         GetTagDefinitionsInput input,
         CancellationToken cancellationToken = default)
     {
@@ -59,7 +59,7 @@ public sealed partial class TagDefinitionQueryService(
         var rows = await query
             .OrderBy(tag => tag.Name)
             .ThenBy(tag => tag.PlayerTagId)
-            .Take(TagDefinitionLimits.MaxTagDefinitions)
+            .Take(TagDefinitionLimits.MaxTagDefinitions + 1)
             .Select(tag => new TagDefinitionDto
             {
                 PlayerTagId = tag.PlayerTagId,
@@ -69,7 +69,12 @@ public sealed partial class TagDefinitionQueryService(
             })
             .ToListAsync(cancellationToken);
 
-        return rows.AsReadOnly();
+        var hasMore = rows.Count > TagDefinitionLimits.MaxTagDefinitions;
+        return new TagDefinitionListResult
+        {
+            Items = rows.Take(TagDefinitionLimits.MaxTagDefinitions).ToList().AsReadOnly(),
+            HasMore = hasMore
+        };
     }
 
     /// <inheritdoc />
