@@ -37,6 +37,31 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
     }
 
     /// <inheritdoc />
+    public async Task<ServiceResult<CampaignDetailResult>> GetCampaignDetailAsync(
+        GetCampaignDetailInput input,
+        CancellationToken cancellationToken = default)
+    {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
+
+        using var response = await http.GetAsync(
+            CampaignEndpoints.GetCampaignDetailUrl(input.CampaignId),
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return await response.ToServiceProblemAsync(cancellationToken);
+        }
+
+        return await response.Content.ReadRequiredJsonAsync<CampaignDetailResult>(
+            "The server returned an invalid campaign detail response.",
+            IsValidCampaignDetail,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<ServiceResult<CampaignCreationSetupResult>> GetCreationSetupAsync(
         CancellationToken cancellationToken = default)
     {
@@ -51,6 +76,21 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             IsValidCreationSetup,
             cancellationToken);
     }
+
+    /// <summary>
+    /// Validates the structural invariants of a campaign-detail success payload.
+    /// </summary>
+    /// <param name="result">The deserialized campaign-detail payload.</param>
+    /// <returns><see langword="true"/> when the payload satisfies the client contract.</returns>
+    private static bool IsValidCampaignDetail(CampaignDetailResult result)
+        => result.CampaignId > 0
+            && !string.IsNullOrWhiteSpace(result.Name)
+            && result.StartDate != default
+            && (result.PlannedEndDate is null || result.PlannedEndDate >= result.StartDate)
+            && result.ParticipantCount >= 0
+            && result.SeasonId > 0
+            && !string.IsNullOrWhiteSpace(result.SeasonName)
+            && result.Status is CampaignStatus.Active or CampaignStatus.Closed;
 
     /// <summary>
     /// Validates the structural and ordering invariants of a campaign-list success payload.

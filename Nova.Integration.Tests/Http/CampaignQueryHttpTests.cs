@@ -34,6 +34,10 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         {
             anonResp.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
+        using (var anonResp = await anonymous.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(1), cancellationToken))
+        {
+            anonResp.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        }
 
         using var adminClient = fixture.CreateNovaHttpClient();
         var adminEmail = UniqueEmail("campaign-admin");
@@ -49,11 +53,12 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         // Seed a season and campaign
+        CampaignEntity campaign;
         await using (var context = fixture.CreateAdminContext())
         {
             var userId = await context.Users.Where(u => u.NormalizedEmail == email.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
             var season = new SeasonEntity { Name = "S", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = userId };
-            var campaign = new CampaignEntity { Name = "C", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = userId };
+            campaign = new CampaignEntity { Name = "C", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = userId };
             context.AddRange(season, campaign);
             await context.SaveChangesAsync(cancellationToken);
         }
@@ -70,6 +75,15 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         setup.Seasons[0].Name.ShouldBe("S");
         setup.ActivePlayerCount.ShouldBe(0);
         setup.ActiveTeamCount.ShouldBe(0);
+
+        using var detailResp = await client.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(campaign.CampaignId), cancellationToken);
+        detailResp.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var detail = await detailResp.Content.ReadFromJsonAsync<CampaignDetailResult>(cancellationToken);
+        detail.ShouldNotBeNull();
+        detail.CampaignId.ShouldBe(campaign.CampaignId);
+        detail.Name.ShouldBe("C");
+        detail.Status.ShouldBe(CampaignStatus.Active);
+        detail.SeasonName.ShouldBe("S");
     }
 
     /// <summary>Verifies authenticated callers without a club receive forbidden responses.</summary>
@@ -88,6 +102,9 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
 
         using var setupResponse = await client.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
         setupResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        using var detailResponse = await client.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(1), cancellationToken);
+        detailResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     /// <summary>Verifies invalid status binding returns correlated validation ProblemDetails.</summary>
@@ -185,6 +202,66 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         setup.Seasons.Select(season => season.Name).ShouldContain("SB");
         setup.ActivePlayerCount.ShouldBe(1);
         setup.ActiveTeamCount.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// Verifies the detail endpoint returns the caller's campaign payload and hides other clubs'
+    /// and missing campaigns behind 404 responses.
+    /// </summary>
+    [Fact]
+    public async Task GetCampaignDetail_ReturnsOwnCampaign_AndNotFoundForOtherClubAndMissingIds()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+
+        var adminEmail = UniqueEmail("campaign-detail-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
+        await UpdateUserAsync(adminEmail, clubId: null, cancellationToken);
+        var clubA = await CreateClubAsync(adminClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
+
+        var memberEmail = UniqueEmail("campaign-detail-member");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
+        await UpdateUserAsync(memberEmail, clubId: null, cancellationToken);
+        var clubB = await CreateClubAsync(memberClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
+
+        CampaignEntity campaignA;
+        CampaignEntity campaignB;
+        await using (var context = fixture.CreateAdminContext())
+        {
+            var adminUserId = await context.Users.Where(u => u.NormalizedEmail == adminEmail.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
+            var memberUserId = await context.Users.Where(u => u.NormalizedEmail == memberEmail.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
+
+            var seasonA = new SeasonEntity { Name = "SA", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = adminUserId };
+            var seasonB = new SeasonEntity { Name = "SB", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = memberUserId };
+            campaignA = new CampaignEntity { Name = "CA", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = seasonA, SeasonId = seasonA.SeasonId, ClubId = clubA.ClubId, CreatedById = adminUserId };
+            campaignB = new CampaignEntity { Name = "CB", StartDate = new DateOnly(2026, 6, 1), EndDate = new DateOnly(2026, 8, 1), Status = CampaignStatus.Active, Season = seasonB, SeasonId = seasonB.SeasonId, ClubId = clubB.ClubId, CreatedById = memberUserId };
+            var playerB = new PlayerEntity { FirstName = "B", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubB.ClubId, CreatedById = memberUserId };
+            context.AddRange(seasonA, seasonB, campaignA, campaignB, playerB);
+            await context.SaveChangesAsync(cancellationToken);
+            context.Add(new PlayerCampaignAssignmentEntity { PlayerId = playerB.PlayerId, CampaignId = campaignB.CampaignId, ClubId = clubB.ClubId, CreatedById = memberUserId, PlacementOutcome = PlacementOutcome.Undecided });
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        using var detailResp = await memberClient.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(campaignB.CampaignId), cancellationToken);
+        detailResp.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var detail = await detailResp.Content.ReadFromJsonAsync<CampaignDetailResult>(cancellationToken);
+        detail.ShouldNotBeNull();
+        detail.CampaignId.ShouldBe(campaignB.CampaignId);
+        detail.Name.ShouldBe("CB");
+        detail.Status.ShouldBe(CampaignStatus.Active);
+        detail.StartDate.ShouldBe(new DateOnly(2026, 6, 1));
+        detail.PlannedEndDate.ShouldBe(new DateOnly(2026, 8, 1));
+        detail.ParticipantCount.ShouldBe(1);
+        detail.SeasonName.ShouldBe("SB");
+
+        using var otherClubResp = await memberClient.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(campaignA.CampaignId), cancellationToken);
+        otherClubResp.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        using var missingResp = await memberClient.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(999999), cancellationToken);
+        missingResp.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     /// <summary>Creates a unique integration-test email address.</summary>

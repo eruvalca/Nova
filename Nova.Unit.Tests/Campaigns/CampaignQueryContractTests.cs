@@ -26,6 +26,29 @@ public sealed class CampaignQueryContractTests
         errors.ShouldBeEmpty();
     }
 
+    /// <summary>Verifies the detail URL builder routes to the shared route.</summary>
+    [Fact]
+    public void GetCampaignDetailUrl_BuildsExpectedUrl()
+    {
+        var url = CampaignEndpoints.GetCampaignDetailUrl(42);
+
+        url.ShouldBe("/api/campaigns/42");
+    }
+
+    /// <summary>Verifies non-positive campaign identifiers are rejected.</summary>
+    /// <param name="campaignId">The campaign identifier to validate.</param>
+    /// <param name="isValid">Whether the identifier is valid.</param>
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(-1, false)]
+    [InlineData(1, true)]
+    public void GetCampaignDetailInput_ValidatesCampaignIdBounds(long campaignId, bool isValid)
+    {
+        var errors = InputValidator.Validate(new GetCampaignDetailInput { CampaignId = campaignId });
+
+        errors.ContainsKey(nameof(GetCampaignDetailInput.CampaignId)).ShouldBe(!isValid);
+    }
+
     /// <summary>Verifies unsupported status values are rejected.</summary>
     [Fact]
     public void GetCampaignListInput_RejectsInvalidStatus()

@@ -56,6 +56,21 @@ public static class CampaignEndpoints
     public const string GetCreationSetupRouteName = "GetCampaignCreationSetup";
 
     /// <summary>
+    /// Gets the campaign-detail route.
+    /// </summary>
+    public const string GetCampaignDetail = $"{GroupPrefix}/{{campaignId:long}}";
+
+    /// <summary>
+    /// Gets the campaign-detail route relative to the campaign group.
+    /// </summary>
+    public const string GetCampaignDetailRelative = "{campaignId:long}";
+
+    /// <summary>
+    /// Gets the route name assigned to the campaign detail.
+    /// </summary>
+    public const string GetCampaignDetailRouteName = "GetCampaignDetail";
+
+    /// <summary>
     /// Gets the campaign-participant roster route.
     /// </summary>
     public const string GetCampaignParticipantRoster = $"{GroupPrefix}/{{campaignId:long}}/participants";
@@ -210,6 +225,14 @@ public static class CampaignEndpoints
             ? GetCampaignList
             : $"{GetCampaignList}?{string.Join('&', querySegments)}";
     }
+
+    /// <summary>
+    /// Builds a campaign-detail URL.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier.</param>
+    /// <returns>The detail URL.</returns>
+    public static string GetCampaignDetailUrl(long campaignId)
+        => $"{GroupPrefix}/{campaignId}";
 
     /// <summary>
     /// Builds a campaign-participant roster URL from the accepted optional filters.
