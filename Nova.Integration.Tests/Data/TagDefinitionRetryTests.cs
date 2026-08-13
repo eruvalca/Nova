@@ -538,6 +538,175 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies an archive that committed ambiguously, then lost a race to a newer restore, still
+    /// reports success via its durable receipt without replaying and overwriting the restored status.
+    /// </summary>
+    /// <remarks>
+    /// The archive pauses just before its receipt-verification read. A newer restore then commits and
+    /// flips the tag back to Active. Verification consults the archive's durable receipt rather than
+    /// the mutable lifecycle status, so the paused archive reports success and never overwrites the
+    /// restored Active status back to Archived.
+    /// </remarks>
+    [Fact]
+    public async Task Archive_AmbiguousCommitThenRestore_DoesNotOverwriteRestoredStatus()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var suffix = Guid.NewGuid().ToString("N");
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        long clubId;
+        long tagId;
+
+        ActAs(userId: null, clubId: null, isAdmin: false);
+
+        await using (var seed = fixture.CreateAdminContext())
+        {
+            clubId = await SeedClubAsync(seed, $"Tag Archive Race Club {suffix}", actorUserId, cancellationToken);
+
+            var tag = CreateTag($"Archive Race Tag {suffix}", clubId, actorUserId);
+            seed.PlayerTags.Add(tag);
+            await seed.SaveChangesAsync(cancellationToken);
+            tagId = tag.PlayerTagId;
+        }
+
+        ActAs(actorUserId, clubId, isAdmin: true);
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var gateInterceptor = new GateReceiptVerificationInterceptor("\"TagDefinitionMutationReceipts\"");
+        var archiveFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor,
+            gateInterceptor);
+        var restoreFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            new NoOpInterceptor());
+        var archiveService = new TagDefinitionLifecycleService(
+            archiveFactory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionLifecycleService>.Instance);
+        var restoreService = new TagDefinitionLifecycleService(
+            restoreFactory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionLifecycleService>.Instance);
+
+        Task<ServiceResult<Success>> archive;
+        try
+        {
+            // The archive pauses after its ambiguous commit, just before verification reads the receipt.
+            archive = archiveService.ArchiveAsync(tagId, cancellationToken);
+            await gateInterceptor.WaitForVerificationAttemptAsync(cancellationToken);
+
+            // A newer restore commits while the archive is paused at verification.
+            var restoreResult = await restoreService.RestoreAsync(tagId, cancellationToken);
+            restoreResult.IsSuccess.ShouldBeTrue("the newer restore must commit while the archive is paused at verification");
+
+            gateInterceptor.Release();
+            var archiveResult = await archive;
+            archiveResult.IsSuccess.ShouldBeTrue(
+                "the paused archive must verify against its durable receipt and report success");
+        }
+        finally
+        {
+            gateInterceptor.Release();
+        }
+
+        failureInterceptor.FailureCount.ShouldBe(1);
+        await using var verify = fixture.CreateAdminContext();
+        var status = await verify.PlayerTags
+            .Where(tag => tag.PlayerTagId == tagId)
+            .Select(tag => tag.LifecycleStatus)
+            .SingleAsync(cancellationToken);
+        status.ShouldBe(LifecycleStatus.Active, "the restore must survive and the paused archive must not replay");
+    }
+
+    /// <summary>
+    /// Verifies a restore that committed ambiguously, then lost a race to a newer archive, still
+    /// reports success via its durable receipt without replaying and overwriting the archived status.
+    /// </summary>
+    /// <remarks>
+    /// The restore pauses just before its receipt-verification read. A newer archive then commits and
+    /// flips the tag back to Archived. Verification consults the restore's durable receipt rather than
+    /// the mutable lifecycle status, so the paused restore reports success and never overwrites the
+    /// archived status back to Active.
+    /// </remarks>
+    [Fact]
+    public async Task Restore_AmbiguousCommitThenArchive_DoesNotOverwriteArchivedStatus()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var suffix = Guid.NewGuid().ToString("N");
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        long clubId;
+        long tagId;
+
+        ActAs(userId: null, clubId: null, isAdmin: false);
+
+        await using (var seed = fixture.CreateAdminContext())
+        {
+            clubId = await SeedClubAsync(seed, $"Tag Restore Race Club {suffix}", actorUserId, cancellationToken);
+
+            var tag = CreateTag($"Restore Race Tag {suffix}", clubId, actorUserId);
+            tag.LifecycleStatus = LifecycleStatus.Archived;
+            tag.ArchivedAt = DateTimeOffset.UtcNow;
+            tag.ArchivedById = actorUserId;
+            seed.PlayerTags.Add(tag);
+            await seed.SaveChangesAsync(cancellationToken);
+            tagId = tag.PlayerTagId;
+        }
+
+        ActAs(actorUserId, clubId, isAdmin: true);
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var gateInterceptor = new GateReceiptVerificationInterceptor("\"TagDefinitionMutationReceipts\"");
+        var restoreFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor,
+            gateInterceptor);
+        var archiveFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            new NoOpInterceptor());
+        var restoreService = new TagDefinitionLifecycleService(
+            restoreFactory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionLifecycleService>.Instance);
+        var archiveService = new TagDefinitionLifecycleService(
+            archiveFactory,
+            fixture.CurrentUser,
+            NullLogger<TagDefinitionLifecycleService>.Instance);
+
+        Task<ServiceResult<Success>> restore;
+        try
+        {
+            // The restore pauses after its ambiguous commit, just before verification reads the receipt.
+            restore = restoreService.RestoreAsync(tagId, cancellationToken);
+            await gateInterceptor.WaitForVerificationAttemptAsync(cancellationToken);
+
+            // A newer archive commits while the restore is paused at verification.
+            var archiveResult = await archiveService.ArchiveAsync(tagId, cancellationToken);
+            archiveResult.IsSuccess.ShouldBeTrue("the newer archive must commit while the restore is paused at verification");
+
+            gateInterceptor.Release();
+            var restoreResult = await restore;
+            restoreResult.IsSuccess.ShouldBeTrue(
+                "the paused restore must verify against its durable receipt and report success");
+        }
+        finally
+        {
+            gateInterceptor.Release();
+        }
+
+        failureInterceptor.FailureCount.ShouldBe(1);
+        await using var verify = fixture.CreateAdminContext();
+        var status = await verify.PlayerTags
+            .Where(tag => tag.PlayerTagId == tagId)
+            .Select(tag => tag.LifecycleStatus)
+            .SingleAsync(cancellationToken);
+        status.ShouldBe(LifecycleStatus.Archived, "the archive must survive and the paused restore must not replay");
+    }
+
+    /// <summary>
     /// Verifies the shared club-roster advisory lock serializes a create-new against a restore-archived
     /// when both would push the club toward the active-definition cap, so exactly one mutation succeeds
     /// and the club never exceeds the cap.

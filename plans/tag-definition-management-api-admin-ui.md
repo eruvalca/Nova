@@ -187,14 +187,14 @@ Suggested executor: orchestrator (writes/inspects the race and integration tests
 ### Verification Plan
 
 - [x] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` green.
-- [x] `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --filter-class "*TagDefinition*"` green (17/17 passed).
+- [x] `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --filter-class "*TagDefinition*"` green (28/28 passed).
 - Aspire + Playwright manual pass (Phase 6 scenario) recorded as passing.
 
 ### Phase Summary
 
-**Unit tests (85 passing):** 4 files in `Nova.Unit.Tests/Features/Tags/` — `TagInputValidationTests` (DataAnnotations matrix), `TagDefinitionServiceTests` (create/edit/duplicate/archived-edit/authorization/normalization), `TagDefinitionLifecycleServiceTests` (boundary mapping to `ServiceResult`), and `TagDefinitionQueryServiceTests` (Active/Archived/All filtering, Active-only choices, case-insensitive search, bounded ordering).
+**Unit tests (100 passing):** 9 files in `Nova.Unit.Tests/Features/Tags/` — `TagInputValidationTests` (DataAnnotations matrix), `TagDefinitionServiceTests` (create/edit/duplicate/archived-edit/authorization/normalization), `TagDefinitionLifecycleServiceTests` (boundary mapping to `ServiceResult`), `TagDefinitionQueryServiceTests` (Active/Archived/All filtering, Active-only choices, case-insensitive search, bounded ordering), `TagDefinitionMutationReceiptTenancyTests`, `TagDefinitionManagerComponentTests` (bUnit), and the three WASM client service test files (`HttpTagDefinitionServiceTests`, `HttpTagDefinitionQueryServiceTests`, `HttpTagDefinitionLifecycleServiceTests`).
 
-**Integration tests (17 passing):** `TagDefinitionPostgresTests` (4) verifies the migration + `IX_PlayerTags_ClubId_NormalizedName` index, case-insensitive duplicate rejection, cross-club same-name allowance, and `CreationOperationId` duplicate rejection against real PostgreSQL 18. `TagDefinitionRetryTests` (5) exercises execution-strategy retries/ambiguous commits for create and update with fault injectors. `TagDefinitionHttpTests` (8) covers the full HTTP surface (create `201`, duplicate `409`, update, route/body mismatch, archive/restore `204`, filtered list, evaluator choices).
+**Integration tests (28 passing):** `TagDefinitionPostgresTests` (4) verifies the migration + `IX_PlayerTags_ClubId_NormalizedName` index, case-insensitive duplicate rejection, cross-club same-name allowance, and `CreationOperationId` duplicate rejection against real PostgreSQL 18. `TagDefinitionRetryTests` (12) exercises execution-strategy retries/ambiguous commits for create and update with fault injectors, plus the advisory-lock cap race and receipt-based ambiguous-commit transition races. `TagDefinitionHttpTests` (12) covers the full HTTP surface (create `201`, duplicate `409`, update, route/body mismatch, archive/restore `204`, filtered list, evaluator choices).
 
 **Key bug fixed during this phase:** `TagDefinitionLifecycleService.TransitionAsync` originally called `db.Database.BeginTransactionAsync()` directly, which throws `InvalidOperationException` under `NpgsqlRetryingExecutionStrategy` ("does not support user-initiated transactions"). The archive HTTP test surfaced this as a `500`. Fixed by wrapping the transaction inside `strategy.ExecuteAsync<OneOf<...>>(async () => {...})`, mirroring `PlayerLifecycleService`; this resolved the archive `500` and its two cascading list/choices failures.
 
@@ -207,7 +207,7 @@ Implemented issue #66's sub-task: **Tag definition management API and admin UI**
 - **Services** (`Nova/Features/Tags/`): `TagDefinitionService` (retry-safe create/update with advisory lock, probe + unique-index backstop, archived-edit guard), `TagDefinitionLifecycleService` (archive/restore transitions via the execution strategy), and `TagDefinitionQueryService` (admin management list + evaluator Active-only choices, case-insensitive search, bounded deterministic ordering).
 - **HTTP + WASM** (`Nova/Features/Tags`, `Nova.Client/Services/Tags`): 6 endpoints (create/update/list/choices/archive/restore) with full metadata and authorization (`RequireClubAdmin` for management, `RequireEvaluator` for choices); 3 WASM client services.
 - **Admin UI** (`Nova.UI/Features/Tags/Components/TagDefinitionManager`): SSR-first, Active/Archived toggle, create/edit forms, color swatches, archive/restore with confirmation.
-- **Tests**: 85 unit tests + 17 Postgres/retry/HTTP integration tests, all passing.
+- **Tests**: 100 unit tests + 28 Postgres/retry/HTTP integration tests, all passing.
 
 ## Deployment Plan
 
