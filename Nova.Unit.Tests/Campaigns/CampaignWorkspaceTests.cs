@@ -1320,6 +1320,9 @@ public sealed class CampaignWorkspaceTests : BunitContext
             .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TagDefinitionDto>>(
                 (tagChoices ?? CreateTagChoices()).ToList())));
 
+        var evaluationNoteService = Substitute.For<ICampaignEvaluationNoteService>();
+        var tagApplicationService = Substitute.For<ICampaignTagApplicationService>();
+
         var teamRosterService = Substitute.For<ITeamRosterService>();
         teamRosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TeamRosterItem>>(
@@ -1328,6 +1331,8 @@ public sealed class CampaignWorkspaceTests : BunitContext
         Services.AddSingleton(campaignQueryService);
         Services.AddSingleton(participantQueryService);
         Services.AddSingleton(tagDefinitionQueryService);
+        Services.AddSingleton(evaluationNoteService);
+        Services.AddSingleton(tagApplicationService);
         Services.AddSingleton(teamRosterService);
         Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal()));
         JSInterop.Mode = JSRuntimeMode.Loose;

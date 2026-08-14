@@ -137,3 +137,14 @@
     font-size: 0.8rem;
     color: var(--bs-secondary-color);
 }
+
+.participant-drawer-mutation-error:focus {
+    outline: 2px solid var(--bs-danger-border-subtle);
+    outline-offset: 2px;
+}
+
+.participant-drawer-readonly-note {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+}
+
