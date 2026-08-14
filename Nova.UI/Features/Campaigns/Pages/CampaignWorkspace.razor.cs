@@ -18,7 +18,7 @@ namespace Nova.UI.Features.Campaigns.Pages;
 /// <param name="tagDefinitionQueryService">The tag-definition choices service used by roster filters.</param>
 /// <param name="teamRosterService">The team choices service used by roster filters.</param>
 /// <param name="navigationManager">The navigation manager used for URL history and redirects.</param>
-/// <param name="jsRuntime">The JavaScript runtime used for scroll and focus interactions.</param>
+/// <param name="jsRuntime">The JavaScript runtime used to import the collocated workspace module.</param>
 public partial class CampaignWorkspace(
     ICampaignQueryService campaignQueryService,
     ICampaignParticipantQueryService participantQueryService,
@@ -43,9 +43,9 @@ public partial class CampaignWorkspace(
     private const string EvaluateTabName = CampaignWorkspaceUrlState.EvaluateTab;
 
     /// <summary>
-    /// The DOM identifier of the scrollable roster results region used for scroll anchoring.
+    /// The scrollable roster results region used for scroll anchoring and keyboard activation suppression.
     /// </summary>
-    private const string RosterScrollRegionId = "roster-scroll-region";
+    private ElementReference _rosterScrollRegion;
 
     /// <summary>
     /// The tag-definition choices service used by roster filters.
@@ -58,9 +58,12 @@ public partial class CampaignWorkspace(
     private readonly ITeamRosterService _teamRosterService = teamRosterService;
 
     /// <summary>
-    /// The JavaScript runtime reserved for scroll and focus interactions.
+    /// The lazily imported collocated workspace module used for scroll and keyboard interactions.
     /// </summary>
-    private readonly IJSRuntime _jsRuntime = jsRuntime;
+    private readonly Lazy<Task<IJSObjectReference>> _moduleTask = new(() => jsRuntime
+        .InvokeAsync<IJSObjectReference>(
+            "import", "./_content/Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.js")
+        .AsTask());
 
     /// <summary>
     /// Gets or sets the campaign identifier from the route.
@@ -417,12 +420,25 @@ public partial class CampaignWorkspace(
     }
 
     /// <inheritdoc />
-    protected override ValueTask DisposeAsyncCore()
+    protected override async ValueTask DisposeAsyncCore()
     {
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();
         _searchDebounceSource = null;
-        return ValueTask.CompletedTask;
+
+        if (_moduleTask.IsValueCreated)
+        {
+            try
+            {
+                var module = await _moduleTask.Value;
+                await module.InvokeVoidAsync("detachRosterActivationSuppression");
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is gone; the browser already destroyed the page with it.
+            }
+        }
     }
 
     /// <summary>
@@ -805,7 +821,8 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when the offset is captured.</returns>
     private async Task CaptureRosterScrollAsync()
     {
-        _pendingScrollRestore = await _jsRuntime.InvokeAsync<double?>("novaCampaignWorkspaceCaptureScroll", RosterScrollRegionId);
+        var module = await _moduleTask.Value;
+        _pendingScrollRestore = await module.InvokeAsync<double?>("captureScroll", _rosterScrollRegion);
     }
 
     /// <inheritdoc />
@@ -815,20 +832,45 @@ public partial class CampaignWorkspace(
         // pending scroll work until then so filter changes still scroll after a loading pass.
         if (_rosterLoading || _roster is null)
         {
+            // A prior loaded render may have installed the keydown suppression scoped to the
+            // region element this render just removed. Detach it so a stale listener can't
+            // keep the dead element (and its document-level handler) alive until a retry.
+            if (_moduleTask.IsValueCreated)
+            {
+                var rosterModule = await _moduleTask.Value;
+                await rosterModule.InvokeVoidAsync("detachRosterActivationSuppression");
+            }
+
             return;
+        }
+
+        var module = await _moduleTask.Value;
+
+        // The region element is recreated across loading/error/loaded renders, so re-attach the
+        // keydown suppression on every pass that renders the loaded roster. The module replaces
+        // any existing listener, keeping exactly one active. An empty roster never renders the
+        // region, so detach instead — the unset ElementReference serializes as a plain object
+        // whose contains() check would throw on every keydown.
+        if (_roster.TotalCount > 0)
+        {
+            await module.InvokeVoidAsync("attachRosterActivationSuppression", _rosterScrollRegion);
+        }
+        else
+        {
+            await module.InvokeVoidAsync("detachRosterActivationSuppression");
         }
 
         if (_scrollToRosterTop)
         {
             _scrollToRosterTop = false;
-            await _jsRuntime.InvokeVoidAsync("novaCampaignWorkspaceScrollToTop", RosterScrollRegionId);
+            await module.InvokeVoidAsync("scrollToTop", _rosterScrollRegion);
         }
 
         if (_pendingScrollRestore is not null)
         {
             var restoreTop = _pendingScrollRestore.Value;
             _pendingScrollRestore = null;
-            await _jsRuntime.InvokeVoidAsync("novaCampaignWorkspaceRestoreScroll", RosterScrollRegionId, restoreTop);
+            await module.InvokeVoidAsync("restoreScroll", _rosterScrollRegion, restoreTop);
         }
     }
 

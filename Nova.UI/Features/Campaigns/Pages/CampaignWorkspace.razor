@@ -130,7 +130,7 @@
                     }
                     else
                     {
-                        <div class="roster-scroll-region" id="@RosterScrollRegionId" tabindex="-1">
+                        <div class="roster-scroll-region" @ref="_rosterScrollRegion" tabindex="-1">
                             <CampaignRosterTable Items="@_roster.Items"
                                                  SortBy="@_filters.SortBy"
                                                  SortDirection="@_filters.SortDirection"

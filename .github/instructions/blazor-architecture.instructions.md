@@ -1,6 +1,6 @@
 ---
-applyTo: "**/*.razor,**/*.razor.cs,**/*.razor.css,Nova/Program.cs,Nova.Client/Program.cs"
-description: "Blazor architecture: placement, SSR-first render modes, persisted state, safe navigation/rendering, bounded data, feature organization, and component service access."
+applyTo: "**/*.razor,**/*.razor.cs,**/*.razor.css,**/*.razor.js,Nova/Program.cs,Nova.Client/Program.cs"
+description: "Blazor architecture: placement, SSR-first render modes, persisted state, safe navigation/rendering, bounded data, feature organization, component service access, and JavaScript interop."
 ---
 
 # Blazor Architecture
@@ -104,6 +104,16 @@ Nova.UI/
   feedback at an intentional user-action boundary instead.
 - **Scoped styles**: component-specific CSS goes in `{Name}.razor.css` (CSS isolation). Do not add component-specific rules to global stylesheets.
 - Follow `.github/instructions/csharp-conventions.instructions.md` in code-behind files (XML docs, logging, OneOf, etc.).
+
+## JavaScript Interop
+
+- Reach for JavaScript only when a DOM behavior cannot be expressed declaratively (Bootstrap data API, CSS, Blazor events). Static SSR markup must function without custom JS; custom JS belongs to interactive components.
+- Collocate component JS as an ES module: `{Component}.razor.js` next to the owning component. Feature components live in `Nova.UI`, so their JS ships with the RCL and is imported from `./_content/Nova.UI/...`. Do not add `window.*` globals or page-wide helpers to `Nova/wwwroot/js/`.
+- **No speculative site-wide JS**: do not create an empty `site.js` (or any page-wide script under `Nova/wwwroot/js/`) "just in case" — an empty script still costs a request and invites page-global helpers back. Do not add a new site-wide custom script without a concrete app-wide requirement; inspect `App.razor` for the current script set instead of assuming it. A genuinely app-wide behavior belongs in a layout-collocated module (`App.razor.js` / `MainLayout.razor.js`), a lazily imported interop service, or the `blazor.web.js` loader callbacks (`beforeBlazorStarts`) for code that must run before Blazor initializes. Adding a script tag later costs nothing.
+- Consume modules with a lazily imported `IJSObjectReference` (`Lazy<Task<IJSObjectReference>>` wrapping `"import"`), dispose the module reference in `DisposeAsyncCore()`, and invoke module functions only from `OnAfterRenderAsync(firstRender)` or event handlers — never `OnInitializedAsync`.
+- Pass `ElementReference` (via `@ref`), not hard-coded element `id` strings.
+- Any listener that outlives a single event must attach scoped to the component's subtree and detach in `DisposeAsyncCore()`.
+- Step-by-step recipe with code examples: `.github/skills/add-blazor-ui/references/js-interop.md`.
 
 ## Bootstrap-First Styling
 

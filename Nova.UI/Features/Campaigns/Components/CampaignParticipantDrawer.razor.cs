@@ -10,13 +10,21 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// Drawer shell for the selected campaign roster participant. This phase renders the shell only;
 /// issue #64 fills in the participant-detail body.
 /// </summary>
-/// <param name="jsRuntime">The JavaScript runtime used to focus the close button when the drawer opens.</param>
+/// <param name="jsRuntime">The JavaScript runtime used to import the collocated drawer module.</param>
 public partial class CampaignParticipantDrawer(IJSRuntime jsRuntime) : NovaComponentBase
 {
     /// <summary>
-    /// The DOM identifier of the close button, focused when the drawer opens.
+    /// The close button element, focused when the drawer opens.
     /// </summary>
-    private const string CloseButtonId = "participant-drawer-close";
+    private ElementReference _closeButton;
+
+    /// <summary>
+    /// The lazily imported collocated drawer module used to focus the close button.
+    /// </summary>
+    private readonly Lazy<Task<IJSObjectReference>> _moduleTask = new(() => jsRuntime
+        .InvokeAsync<IJSObjectReference>(
+            "import", "./_content/Nova.UI/Features/Campaigns/Components/CampaignParticipantDrawer.razor.js")
+        .AsTask());
 
     /// <summary>
     /// Gets or sets the selected participant assignment identifier.
@@ -57,7 +65,25 @@ public partial class CampaignParticipantDrawer(IJSRuntime jsRuntime) : NovaCompo
     {
         if (firstRender)
         {
-            await jsRuntime.InvokeVoidAsync("novaCampaignWorkspaceFocus", CloseButtonId);
+            var module = await _moduleTask.Value;
+            await module.InvokeVoidAsync("focus", _closeButton);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        if (_moduleTask.IsValueCreated)
+        {
+            try
+            {
+                var module = await _moduleTask.Value;
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is gone; the browser already destroyed the page with it.
+            }
         }
     }
 }
