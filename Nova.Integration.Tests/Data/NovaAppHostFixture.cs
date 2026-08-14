@@ -52,6 +52,14 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// <summary>Gets the mutable current-user provider used by all contexts created by this fixture.</summary>
     public FakeCurrentUserProvider CurrentUser { get; } = new();
 
+    /// <summary>
+    /// A dedicated, never-mutated provider used only by admin contexts. Admin contexts bypass
+    /// the tenant filter, and seeding always sets audit fields explicitly, so the interceptor
+    /// must never stamp actors from the shared <see cref="CurrentUser"/> state that other test
+    /// classes mutate and may leave populated.
+    /// </summary>
+    private static readonly FakeCurrentUserProvider AdminContextUser = new();
+
     /// <summary>Gets the connection string for the live "novadb" PostgreSQL database.</summary>
     public string ConnectionString => ConnectionStringValue
         ?? throw new InvalidOperationException("The AppHost has not been started.");
@@ -119,7 +127,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// </summary>
     /// <returns>A new admin context owned by the caller.</returns>
     public NovaAdminDbContext CreateAdminContext() =>
-        new(Options<NovaAdminDbContext>(withInterceptor: true), CurrentUser);
+        new(Options<NovaAdminDbContext>(withInterceptor: true), AdminContextUser);
 
     /// <summary>
     /// Creates an <see cref="HttpClient"/> targeting the running "nova" web resource, with a
