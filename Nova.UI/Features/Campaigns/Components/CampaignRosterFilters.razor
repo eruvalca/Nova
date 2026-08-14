@@ -1,0 +1,100 @@
+<div class="mb-3" aria-label="Roster filters">
+    <div class="row g-3">
+        <div class="col-12 col-lg-4">
+            <label for="roster-search" class="form-label">Search name or tryout number</label>
+            <input id="roster-search"
+                   type="search"
+                   class="form-control"
+                   value="@SearchText"
+                   @oninput="OnSearchInputAsync"
+                   placeholder="e.g. Avery, 12" />
+        </div>
+        <div class="col-6 col-lg-2">
+            <label for="roster-outcome" class="form-label">Outcome</label>
+            <select id="roster-outcome" class="form-select" value="@Outcome" @onchange="OnOutcomeChangeAsync">
+                <option value="">All outcomes</option>
+                <option value="undecided">Undecided</option>
+                <option value="assigned">Assigned</option>
+                <option value="notselected">Not selected</option>
+                <option value="withdrawn">Withdrawn</option>
+            </select>
+        </div>
+        <div class="col-6 col-lg-3">
+            <label for="roster-team" class="form-label">Team</label>
+            <select id="roster-team" class="form-select" value="@TeamText" @onchange="OnTeamChangeAsync">
+                <option value="">All teams</option>
+                @foreach (var team in TeamChoices)
+                {
+                    <option value="@team.TeamId.ToString()">@team.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-12 col-lg-3 d-flex align-items-end justify-content-lg-end">
+            <p class="text-muted mb-0" aria-live="polite">
+                @if (TotalCount is null)
+                {
+                    <span>Loading participants…</span>
+                }
+                else
+                {
+                    <span>@TotalCount.Value participant@(TotalCount.Value == 1 ? string.Empty : "s")</span>
+                }
+            </p>
+        </div>
+    </div>
+
+    <div class="row g-2 mt-2">
+        <div class="col-12 col-lg-6">
+            <span class="form-label d-block mb-2">Graduation years</span>
+            @if (GraduationYearChoices.Count == 0)
+            {
+                <span class="text-muted small">None available</span>
+            }
+            else
+            {
+                <div class="d-flex flex-wrap gap-2" role="group" aria-label="Graduation year filters">
+                    @foreach (var year in GraduationYearChoices)
+                    {
+                        var yearChecked = SelectedGraduationYears.Contains(year);
+                        var yearInputId = $"roster-year-{year}";
+                        <input id="@yearInputId" type="checkbox" class="btn-check" autocomplete="off" value="@year.ToString()" checked="@yearChecked"
+                               @onchange="args => OnGraduationYearToggleAsync(year, args)" />
+                        <label for="@yearInputId" class="btn btn-sm @(yearChecked ? "btn-primary" : "btn-outline-primary")">@year</label>
+                    }
+                </div>
+            }
+        </div>
+        <div class="col-12 col-lg-6">
+            <span class="form-label d-block mb-2">Tags</span>
+            @if (TagChoices.Count == 0)
+            {
+                <span class="text-muted small">None available</span>
+            }
+            else
+            {
+                <div class="d-flex flex-wrap gap-2" role="group" aria-label="Tag filters">
+                    @foreach (var tag in TagChoices)
+                    {
+                        var tagChecked = SelectedTagDefinitionIds.Contains(tag.PlayerTagId);
+                        var tagInputId = $"roster-tag-{tag.PlayerTagId}";
+                        <input id="@tagInputId" type="checkbox" class="btn-check" autocomplete="off" value="@tag.PlayerTagId.ToString()" checked="@tagChecked"
+                               @onchange="args => OnTagToggleAsync(tag.PlayerTagId, args)" />
+                        <label for="@tagInputId" class="btn btn-sm @(tagChecked ? "btn-outline-secondary active" : "btn-outline-secondary")">
+                            <span class="roster-tag-swatch" aria-hidden="true" style="@BuildSwatchStyle(tag.Color)"></span>
+                            @tag.Name
+                        </label>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (HasActiveFilters)
+    {
+        <div class="d-flex justify-content-end mt-3">
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ClearFiltersAsync">
+                Clear filters
+            </button>
+        </div>
+    }
+</div>

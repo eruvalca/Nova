@@ -1,0 +1,31 @@
+@using System.Globalization
+@using Nova.Shared.Features.Campaigns
+
+<div class="d-md-none" aria-label="Campaign roster participants">
+    <ul class="list-group list-group-flush">
+        @foreach (var item in Items)
+        {
+            <li class="list-group-item roster-card" tabindex="0">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                    <span class="fw-semibold">@item.DisplayName</span>
+                    <span class="badge @CampaignRosterDisplay.OutcomeBadgeClass(item.PlacementOutcome)">@CampaignRosterDisplay.OutcomeLabel(item.PlacementOutcome)</span>
+                </div>
+                <div class="small text-muted mt-1">
+                    Tryout #@(item.TryoutNumber?.ToString(CultureInfo.InvariantCulture) ?? "—") · Grad year @item.GraduationYear
+                </div>
+                @if (item.AppliedTags.Count > 0)
+                {
+                    <div class="mt-1">
+                        @foreach (var tag in item.AppliedTags)
+                        {
+                            <span class="badge rounded-pill roster-tag @(tag.IsArchived ? "roster-tag-archived" : null)" style="@CampaignRosterDisplay.BuildTagStyle(tag.TagColor)">@tag.TagName</span>
+                        }
+                    </div>
+                }
+                <div class="small mt-1">
+                    Team: @(item.Team?.TeamName ?? "None")
+                </div>
+            </li>
+        }
+    </ul>
+</div>

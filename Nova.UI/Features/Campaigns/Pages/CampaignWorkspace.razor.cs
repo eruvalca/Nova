@@ -6,17 +6,18 @@ using Nova.Shared.Features.Tags;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.UI.Components;
+using Nova.UI.Features.Campaigns.Services;
 
 namespace Nova.UI.Features.Campaigns.Pages;
 
 /// <summary>
-/// Renders the campaign workspace shell: header, tab bar, and the evaluate roster region.
+/// Renders the campaign workspace: header, tab bar, and the filterable evaluate roster region.
 /// </summary>
 /// <param name="campaignQueryService">The campaign detail query service.</param>
 /// <param name="participantQueryService">The campaign roster query service.</param>
 /// <param name="tagDefinitionQueryService">The tag-definition choices service used by roster filters.</param>
 /// <param name="teamRosterService">The team choices service used by roster filters.</param>
-/// <param name="navigationManager">The navigation manager used for tab history and redirects.</param>
+/// <param name="navigationManager">The navigation manager used for URL history and redirects.</param>
 /// <param name="jsRuntime">The JavaScript runtime used for scroll and focus interactions.</param>
 public partial class CampaignWorkspace(
     ICampaignQueryService campaignQueryService,
@@ -27,17 +28,27 @@ public partial class CampaignWorkspace(
     IJSRuntime jsRuntime) : NovaComponentBase
 {
     /// <summary>
-    /// The name of the evaluate tab, the only functional workspace section in this phase.
+    /// The debounce interval for search input updates.
     /// </summary>
-    private const string EvaluateTabName = "evaluate";
+    private const int SearchDebounceMilliseconds = 350;
 
     /// <summary>
-    /// The tag-definition choices service reserved for the roster filter components.
+    /// The fixed roster page size requested by this UI.
+    /// </summary>
+    private const int RosterPageSize = GetCampaignParticipantRosterInput.DefaultPageSize;
+
+    /// <summary>
+    /// The name of the evaluate tab, the only functional workspace section in this phase.
+    /// </summary>
+    private const string EvaluateTabName = CampaignWorkspaceUrlState.EvaluateTab;
+
+    /// <summary>
+    /// The tag-definition choices service used by roster filters.
     /// </summary>
     private readonly ITagDefinitionQueryService _tagDefinitionQueryService = tagDefinitionQueryService;
 
     /// <summary>
-    /// The team choices service reserved for the roster filter components.
+    /// The team choices service used by roster filters.
     /// </summary>
     private readonly ITeamRosterService _teamRosterService = teamRosterService;
 
@@ -57,6 +68,54 @@ public partial class CampaignWorkspace(
     /// </summary>
     [SupplyParameterFromQuery(Name = "tab")]
     private string? TabQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming search query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "search")]
+    private string? SearchQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming graduation-years query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "graduationYears")]
+    private string? GraduationYearsQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming tag-identifiers query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "tagIds")]
+    private string? TagIdsQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming outcome query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "outcome")]
+    private string? OutcomeQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming team-identifier query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "teamId")]
+    private long? TeamIdQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming sort-field query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "sortBy")]
+    private string? SortByQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming sort-direction query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "sortDirection")]
+    private string? SortDirectionQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming page query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "page")]
+    private int? PageQuery { get; set; }
 
     /// <summary>
     /// Gets or sets the persisted campaign detail used across prerender and interactive attach.
@@ -87,6 +146,24 @@ public partial class CampaignWorkspace(
     /// </summary>
     [PersistentState]
     public string? PersistedRosterError { get; set; }
+
+    /// <summary>
+    /// Gets or sets the persisted graduation-year choices used across prerender and interactive attach.
+    /// </summary>
+    [PersistentState]
+    public IReadOnlyList<int>? PersistedGraduationYears { get; set; }
+
+    /// <summary>
+    /// Gets or sets the persisted tag choices used across prerender and interactive attach.
+    /// </summary>
+    [PersistentState]
+    public IReadOnlyList<TagDefinitionDto>? PersistedTags { get; set; }
+
+    /// <summary>
+    /// Gets or sets the persisted team choices used across prerender and interactive attach.
+    /// </summary>
+    [PersistentState]
+    public IReadOnlyList<TeamRosterItem>? PersistedTeams { get; set; }
 
     /// <summary>
     /// Gets or sets whether startup initialization already completed during prerender.
@@ -139,22 +216,108 @@ public partial class CampaignWorkspace(
     /// </summary>
     private bool _tabQueryApplied;
 
+    /// <summary>
+    /// The applied roster filter, sort, and paging state.
+    /// </summary>
+    private CampaignWorkspaceRosterState _filters = new();
+
+    /// <summary>
+    /// The canonical query string of the last applied roster state, used to detect URL changes.
+    /// </summary>
+    private string _appliedQueryString = string.Empty;
+
+    /// <summary>
+    /// Indicates whether the initial query-parameter pass has been applied to component state.
+    /// </summary>
+    private bool _filtersInitialized;
+
+    /// <summary>
+    /// Indicates that a roster reload is pending after the next parameter set.
+    /// </summary>
+    private bool _reloadRosterPending;
+
+    /// <summary>
+    /// Draft text from the search input.
+    /// </summary>
+    private string _searchDraft = string.Empty;
+
+    /// <summary>
+    /// Debounce source used to cancel stale search updates.
+    /// </summary>
+    private CancellationTokenSource? _searchDebounceSource;
+
+    /// <summary>
+    /// Monotonic request-sequence token used to discard stale roster responses.
+    /// </summary>
+    private int _requestSequence;
+
+    /// <summary>
+    /// The graduation years displayed in the filter bar.
+    /// </summary>
+    private IReadOnlyList<int> _availableGraduationYears = [];
+
+    /// <summary>
+    /// The tag definitions displayed in the filter bar.
+    /// </summary>
+    private IReadOnlyList<TagDefinitionDto> _availableTags = [];
+
+    /// <summary>
+    /// The active teams displayed in the filter bar.
+    /// </summary>
+    private IReadOnlyList<TeamRosterItem> _availableTeams = [];
+
+    /// <summary>
+    /// Gets a value indicating whether any roster filter is active.
+    /// </summary>
+    private bool HasActiveFilters => CampaignWorkspaceUrlState.HasActiveFilters(_filters);
+
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
-        if (_tabQueryApplied)
+        if (!_tabQueryApplied)
+        {
+            _tabQueryApplied = true;
+            // Only the evaluate tab is functional; any other tab value falls back to it.
+            _activeTab = EvaluateTabName;
+        }
+
+        var incoming = CampaignWorkspaceUrlState.Parse(
+            SearchQuery,
+            GraduationYearsQuery,
+            TagIdsQuery,
+            OutcomeQuery,
+            TeamIdQuery,
+            SortByQuery,
+            SortDirectionQuery,
+            PageQuery);
+        var incomingQueryString = CampaignWorkspaceUrlState.BuildQueryString(incoming);
+
+        if (string.Equals(incomingQueryString, _appliedQueryString, StringComparison.Ordinal))
         {
             return;
         }
 
-        _tabQueryApplied = true;
-        // Only the evaluate tab is functional; any other tab value falls back to it.
-        _activeTab = EvaluateTabName;
+        _filters = incoming;
+        _searchDraft = incoming.Search ?? string.Empty;
+        _appliedQueryString = incomingQueryString;
+        _reloadRosterPending = true;
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_reloadRosterPending && _detail is not null)
+        {
+            _reloadRosterPending = false;
+            await LoadRosterAsync();
+        }
     }
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        ApplyInitialQueryState();
+
         if (Initialized)
         {
             _detail = PersistedDetail;
@@ -162,6 +325,9 @@ public partial class CampaignWorkspace(
             _notFound = PersistedNotFound;
             _roster = PersistedRoster;
             _rosterError = PersistedRosterError;
+            _availableGraduationYears = PersistedGraduationYears ?? [];
+            _availableTags = PersistedTags ?? [];
+            _availableTeams = PersistedTeams ?? [];
             _isLoading = false;
             return;
         }
@@ -173,9 +339,48 @@ public partial class CampaignWorkspace(
     }
 
     /// <summary>
-    /// Loads campaign detail and, on success, the initial roster page.
+    /// Applies the URL query parameters to the roster state before the first data loads.
     /// </summary>
-    /// <returns>A task that completes when both loads are finished.</returns>
+    /// <remarks>
+    /// <see cref="ComponentBase.OnInitializedAsync"/> runs before
+    /// <see cref="ComponentBase.OnParametersSet"/>, so the initial query pass must happen here to
+    /// ensure the first roster load honors incoming URL filters, sort, and paging state.
+    /// </remarks>
+    private void ApplyInitialQueryState()
+    {
+        if (_filtersInitialized)
+        {
+            return;
+        }
+
+        _filtersInitialized = true;
+        var incoming = CampaignWorkspaceUrlState.Parse(
+            SearchQuery,
+            GraduationYearsQuery,
+            TagIdsQuery,
+            OutcomeQuery,
+            TeamIdQuery,
+            SortByQuery,
+            SortDirectionQuery,
+            PageQuery);
+        _filters = incoming;
+        _searchDraft = incoming.Search ?? string.Empty;
+        _appliedQueryString = CampaignWorkspaceUrlState.BuildQueryString(incoming);
+    }
+
+    /// <inheritdoc />
+    protected override ValueTask DisposeAsyncCore()
+    {
+        _searchDebounceSource?.Cancel();
+        _searchDebounceSource?.Dispose();
+        _searchDebounceSource = null;
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// Loads campaign detail and, on success, the filter choices and initial roster page.
+    /// </summary>
+    /// <returns>A task that completes when all loads are finished.</returns>
     private async Task LoadDetailAsync()
     {
         _pageError = null;
@@ -213,28 +418,87 @@ public partial class CampaignWorkspace(
 
         if (detailLoaded)
         {
-            _rosterLoading = true;
+            await LoadChoicesAsync();
             await LoadRosterAsync();
-            _rosterLoading = false;
         }
     }
 
     /// <summary>
-    /// Loads the initial roster page with default filters.
+    /// Loads the filter choices: roster graduation years, active tag definitions, and active teams.
     /// </summary>
-    /// <returns>A task that completes when the roster load is finished.</returns>
+    /// <returns>A task that completes when all choice loads are finished.</returns>
+    private async Task LoadChoicesAsync()
+    {
+        await Task.WhenAll(
+            LoadGraduationYearChoicesAsync(),
+            LoadTagChoicesAsync(),
+            LoadTeamChoicesAsync());
+    }
+
+    /// <summary>
+    /// Loads the distinct graduation years present in the campaign roster.
+    /// </summary>
+    /// <returns>A task that completes when the load is finished.</returns>
+    private async Task LoadGraduationYearChoicesAsync()
+    {
+        var result = await participantQueryService.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = CampaignId },
+            ComponentCancellationToken);
+        result.Switch(years => _availableGraduationYears = years, _ => { });
+    }
+
+    /// <summary>
+    /// Loads the active tag-definition choices for the filter bar.
+    /// </summary>
+    /// <returns>A task that completes when the load is finished.</returns>
+    private async Task LoadTagChoicesAsync()
+    {
+        var result = await _tagDefinitionQueryService.GetChoicesAsync(ComponentCancellationToken);
+        result.Switch(tags => _availableTags = tags, _ => { });
+    }
+
+    /// <summary>
+    /// Loads the active team choices for the filter bar.
+    /// </summary>
+    /// <returns>A task that completes when the load is finished.</returns>
+    private async Task LoadTeamChoicesAsync()
+    {
+        var result = await _teamRosterService.GetRosterAsync(
+            new GetTeamRosterInput { LifecycleStatus = "active" },
+            ComponentCancellationToken);
+        result.Switch(teams => _availableTeams = teams, _ => { });
+    }
+
+    /// <summary>
+    /// Loads the roster page for the currently applied state, discarding stale responses.
+    /// </summary>
+    /// <returns>A task that completes when the load is finished.</returns>
     private async Task LoadRosterAsync()
     {
         _rosterError = null;
+        _rosterLoading = true;
+        var requestId = ++_requestSequence;
 
-        var result = await participantQueryService.GetParticipantRosterAsync(
-            new GetCampaignParticipantRosterInput
-            {
-                CampaignId = CampaignId,
-                Page = GetCampaignParticipantRosterInput.DefaultPage,
-                PageSize = GetCampaignParticipantRosterInput.DefaultPageSize
-            },
-            ComponentCancellationToken);
+        var input = new GetCampaignParticipantRosterInput
+        {
+            CampaignId = CampaignId,
+            Search = _filters.Search,
+            GraduationYears = _filters.GraduationYears.Count > 0 ? [.. _filters.GraduationYears] : null,
+            TagDefinitionIds = _filters.TagDefinitionIds.Count > 0 ? [.. _filters.TagDefinitionIds] : null,
+            Outcome = _filters.Outcome,
+            TeamId = _filters.TeamId,
+            SortBy = _filters.SortBy,
+            SortDirection = _filters.SortDirection,
+            Page = _filters.Page,
+            PageSize = RosterPageSize
+        };
+
+        var result = await participantQueryService.GetParticipantRosterAsync(input, ComponentCancellationToken);
+
+        if (requestId != _requestSequence)
+        {
+            return;
+        }
 
         result.Switch(
             roster => _roster = roster,
@@ -249,6 +513,152 @@ public partial class CampaignWorkspace(
                 _rosterError = FirstNonBlank(problem.Detail, "Failed to load the roster. Please retry.");
                 _roster = null;
             });
+
+        _rosterLoading = false;
+    }
+
+    /// <summary>
+    /// Applies a new roster state, pushes the matching workspace URL, and schedules a reload.
+    /// </summary>
+    /// <param name="next">The roster state to apply.</param>
+    /// <returns>A task that completes when the navigation or reload is initiated.</returns>
+    private async Task ApplyFiltersAndNavigateAsync(CampaignWorkspaceRosterState next)
+    {
+        _filters = next;
+        _searchDraft = next.Search ?? string.Empty;
+        _appliedQueryString = CampaignWorkspaceUrlState.BuildQueryString(next);
+        _reloadRosterPending = true;
+
+        var targetUrl = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, next, _activeTab);
+        var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
+
+        if (string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
+        {
+            _reloadRosterPending = false;
+            await LoadRosterAsync();
+            return;
+        }
+
+        navigationManager.NavigateTo(targetUrl);
+    }
+
+    /// <summary>
+    /// Applies a debounced search term update and reloads the roster.
+    /// </summary>
+    /// <param name="draft">The raw search draft text.</param>
+    /// <returns>A task that completes when the debounce and reload flow finishes.</returns>
+    private async Task OnSearchInputChangedAsync(string draft)
+    {
+        _searchDraft = draft;
+
+        _searchDebounceSource?.Cancel();
+        _searchDebounceSource?.Dispose();
+        _searchDebounceSource = new CancellationTokenSource();
+        var debounceToken = _searchDebounceSource.Token;
+
+        try
+        {
+            await Task.Delay(SearchDebounceMilliseconds, debounceToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        var appliedSearch = string.IsNullOrWhiteSpace(draft) ? null : draft.Trim();
+        if (!string.Equals(appliedSearch, _filters.Search, StringComparison.Ordinal))
+        {
+            await ApplyFiltersAndNavigateAsync(_filters with { Search = appliedSearch, Page = 1 });
+        }
+    }
+
+    /// <summary>
+    /// Applies a graduation-year toggle and reloads the roster.
+    /// </summary>
+    /// <param name="change">The toggled year and its new selected state.</param>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnGraduationYearToggledAsync((int Year, bool Selected) change)
+    {
+        var years = _filters.GraduationYears.ToList();
+        if (change.Selected && !years.Contains(change.Year))
+        {
+            years.Add(change.Year);
+        }
+        else if (!change.Selected)
+        {
+            years.Remove(change.Year);
+        }
+
+        return ApplyFiltersAndNavigateAsync(_filters with { GraduationYears = years.AsReadOnly(), Page = 1 });
+    }
+
+    /// <summary>
+    /// Applies a tag toggle and reloads the roster.
+    /// </summary>
+    /// <param name="change">The toggled tag identifier and its new selected state.</param>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnTagToggledAsync((long PlayerTagId, bool Selected) change)
+    {
+        var tagIds = _filters.TagDefinitionIds.ToList();
+        if (change.Selected && !tagIds.Contains(change.PlayerTagId))
+        {
+            tagIds.Add(change.PlayerTagId);
+        }
+        else if (!change.Selected)
+        {
+            tagIds.Remove(change.PlayerTagId);
+        }
+
+        return ApplyFiltersAndNavigateAsync(_filters with { TagDefinitionIds = tagIds.AsReadOnly(), Page = 1 });
+    }
+
+    /// <summary>
+    /// Applies an outcome filter change and reloads the roster.
+    /// </summary>
+    /// <param name="outcome">The selected outcome token, or an empty string when cleared.</param>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnOutcomeChangedAsync(string outcome)
+        => ApplyFiltersAndNavigateAsync(_filters with { Outcome = string.IsNullOrEmpty(outcome) ? null : outcome, Page = 1 });
+
+    /// <summary>
+    /// Applies a team filter change and reloads the roster.
+    /// </summary>
+    /// <param name="teamId">The selected team identifier, or <see langword="null"/> when cleared.</param>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnTeamChangedAsync(long? teamId)
+        => ApplyFiltersAndNavigateAsync(_filters with { TeamId = teamId, Page = 1 });
+
+    /// <summary>
+    /// Applies a sort change, toggling direction when the same column is clicked.
+    /// </summary>
+    /// <param name="sortBy">The clicked sort field token.</param>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnSortChangedAsync(string sortBy)
+    {
+        var nextDirection = string.Equals(_filters.SortBy, sortBy, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(_filters.SortDirection, "asc", StringComparison.OrdinalIgnoreCase)
+            ? "desc"
+            : "asc";
+
+        return ApplyFiltersAndNavigateAsync(_filters with { SortBy = sortBy, SortDirection = nextDirection, Page = 1 });
+    }
+
+    /// <summary>
+    /// Applies a page change and reloads the roster.
+    /// </summary>
+    /// <param name="page">The requested page number.</param>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnPageChangedAsync(int page)
+        => ApplyFiltersAndNavigateAsync(_filters with { Page = Math.Max(1, page) });
+
+    /// <summary>
+    /// Clears all roster filters and reloads the roster.
+    /// </summary>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnClearFiltersAsync()
+    {
+        _searchDebounceSource?.Cancel();
+        return ApplyFiltersAndNavigateAsync(CampaignWorkspaceUrlState.ClearFilters(_filters));
     }
 
     /// <summary>
@@ -268,9 +678,7 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when the retried load is finished.</returns>
     private async Task RetryRosterAsync()
     {
-        _rosterLoading = true;
         await LoadRosterAsync();
-        _rosterLoading = false;
         PersistStartupState();
     }
 
@@ -282,7 +690,7 @@ public partial class CampaignWorkspace(
     {
         if (!string.Equals(TabQuery, EvaluateTabName, StringComparison.OrdinalIgnoreCase))
         {
-            navigationManager.NavigateTo($"/campaigns/{CampaignId}?tab={EvaluateTabName}");
+            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, EvaluateTabName));
         }
 
         return Task.CompletedTask;
@@ -298,6 +706,9 @@ public partial class CampaignWorkspace(
         PersistedNotFound = _notFound;
         PersistedRoster = _roster;
         PersistedRosterError = _rosterError;
+        PersistedGraduationYears = _availableGraduationYears;
+        PersistedTags = _availableTags;
+        PersistedTeams = _availableTeams;
     }
 
     /// <summary>

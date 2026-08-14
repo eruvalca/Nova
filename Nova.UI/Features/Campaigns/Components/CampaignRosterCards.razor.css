@@ -1,0 +1,14 @@
+.roster-card:focus {
+    outline: 0.15rem solid var(--bs-primary);
+    outline-offset: -0.15rem;
+}
+
+.roster-tag {
+    font-weight: 500;
+    margin-right: 0.25rem;
+}
+
+.roster-tag-archived {
+    opacity: 0.6;
+    text-decoration: line-through;
+}

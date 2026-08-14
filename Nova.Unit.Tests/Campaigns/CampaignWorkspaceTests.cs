@@ -18,7 +18,8 @@ namespace Nova.Unit.Tests.Campaigns;
 
 /// <summary>
 /// Component-level tests for the campaign workspace shell covering the header, tab bar, detail-load
-/// states, roster-load ordering, and persisted-state restoration.
+/// states, roster-load ordering, URL-backed roster filters and sorting, paging, empty states, and
+/// persisted-state restoration.
 /// </summary>
 public sealed class CampaignWorkspaceTests : BunitContext
 {
@@ -209,7 +210,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         pendingDetail.SetResult(new ServiceResult<CampaignDetailResult>(CreateDetail()));
         cut.WaitForAssertion(() => participantService.Received(1).GetParticipantRosterAsync(
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>()));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("12 participants · roster filters and views are coming soon."));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
     }
 
     [Fact]
@@ -226,7 +227,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Roster service unavailable."));
         cut.Find("button.btn-outline-danger").Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("12 participants · roster filters and views are coming soon."));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
     }
 
     // ── Persisted state ───────────────────────────────────────────────────────
@@ -250,13 +251,236 @@ public sealed class CampaignWorkspaceTests : BunitContext
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
     }
 
+    // ── Roster filters, sorting, and paging ────────────────────────────────────
+
+    [Fact]
+    public void CampaignWorkspace_AppliesRosterState_FromQueryParametersOnLoad()
+    {
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())));
+
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["tab"] = "evaluate",
+            ["search"] = "avery",
+            ["graduationYears"] = "2032,2031",
+            ["tagIds"] = "12,11",
+            ["outcome"] = "undecided",
+            ["teamId"] = 21L,
+            ["sortBy"] = "displayName",
+            ["sortDirection"] = "desc",
+            ["page"] = 2,
+        }));
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        participantService.Received(1).GetParticipantRosterAsync(
+            Arg.Is<GetCampaignParticipantRosterInput>(input =>
+                input.Search == "avery"
+                && input.GraduationYears != null
+                && input.GraduationYears.Order().SequenceEqual(new[] { 2031, 2032 })
+                && input.TagDefinitionIds != null
+                && input.TagDefinitionIds.Order().SequenceEqual(new[] { 11L, 12L })
+                && input.Outcome == "undecided"
+                && input.TeamId == 21
+                && input.SortBy == "displayName"
+                && input.SortDirection == "desc"
+                && input.Page == 2),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void CampaignWorkspace_SortHeaderClick_CyclesAscendingThenDescending_AndPushesUrl()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.FindAll("button.roster-sort-header")[1].Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("sortBy=displayName&sortDirection=asc"));
+        cut.WaitForAssertion(() => cut.FindAll("button.roster-sort-header").Count.ShouldBe(5));
+
+        cut.FindAll("button.roster-sort-header")[1].Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("sortBy=displayName&sortDirection=desc"));
+        cut.WaitForAssertion(() => cut.FindAll("th[aria-sort]")[1].GetAttribute("aria-sort").ShouldBe("descending"));
+    }
+
+    [Fact]
+    public void CampaignWorkspace_DebouncesSearch_ToSingleRequestWithFinalTerm()
+    {
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())));
+
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        var searchInput = cut.Find("#roster-search");
+        searchInput.Input("a");
+        searchInput.Input("av");
+        searchInput.Input("ave");
+
+        cut.WaitForAssertion(
+            () => participantService.Received(2).GetParticipantRosterAsync(
+                Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>()),
+            timeout: TimeSpan.FromSeconds(5));
+
+        participantService.Received(1).GetParticipantRosterAsync(
+            Arg.Is<GetCampaignParticipantRosterInput>(input => input.Search == "ave"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void CampaignWorkspace_DiscardsStaleRosterResponse_WhenNewerRequestCompletesFirst()
+    {
+        var firstResponse = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
+        var secondResponse = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())),
+                firstResponse.Task,
+                secondResponse.Task);
+
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("#roster-outcome").Change("assigned");
+        cut.WaitForAssertion(() => participantService.Received(2).GetParticipantRosterAsync(
+            Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>()));
+
+        cut.Find("#roster-outcome").Change("withdrawn");
+        cut.WaitForAssertion(() => participantService.Received(3).GetParticipantRosterAsync(
+            Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>()));
+
+        secondResponse.SetResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+            CreateRoster(CreateRosterItem("Fresh Roster"))));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Fresh Roster"));
+
+        firstResponse.SetResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+            CreateRoster(CreateRosterItem("Stale Roster"))));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Fresh Roster"));
+        cut.Markup.ShouldNotContain("Stale Roster");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_Pager_ReflectsPageMathAndBounds()
+    {
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var input = call.Arg<GetCampaignParticipantRosterInput>();
+                return Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+                    new PagedResult<CampaignParticipantRosterItem>(
+                        Items: [CreateRosterItem()],
+                        Page: input.Page ?? GetCampaignParticipantRosterInput.DefaultPage,
+                        PageSize: GetCampaignParticipantRosterInput.DefaultPageSize,
+                        TotalCount: 120)));
+            });
+
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Page 1 of 3"));
+
+        var buttons = cut.FindAll("nav[aria-label='Roster pagination'] button");
+        buttons[0].HasAttribute("disabled").ShouldBeTrue();
+        buttons[1].HasAttribute("disabled").ShouldBeFalse();
+
+        buttons[1].Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Page 2 of 3"));
+
+        buttons = cut.FindAll("nav[aria-label='Roster pagination'] button");
+        buttons[1].Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Page 3 of 3"));
+
+        buttons = cut.FindAll("nav[aria-label='Roster pagination'] button");
+        buttons[0].HasAttribute("disabled").ShouldBeFalse();
+        buttons[1].HasAttribute("disabled").ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CampaignWorkspace_ShowsEmptyCampaignMessage_WhenRosterHasNoParticipantsAndNoFilters()
+    {
+        RegisterServices(rosterResult: new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+            new PagedResult<CampaignParticipantRosterItem>(
+                Items: [],
+                Page: 1,
+                PageSize: GetCampaignParticipantRosterInput.DefaultPageSize,
+                TotalCount: 0)));
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No participants in this campaign yet."));
+        cut.Markup.ShouldNotContain("No participants match the current filters.");
+        cut.FindAll("button.btn-outline-secondary").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void CampaignWorkspace_ShowsNoMatchMessage_AndClearsFilters_WhenFiltersExcludeAllParticipants()
+    {
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var input = call.Arg<GetCampaignParticipantRosterInput>();
+                var empty = input.Outcome == "withdrawn";
+                return Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+                    empty
+                        ? new PagedResult<CampaignParticipantRosterItem>(
+                            Items: [],
+                            Page: 1,
+                            PageSize: GetCampaignParticipantRosterInput.DefaultPageSize,
+                            TotalCount: 0)
+                        : CreateRoster()));
+            });
+
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo(navigationManager.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["tab"] = "evaluate",
+            ["outcome"] = "withdrawn",
+        }));
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No participants match the current filters."));
+
+        var clearButtons = cut.FindAll("button.btn-outline-secondary");
+        clearButtons.ShouldNotBeEmpty();
+        clearButtons[^1].Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Markup.ShouldNotContain("No participants match the current filters.");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void RegisterServices(
         ICampaignQueryService? campaignQueryService = null,
         ICampaignParticipantQueryService? participantQueryService = null,
         ServiceResult<CampaignDetailResult>? detailResult = null,
-        ServiceResult<PagedResult<CampaignParticipantRosterItem>>? rosterResult = null)
+        ServiceResult<PagedResult<CampaignParticipantRosterItem>>? rosterResult = null,
+        IReadOnlyList<int>? graduationYearChoices = null,
+        IReadOnlyList<TagDefinitionDto>? tagChoices = null,
+        IReadOnlyList<TeamRosterItem>? teamChoices = null)
     {
         if (campaignQueryService is null)
         {
@@ -272,12 +496,55 @@ public sealed class CampaignWorkspaceTests : BunitContext
                 .Returns(Task.FromResult(rosterResult ?? new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())));
         }
 
+        participantQueryService.GetRosterGraduationYearsAsync(
+                Arg.Any<GetCampaignParticipantGraduationYearsInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<int>>(
+                (graduationYearChoices ?? CreateGraduationYearChoices()).ToList())));
+
+        var tagDefinitionQueryService = Substitute.For<ITagDefinitionQueryService>();
+        tagDefinitionQueryService.GetChoicesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TagDefinitionDto>>(
+                (tagChoices ?? CreateTagChoices()).ToList())));
+
+        var teamRosterService = Substitute.For<ITeamRosterService>();
+        teamRosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TeamRosterItem>>(
+                (teamChoices ?? CreateTeamChoices()).ToList())));
+
         Services.AddSingleton(campaignQueryService);
         Services.AddSingleton(participantQueryService);
-        Services.AddSingleton(Substitute.For<ITagDefinitionQueryService>());
-        Services.AddSingleton(Substitute.For<ITeamRosterService>());
+        Services.AddSingleton(tagDefinitionQueryService);
+        Services.AddSingleton(teamRosterService);
         Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal()));
     }
+
+    private static IReadOnlyList<int> CreateGraduationYearChoices() => [2031, 2032];
+
+    private static IReadOnlyList<TagDefinitionDto> CreateTagChoices() =>
+    [
+        new() { PlayerTagId = 11, Name = "Lefty", Color = "#0D6EFD", LifecycleStatus = LifecycleStatus.Active },
+        new() { PlayerTagId = 12, Name = "Captain", Color = "#FD7E14", LifecycleStatus = LifecycleStatus.Active }
+    ];
+
+    private static IReadOnlyList<TeamRosterItem> CreateTeamChoices() =>
+    [
+        new()
+        {
+            TeamId = 21,
+            Name = "Blue",
+            GraduationYear = 2032,
+            LifecycleStatus = LifecycleStatus.Active,
+            ActivePlacementCount = 4
+        },
+        new()
+        {
+            TeamId = 22,
+            Name = "Gold",
+            GraduationYear = 2032,
+            LifecycleStatus = LifecycleStatus.Active,
+            ActivePlacementCount = 3
+        }
+    ];
 
     private static CampaignDetailResult CreateDetail() => new()
     {
@@ -297,10 +564,16 @@ public sealed class CampaignWorkspaceTests : BunitContext
         PageSize: GetCampaignParticipantRosterInput.DefaultPageSize,
         TotalCount: 12);
 
-    private static CampaignParticipantRosterItem CreateRosterItem() => new(
+    private static PagedResult<CampaignParticipantRosterItem> CreateRoster(CampaignParticipantRosterItem item) => new(
+        Items: [item],
+        Page: 1,
+        PageSize: GetCampaignParticipantRosterInput.DefaultPageSize,
+        TotalCount: 1);
+
+    private static CampaignParticipantRosterItem CreateRosterItem(string displayName = "Avery Johnson") => new(
         PlayerCampaignAssignmentId: 301,
         PlayerId: 7,
-        DisplayName: "Avery Johnson",
+        DisplayName: displayName,
         GraduationYear: 2032,
         TryoutNumber: 14,
         PlacementOutcome: PlacementOutcome.Undecided,

@@ -284,43 +284,43 @@ Verification: clean build (0 warnings), full unit suite 1,264 passed, per-file f
 
 ## Phase 4: Roster list with URL-backed filters, sorting, and paging
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator (URL-state correctness is the highest-risk area; component
 tests encode it). Individual components can be scaffolded by a sub-agent once the page-level
 state flow is fixed.
 
-- [ ] Create filter components under `Nova.UI/Features/Campaigns/Components/`:
+- [x] Create filter components under `Nova.UI/Features/Campaigns/Components/`:
       `CampaignRosterFilters.razor(.cs)` — search input (debounced 350 ms via the Players-page
       `CancellationTokenSource` pattern), graduation-year multi-select (Phase 2 endpoint), tag
       multi-select (`GetChoicesAsync`, active only), outcome select (four enum values), team
       select (`ITeamRosterService.GetRosterAsync`, active teams), "Clear filters" button shown
       only when a filter is active, and the right-aligned "N participants" count from the roster
       result's `TotalCount` (updates to reflect active filters).
-- [ ] Create `CampaignRosterTable.razor(.cs)` — desktop table: columns Tryout #, Name,
+- [x] Create `CampaignRosterTable.razor(.cs)` — desktop table: columns Tryout #, Name,
       Graduation Year, Tags (chips, archived tags styled distinctly), Outcome (badge), Team.
       Sortable headers for Name / Grad Year / Tryout # / Outcome / Team with asc/desc toggle
       (click toggles direction; `aria-sort` set). `assignmentId` never appears.
-- [ ] Create `CampaignRosterCards.razor(.cs)` — narrow-screen card/list layout showing the same
+- [x] Create `CampaignRosterCards.razor(.cs)` — narrow-screen card/list layout showing the same
       fields, reachable by keyboard (row = focusable element).
-- [ ] Create `CampaignRosterPager.razor(.cs)` — Prev/Next + page info ("Page N of M") driven by
+- [x] Create `CampaignRosterPager.razor(.cs)` — Prev/Next + page info ("Page N of M") driven by
       `TotalCount` and fixed `PageSize` 50; disabled bounds; hidden when a single page.
-- [ ] Page-level URL state (code-behind): `[SupplyParameterFromQuery]` for every contract param;
+- [x] Page-level URL state (code-behind): `[SupplyParameterFromQuery]` for every contract param;
       one canonical `BuildWorkspaceUrl`/parse helper (pure static class, e.g.
       `Nova.UI/Features/Campaigns/Services/CampaignWorkspaceUrlState.cs`) so tests can cover
       round-tripping; every change pushes history; defensive fallback to defaults for invalid
       values; request-sequence token discards stale responses (search races, filter churn).
-- [ ] Load states for the roster: loading spinner/skeleton, recoverable error + Retry, two empty
+- [x] Load states for the roster: loading spinner/skeleton, recoverable error + Retry, two empty
       states — "no participants in this campaign yet" (empty campaign) vs "no participants match
       the current filters" with a working Clear filters action (empty filter result).
-- [ ] Component tests (extend `CampaignWorkspaceTests.cs`): URL→state (params apply on load,
+- [x] Component tests (extend `CampaignWorkspaceTests.cs`): URL→state (params apply on load,
       including direct-load with filters), state→URL (each filter/sort/page change pushes the
       expected URL — fake NavigationManager), debounced search issues a single request after
       quiet period, stale-response discard (older response arriving later is ignored), sorting
       header click cycles asc→desc and updates URL, pager math and bounds, empty-campaign vs
       empty-filtered states, error + retry re-fetch, role-neutral display (no admin-only
       columns for a plain approved member).
-- [ ] Pure unit tests for `CampaignWorkspaceUrlState` round-trip/parsing/fallback rules.
+- [x] Pure unit tests for `CampaignWorkspaceUrlState` round-trip/parsing/fallback rules.
 
 ### Verification Plan
 
@@ -330,7 +330,12 @@ state flow is fixed.
 
 ### Phase Summary
 
-_(write when phase completes)_
+Delivered the full evaluate-tab roster: `CampaignRosterFilters` (debounced search, graduation-year/tag/outcome/team filters, clear-filters, participant count), `CampaignRosterTable` (sortable columns with `aria-sort`, tag chips, outcome badges), `CampaignRosterCards` (narrow-screen layout), and `CampaignRosterPager` (Prev/Next + page math, hidden on single page). The page code-behind owns URL state via the pure `CampaignWorkspaceUrlState` helper (canonical parse/build, defaults on invalid input, history push on every change) and discards stale roster responses with a request-sequence token. Two notable fixes found while testing:
+
+- **Initial-load hydration bug**: Blazor runs `OnInitializedAsync` before `OnParametersSet`, so the first roster load ignored incoming URL filters. Initial query state is now applied in `OnInitializedAsync` (via `ApplyInitialQueryState`) before any data loads; `OnParametersSet` only reacts to subsequent URL changes. Caught by `CampaignWorkspace_AppliesRosterState_FromQueryParametersOnLoad` and `CampaignWorkspace_ShowsNoMatchMessage_AndClearsFilters_WhenFiltersExcludeAllParticipants` (both initially failed and were fixed by this change).
+- Load states cover loading, recoverable error + retry, empty campaign, and empty-filtered results with a working Clear filters action.
+
+Tests: 9 pure `CampaignWorkspaceUrlState` tests (round-trip, defaults, fallback, ordering/dedup, normalization, page math, tab emission, active-filter detection) and 7 roster component tests (URL→state on load, sort header cycles + URL push, debounced search single request, stale-response discard, pager math/bounds, both empty states). Full unit suite: 1284 passed, 0 failed. Build clean; `dotnet format` clean on changed files.
 
 ## Phase 5: Selection, drawer placeholder, scroll anchor, responsive layout
 

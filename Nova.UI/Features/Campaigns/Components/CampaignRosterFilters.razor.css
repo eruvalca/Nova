@@ -1,0 +1,7 @@
+.roster-tag-swatch {
+    display: inline-block;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    margin-right: 0.25rem;
+}

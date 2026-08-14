@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
 @using Nova.Shared.Security
+@using Nova.UI.Features.Campaigns.Components
 
 <PageTitle>@(_detail is null ? "Campaign workspace" : _detail.Name)</PageTitle>
 
@@ -70,26 +71,67 @@
 
         <section class="card shadow-sm border-0" aria-labelledby="roster-region-heading">
             <div class="card-body">
-                <h2 class="h5 mb-2" id="roster-region-heading">Evaluate roster</h2>
+                <h2 class="h5 mb-3" id="roster-region-heading">Evaluate roster</h2>
+
+                <CampaignRosterFilters SearchText="@_searchDraft"
+                                       GraduationYearChoices="@_availableGraduationYears"
+                                       SelectedGraduationYears="@_filters.GraduationYears"
+                                       TagChoices="@_availableTags"
+                                       SelectedTagDefinitionIds="@_filters.TagDefinitionIds"
+                                       Outcome="@_filters.Outcome"
+                                       TeamChoices="@_availableTeams"
+                                       TeamId="@_filters.TeamId"
+                                       TotalCount="@(_rosterLoading ? null : _roster?.TotalCount)"
+                                       HasActiveFilters="@HasActiveFilters"
+                                       OnSearchTextChanged="OnSearchInputChangedAsync"
+                                       OnGraduationYearToggled="OnGraduationYearToggledAsync"
+                                       OnTagToggled="OnTagToggledAsync"
+                                       OnOutcomeChanged="OnOutcomeChangedAsync"
+                                       OnTeamChanged="OnTeamChangedAsync"
+                                       OnClearFilters="OnClearFiltersAsync" />
+
                 @if (_rosterLoading)
                 {
-                    <div class="d-flex align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-2 mt-3">
                         <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
                         <span>Loading roster...</span>
                     </div>
                 }
                 else if (!string.IsNullOrWhiteSpace(_rosterError))
                 {
-                    <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+                    <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3" role="alert">
                         <span>@_rosterError</span>
                         <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RetryRosterAsync">Retry</button>
                     </div>
                 }
                 else if (_roster is not null)
                 {
-                    <p class="text-muted mb-0">
-                        @_roster.TotalCount participants · roster filters and views are coming soon.
-                    </p>
+                    @if (_roster.TotalCount == 0)
+                    {
+                        <div class="text-center py-5 mt-3">
+                            @if (HasActiveFilters)
+                            {
+                                <p class="text-muted mb-3">No participants match the current filters.</p>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="OnClearFiltersAsync">Clear filters</button>
+                            }
+                            else
+                            {
+                                <p class="text-muted mb-0">No participants in this campaign yet.</p>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <CampaignRosterTable Items="@_roster.Items"
+                                             SortBy="@_filters.SortBy"
+                                             SortDirection="@_filters.SortDirection"
+                                             OnSortChanged="OnSortChangedAsync" />
+                        <CampaignRosterCards Items="@_roster.Items" />
+                        <CampaignRosterPager Page="@_roster.Page"
+                                             PageSize="@_roster.PageSize"
+                                             TotalCount="@_roster.TotalCount"
+                                             OnPageChanged="OnPageChangedAsync" />
+                    }
                 }
             </div>
         </section>
