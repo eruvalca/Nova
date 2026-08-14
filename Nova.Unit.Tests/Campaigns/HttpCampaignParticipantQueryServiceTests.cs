@@ -536,9 +536,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetRosterGraduationYearsAsync_ReturnsServerError_WhenResponseExceedsChoicesBound()
+    public async Task GetRosterGraduationYearsAsync_ReturnsSuccess_WhenResponseHasManyYears()
     {
-        var years = Enumerable.Range(2020, GetCampaignParticipantGraduationYearsInput.MaxGraduationYears + 1).ToList();
+        var years = Enumerable.Range(2020, 25).ToList();
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(years)
@@ -554,8 +554,8 @@ public sealed class HttpCampaignParticipantQueryServiceTests
             new GetCampaignParticipantGraduationYearsInput { CampaignId = 42 },
             TestContext.Current.CancellationToken);
 
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(years);
     }
 
     [Fact]

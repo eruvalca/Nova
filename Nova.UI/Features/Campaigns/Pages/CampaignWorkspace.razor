@@ -73,6 +73,14 @@
             <div class="card-body">
                 <h2 class="h5 mb-3" id="roster-region-heading">Evaluate roster</h2>
 
+                @if (_choicesLoadFailed)
+                {
+                    <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+                        <span>Couldn't load filter options.</span>
+                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="RetryChoicesAsync">Retry</button>
+                    </div>
+                }
+
                 <CampaignRosterFilters SearchText="@_searchDraft"
                                        GraduationYearChoices="@_availableGraduationYears"
                                        SelectedGraduationYears="@_filters.GraduationYears"

@@ -192,7 +192,7 @@ tests can be delegated once the route and shape are fixed.
 ### Phase Summary
 
 Production contract shipped: `GetCampaignParticipantGraduationYearsInput` (`required long
-CampaignId`, `[Range(1, long.MaxValue)]`, `MaxGraduationYears = 20` client-bound constant),
+CampaignId`, `[Range(1, long.MaxValue)]`),
 `GetRosterGraduationYearsAsync` on `ICampaignParticipantQueryService` (validation →
 UserId/ClubId guards → tenant-guarded campaign-exists check → distinct ascending
 `Player.GraduationYear` projection over the campaign's assignments, no server-side bound —
@@ -200,7 +200,10 @@ roster class years are inherently few, reasoning in method XML docs), route `GET
 /api/campaigns/{campaignId:long}/participants/graduation-years` (`GetCampaignParticipantGraduationYears`
 + relative + route name + `GetCampaignParticipantGraduationYearsUrl(long)` builder), the mapped
 `GET` with full metadata/`Produces` conventions, and the WASM client method with strict
-`IsValidGraduationYears` payload validation (bounded ≤ 20, positive, strictly ascending).
+`IsValidGraduationYears` payload validation (positive, strictly ascending). The initial
+`MaxGraduationYears = 20` client-only bound was removed during PR review: the server never
+truncates, so capping the client could silently discard valid years from a roster with more
+than 20 distinct class years.
 
 Verification results:
 - `dotnet build Nova.slnx` — clean build, 0 warnings, 0 errors (~48s).
@@ -503,6 +506,21 @@ Summary of the work:
 - **Verification (Phases 6–7)** — 1295/1295 unit tests, 230/230 integration tests, full browser
   validation pass, clean build, scoped format check clean (repo-wide check blocked by
   pre-existing #79 CHARSET drift, noted in the PR).
+
+## Phase 8: PR review feedback
+
+Status: Complete
+
+- [x] Filter-choice loads no longer fail silently: `LoadChoicesAsync` aggregates per-choice
+      success flags, `_choicesLoadFailed` drives a warning alert ("Couldn't load filter
+      options.") with a Retry button above the filter bar, and `RetryChoicesAsync` reloads the
+      choices and re-persists state (the detail-retry path reloads choices via `LoadDetailAsync`).
+- [x] Removed the `MaxGraduationYears = 20` client-only bound on graduation-years choices: the
+      server never truncates, so the client now accepts any positive, strictly ascending payload
+      (see Phase 2 note). Replaced the over-bound test with a 25-year success case and added a
+      bUnit test covering the choices alert + retry recovery.
+- [x] Drawer focus trap/focus return (reviewer note) is deferred to #64 — it is that issue's
+      drawer-internals scope; noted on the thread and in a comment on #64.
 
 ## Deployment Plan
 

@@ -278,6 +278,11 @@ public partial class CampaignWorkspace(
     private IReadOnlyList<TeamRosterItem> _availableTeams = [];
 
     /// <summary>
+    /// Indicates that at least one filter-choice load failed, showing the choices retry affordance.
+    /// </summary>
+    private bool _choicesLoadFailed;
+
+    /// <summary>
     /// The open participant assignment identifier, or <see langword="null"/> when the drawer is closed.
     /// </summary>
     private long? _selectedParticipantId;
@@ -472,44 +477,57 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when all choice loads are finished.</returns>
     private async Task LoadChoicesAsync()
     {
-        await Task.WhenAll(
+        var outcomes = await Task.WhenAll(
             LoadGraduationYearChoicesAsync(),
             LoadTagChoicesAsync(),
             LoadTeamChoicesAsync());
+        _choicesLoadFailed = outcomes.Any(succeeded => !succeeded);
     }
 
     /// <summary>
     /// Loads the distinct graduation years present in the campaign roster.
     /// </summary>
-    /// <returns>A task that completes when the load is finished.</returns>
-    private async Task LoadGraduationYearChoicesAsync()
+    /// <returns>A task that completes with <see langword="true"/> when the load succeeded.</returns>
+    private async Task<bool> LoadGraduationYearChoicesAsync()
     {
         var result = await participantQueryService.GetRosterGraduationYearsAsync(
             new GetCampaignParticipantGraduationYearsInput { CampaignId = CampaignId },
             ComponentCancellationToken);
-        result.Switch(years => _availableGraduationYears = years, _ => { });
+        var succeeded = false;
+        result.Switch(
+            years => { _availableGraduationYears = years; succeeded = true; },
+            _ => { });
+        return succeeded;
     }
 
     /// <summary>
     /// Loads the active tag-definition choices for the filter bar.
     /// </summary>
-    /// <returns>A task that completes when the load is finished.</returns>
-    private async Task LoadTagChoicesAsync()
+    /// <returns>A task that completes with <see langword="true"/> when the load succeeded.</returns>
+    private async Task<bool> LoadTagChoicesAsync()
     {
         var result = await _tagDefinitionQueryService.GetChoicesAsync(ComponentCancellationToken);
-        result.Switch(tags => _availableTags = tags, _ => { });
+        var succeeded = false;
+        result.Switch(
+            tags => { _availableTags = tags; succeeded = true; },
+            _ => { });
+        return succeeded;
     }
 
     /// <summary>
     /// Loads the active team choices for the filter bar.
     /// </summary>
-    /// <returns>A task that completes when the load is finished.</returns>
-    private async Task LoadTeamChoicesAsync()
+    /// <returns>A task that completes with <see langword="true"/> when the load succeeded.</returns>
+    private async Task<bool> LoadTeamChoicesAsync()
     {
         var result = await _teamRosterService.GetRosterAsync(
             new GetTeamRosterInput { LifecycleStatus = "active" },
             ComponentCancellationToken);
-        result.Switch(teams => _availableTeams = teams, _ => { });
+        var succeeded = false;
+        result.Switch(
+            teams => { _availableTeams = teams; succeeded = true; },
+            _ => { });
+        return succeeded;
     }
 
     /// <summary>
@@ -723,6 +741,17 @@ public partial class CampaignWorkspace(
     private async Task RetryRosterAsync()
     {
         await LoadRosterAsync();
+        PersistStartupState();
+    }
+
+    /// <summary>
+    /// Retries the filter-choice loads after a recoverable error.
+    /// </summary>
+    /// <returns>A task that completes when the retried choice loads are finished.</returns>
+    private async Task RetryChoicesAsync()
+    {
+        _choicesLoadFailed = false;
+        await LoadChoicesAsync();
         PersistStartupState();
     }
 

@@ -219,13 +219,14 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
            || (pair.First.AppliedAt == pair.Second.AppliedAt && pair.First.CampaignTagApplicationId > pair.Second.CampaignTagApplicationId));
 
     /// <summary>
-    /// Validates that a decoded graduation-years list is bounded, strictly ascending, and positive.
+    /// Validates that a decoded graduation-years list is positive and strictly ascending.
+    /// The server never truncates the response, so there is deliberately no count bound:
+    /// rejecting a longer payload would make valid choices silently vanish on the client.
     /// </summary>
     /// <param name="years">The decoded graduation-years list.</param>
     /// <returns><see langword="true"/> when the list is structurally valid.</returns>
     private static bool IsValidGraduationYears(List<int> years)
         => years is not null
-           && years.Count <= GetCampaignParticipantGraduationYearsInput.MaxGraduationYears
            && years.All(year => year > 0)
            && years.Zip(years.Skip(1)).All(pair => pair.First < pair.Second);
 }

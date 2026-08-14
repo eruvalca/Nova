@@ -231,6 +231,27 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
     }
 
+    [Fact]
+    public void CampaignWorkspace_ShowsChoicesRetryAndRecovers_WhenChoiceLoadFails()
+    {
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())));
+
+        RegisterServices(participantQueryService: participantService);
+        participantService.GetRosterGraduationYearsAsync(
+                Arg.Any<GetCampaignParticipantGraduationYearsInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<IReadOnlyList<int>>(ServiceProblem.ServerError("Choice service unavailable."))),
+                Task.FromResult(new ServiceResult<IReadOnlyList<int>>(CreateGraduationYearChoices().ToList())));
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Couldn't load filter options."));
+
+        cut.Find("button.btn-outline-warning").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Couldn't load filter options."));
+    }
+
     // ── Persisted state ───────────────────────────────────────────────────────
 
     [Fact]
