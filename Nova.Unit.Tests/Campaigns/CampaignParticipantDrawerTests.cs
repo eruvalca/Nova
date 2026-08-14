@@ -438,7 +438,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
-    public async Task Drawer_RemovesFocusTrapWithoutRestoringFocus_WhenDisposed()
+    public async Task Drawer_RestoresFocusToRosterRow_WhenDisposedWhileOpen_ForBrowserBack()
     {
         RegisterServices();
         JSInterop.Mode = JSRuntimeMode.Strict;
@@ -454,10 +454,33 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             .Add(component => component.CampaignId, 10)
             .Add(component => component.ParticipantId, 301));
 
+        // Browser Back removes the participant query parameter, so the workspace stops rendering
+        // the drawer without a close click; disposal must take the restoring close path.
         await ((IAsyncDisposable)cut.Instance).DisposeAsync();
 
-        detach.Invocations.Count.ShouldBe(1);
-        close.Invocations.ShouldBeEmpty();
+        close.Invocations.Single().Arguments[0].ShouldBe("roster-row-301");
+        detach.Invocations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Drawer_DoesNotRestoreFocusAgain_WhenDisposedAfterClose()
+    {
+        RegisterServices();
+        JSInterop.Mode = JSRuntimeMode.Strict;
+        var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        var open = drawerModule.SetupVoid("open", _ => true);
+        open.SetVoidResult();
+        var close = drawerModule.SetupVoid("close", _ => true);
+        close.SetVoidResult();
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        cut.Find("#participant-drawer-close").Click();
+        await ((IAsyncDisposable)cut.Instance).DisposeAsync();
+
+        close.Invocations.Count.ShouldBe(1);
     }
 
     // ── Sequence navigation ─────────────────────────────────────────────────────

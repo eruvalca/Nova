@@ -291,9 +291,9 @@ public partial class CampaignWorkspace(
     private long? _selectedParticipantId;
 
     /// <summary>
-    /// The pending cross-page participant move to resolve after the next roster load.
+    /// The pending cross-page participant move to resolve after the matching roster load completes.
     /// </summary>
-    private BoundaryIntent _pendingBoundaryIntent;
+    private PendingBoundaryMove? _pendingBoundaryMove;
 
     /// <summary>
     /// The roster region scroll offset captured before a drawer open/close navigation, restored after render.
@@ -646,14 +646,7 @@ public partial class CampaignWorkspace(
 
         _rosterLoading = false;
 
-        if (loaded)
-        {
-            ResolvePendingBoundaryIntent();
-        }
-        else
-        {
-            _pendingBoundaryIntent = BoundaryIntent.None;
-        }
+        TryResolvePendingBoundaryMove(loaded);
     }
 
     /// <summary>
@@ -885,7 +878,7 @@ public partial class CampaignWorkspace(
     /// <returns>A task that completes when the move navigation is initiated.</returns>
     private async Task MoveParticipantAsync(int offset)
     {
-        if (_roster is null || _selectedParticipantId is null || _pendingBoundaryIntent != BoundaryIntent.None)
+        if (_roster is null || _selectedParticipantId is null || _pendingBoundaryMove is not null)
         {
             return;
         }
@@ -924,25 +917,46 @@ public partial class CampaignWorkspace(
             return;
         }
 
-        // Cross-page move: push the page change, remember the direction, and correct the
-        // participant selection in place once the new page finishes loading.
-        _pendingBoundaryIntent = offset < 0 ? BoundaryIntent.Last : BoundaryIntent.First;
-        await ApplyFiltersAndNavigateAsync(_filters with { Page = nextPage });
+        // Cross-page move: push the page change, remember the target edge together with the exact
+        // roster query and initiating participant, and correct the participant selection in place
+        // once that exact page finishes loading.
+        var nextState = _filters with { Page = nextPage };
+        _pendingBoundaryMove = new PendingBoundaryMove(
+            offset < 0 ? BoundaryIntent.Last : BoundaryIntent.First,
+            CampaignWorkspaceUrlState.BuildQueryString(nextState),
+            _selectedParticipantId.Value);
+        await ApplyFiltersAndNavigateAsync(nextState);
     }
 
     /// <summary>
-    /// Resolves a pending cross-page move after the target roster page finishes loading,
-    /// correcting the URL in place so each page crossing adds a single history entry.
+    /// Resolves or clears a pending cross-page move after a roster load finishes. The move only
+    /// resolves when the load succeeded for the exact query the move was issued against and the
+    /// initiating participant is still selected; any divergence — a close, Back/Forward, a
+    /// different selection, or a newer filter/page change — clears it. A failed load keeps the
+    /// move pending so Retry can still complete it.
     /// </summary>
-    private void ResolvePendingBoundaryIntent()
+    /// <param name="loaded">Whether the finished roster load succeeded.</param>
+    private void TryResolvePendingBoundaryMove(bool loaded)
     {
-        if (_pendingBoundaryIntent == BoundaryIntent.None)
+        if (_pendingBoundaryMove is null)
         {
             return;
         }
 
-        var intent = _pendingBoundaryIntent;
-        _pendingBoundaryIntent = BoundaryIntent.None;
+        if (_selectedParticipantId != _pendingBoundaryMove.InitiatingParticipantId
+            || !string.Equals(_appliedQueryString, _pendingBoundaryMove.ExpectedQueryString, StringComparison.Ordinal))
+        {
+            _pendingBoundaryMove = null;
+            return;
+        }
+
+        if (!loaded)
+        {
+            return;
+        }
+
+        var move = _pendingBoundaryMove;
+        _pendingBoundaryMove = null;
 
         if (_roster is null || _roster.Items.Count == 0)
         {
@@ -950,7 +964,7 @@ public partial class CampaignWorkspace(
             return;
         }
 
-        var target = intent == BoundaryIntent.First ? _roster.Items[0] : _roster.Items[^1];
+        var target = move.Edge == BoundaryIntent.First ? _roster.Items[0] : _roster.Items[^1];
         _selectedParticipantId = target.PlayerCampaignAssignmentId;
         navigationManager.NavigateTo(
             CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab, _selectedParticipantId),
@@ -1071,6 +1085,15 @@ public partial class CampaignWorkspace(
     /// <returns>The first non-blank candidate.</returns>
     private static string FirstNonBlank(params string?[] candidates)
         => candidates.First(candidate => !string.IsNullOrWhiteSpace(candidate))!;
+
+    /// <summary>
+    /// A pending cross-page participant move: the target edge, the exact roster query the move was
+    /// issued against, and the initiating participant selection.
+    /// </summary>
+    private sealed record PendingBoundaryMove(
+        BoundaryIntent Edge,
+        string ExpectedQueryString,
+        long InitiatingParticipantId);
 
     /// <summary>
     /// The pending cross-page move direction to resolve after the next roster load.

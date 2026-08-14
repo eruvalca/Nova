@@ -957,6 +957,115 @@ public sealed class CampaignWorkspaceTests : BunitContext
         history.First().Options.ReplaceHistoryEntry.ShouldBeFalse();
     }
 
+    [Fact]
+    public void CampaignWorkspace_BoundaryMove_ClosedBeforeTargetPageLoads_DoesNotReopenDrawer()
+    {
+        var page2Completion = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
+        var participantService = CreatePagedParticipantServiceWithDelayedPage2(page2Completion);
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        var historyCountBefore = ((BunitNavigationManager)navigationManager).History.Count;
+        cut.Find("#participant-drawer-next").Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("page=2"));
+
+        // Close the drawer while the target page is still loading.
+        cut.Find("#participant-drawer-close").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
+
+        page2Completion.SetResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+            CreatePagedRoster(page: 2, 6, [304, 305, 306])));
+
+        // The delayed response must update the roster without resurrecting the drawer.
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Participant 304"));
+        cut.Markup.ShouldNotContain("participant-drawer");
+        navigationManager.Uri.ShouldNotContain("participant=");
+        ((BunitNavigationManager)navigationManager).History.Count.ShouldBe(historyCountBefore + 2);
+    }
+
+    [Fact]
+    public void CampaignWorkspace_BoundaryMove_BackBeforeTargetPageLoads_DoesNotReopenDrawer()
+    {
+        var page2Completion = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
+        var participantService = CreatePagedParticipantServiceWithDelayedPage2(page2Completion);
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        cut.Find("#participant-drawer-next").Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("page=2"));
+
+        // Browser Back returns to the workspace URL without the participant query parameter.
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
+
+        page2Completion.SetResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+            CreatePagedRoster(page: 2, 6, [304, 305, 306])));
+
+        // The superseded page-2 response is discarded and the roster stays on page 1; the drawer
+        // stays closed and the participant parameter stays off the URL.
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
+        cut.Markup.ShouldContain("Participant 301");
+        cut.Markup.ShouldNotContain("Participant 304");
+        navigationManager.Uri.ShouldNotContain("participant=");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_BoundaryMove_FilterChangeBeforeTargetPageLoads_DoesNotConsumeIntent()
+    {
+        var page2Completion = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var input = call.Arg<GetCampaignParticipantRosterInput>();
+                if (input.Page == 2)
+                {
+                    return page2Completion.Task;
+                }
+
+                var roster = input.Search == "jones"
+                    ? CreatePagedRoster(page: 1, 2, [901, 902])
+                    : CreatePagedRoster(page: 1, 6, [301, 302, 303]);
+                return Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(roster));
+            });
+        participantService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateParticipantDetail())));
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        cut.Find("#participant-drawer-next").Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("page=2"));
+
+        // Back/Forward lands on the same participant with different filters; the newer request
+        // supersedes the page-2 load the move was issued against, so the intent must be cleared.
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&search=jones&participant=303");
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Participant 901"));
+
+        cut.Markup.ShouldContain("participant-drawer");
+        navigationManager.Uri.ShouldContain("participant=303");
+        navigationManager.Uri.ShouldNotContain("participant=901");
+        navigationManager.Uri.ShouldNotContain("participant=304");
+
+        page2Completion.SetResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+            CreatePagedRoster(page: 2, 6, [304, 305, 306])));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Participant 304"));
+        navigationManager.Uri.ShouldContain("participant=303");
+        navigationManager.Uri.ShouldNotContain("participant=304");
+    }
+
     // ── Sequence hardening (Phase 4) ───────────────────────────────────────────
 
     [Fact]
@@ -1300,6 +1409,29 @@ public sealed class CampaignWorkspaceTests : BunitContext
                     _ => CreatePagedRoster(page: input.Page ?? 1, totalCount, [])
                 };
                 return Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(roster));
+            });
+        service.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateParticipantDetail())));
+        return service;
+    }
+
+    /// <summary>
+    /// Creates a participant query-service fake whose page 1 returns assignments 301–303 and whose
+    /// page 2 response is held back until the supplied completion source is set, so cross-page
+    /// moves can be interrupted before the target page finishes loading.
+    /// </summary>
+    private static ICampaignParticipantQueryService CreatePagedParticipantServiceWithDelayedPage2(
+        TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>> page2Completion)
+    {
+        var service = Substitute.For<ICampaignParticipantQueryService>();
+        service.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var input = call.Arg<GetCampaignParticipantRosterInput>();
+                return input.Page == 2
+                    ? page2Completion.Task
+                    : Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+                        CreatePagedRoster(page: 1, 6, [301, 302, 303])));
             });
         service.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateParticipantDetail())));

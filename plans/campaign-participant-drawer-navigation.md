@@ -16,9 +16,11 @@ Unblocks #70 (note/tag mutation controls).
 1. **Arrow-key shortcuts**: deferred. The issue lists ←/→ prev/next as optional with an
    editable-control guard requirement; #70 adds editable controls (note editor, tag picker).
    Documented as not implemented in the drawer's XML docs. (Confirmed 1/4.)
-2. **Focus trap + focus return**: small JS helpers in `Nova/wwwroot/js/site.js` (mirroring the
-   existing focus/scroll helpers), installed on open, removed on close. Robust for the dynamic
-   focusable set (prev/next, retry, later #70 controls). (Confirmed 2/4.)
+2. **Focus trap + focus return**: a collocated ES module (`CampaignParticipantDrawer.razor.js`
+   next to the component, imported via the repo's JS-module interop pattern) with `open` /
+   `restoreFocus` / `close` / `detach` exports, installed on open and removed through the
+   restoring close path on close and on dispose. Robust for the dynamic focusable set
+   (prev/next, retry, later #70 controls). (Confirmed 2/4.)
 3. **Detail-load failure UX**: inline error message + Retry button inside the drawer; close
    stays available. (Confirmed 3/4.)
 4. **Participant not on the loaded roster page** (URL drift after refresh/Back/Forward): detail
@@ -45,12 +47,16 @@ Unblocks #70 (note/tag mutation controls).
 - **Boundary move** (last item on page → next, or first item → previous, when the position is
   not the true first/last of `TotalCount`): the next page's first/last item id is unknown until
   the roster loads, so the page navigates with only `page` changed (participant param kept),
-  records a pending boundary intent (`First`/`Last`), then after `LoadRosterAsync` completes:
-  select the first (or last) item of the loaded page, clear the intent, and correct the URL with
+  records a pending boundary move (`First`/`Last`) scoped to the exact target query and the
+  initiating participant, then after the matching `LoadRosterAsync` completes: select the first
+  (or last) item of the loaded page, clear the move, and correct the URL with
   `replaceHistoryItem: true` so the transient `page=N&participant=<off-page id>` URL never
   becomes a permanent history entry. Net result: one history entry per boundary crossing.
-  If the newly loaded page is empty (concurrent drift), clear the intent and leave the drawer in
-  the off-page state (decision 4).
+  The move only resolves when the finished load matches the query it was issued against and the
+  initiating participant is still selected — a close, Back/Forward, a different selection, or a
+  newer filter/page change clears it, and a failed load keeps it pending so Retry can complete
+  it. If the newly loaded page is empty (concurrent drift), clear the move and leave the drawer
+  in the off-page state (decision 4).
 - **True first/last**: prev disabled when position = 1; next disabled when position =
   `TotalCount`.
 
@@ -147,9 +153,10 @@ contract).
 - [x] `OnPreviousParticipantAsync` / `OnNextParticipantAsync`:
       - Within-page: capture scroll (existing helper), update only `participant` in the URL,
         push history.
-      - Boundary: set pending boundary intent, navigate with only `page` changed (push); after
-        the roster reload completes, select first/last item of the loaded page, clear the
-        intent, correct the URL with `replaceHistoryItem: true` (see Sequence contract).
+      - Boundary: set a pending boundary move scoped to the target query, navigate with only
+        `page` changed (push); after the matching roster reload completes, select first/last
+        item of the loaded page, clear the move, correct the URL with `replaceHistoryItem: true`
+        (see Sequence contract).
       - Preserve every other param (filters, sort, tab) exactly.
 - [x] Reuse the existing pager page-change scroll behavior for boundary crossings so a
       boundary move behaves like a pager page change; within-page moves leave roster scroll
@@ -181,12 +188,13 @@ total count, and prev/next availability from the loaded roster plus the selected
 and hands them to the drawer along with `OnPrevious`/`OnNext` callbacks. Within-page moves
 capture roster scroll, change only the `participant` query parameter, and push one history
 entry; the roster is not reloaded. Boundary moves push only a `page` change, record a
-pending boundary intent (`First` after next, `Last` after previous), and once the target
-page finishes loading select the first/last item and correct the URL with
+pending boundary move (`First` after next, `Last` after previous) scoped to the target query
+and initiating participant, and once the matching page finishes loading select the first/last
+item and correct the URL with
 `ReplaceHistoryEntry = true` so each crossing adds exactly one history entry; a failed or
-empty target page clears the intent and leaves the drawer off-page (position hidden, both
-buttons disabled) without touching the URL again. Filter/sort/tab parameters are preserved
-across every move, and boundary crossings reuse the pager's scroll-to-top behavior.
+empty target page keeps the move pending or clears it and leaves the drawer off-page (position
+hidden, both buttons disabled) without touching the URL again. Filter/sort/tab parameters are
+preserved across every move, and boundary crossings reuse the pager's scroll-to-top behavior.
 
 The drawer header gained a prev button, "N of M" position line, and a next button with
 `disabled` at the true sequence ends, plus CSS-isolated header-row styles. The media-query
@@ -201,35 +209,39 @@ Full unit suite: 1323 tests pass. Build clean; `dotnet format --verify-no-change
 on the touched files (pre-existing CHARSET normalization in unrelated Tag-feature files was
 reverted rather than fixed silently).
 
-## Phase 3: Focus trap, focus return, and Escape (JS helpers)
+## Phase 3: Focus trap, focus return, and Escape (collocated JS module)
 
 Status: Complete
 
-Suggested executor: orchestrator (site.js is shared and load-bearing; subtle keydown behavior).
+Suggested executor: orchestrator (the collocated module is load-bearing; subtle keydown behavior).
 
-- [x] `Nova/wwwroot/js/site.js`: add
-      `novaCampaignParticipantDrawerOpen(dialogSelector, closeButtonId)` — captures
+- [x] `CampaignParticipantDrawer.razor.js` (collocated with the component, per the repo's
+      collocated-module convention): add
+      `open(dialogSelector, closeButtonId)` — captures
       `document.activeElement` (the activating row/card), installs a document-level capture
       `keydown` trap that cycles Tab/Shift+Tab through the focusable elements inside the dialog
       (buttons, links, and non-disabled form controls), and focuses the close button. Add
-      `novaCampaignParticipantDrawerClose(restoreFallbackId)` — removes the trap and restores
+      `close(restoreFallbackId)` — removes the trap and restores
       focus to the selected participant's visible row/card (fallback id, card id derived from
-      the row id), else the captured element if still connected, else nothing.
+      the row id), else the captured element if still connected, else nothing. Add
+      `restoreFocus(dialogSelector, closeButtonId)` for the boundary-move fix and
+      `detach()` for trap-only teardown.
 - [x] Give roster rows/cards stable DOM ids for the fallback:
       `id="roster-row-{assignmentId}"` (`tr`) and `id="roster-card-{assignmentId}"` (`li`) in
       `CampaignRosterTable.razor` / `CampaignRosterCards.razor`.
-- [x] Drawer code-behind: on first render invoke `novaCampaignParticipantDrawerOpen` (replacing
+- [x] Drawer code-behind: on first render invoke the module's `open` (replacing
       the `novaCampaignWorkspaceFocus` call); `CloseAsync` invokes
-      `novaCampaignParticipantDrawerClose` (fallback = the selected row id) before delivering
+      `close` (fallback = the selected row id) before delivering
       `OnClose`; Escape keeps the C# handler and takes the same close path; `DisposeAsyncCore`
-      removes the trap without restoring focus (navigation away while open must not leave a
-      stale trap).
+      removes the trap through the restoring `close` path too, so a browser Back/Forward that
+      unmounts the drawer without a close click returns focus to the still-visible selected
+      row/card while a real route teardown (all candidates disconnected) changes nothing.
 - [x] Document in the drawer XML docs: arrow-key prev/next intentionally not implemented
       (scope decision 1); focus behavior summary.
 - [x] Update the existing bUnit drawer tests that assert the old `novaCampaignWorkspaceFocus`
       call; add assertions: open helper invoked on first render with the expected ids; close
       helper invoked with the fallback row id on close-button click, backdrop click, and
-      Escape.
+      Escape; disposal invokes `close` with the fallback row id (no `detach`).
 
 ### Verification Plan
 
@@ -240,11 +252,13 @@ Suggested executor: orchestrator (site.js is shared and load-bearing; subtle key
 
 ### Phase Summary
 
-`site.js` replaced `novaCampaignWorkspaceFocus` (now unused) with three drawer-specific helpers:
-`novaCampaignParticipantDrawerOpen` captures the activating row/card, installs a capture-phase
+A collocated ES module (`CampaignParticipantDrawer.razor.js`, imported through the repo's
+collocated-module interop pattern) replaced `novaCampaignWorkspaceFocus` (now unused) with four
+drawer-scoped exports: `open` captures the activating row/card, installs a capture-phase
 Tab/Shift+Tab trap that cycles the dialog's visible focusable elements and wraps at both ends,
-and focuses the close button; `novaCampaignParticipantDrawerClose(restoreFallbackId)` removes the
-trap and restores focus; `novaCampaignParticipantDrawerDispose` removes the trap only. Focus
+and focuses the close button; `close(restoreFallbackId)` removes the
+trap and restores focus; `restoreFocus` pulls focus back to the close button when a
+boundary-move render drops it to the body; `detach` removes the trap only. Focus
 return refines the plan slightly: the visible selected row/card (fallback id, with the card id
 derived from the row id so the correct layout wins via a visibility check) is preferred over the
 captured activating element, so closing after a prev/next move lands on the newly selected
@@ -255,17 +269,23 @@ Roster rows and cards now emit stable `roster-row-{assignmentId}` / `roster-card
 ids. The drawer code-behind installs the trap in `OnAfterRenderAsync(firstRender)` only (so the
 prerendered instance never issues JS interop), closes through a shared `CloseAsync` that removes
 the trap and restores focus before delivering `OnClose` (Escape and backdrop clicks take the same
-path), and `DisposeAsyncCore` removes the trap without restoring focus, swallowing
-`JSDisconnectedException` like `NovaCropperComponent` (full-document navigation while open). A
-`_focusTrapInstalled` guard keeps the prerender/dispose paths no-ops. Arrow-key exclusion and the
-focus contract are documented in the drawer XML docs.
+path), and `DisposeAsyncCore` removes the trap through the same restoring `close` path — browser
+Back/Forward that unmounts the drawer returns focus to the still-visible selected row/card, while
+a real route teardown finds every candidate disconnected or invisible and changes nothing —
+swallowing `JSDisconnectedException` like `NovaCropperComponent` (full-document navigation while
+open). A `_focusTrapInstalled` guard keeps the prerender/dispose paths no-ops. Arrow-key exclusion
+and the focus contract are documented in the drawer XML docs.
 
 Tests: 6 new/updated drawer tests (open invocation with the expected selector + close-button id,
 single trap install across participant parameter changes, close-helper invocation with the
 fallback row id on close-button click, backdrop click, and Escape, and dispose removing the trap
-without restoring focus). Targeted suites pass (20 drawer, 39 workspace); full unit suite passes
-(1327). Build clean; format gate clean on the touched files (same pre-existing Tag-feature
-CHARSET violations as Phase 2).
+through `close` with the fallback row id). Targeted suites pass (20 drawer, 39 workspace); full
+unit suite passes (1327). Build clean; format gate clean on the touched files (same pre-existing
+Tag-feature CHARSET violations as Phase 2).
+
+Post-review hardening: the dispose test was split into dispose-while-open (asserts
+`close("roster-row-…")` with no `detach`) and dispose-after-close (asserts `close` fires exactly
+once), covering the browser-Back focus-return requirement end to end.
 
 ## Phase 4: Component-test hardening for the cross-cutting acceptance criteria
 
@@ -363,7 +383,7 @@ Suggested executor: sub-agent with a smaller model (mechanical run + report).
 - Format gate: `--verify-no-changes` still exits 2, but the violation list contains only the
   pre-existing Tag-feature files (CHARSET) and three migration warnings — identical to the
   baseline recorded in Phases 2–4. None of the files changed by this feature (page, drawer,
-  roster components, site.js, tests, plan) are flagged.
+  roster components, the collocated drawer JS module, tests, plan) are flagged.
 - Build: `dotnet build Nova.slnx` succeeded with 0 warnings / 0 errors.
 - Unit tests: full suite 1332/1332 green (the count was 1327 before Phase 4's five new tests).
 - Nothing new surfaced; no fixes required.
@@ -414,8 +434,8 @@ found and fixed during the phase:
 1. **F1 — focus drops to `<body>` at sequence boundaries.** When a participant change
    re-renders the focused prev/next button from enabled to disabled (true first/last), the
    browser drops focus to the document body, so the drawer's `@onkeydown` Escape handler
-   (on the `<aside>`) silently stops working. Fix: a small JS helper
-   `novaCampaignParticipantDrawerRestoreFocus` in `Nova/wwwroot/js/site.js` that refocuses
+   (on the `<aside>`) silently stops working. Fix: a `restoreFocus` export in the collocated
+   `CampaignParticipantDrawer.razor.js` module that refocuses
    the close button only when `document.activeElement` is *outside* the dialog, invoked
    from `OnAfterRenderAsync` in `CampaignParticipantDrawer.razor.cs` when the participant id
    changes. Two new bUnit tests cover the restore behavior (suite 22/22). Re-verified in
@@ -444,8 +464,9 @@ Issue #64 is complete. The campaign participant drawer is now responsive and nav
 - **Phase 2** — page-owned sequence state with prev/next navigation, "N of M" position,
   true first/last disable states, two-phase boundary navigation across filtered/sorted/
   paged roster pages, and stale-response protection.
-- **Phase 3** — focus trap, focus return, and Escape via JS helpers; roster rows/cards
-  carry stable DOM ids for the focus-return fallback.
+- **Phase 3** — focus trap, focus return, and Escape via the collocated drawer JS module;
+  roster rows/cards carry stable DOM ids for the focus-return fallback; dispose restores
+  focus through the close path so browser Back/Forward focus return is preserved.
 - **Phase 4** — component-test hardening for all cross-cutting acceptance criteria
   (22 bUnit drawer tests).
 - **Phase 5** — format/build/full unit regression: 1334/1334 unit tests pass.

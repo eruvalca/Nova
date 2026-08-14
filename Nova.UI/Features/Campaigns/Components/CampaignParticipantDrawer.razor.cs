@@ -19,8 +19,11 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// falling back to the captured activating element, then to nothing. A participant-change render
 /// that leaves focus outside the dialog (a boundary move renders the focused prev/next button
 /// disabled, which drops focus to the body) pulls focus back to the close button so the trap and
-/// Escape keep working. Disposal removes the trap without restoring focus, so navigating away
-/// while the drawer is open leaves no stale trap.
+/// Escape keep working. Disposal removes the trap through the restoring close path, so a browser
+/// Back/Forward that drops the participant query parameter (unmounting the drawer without a close
+/// click) still returns focus to the selected participant's visible row/card; on a real route
+/// teardown every focus-return candidate is disconnected or invisible, so no focus change occurs
+/// and no stale trap remains.
 /// </para>
 /// <para>
 /// Arrow-key prev/next navigation is intentionally not implemented (scope decision); keyboard
@@ -326,8 +329,11 @@ public partial class CampaignParticipantDrawer(
     }
 
     /// <summary>
-    /// Removes the focus trap without restoring focus when the component is disposed, so navigating
-    /// away while the drawer is open leaves no stale trap behind.
+    /// Removes the focus trap when the component is disposed. Disposal also happens when browser
+    /// Back/Forward removes the participant query parameter and the workspace stops rendering the
+    /// drawer without a close click, so the restoring close path is used: focus returns to the
+    /// selected participant's visible row/card when one is still on screen, and on a real route
+    /// teardown every candidate is disconnected or invisible so no focus change occurs.
     /// </summary>
     /// <returns>A task that completes when the trap is removed.</returns>
     protected override async ValueTask DisposeAsyncCore()
@@ -344,7 +350,7 @@ public partial class CampaignParticipantDrawer(
             if (_focusTrapInstalled)
             {
                 _focusTrapInstalled = false;
-                await module.InvokeVoidAsync("detach");
+                await module.InvokeVoidAsync("close", FallbackFocusId);
             }
 
             await module.DisposeAsync();
