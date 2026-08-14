@@ -174,3 +174,9 @@ Rules:
 - **No page-wide helpers.** Do not add helpers to `Nova/wwwroot/js/` or `window.*` globals. If two
   components share JS, prefer separate collocated modules over a shared global; reconsider the
   component split before sharing.
+- **No speculative empty `site.js`.** `site.js` was deleted in the scoped-interop refactor and must
+  not be recreated. An empty script still costs a request/parse on every page and invites
+  page-global helpers back. If site-wide JS ever becomes necessary, use one of: a layout-collocated
+  module (`App.razor.js` / `MainLayout.razor.js`), a lazily imported interop service, or the
+  `blazor.web.js` loader callbacks (`beforeBlazorStarts`) for pre-initialization code. Bootstrap is
+  the only site-wide script and is already loaded by `<script>` in `App.razor`.
