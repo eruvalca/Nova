@@ -458,6 +458,49 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
+    public void CampaignWorkspace_EmptyRoster_DetachesKeydownSuppression_InsteadOfAttaching()
+    {
+        RegisterServices(rosterResult: new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+            new PagedResult<CampaignParticipantRosterItem>(
+                Items: [],
+                Page: 1,
+                PageSize: GetCampaignParticipantRosterInput.DefaultPageSize,
+                TotalCount: 0)));
+
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        var attach = workspaceModule.SetupVoid("attachRosterActivationSuppression", _ => true);
+        attach.SetVoidResult();
+        var detach = workspaceModule.SetupVoid("detachRosterActivationSuppression", _ => true);
+        detach.SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No participants in this campaign yet."));
+
+        cut.WaitForAssertion(() => detach.Invocations.Count.ShouldBeGreaterThanOrEqualTo(1));
+        attach.Invocations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task CampaignWorkspace_DisposeAsync_ToleratesDisconnectedCircuit()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        var detach = workspaceModule.SetupVoid("detachRosterActivationSuppression", _ => true);
+        detach.SetException(new JSDisconnectedException("Circuit has disconnected."));
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        var disposeTask = cut.InvokeAsync(cut.Instance.DisposeAsync);
+        await disposeTask;
+
+        detach.Invocations.Count.ShouldBe(1);
+    }
+
+    [Fact]
     public void CampaignWorkspace_ShowsNoMatchMessage_AndClearsFilters_WhenFiltersExcludeAllParticipants()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();

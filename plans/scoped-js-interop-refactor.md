@@ -325,6 +325,27 @@ Blazor-collocated ES modules consumed through lazy `IJSObjectReference` interop:
 - **Phase 4** — browser acceptance pass against the Aspire AppHost: all four scenarios passed
   with no blockers and a clean console.
 
+## Review Fixes (PR #82)
+
+Three review findings, all addressed:
+
+- **Empty roster attached the suppression listener with an unset `ElementReference`.** An empty
+  roster never renders the scroll region, so the serialized reference arrived in JS as a plain
+  object whose `contains()` call threw on every Enter/Space keydown. `OnAfterRenderAsync` now
+  attaches only when `_roster.TotalCount > 0` and detaches otherwise, and the module's `attach`
+  rejects non-`Element` containers as defense in depth. Regression test:
+  `CampaignWorkspace_EmptyRoster_DetachesKeydownSuppression_InsteadOfAttaching`.
+- **Disposal could fault after circuit disconnect.** `DisposeAsyncCore` interop (detach +
+  `DisposeAsync`) in `CampaignWorkspace` and `CampaignParticipantDrawer` now catches only
+  `JSDisconnectedException` (repository pattern: `NovaCropperComponent`). Regression test:
+  `CampaignWorkspace_DisposeAsync_ToleratesDisconnectedCircuit`.
+- **Recipe misdescribed import failures.** The `js-interop.md` pitfall now says a bad module path
+  fails only at runtime as a `JSException` (not silently), and Step 3/Step 4 gained the
+  `JSDisconnectedException` disposal guard and the "attach only when the container renders" rule.
+
+Unit suite: 1297/1297 green. Format gate clean for all files in this branch (remaining
+`--verify-no-changes` failures are pre-existing PR #79 files).
+
 ## Deployment Plan
 
 1. Merge the branch (no DB migrations, no config changes — static web assets only).

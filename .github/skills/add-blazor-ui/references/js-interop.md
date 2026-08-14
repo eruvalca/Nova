@@ -75,8 +75,15 @@ public partial class CampaignParticipantDrawer(IJSRuntime jsRuntime) : NovaCompo
     {
         if (_moduleTask.IsValueCreated)
         {
-            var module = await _moduleTask.Value;
-            await module.DisposeAsync();
+            try
+            {
+                var module = await _moduleTask.Value;
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is gone; the browser already destroyed the page with it.
+            }
         }
     }
 }
@@ -92,6 +99,10 @@ Rules:
   is impossible during prerender and `@ref`s are unset in `OnInitializedAsync`/`OnParametersSet`.
 - Override `DisposeAsyncCore()` (Nova's async-disposal extension point, not `IAsyncDisposable`
   directly) and dispose the module there, guarded by `_moduleTask.IsValueCreated`.
+- Guard disposal-time interop with a catch of **only** `JSDisconnectedException`. Disposal can run
+  after an `InteractiveAuto` component's server circuit has disconnected (refresh, tab close, or
+  circuit expiry), so the detach call or `DisposeAsync()` can throw; an uncaught throw faults the
+  teardown path. `NovaCropperComponent.DisposeAsync()` is the repository pattern to copy.
 
 ## Step 4 — Listeners that outlive one event
 
@@ -128,6 +139,12 @@ Rules:
 - **Replace-on-attach**: if Blazor recreates the element the listener scopes to (any `@if` render
   branch), the same module may be attached again on the next render. `attach` must detach first so
   exactly one listener is live.
+- **Attach only when the container element is rendered.** A listener whose container lives in a
+  conditional branch must not be attached with an unset `ElementReference` — an empty roster never
+  renders the region, and the serialized reference arrives in JS as a plain object whose
+  `contains()` check throws on every keydown. In C#, attach when the branch renders and detach when
+  it does not (see `CampaignWorkspace.OnAfterRenderAsync`); in JS, have `attach` reject non-`Element`
+  arguments as defense in depth.
 - Detach in the component's `DisposeAsyncCore()` **before** disposing the module (see
   `CampaignWorkspace.razor.cs`: `detachRosterActivationSuppression`, then `module.DisposeAsync()`).
 
@@ -161,8 +178,10 @@ Rules:
 
 - **RCL collocated modules are not auto-loaded.** The SDK ships `.razor.js` as a static asset, but
   nothing imports it until the component does `"import", "./_content/Nova.UI/..."`. A missing or
-  mismatched path fails silently at runtime with a JS `Failed to fetch` / unresolved import — not
-  at build time. bUnit catches path typos (`SetupModule` fails the test).
+  mismatched path fails only at runtime, not at build time — and not silently: awaiting
+  `_moduleTask.Value` faults with a `JSException` (for example, `Failed to fetch dynamically
+  imported module`), which from `OnAfterRenderAsync` faults the render/circuit. bUnit catches path
+  typos (`SetupModule` fails the test).
 - **JS during prerender is forbidden.** `IJSRuntime` calls throw while prerendering. Always go
   through `OnAfterRenderAsync(firstRender)` or an event handler; never `OnInitializedAsync`.
 - **Recreated containers leak or break listeners.** If the element the listener scopes to lives in

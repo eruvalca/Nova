@@ -38,8 +38,13 @@ export function scrollToTop(element) {
 // Attaches the keydown suppression on the document in the capture phase. The roster region
 // element is recreated across loading/error/loaded renders, so callers re-invoke this on every
 // render pass where the roster is visible; replace-on-attach keeps exactly one active listener.
+// A container that is not an Element (for example, an unset ElementReference serialized as a
+// plain object) installs nothing — its contains() check would throw on every keydown.
 export function attachRosterActivationSuppression(container) {
     detachRosterActivationSuppression();
+    if (!(container instanceof Element)) {
+        return;
+    }
     activeContainer = container;
     keydownListener = suppressActivationDefault;
     document.addEventListener('keydown', keydownListener, true);

@@ -428,9 +428,16 @@ public partial class CampaignWorkspace(
 
         if (_moduleTask.IsValueCreated)
         {
-            var module = await _moduleTask.Value;
-            await module.InvokeVoidAsync("detachRosterActivationSuppression");
-            await module.DisposeAsync();
+            try
+            {
+                var module = await _moduleTask.Value;
+                await module.InvokeVoidAsync("detachRosterActivationSuppression");
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is gone; the browser already destroyed the page with it.
+            }
         }
     }
 
@@ -832,8 +839,17 @@ public partial class CampaignWorkspace(
 
         // The region element is recreated across loading/error/loaded renders, so re-attach the
         // keydown suppression on every pass that renders the loaded roster. The module replaces
-        // any existing listener, keeping exactly one active.
-        await module.InvokeVoidAsync("attachRosterActivationSuppression", _rosterScrollRegion);
+        // any existing listener, keeping exactly one active. An empty roster never renders the
+        // region, so detach instead — the unset ElementReference serializes as a plain object
+        // whose contains() check would throw on every keydown.
+        if (_roster.TotalCount > 0)
+        {
+            await module.InvokeVoidAsync("attachRosterActivationSuppression", _rosterScrollRegion);
+        }
+        else
+        {
+            await module.InvokeVoidAsync("detachRosterActivationSuppression");
+        }
 
         if (_scrollToRosterTop)
         {

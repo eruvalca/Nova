@@ -75,8 +75,15 @@ public partial class CampaignParticipantDrawer(IJSRuntime jsRuntime) : NovaCompo
     {
         if (_moduleTask.IsValueCreated)
         {
-            var module = await _moduleTask.Value;
-            await module.DisposeAsync();
+            try
+            {
+                var module = await _moduleTask.Value;
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is gone; the browser already destroyed the page with it.
+            }
         }
     }
 }
