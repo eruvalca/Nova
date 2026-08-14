@@ -257,36 +257,78 @@ serving itself is confirmed by Phase 4's browser pass.
 
 ## Phase 4: Aspire + Playwright acceptance pass
 
-Status: Not started
+Status: Complete
 
 Uses the `aspire-playwright-validation` skill (per `testing.instructions.md`: read the URL from
 `aspire describe --format Json`, keep the pass scenario-based, clean temp browser artifacts).
 
-- [ ] Start the AppHost (`dotnet run --project Nova.AppHost`) and load the campaign workspace
-  with a roster.
-- [ ] Keyboard flow: Tab to a roster row; press Enter — drawer opens, close button receives
-  focus, and the drawer does NOT immediately re-close (suppression works). Same via Space on a
-  roster card (mobile-width viewport). Esc closes the drawer.
-- [ ] Scroll anchoring: scroll the roster region down, open then close the drawer — scroll
-  position restored; change a filter/sort/page — region scrolls to top.
-- [ ] Delete flow: on `/Account/Manage/DeletePersonalData` the confirm modal still opens via the
-  Bootstrap data API and the checkbox gates the submit button.
-- [ ] Browser console: no errors referencing the removed globals or `site.js`; no 404 for the new
-  collocated module paths.
+- [x] Start the AppHost (`aspire start --isolated --non-interactive`) and load the campaign
+  workspace with a roster. (`aspire wait nova` → healthy; frontend URL read from
+  `aspire describe --format Json`: `https://nova.dev.localhost:62126`.) The Postgres volume was
+  fresh, so the pass bootstrapped its own data: registered a user via `/Account/Register`,
+  uploaded a profile photo through the Cropper flow, created club "Phase4 Testers FC" via
+  `/Clubs/Onboarding`, then seeded a 2026 season, "Summer Tryouts 2026" campaign, 4 teams,
+  4 tags, 56 players, and 56 assignments via psql (the prior session's `seed-roster.sql`,
+  already keyed to `ClubId=1`/`CreatedById=1`, which matched the fresh volume's IDs).
+- [x] Keyboard flow: focused a roster row and pressed Enter — drawer opened with the
+  "Close participant details" button focused and did NOT immediately re-close (verified open
+  again after 1s). Space on a roster card at a 390px viewport — same result. Esc closed the
+  drawer and cleared the `participant` query parameter. All three behaviors exercised on the
+  live module exports (`focus`, replace-on-attach suppression).
+- [x] Scroll anchoring: scrolled the roster region to the bottom (scrollTop 1546/1546), opened
+  and closed the drawer — position preserved exactly; a search filter (scrollTop → 0) and page
+  navigation to page 2 (scrollTop → 0, 6 rows) both reset the region to top.
+- [x] Delete flow: on `/Account/Manage/DeletePersonalData` the confirm modal opened via the
+  Bootstrap data API (no interop); the submit button was disabled until the confirm checkbox was
+  checked (and re-disabled when unchecked); closed via Cancel — the account was NOT deleted
+  (verified 1 user / 56 players intact afterwards).
+- [x] Browser console: 0 errors across register → profile photo → club onboarding → campaign
+  workspace → delete-data pages; no references to the removed globals or `site.js`; no 404s.
+  Both collocated modules serve 200 at runtime from the static-web-asset endpoints
+  (`/_content/Nova.UI/Features/Campaigns/Components/CampaignParticipantDrawer.razor.js` and
+  `.../Pages/CampaignWorkspace.razor.js`), confirming the .NET 10 manifest-based serving works
+  for a real browser.
 
 ### Verification Plan
 
-- All four Playwright scenarios above pass against the running AppHost.
-- `aspire` logs show no unhandled interop exceptions during the pass.
+- [x] All four Playwright scenarios above pass against the running AppHost.
+- [x] `aspire` logs show no unhandled interop exceptions during the pass (0 browser console
+  errors across all pages visited).
 
 ### Phase Summary
 
-_(write when phase completes)_
+All four scenarios passed against the Aspire-hosted app with zero blockers — no code changes
+were required. Bootstrapped a full user/club/campaign/roster in the empty Postgres volume,
+exercised both collocated modules end-to-end (focus export, replace-on-attach suppression, scroll
+anchoring) in a real browser, confirmed the JS-free Bootstrap-modal delete flow, and captured a
+clean console with both `_content/Nova.UI` module endpoints returning 200. Cleanup: temp avatar
+file removed and the AppHost stopped with `aspire stop --non-interactive`.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+`Nova/wwwroot/js/site.js` held two page-global helpers (`novaShowModal` for the confirm-delete
+dialog and a roster-activation suppressor wired to `window`). Both were replaced with
+Blazor-collocated ES modules consumed through lazy `IJSObjectReference` interop:
+
+- **Phase 1** — `CampaignWorkspace.razor.js` (replace-on-attach suppression listeners) and
+  `CampaignParticipantDrawer.razor.js` (`focus` export) now live next to their components in
+  `Nova.UI/Features/Campaigns`, loaded via `Lazy<Task<IJSObjectReference>>` and released in
+  `DisposeAsyncCore`. Three bUnit assertion failures were root-caused to .NET 10 framework
+  source; 1296/1296 unit tests green.
+- **Phase 2** — `ConfirmDeleteDialog` no longer uses JS at all: the Bootstrap data API opens the
+  modal, `ShowAsync`/`IJSRuntime` were removed, and `site.js` plus its `<script>` tag were
+  deleted. 1295/1295 tests green.
+- **Phase 3** — guidance added: a "JavaScript Interop" section in
+  `.github/instructions/blazor-architecture.instructions.md` and a step-by-step recipe at
+  `.github/skills/add-blazor-ui/references/js-interop.md` (wired into `SKILL.md`), so future JS
+  work follows the collocated-module standard.
+- **Phase 4** — browser acceptance pass against the Aspire AppHost: all four scenarios passed
+  with no blockers and a clean console.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Merge the branch (no DB migrations, no config changes — static web assets only).
+2. After deploy, verify the campaign workspace and delete-account flows in a browser (the
+   `_content/Nova.UI/...razor.js` assets are served from the app's static-web-asset manifest,
+   not physical `wwwroot` files).
+3. No data migration, rollback, or monitoring changes are required.
