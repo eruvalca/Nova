@@ -370,17 +370,17 @@ Suggested executor: sub-agent with a smaller model (mechanical run + report).
 
 ## Phase 6: Focused browser validation (Aspire + Playwright)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator, following the `aspire-playwright-validation` skill (requires
 judgment to fix blockers found). Reuse #67's approach: isolated AppHost against the seeded
 Postgres (campaign 1, "Summer Tryouts 2026", 200 assignments).
 
-- [ ] Write the concrete scenario list before starting the app (skill precondition) — the list
+- [x] Write the concrete scenario list before starting the app (skill precondition) — the list
       below.
-- [ ] `aspire start --isolated --non-interactive` → `aspire wait nova --non-interactive` →
+- [x] `aspire start --isolated --non-interactive` → `aspire wait nova --non-interactive` →
       discover URLs via `aspire describe --format Json`.
-- [ ] Scenarios: open `/campaigns/{id}`, click a roster row → drawer opens with detail (name,
+- [x] Scenarios: open `/campaigns/{id}`, click a roster row → drawer opens with detail (name,
       grad year, tryout #, outcome, team, notes, tags) and focus lands on the close button;
       repeated Tab/Shift+Tab never leaves the dialog (focus trap); Escape closes and focus
       returns to the activating row; close button and backdrop click also restore focus;
@@ -395,9 +395,9 @@ Postgres (campaign 1, "Summer Tryouts 2026", 200 assignments).
       each state; an archived tag chip shows its indicator and actor/timestamp metadata and
       note author/timestamps are visible; simulated detail failure (devtools offline or
       blocked route) shows the error + Retry and Retry recovers.
-- [ ] Run the integration tests against the running AppHost
+- [x] Run the integration tests against the running AppHost
       (`dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj`).
-- [ ] Fix any blocker found, rerun the affected browser segment before concluding, then
+- [x] Fix any blocker found, rerun the affected browser segment before concluding, then
       `aspire stop --non-interactive`; remove temporary browser-automation artifacts.
 
 ### Verification Plan
@@ -407,12 +407,59 @@ Postgres (campaign 1, "Summer Tryouts 2026", 200 assignments).
 
 ### Phase Summary
 
-_(write when phase completes)_
+All 12 scenarios were executed against the isolated Aspire AppHost (campaign 1, 200
+assignments) with Playwright, and every expected outcome was reached. Two blockers were
+found and fixed during the phase:
+
+1. **F1 — focus drops to `<body>` at sequence boundaries.** When a participant change
+   re-renders the focused prev/next button from enabled to disabled (true first/last), the
+   browser drops focus to the document body, so the drawer's `@onkeydown` Escape handler
+   (on the `<aside>`) silently stops working. Fix: a small JS helper
+   `novaCampaignParticipantDrawerRestoreFocus` in `Nova/wwwroot/js/site.js` that refocuses
+   the close button only when `document.activeElement` is *outside* the dialog, invoked
+   from `OnAfterRenderAsync` in `CampaignParticipantDrawer.razor.cs` when the participant id
+   changes. Two new bUnit tests cover the restore behavior (suite 22/22). Re-verified in
+   browser at both boundaries: after Next at position 199, focus lands on the close button,
+   the trap holds, and Escape closes the drawer.
+2. **Integration-suite flake — cross-class test-state leakage in the shared fixture.** One
+   test (`GetParticipantRoutes_ReturnPayload_ForLeastPrivilegedClubMember`) failed
+   intermittently: a previous test class left the shared mutable
+   `NovaAppHostFixture.CurrentUser` with a non-null `UserId`, so
+   `TenantSaveChangesInterceptor.StampAudit` overwrote `CreatedById` on a seeded note when
+   the admin seeding context saved it, making `CanEdit` false. Fix: `CreateAdminContext()`
+   now uses a dedicated static, never-mutated `AdminContextUser` provider
+   (`NovaAppHostFixture.cs`). Verified by running the affected class alone (14/14) and the
+   full integration suite: **230/230 passed** (1m52s).
+
+Browser evidence: scenario report recorded across runs 1–3 (initial pass, F1 repro + fix
+verification). Cleanup: `aspire stop --non-interactive` run; temporary browser-automation
+artifacts removed.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Issue #64 is complete. The campaign participant drawer is now responsive and navigable:
+
+- **Phase 1** — drawer loads read-only participant detail via the #68 read APIs with
+  Loading/Loaded/Failed states and inline error + Retry.
+- **Phase 2** — page-owned sequence state with prev/next navigation, "N of M" position,
+  true first/last disable states, two-phase boundary navigation across filtered/sorted/
+  paged roster pages, and stale-response protection.
+- **Phase 3** — focus trap, focus return, and Escape via JS helpers; roster rows/cards
+  carry stable DOM ids for the focus-return fallback.
+- **Phase 4** — component-test hardening for all cross-cutting acceptance criteria
+  (22 bUnit drawer tests).
+- **Phase 5** — format/build/full unit regression: 1334/1334 unit tests pass.
+- **Phase 6** — 12-scenario browser validation; found and fixed the F1 focus bug and the
+  integration-fixture state leak; full integration suite 230/230 pass.
+
+Scope decisions 1–8 from the issue discussion are all honored (arrow-key shortcuts deferred
+to #70 and documented in the drawer XML docs).
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Merge this branch; no database migration is required (this phase is read-only over the
+   #68 read APIs and introduces no schema or configuration changes).
+2. Deploy the standard way (AppHost-orchestrated); no new services, endpoints, or
+   environment variables were added.
+3. After deploy, spot-check the drawer on a narrow viewport (card list + full-screen
+   drawer) and verify prev/next at the first and last positions of a campaign roster.
