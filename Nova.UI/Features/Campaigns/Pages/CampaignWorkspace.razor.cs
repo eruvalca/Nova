@@ -390,6 +390,18 @@ public partial class CampaignWorkspace(
             PageQuery);
         var incomingQueryString = CampaignWorkspaceUrlState.BuildQueryString(incoming);
 
+        // A pending boundary move is only valid while the URL state it was issued against stays
+        // in place. Clear it the moment a participant or roster-query divergence is observed — a
+        // close, Back/Forward, a different selection, or a filter/page change — so a transient
+        // close-then-Back round trip cannot resurrect a move the close was supposed to cancel.
+        // A failed load for the unchanged query keeps the move pending so Retry can complete it.
+        if (_pendingBoundaryMove is { } pending
+            && (pending.InitiatingParticipantId != participant
+                || !string.Equals(incomingQueryString, pending.ExpectedQueryString, StringComparison.Ordinal)))
+        {
+            _pendingBoundaryMove = null;
+        }
+
         if (string.Equals(incomingQueryString, _appliedQueryString, StringComparison.Ordinal))
         {
             return;
@@ -931,9 +943,9 @@ public partial class CampaignWorkspace(
     /// <summary>
     /// Resolves or clears a pending cross-page move after a roster load finishes. The move only
     /// resolves when the load succeeded for the exact query the move was issued against and the
-    /// initiating participant is still selected; any divergence — a close, Back/Forward, a
-    /// different selection, or a newer filter/page change — clears it. A failed load keeps the
-    /// move pending so Retry can still complete it.
+    /// initiating participant is still selected. Divergence is normally cleared immediately by
+    /// <see cref="OnParametersSet"/>, so this check is defense-in-depth for responses racing a
+    /// navigation; a failed load keeps the move pending so Retry can still complete it.
     /// </summary>
     /// <param name="loaded">Whether the finished roster load succeeded.</param>
     private void TryResolvePendingBoundaryMove(bool loaded)

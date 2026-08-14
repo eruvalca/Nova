@@ -988,6 +988,44 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
+    public void CampaignWorkspace_BoundaryMove_CloseThenBackBeforeTargetPageLoads_DoesNotConsumeMove()
+    {
+        var page2Completion = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();
+        var participantService = CreatePagedParticipantServiceWithDelayedPage2(page2Completion);
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        var historyCountBefore = ((BunitNavigationManager)navigationManager).History.Count;
+        cut.Find("#participant-drawer-next").Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("page=2"));
+
+        // Close the drawer, then Back to the initiating participant, while page 2 is still
+        // loading. The close must cancel the move immediately, so the delayed response cannot
+        // consume it when the transient selection round trip (303 → null → 303) restores the
+        // initiating participant before the response arrives.
+        cut.Find("#participant-drawer-close").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&page=2&participant=303");
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        page2Completion.SetResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+            CreatePagedRoster(page: 2, 6, [304, 305, 306])));
+
+        // The roster updates to page 2, but the move is gone: the selection stays on the
+        // initiating participant (off-page) instead of jumping to 304, and no history entry
+        // is replaced.
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Participant 304"));
+        cut.Markup.ShouldContain("participant-drawer");
+        navigationManager.Uri.ShouldContain("participant=303");
+        navigationManager.Uri.ShouldNotContain("participant=304");
+        ((BunitNavigationManager)navigationManager).History.Count.ShouldBe(historyCountBefore + 3);
+    }
+
+    [Fact]
     public void CampaignWorkspace_BoundaryMove_BackBeforeTargetPageLoads_DoesNotReopenDrawer()
     {
         var page2Completion = new TaskCompletionSource<ServiceResult<PagedResult<CampaignParticipantRosterItem>>>();

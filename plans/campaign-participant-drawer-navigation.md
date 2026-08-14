@@ -54,9 +54,10 @@ Unblocks #70 (note/tag mutation controls).
   becomes a permanent history entry. Net result: one history entry per boundary crossing.
   The move only resolves when the finished load matches the query it was issued against and the
   initiating participant is still selected — a close, Back/Forward, a different selection, or a
-  newer filter/page change clears it, and a failed load keeps it pending so Retry can complete
-  it. If the newly loaded page is empty (concurrent drift), clear the move and leave the drawer
-  in the off-page state (decision 4).
+  newer filter/page change clears it immediately when <c>OnParametersSet</c> observes the
+  divergence, and a failed load keeps it pending so Retry can complete it. If the newly loaded
+  page is empty (concurrent drift), clear the move and leave the drawer in the off-page state
+  (decision 4).
 - **True first/last**: prev disabled when position = 1; next disabled when position =
   `TotalCount`.
 
