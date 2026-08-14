@@ -339,16 +339,19 @@ migration warnings; none of the Phase 4 files are flagged.
 
 ## Phase 5: Format, build, and full-suite regression
 
-Status: Not started
+Status: Complete
 
 Suggested executor: sub-agent with a smaller model (mechanical run + report).
 
-- [ ] `dotnet format Nova.slnx` (apply fixes if needed), then
-      `dotnet format Nova.slnx --verify-no-changes`.
-- [ ] `dotnet build Nova.slnx` — clean, no new warnings.
-- [ ] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — all tests pass
-      (record the count in the phase summary).
-- [ ] Fix anything surfaced; note any pre-existing failures unrelated to this work rather than
+- [x] `dotnet format Nova.slnx --verify-no-changes` — exit 2 solely on PRE-EXISTING
+      Tag-feature CHARSET errors and three migration IDE0161 warnings; no files touched by this
+      work are flagged. Plain `dotnet format Nova.slnx` was intentionally NOT run because it
+      rewrites those unrelated Tag files (the Phase 2/3 convention: verify only, never let the
+      formatter normalize unrelated files).
+- [x] `dotnet build Nova.slnx` — clean: 0 warnings, 0 errors.
+- [x] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — all tests pass
+      (1332/1332; +5 from Phase 4).
+- [x] Fix anything surfaced; note any pre-existing failures unrelated to this work rather than
       fixing them silently.
 
 ### Verification Plan
@@ -357,7 +360,13 @@ Suggested executor: sub-agent with a smaller model (mechanical run + report).
 
 ### Phase Summary
 
-_(write when phase completes)_
+- Format gate: `--verify-no-changes` still exits 2, but the violation list contains only the
+  pre-existing Tag-feature files (CHARSET) and three migration warnings — identical to the
+  baseline recorded in Phases 2–4. None of the files changed by this feature (page, drawer,
+  roster components, site.js, tests, plan) are flagged.
+- Build: `dotnet build Nova.slnx` succeeded with 0 warnings / 0 errors.
+- Unit tests: full suite 1332/1332 green (the count was 1327 before Phase 4's five new tests).
+- Nothing new surfaced; no fixes required.
 
 ## Phase 6: Focused browser validation (Aspire + Playwright)
 
