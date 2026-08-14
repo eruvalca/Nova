@@ -218,11 +218,11 @@ Phase 3 next: workspace shell page (see below).
 
 ## Phase 3: Workspace shell page (route, tab bar, header, entry link)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator (defines the component boundaries #64 will build against).
 
-- [ ] Create `Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor` +
+- [x] Create `Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor` +
       `.razor.cs` (+ optional `.razor.css`) with `@page "/campaigns/{CampaignId:long}"`,
       `@rendermode InteractiveAuto`, `@attribute [Authorize(Policy =
       Policies.RequireClubMember)]`. Code-behind: primary-constructor DI
@@ -230,21 +230,21 @@ Suggested executor: orchestrator (defines the component boundaries #64 will buil
       `ITagDefinitionQueryService`, `ITeamRosterService`, `NavigationManager`,
       `IJSRuntime`), `[PersistentState]` persisted roster/detail + `Initialized` guard,
       `ComponentCancellationToken`.
-- [ ] Header block: campaign name, status badge (reuse the list page's badge classes),
+- [x] Header block: campaign name, status badge (reuse the list page's badge classes),
       formatted date range, "N participants" from `CampaignDetailResult.ParticipantCount`,
       season name. Breadcrumb/link back to `/campaigns`.
-- [ ] Tab bar: `tab` param backed. Evaluate active; Overview, Placements, Closeout rendered as
+- [x] Tab bar: `tab` param backed. Evaluate active; Overview, Placements, Closeout rendered as
       disabled buttons/links with a "coming soon" tooltip. Invalid `tab` values fall back to
       evaluate. Push history on tab change.
-- [ ] Detail-load states: loading spinner, recoverable error + Retry (reuse the list page's
+- [x] Detail-load states: loading spinner, recoverable error + Retry (reuse the list page's
       alert pattern), `Forbidden` → `NavigateTo` AccessDenied, `NotFound` → friendly
       "campaign not found" card with a link back to `/campaigns`.
-- [ ] Roster shell: filter bar + results region + pager composed from Phase 4 components, with
+- [x] Roster shell: filter bar + results region + pager composed from Phase 4 components, with
       the roster loaded only when the detail load succeeds (single initial load path).
-- [ ] Update `Nova.UI/Features/Campaigns/Pages/Campaigns.razor`: campaign name cell becomes
+- [x] Update `Nova.UI/Features/Campaigns/Pages/Campaigns.razor`: campaign name cell becomes
       `<a href="campaigns/{CampaignId}">@campaign.Name</a>` (relative href, enhanced
       navigation — matches the existing `campaigns/new` pattern).
-- [ ] Component tests in `Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.cs` (new file, bUnit
+- [x] Component tests in `Nova.Unit.Tests/Campaigns/CampaignWorkspaceTests.cs` (new file, bUnit
       `BunitContext` + NSubstitute): header renders detail fields; tab bar shows Evaluate active
       and the other three disabled; `tab` param round-trips; `NotFound` and `Forbidden` paths;
       **render-mode assertion** per testing instructions (bUnit alone does not prove
@@ -259,7 +259,28 @@ Suggested executor: orchestrator (defines the component boundaries #64 will buil
 
 ### Phase Summary
 
-_(write when phase completes)_
+Workspace shell shipped: `CampaignWorkspace.razor` + `.razor.cs` at
+`/campaigns/{CampaignId:long}` (`InteractiveAuto`, `RequireClubMember`), primary-constructor
+DI with `ITagDefinitionQueryService`/`ITeamRosterService`/`IJSRuntime` captured as private
+fields reserved for Phase 4 (keeps the build warning-free). Persisted state
+(`PersistedDetail`, `PersistedPageError`, `PersistedNotFound`, `PersistedRoster`,
+`PersistedRosterError`, `Initialized`) mirrors the players-page prerender restore pattern.
+Header renders name, `CampaignStatusBadgeClass` badge, `FormatCampaignDates` range, season,
+and participant count; back link to `/campaigns`. Tab bar: Evaluate active button pushing
+`?tab=evaluate` on click; Overview/Placements/Closeout are disabled `nav-link` spans with
+`title="Coming soon"`; unknown `tab` values fall back to evaluate. Detail-load states:
+spinner, recoverable error + Retry, `Forbidden` → `/Account/AccessDenied`, `NotFound` →
+friendly card. Roster loads only after the detail load succeeds (single initial load path);
+its shell is a placeholder card (total count + "coming soon" text) that Phase 4 replaces
+with the composed filter bar + results region + pager. `Campaigns.razor` name cell is now a
+relative link (`campaigns/{id}`). Tests: 13 new bUnit tests in
+`CampaignWorkspaceTests.cs` (render-mode file assertion, header fields, tab states and
+round-trips, loading/NotFound/Forbidden/error+Retry, roster load ordering, roster retry
+clearing the error, persisted-state restore) plus the list-page link assertion in
+`CampaignComponentsTests.cs`. Fixed a roster-retry bug found by the tests: `_rosterError`
+is now cleared at the start of `LoadRosterAsync` so a successful retry dismisses the alert.
+Verification: clean build (0 warnings), full unit suite 1,264 passed, per-file format clean
+(two new files required CHARSET fixes).
 
 ## Phase 4: Roster list with URL-backed filters, sorting, and paging
 

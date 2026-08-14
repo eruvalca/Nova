@@ -106,6 +106,10 @@ public sealed class CampaignComponentsTests : BunitContext
         cut.Markup.ShouldContain("Active");
         cut.Markup.ShouldContain("12");
         cut.Markup.ShouldContain("3");
+
+        var nameLink = cut.Find("tbody a");
+        nameLink.GetAttribute("href").ShouldBe("campaigns/10");
+        nameLink.TextContent.Trim().ShouldBe("Summer Tryouts");
     }
 
     [Fact]
