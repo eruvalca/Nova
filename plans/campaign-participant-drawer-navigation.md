@@ -203,29 +203,30 @@ reverted rather than fixed silently).
 
 ## Phase 3: Focus trap, focus return, and Escape (JS helpers)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator (site.js is shared and load-bearing; subtle keydown behavior).
 
-- [ ] `Nova/wwwroot/js/site.js`: add
+- [x] `Nova/wwwroot/js/site.js`: add
       `novaCampaignParticipantDrawerOpen(dialogSelector, closeButtonId)` — captures
       `document.activeElement` (the activating row/card), installs a document-level capture
       `keydown` trap that cycles Tab/Shift+Tab through the focusable elements inside the dialog
       (buttons, links, and non-disabled form controls), and focuses the close button. Add
-      `novaCampaignParticipantDrawerClose(restoreFallbackId)` — removes the trap, restores
-      focus to the captured element if still connected, else `restoreFallbackId`, else nothing.
-- [ ] Give roster rows/cards stable DOM ids for the fallback:
+      `novaCampaignParticipantDrawerClose(restoreFallbackId)` — removes the trap and restores
+      focus to the selected participant's visible row/card (fallback id, card id derived from
+      the row id), else the captured element if still connected, else nothing.
+- [x] Give roster rows/cards stable DOM ids for the fallback:
       `id="roster-row-{assignmentId}"` (`tr`) and `id="roster-card-{assignmentId}"` (`li`) in
       `CampaignRosterTable.razor` / `CampaignRosterCards.razor`.
-- [ ] Drawer code-behind: on first render invoke `novaCampaignParticipantDrawerOpen` (replacing
+- [x] Drawer code-behind: on first render invoke `novaCampaignParticipantDrawerOpen` (replacing
       the `novaCampaignWorkspaceFocus` call); `CloseAsync` invokes
       `novaCampaignParticipantDrawerClose` (fallback = the selected row id) before delivering
       `OnClose`; Escape keeps the C# handler and takes the same close path; `DisposeAsyncCore`
       removes the trap without restoring focus (navigation away while open must not leave a
       stale trap).
-- [ ] Document in the drawer XML docs: arrow-key prev/next intentionally not implemented
+- [x] Document in the drawer XML docs: arrow-key prev/next intentionally not implemented
       (scope decision 1); focus behavior summary.
-- [ ] Update the existing bUnit drawer tests that assert the old `novaCampaignWorkspaceFocus`
+- [x] Update the existing bUnit drawer tests that assert the old `novaCampaignWorkspaceFocus`
       call; add assertions: open helper invoked on first render with the expected ids; close
       helper invoked with the fallback row id on close-button click, backdrop click, and
       Escape.
@@ -239,7 +240,32 @@ Suggested executor: orchestrator (site.js is shared and load-bearing; subtle key
 
 ### Phase Summary
 
-_(write when phase completes)_
+`site.js` replaced `novaCampaignWorkspaceFocus` (now unused) with three drawer-specific helpers:
+`novaCampaignParticipantDrawerOpen` captures the activating row/card, installs a capture-phase
+Tab/Shift+Tab trap that cycles the dialog's visible focusable elements and wraps at both ends,
+and focuses the close button; `novaCampaignParticipantDrawerClose(restoreFallbackId)` removes the
+trap and restores focus; `novaCampaignParticipantDrawerDispose` removes the trap only. Focus
+return refines the plan slightly: the visible selected row/card (fallback id, with the card id
+derived from the row id so the correct layout wins via a visibility check) is preferred over the
+captured activating element, so closing after a prev/next move lands on the newly selected
+participant rather than the originally clicked one; the captured element remains the fallback,
+then nothing.
+
+Roster rows and cards now emit stable `roster-row-{assignmentId}` / `roster-card-{assignmentId}`
+ids. The drawer code-behind installs the trap in `OnAfterRenderAsync(firstRender)` only (so the
+prerendered instance never issues JS interop), closes through a shared `CloseAsync` that removes
+the trap and restores focus before delivering `OnClose` (Escape and backdrop clicks take the same
+path), and `DisposeAsyncCore` removes the trap without restoring focus, swallowing
+`JSDisconnectedException` like `NovaCropperComponent` (full-document navigation while open). A
+`_focusTrapInstalled` guard keeps the prerender/dispose paths no-ops. Arrow-key exclusion and the
+focus contract are documented in the drawer XML docs.
+
+Tests: 6 new/updated drawer tests (open invocation with the expected selector + close-button id,
+single trap install across participant parameter changes, close-helper invocation with the
+fallback row id on close-button click, backdrop click, and Escape, and dispose removing the trap
+without restoring focus). Targeted suites pass (20 drawer, 39 workspace); full unit suite passes
+(1327). Build clean; format gate clean on the touched files (same pre-existing Tag-feature
+CHARSET violations as Phase 2).
 
 ## Phase 4: Component-test hardening for the cross-cutting acceptance criteria
 

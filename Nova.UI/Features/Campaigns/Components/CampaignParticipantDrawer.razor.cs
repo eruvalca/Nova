@@ -11,12 +11,31 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// Drawer presenting the selected campaign roster participant's details with loading, failure, and
 /// loaded states, plus prev/next sequence navigation driven by the workspace page.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Focus management: opening the drawer captures the activating roster row/card, installs a
+/// document-level Tab trap that cycles focus through the dialog, and focuses the close button.
+/// Closing removes the trap and restores focus to the selected participant's visible row/card,
+/// falling back to the captured activating element, then to nothing. Disposal removes the trap
+/// without restoring focus, so navigating away while the drawer is open leaves no stale trap.
+/// </para>
+/// <para>
+/// Arrow-key prev/next navigation is intentionally not implemented (scope decision); keyboard
+/// users reach the header prev/next buttons through the Tab cycle, and Escape closes the drawer
+/// along the same focus-return path.
+/// </para>
+/// </remarks>
 /// <param name="participantQueryService">The query service used to load participant details.</param>
-/// <param name="jsRuntime">The JavaScript runtime used to focus the close button when the drawer opens.</param>
+/// <param name="jsRuntime">The JavaScript runtime used to manage the drawer focus trap and focus return.</param>
 public partial class CampaignParticipantDrawer(
     ICampaignParticipantQueryService participantQueryService,
     IJSRuntime jsRuntime) : NovaComponentBase
 {
+    /// <summary>
+    /// The CSS selector for the dialog panel, used as the focus-trap container.
+    /// </summary>
+    private const string DialogSelector = ".participant-drawer";
+
     /// <summary>
     /// The DOM identifier of the close button, focused when the drawer opens.
     /// </summary>
@@ -122,6 +141,18 @@ public partial class CampaignParticipantDrawer(
     private string? _detailError;
 
     /// <summary>
+    /// The DOM identifier of the roster row corresponding to the selected participant, used as the
+    /// primary focus-return target when the drawer closes.
+    /// </summary>
+    private string FallbackFocusId => $"roster-row-{ParticipantId}";
+
+    /// <summary>
+    /// Whether the focus trap was installed during the interactive first render, so the prerendered
+    /// instance never issues JS interop and disposal only removes a trap that actually exists.
+    /// </summary>
+    private bool _focusTrapInstalled;
+
+    /// <summary>
     /// The current detail-load state.
     /// </summary>
     private DetailLoadState _detailState;
@@ -168,7 +199,8 @@ public partial class CampaignParticipantDrawer(
     {
         if (firstRender)
         {
-            await jsRuntime.InvokeVoidAsync("novaCampaignWorkspaceFocus", CloseButtonId);
+            await jsRuntime.InvokeVoidAsync("novaCampaignParticipantDrawerOpen", DialogSelector, CloseButtonId);
+            _focusTrapInstalled = true;
         }
     }
 
@@ -244,10 +276,44 @@ public partial class CampaignParticipantDrawer(
     }
 
     /// <summary>
-    /// Closes the drawer via the parent page.
+    /// Closes the drawer via the parent page, removing the focus trap and restoring focus to the
+    /// selected participant's roster row before delivering the callback.
     /// </summary>
     /// <returns>A task that completes when the callback is delivered.</returns>
-    private Task CloseAsync() => OnClose.InvokeAsync();
+    private async Task CloseAsync()
+    {
+        if (_focusTrapInstalled)
+        {
+            _focusTrapInstalled = false;
+            await jsRuntime.InvokeVoidAsync("novaCampaignParticipantDrawerClose", FallbackFocusId);
+        }
+
+        await OnClose.InvokeAsync();
+    }
+
+    /// <summary>
+    /// Removes the focus trap without restoring focus when the component is disposed, so navigating
+    /// away while the drawer is open leaves no stale trap behind.
+    /// </summary>
+    /// <returns>A task that completes when the trap is removed.</returns>
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        if (!_focusTrapInstalled)
+        {
+            return;
+        }
+
+        _focusTrapInstalled = false;
+
+        try
+        {
+            await jsRuntime.InvokeVoidAsync("novaCampaignParticipantDrawerDispose");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone; the browser tore the trap down with the document.
+        }
+    }
 
     /// <summary>
     /// Closes the drawer when Escape is pressed inside the panel.

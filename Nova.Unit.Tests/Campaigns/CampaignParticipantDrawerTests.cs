@@ -13,8 +13,8 @@ namespace Nova.Unit.Tests.Campaigns;
 
 /// <summary>
 /// Component-level tests for the campaign participant drawer covering detail-load states, retry,
-/// stale-response discard, parameter-change reloads, close/Escape callbacks, and persisted-state
-/// restoration.
+/// stale-response discard, parameter-change reloads, close/Escape callbacks, focus-trap management,
+/// and persisted-state restoration.
 /// </summary>
 public sealed class CampaignParticipantDrawerTests : BunitContext
 {
@@ -289,6 +289,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.Find("#participant-drawer-close").Click();
 
         closed.ShouldBeTrue();
+        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerClose")
+            .Arguments.ShouldBe(new object?[] { "roster-row-301" });
     }
 
     [Fact]
@@ -307,6 +309,72 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
 
         closed.ShouldBeTrue();
+        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerClose")
+            .Arguments.ShouldBe(new object?[] { "roster-row-301" });
+    }
+
+    [Fact]
+    public void Drawer_InvokesOnClose_WhenBackdropClicked()
+    {
+        var closed = false;
+        var onClose = EventCallback.Factory.Create(this, () => closed = true);
+        RegisterServices();
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301)
+            .Add(component => component.OnClose, onClose));
+
+        cut.Find(".participant-drawer-backdrop").Click();
+
+        closed.ShouldBeTrue();
+        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerClose")
+            .Arguments.ShouldBe(new object?[] { "roster-row-301" });
+    }
+
+    // ── Focus trap management ───────────────────────────────────────────────────
+
+    [Fact]
+    public void Drawer_InstallsFocusTrap_OnFirstRender()
+    {
+        RegisterServices();
+
+        Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerOpen")
+            .Arguments.ShouldBe(new object?[] { ".participant-drawer", "participant-drawer-close" });
+    }
+
+    [Fact]
+    public void Drawer_DoesNotReinstallFocusTrap_WhenParticipantParameterChanges()
+    {
+        RegisterServices();
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        cut.Render(parameters => parameters.Add(component => component.ParticipantId, 302));
+
+        JSInterop.Invocations.Count(invocation => invocation.Identifier == "novaCampaignParticipantDrawerOpen")
+            .ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Drawer_RemovesFocusTrapWithoutRestoringFocus_WhenDisposed()
+    {
+        RegisterServices();
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        await ((IAsyncDisposable)cut.Instance).DisposeAsync();
+
+        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerDispose");
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "novaCampaignParticipantDrawerClose");
     }
 
     // ── Sequence navigation ─────────────────────────────────────────────────────

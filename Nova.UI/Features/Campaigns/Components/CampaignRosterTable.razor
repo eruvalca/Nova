@@ -38,6 +38,7 @@
             @foreach (var item in Items)
             {
                 <tr class="@RowClass(item)"
+                    id="@($"roster-row-{item.PlayerCampaignAssignmentId}")"
                     aria-current="@AriaCurrent(item)"
                     tabindex="0"
                     @onclick="() => SelectItemAsync(item)"
