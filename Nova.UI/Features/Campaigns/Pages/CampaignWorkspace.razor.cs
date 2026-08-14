@@ -291,6 +291,11 @@ public partial class CampaignWorkspace(
     private long? _selectedParticipantId;
 
     /// <summary>
+    /// The pending cross-page participant move to resolve after the matching roster load completes.
+    /// </summary>
+    private PendingBoundaryMove? _pendingBoundaryMove;
+
+    /// <summary>
     /// The roster region scroll offset captured before a drawer open/close navigation, restored after render.
     /// </summary>
     private double? _pendingScrollRestore;
@@ -312,6 +317,49 @@ public partial class CampaignWorkspace(
         => _selectedParticipantId is null
             ? null
             : _roster?.Items.FirstOrDefault(item => item.PlayerCampaignAssignmentId == _selectedParticipantId.Value);
+
+    /// <summary>
+    /// Gets the 1-based position of the open participant within the filtered roster sequence,
+    /// or <see langword="null"/> when the drawer is closed or the participant is off the loaded page.
+    /// </summary>
+    private int? SelectedParticipantPosition
+    {
+        get
+        {
+            if (_roster is null || _selectedParticipantId is null)
+            {
+                return null;
+            }
+
+            for (var index = 0; index < _roster.Items.Count; index++)
+            {
+                if (_roster.Items[index].PlayerCampaignAssignmentId == _selectedParticipantId.Value)
+                {
+                    return ((_roster.Page - 1) * _roster.PageSize) + index + 1;
+                }
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets the total number of participants in the filtered roster sequence.
+    /// </summary>
+    private int ParticipantSequenceCount => _roster?.TotalCount ?? 0;
+
+    /// <summary>
+    /// Gets a value indicating whether the open participant has a predecessor in the roster sequence.
+    /// </summary>
+    private bool HasPreviousParticipant => SelectedParticipantPosition is > 1;
+
+    /// <summary>
+    /// Gets a value indicating whether the open participant has a successor in the roster sequence.
+    /// </summary>
+    private bool HasNextParticipant
+        => SelectedParticipantPosition is { } position
+            && _roster is not null
+            && position < _roster.TotalCount;
 
     /// <inheritdoc />
     protected override void OnParametersSet()
@@ -341,6 +389,18 @@ public partial class CampaignWorkspace(
             SortDirectionQuery,
             PageQuery);
         var incomingQueryString = CampaignWorkspaceUrlState.BuildQueryString(incoming);
+
+        // A pending boundary move is only valid while the URL state it was issued against stays
+        // in place. Clear it the moment a participant or roster-query divergence is observed — a
+        // close, Back/Forward, a different selection, or a filter/page change — so a transient
+        // close-then-Back round trip cannot resurrect a move the close was supposed to cancel.
+        // A failed load for the unchanged query keeps the move pending so Retry can complete it.
+        if (_pendingBoundaryMove is { } pending
+            && (pending.InitiatingParticipantId != participant
+                || !string.Equals(incomingQueryString, pending.ExpectedQueryString, StringComparison.Ordinal)))
+        {
+            _pendingBoundaryMove = null;
+        }
 
         if (string.Equals(incomingQueryString, _appliedQueryString, StringComparison.Ordinal))
         {
@@ -577,8 +637,13 @@ public partial class CampaignWorkspace(
             return;
         }
 
+        var loaded = false;
         result.Switch(
-            roster => _roster = roster,
+            roster =>
+            {
+                _roster = roster;
+                loaded = true;
+            },
             problem =>
             {
                 if (problem.Kind == ServiceProblemKind.Forbidden)
@@ -592,6 +657,8 @@ public partial class CampaignWorkspace(
             });
 
         _rosterLoading = false;
+
+        TryResolvePendingBoundaryMove(loaded);
     }
 
     /// <summary>
@@ -804,6 +871,119 @@ public partial class CampaignWorkspace(
     }
 
     /// <summary>
+    /// Moves the open participant to the previous participant in the roster sequence, crossing pages when needed.
+    /// </summary>
+    /// <returns>A task that completes when the move navigation is initiated.</returns>
+    private Task OnPreviousParticipantAsync() => MoveParticipantAsync(-1);
+
+    /// <summary>
+    /// Moves the open participant to the next participant in the roster sequence, crossing pages when needed.
+    /// </summary>
+    /// <returns>A task that completes when the move navigation is initiated.</returns>
+    private Task OnNextParticipantAsync() => MoveParticipantAsync(1);
+
+    /// <summary>
+    /// Moves the open participant by an offset within the loaded roster page, or schedules a
+    /// cross-page move when the offset runs past the current page boundary.
+    /// </summary>
+    /// <param name="offset">The move offset: <c>-1</c> for previous, <c>1</c> for next.</param>
+    /// <returns>A task that completes when the move navigation is initiated.</returns>
+    private async Task MoveParticipantAsync(int offset)
+    {
+        if (_roster is null || _selectedParticipantId is null || _pendingBoundaryMove is not null)
+        {
+            return;
+        }
+
+        var items = _roster.Items;
+        var currentIndex = -1;
+        for (var index = 0; index < items.Count; index++)
+        {
+            if (items[index].PlayerCampaignAssignmentId == _selectedParticipantId.Value)
+            {
+                currentIndex = index;
+                break;
+            }
+        }
+
+        if (currentIndex < 0)
+        {
+            // The open participant is off the loaded page; sequence moves are unavailable.
+            return;
+        }
+
+        var targetIndex = currentIndex + offset;
+        if (targetIndex >= 0 && targetIndex < items.Count)
+        {
+            // Within-page move: only the participant parameter changes; roster and scroll stay untouched.
+            await CaptureRosterScrollAsync();
+            _selectedParticipantId = items[targetIndex].PlayerCampaignAssignmentId;
+            navigationManager.NavigateTo(
+                CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab, _selectedParticipantId));
+            return;
+        }
+
+        var nextPage = _filters.Page + offset;
+        if (nextPage < 1)
+        {
+            return;
+        }
+
+        // Cross-page move: push the page change, remember the target edge together with the exact
+        // roster query and initiating participant, and correct the participant selection in place
+        // once that exact page finishes loading.
+        var nextState = _filters with { Page = nextPage };
+        _pendingBoundaryMove = new PendingBoundaryMove(
+            offset < 0 ? BoundaryIntent.Last : BoundaryIntent.First,
+            CampaignWorkspaceUrlState.BuildQueryString(nextState),
+            _selectedParticipantId.Value);
+        await ApplyFiltersAndNavigateAsync(nextState);
+    }
+
+    /// <summary>
+    /// Resolves or clears a pending cross-page move after a roster load finishes. The move only
+    /// resolves when the load succeeded for the exact query the move was issued against and the
+    /// initiating participant is still selected. Divergence is normally cleared immediately by
+    /// <see cref="OnParametersSet"/>, so this check is defense-in-depth for responses racing a
+    /// navigation; a failed load keeps the move pending so Retry can still complete it.
+    /// </summary>
+    /// <param name="loaded">Whether the finished roster load succeeded.</param>
+    private void TryResolvePendingBoundaryMove(bool loaded)
+    {
+        if (_pendingBoundaryMove is null)
+        {
+            return;
+        }
+
+        if (_selectedParticipantId != _pendingBoundaryMove.InitiatingParticipantId
+            || !string.Equals(_appliedQueryString, _pendingBoundaryMove.ExpectedQueryString, StringComparison.Ordinal))
+        {
+            _pendingBoundaryMove = null;
+            return;
+        }
+
+        if (!loaded)
+        {
+            return;
+        }
+
+        var move = _pendingBoundaryMove;
+        _pendingBoundaryMove = null;
+
+        if (_roster is null || _roster.Items.Count == 0)
+        {
+            // The new page came back empty (concurrent roster drift); leave the drawer off-page.
+            return;
+        }
+
+        var target = move.Edge == BoundaryIntent.First ? _roster.Items[0] : _roster.Items[^1];
+        _selectedParticipantId = target.PlayerCampaignAssignmentId;
+        navigationManager.NavigateTo(
+            CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab, _selectedParticipantId),
+            new NavigationOptions { ReplaceHistoryEntry = true });
+    }
+
+    /// <summary>
     /// Closes the participant drawer, removing <c>participant</c> from the workspace URL while preserving roster state.
     /// </summary>
     /// <returns>A task that completes when the scroll anchor is captured and navigation is initiated.</returns>
@@ -917,4 +1097,34 @@ public partial class CampaignWorkspace(
     /// <returns>The first non-blank candidate.</returns>
     private static string FirstNonBlank(params string?[] candidates)
         => candidates.First(candidate => !string.IsNullOrWhiteSpace(candidate))!;
+
+    /// <summary>
+    /// A pending cross-page participant move: the target edge, the exact roster query the move was
+    /// issued against, and the initiating participant selection.
+    /// </summary>
+    private sealed record PendingBoundaryMove(
+        BoundaryIntent Edge,
+        string ExpectedQueryString,
+        long InitiatingParticipantId);
+
+    /// <summary>
+    /// The pending cross-page move direction to resolve after the next roster load.
+    /// </summary>
+    private enum BoundaryIntent
+    {
+        /// <summary>
+        /// No cross-page move is pending.
+        /// </summary>
+        None,
+
+        /// <summary>
+        /// Select the first participant of the newly loaded page.
+        /// </summary>
+        First,
+
+        /// <summary>
+        /// Select the last participant of the newly loaded page.
+        /// </summary>
+        Last
+    }
 }

@@ -30,7 +30,110 @@
     border-bottom: 1px solid var(--bs-border-color);
 }
 
+.participant-drawer-header-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.participant-drawer-nav-button {
+    flex: 0 0 auto;
+    line-height: 1;
+}
+
+.participant-drawer-heading {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.participant-drawer-position {
+    margin-top: 0.375rem;
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+}
+
 .participant-drawer-body {
     padding: 1.25rem;
     overflow-y: auto;
+}
+
+.participant-drawer-section {
+    margin-bottom: 1.5rem;
+}
+
+.participant-drawer-section-title {
+    margin-bottom: 0.625rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.participant-drawer-definition-list {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.5rem 1rem;
+    align-items: center;
+}
+
+.participant-drawer-definition-list dt {
+    font-weight: 500;
+    color: var(--bs-secondary-color);
+}
+
+.participant-drawer-list {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.participant-drawer-note {
+    padding-left: 0.75rem;
+    margin-bottom: 0.75rem;
+    border-left: 0.2rem solid var(--bs-border-color);
+}
+
+.participant-drawer-note:last-child {
+    margin-bottom: 0;
+}
+
+.participant-drawer-note-meta {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+}
+
+.participant-drawer-tag-item {
+    margin-bottom: 0.5rem;
+}
+
+.participant-drawer-tag-item:last-child {
+    margin-bottom: 0;
+}
+
+.participant-drawer-tag {
+    margin-right: 0.25rem;
+    font-weight: 500;
+}
+
+.participant-drawer-tag-archived {
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+
+.participant-drawer-tag-meta {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+}
+
+.participant-drawer-footer {
+    padding-top: 0.75rem;
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--bs-border-color);
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
 }

@@ -1,18 +1,130 @@
 <div class="participant-drawer-backdrop" aria-hidden="true" @onclick="CloseAsync"></div>
 <aside class="participant-drawer"
+       @ref="_dialog"
        role="dialog"
        aria-modal="true"
        aria-labelledby="participant-drawer-heading"
        @onkeydown="OnKeyDownAsync">
-    <header class="participant-drawer-header d-flex justify-content-between align-items-center">
-        <h2 class="h5 mb-0" id="participant-drawer-heading">@(RosterItem?.DisplayName ?? "Participant")</h2>
-        <button type="button"
-                class="btn-close"
-                @ref="_closeButton"
-                aria-label="Close participant details"
-                @onclick="CloseAsync"></button>
+    <header class="participant-drawer-header">
+        <div class="participant-drawer-header-row">
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary participant-drawer-nav-button"
+                    id="participant-drawer-previous"
+                    aria-label="Previous participant"
+                    disabled="@(!HasPrevious)"
+                    @onclick="OnPrevious">&#8249;</button>
+            <h2 class="h5 mb-0 participant-drawer-heading" id="participant-drawer-heading">@Heading</h2>
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary participant-drawer-nav-button"
+                    id="participant-drawer-next"
+                    aria-label="Next participant"
+                    disabled="@(!HasNext)"
+                    @onclick="OnNext">&#8250;</button>
+            <button type="button"
+                    class="btn-close"
+                    id="participant-drawer-close"
+                    @ref="_closeButton"
+                    aria-label="Close participant details"
+                    @onclick="CloseAsync"></button>
+        </div>
+        @if (Position is { } position)
+        {
+            <p class="participant-drawer-position mb-0" id="participant-drawer-position">@position of @TotalCount</p>
+        }
     </header>
     <div class="participant-drawer-body">
-        <p class="text-muted mb-0">Participant details arrive in #64.</p>
+        @if (_detailState == DetailLoadState.Loading)
+        {
+            <div class="d-flex align-items-center gap-2 text-muted" role="status" aria-live="polite">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>Loading participant details…</span>
+            </div>
+        }
+        else if (_detailState == DetailLoadState.Failed)
+        {
+            <div class="alert alert-danger" role="alert">
+                <p class="mb-2">@_detailError</p>
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger"
+                        id="participant-drawer-retry"
+                        @onclick="RetryAsync">Retry</button>
+            </div>
+        }
+        else if (_detail is { } detail)
+        {
+            <section class="participant-drawer-section">
+                <h3 class="participant-drawer-section-title">Player</h3>
+                <dl class="participant-drawer-definition-list mb-0">
+                    <dt>Graduation year</dt>
+                    <dd class="mb-0">@detail.GraduationYear</dd>
+                    <dt>Tryout number</dt>
+                    <dd class="mb-0">@(detail.TryoutNumber?.ToString() ?? "—")</dd>
+                    <dt>Outcome</dt>
+                    <dd class="mb-0">
+                        <span class="badge @CampaignRosterDisplay.OutcomeBadgeClass(detail.PlacementOutcome)">
+                            @CampaignRosterDisplay.OutcomeLabel(detail.PlacementOutcome)
+                        </span>
+                    </dd>
+                    <dt>Team</dt>
+                    <dd class="mb-0">@(detail.Team?.TeamName ?? "—")</dd>
+                </dl>
+            </section>
+
+            <section class="participant-drawer-section">
+                <h3 class="participant-drawer-section-title">Campaign</h3>
+                <p class="mb-0">
+                    <span class="badge @CampaignStatusBadgeClass(detail.CampaignStatus)">@detail.CampaignStatus</span>
+                </p>
+            </section>
+
+            <section class="participant-drawer-section">
+                <h3 class="participant-drawer-section-title">Notes</h3>
+                @if (detail.Notes.Count == 0)
+                {
+                    <p class="text-muted mb-0">No notes yet.</p>
+                }
+                else
+                {
+                    <ul class="participant-drawer-list">
+                        @foreach (var note in detail.Notes)
+                        {
+                            <li class="participant-drawer-note">
+                                <p class="mb-1">@note.Content</p>
+                                <p class="participant-drawer-note-meta mb-0">
+                                    @note.AuthorDisplayName · @FormatTimestamp(note.CreatedAt)@(note.ModifiedAt is not null ? " · edited" : "")
+                                </p>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            <section class="participant-drawer-section">
+                <h3 class="participant-drawer-section-title">Applied tags</h3>
+                @if (detail.AppliedTags.Count == 0)
+                {
+                    <p class="text-muted mb-0">No tags applied.</p>
+                }
+                else
+                {
+                    <ul class="participant-drawer-list">
+                        @foreach (var tag in detail.AppliedTags)
+                        {
+                            <li class="participant-drawer-tag-item">
+                                <span class="badge rounded-pill participant-drawer-tag @(tag.IsArchived ? "participant-drawer-tag-archived" : null)"
+                                      style="@CampaignRosterDisplay.BuildTagStyle(tag.TagColor)">@tag.TagName</span>
+                                <span class="participant-drawer-tag-meta">
+                                    by @tag.ActorDisplayName on @FormatTimestamp(tag.AppliedAt)@(tag.IsArchived ? " · archived" : "")
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            <footer class="participant-drawer-footer">
+                Created @FormatTimestamp(detail.CreatedAt)@(detail.ModifiedAt is not null ? $" · modified {FormatTimestamp(detail.ModifiedAt.Value)}" : "")
+            </footer>
+        }
     </div>
 </aside>
