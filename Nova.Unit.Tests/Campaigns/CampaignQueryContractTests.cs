@@ -26,6 +26,29 @@ public sealed class CampaignQueryContractTests
         errors.ShouldBeEmpty();
     }
 
+    /// <summary>Verifies the detail URL builder routes to the shared route.</summary>
+    [Fact]
+    public void GetCampaignDetailUrl_BuildsExpectedUrl()
+    {
+        var url = CampaignEndpoints.GetCampaignDetailUrl(42);
+
+        url.ShouldBe("/api/campaigns/42");
+    }
+
+    /// <summary>Verifies non-positive campaign identifiers are rejected.</summary>
+    /// <param name="campaignId">The campaign identifier to validate.</param>
+    /// <param name="isValid">Whether the identifier is valid.</param>
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(-1, false)]
+    [InlineData(1, true)]
+    public void GetCampaignDetailInput_ValidatesCampaignIdBounds(long campaignId, bool isValid)
+    {
+        var errors = InputValidator.Validate(new GetCampaignDetailInput { CampaignId = campaignId });
+
+        errors.ContainsKey(nameof(GetCampaignDetailInput.CampaignId)).ShouldBe(!isValid);
+    }
+
     /// <summary>Verifies unsupported status values are rejected.</summary>
     [Fact]
     public void GetCampaignListInput_RejectsInvalidStatus()
@@ -205,5 +228,50 @@ public sealed class CampaignQueryContractTests
         var input = new GetCampaignParticipantRosterInput { CampaignId = 1, SortDirection = direction };
 
         InputValidator.Validate(input).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years URL builder produces the shared route shape.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantGraduationYearsUrl_BuildsExpectedUrl()
+    {
+        CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(42)
+            .ShouldBe("/api/campaigns/42/participants/graduation-years");
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years route constant matches the URL builder output.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantGraduationYears_ConstantMatchesUrlBuilder()
+    {
+        var url = CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(42);
+
+        url.ShouldBe(CampaignEndpoints.GetCampaignParticipantGraduationYears.Replace("{campaignId:long}", "42"));
+        CampaignEndpoints.GetCampaignParticipantGraduationYearsRelative.ShouldBe("{campaignId:long}/participants/graduation-years");
+        CampaignEndpoints.GetCampaignParticipantGraduationYearsRouteName.ShouldBe("GetCampaignParticipantGraduationYears");
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years input rejects a non-positive campaign identifier.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantGraduationYearsInput_RejectsNonPositiveCampaignId()
+    {
+        var errors = InputValidator.Validate(new GetCampaignParticipantGraduationYearsInput { CampaignId = 0 });
+
+        errors.ShouldContainKey(nameof(GetCampaignParticipantGraduationYearsInput.CampaignId));
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years input accepts a positive campaign identifier.
+    /// </summary>
+    [Fact]
+    public void GetCampaignParticipantGraduationYearsInput_AcceptsPositiveCampaignId()
+    {
+        var errors = InputValidator.Validate(new GetCampaignParticipantGraduationYearsInput { CampaignId = 42 });
+
+        errors.ShouldBeEmpty();
     }
 }

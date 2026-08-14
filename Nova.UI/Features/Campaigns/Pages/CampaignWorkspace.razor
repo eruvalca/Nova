@@ -1,0 +1,160 @@
+@page "/campaigns/{CampaignId:long}"
+@rendermode InteractiveAuto
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Security
+@using Nova.UI.Features.Campaigns.Components
+
+<PageTitle>@(_detail is null ? "Campaign workspace" : _detail.Name)</PageTitle>
+
+<div class="container py-4">
+    <a class="btn btn-outline-secondary btn-sm mb-3" href="/campaigns">← Back to campaigns</a>
+
+    @if (_isLoading)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body d-flex align-items-center gap-2">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>Loading campaign...</span>
+            </div>
+        </div>
+    }
+    else if (_notFound)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body text-center py-5">
+                <h1 class="h4 mb-2">Campaign not found</h1>
+                <p class="text-muted mb-3">This campaign does not exist or is not visible to your club.</p>
+                <a class="btn btn-outline-secondary btn-sm" href="/campaigns">Return to campaigns</a>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_pageError))
+    {
+        <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+            <span>@_pageError</span>
+            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RetryAsync">Retry</button>
+        </div>
+    }
+    else if (_detail is not null)
+    {
+        <section class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                    <div>
+                        <h1 class="h3 mb-1">@_detail.Name</h1>
+                        <p class="text-muted mb-0">
+                            @FormatCampaignDates(_detail) · @_detail.SeasonName · @_detail.ParticipantCount participants
+                        </p>
+                    </div>
+                    <span class="badge @CampaignStatusBadgeClass(_detail.Status)">@_detail.Status</span>
+                </div>
+            </div>
+        </section>
+
+        <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Campaign workspace sections">
+            <li class="nav-item" role="presentation">
+                <button type="button" class="nav-link @(_activeTab == EvaluateTabName ? "active" : null)" role="tab" aria-selected="@(_activeTab == EvaluateTabName ? "true" : "false")" @onclick="SelectEvaluateTabAsync">
+                    Evaluate
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <span class="nav-link disabled" aria-disabled="true" title="Coming soon">Overview</span>
+            </li>
+            <li class="nav-item" role="presentation">
+                <span class="nav-link disabled" aria-disabled="true" title="Coming soon">Placements</span>
+            </li>
+            <li class="nav-item" role="presentation">
+                <span class="nav-link disabled" aria-disabled="true" title="Coming soon">Closeout</span>
+            </li>
+        </ul>
+
+        <section class="card shadow-sm border-0" aria-labelledby="roster-region-heading">
+            <div class="card-body">
+                <h2 class="h5 mb-3" id="roster-region-heading">Evaluate roster</h2>
+
+                @if (_choicesLoadFailed)
+                {
+                    <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+                        <span>Couldn't load filter options.</span>
+                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="RetryChoicesAsync">Retry</button>
+                    </div>
+                }
+
+                <CampaignRosterFilters SearchText="@_searchDraft"
+                                       GraduationYearChoices="@_availableGraduationYears"
+                                       SelectedGraduationYears="@_filters.GraduationYears"
+                                       TagChoices="@_availableTags"
+                                       SelectedTagDefinitionIds="@_filters.TagDefinitionIds"
+                                       Outcome="@_filters.Outcome"
+                                       TeamChoices="@_availableTeams"
+                                       TeamId="@_filters.TeamId"
+                                       TotalCount="@(_rosterLoading ? null : _roster?.TotalCount)"
+                                       HasActiveFilters="@HasActiveFilters"
+                                       OnSearchTextChanged="OnSearchInputChangedAsync"
+                                       OnGraduationYearToggled="OnGraduationYearToggledAsync"
+                                       OnTagToggled="OnTagToggledAsync"
+                                       OnOutcomeChanged="OnOutcomeChangedAsync"
+                                       OnTeamChanged="OnTeamChangedAsync"
+                                       OnClearFilters="OnClearFiltersAsync" />
+
+                @if (_rosterLoading)
+                {
+                    <div class="d-flex align-items-center gap-2 mt-3">
+                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                        <span>Loading roster...</span>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_rosterError))
+                {
+                    <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3" role="alert">
+                        <span>@_rosterError</span>
+                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RetryRosterAsync">Retry</button>
+                    </div>
+                }
+                else if (_roster is not null)
+                {
+                    @if (_roster.TotalCount == 0)
+                    {
+                        <div class="text-center py-5 mt-3">
+                            @if (HasActiveFilters)
+                            {
+                                <p class="text-muted mb-3">No participants match the current filters.</p>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="OnClearFiltersAsync">Clear filters</button>
+                            }
+                            else
+                            {
+                                <p class="text-muted mb-0">No participants in this campaign yet.</p>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="roster-scroll-region" id="@RosterScrollRegionId" tabindex="-1">
+                            <CampaignRosterTable Items="@_roster.Items"
+                                                 SortBy="@_filters.SortBy"
+                                                 SortDirection="@_filters.SortDirection"
+                                                 SelectedParticipantId="@_selectedParticipantId"
+                                                 OnParticipantSelected="OnParticipantSelectedAsync"
+                                                 OnSortChanged="OnSortChangedAsync" />
+                            <CampaignRosterCards Items="@_roster.Items"
+                                                 SelectedParticipantId="@_selectedParticipantId"
+                                                 OnParticipantSelected="OnParticipantSelectedAsync" />
+                        </div>
+                        <CampaignRosterPager Page="@_roster.Page"
+                                             PageSize="@_roster.PageSize"
+                                             TotalCount="@_roster.TotalCount"
+                                             OnPageChanged="OnPageChangedAsync" />
+                    }
+                }
+            </div>
+        </section>
+
+        @if (_selectedParticipantId is not null)
+        {
+            <CampaignParticipantDrawer ParticipantId="_selectedParticipantId.Value"
+                                       RosterItem="@SelectedRosterItem"
+                                       OnClose="OnCloseParticipantAsync" />
+        }
+    }
+</div>

@@ -446,6 +446,156 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Verifies the graduation-years query returns the campaign's distinct years in ascending order.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterGraduationYears_ReturnsDistinctAscendingYears_ForClubCampaign()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = _campaignAId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe([2028, 2029]);
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years query returns an empty list for a campaign without participants.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterGraduationYears_ReturnsEmptyList_WhenCampaignHasNoParticipants()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        long emptyCampaignId;
+        using (var admin = _harness.CreateAdminContext())
+        {
+            var season = admin.Seasons.Single(season => season.ClubId == ClubAId);
+            var campaign = new CampaignEntity
+            {
+                Name = "Empty Campaign",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = ClubAId,
+                CreatedById = ClubAMemberId
+            };
+            admin.Campaigns.Add(campaign);
+            admin.SaveChanges();
+            emptyCampaignId = campaign.CampaignId;
+        }
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = emptyCampaignId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years query is rejected for a caller without a club scope.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterGraduationYears_ReturnsForbidden_WhenUserHasNoClub()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = null;
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = _campaignAId },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years query is rejected for an anonymous caller.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterGraduationYears_ReturnsForbidden_WhenNotSignedIn()
+    {
+        _harness.CurrentUser.UserId = null;
+        _harness.CurrentUser.ClubId = null;
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = _campaignAId },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    /// <summary>
+    /// Verifies a campaign owned by another club is treated as not found.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterGraduationYears_ReturnsNotFound_ForCrossTenantCampaign()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = _campaignBId },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
+    /// <summary>
+    /// Verifies a non-positive campaign identifier is rejected before querying.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterGraduationYears_ReturnsValidation_ForNonPositiveCampaignId()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        var service = new CampaignParticipantQueryService(
+            new CampaignParticipantReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignParticipantQueryService>.Instance);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = 0 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+    }
+
     private void Seed()
     {
         using var admin = _harness.CreateAdminContext();

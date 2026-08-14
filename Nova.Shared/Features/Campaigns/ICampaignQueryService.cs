@@ -18,6 +18,16 @@ public interface ICampaignQueryService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Retrieves the minimal detail payload for one campaign in the caller's club.
+    /// </summary>
+    /// <param name="input">The campaign identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The campaign detail or a service problem.</returns>
+    Task<ServiceResult<CampaignDetailResult>> GetCampaignDetailAsync(
+        GetCampaignDetailInput input,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Retrieves current season choices and Active roster counts for campaign creation.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

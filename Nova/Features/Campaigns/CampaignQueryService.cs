@@ -115,6 +115,45 @@ public sealed partial class CampaignQueryService(
     }
 
     /// <inheritdoc />
+    public async Task<ServiceResult<CampaignDetailResult>> GetCampaignDetailAsync(
+        GetCampaignDetailInput input,
+        CancellationToken cancellationToken = default)
+    {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
+
+        if (!TryGetClubId(out var clubId))
+        {
+            LogCampaignDetailForbidden(currentUserProvider.UserId ?? 0);
+            return ServiceProblem.Forbidden("You must be an approved club member to view campaign details.");
+        }
+
+        await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var campaign = await db.Campaigns
+            .AsNoTracking()
+            .Where(campaign => campaign.ClubId == clubId && campaign.CampaignId == input.CampaignId)
+            .Select(campaign => new CampaignDetailResult
+            {
+                CampaignId = campaign.CampaignId,
+                Name = campaign.Name,
+                Status = campaign.Status,
+                StartDate = campaign.StartDate,
+                PlannedEndDate = campaign.EndDate,
+                ParticipantCount = campaign.PlayerAssignments.Count,
+                SeasonId = campaign.SeasonId,
+                SeasonName = campaign.Season.Name
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return campaign is null
+            ? ServiceProblem.NotFound()
+            : campaign;
+    }
+
+    /// <inheritdoc />
     public async Task<ServiceResult<CampaignCreationSetupResult>> GetCreationSetupAsync(
         CancellationToken cancellationToken = default)
     {
@@ -205,6 +244,13 @@ public sealed partial class CampaignQueryService(
     /// <param name="userId">The current user identifier, or zero when unavailable.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign list access forbidden for UserId={UserId}.")]
     private partial void LogCampaignListForbidden(long userId);
+
+    /// <summary>
+    /// Logs a campaign-detail read rejected because the caller is not an approved member.
+    /// </summary>
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign detail access forbidden for UserId={UserId}.")]
+    private partial void LogCampaignDetailForbidden(long userId);
 
     /// <summary>
     /// Logs a creation-setup read rejected because the caller is not an approved member.

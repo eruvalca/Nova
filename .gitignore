@@ -368,3 +368,4 @@ __blobstorage__/
 
 # Playwright page snapshots
 .playwright-cli/page-*.yml
+.playwright-mcp/

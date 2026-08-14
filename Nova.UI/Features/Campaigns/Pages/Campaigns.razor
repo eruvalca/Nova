@@ -144,7 +144,7 @@
                                 @foreach (var campaign in season.Campaigns)
                                 {
                                     <tr>
-                                        <td>@campaign.Name</td>
+                                        <td><a href="@($"campaigns/{campaign.CampaignId}")">@campaign.Name</a></td>
                                         <td class="text-nowrap">@FormatCampaignDates(campaign)</td>
                                         <td>
                                             <span class="badge @CampaignStatusBadgeClass(campaign.Status)">@campaign.Status</span>

@@ -439,6 +439,174 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
+    [Fact]
+    public async Task GetRosterGraduationYearsAsync_ReturnsSuccessAndBuildsRoute_ForValidPayload()
+    {
+        HttpRequestMessage? capturedRequest = null;
+        var handler = new RecordingHandler(request =>
+        {
+            capturedRequest = request;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new List<int> { 2028, 2029 })
+            });
+        });
+
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe([2028, 2029]);
+        capturedRequest.ShouldNotBeNull();
+        capturedRequest!.RequestUri.ShouldNotBeNull();
+        capturedRequest.RequestUri!.AbsolutePath.ShouldBe("/api/campaigns/42/participants/graduation-years");
+    }
+
+    [Fact]
+    public async Task GetRosterGraduationYearsAsync_ReturnsServerError_WhenYearsAreUnsorted()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new List<int> { 2029, 2028 })
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task GetRosterGraduationYearsAsync_ReturnsServerError_WhenYearsContainDuplicates()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new List<int> { 2028, 2028 })
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task GetRosterGraduationYearsAsync_ReturnsServerError_WhenYearIsNonPositive()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new List<int> { 0, 2028 })
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task GetRosterGraduationYearsAsync_ReturnsSuccess_WhenResponseHasManyYears()
+    {
+        var years = Enumerable.Range(2020, 25).ToList();
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(years)
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(years);
+    }
+
+    [Fact]
+    public async Task GetRosterGraduationYearsAsync_ReturnsProblem_WhenServerReturnsProblemDetails()
+    {
+        var problemDetails = new ProblemDetails
+        {
+            Title = "Not Found",
+            Detail = "Campaign not found.",
+            Status = (int)HttpStatusCode.NotFound
+        };
+        using var response = new HttpResponseMessage(HttpStatusCode.NotFound)
+        {
+            Content = JsonContent.Create(problemDetails)
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
+    [Fact]
+    public async Task GetRosterGraduationYearsAsync_ReturnsValidation_ForNonPositiveCampaignId()
+    {
+        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new List<int>())
+        }));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetRosterGraduationYearsAsync(
+            new GetCampaignParticipantGraduationYearsInput { CampaignId = 0 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+    }
+
     private sealed class RecordingHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> callback) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

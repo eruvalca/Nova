@@ -333,4 +333,125 @@ public sealed class CampaignQueryServiceTests : IDisposable
         rows.Select(campaign => campaign.Name).Take(6)
             .ShouldBe(["Later", "A", "Z", "Earlier End", "Open", "Closed"]);
     }
+
+    /// <summary>Verifies the detail query returns the club's campaign header payload.</summary>
+    [Fact]
+    public async Task GetCampaignDetail_ReturnsDetail_ForClubsCampaign()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        long campaignId;
+        long seasonId;
+        using (var admin = _harness.CreateAdminContext())
+        {
+            campaignId = admin.Campaigns.Single(campaign => campaign.Name == "A1").CampaignId;
+            seasonId = admin.Campaigns.Single(campaign => campaign.Name == "A1").SeasonId;
+        }
+
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCampaignDetailAsync(
+            new GetCampaignDetailInput { CampaignId = campaignId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.CampaignId.ShouldBe(campaignId);
+        result.Value.Name.ShouldBe("A1");
+        result.Value.Status.ShouldBe(CampaignStatus.Active);
+        result.Value.StartDate.ShouldBe(new DateOnly(2026, 6, 1));
+        result.Value.PlannedEndDate.ShouldBeNull();
+        result.Value.ParticipantCount.ShouldBe(2);
+        result.Value.SeasonId.ShouldBe(seasonId);
+        result.Value.SeasonName.ShouldBe("Season 1");
+    }
+
+    /// <summary>Verifies the detail query returns NotFound for another club's campaign.</summary>
+    [Fact]
+    public async Task GetCampaignDetail_ReturnsNotFound_ForOtherClubsCampaign()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        long clubBCampaignId;
+        using (var admin = _harness.CreateAdminContext())
+        {
+            clubBCampaignId = admin.Campaigns.Single(campaign => campaign.Name == "B1").CampaignId;
+        }
+
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCampaignDetailAsync(
+            new GetCampaignDetailInput { CampaignId = clubBCampaignId },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
+    /// <summary>Verifies the detail query returns NotFound for a missing campaign id.</summary>
+    [Fact]
+    public async Task GetCampaignDetail_ReturnsNotFound_ForMissingCampaign()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCampaignDetailAsync(
+            new GetCampaignDetailInput { CampaignId = 999999 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
+    /// <summary>Verifies the detail query retains its service-layer membership guard.</summary>
+    [Fact]
+    public async Task GetCampaignDetail_ReturnsForbidden_WhenNotMember()
+    {
+        _harness.CurrentUser.UserId = null;
+        _harness.CurrentUser.ClubId = null;
+
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCampaignDetailAsync(
+            new GetCampaignDetailInput { CampaignId = 1 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    /// <summary>Verifies non-positive campaign identifiers are rejected before any query.</summary>
+    [Fact]
+    public async Task GetCampaignDetail_ReturnsValidationProblem_ForNonPositiveCampaignId()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCampaignDetailAsync(
+            new GetCampaignDetailInput { CampaignId = 0 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+    }
 }

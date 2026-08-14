@@ -172,7 +172,58 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies anonymous callers receive an unauthorized response for both participant routes.
+    /// Verifies the graduation-years endpoint returns the roster's distinct years in ascending order.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantGraduationYears_ReturnsAscendingYears_ForCurrentClubMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("participant-graduation-years");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (campaignId, _, _) = await SeedRosterDataAsync(club.ClubId, email, cancellationToken);
+
+        using var response = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(campaignId),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var years = await response.Content.ReadFromJsonAsync<List<int>>(cancellationToken);
+        years.ShouldNotBeNull();
+        years.ShouldBe([2028]);
+    }
+
+    /// <summary>
+    /// Verifies the graduation-years endpoint rejects a non-positive campaign identifier with validation ProblemDetails.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantGraduationYears_ReturnsValidationProblem_ForNonPositiveRouteValue()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("participant-graduation-years-invalid-route");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        using var response = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(0),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
+    /// Verifies anonymous callers receive an unauthorized response for the participant routes.
     /// </summary>
     [Fact]
     public async Task GetParticipantRoutes_ReturnUnauthorized_ForAnonymousCaller()
@@ -189,6 +240,11 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
             CampaignEndpoints.GetCampaignParticipantDetailUrl(1, 1),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+        using var graduationYearsResponse = await anonymousClient.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(1),
+            cancellationToken);
+        graduationYearsResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     /// <summary>
@@ -213,6 +269,11 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
             CampaignEndpoints.GetCampaignParticipantDetailUrl(1, 1),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        using var graduationYearsResponse = await client.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(1),
+            cancellationToken);
+        graduationYearsResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     /// <summary>
@@ -324,6 +385,11 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
             CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        using var graduationYearsResponse = await currentClient.GetAsync(
+            CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(campaignId),
+            cancellationToken);
+        graduationYearsResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     /// <summary>
