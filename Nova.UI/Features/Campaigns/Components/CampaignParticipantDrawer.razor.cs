@@ -9,7 +9,7 @@ namespace Nova.UI.Features.Campaigns.Components;
 
 /// <summary>
 /// Drawer presenting the selected campaign roster participant's details with loading, failure, and
-/// loaded states. Prev/next navigation and focus management arrive in later phases of issue #64.
+/// loaded states, plus prev/next sequence navigation driven by the workspace page.
 /// </summary>
 /// <param name="participantQueryService">The query service used to load participant details.</param>
 /// <param name="jsRuntime">The JavaScript runtime used to focus the close button when the drawer opens.</param>
@@ -49,6 +49,43 @@ public partial class CampaignParticipantDrawer(
     /// </summary>
     [Parameter]
     public CampaignParticipantRosterItem? RosterItem { get; set; }
+
+    /// <summary>
+    /// Gets or sets the 1-based position of the participant within the roster sequence,
+    /// or <see langword="null"/> when the participant is off the loaded page.
+    /// </summary>
+    [Parameter]
+    public int? Position { get; set; }
+
+    /// <summary>
+    /// Gets or sets the total number of participants in the roster sequence.
+    /// </summary>
+    [Parameter]
+    public int TotalCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the participant has a predecessor in the roster sequence.
+    /// </summary>
+    [Parameter]
+    public bool HasPrevious { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the participant has a successor in the roster sequence.
+    /// </summary>
+    [Parameter]
+    public bool HasNext { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback invoked when the previous participant is requested.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnPrevious { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback invoked when the next participant is requested.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnNext { get; set; }
 
     /// <summary>
     /// Gets or sets the callback invoked when the drawer is closed.

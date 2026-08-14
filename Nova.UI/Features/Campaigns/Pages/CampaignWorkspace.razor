@@ -155,6 +155,12 @@
             <CampaignParticipantDrawer CampaignId="@CampaignId"
                                        ParticipantId="_selectedParticipantId.Value"
                                        RosterItem="@SelectedRosterItem"
+                                       Position="@SelectedParticipantPosition"
+                                       TotalCount="@ParticipantSequenceCount"
+                                       HasPrevious="@HasPreviousParticipant"
+                                       HasNext="@HasNextParticipant"
+                                       OnPrevious="OnPreviousParticipantAsync"
+                                       OnNext="OnNextParticipantAsync"
                                        OnClose="OnCloseParticipantAsync" />
         }
     }

@@ -134,33 +134,33 @@ Tag-feature and migration files; none of this phase's files are flagged.
 
 ## Phase 2: Page-owned sequence state, prev/next, and position plumbing
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator (URL/history mechanics must stay consistent with #67's
 contract).
 
-- [ ] `CampaignWorkspace.razor.cs`: compute from `_roster` + `_selectedParticipantId`:
+- [x] `CampaignWorkspace.razor.cs`: compute from `_roster` + `_selectedParticipantId`:
       `SelectedParticipantPosition` (int?, 1-based) using `_roster.Page`,
       `_roster.PageSize`, index in `_roster.Items`; `ParticipantSequenceCount`
       (`_roster.TotalCount`); `HasPreviousParticipant` / `HasNextParticipant`. All null/false
       when the roster is null or the participant is not in `Items` (off-page state).
-- [ ] `OnPreviousParticipantAsync` / `OnNextParticipantAsync`:
+- [x] `OnPreviousParticipantAsync` / `OnNextParticipantAsync`:
       - Within-page: capture scroll (existing helper), update only `participant` in the URL,
         push history.
       - Boundary: set pending boundary intent, navigate with only `page` changed (push); after
         the roster reload completes, select first/last item of the loaded page, clear the
         intent, correct the URL with `replaceHistoryItem: true` (see Sequence contract).
       - Preserve every other param (filters, sort, tab) exactly.
-- [ ] Reuse the existing pager page-change scroll behavior for boundary crossings so a
+- [x] Reuse the existing pager page-change scroll behavior for boundary crossings so a
       boundary move behaves like a pager page change; within-page moves leave roster scroll
       untouched.
-- [ ] Pass `Position`, `TotalCount`, `HasPrevious`, `HasNext`, `OnPrevious`, `OnNext` to the
+- [x] Pass `Position`, `TotalCount`, `HasPrevious`, `HasNext`, `OnPrevious`, `OnNext` to the
       drawer; drawer header renders prev (`id="participant-drawer-previous"`), "N of M" text,
       next (`id="participant-drawer-next"`) with `disabled` at true first/last and in the
       off-page state (position hidden there).
-- [ ] Confirm no code remounts the drawer on media-query change (wide↔narrow is CSS-only), so
+- [x] Confirm no code remounts the drawer on media-query change (wide↔narrow is CSS-only), so
       in-progress detail content persists across transitions.
-- [ ] Tests (extend `CampaignWorkspaceTests` / new file): position text "3 of 142"; prev/next
+- [x] Tests (extend `CampaignWorkspaceTests` / new file): position text "3 of 142"; prev/next
       disabled at position 1 and at `TotalCount`; within-page next updates only `participant`
       and pushes history; boundary next from the last item of a page loads the next page,
       selects its first item, and corrects the URL without an extra history entry (assert via
@@ -176,7 +176,30 @@ contract).
 
 ### Phase Summary
 
-_(write when phase completes)_
+Page-owned sequence state is in place. `CampaignWorkspace` computes position ("N of M"),
+total count, and prev/next availability from the loaded roster plus the selected participant,
+and hands them to the drawer along with `OnPrevious`/`OnNext` callbacks. Within-page moves
+capture roster scroll, change only the `participant` query parameter, and push one history
+entry; the roster is not reloaded. Boundary moves push only a `page` change, record a
+pending boundary intent (`First` after next, `Last` after previous), and once the target
+page finishes loading select the first/last item and correct the URL with
+`ReplaceHistoryEntry = true` so each crossing adds exactly one history entry; a failed or
+empty target page clears the intent and leaves the drawer off-page (position hidden, both
+buttons disabled) without touching the URL again. Filter/sort/tab parameters are preserved
+across every move, and boundary crossings reuse the pager's scroll-to-top behavior.
+
+The drawer header gained a prev button, "N of M" position line, and a next button with
+`disabled` at the true sequence ends, plus CSS-isolated header-row styles. The media-query
+wide↔narrow switch remains CSS-only, so drawer state persists across layout transitions.
+
+Tests: 4 new drawer tests (position text, callback invocation, disabled-at-ends,
+off-page rendering) and 11 new workspace tests (position + disabled matrix, within-page
+next/prev without roster reload + push-only history, boundary next/prev selecting the
+correct edge item with in-place URL correction and a single net history entry, filter/sort
+preservation across moves, off-page detail rendering, and boundary move onto an empty page).
+Full unit suite: 1323 tests pass. Build clean; `dotnet format --verify-no-changes` passes
+on the touched files (pre-existing CHARSET normalization in unrelated Tag-feature files was
+reverted rather than fixed silently).
 
 ## Phase 3: Focus trap, focus return, and Escape (JS helpers)
 

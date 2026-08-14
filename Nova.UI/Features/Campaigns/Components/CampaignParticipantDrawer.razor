@@ -4,13 +4,31 @@
        aria-modal="true"
        aria-labelledby="participant-drawer-heading"
        @onkeydown="OnKeyDownAsync">
-    <header class="participant-drawer-header d-flex justify-content-between align-items-center">
-        <h2 class="h5 mb-0" id="participant-drawer-heading">@Heading</h2>
-        <button type="button"
-                class="btn-close"
-                id="participant-drawer-close"
-                aria-label="Close participant details"
-                @onclick="CloseAsync"></button>
+    <header class="participant-drawer-header">
+        <div class="participant-drawer-header-row">
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary participant-drawer-nav-button"
+                    id="participant-drawer-previous"
+                    aria-label="Previous participant"
+                    disabled="@(!HasPrevious)"
+                    @onclick="OnPrevious">&#8249;</button>
+            <h2 class="h5 mb-0 participant-drawer-heading" id="participant-drawer-heading">@Heading</h2>
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary participant-drawer-nav-button"
+                    id="participant-drawer-next"
+                    aria-label="Next participant"
+                    disabled="@(!HasNext)"
+                    @onclick="OnNext">&#8250;</button>
+            <button type="button"
+                    class="btn-close"
+                    id="participant-drawer-close"
+                    aria-label="Close participant details"
+                    @onclick="CloseAsync"></button>
+        </div>
+        @if (Position is { } position)
+        {
+            <p class="participant-drawer-position mb-0" id="participant-drawer-position">@position of @TotalCount</p>
+        }
     </header>
     <div class="participant-drawer-body">
         @if (_detailState == DetailLoadState.Loading)

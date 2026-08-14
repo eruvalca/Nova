@@ -309,6 +309,89 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         closed.ShouldBeTrue();
     }
 
+    // ── Sequence navigation ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void Drawer_RendersPositionText_WhenSequenceParametersProvided()
+    {
+        RegisterServices();
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 303)
+            .Add(component => component.Position, 3)
+            .Add(component => component.TotalCount, 142)
+            .Add(component => component.HasPrevious, true)
+            .Add(component => component.HasNext, true));
+
+        cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("3 of 142");
+    }
+
+    [Fact]
+    public void Drawer_InvokesNavigationCallbacks_WhenNavigationButtonsClicked()
+    {
+        var previousCount = 0;
+        var nextCount = 0;
+        RegisterServices();
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 302)
+            .Add(component => component.Position, 2)
+            .Add(component => component.TotalCount, 5)
+            .Add(component => component.HasPrevious, true)
+            .Add(component => component.HasNext, true)
+            .Add(component => component.OnPrevious, EventCallback.Factory.Create(this, () => previousCount++))
+            .Add(component => component.OnNext, EventCallback.Factory.Create(this, () => nextCount++)));
+
+        cut.Find("#participant-drawer-previous").Click();
+        cut.Find("#participant-drawer-next").Click();
+
+        previousCount.ShouldBe(1);
+        nextCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public void Drawer_DisablesNavigationButtons_AtSequenceEnds()
+    {
+        RegisterServices();
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301)
+            .Add(component => component.Position, 1)
+            .Add(component => component.TotalCount, 3)
+            .Add(component => component.HasPrevious, false)
+            .Add(component => component.HasNext, true));
+
+        cut.Find("#participant-drawer-previous").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#participant-drawer-next").HasAttribute("disabled").ShouldBeFalse();
+
+        cut.Render(parameters => parameters
+            .Add(component => component.Position, 3)
+            .Add(component => component.HasPrevious, true)
+            .Add(component => component.HasNext, false));
+
+        cut.Find("#participant-drawer-previous").HasAttribute("disabled").ShouldBeFalse();
+        cut.Find("#participant-drawer-next").HasAttribute("disabled").ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Drawer_HidesPositionAndDisablesNavigation_WhenParticipantIsOffPage()
+    {
+        RegisterServices();
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 999));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Graduation year"));
+
+        cut.FindAll("#participant-drawer-position").ShouldBeEmpty();
+        cut.Find("#participant-drawer-previous").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#participant-drawer-next").HasAttribute("disabled").ShouldBeTrue();
+    }
+
     // ── Persisted-state restoration ───────────────────────────────────────────
 
     [Fact]
