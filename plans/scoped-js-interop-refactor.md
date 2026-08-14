@@ -181,9 +181,9 @@ of this phase's files are flagged.
 
 ## Phase 3: Instructions + skill guidance for future JS work
 
-Status: Not started
+Status: Complete
 
-- [ ] Add a **"JavaScript Interop"** section to
+- [x] Add a **"JavaScript Interop"** section to
   `.github/instructions/blazor-architecture.instructions.md` (place after "Component
   Conventions"). Exact content (already written to the article's hygiene principles — local
   decisions only, no generic advice):
@@ -209,13 +209,13 @@ Status: Not started
     `.github/skills/add-blazor-ui/references/js-interop.md`.
   ```
 
-- [ ] Add `.github/skills/add-blazor-ui/references/js-interop.md` — the step-by-step recipe:
+- [x] Add `.github/skills/add-blazor-ui/references/js-interop.md` — the step-by-step recipe:
   module file anatomy (exported functions, handler replacement for `@if`-recreated elements),
   the `Lazy<Task<IJSObjectReference>>` + `DisposeAsyncCore()` C# wiring, `ElementReference`
   passing, bUnit `SetupModule` mocking (exact-path matching, loose arg setups), and the pitfalls:
   RCL collocated modules are not auto-loaded; JS interop during prerender is only allowed from
   `OnAfterRenderAsync`; a listener whose container is recreated must be replace-on-attach.
-- [ ] Link the new reference from `.github/skills/add-blazor-ui/SKILL.md`, matching the existing
+- [x] Link the new reference from `.github/skills/add-blazor-ui/SKILL.md`, matching the existing
   reference-link style.
 
 ### Verification Plan
@@ -229,7 +229,31 @@ Status: Not started
 
 ### Phase Summary
 
-_(write when phase completes)_
+All three Phase 3 items delivered:
+
+- `.github/instructions/blazor-architecture.instructions.md` — new **"JavaScript Interop"** section
+  placed after "Component Conventions" (before "Bootstrap-First Styling"), verbatim per plan. Six
+  bullets, all local decisions/constraints + one pointer to the recipe. Hygiene check: no generic
+  advice, no procedural coaching, no restatement of tooling-enforced rules.
+- `.github/skills/add-blazor-ui/references/js-interop.md` — new step-by-step recipe, grounded in
+  the committed Phase 1 code (`CampaignParticipantDrawer.razor.js/.cs` for module anatomy, lazy
+  import, `ElementReference` passing, `DisposeAsyncCore`; `CampaignWorkspace.razor.js/.cs` for
+  replace-on-attach listener pattern; `CampaignWorkspaceTests.cs` for `SetupModule` exact-path
+  mocking, loose arg matchers, and the pre-capture `blazor:elementreference` gotcha). Pitfalls
+  section: RCL modules not auto-loaded (runtime-only failure), prerender JS forbidden, recreated
+  container listener leak, `DisposeAsyncCore` ordering, no `Nova/wwwroot/js/` helpers.
+- `.github/skills/add-blazor-ui/SKILL.md` — checklist step 8 added linking the recipe (old step 8
+  "Test" renumbered to 9); frontmatter USE FOR list gained "JS interop, collocated .razor.js
+  module"; two canonical-example rows added (drawer module + workspace listener); self-check gained
+  a JS bullet.
+
+Verification: `dotnet format Nova.slnx --verify-no-changes` run — no new failures (same
+pre-existing PR #79 files only; the new/changed files are markdown). Recipe's build claim verified
+against `Nova/obj/Debug/net10.0/staticwebassets.build.json`: both collocated modules appear as
+static web assets (`CampaignWorkspace.razor.js`, `CampaignParticipantDrawer.razor.js` plus
+compressed variants) — the .NET 10 static-web-asset-endpoints pipeline serves them at runtime from
+the manifest, which is why they are not physically copied into `Nova/bin` `wwwroot`. Runtime
+serving itself is confirmed by Phase 4's browser pass.
 
 ## Phase 4: Aspire + Playwright acceptance pass
 
