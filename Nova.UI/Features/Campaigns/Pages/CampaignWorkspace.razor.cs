@@ -832,6 +832,15 @@ public partial class CampaignWorkspace(
         // pending scroll work until then so filter changes still scroll after a loading pass.
         if (_rosterLoading || _roster is null)
         {
+            // A prior loaded render may have installed the keydown suppression scoped to the
+            // region element this render just removed. Detach it so a stale listener can't
+            // keep the dead element (and its document-level handler) alive until a retry.
+            if (_moduleTask.IsValueCreated)
+            {
+                var rosterModule = await _moduleTask.Value;
+                await rosterModule.InvokeVoidAsync("detachRosterActivationSuppression");
+            }
+
             return;
         }
 

@@ -481,6 +481,34 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
+    public void CampaignWorkspace_DetachesKeydownSuppression_WhenRosterReloadFails()
+    {
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())),
+                Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+                    ServiceProblem.ServerError("Roster service unavailable."))));
+
+        RegisterServices(participantQueryService: participantService);
+
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        var attach = workspaceModule.SetupVoid("attachRosterActivationSuppression", _ => true);
+        attach.SetVoidResult();
+        var detach = workspaceModule.SetupVoid("detachRosterActivationSuppression", _ => true);
+        detach.SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        attach.Invocations.Count.ShouldBeGreaterThanOrEqualTo(1);
+
+        cut.Find("#roster-outcome").Change("assigned");
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Roster service unavailable."));
+
+        detach.Invocations.Count.ShouldBeGreaterThanOrEqualTo(1);
+    }
+
+    [Fact]
     public async Task CampaignWorkspace_DisposeAsync_ToleratesDisconnectedCircuit()
     {
         RegisterServices();
