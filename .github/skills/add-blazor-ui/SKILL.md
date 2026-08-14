@@ -7,7 +7,8 @@ description: >-
   USE FOR: add a Blazor page or component, new .razor file, choose render mode, @onclick not
   firing, page vs component, [Parameter], string literal vs expression, EventCallback vs Action,
   @bind / @bind:after, EditForm, duplicate data load, [PersistentState], StateHasChanged,
-  OnInitializedAsync vs OnParametersSet vs OnAfterRenderAsync, code-behind, CSS isolation.
+  OnInitializedAsync vs OnParametersSet vs OnAfterRenderAsync, code-behind, CSS isolation,
+  JS interop, collocated .razor.js module.
   DO NOT USE FOR: server services/ServiceResult (use add-feature-slice), HTTP endpoints or WASM
   services (use add-api-endpoint), entities/EF/migrations (use add-domain-persistence),
   writing tests only (use nova-testing).
@@ -35,6 +36,8 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
 | Parent-driven form state and string parameter expressions | `Nova.UI\Features\Teams\Components\TeamForm.razor(.cs)`, `Nova.UI\Features\Teams\Pages\Teams.razor` |
 | Component owning its own submit + `EventCallback<T>` | `Nova.UI\Features\Clubs\Components\CreateClubForm.razor(.cs)` |
 | Debounce + `DisposeAsyncCore` cleanup | `Nova.UI\Features\Clubs\Components\ClubSearchPanel.razor.cs` |
+| Collocated JS module + lazy import + module disposal | `Nova.UI\Features\Campaigns\Components\CampaignParticipantDrawer.razor(.js/.cs)` |
+| Listener attach/detach + replace-on-attach | `Nova.UI\Features\Campaigns\Pages\CampaignWorkspace.razor(.js/.cs)` |
 | Cross-feature shared component | `Nova.UI\Shared\ConfirmDeleteDialog.razor(.cs)` |
 | Per-instance interactive island on a static SSR page | `Nova\Components\Account\Pages\Manage\DeletePersonalData.razor` |
 
@@ -63,7 +66,10 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
    See [forms-and-validation.md](references/forms-and-validation.md).
 7. **Style with Bootstrap first**; component-specific rules go in `{Name}.razor.css` using `rem`
    units. No global stylesheet edits for feature UI, no user-controlled strings in inline `style`.
-8. **Test** — invoke the `nova-testing` skill and use its
+8. **Add JavaScript only if needed**: collocated `{Component}.razor.js` ES module, lazy
+   `Lazy<Task<IJSObjectReference>>` import, `ElementReference` arguments, listener detach in
+   `DisposeAsyncCore()`. See [js-interop.md](references/js-interop.md).
+9. **Test** — invoke the `nova-testing` skill and use its
    [Blazor component tests reference](../nova-testing/references/blazor-component-tests.md). An
    interactive page needs a render-mode assertion: bUnit fires callbacks even when the deployed page
    would render as static SSR, so a passing callback test does **not** prove the button works.
@@ -76,6 +82,8 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
 - Every async service call receives `ComponentCancellationToken`.
 - Data comes from a feature service; no `DbContext` and no `HttpContext` in the component.
 - No `@code` block; markup and logic are in the `.razor` / `.razor.cs` pair.
+- Any JS is a collocated `.razor.js` module consumed via `OnAfterRenderAsync` with module disposal
+  in `DisposeAsyncCore()` — no `window.*` globals, no helpers in `Nova/wwwroot/js/`.
 - If it loads data and is interactive, prerender double-loading is handled and derived state is
   rebuilt on restore.
 - `StateHasChanged` is present only where genuinely required (see the lifecycle reference).

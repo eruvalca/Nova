@@ -25,6 +25,8 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class CampaignWorkspaceTests : BunitContext
 {
+    private const string WorkspaceModulePath = "./_content/Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.js";
+
     // ── Render mode ───────────────────────────────────────────────────────────
 
     [Fact]
@@ -457,6 +459,77 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
+    public void CampaignWorkspace_EmptyRoster_DetachesKeydownSuppression_InsteadOfAttaching()
+    {
+        RegisterServices(rosterResult: new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+            new PagedResult<CampaignParticipantRosterItem>(
+                Items: [],
+                Page: 1,
+                PageSize: GetCampaignParticipantRosterInput.DefaultPageSize,
+                TotalCount: 0)));
+
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        var attach = workspaceModule.SetupVoid("attachRosterActivationSuppression", _ => true);
+        attach.SetVoidResult();
+        var detach = workspaceModule.SetupVoid("detachRosterActivationSuppression", _ => true);
+        detach.SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No participants in this campaign yet."));
+
+        cut.WaitForAssertion(() => detach.Invocations.Count.ShouldBeGreaterThanOrEqualTo(1));
+        attach.Invocations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void CampaignWorkspace_DetachesKeydownSuppression_WhenRosterReloadFails()
+    {
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())),
+                Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(
+                    ServiceProblem.ServerError("Roster service unavailable."))));
+
+        RegisterServices(participantQueryService: participantService);
+
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        var attach = workspaceModule.SetupVoid("attachRosterActivationSuppression", _ => true);
+        attach.SetVoidResult();
+        var detach = workspaceModule.SetupVoid("detachRosterActivationSuppression", _ => true);
+        detach.SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        attach.Invocations.Count.ShouldBeGreaterThanOrEqualTo(1);
+
+        cut.Find("#roster-outcome").Change("assigned");
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Roster service unavailable."));
+
+        detach.Invocations.Count.ShouldBeGreaterThanOrEqualTo(1);
+    }
+
+    [Fact]
+    public async Task CampaignWorkspace_DisposeAsync_ToleratesDisconnectedCircuit()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        var detach = workspaceModule.SetupVoid("detachRosterActivationSuppression", _ => true);
+        detach.SetException(new JSDisconnectedException("Circuit has disconnected."));
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        var disposeTask = cut.InvokeAsync(cut.Instance.DisposeAsync);
+        await disposeTask;
+
+        detach.Invocations.Count.ShouldBe(1);
+    }
+
+    [Fact]
     public void CampaignWorkspace_ShowsNoMatchMessage_AndClearsFilters_WhenFiltersExcludeAllParticipants()
     {
         var participantService = Substitute.For<ICampaignParticipantQueryService>();
@@ -503,11 +576,15 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
 
-        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(120);
-        JSInterop.SetupVoid("novaCampaignWorkspaceRestoreScroll", _ => true).SetVoidResult();
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        workspaceModule.Setup<double?>("captureScroll", _ => true).SetResult(120);
+        var restoreScroll = workspaceModule.SetupVoid("restoreScroll", _ => true);
+        restoreScroll.SetVoidResult();
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var rosterRefId = cut.Find(".roster-scroll-region").GetAttribute("blazor:elementreference");
+        rosterRefId.ShouldNotBeNullOrEmpty();
 
         cut.Find("tbody tr").Click();
 
@@ -520,8 +597,9 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         cut.WaitForAssertion(() =>
         {
-            JSInterop.VerifyInvoke("novaCampaignWorkspaceCaptureScroll").Arguments.ShouldContain("roster-scroll-region");
-            JSInterop.VerifyInvoke("novaCampaignWorkspaceRestoreScroll").Arguments.ShouldBe(new object?[] { "roster-scroll-region", 120.0 });
+            restoreScroll.Invocations.Count.ShouldBe(1);
+            restoreScroll.Invocations.Single().Arguments[0].ShouldBeOfType<ElementReference>().Id.ShouldBe(rosterRefId);
+            restoreScroll.Invocations.Single().Arguments[1].ShouldBe(120.0);
         });
     }
 
@@ -532,20 +610,29 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/campaigns/10?tab=evaluate&outcome=assigned&participant=301");
 
-        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(120);
-        JSInterop.SetupVoid("novaCampaignWorkspaceRestoreScroll", _ => true).SetVoidResult();
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        workspaceModule.Setup<double?>("captureScroll", _ => true).SetResult(120);
+        var restoreScroll = workspaceModule.SetupVoid("restoreScroll", _ => true);
+        restoreScroll.SetVoidResult();
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
         cut.Markup.ShouldContain("Avery Johnson");
+        var rosterRefId = cut.Find(".roster-scroll-region").GetAttribute("blazor:elementreference");
+        rosterRefId.ShouldNotBeNullOrEmpty();
 
-        cut.Find("#participant-drawer-close").Click();
+        cut.Find("aside.participant-drawer .btn-close").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
         navigationManager.Uri.ShouldEndWith("/campaigns/10?outcome=assigned&tab=evaluate");
         cut.Markup.ShouldContain("Avery Johnson");
 
-        cut.WaitForAssertion(() => JSInterop.VerifyInvoke("novaCampaignWorkspaceRestoreScroll").Arguments.ShouldBe(new object?[] { "roster-scroll-region", 120.0 }));
+        cut.WaitForAssertion(() =>
+        {
+            restoreScroll.Invocations.Count.ShouldBe(1);
+            restoreScroll.Invocations.Single().Arguments[0].ShouldBeOfType<ElementReference>().Id.ShouldBe(rosterRefId);
+            restoreScroll.Invocations.Single().Arguments[1].ShouldBe(120.0);
+        });
     }
 
     [Fact]
@@ -587,19 +674,25 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
 
-        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(120);
-        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        var captureScroll = workspaceModule.Setup<double?>("captureScroll", _ => true);
+        captureScroll.SetResult(120);
+        var scrollToTop = workspaceModule.SetupVoid("scrollToTop", _ => true);
+        scrollToTop.SetVoidResult();
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var rosterRefId = cut.Find(".roster-scroll-region").GetAttribute("blazor:elementreference");
+        rosterRefId.ShouldNotBeNullOrEmpty();
 
         cut.FindAll("button.roster-sort-header")[1].Click();
 
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("sortBy=displayName&sortDirection=asc"));
         cut.WaitForAssertion(() =>
         {
-            JSInterop.VerifyInvoke("novaCampaignWorkspaceScrollToTop").Arguments.ShouldContain("roster-scroll-region");
-            JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "novaCampaignWorkspaceCaptureScroll");
+            scrollToTop.Invocations.Count.ShouldBe(1);
+            scrollToTop.Invocations.Single().Arguments[0].ShouldBeOfType<ElementReference>().Id.ShouldBe(rosterRefId);
+            captureScroll.Invocations.ShouldBeEmpty();
         });
     }
 
@@ -680,10 +773,14 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=301");
 
-        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(60);
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        var captureScroll = workspaceModule.Setup<double?>("captureScroll", _ => true);
+        captureScroll.SetResult(60);
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+        var rosterRefId = cut.Find(".roster-scroll-region").GetAttribute("blazor:elementreference");
+        rosterRefId.ShouldNotBeNullOrEmpty();
 
         var historyCountBefore = ((BunitNavigationManager)navigationManager).History.Count;
         cut.Find("#participant-drawer-next").Click();
@@ -699,7 +796,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var history = ((BunitNavigationManager)navigationManager).History;
         history.Count.ShouldBe(historyCountBefore + 1);
         history.First().Options.ReplaceHistoryEntry.ShouldBeFalse();
-        JSInterop.VerifyInvoke("novaCampaignWorkspaceCaptureScroll").Arguments.ShouldContain("roster-scroll-region");
+        captureScroll.Invocations.Last().Arguments[0].ShouldBeOfType<ElementReference>().Id.ShouldBe(rosterRefId);
     }
 
     [Fact]
@@ -709,8 +806,6 @@ public sealed class CampaignWorkspaceTests : BunitContext
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
-
-        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(60);
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -733,10 +828,14 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
 
-        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        var scrollToTop = workspaceModule.SetupVoid("scrollToTop", _ => true);
+        scrollToTop.SetVoidResult();
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+        var rosterRefId = cut.Find(".roster-scroll-region").GetAttribute("blazor:elementreference");
+        rosterRefId.ShouldNotBeNullOrEmpty();
 
         var historyCountBefore = ((BunitNavigationManager)navigationManager).History.Count;
         cut.Find("#participant-drawer-next").Click();
@@ -754,7 +853,11 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         participantService.Received(2).GetParticipantRosterAsync(
             Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>());
-        JSInterop.VerifyInvoke("novaCampaignWorkspaceScrollToTop").Arguments.ShouldContain("roster-scroll-region");
+        cut.WaitForAssertion(() =>
+        {
+            scrollToTop.Invocations.Count.ShouldBeGreaterThanOrEqualTo(1);
+            scrollToTop.Invocations.Last().Arguments[0].ShouldBeOfType<ElementReference>().Id.ShouldBe(rosterRefId);
+        });
     }
 
     [Fact]
@@ -764,8 +867,6 @@ public sealed class CampaignWorkspaceTests : BunitContext
         RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/campaigns/10?page=2&tab=evaluate&participant=304");
-
-        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -795,9 +896,6 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo(
             "/campaigns/10?tab=evaluate&search=lee&sortBy=displayName&sortDirection=asc&participant=302");
-
-        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(60);
-        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -869,11 +967,16 @@ public sealed class CampaignWorkspaceTests : BunitContext
         navigationManager.NavigateTo(
             "/campaigns/10?tab=evaluate&search=lee&sortBy=displayName&sortDirection=asc&participant=301");
 
-        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(60);
-        JSInterop.SetupVoid("novaCampaignWorkspaceRestoreScroll", _ => true).SetVoidResult();
+        var workspaceModule = JSInterop.SetupModule(WorkspaceModulePath);
+        var captureScroll = workspaceModule.Setup<double?>("captureScroll", _ => true);
+        captureScroll.SetResult(60);
+        var restoreScroll = workspaceModule.SetupVoid("restoreScroll", _ => true);
+        restoreScroll.SetVoidResult();
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+        var rosterRefId = cut.Find(".roster-scroll-region").GetAttribute("blazor:elementreference");
+        rosterRefId.ShouldNotBeNullOrEmpty();
 
         cut.Find("#participant-drawer-next").Click();
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("participant=302"));
@@ -887,11 +990,9 @@ public sealed class CampaignWorkspaceTests : BunitContext
         navigationManager.Uri.ShouldContain("sortDirection=asc");
         cut.WaitForAssertion(() =>
         {
-            var restoreCalls = JSInterop.Invocations
-                .Where(invocation => invocation.Identifier == "novaCampaignWorkspaceRestoreScroll")
-                .ToList();
-            restoreCalls.Count.ShouldBe(2);
-            restoreCalls[^1].Arguments.ShouldBe(new object?[] { "roster-scroll-region", 60.0 });
+            restoreScroll.Invocations.Count.ShouldBe(2);
+            restoreScroll.Invocations.Last().Arguments[0].ShouldBeOfType<ElementReference>().Id.ShouldBe(rosterRefId);
+            restoreScroll.Invocations.Last().Arguments[1].ShouldBe(60.0);
         });
     }
 
@@ -924,9 +1025,6 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=301");
 
-        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(60);
-        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
-
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
 
@@ -956,9 +1054,6 @@ public sealed class CampaignWorkspaceTests : BunitContext
         RegisterServices(participantQueryService: CreatePagedParticipantService(totalCount: 4, page2Items: [304]));
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
-
-        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(60);
-        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
@@ -1007,8 +1102,6 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo(
             "/campaigns/10?tab=evaluate&search=jones&sortBy=displayName&sortDirection=asc&participant=303");
-
-        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));

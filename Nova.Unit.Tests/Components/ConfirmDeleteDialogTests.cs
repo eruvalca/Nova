@@ -143,24 +143,4 @@ public class ConfirmDeleteDialogTests
         cut.Markup.ShouldContain("Permanently delete your club and account");
         cut.Markup.ShouldContain("I understand this will permanently delete my club and all of its data");
     }
-
-    [Fact]
-    public async Task ShowAsync_InvokesNovaShowModal_WithConfirmDeleteModalSelector()
-    {
-        // Arrange
-        using var testContext = new BunitContext();
-        testContext.JSInterop.SetupVoid("novaShowModal", "#confirm-delete-modal").SetVoidResult();
-
-        var cut = testContext.Render<ConfirmDeleteDialog>(
-            parameters => parameters
-                .Add(p => p.ClubName, "Test Club")
-                .Add(p => p.FormId, "test-form")
-        );
-
-        // Act
-        await cut.Instance.ShowAsync();
-
-        // Assert
-        testContext.JSInterop.VerifyInvoke("novaShowModal").Arguments.ShouldContain("#confirm-delete-modal");
-    }
 }

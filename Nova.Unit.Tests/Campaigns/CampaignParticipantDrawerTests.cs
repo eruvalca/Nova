@@ -18,6 +18,8 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class CampaignParticipantDrawerTests : BunitContext
 {
+    private const string DrawerModulePath = "./_content/Nova.UI/Features/Campaigns/Components/CampaignParticipantDrawer.razor.js";
+
     // ── Loading state ─────────────────────────────────────────────────────────
 
     [Fact]
@@ -280,6 +282,12 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         var closed = false;
         var onClose = EventCallback.Factory.Create(this, () => closed = true);
         RegisterServices();
+        JSInterop.Mode = JSRuntimeMode.Strict;
+        var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        var open = drawerModule.SetupVoid("open", _ => true);
+        open.SetVoidResult();
+        var close = drawerModule.SetupVoid("close", _ => true);
+        close.SetVoidResult();
 
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
             .Add(component => component.CampaignId, 10)
@@ -289,8 +297,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.Find("#participant-drawer-close").Click();
 
         closed.ShouldBeTrue();
-        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerClose")
-            .Arguments.ShouldBe(new object?[] { "roster-row-301" });
+        close.Invocations.Single().Arguments[0].ShouldBe("roster-row-301");
     }
 
     [Fact]
@@ -299,6 +306,12 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         var closed = false;
         var onClose = EventCallback.Factory.Create(this, () => closed = true);
         RegisterServices();
+        JSInterop.Mode = JSRuntimeMode.Strict;
+        var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        var open = drawerModule.SetupVoid("open", _ => true);
+        open.SetVoidResult();
+        var close = drawerModule.SetupVoid("close", _ => true);
+        close.SetVoidResult();
 
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
             .Add(component => component.CampaignId, 10)
@@ -309,8 +322,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
             new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
 
         closed.ShouldBeTrue();
-        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerClose")
-            .Arguments.ShouldBe(new object?[] { "roster-row-301" });
+        close.Invocations.Single().Arguments[0].ShouldBe("roster-row-301");
     }
 
     [Fact]
@@ -319,6 +331,12 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         var closed = false;
         var onClose = EventCallback.Factory.Create(this, () => closed = true);
         RegisterServices();
+        JSInterop.Mode = JSRuntimeMode.Strict;
+        var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        var open = drawerModule.SetupVoid("open", _ => true);
+        open.SetVoidResult();
+        var close = drawerModule.SetupVoid("close", _ => true);
+        close.SetVoidResult();
 
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
             .Add(component => component.CampaignId, 10)
@@ -328,8 +346,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.Find(".participant-drawer-backdrop").Click();
 
         closed.ShouldBeTrue();
-        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerClose")
-            .Arguments.ShouldBe(new object?[] { "roster-row-301" });
+        close.Invocations.Single().Arguments[0].ShouldBe("roster-row-301");
     }
 
     // ── Focus trap management ───────────────────────────────────────────────────
@@ -338,19 +355,32 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     public void Drawer_InstallsFocusTrap_OnFirstRender()
     {
         RegisterServices();
+        JSInterop.Mode = JSRuntimeMode.Strict;
+        var open = JSInterop.SetupModule(DrawerModulePath).SetupVoid("open", _ => true);
+        open.SetVoidResult();
 
-        Render<CampaignParticipantDrawerComponent>(parameters => parameters
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
             .Add(component => component.CampaignId, 10)
             .Add(component => component.ParticipantId, 301));
 
-        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerOpen")
-            .Arguments.ShouldBe(new object?[] { ".participant-drawer", "participant-drawer-close" });
+        var dialogRefId = cut.Find("aside.participant-drawer").GetAttribute("blazor:elementreference");
+        var closeRefId = cut.Find("#participant-drawer-close").GetAttribute("blazor:elementreference");
+
+        var invocation = open.Invocations.Single();
+        invocation.Arguments[0].ShouldBeOfType<ElementReference>().Id.ShouldBe(dialogRefId);
+        invocation.Arguments[1].ShouldBeOfType<ElementReference>().Id.ShouldBe(closeRefId);
     }
 
     [Fact]
     public void Drawer_DoesNotReinstallFocusTrap_WhenParticipantParameterChanges()
     {
         RegisterServices();
+        JSInterop.Mode = JSRuntimeMode.Strict;
+        var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        var open = drawerModule.SetupVoid("open", _ => true);
+        open.SetVoidResult();
+        var restoreFocus = drawerModule.SetupVoid("restoreFocus", _ => true);
+        restoreFocus.SetVoidResult();
 
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
             .Add(component => component.CampaignId, 10)
@@ -358,29 +388,44 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.Render(parameters => parameters.Add(component => component.ParticipantId, 302));
 
-        JSInterop.Invocations.Count(invocation => invocation.Identifier == "novaCampaignParticipantDrawerOpen")
-            .ShouldBe(1);
+        open.Invocations.Count.ShouldBe(1);
     }
 
     [Fact]
     public void Drawer_RestoresFocusIntoDialog_WhenParticipantParameterChanges()
     {
         RegisterServices();
+        JSInterop.Mode = JSRuntimeMode.Strict;
+        var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        var open = drawerModule.SetupVoid("open", _ => true);
+        open.SetVoidResult();
+        var restoreFocus = drawerModule.SetupVoid("restoreFocus", _ => true);
+        restoreFocus.SetVoidResult();
 
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
             .Add(component => component.CampaignId, 10)
             .Add(component => component.ParticipantId, 301));
 
+        var dialogRefId = cut.Find("aside.participant-drawer").GetAttribute("blazor:elementreference");
+        var closeRefId = cut.Find("#participant-drawer-close").GetAttribute("blazor:elementreference");
+
         cut.Render(parameters => parameters.Add(component => component.ParticipantId, 302));
 
-        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerRestoreFocus")
-            .Arguments.ShouldBe(new object?[] { ".participant-drawer", "participant-drawer-close" });
+        var invocation = restoreFocus.Invocations.Single();
+        invocation.Arguments[0].ShouldBeOfType<ElementReference>().Id.ShouldBe(dialogRefId);
+        invocation.Arguments[1].ShouldBeOfType<ElementReference>().Id.ShouldBe(closeRefId);
     }
 
     [Fact]
     public void Drawer_DoesNotRestoreFocus_WhenParticipantParameterUnchanged()
     {
         RegisterServices();
+        JSInterop.Mode = JSRuntimeMode.Strict;
+        var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        var open = drawerModule.SetupVoid("open", _ => true);
+        open.SetVoidResult();
+        var restoreFocus = drawerModule.SetupVoid("restoreFocus", _ => true);
+        restoreFocus.SetVoidResult();
 
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
             .Add(component => component.CampaignId, 10)
@@ -389,13 +434,21 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Graduation year"));
         cut.Render();
 
-        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "novaCampaignParticipantDrawerRestoreFocus");
+        restoreFocus.Invocations.ShouldBeEmpty();
     }
 
     [Fact]
     public async Task Drawer_RemovesFocusTrapWithoutRestoringFocus_WhenDisposed()
     {
         RegisterServices();
+        JSInterop.Mode = JSRuntimeMode.Strict;
+        var drawerModule = JSInterop.SetupModule(DrawerModulePath);
+        var open = drawerModule.SetupVoid("open", _ => true);
+        open.SetVoidResult();
+        var detach = drawerModule.SetupVoid("detach", _ => true);
+        detach.SetVoidResult();
+        var close = drawerModule.SetupVoid("close", _ => true);
+        close.SetVoidResult();
 
         var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
             .Add(component => component.CampaignId, 10)
@@ -403,8 +456,8 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         await ((IAsyncDisposable)cut.Instance).DisposeAsync();
 
-        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerDispose");
-        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "novaCampaignParticipantDrawerClose");
+        detach.Invocations.Count.ShouldBe(1);
+        close.Invocations.ShouldBeEmpty();
     }
 
     // ── Sequence navigation ─────────────────────────────────────────────────────

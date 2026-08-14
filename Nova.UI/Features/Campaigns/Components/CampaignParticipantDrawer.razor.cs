@@ -29,20 +29,29 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// </para>
 /// </remarks>
 /// <param name="participantQueryService">The query service used to load participant details.</param>
-/// <param name="jsRuntime">The JavaScript runtime used to manage the drawer focus trap and focus return.</param>
+/// <param name="jsRuntime">The JavaScript runtime used to import the collocated drawer module.</param>
 public partial class CampaignParticipantDrawer(
     ICampaignParticipantQueryService participantQueryService,
     IJSRuntime jsRuntime) : NovaComponentBase
 {
     /// <summary>
-    /// The CSS selector for the dialog panel, used as the focus-trap container.
+    /// The dialog panel element, used as the focus-trap container and the boundary for focus checks.
     /// </summary>
-    private const string DialogSelector = ".participant-drawer";
+    private ElementReference _dialog;
 
     /// <summary>
-    /// The DOM identifier of the close button, focused when the drawer opens.
+    /// The close button element, focused when the drawer opens and used as the anchor when focus
+    /// must be pulled back into the dialog.
     /// </summary>
-    private const string CloseButtonId = "participant-drawer-close";
+    private ElementReference _closeButton;
+
+    /// <summary>
+    /// The lazily imported collocated drawer module managing the focus trap and focus return.
+    /// </summary>
+    private readonly Lazy<Task<IJSObjectReference>> _moduleTask = new(() => jsRuntime
+        .InvokeAsync<IJSObjectReference>(
+            "import", "./_content/Nova.UI/Features/Campaigns/Components/CampaignParticipantDrawer.razor.js")
+        .AsTask());
 
     /// <summary>
     /// Represents the detail-load state rendered by the drawer body.
@@ -206,9 +215,11 @@ public partial class CampaignParticipantDrawer(
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        var module = await _moduleTask.Value;
+
         if (firstRender)
         {
-            await jsRuntime.InvokeVoidAsync("novaCampaignParticipantDrawerOpen", DialogSelector, CloseButtonId);
+            await module.InvokeVoidAsync("open", _dialog, _closeButton);
             _focusTrapInstalled = true;
             _lastRenderedParticipantId = ParticipantId;
             return;
@@ -223,7 +234,7 @@ public partial class CampaignParticipantDrawer(
 
         // A boundary move renders the clicked prev/next button disabled, which drops focus to
         // <body>; re-focus inside the dialog so the trap and Escape keep working.
-        await jsRuntime.InvokeVoidAsync("novaCampaignParticipantDrawerRestoreFocus", DialogSelector, CloseButtonId);
+        await module.InvokeVoidAsync("restoreFocus", _dialog, _closeButton);
     }
 
     /// <summary>
@@ -307,7 +318,8 @@ public partial class CampaignParticipantDrawer(
         if (_focusTrapInstalled)
         {
             _focusTrapInstalled = false;
-            await jsRuntime.InvokeVoidAsync("novaCampaignParticipantDrawerClose", FallbackFocusId);
+            var module = await _moduleTask.Value;
+            await module.InvokeVoidAsync("close", FallbackFocusId);
         }
 
         await OnClose.InvokeAsync();
@@ -320,20 +332,26 @@ public partial class CampaignParticipantDrawer(
     /// <returns>A task that completes when the trap is removed.</returns>
     protected override async ValueTask DisposeAsyncCore()
     {
-        if (!_focusTrapInstalled)
+        if (!_moduleTask.IsValueCreated)
         {
             return;
         }
 
-        _focusTrapInstalled = false;
-
         try
         {
-            await jsRuntime.InvokeVoidAsync("novaCampaignParticipantDrawerDispose");
+            var module = await _moduleTask.Value;
+
+            if (_focusTrapInstalled)
+            {
+                _focusTrapInstalled = false;
+                await module.InvokeVoidAsync("detach");
+            }
+
+            await module.DisposeAsync();
         }
         catch (JSDisconnectedException)
         {
-            // The circuit is gone; the browser tore the trap down with the document.
+            // The circuit is gone; the browser tore the trap and module down with the document.
         }
     }
 

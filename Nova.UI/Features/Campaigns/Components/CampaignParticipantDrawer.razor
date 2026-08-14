@@ -1,5 +1,6 @@
 <div class="participant-drawer-backdrop" aria-hidden="true" @onclick="CloseAsync"></div>
 <aside class="participant-drawer"
+       @ref="_dialog"
        role="dialog"
        aria-modal="true"
        aria-labelledby="participant-drawer-heading"
@@ -22,6 +23,7 @@
             <button type="button"
                     class="btn-close"
                     id="participant-drawer-close"
+                    @ref="_closeButton"
                     aria-label="Close participant details"
                     @onclick="CloseAsync"></button>
         </div>
