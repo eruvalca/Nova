@@ -1111,6 +1111,93 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.Markup.ShouldNotContain("Note added.");
     }
 
+    [Fact]
+    public void Drawer_DoesNotSurfaceProblemFeedback_WhenParticipantChangesMidMutation()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<EvaluationNoteMutationSuccess>>();
+        var queryService = Substitute.For<ICampaignParticipantQueryService>();
+        queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var input = callInfo.Arg<GetCampaignParticipantDetailInput>();
+                return Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(
+                    CreateDetail(assignmentId: input.PlayerCampaignAssignmentId,
+                        displayName: $"Player {input.PlayerCampaignAssignmentId}",
+                        capabilities: MutationCapabilities(canAddNote: true))));
+            });
+        var noteService = Substitute.For<ICampaignEvaluationNoteService>();
+        noteService.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        RegisterServices(queryService, noteService);
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Add note").ShouldNotBeNull());
+        FindButtonByText(cut, "Add note").Click();
+        cut.Find("textarea").Input("Draft for participant A");
+        FindButtonByText(cut, "Save note").Click();
+
+        // Navigate to participant B while the mutation is still in flight.
+        cut.Render(parameters => parameters.Add(component => component.ParticipantId, 302));
+        cut.WaitForAssertion(() => cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Player 302"));
+
+        pending.SetResult(new ServiceResult<EvaluationNoteMutationSuccess>(
+            ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept new notes.")));
+        cut.WaitForAssertion(() => queryService.Received(1).GetParticipantDetailAsync(
+            Arg.Is<GetCampaignParticipantDetailInput>(input => input.PlayerCampaignAssignmentId == 302),
+            Arg.Any<CancellationToken>()));
+
+        // The conflict message is not surfaced on the participant the mutation did not target,
+        // and the drawer does not enter read-only mode for it.
+        cut.Markup.ShouldNotContain("Closed campaigns are read-only");
+        cut.Markup.ShouldNotContain("Read-only — campaign is closed.");
+    }
+
+    [Fact]
+    public void Drawer_DoesNotSurfaceTransportFailureFeedback_WhenParticipantChangesMidMutation()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<EvaluationNoteMutationSuccess>>();
+        var queryService = Substitute.For<ICampaignParticipantQueryService>();
+        queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var input = callInfo.Arg<GetCampaignParticipantDetailInput>();
+                return Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(
+                    CreateDetail(assignmentId: input.PlayerCampaignAssignmentId,
+                        displayName: $"Player {input.PlayerCampaignAssignmentId}",
+                        capabilities: MutationCapabilities(canAddNote: true))));
+            });
+        var noteService = Substitute.For<ICampaignEvaluationNoteService>();
+        noteService.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        RegisterServices(queryService, noteService);
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Add note").ShouldNotBeNull());
+        FindButtonByText(cut, "Add note").Click();
+        cut.Find("textarea").Input("Draft for participant A");
+        FindButtonByText(cut, "Save note").Click();
+
+        // Navigate to participant B while the mutation is still in flight.
+        cut.Render(parameters => parameters.Add(component => component.ParticipantId, 302));
+        cut.WaitForAssertion(() => cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Player 302"));
+
+        pending.SetException(new HttpRequestException("Connection refused."));
+        cut.WaitForAssertion(() => queryService.Received(1).GetParticipantDetailAsync(
+            Arg.Is<GetCampaignParticipantDetailInput>(input => input.PlayerCampaignAssignmentId == 302),
+            Arg.Any<CancellationToken>()));
+
+        // The transport-failure banner is not surfaced on the participant the mutation did not target.
+        cut.Markup.ShouldNotContain("Could not reach the server.");
+    }
+
     // ── Tag apply/remove controls ────────────────────────────────────────────
 
     [Fact]

@@ -720,7 +720,7 @@ public partial class CampaignParticipantDrawer(
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
-            if (ComponentCancellationToken.IsCancellationRequested)
+            if (ComponentCancellationToken.IsCancellationRequested || _mutationParticipantId != ParticipantId)
             {
                 return;
             }
@@ -754,6 +754,15 @@ public partial class CampaignParticipantDrawer(
         string successMessage,
         Action onSuccess)
     {
+        // If the user navigated to another participant while this mutation was in flight, its
+        // feedback no longer applies to the visible participant: the participant-change path
+        // already cleared the mutation UI state, so discard the result silently (success action,
+        // error message, and any refresh all must be skipped).
+        if (_mutationParticipantId != ParticipantId)
+        {
+            return;
+        }
+
         var succeeded = false;
         var conflicted = false;
         result.Switch(
@@ -767,14 +776,6 @@ public partial class CampaignParticipantDrawer(
                 _mutationError = MutationErrorMessage(problem);
                 conflicted = problem.Kind == ServiceProblemKind.Conflict;
             });
-
-        // If the user navigated to another participant while this mutation was in flight, its
-        // feedback no longer applies to the visible participant: the participant-change path
-        // already cleared the mutation UI state, so discard the result silently.
-        if (_mutationParticipantId != ParticipantId)
-        {
-            return;
-        }
 
         if (succeeded)
         {

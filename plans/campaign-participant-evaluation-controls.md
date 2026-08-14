@@ -385,7 +385,11 @@ control surface (Phases 1–4), with browser-level acceptance (Phase 5) and a fi
   confirmations, tag selection) is reset on participant navigation so a drafted note or tag choice
   is never posted to the wrong player; a mutation captures its target participant id so success and
   conflict feedback is only surfaced while the drawer still shows that participant. Drawer suite
-  grew to 49 tests; full unit suite 1367/1367.
+  grew to 49 tests; full unit suite 1367/1367. A follow-up review closed the remaining gap: the
+  mid-mutation discard guard now runs ahead of result handling so problem results and transport
+  failures are also dropped when the participant changed, with conflict-result and
+  transport-failure variants added to the mid-mutation test. Drawer suite is 51 tests; full unit
+  suite 1369/1369.
 
 ## Deployment Plan
 
