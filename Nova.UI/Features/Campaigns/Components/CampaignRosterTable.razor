@@ -37,7 +37,11 @@
         <tbody>
             @foreach (var item in Items)
             {
-                <tr>
+                <tr class="@RowClass(item)"
+                    aria-current="@AriaCurrent(item)"
+                    tabindex="0"
+                    @onclick="() => SelectItemAsync(item)"
+                    @onkeydown="args => OnRowKeyDownAsync(args, item)">
                     <td>@(item.TryoutNumber?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
                     <td>@item.DisplayName</td>
                     <td>@item.GraduationYear</td>

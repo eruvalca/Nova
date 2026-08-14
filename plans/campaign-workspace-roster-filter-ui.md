@@ -339,28 +339,28 @@ Tests: 9 pure `CampaignWorkspaceUrlState` tests (round-trip, defaults, fallback,
 
 ## Phase 5: Selection, drawer placeholder, scroll anchor, responsive layout
 
-Status: Not started
+Status: Completed
 
 Suggested executor: orchestrator (scroll-anchor + drawer boundary hand-off to #64).
 
-- [ ] Row selection: clicking/Entering a roster row (table or card) pushes
+- [x] Row selection: clicking/Entering a roster row (table or card) pushes
       `participant={assignmentId}` onto the workspace URL; the selected row renders an
       `aria-current`/highlight state.
-- [ ] Create `Nova.UI/Features/Campaigns/Components/CampaignParticipantDrawer.razor(.cs)` —
+- [x] Create `Nova.UI/Features/Campaigns/Components/CampaignParticipantDrawer.razor(.cs)` —
       minimal shell placeholder: off-canvas/side panel, header with participant name (from the
       selected roster item), Close button that removes `participant` from the URL (push history),
       and a "Participant details arrive in #64" placeholder body. Public parameters document the
       hand-off contract: `ParticipantId`, `RosterItem`, `OnClose` `EventCallback`. #64 replaces
       the body internals; #67 owns open/close and state preservation.
-- [ ] Scroll anchor: capture the roster container's `scrollTop` before any URL push that opens
+- [x] Scroll anchor: capture the roster container's `scrollTop` before any URL push that opens
       or closes the drawer, and restore it after render (`OnAfterRenderAsync` + a small JS interop
       helper). Roster rows must never jump when the drawer opens/closes; page/sort/filter changes
       scroll to top of the roster region.
-- [ ] Responsive layout: Bootstrap grid — table for `md+`, card list below; drawer becomes a
+- [x] Responsive layout: Bootstrap grid — table for `md+`, card list below; drawer becomes a
       full-width panel on narrow screens (screen-designs section 5). All controls keep visible
       focus styles; rows are keyboard-operable (tab order, Enter to select, Escape closes the
       drawer).
-- [ ] Component tests: selection pushes `participant` and highlights the row; drawer opens when
+- [x] Component tests: selection pushes `participant` and highlights the row; drawer opens when
       the param is present and close removes it; roster state params are preserved across drawer
       open/close; Escape-to-close; keyboard selection works (bUnit keyboard events); scroll
       anchor helper is invoked on drawer open/close and not on filter changes.
@@ -373,7 +373,22 @@ Suggested executor: orchestrator (scroll-anchor + drawer boundary hand-off to #6
 
 ### Phase Summary
 
-_(write when phase completes)_
+Selection, drawer shell, scroll anchoring, and the responsive layout are in place. Clicking or
+Enter-ing a roster row pushes `participant={assignmentId}` after `tab=` in the workspace URL
+(`CampaignWorkspaceUrlState.ParseParticipant` drops absent/invalid values; `BuildWorkspaceUrl`
+appends the token only when the drawer is open). The selected row carries `aria-current="true"`
+and a `.roster-row-selected`/`.roster-card-selected` highlight; keyboard activation (Enter/Space)
+and visible focus styles are shared by the table and card list.
+
+`CampaignParticipantDrawer` is a minimal shell (backdrop, fixed right panel, header with the
+participant name or a "Participant" fallback, close button, "Participant details arrive in #64."
+body) exposing the #64 hand-off contract (`ParticipantId`, `RosterItem`, `OnClose`). Escape and
+the close button remove `participant` from the URL; the drawer is full-width below `md` and a
+26rem panel above it. Focus moves to the close button when the drawer opens.
+
+The roster list is wrapped in a `#roster-scroll-region` scroll container. `window.novaCampaignWorkspaceCaptureScroll/RestoreScroll/ScrollToTop/Focus` JS helpers (in `wwwroot/js/site.js`) anchor the scroll position: drawer open/close captures `scrollTop` and restores it after render, while filter/sort/page pushes scroll the region to top. Participant state lives outside the roster state, so open/close never reloads the roster; a defensive `long` parse drops invalid `participant` values.
+
+Tests: 4 new `CampaignWorkspaceUrlState` participant tests (parse valid/invalid, URL emission with/without the token) and 7 new page tests (row click opens drawer + pushes URL + highlights + scroll capture/restore; close removes `participant` and preserves roster params; Escape closes; Enter selects; sort scrolls to top without capturing; unknown participant opens the fallback shell; invalid participant is dropped). Full unit suite: 1295 passed, 0 failed. Build clean; scoped `dotnet format --verify-no-changes` clean on changed files.
 
 ## Phase 6: Focused browser validation (Aspire + Playwright)
 

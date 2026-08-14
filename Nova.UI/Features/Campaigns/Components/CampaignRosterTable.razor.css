@@ -19,3 +19,16 @@
     opacity: 0.6;
     text-decoration: line-through;
 }
+
+.roster-row {
+    cursor: pointer;
+}
+
+.roster-row:focus-visible {
+    outline: 0.15rem solid var(--bs-primary);
+    outline-offset: -0.15rem;
+}
+
+.roster-row-selected {
+    background-color: var(--bs-primary-bg-subtle);
+}

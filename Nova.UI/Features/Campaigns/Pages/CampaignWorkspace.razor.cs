@@ -43,6 +43,11 @@ public partial class CampaignWorkspace(
     private const string EvaluateTabName = CampaignWorkspaceUrlState.EvaluateTab;
 
     /// <summary>
+    /// The DOM identifier of the scrollable roster results region used for scroll anchoring.
+    /// </summary>
+    private const string RosterScrollRegionId = "roster-scroll-region";
+
+    /// <summary>
     /// The tag-definition choices service used by roster filters.
     /// </summary>
     private readonly ITagDefinitionQueryService _tagDefinitionQueryService = tagDefinitionQueryService;
@@ -116,6 +121,12 @@ public partial class CampaignWorkspace(
     /// </summary>
     [SupplyParameterFromQuery(Name = "page")]
     private int? PageQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming participant query parameter; present means the drawer is open.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "participant")]
+    private string? ParticipantQuery { get; set; }
 
     /// <summary>
     /// Gets or sets the persisted campaign detail used across prerender and interactive attach.
@@ -267,9 +278,32 @@ public partial class CampaignWorkspace(
     private IReadOnlyList<TeamRosterItem> _availableTeams = [];
 
     /// <summary>
+    /// The open participant assignment identifier, or <see langword="null"/> when the drawer is closed.
+    /// </summary>
+    private long? _selectedParticipantId;
+
+    /// <summary>
+    /// The roster region scroll offset captured before a drawer open/close navigation, restored after render.
+    /// </summary>
+    private double? _pendingScrollRestore;
+
+    /// <summary>
+    /// Indicates that the roster region should scroll to its top after the next render.
+    /// </summary>
+    private bool _scrollToRosterTop;
+
+    /// <summary>
     /// Gets a value indicating whether any roster filter is active.
     /// </summary>
     private bool HasActiveFilters => CampaignWorkspaceUrlState.HasActiveFilters(_filters);
+
+    /// <summary>
+    /// Gets the roster item matching the open participant, or <see langword="null"/> when the drawer is closed or the item is not on the loaded page.
+    /// </summary>
+    private CampaignParticipantRosterItem? SelectedRosterItem
+        => _selectedParticipantId is null
+            ? null
+            : _roster?.Items.FirstOrDefault(item => item.PlayerCampaignAssignmentId == _selectedParticipantId.Value);
 
     /// <inheritdoc />
     protected override void OnParametersSet()
@@ -279,6 +313,14 @@ public partial class CampaignWorkspace(
             _tabQueryApplied = true;
             // Only the evaluate tab is functional; any other tab value falls back to it.
             _activeTab = EvaluateTabName;
+        }
+
+        // Participant selection lives outside the roster state so opening/closing the drawer
+        // never triggers a roster reload.
+        var participant = CampaignWorkspaceUrlState.ParseParticipant(ParticipantQuery);
+        if (participant != _selectedParticipantId)
+        {
+            _selectedParticipantId = participant;
         }
 
         var incoming = CampaignWorkspaceUrlState.Parse(
@@ -366,6 +408,7 @@ public partial class CampaignWorkspace(
         _filters = incoming;
         _searchDraft = incoming.Search ?? string.Empty;
         _appliedQueryString = CampaignWorkspaceUrlState.BuildQueryString(incoming);
+        _selectedParticipantId = CampaignWorkspaceUrlState.ParseParticipant(ParticipantQuery);
     }
 
     /// <inheritdoc />
@@ -529,7 +572,7 @@ public partial class CampaignWorkspace(
         _appliedQueryString = CampaignWorkspaceUrlState.BuildQueryString(next);
         _reloadRosterPending = true;
 
-        var targetUrl = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, next, _activeTab);
+        var targetUrl = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, next, _activeTab, _selectedParticipantId);
         var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
 
         if (string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
@@ -539,6 +582,7 @@ public partial class CampaignWorkspace(
             return;
         }
 
+        _scrollToRosterTop = true;
         navigationManager.NavigateTo(targetUrl);
     }
 
@@ -690,10 +734,73 @@ public partial class CampaignWorkspace(
     {
         if (!string.Equals(TabQuery, EvaluateTabName, StringComparison.OrdinalIgnoreCase))
         {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, EvaluateTabName));
+            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, EvaluateTabName, _selectedParticipantId));
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Opens the participant drawer for the clicked roster row, pushing <c>participant</c> onto the workspace URL.
+    /// </summary>
+    /// <param name="item">The clicked roster item.</param>
+    /// <returns>A task that completes when the scroll anchor is captured and navigation is initiated.</returns>
+    private async Task OnParticipantSelectedAsync(CampaignParticipantRosterItem item)
+    {
+        if (_selectedParticipantId == item.PlayerCampaignAssignmentId)
+        {
+            return;
+        }
+
+        await CaptureRosterScrollAsync();
+        _selectedParticipantId = item.PlayerCampaignAssignmentId;
+        navigationManager.NavigateTo(
+            CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab, _selectedParticipantId));
+    }
+
+    /// <summary>
+    /// Closes the participant drawer, removing <c>participant</c> from the workspace URL while preserving roster state.
+    /// </summary>
+    /// <returns>A task that completes when the scroll anchor is captured and navigation is initiated.</returns>
+    private async Task OnCloseParticipantAsync()
+    {
+        await CaptureRosterScrollAsync();
+        _selectedParticipantId = null;
+        navigationManager.NavigateTo(
+            CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab));
+    }
+
+    /// <summary>
+    /// Captures the roster region scroll offset before a drawer open/close navigation.
+    /// </summary>
+    /// <returns>A task that completes when the offset is captured.</returns>
+    private async Task CaptureRosterScrollAsync()
+    {
+        _pendingScrollRestore = await _jsRuntime.InvokeAsync<double?>("novaCampaignWorkspaceCaptureScroll", RosterScrollRegionId);
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The roster region is only in the DOM when a loaded roster is rendered; keep the
+        // pending scroll work until then so filter changes still scroll after a loading pass.
+        if (_rosterLoading || _roster is null)
+        {
+            return;
+        }
+
+        if (_scrollToRosterTop)
+        {
+            _scrollToRosterTop = false;
+            await _jsRuntime.InvokeVoidAsync("novaCampaignWorkspaceScrollToTop", RosterScrollRegionId);
+        }
+
+        if (_pendingScrollRestore is not null)
+        {
+            var restoreTop = _pendingScrollRestore.Value;
+            _pendingScrollRestore = null;
+            await _jsRuntime.InvokeVoidAsync("novaCampaignWorkspaceRestoreScroll", RosterScrollRegionId, restoreTop);
+        }
     }
 
     /// <summary>

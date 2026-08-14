@@ -147,6 +147,42 @@ public sealed class CampaignWorkspaceUrlStateTests
         CampaignWorkspaceUrlState.HasActiveFilters(cleared).ShouldBeFalse();
     }
 
+    // ── Participant selection ──────────────────────────────────────────────────
+
+    [Fact]
+    public void ParseParticipant_ReturnsNull_ForMissingOrInvalidValues()
+    {
+        CampaignWorkspaceUrlState.ParseParticipant(null).ShouldBeNull();
+        CampaignWorkspaceUrlState.ParseParticipant("").ShouldBeNull();
+        CampaignWorkspaceUrlState.ParseParticipant("abc").ShouldBeNull();
+        CampaignWorkspaceUrlState.ParseParticipant("0").ShouldBeNull();
+        CampaignWorkspaceUrlState.ParseParticipant("-5").ShouldBeNull();
+        CampaignWorkspaceUrlState.ParseParticipant("12.5").ShouldBeNull();
+    }
+
+    [Fact]
+    public void ParseParticipant_ReturnsPositiveLong_ForValidValues()
+    {
+        CampaignWorkspaceUrlState.ParseParticipant("301").ShouldBe(301L);
+    }
+
+    [Fact]
+    public void BuildWorkspaceUrl_AppendsParticipantAfterTab_WhenOpen()
+    {
+        CampaignWorkspaceUrlState.BuildWorkspaceUrl(
+                10,
+                new CampaignWorkspaceRosterState { Search = "ave" },
+                participantId: 301)
+            .ShouldBe("/campaigns/10?search=ave&tab=evaluate&participant=301");
+    }
+
+    [Fact]
+    public void BuildWorkspaceUrl_OmitsParticipant_WhenClosed()
+    {
+        CampaignWorkspaceUrlState.BuildWorkspaceUrl(10, new CampaignWorkspaceRosterState())
+            .ShouldBe("/campaigns/10?tab=evaluate");
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static CampaignWorkspaceRosterState ParseFromQuery(string query)

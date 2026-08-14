@@ -155,18 +155,45 @@ public static class CampaignWorkspaceUrlState
     }
 
     /// <summary>
-    /// Builds the full workspace URL for the supplied state, always carrying the active tab token.
+    /// Parses the raw <c>participant</c> query value into a positive assignment identifier.
+    /// </summary>
+    /// <param name="raw">The raw participant query value.</param>
+    /// <returns>The assignment identifier, or <see langword="null"/> when absent or invalid.</returns>
+    public static long? ParseParticipant(string? raw)
+        => long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value > 0
+            ? value
+            : null;
+
+    /// <summary>
+    /// Builds the full workspace URL for the supplied state, always carrying the active tab token
+    /// and the selected participant when one is open.
     /// </summary>
     /// <param name="campaignId">The campaign identifier from the route.</param>
     /// <param name="state">The roster state to serialize.</param>
     /// <param name="tab">The active tab token.</param>
+    /// <param name="participantId">The open participant assignment identifier, or <see langword="null"/> when the drawer is closed.</param>
     /// <returns>The relative workspace URL.</returns>
-    public static string BuildWorkspaceUrl(long campaignId, CampaignWorkspaceRosterState state, string tab = EvaluateTab)
+    public static string BuildWorkspaceUrl(
+        long campaignId,
+        CampaignWorkspaceRosterState state,
+        string tab = EvaluateTab,
+        long? participantId = null)
     {
+        var parts = new List<string>(10);
         var query = BuildQueryString(state);
-        return string.IsNullOrEmpty(query)
-            ? $"/campaigns/{campaignId}?tab={tab}"
-            : $"/campaigns/{campaignId}?{query}&tab={tab}";
+        if (!string.IsNullOrEmpty(query))
+        {
+            parts.Add(query);
+        }
+
+        parts.Add($"tab={tab}");
+
+        if (participantId is not null)
+        {
+            parts.Add($"participant={participantId}");
+        }
+
+        return $"/campaigns/{campaignId}?{string.Join("&", parts)}";
     }
 
     /// <summary>

@@ -122,11 +122,17 @@
                     }
                     else
                     {
-                        <CampaignRosterTable Items="@_roster.Items"
-                                             SortBy="@_filters.SortBy"
-                                             SortDirection="@_filters.SortDirection"
-                                             OnSortChanged="OnSortChangedAsync" />
-                        <CampaignRosterCards Items="@_roster.Items" />
+                        <div class="roster-scroll-region" id="@RosterScrollRegionId" tabindex="-1">
+                            <CampaignRosterTable Items="@_roster.Items"
+                                                 SortBy="@_filters.SortBy"
+                                                 SortDirection="@_filters.SortDirection"
+                                                 SelectedParticipantId="@_selectedParticipantId"
+                                                 OnParticipantSelected="OnParticipantSelectedAsync"
+                                                 OnSortChanged="OnSortChangedAsync" />
+                            <CampaignRosterCards Items="@_roster.Items"
+                                                 SelectedParticipantId="@_selectedParticipantId"
+                                                 OnParticipantSelected="OnParticipantSelectedAsync" />
+                        </div>
                         <CampaignRosterPager Page="@_roster.Page"
                                              PageSize="@_roster.PageSize"
                                              TotalCount="@_roster.TotalCount"
@@ -135,5 +141,12 @@
                 }
             </div>
         </section>
+
+        @if (_selectedParticipantId is not null)
+        {
+            <CampaignParticipantDrawer ParticipantId="_selectedParticipantId.Value"
+                                       RosterItem="@SelectedRosterItem"
+                                       OnClose="OnCloseParticipantAsync" />
+        }
     }
 </div>

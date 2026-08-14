@@ -2,6 +2,7 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 using Nova.Shared.Enums;
@@ -471,6 +472,142 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.Markup.ShouldNotContain("No participants match the current filters.");
     }
 
+    // ── Phase 5: participant selection and drawer ──────────────────────────────
+
+    [Fact]
+    public void CampaignWorkspace_ClickingRosterRow_OpensDrawer_PushesParticipant_AndHighlightsRow()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+
+        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(120);
+        JSInterop.SetupVoid("novaCampaignWorkspaceRestoreScroll", _ => true).SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("tbody tr").Click();
+
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("participant=301"));
+        cut.Markup.ShouldContain("participant-drawer");
+        cut.Markup.ShouldContain("Participant details arrive in #64.");
+        cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Avery Johnson");
+        cut.Find("tbody tr").GetAttribute("aria-current").ShouldBe("true");
+        cut.Find("tbody tr.roster-row-selected").ShouldNotBeNull();
+
+        cut.WaitForAssertion(() =>
+        {
+            JSInterop.VerifyInvoke("novaCampaignWorkspaceCaptureScroll").Arguments.ShouldContain("roster-scroll-region");
+            JSInterop.VerifyInvoke("novaCampaignWorkspaceRestoreScroll").Arguments.ShouldBe(new object?[] { "roster-scroll-region", 120.0 });
+        });
+    }
+
+    [Fact]
+    public void CampaignWorkspace_ClosingDrawer_RemovesParticipant_AndPreservesRosterParams()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&outcome=assigned&participant=301");
+
+        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(120);
+        JSInterop.SetupVoid("novaCampaignWorkspaceRestoreScroll", _ => true).SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+        cut.Markup.ShouldContain("Avery Johnson");
+
+        cut.Find("#participant-drawer-close").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
+        navigationManager.Uri.ShouldEndWith("/campaigns/10?outcome=assigned&tab=evaluate");
+        cut.Markup.ShouldContain("Avery Johnson");
+
+        cut.WaitForAssertion(() => JSInterop.VerifyInvoke("novaCampaignWorkspaceRestoreScroll").Arguments.ShouldBe(new object?[] { "roster-scroll-region", 120.0 }));
+    }
+
+    [Fact]
+    public void CampaignWorkspace_Escape_ClosesDrawer()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=301");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        cut.Find("aside.participant-drawer").TriggerEvent("onkeydown", new KeyboardEventArgs { Key = "Escape" });
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
+        navigationManager.Uri.ShouldNotContain("participant=");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_KeyboardEnter_OnRosterRow_SelectsParticipant()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("tbody tr").TriggerEvent("onkeydown", new KeyboardEventArgs { Key = "Enter" });
+
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("participant=301"));
+        cut.Markup.ShouldContain("participant-drawer");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_SortChange_ScrollsRosterToTop_WithoutCapturingScroll()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate");
+
+        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(120);
+        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.FindAll("button.roster-sort-header")[1].Click();
+
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("sortBy=displayName&sortDirection=asc"));
+        cut.WaitForAssertion(() =>
+        {
+            JSInterop.VerifyInvoke("novaCampaignWorkspaceScrollToTop").Arguments.ShouldContain("roster-scroll-region");
+            JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "novaCampaignWorkspaceCaptureScroll");
+        });
+    }
+
+    [Fact]
+    public void CampaignWorkspace_UnknownParticipantParam_OpensDrawerShell_WithFallbackHeading()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=999");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Participant");
+        cut.Markup.ShouldContain("Participant details arrive in #64.");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_InvalidParticipantParam_IsDropped()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=abc");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Markup.ShouldNotContain("participant-drawer");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void RegisterServices(
@@ -516,6 +653,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         Services.AddSingleton(tagDefinitionQueryService);
         Services.AddSingleton(teamRosterService);
         Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal()));
+        JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
     private static IReadOnlyList<int> CreateGraduationYearChoices() => [2031, 2032];
