@@ -1426,6 +1426,52 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
+    public void Drawer_ConflictReadOnlyTransition_ClosesOpenNoteEditor()
+    {
+        var callCount = 0;
+        var queryService = Substitute.For<ICampaignParticipantQueryService>();
+        queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                callCount++;
+                return Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(
+                    callCount == 1
+                        ? CreateDetail(notes: [CreateNote(canEdit: true, canDelete: false)], capabilities: MutationCapabilities())
+                        : CreateDetail(campaignStatus: CampaignStatus.Closed,
+                            notes: [CreateNote(canEdit: true, canDelete: false)],
+                            capabilities: MutationCapabilities())));
+            });
+        var noteService = Substitute.For<ICampaignEvaluationNoteService>();
+        noteService.EditAsync(Arg.Any<EditEvaluationNoteInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<Success>(
+                ServiceProblem.Conflict("Closed campaigns are read-only and cannot accept note edits."))));
+
+        RegisterServices(queryService, noteService);
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        // Open the inline editor on the Active detail.
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Edit").ShouldNotBeNull());
+        FindButtonByText(cut, "Edit").Click();
+        cut.WaitForAssertion(() => cut.FindAll("textarea").ShouldNotBeEmpty());
+
+        // Save returns a Closed conflict; the drawer enters read-only mode.
+        cut.Find("textarea").Input("Attempted edit on a closed campaign");
+        FindButtonByText(cut, "Save").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Closed campaigns are read-only and cannot accept note edits."));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Read-only — campaign is closed."));
+
+        // The open editor is gone, and no Save/Cancel remains in the read-only drawer.
+        cut.FindAll("textarea").ShouldBeEmpty();
+        cut.Markup.ShouldNotContain("Save");
+        cut.Markup.ShouldNotContain("Cancel");
+        // Read content still renders in full.
+        cut.Markup.ShouldContain("Strong defensive player.");
+    }
+
+    [Fact]
     public void Drawer_ConflictRefresh_StaysEditable_WhenReloadIsActive()
     {
         var callCount = 0;

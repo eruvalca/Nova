@@ -142,7 +142,7 @@
                         @foreach (var note in detail.Notes)
                         {
                             <li class="participant-drawer-note">
-                                @if (_editingNoteId == note.NoteId)
+                                @if (!IsReadOnly && _editingNoteId == note.NoteId)
                                 {
                                     <div>
                                         <label for="participant-drawer-note-edit-@note.NoteId" class="visually-hidden">Edit note</label>

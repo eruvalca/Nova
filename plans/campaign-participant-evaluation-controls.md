@@ -389,7 +389,10 @@ control surface (Phases 1–4), with browser-level acceptance (Phase 5) and a fi
   mid-mutation discard guard now runs ahead of result handling so problem results and transport
   failures are also dropped when the participant changed, with conflict-result and
   transport-failure variants added to the mid-mutation test. Drawer suite is 51 tests; full unit
-  suite 1369/1369.
+  suite 1369/1369. A final low-severity finding gated the open inline note editor on `!IsReadOnly`
+  too (a conflict-triggered read-only transition no longer leaves a stale Save/Cancel editor), with
+  a transition test asserting the editor disappears; drawer suite is 52 tests; full unit suite
+  1370/1370.
 
 ## Deployment Plan
 
