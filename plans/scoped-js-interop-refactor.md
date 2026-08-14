@@ -343,8 +343,19 @@ Three review findings, all addressed:
   fails only at runtime as a `JSException` (not silently), and Step 3/Step 4 gained the
   `JSDisconnectedException` disposal guard and the "attach only when the container renders" rule.
 
-Unit suite: 1297/1297 green. Format gate clean for all files in this branch (remaining
+Unit suite: 1298/1298 green. Format gate clean for all files in this branch (remaining
 `--verify-no-changes` failures are pre-existing PR #79 files).
+
+Second-round fixes (guidance hygiene): `**/*.razor.js` added to the `applyTo` front matter of
+`blazor-architecture.instructions.md` (with a JS-interop mention in the description), the
+site-wide script inventory replaced with a durable "inspect `App.razor`" invariant in both the
+instructions and the `js-interop.md` recipe, and the recipe's Step 4 example gained the
+`instanceof Element` container guard.
+
+Third-round fix: `OnAfterRenderAsync` previously returned early on loading/error renders while
+the document-level suppression listener kept a reference to the removed region element. The
+early-return branch now detaches when the module has been imported (`_moduleTask.IsValueCreated`).
+Regression test: `CampaignWorkspace_DetachesKeydownSuppression_WhenRosterReloadFails`.
 
 ## Deployment Plan
 
