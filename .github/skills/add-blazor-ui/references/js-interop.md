@@ -118,6 +118,9 @@ function suppressActivationDefault(event) { /* ... */ }
 // but keeps exactly one live listener.
 export function attachRosterActivationSuppression(container) {
     detachRosterActivationSuppression();
+    if (!(container instanceof Element)) {
+        return;
+    }
     activeContainer = container;
     keydownListener = suppressActivationDefault;
     document.addEventListener('keydown', keydownListener, true);
@@ -197,5 +200,5 @@ Rules:
   not be recreated. An empty script still costs a request/parse on every page and invites
   page-global helpers back. If site-wide JS ever becomes necessary, use one of: a layout-collocated
   module (`App.razor.js` / `MainLayout.razor.js`), a lazily imported interop service, or the
-  `blazor.web.js` loader callbacks (`beforeBlazorStarts`) for pre-initialization code. Bootstrap is
-  the only site-wide script and is already loaded by `<script>` in `App.razor`.
+  `blazor.web.js` loader callbacks (`beforeBlazorStarts`) for pre-initialization code. Inspect
+  `App.razor` for the current site-wide script set before assuming what is already loaded.
