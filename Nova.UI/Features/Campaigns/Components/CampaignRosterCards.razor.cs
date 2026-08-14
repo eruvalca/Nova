@@ -37,6 +37,11 @@ public partial class CampaignRosterCards
     /// <summary>
     /// Activates a card when Enter or Space is pressed while it has focus.
     /// </summary>
+    /// <remarks>
+    /// The browser's default activation click for these keys is suppressed globally in
+    /// <c>site.js</c>; otherwise the synthesized click would land on the drawer's close button
+    /// (which receives focus when the drawer opens) and immediately close it.
+    /// </remarks>
     /// <param name="args">The keyboard event.</param>
     /// <param name="item">The focused roster item.</param>
     /// <returns>A task that completes when the activation is forwarded.</returns>
