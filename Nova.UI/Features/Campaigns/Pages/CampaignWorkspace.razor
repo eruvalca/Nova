@@ -152,7 +152,8 @@
 
         @if (_selectedParticipantId is not null)
         {
-            <CampaignParticipantDrawer ParticipantId="_selectedParticipantId.Value"
+            <CampaignParticipantDrawer CampaignId="@CampaignId"
+                                       ParticipantId="_selectedParticipantId.Value"
                                        RosterItem="@SelectedRosterItem"
                                        OnClose="OnCloseParticipantAsync" />
         }

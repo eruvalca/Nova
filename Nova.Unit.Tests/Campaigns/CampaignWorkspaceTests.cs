@@ -512,7 +512,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("participant=301"));
         cut.Markup.ShouldContain("participant-drawer");
-        cut.Markup.ShouldContain("Participant details arrive in #64.");
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Strong defensive player."));
         cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Avery Johnson");
         cut.Find("tbody tr").GetAttribute("aria-current").ShouldBe("true");
         cut.Find("tbody tr.roster-row-selected").ShouldNotBeNull();
@@ -603,9 +603,15 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_UnknownParticipantParam_OpensDrawerShell_WithFallbackHeading()
+    public void CampaignWorkspace_UnknownParticipantParam_OpensDrawerWithErrorAndFallbackHeading()
     {
-        RegisterServices();
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())));
+        participantService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(
+                ServiceProblem.NotFound("Participant not found."))));
+        RegisterServices(participantQueryService: participantService);
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=999");
 
@@ -613,7 +619,8 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
 
         cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Participant");
-        cut.Markup.ShouldContain("Participant details arrive in #64.");
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Participant not found"));
+        cut.Find("#participant-drawer-retry").ShouldNotBeNull();
     }
 
     [Fact]
@@ -652,6 +659,8 @@ public sealed class CampaignWorkspaceTests : BunitContext
             participantQueryService = Substitute.For<ICampaignParticipantQueryService>();
             participantQueryService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(rosterResult ?? new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(CreateRoster())));
+            participantQueryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateParticipantDetail())));
         }
 
         participantQueryService.GetRosterGraduationYearsAsync(
@@ -716,6 +725,36 @@ public sealed class CampaignWorkspaceTests : BunitContext
         SeasonId = 5,
         SeasonName = "Summer 2026"
     };
+
+    private static CampaignParticipantDetailDto CreateParticipantDetail() => new(
+        PlayerCampaignAssignmentId: 301,
+        PlayerId: 7,
+        DisplayName: "Avery Johnson",
+        GraduationYear: 2032,
+        TryoutNumber: 14,
+        PlacementOutcome: PlacementOutcome.Undecided,
+        Team: null,
+        CreatedAt: new DateTimeOffset(2026, 5, 1, 10, 0, 0, TimeSpan.Zero),
+        ModifiedAt: new DateTimeOffset(2026, 5, 3, 14, 30, 0, TimeSpan.Zero),
+        CampaignStatus: CampaignStatus.Active,
+        ConcurrencyToken: Guid.NewGuid(),
+        Notes:
+        [
+            new CampaignParticipantNoteDto(
+                NoteId: 1,
+                Content: "Strong defensive player.",
+                AuthorDisplayName: "Coach Rivera",
+                CreatedAt: new DateTimeOffset(2026, 5, 2, 9, 0, 0, TimeSpan.Zero),
+                ModifiedAt: null,
+                CanEdit: false,
+                CanDelete: false)
+        ],
+        AppliedTags: [],
+        Capabilities: new CampaignParticipantCapabilitiesDto(
+            CanEditPlacement: false,
+            CanAddNote: false,
+            CanApplyTag: false,
+            CanArchiveTagDefinitions: false));
 
     private static PagedResult<CampaignParticipantRosterItem> CreateRoster() => new(
         Items: [CreateRosterItem()],
