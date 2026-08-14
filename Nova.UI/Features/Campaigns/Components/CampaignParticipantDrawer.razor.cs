@@ -16,8 +16,11 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// Focus management: opening the drawer captures the activating roster row/card, installs a
 /// document-level Tab trap that cycles focus through the dialog, and focuses the close button.
 /// Closing removes the trap and restores focus to the selected participant's visible row/card,
-/// falling back to the captured activating element, then to nothing. Disposal removes the trap
-/// without restoring focus, so navigating away while the drawer is open leaves no stale trap.
+/// falling back to the captured activating element, then to nothing. A participant-change render
+/// that leaves focus outside the dialog (a boundary move renders the focused prev/next button
+/// disabled, which drops focus to the body) pulls focus back to the close button so the trap and
+/// Escape keep working. Disposal removes the trap without restoring focus, so navigating away
+/// while the drawer is open leaves no stale trap.
 /// </para>
 /// <para>
 /// Arrow-key prev/next navigation is intentionally not implemented (scope decision); keyboard
@@ -153,6 +156,12 @@ public partial class CampaignParticipantDrawer(
     private bool _focusTrapInstalled;
 
     /// <summary>
+    /// The participant identifier rendered by the last completed render pass, used to detect
+    /// participant changes after which focus may need to be pulled back into the dialog.
+    /// </summary>
+    private long? _lastRenderedParticipantId;
+
+    /// <summary>
     /// The current detail-load state.
     /// </summary>
     private DetailLoadState _detailState;
@@ -201,7 +210,20 @@ public partial class CampaignParticipantDrawer(
         {
             await jsRuntime.InvokeVoidAsync("novaCampaignParticipantDrawerOpen", DialogSelector, CloseButtonId);
             _focusTrapInstalled = true;
+            _lastRenderedParticipantId = ParticipantId;
+            return;
         }
+
+        if (!_focusTrapInstalled || ParticipantId == _lastRenderedParticipantId)
+        {
+            return;
+        }
+
+        _lastRenderedParticipantId = ParticipantId;
+
+        // A boundary move renders the clicked prev/next button disabled, which drops focus to
+        // <body>; re-focus inside the dialog so the trap and Escape keep working.
+        await jsRuntime.InvokeVoidAsync("novaCampaignParticipantDrawerRestoreFocus", DialogSelector, CloseButtonId);
     }
 
     /// <summary>

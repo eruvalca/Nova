@@ -363,6 +363,36 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
     }
 
     [Fact]
+    public void Drawer_RestoresFocusIntoDialog_WhenParticipantParameterChanges()
+    {
+        RegisterServices();
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        cut.Render(parameters => parameters.Add(component => component.ParticipantId, 302));
+
+        JSInterop.VerifyInvoke("novaCampaignParticipantDrawerRestoreFocus")
+            .Arguments.ShouldBe(new object?[] { ".participant-drawer", "participant-drawer-close" });
+    }
+
+    [Fact]
+    public void Drawer_DoesNotRestoreFocus_WhenParticipantParameterUnchanged()
+    {
+        RegisterServices();
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Graduation year"));
+        cut.Render();
+
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "novaCampaignParticipantDrawerRestoreFocus");
+    }
+
+    [Fact]
     public async Task Drawer_RemovesFocusTrapWithoutRestoringFocus_WhenDisposed()
     {
         RegisterServices();

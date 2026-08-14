@@ -95,6 +95,19 @@ window.novaCampaignParticipantDrawerClose = function (restoreFallbackId) {
     }
 };
 
+window.novaCampaignParticipantDrawerRestoreFocus = function (dialogSelector, closeButtonId) {
+    const dialog = document.querySelector(dialogSelector);
+    if (!dialog || dialog.contains(document.activeElement)) {
+        return false;
+    }
+
+    // A boundary move renders the focused prev/next button disabled, which drops focus to
+    // <body>; pull it back into the dialog so the Tab trap and Escape keep working.
+    const closeButton = document.getElementById(closeButtonId);
+    (closeButton || getFocusableElements(dialog)[0])?.focus();
+    return true;
+};
+
 window.novaCampaignParticipantDrawerDispose = function () {
     removeParticipantDrawerTrap();
 };
