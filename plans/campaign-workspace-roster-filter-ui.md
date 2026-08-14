@@ -454,7 +454,7 @@ Status: Complete
 - [x] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — full suite passes.
 - [x] Re-read the issue acceptance criteria and confirm each one is covered by code, tests, or
       the browser-validation report; fix any gap.
-- [ ] Commit work (with the Co-authored-by trailer) and open the PR referencing #67; note the
+- [x] Commit work (with the Co-authored-by trailer) and open the PR referencing #67; note the
       two approved scope deviations in the PR description.
 
 ### Verification Plan
@@ -480,8 +480,40 @@ open/close preserving filters + page + selected row + scroll, server paging at 1
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+All seven phases are complete. The workspace route/shell, campaign-detail and graduation-years
+reads, roster list with URL-backed filters/sorting/paging, and the drawer shell placeholder are
+implemented, unit- and integration-tested, browser-validated, and merged-ready as PR #80
+(`eruvalca-roster-page-and-filter-ui`).
+
+Summary of the work:
+
+- **Contracts and server reads (Phases 1–2)** — `ICampaignQueryService.GetCampaignDetailAsync`
+  and `ICampaignParticipantQueryService.GetRosterGraduationYearsAsync` with input/result
+  contracts, endpoint wiring, WASM clients, and validation; both approved as scope deviations
+  and recorded in the issue body.
+- **Workspace shell (Phase 3)** — `/campaigns/{campaignId}` route, 4-tab bar with disabled
+  placeholders, workspace header, campaigns-list links.
+- **Roster, filters, sorting, paging (Phases 4–5)** — debounced name search with stale-request
+  cancellation, graduation-year/tag/outcome/team filters, click-to-sort columns, page size 50,
+  total-result feedback, desktop table + narrow cards, loading/empty/error/retry states, and the
+  full URL-state contract with history pushes and defensive parsing.
+- **Drawer shell + keyboard fix (Phase 6)** — minimal drawer placeholder with scroll anchoring
+  and selected-row preservation; fixed the trusted-Enter/Space auto-close bug with the
+  capture-phase `site.js` listener.
+- **Verification (Phases 6–7)** — 1295/1295 unit tests, 230/230 integration tests, full browser
+  validation pass, clean build, scoped format check clean (repo-wide check blocked by
+  pre-existing #79 CHARSET drift, noted in the PR).
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+No database schema changes are introduced by this work (read-only additions), so no migrations
+ship with it.
+
+1. Merge PR #80 to `main` after review.
+2. `dotnet build Nova.slnx` — confirm 0 warnings/0 errors.
+3. `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — confirm all pass.
+4. `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` against the
+   Aspire AppHost — confirm all pass.
+5. Start the AppHost (`aspire start`) and spot-check `/campaigns/1`: header fields, roster rows,
+   a filter round-trip, and back/forward restoration.
+6. No configuration, secret, or data changes required.
