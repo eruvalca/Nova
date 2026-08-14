@@ -64,83 +64,96 @@ areas (`blazor-architecture`, `validation`, `service-layer`, `testing`, `csharp-
 
 ## Phase 1: Evaluation state, read-only mode, and mutation infrastructure
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator (establishes the drawer's mutation state machine that Phases 2–4 build on).
 
-- [ ] Extend `CampaignParticipantDrawer.razor.cs` primary-constructor DI with
+- [x] Extend `CampaignParticipantDrawer.razor.cs` primary-constructor DI with
       `ICampaignEvaluationNoteService`, `ICampaignTagApplicationService`, and
       `ITagDefinitionQueryService` (all already registered in server + WASM DI).
-- [ ] Load active tag-definition choices alongside the detail load via
+- [x] Load active tag-definition choices alongside the detail load via
       `GetChoicesAsync(ComponentCancellationToken)`; persist them with `[PersistentState]`
       (`PersistedTagChoices`) so the WASM attach restores instead of refetching; rebuild the
       picker's remaining-choices projection on restore (exclude already-applied `PlayerTagId`s).
       A choices-load failure must not fail the drawer: detail still renders, the apply picker shows
       an inline "couldn't load tag choices" note with its own retry.
-- [ ] Add read-only derivation: `_isReadOnly = detail.CampaignStatus == CampaignStatus.Closed`
+- [x] Add read-only derivation: `_isReadOnly = detail.CampaignStatus == CampaignStatus.Closed`
       (recomputed on every detail load/restore) plus `_enteredReadOnlyFromConflict` set by Phase 4;
       render a visible read-only indicator in the Campaign section (e.g.
       `alert alert-warning`-style inline note with `role="status"`) when read-only.
-- [ ] Add the mutation error summary region near the top of the drawer body (only rendered when
+- [x] Add the mutation error summary region near the top of the drawer body (only rendered when
       `_mutationError` is set): `alert alert-danger`, `role="alert"`, `aria-live="assertive"`,
       `tabindex="-1"`, `@ref="_errorSummary"`; after any mutation failure, `await _errorSummary.FocusAsync()`
       (guarded — only when the element rendered). Add `_statusMessage` success region
       (`role="status" aria-live="polite"`) with the repo's preserve-across-refresh / clear-on-user-action rule.
-- [ ] Add the `_isMutating` / `_mutatingKind` pending guard, the problem-to-message mapping helper
+- [x] Add the `_isMutating` / `_mutatingKind` pending guard, the problem-to-message mapping helper
       (`FirstNonBlank(problem.Detail, fallback)` per kind), and a `RefreshDetailAsync` helper that
       reuses `LoadDetailAsync` without clearing `_statusMessage`.
-- [ ] Update `CampaignWorkspaceTests.RegisterServices` to register substitutes for
+- [x] Update `CampaignWorkspaceTests.RegisterServices` to register substitutes for
       `ICampaignEvaluationNoteService`, `ICampaignTagApplicationService`, and (reuse the existing)
       `ITagDefinitionQueryService` so the workspace tests keep rendering the drawer.
-- [ ] bUnit tests (extend `CampaignParticipantDrawerTests.cs`): Active detail renders no read-only
+- [x] bUnit tests (extend `CampaignParticipantDrawerTests.cs`): Active detail renders no read-only
       indicator and renders the mutation affordances' containers; Closed detail renders the
       read-only indicator; tag choices load (populated + failure-with-retry); persisted
       choices restore; error summary focuses after a simulated mutation failure (bUnit
-      `WaitForAssertion` on `document.activeElement`); `_isMutating` disables controls while a
+      `WaitForAssertion` on the `Blazor._internal.domWrapper.focus` JS invocation); `_isMutating` disables controls while a
       service call is pending; success message survives the post-mutation detail refresh and clears
       on the next user action.
 
 ### Verification Plan
 
-- `dotnet build Nova.slnx` — clean build (0 warnings, 0 errors).
-- `dotnet format Nova.slnx --verify-no-changes` — no formatting diffs.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantDrawerTests"` — all drawer tests pass.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignWorkspaceTests"` — existing workspace tests still pass.
+- `dotnet build Nova.slnx` — clean build (0 warnings, 0 errors). ✅
+- `dotnet format Nova.slnx --verify-no-changes` — no formatting diffs on changed files. ⚠️
+  Full-solution run reports pre-existing `CHARSET` errors only in the merged #66 tag-slice files
+  (`TagDefinition*.cs`, `TagFormState.cs`, tag tests) that lack a UTF-8 BOM; none of the files
+  touched by this issue are flagged (verified with `--include`).
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantDrawerTests"` — all drawer tests pass. ✅
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignWorkspaceTests"` — existing workspace tests still pass. ✅
 
 ### Phase Summary
 
-_(write when phase completes)_
+Phase 1 established the drawer's mutation state machine. The code-behind now injects
+`ICampaignEvaluationNoteService`, `ICampaignTagApplicationService`, and `ITagDefinitionQueryService`;
+derives `IsReadOnly` from `detail.CampaignStatus == Closed` (or `_enteredReadOnlyFromConflict`);
+loads and `[PersistentState]`-persists active tag choices (`PersistedTagChoices`) with an inline
+failure note + retry; renders the drawer-level error summary (`role="alert" aria-live="assertive"`
+with focus via a flag consumed in `OnAfterRenderAsync`) and the preserved success status region;
+adds the `_isMutating`/`_mutatingKind` pending guard, `MutationErrorMessage`/`FlattenValidationErrors`
+mappers, `RunMutationAsync`/`HandleMutationResultAsync`, and a failure-tolerant `RefreshDetailAsync`
+(keeps the previous detail when a post-mutation refresh fails). `CampaignWorkspaceTests.RegisterServices`
+now registers note/tag substitutes. 47 drawer tests (incl. 24 new) and 51 workspace tests pass;
+full unit suite (1365) passes; build is clean.
 
 ## Phase 2: Note create/edit/delete controls
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator (same component pair as Phases 1/3/4 — parallel edits would conflict).
 
-- [ ] Add-note form at the top of the Notes section, rendered only when
+- [x] Add-note form at the top of the Notes section, rendered only when
       `detail.Capabilities.CanAddNote && !_isReadOnly`: "Add note" button reveals a `textarea`
       (maxlength 4000) with Save/Cancel. Client-side validation before the service call using
       `InputValidator.Validate<AddEvaluationNoteInput>` (blank/whitespace/length) with inline field
       errors under the textarea; submit calls `ICampaignEvaluationNoteService.AddAsync` with
       `PlayerCampaignAssignmentId = detail.PlayerCampaignAssignmentId`.
-- [ ] Per-note Edit: each `CampaignParticipantNoteDto` with `CanEdit && !_isReadOnly` renders an
+- [x] Per-note Edit: each `CampaignParticipantNoteDto` with `CanEdit && !_isReadOnly` renders an
       Edit button that swaps the note content for an inline `textarea` + Save/Cancel (starting an
       edit closes the add form and any other open edit). Save validates via
       `InputValidator.Validate<EditEvaluationNoteInput>` and calls `EditAsync`.
-- [ ] Per-note Delete: notes with `CanDelete && !_isReadOnly` render a Delete button that opens an
+- [x] Per-note Delete: notes with `CanDelete && !_isReadOnly` render a Delete button that opens an
       inline checkbox-gated confirmation (repo archive-confirm pattern); confirm calls
       `DeleteAsync(note.NoteId)`.
-- [ ] All three mutations: set `_isMutating`/`_mutatingKind`, disable sibling mutation controls,
+- [x] All three mutations: set `_isMutating`/`_mutatingKind`, disable sibling mutation controls,
       render pending state (spinner on the active button), and on success refresh detail via
       `RefreshDetailAsync` + set `_statusMessage` ("Note added." / "Note updated." / "Note deleted.").
       On problem: map to `_mutationError`, focus the summary, do not refresh (except Phase 4's
       conflict rule).
-- [ ] Cancel paths: add-form cancel clears the draft; edit cancel restores the rendered note text;
+- [x] Cancel paths: add-form cancel clears the draft; edit cancel restores the rendered note text;
       delete cancel closes the confirmation; none of them clear `_statusMessage` or `_mutationError`
       prematurely (error clears on the next mutation attempt, per repo feedback rules).
-- [ ] Preserve note rendering contract from #64: content as text (do not render raw HTML), author,
+- [x] Preserve note rendering contract from #64: content as text (do not render raw HTML), author,
       created timestamp, and the "· edited" indicator when `ModifiedAt` differs.
-- [ ] bUnit tests: add button visible only when `CanAddNote` and not read-only; add validation
+- [x] bUnit tests: add button visible only when `CanAddNote` and not read-only; add validation
       failure renders inline field errors and does NOT call the service; successful add calls the
       service with the right input and refreshes detail (fake query service returns a detail with
       the new note); edit swaps content for textarea, Save calls `EditAsync` and refreshes; edit
@@ -152,39 +165,49 @@ Suggested executor: orchestrator (same component pair as Phases 1/3/4 — parall
 
 ### Verification Plan
 
-- `dotnet build Nova.slnx` — clean build.
-- `dotnet format Nova.slnx --verify-no-changes`.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantDrawerTests"` — all drawer tests pass.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignWorkspaceTests"` — no regressions.
+- `dotnet build Nova.slnx` — clean build. ✅
+- `dotnet format Nova.slnx --verify-no-changes` — changed files clean (pre-existing tag-file `CHARSET` errors unrelated). ⚠️
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantDrawerTests"` — all drawer tests pass. ✅
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignWorkspaceTests"` — no regressions. ✅
 
 ### Phase Summary
 
-_(write when phase completes)_
+Phase 2 wired the note lifecycle controls into the Notes section. An add-note form (textarea +
+Save/Cancel) appears via the "Add note" button only when `CanAddNote && !IsReadOnly`; per-note
+inline editing swaps content for a pre-filled textarea and saves via `EditAsync`; delete uses the
+repo's checkbox-gated confirmation. All three mutations run through `RunMutationAsync` +
+`HandleMutationResultAsync`: pending state disables sibling controls and shows a spinner on the
+active button, success refreshes the detail and sets the status message, problems route to the
+focused error summary. Client-side validation uses `InputValidator.Validate<AddEvaluationNoteInput>` /
+`<EditEvaluationNoteInput>` with inline `.invalid-feedback`. Note rendering (content as text, author,
+created timestamp, "· edited") is preserved. Covered by 8 new bUnit tests in
+`CampaignParticipantDrawerTests.cs` (validation, add/edit/delete flows, cancel paths, forbidden
+error summary, capability hiding).
 
 ## Phase 3: Tag apply/remove controls
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator (same component pair).
 
-- [ ] Apply control in the Applied tags section, rendered only when
+- [x] Apply control in the Applied tags section, rendered only when
       `detail.Capabilities.CanApplyTag && !_isReadOnly`: a select of active tag definitions not
       already applied (`_tagChoices` minus applied `PlayerTagId`s, ordered by `Name`) with a
       placeholder "Select a tag…" and an Apply button disabled until a tag is selected. Empty
       remaining-choices state renders "No tags to apply." instead of the select.
-- [ ] Apply submit calls `ICampaignTagApplicationService.ApplyAsync` with
+- [x] Apply submit calls `ICampaignTagApplicationService.ApplyAsync` with
       `PlayerCampaignAssignmentId = detail.PlayerCampaignAssignmentId` and the selected
       `PlayerTagId`; pending state + spinner; success refreshes detail and resets the selection;
       problems route to the error summary with focus. Duplicate/archived-definition conflicts are
       handled by Phase 4's conflict rule (refresh + read-only check + message).
-- [ ] Per-application removal: each `CampaignParticipantTagApplicationDto` with `CanRemove &&
+- [x] Per-application removal: each `CampaignParticipantTagApplicationDto` with `CanRemove &&
       !_isReadOnly` renders a Remove button with an inline checkbox-gated confirmation (repo
       pattern); confirm calls `RemoveAsync(new RemoveCampaignTagApplicationInput {
       CampaignTagApplicationId = … })`, refreshes detail, shows success.
-- [ ] Archived-definition applications keep the existing read-only chip + "archived" metadata and
+- [x] Archived-definition applications keep the existing read-only chip + "archived" metadata and
       never render a removal command (server already sends `CanRemove = false`; UI additionally
       never renders removal for `IsArchived`).
-- [ ] bUnit tests: apply control hidden when `CanApplyTag` false or read-only; already-applied and
+- [x] bUnit tests: apply control hidden when `CanApplyTag` false or read-only; already-applied and
       archived definitions excluded from the select; Apply disabled without a selection; successful
       apply calls the service with correct ids and refreshes detail (fake query returns a detail
       containing the new application); remove visible only when `CanRemove`; archived application
@@ -194,35 +217,42 @@ Suggested executor: orchestrator (same component pair).
 
 ### Verification Plan
 
-- `dotnet build Nova.slnx` — clean build.
-- `dotnet format Nova.slnx --verify-no-changes`.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantDrawerTests"` — all drawer tests pass.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignWorkspaceTests"` — no regressions.
+- `dotnet build Nova.slnx` — clean build. ✅
+- `dotnet format Nova.slnx --verify-no-changes` — changed files clean (pre-existing tag-file `CHARSET` errors unrelated). ⚠️
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantDrawerTests"` — all drawer tests pass. ✅
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignWorkspaceTests"` — no regressions. ✅
 
 ### Phase Summary
 
-_(write when phase completes)_
+Phase 3 wired the tag lifecycle controls. The apply picker renders a `select` of `RemainingTagChoices`
+(active choices minus applied `PlayerTagId`s, ordered by name) with a disabled-until-selection Apply
+button; empty remaining choices render "No tags to apply."; a tag-choices load failure renders an
+inline note with Retry. Apply/remove run through the shared mutation pipeline (`ApplyAsync`/
+`RemoveAsync`, pending spinner, refresh + status on success, focused error summary on problems).
+Removal is checkbox-gated and rendered only for `CanRemove && !IsArchived && !IsReadOnly`
+applications. Covered by 6 new bUnit tests (choice exclusion, apply enable/disable, apply success,
+remove visibility incl. archived with stale `CanRemove`, remove confirmation, archived-never-removable).
 
 ## Phase 4: Stale Active→Closed conflict recovery
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator (builds on the Phases 1–3 state machine).
 
-- [ ] Implement the conflict rule in the shared mutation result handler: on
+- [x] Implement the conflict rule in the shared mutation result handler: on
       `ServiceProblemKind.Conflict`, set `_mutationError` from `Detail`, call
       `RefreshDetailAsync()`, and after the refresh check `detail.CampaignStatus`:
       `Closed` → set `_enteredReadOnlyFromConflict = true` (read-only mode + indicator), keep the
       conflict message, show NO success message; still `Active` → stay editable, message already set.
       The refresh failure path must not crash: keep the conflict message and leave state unchanged.
-- [ ] Route the duplicate and archived-definition conflicts (already `Conflict` kind with distinct
+- [x] Route the duplicate and archived-definition conflicts (already `Conflict` kind with distinct
       `Detail`s) through the same handler so stale data heals and the message is actionable.
-- [ ] Preserve roster/drawer context: no navigation, no drawer close, prev/next and close stay
+- [x] Preserve roster/drawer context: no navigation, no drawer close, prev/next and close stay
       functional; focus moves to the error summary only (never out of the drawer).
-- [ ] Ensure Closed rendering hides/disabled ALL evaluation mutations (add/edit/delete/apply/remove)
+- [x] Ensure Closed rendering hides/disabled ALL evaluation mutations (add/edit/delete/apply/remove)
       regardless of previously rendered capability flags — re-render derives from
       `_isReadOnly || detail.CampaignStatus == Closed`.
-- [ ] bUnit tests: a mutation returning `Conflict` triggers a detail reload; when the reloaded detail
+- [x] bUnit tests: a mutation returning `Conflict` triggers a detail reload; when the reloaded detail
       is Closed the drawer shows the read-only indicator, hides all mutation controls, and shows the
       conflict detail with NO success message; when the reloaded detail is still Active the drawer
       stays editable and shows the message; conflict refresh failure keeps the message and does not
@@ -232,14 +262,23 @@ Suggested executor: orchestrator (builds on the Phases 1–3 state machine).
 
 ### Verification Plan
 
-- `dotnet build Nova.slnx` — clean build.
-- `dotnet format Nova.slnx --verify-no-changes`.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantDrawerTests"` — all drawer tests pass.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignWorkspaceTests"` — no regressions.
+- `dotnet build Nova.slnx` — clean build. ✅
+- `dotnet format Nova.slnx --verify-no-changes` — changed files clean (pre-existing tag-file `CHARSET` errors unrelated). ⚠️
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignParticipantDrawerTests"` — all drawer tests pass. ✅
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*CampaignWorkspaceTests"` — no regressions. ✅
 
 ### Phase Summary
 
-_(write when phase completes)_
+Phase 4 implemented stale Active→Closed recovery inside `HandleMutationResultAsync`. Any `Conflict`
+problem sets `_mutationError` from the server `Detail`, refreshes the detail, and — when the
+refreshed detail reports `CampaignStatus.Closed` — enters read-only mode (`_enteredReadOnlyFromConflict`
+plus the Closed-derived `IsReadOnly`), keeps the conflict message, and shows no success message.
+A still-Active reload stays editable with the message; a failed reload preserves the previously
+loaded detail, the conflict message, and the editable state instead of flipping to the load-failure
+screen. No navigation or drawer close occurs — focus moves only to the error summary. Closed
+rendering gates every mutation command through `IsReadOnly`. Covered by 3 new bUnit tests
+(Closed conflict → read-only, Active conflict → stays editable, conflict refresh failure →
+message preserved + no crash).
 
 ## Phase 5: Focused browser validation (Aspire + Playwright)
 
