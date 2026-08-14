@@ -269,29 +269,30 @@ CHARSET violations as Phase 2).
 
 ## Phase 4: Component-test hardening for the cross-cutting acceptance criteria
 
-Status: Not started
+Status: Complete
 
 Suggested executor: sub-agent with a smaller model (mechanical expansion of a fixed,
 well-specified matrix — see list below), with the orchestrator reviewing the resulting tests.
+(The delegated sub-agent returned no output, so the orchestrator implemented the tests directly.)
 
-- [ ] State preservation: open → prev/next → close keeps search/filter/sort/page params and
+- [x] State preservation: open → prev/next → close keeps search/filter/sort/page params and
       restores roster scroll (extend the existing scroll tests to the nav flows).
-- [ ] Refresh with `participant=` in the URL reopens the drawer, loads detail, and shows the
+- [x] Refresh with `participant=` in the URL reopens the drawer, loads detail, and shows the
       position when the participant is on the loaded page.
-- [ ] Rapid navigation matrix: 3+ quick prev/next clicks end on the correct participant with
+- [x] Rapid navigation matrix: 3+ quick prev/next clicks end on the correct participant with
       no stale detail (fake service with controllable task-completion delays).
-- [ ] First/last bounds across a multi-page roster, including a boundary move landing exactly
+- [x] First/last bounds across a multi-page roster, including a boundary move landing exactly
       on the true first/last item (buttons then disabled).
-- [ ] Filtered-sequence correctness: with fake paged data, prev/next order matches the sorted
+- [x] Filtered-sequence correctness: with fake paged data, prev/next order matches the sorted
       filtered order across a boundary.
-- [ ] Narrow-layout transitions: cards and table both render in the page markup (classes
+- [x] Narrow-layout transitions: cards and table both render in the page markup (classes
       `d-md-none` / `d-none d-md-block`), the drawer renders a single `aside.participant-drawer`
       for both, and drawer markup is identical regardless of viewport (structure-level check;
       the CSS rules are static).
-- [ ] Archived tag chip markup (indicator + actor + timestamp) and note metadata readable in
+- [x] Archived tag chip markup (indicator + actor + timestamp) and note metadata readable in
       the rendered output.
-- [ ] Empty-notes / empty-tags detail renders without crashing (empty-state text).
-- [ ] Off-page participant: detail loads, position hidden, nav disabled (regression pin for
+- [x] Empty-notes / empty-tags detail renders without crashing (empty-state text).
+- [x] Off-page participant: detail loads, position hidden, nav disabled (regression pin for
       decision 4).
 
 ### Verification Plan
@@ -301,7 +302,40 @@ well-specified matrix — see list below), with the orchestrator reviewing the r
 
 ### Phase Summary
 
-_(write when phase completes)_
+Five new tests added to `CampaignWorkspaceTests` in a "Sequence hardening (Phase 4)" section
+(44/44 class green; full suite 1332/1332):
+
+- `CampaignWorkspace_OpenNavigateClose_RestoresScroll_AndPreservesState` — opens on
+  `participant=301` with search/sort params present, moves next (participant 302), closes via
+  `#participant-drawer-close`; asserts the URI drops `participant=` but retains
+  `search=lee&sortBy=displayName&sortDirection=asc`, and scroll restore was invoked twice
+  (once per capture: the within-page move and the close) with the last args
+  `["roster-scroll-region", 60.0]`.
+- `CampaignWorkspace_RapidNavigation_EndsOnFinalParticipant_WithoutStaleDetail` — per-assignment
+  `TaskCompletionSource`s gate detail responses; three rapid next-clicks on 301 while details
+  are pending end on participant 304 ("4 of 6"); completing responses out of order (304 first,
+  then 301/303/302 with distinct names) proves stale detail is dropped and the heading stays
+  "Detail 304".
+- `CampaignWorkspace_BoundaryMoves_DisableButtons_AtTrueSequenceEnds` — 4 items over 2 pages
+  (page 2 = `[304]`); next from 303 crosses to 304 ("4 of 4", next disabled), then three prev
+  moves walk back to "1 of 4" with prev disabled and next re-enabled.
+- `CampaignWorkspace_BoundaryMove_LandsOnFirstItem_OfFilteredNextPage` — a custom fake asserts
+  the reloaded page-2 request preserves `Search == "jones"` and `SortBy == "displayName"`;
+  lands on filtered item 801, position "4 of 5", filters/sort intact in the URL.
+- `CampaignWorkspace_RendersResponsiveRosterLayout_WithDrawerOutsideResponsiveContainers` —
+  asserts exactly one `div.table-responsive.d-none.d-md-block` (1 row), one `div.d-md-none`
+  (1 card), one `aside.participant-drawer`, and that neither responsive container nests the
+  drawer.
+
+Checklist items 2, 7, 8, and 9 were already covered by existing tests and are checked on that
+basis: open-on-refresh by `CampaignWorkspace_ShowsParticipantPositionAndEnabledNavigation_WhenDrawerOpen`
+and the drawer restore/refresh tests; archived tag chips by
+`Drawer_RendersTagMetadata_AndArchivedTagIndicators`; empty notes/tags fallbacks by
+`Drawer_RendersFallbacks_WhenOptionalFieldsAreMissing`; off-page participant by
+`CampaignWorkspace_OffPageParticipant_HidesPositionAndDisablesNavigation_ButRendersDetail`.
+
+The format gate remains blocked solely by pre-existing Tag-feature files (CHARSET) and three
+migration warnings; none of the Phase 4 files are flagged.
 
 ## Phase 5: Format, build, and full-suite regression
 

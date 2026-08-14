@@ -859,6 +859,190 @@ public sealed class CampaignWorkspaceTests : BunitContext
         history.First().Options.ReplaceHistoryEntry.ShouldBeFalse();
     }
 
+    // ── Sequence hardening (Phase 4) ───────────────────────────────────────────
+
+    [Fact]
+    public void CampaignWorkspace_OpenNavigateClose_RestoresScroll_AndPreservesState()
+    {
+        RegisterServices(participantQueryService: CreatePagedParticipantService());
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo(
+            "/campaigns/10?tab=evaluate&search=lee&sortBy=displayName&sortDirection=asc&participant=301");
+
+        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(60);
+        JSInterop.SetupVoid("novaCampaignWorkspaceRestoreScroll", _ => true).SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        cut.Find("#participant-drawer-next").Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("participant=302"));
+
+        cut.Find("#participant-drawer-close").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("participant-drawer"));
+
+        navigationManager.Uri.ShouldNotContain("participant=");
+        navigationManager.Uri.ShouldContain("search=lee");
+        navigationManager.Uri.ShouldContain("sortBy=displayName");
+        navigationManager.Uri.ShouldContain("sortDirection=asc");
+        cut.WaitForAssertion(() =>
+        {
+            var restoreCalls = JSInterop.Invocations
+                .Where(invocation => invocation.Identifier == "novaCampaignWorkspaceRestoreScroll")
+                .ToList();
+            restoreCalls.Count.ShouldBe(2);
+            restoreCalls[^1].Arguments.ShouldBe(new object?[] { "roster-scroll-region", 60.0 });
+        });
+    }
+
+    [Fact]
+    public void CampaignWorkspace_RapidNavigation_EndsOnFinalParticipant_WithoutStaleDetail()
+    {
+        var detailCompletions = new Dictionary<long, TaskCompletionSource<ServiceResult<CampaignParticipantDetailDto>>>();
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var input = call.Arg<GetCampaignParticipantRosterInput>();
+                var roster = input.Page switch
+                {
+                    1 => CreatePagedRoster(page: 1, 6, [301, 302, 303]),
+                    2 => CreatePagedRoster(page: 2, 6, [304, 305, 306]),
+                    _ => CreatePagedRoster(page: input.Page ?? 1, 6, [])
+                };
+                return Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(roster));
+            });
+        participantService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var input = call.Arg<GetCampaignParticipantDetailInput>();
+                var tcs = new TaskCompletionSource<ServiceResult<CampaignParticipantDetailDto>>();
+                detailCompletions[input.PlayerCampaignAssignmentId] = tcs;
+                return tcs.Task;
+            });
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=301");
+
+        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(60);
+        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        cut.Find("#participant-drawer-next").Click();
+        cut.Find("#participant-drawer-next").Click();
+        cut.Find("#participant-drawer-next").Click();
+
+        cut.WaitForAssertion(() => detailCompletions.ContainsKey(304).ShouldBeTrue());
+
+        detailCompletions[304].SetResult(new ServiceResult<CampaignParticipantDetailDto>(
+            CreateParticipantDetail(assignmentId: 304, displayName: "Detail 304")));
+        detailCompletions[301].SetResult(new ServiceResult<CampaignParticipantDetailDto>(
+            CreateParticipantDetail(assignmentId: 301, displayName: "Detail 301")));
+        detailCompletions[303].SetResult(new ServiceResult<CampaignParticipantDetailDto>(
+            CreateParticipantDetail(assignmentId: 303, displayName: "Detail 303")));
+        detailCompletions[302].SetResult(new ServiceResult<CampaignParticipantDetailDto>(
+            CreateParticipantDetail(assignmentId: 302, displayName: "Detail 302")));
+
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("participant=304"));
+        cut.WaitForAssertion(() => cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("4 of 6"));
+        cut.WaitForAssertion(() => cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Detail 304"));
+    }
+
+    [Fact]
+    public void CampaignWorkspace_BoundaryMoves_DisableButtons_AtTrueSequenceEnds()
+    {
+        RegisterServices(participantQueryService: CreatePagedParticipantService(totalCount: 4, page2Items: [304]));
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=303");
+
+        JSInterop.Setup<double?>("novaCampaignWorkspaceCaptureScroll", "roster-scroll-region").SetResult(60);
+        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        cut.Find("#participant-drawer-next").Click();
+        cut.WaitForAssertion(() => cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("4 of 4"));
+        navigationManager.Uri.ShouldContain("page=2");
+        cut.Find("#participant-drawer-next").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#participant-drawer-previous").HasAttribute("disabled").ShouldBeFalse();
+
+        cut.Find("#participant-drawer-previous").Click();
+        cut.WaitForAssertion(() => cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("3 of 4"));
+        cut.Find("#participant-drawer-next").HasAttribute("disabled").ShouldBeFalse();
+        cut.Find("#participant-drawer-previous").HasAttribute("disabled").ShouldBeFalse();
+
+        cut.Find("#participant-drawer-previous").Click();
+        cut.WaitForAssertion(() => cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("2 of 4"));
+
+        cut.Find("#participant-drawer-previous").Click();
+        cut.WaitForAssertion(() => cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("1 of 4"));
+        cut.Find("#participant-drawer-previous").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#participant-drawer-next").HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CampaignWorkspace_BoundaryMove_LandsOnFirstItem_OfFilteredNextPage()
+    {
+        var participantService = Substitute.For<ICampaignParticipantQueryService>();
+        participantService.GetParticipantRosterAsync(Arg.Any<GetCampaignParticipantRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var input = call.Arg<GetCampaignParticipantRosterInput>();
+                input.Search.ShouldBe("jones");
+                input.SortBy.ShouldBe("displayName");
+                var roster = input.Page switch
+                {
+                    1 => CreatePagedRoster(page: 1, 5, [301, 302, 303]),
+                    2 => CreatePagedRoster(page: 2, 5, [801]),
+                    _ => CreatePagedRoster(page: input.Page ?? 1, 5, [])
+                };
+                return Task.FromResult(new ServiceResult<PagedResult<CampaignParticipantRosterItem>>(roster));
+            });
+        participantService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateParticipantDetail())));
+        RegisterServices(participantQueryService: participantService);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo(
+            "/campaigns/10?tab=evaluate&search=jones&sortBy=displayName&sortDirection=asc&participant=303");
+
+        JSInterop.SetupVoid("novaCampaignWorkspaceScrollToTop", _ => true).SetVoidResult();
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        cut.Find("#participant-drawer-next").Click();
+
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldContain("participant=801"));
+        cut.WaitForAssertion(() => cut.Find("#participant-drawer-position").TextContent.Trim().ShouldBe("4 of 5"));
+        navigationManager.Uri.ShouldContain("page=2");
+        navigationManager.Uri.ShouldContain("search=jones");
+        navigationManager.Uri.ShouldContain("sortBy=displayName");
+        navigationManager.Uri.ShouldContain("sortDirection=asc");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_RendersResponsiveRosterLayout_WithDrawerOutsideResponsiveContainers()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=evaluate&participant=301");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("participant-drawer"));
+
+        cut.FindAll("div.table-responsive.d-none.d-md-block").Count.ShouldBe(1);
+        cut.FindAll("div.table-responsive.d-none.d-md-block tbody tr").Count.ShouldBe(1);
+        cut.FindAll("div.d-md-none").Count.ShouldBe(1);
+        cut.FindAll("div.d-md-none li").Count.ShouldBe(1);
+
+        cut.FindAll("aside.participant-drawer").Count.ShouldBe(1);
+        cut.FindAll("div.table-responsive .participant-drawer").ShouldBeEmpty();
+        cut.FindAll("div.d-md-none .participant-drawer").ShouldBeEmpty();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void RegisterServices(
@@ -949,10 +1133,12 @@ public sealed class CampaignWorkspaceTests : BunitContext
         SeasonName = "Summer 2026"
     };
 
-    private static CampaignParticipantDetailDto CreateParticipantDetail() => new(
-        PlayerCampaignAssignmentId: 301,
+    private static CampaignParticipantDetailDto CreateParticipantDetail(
+        long assignmentId = 301,
+        string displayName = "Avery Johnson") => new(
+        PlayerCampaignAssignmentId: assignmentId,
         PlayerId: 7,
-        DisplayName: "Avery Johnson",
+        DisplayName: displayName,
         GraduationYear: 2032,
         TryoutNumber: 14,
         PlacementOutcome: PlacementOutcome.Undecided,
