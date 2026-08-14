@@ -379,6 +379,13 @@ control surface (Phases 1–4), with browser-level acceptance (Phase 5) and a fi
   message; a failed refresh preserves the previous detail and message without crashing.
 - **Coverage**: 47 drawer component tests, 51 workspace tests, 1365 total unit tests, 230
   integration tests, and a 5-scenario Aspire+Playwright browser pass (no blockers).
+- **Post-review hardening (PR #83)**: per-note Edit/Delete command rendering is additionally gated
+  on `!IsReadOnly` (the "regardless of flags" defense for Closed campaigns, with a test seeding a
+  stale `CanEdit`/`CanDelete` note); mutation UI state (add/edit drafts, delete/remove
+  confirmations, tag selection) is reset on participant navigation so a drafted note or tag choice
+  is never posted to the wrong player; a mutation captures its target participant id so success and
+  conflict feedback is only surfaced while the drawer still shows that participant. Drawer suite
+  grew to 49 tests; full unit suite 1367/1367.
 
 ## Deployment Plan
 

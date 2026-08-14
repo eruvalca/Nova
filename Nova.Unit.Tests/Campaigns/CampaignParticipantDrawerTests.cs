@@ -634,6 +634,7 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(CreateDetail(
                 campaignStatus: CampaignStatus.Closed,
+                notes: [CreateNote(canEdit: true, canDelete: true)],
                 capabilities: MutationCapabilities(canAddNote: true, canApplyTag: true)))));
 
         RegisterServices(queryService);
@@ -646,6 +647,11 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
         cut.Markup.ShouldNotContain("Add note");
         cut.Markup.ShouldNotContain("Apply");
         cut.Markup.ShouldNotContain("Select a tag…");
+        // Read-only hides per-note Edit/Delete commands even when a stale server flag says they are allowed.
+        cut.FindAll("button").ShouldNotContain(button => button.TextContent.Trim() == "Edit");
+        cut.FindAll("button").ShouldNotContain(button => button.TextContent.Trim() == "Delete");
+        // Read content still renders in full.
+        cut.Markup.ShouldContain("Strong defensive player.");
     }
 
     [Fact]
@@ -1022,6 +1028,87 @@ public sealed class CampaignParticipantDrawerTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("The note is no longer available."));
         queryService.Received(1).GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Drawer_ResetsMutationForms_WhenParticipantChanges()
+    {
+        var queryService = Substitute.For<ICampaignParticipantQueryService>();
+        queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var input = callInfo.Arg<GetCampaignParticipantDetailInput>();
+                return Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(
+                    CreateDetail(assignmentId: input.PlayerCampaignAssignmentId,
+                        displayName: $"Player {input.PlayerCampaignAssignmentId}",
+                        capabilities: MutationCapabilities(canAddNote: true, canApplyTag: true))));
+            });
+        var tagDefinitionQueryService = Substitute.For<ITagDefinitionQueryService>();
+        tagDefinitionQueryService.GetChoicesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TagDefinitionDto>>(CreateTagChoices().ToList())));
+
+        RegisterServices(queryService, tagDefinitionQueryService: tagDefinitionQueryService);
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Add note").ShouldNotBeNull());
+        FindButtonByText(cut, "Add note").Click();
+        cut.Find("textarea").Input("Draft for participant A");
+        cut.Find("select").Change("11");
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Apply").HasAttribute("disabled").ShouldBeFalse());
+
+        cut.Render(parameters => parameters.Add(component => component.ParticipantId, 302));
+
+        // The add form closes with the draft discarded, and the tag selection resets so Apply is
+        // disabled again instead of being retargeted to participant B.
+        cut.WaitForAssertion(() => cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Player 302"));
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Add note").ShouldNotBeNull());
+        cut.FindAll("textarea").ShouldBeEmpty();
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Apply").HasAttribute("disabled").ShouldBeTrue());
+    }
+
+    [Fact]
+    public void Drawer_DoesNotSurfaceMutationFeedback_WhenParticipantChangesMidMutation()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<EvaluationNoteMutationSuccess>>();
+        var queryService = Substitute.For<ICampaignParticipantQueryService>();
+        queryService.GetParticipantDetailAsync(Arg.Any<GetCampaignParticipantDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var input = callInfo.Arg<GetCampaignParticipantDetailInput>();
+                return Task.FromResult(new ServiceResult<CampaignParticipantDetailDto>(
+                    CreateDetail(assignmentId: input.PlayerCampaignAssignmentId,
+                        displayName: $"Player {input.PlayerCampaignAssignmentId}",
+                        capabilities: MutationCapabilities(canAddNote: true))));
+            });
+        var noteService = Substitute.For<ICampaignEvaluationNoteService>();
+        noteService.AddAsync(Arg.Any<AddEvaluationNoteInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        RegisterServices(queryService, noteService);
+
+        var cut = Render<CampaignParticipantDrawerComponent>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.ParticipantId, 301));
+
+        cut.WaitForAssertion(() => FindButtonByText(cut, "Add note").ShouldNotBeNull());
+        FindButtonByText(cut, "Add note").Click();
+        cut.Find("textarea").Input("Draft for participant A");
+        FindButtonByText(cut, "Save note").Click();
+
+        // Navigate to participant B while the mutation is still in flight.
+        cut.Render(parameters => parameters.Add(component => component.ParticipantId, 302));
+        cut.WaitForAssertion(() => cut.Find(".participant-drawer-header h2").TextContent.Trim().ShouldBe("Player 302"));
+
+        pending.SetResult(new ServiceResult<EvaluationNoteMutationSuccess>(new EvaluationNoteMutationSuccess(99)));
+        cut.WaitForAssertion(() => queryService.Received(1).GetParticipantDetailAsync(
+            Arg.Is<GetCampaignParticipantDetailInput>(input => input.PlayerCampaignAssignmentId == 302),
+            Arg.Any<CancellationToken>()));
+
+        // The success message is not surfaced on the participant the mutation did not target.
+        cut.Markup.ShouldNotContain("Note added.");
     }
 
     // ── Tag apply/remove controls ────────────────────────────────────────────

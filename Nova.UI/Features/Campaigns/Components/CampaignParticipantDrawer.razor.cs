@@ -244,6 +244,12 @@ public partial class CampaignParticipantDrawer(
     private MutationKind? _mutatingKind;
 
     /// <summary>
+    /// The participant identifier a mutation targets, captured when it starts so feedback is only
+    /// surfaced while the drawer still shows that participant.
+    /// </summary>
+    private long? _mutationParticipantId;
+
+    /// <summary>
     /// Indicates that the error summary should receive focus after the next render.
     /// </summary>
     private bool _focusErrorSummary;
@@ -378,9 +384,11 @@ public partial class CampaignParticipantDrawer(
         if (ParticipantId != _loadedParticipantId)
         {
             // Navigating to another participant is an intentional user-action boundary: clear the
-            // previous participant's mutation feedback and conflict-read-only flag before reloading.
+            // previous participant's mutation feedback and form state before reloading so a drafted
+            // note or tag selection is never posted to the wrong player.
             _statusMessage = null;
             _mutationError = null;
+            ResetMutationUiState();
             await LoadDetailAsync();
         }
     }
@@ -702,6 +710,7 @@ public partial class CampaignParticipantDrawer(
 
         _isMutating = true;
         _mutatingKind = kind;
+        _mutationParticipantId = ParticipantId;
         _mutationError = null;
         _statusMessage = null;
 
@@ -723,6 +732,7 @@ public partial class CampaignParticipantDrawer(
         {
             _isMutating = false;
             _mutatingKind = null;
+            _mutationParticipantId = null;
         }
     }
 
@@ -758,6 +768,14 @@ public partial class CampaignParticipantDrawer(
                 conflicted = problem.Kind == ServiceProblemKind.Conflict;
             });
 
+        // If the user navigated to another participant while this mutation was in flight, its
+        // feedback no longer applies to the visible participant: the participant-change path
+        // already cleared the mutation UI state, so discard the result silently.
+        if (_mutationParticipantId != ParticipantId)
+        {
+            return;
+        }
+
         if (succeeded)
         {
             _statusMessage = successMessage;
@@ -783,6 +801,25 @@ public partial class CampaignParticipantDrawer(
     private void FocusMutationError()
     {
         _focusErrorSummary = true;
+    }
+
+    /// <summary>
+    /// Closes and clears all mutation form state (note drafts, editors, confirmations, and the tag
+    /// selection) so a participant change never carries a draft or selection to the next participant.
+    /// </summary>
+    private void ResetMutationUiState()
+    {
+        _showAddNoteForm = false;
+        _addNoteContent = string.Empty;
+        _addNoteErrors = [];
+        _editingNoteId = null;
+        _editNoteContent = string.Empty;
+        _editNoteErrors = [];
+        _deletingNoteId = null;
+        _deleteNoteConfirmed = false;
+        _selectedTagId = null;
+        _removingTagApplicationId = null;
+        _removeTagConfirmed = false;
     }
 
     /// <summary>

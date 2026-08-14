@@ -173,7 +173,7 @@
                                     <p class="participant-drawer-note-meta mb-0">
                                         @note.AuthorDisplayName · @FormatTimestamp(note.CreatedAt)@(note.ModifiedAt is not null ? " · edited" : "")
                                     </p>
-                                    @if (note.CanEdit || note.CanDelete)
+                                    @if (!IsReadOnly && (note.CanEdit || note.CanDelete))
                                     {
                                         <div class="d-flex gap-2 mt-1">
                                             @if (note.CanEdit)
