@@ -135,18 +135,18 @@ files are flagged. Do not fix those here; they are unrelated to this work.
 
 ## Phase 2: Remove dead code and delete site.js
 
-Status: Not started
+Status: Complete
 
-- [ ] Remove `ShowAsync()` from `ConfirmDeleteDialog.razor.cs` (and its XML doc). The primary
+- [x] Remove `ShowAsync()` from `ConfirmDeleteDialog.razor.cs` (and its XML doc). The primary
   constructor loses the `IJSRuntime` parameter; the component keeps its two `[Parameter]`
   properties. No production caller exists (modal opens via `data-bs-toggle` in
   `DeletePersonalData.razor`).
-- [ ] Remove the `novaShowModal` test coverage from
+- [x] Remove the `novaShowModal` test coverage from
   `Nova.Unit.Tests/Components/ConfirmDeleteDialogTests.cs` (the `ShowAsync` test and its
   `JSInterop.SetupVoid("novaShowModal", ...)` / `VerifyInvoke`).
-- [ ] Delete `Nova/wwwroot/js/site.js` (delete `Nova/wwwroot/js` too if it becomes empty).
-- [ ] Remove `<script src="@Assets["js/site.js"]"></script>` from `Nova/Components/App.razor`.
-- [ ] Grep the repo for `site.js`, `novaShowModal`, and `novaCampaignWorkspace` — only historical
+- [x] Delete `Nova/wwwroot/js/site.js` (delete `Nova/wwwroot/js` too if it becomes empty).
+- [x] Remove `<script src="@Assets["js/site.js"]"></script>` from `Nova/Components/App.razor`.
+- [x] Grep the repo for `site.js`, `novaShowModal`, and `novaCampaignWorkspace` — only historical
   `plans/` docs and the new modules may remain.
 
 ### Verification Plan
@@ -158,7 +158,26 @@ Status: Not started
 
 ### Phase Summary
 
-_(write when phase completes)_
+Dead code removed exactly as planned:
+
+- `ConfirmDeleteDialog.razor.cs` — `ShowAsync()` and its XML doc deleted; primary constructor is now
+  `ConfirmDeleteDialog : NovaComponentBase` (no `IJSRuntime`); `using Microsoft.JSInterop;` dropped;
+  both `[Parameter, EditorRequired]` properties and `OnConfirmChanged` untouched.
+- `ConfirmDeleteDialogTests.cs` — `ShowAsync_InvokesNovaShowModal_WithConfirmDeleteModalSelector`
+  removed (the last `JSInterop.SetupVoid`/`VerifyInvoke` in the file); `WarningText_ContainsAccountDeletionMessage`
+  is now the final test.
+- `Nova/wwwroot/js/site.js` deleted; `Nova/wwwroot/js` was empty afterwards, so the directory was
+  removed too.
+- `Nova/Components/App.razor` — the `<script src="@Assets["js/site.js"]">` tag removed; the
+  bootstrap bundle and Cropper script tags remain.
+
+Verification results: `dotnet build Nova.slnx` = 0 warnings / 0 errors; unit tests = 1295/1295
+(one fewer than Phase 1 because the `ShowAsync` test was removed); grep finds `site.js` /
+`novaShowModal` / `novaCampaignWorkspace` only in the historical `plans/campaign-workspace-roster-filter-ui.md`
+doc and in this plan itself — zero production references; `dotnet format Nova.slnx --verify-no-changes`
+still fails **only** on pre-existing PR #79 files (Tags-feature CHARSET encodings, two migration
+IDE0161 warnings, and `Nova/Features/Shared/CommitAttemptTracker.cs`, also added by PR #79) — none
+of this phase's files are flagged.
 
 ## Phase 3: Instructions + skill guidance for future JS work
 
