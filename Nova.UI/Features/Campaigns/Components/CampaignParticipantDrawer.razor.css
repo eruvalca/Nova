@@ -40,6 +40,8 @@
 .participant-drawer-nav-button {
     flex: 0 0 auto;
     line-height: 1;
+    min-width: 2rem;
+    min-height: 2rem;
 }
 
 .participant-drawer-heading {

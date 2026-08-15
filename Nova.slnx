@@ -5,6 +5,7 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="Nova.AppHost/Nova.AppHost.csproj" />
+  <Project Path="Nova.Browser.Tests/Nova.Browser.Tests.csproj" />
   <Project Path="Nova.Client/Nova.Client.csproj" />
   <Project Path="Nova.Integration.Tests/Nova.Integration.Tests.csproj" />
   <Project Path="Nova.ServiceDefaults/Nova.ServiceDefaults.csproj" />

@@ -11,28 +11,22 @@
   <ItemGroup>
     <ProjectReference Include="..\Nova.AppHost\Nova.AppHost.csproj" />
     <ProjectReference Include="..\Nova\Nova.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <InternalsVisibleTo Include="Nova.Browser.Tests" />
+    <ProjectReference Include="..\Nova.Integration.Tests\Nova.Integration.Tests.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Testing" />
+    <PackageReference Include="Microsoft.Playwright" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
-    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
     <PackageReference Include="Shouldly" />
-    <PackageReference Include="bunit" />
-    <PackageReference Include="NSubstitute" />
     <PackageReference Include="xunit.v3.mtp-v2" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="System.Net" />
     <Using Include="Microsoft.Extensions.DependencyInjection" />
-    <Using Include="Aspire.Hosting.ApplicationModel" />
-    <Using Include="Aspire.Hosting.Testing" />
+    <Using Include="Microsoft.Playwright" />
+    <Using Include="Microsoft.Playwright.Assertions" Static="true" />
     <Using Include="Xunit" />
   </ItemGroup>
 
