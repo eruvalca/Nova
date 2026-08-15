@@ -44,7 +44,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await OpenParticipantAsync(page, firstRow);
 
         // Initial focus lands on the drawer close button.
-        (await IsFocusedAsync(page, "participant-drawer-close")).ShouldBeTrue();
+        await Expect(page.Locator("#participant-drawer-close")).ToBeFocusedAsync();
         await Expect(page.Locator("#participant-drawer-heading")).ToHaveTextAsync(participantName);
         await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("1 of 60");
 
@@ -360,7 +360,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await Expect(narrowPage.Locator("aside.participant-drawer")).ToBeVisibleAsync();
         await narrowPage.Keyboard.PressAsync("Escape");
         await Expect(narrowPage.Locator("aside.participant-drawer")).ToBeHiddenAsync();
-        (await IsFocusedAsync(narrowPage, "roster-card-" + seed.AssignmentIds[0])).ShouldBeTrue();
+        await Expect(narrowPage.Locator("#roster-card-" + seed.AssignmentIds[0])).ToBeFocusedAsync();
 
         // Tablet viewport: the table is visible and the card list is not.
         await using var tabletContext = await fixture.NewSignedInContextAsync(
@@ -434,7 +434,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         }
 
         // Focus starts on the close button and Tab cycles stay inside the dialog.
-        (await IsFocusedAsync(page, "participant-drawer-close")).ShouldBeTrue();
+        await Expect(page.Locator("#participant-drawer-close")).ToBeFocusedAsync();
         for (var i = 0; i < 12; i++)
         {
             await page.Keyboard.PressAsync("Tab");
@@ -444,7 +444,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         // Escape closes the drawer and returns focus to the activating row.
         await page.Keyboard.PressAsync("Escape");
         await Expect(page.Locator("aside.participant-drawer")).ToBeHiddenAsync();
-        (await IsFocusedAsync(page, $"roster-row-{assignmentId}")).ShouldBeTrue();
+        await Expect(page.Locator($"#roster-row-{assignmentId}")).ToBeFocusedAsync();
     }
 
     [Fact]
@@ -483,7 +483,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     {
         if (Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS") != "1")
         {
-            return;
+            Assert.Skip("Set NOVA_A11Y_SCREENSHOTS=1 to capture accessibility evidence.");
         }
 
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -639,9 +639,6 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         return long.Parse(id!["roster-row-".Length..]);
     }
 
-    private static async Task<bool> IsFocusedAsync(IPage page, string elementId) =>
-        await page.EvaluateAsync<bool>("(id) => document.activeElement?.id === id", elementId);
-
     private static async Task<bool> IsFocusInsideDrawerAsync(IPage page) =>
         await page.EvaluateAsync<bool>(
             "() => { const d = document.querySelector('aside.participant-drawer'); return d !== null && d.contains(document.activeElement); }");
@@ -659,5 +656,8 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
 
             await page.WaitForTimeoutAsync(250);
         }
+
+        throw new TimeoutException(
+            "Tag-apply race did not settle within 5s: neither alert-success nor mutation-error appeared.");
     }
 }

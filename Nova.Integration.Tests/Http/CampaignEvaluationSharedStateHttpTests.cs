@@ -1,11 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
-using Microsoft.EntityFrameworkCore;
-using Nova.Entities;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -68,7 +65,7 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
         var (authorClient, observerClient, adminEmail, campaignId, assignmentId) = await SeedTwoMemberClubWithCampaignAsync(
             "tag-share", cancellationToken);
 
-        var tagId = await InsertTagDefinitionAsync(assignmentId, "Striker", adminEmail, cancellationToken);
+        var tagId = await SeedingHelpers.InsertTagDefinitionAsync(fixture, assignmentId, adminEmail, "Striker", "#00CC00", cancellationToken);
 
         using var applyResponse = await authorClient.PostAsJsonAsync(
             CampaignEndpoints.ApplyCampaignTagApplication,
@@ -139,169 +136,26 @@ public sealed class CampaignEvaluationSharedStateHttpTests(NovaAppHostFixture fi
         SeedTwoMemberClubWithCampaignAsync(string prefix, CancellationToken cancellationToken)
     {
         using var adminClient = fixture.CreateNovaHttpClient();
-        var adminEmail = UniqueEmail($"{prefix}-admin");
+        var adminEmail = SeedingHelpers.UniqueEmail($"{prefix}-admin");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
-        await UpdateUserAsync(adminEmail, clubId: null, firstName: "Admin", lastName: "Creator", cancellationToken);
-        var club = await CreateClubAsync(adminClient, cancellationToken);
-        await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
+        await SeedingHelpers.UpdateUserAsync(fixture, adminEmail, clubId: null, cancellationToken, firstName: "Admin", lastName: "Creator");
+        var club = await SeedingHelpers.CreateClubAsync(adminClient, cancellationToken);
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
         var authorClient = fixture.CreateNovaHttpClient();
-        var authorEmail = UniqueEmail($"{prefix}-author");
+        var authorEmail = SeedingHelpers.UniqueEmail($"{prefix}-author");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(authorClient, authorEmail, Password, cancellationToken);
-        await UpdateUserAsync(authorEmail, club.ClubId, firstName: "Alice", lastName: "Author", cancellationToken);
-        await RefreshClubMembershipCookieAsync(authorClient, cancellationToken);
+        await SeedingHelpers.UpdateUserAsync(fixture, authorEmail, club.ClubId, cancellationToken, firstName: "Alice", lastName: "Author");
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(authorClient, cancellationToken);
 
         var observerClient = fixture.CreateNovaHttpClient();
-        var observerEmail = UniqueEmail($"{prefix}-observer");
+        var observerEmail = SeedingHelpers.UniqueEmail($"{prefix}-observer");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(observerClient, observerEmail, Password, cancellationToken);
-        await UpdateUserAsync(observerEmail, club.ClubId, firstName: "Bob", lastName: "Observer", cancellationToken);
-        await RefreshClubMembershipCookieAsync(observerClient, cancellationToken);
+        await SeedingHelpers.UpdateUserAsync(fixture, observerEmail, club.ClubId, cancellationToken, firstName: "Bob", lastName: "Observer");
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(observerClient, cancellationToken);
 
-        var (campaignId, assignmentId) = await SeedCampaignDataAsync(club.ClubId, adminEmail, prefix, cancellationToken);
-        return (authorClient, observerClient, adminEmail, campaignId, assignmentId);
-    }
-
-    /// <summary>
-    /// Seeds an active season, campaign, player, and participation for the given club.
-    /// </summary>
-    /// <param name="clubId">The owning club identifier.</param>
-    /// <param name="email">A registered user email whose database row provides the created-by identifier.</param>
-    /// <param name="prefix">A stable name prefix.</param>
-    /// <param name="cancellationToken">The test cancellation token.</param>
-    /// <returns>The campaign and participation identifiers.</returns>
-    private async Task<(long CampaignId, long AssignmentId)> SeedCampaignDataAsync(
-        long clubId,
-        string email,
-        string prefix,
-        CancellationToken cancellationToken)
-    {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        var suffix = Guid.NewGuid().ToString("N");
-        var season = new SeasonEntity { Name = $"{prefix} Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
-        var campaign = new CampaignEntity
-        {
-            Name = $"{prefix} Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            Season = season,
-            SeasonId = 0,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        var player = new PlayerEntity
-        {
-            FirstName = prefix,
-            LastName = $"Player {suffix}",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-
-        context.AddRange(season, campaign, player);
-        await context.SaveChangesAsync(cancellationToken);
-
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            ClubId = clubId,
-            CreatedById = user.Id,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            TryoutNumber = 7
-        };
-        context.Add(assignment);
-        await context.SaveChangesAsync(cancellationToken);
-
-        return (campaign.CampaignId, assignment.PlayerCampaignAssignmentId);
-    }
-
-    /// <summary>
-    /// Inserts an active tag definition for the club that owns the given assignment.
-    /// </summary>
-    /// <param name="assignmentId">The participation identifier whose club owns the new tag.</param>
-    /// <param name="name">The tag name.</param>
-    /// <param name="email">A registered user email whose database row provides the created-by identifier.</param>
-    /// <param name="cancellationToken">The test cancellation token.</param>
-    /// <returns>The new tag definition identifier.</returns>
-    private async Task<long> InsertTagDefinitionAsync(long assignmentId, string name, string email, CancellationToken cancellationToken)
-    {
-        await using var context = fixture.CreateAdminContext();
-        var assignment = await context.PlayerCampaignAssignments
-            .SingleAsync(candidate => candidate.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
-        var user = await context.Users
-            .SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        var playerTag = new PlayerTagEntity
-        {
-            Name = name,
-            Color = "#00CC00",
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = assignment.ClubId,
-            CreatedById = user.Id
-        };
-        context.Add(playerTag);
-        await context.SaveChangesAsync(cancellationToken);
-        return playerTag.PlayerTagId;
-    }
-
-    /// <summary>
-    /// Generates a unique e-mail address for a test user.
-    /// </summary>
-    /// <param name="prefix">A stable prefix included in the address.</param>
-    /// <returns>A unique e-mail address.</returns>
-    private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";
-
-    /// <summary>
-    /// Creates a club and returns the resulting club DTO.
-    /// </summary>
-    /// <param name="client">The HTTP client used to create the club.</param>
-    /// <param name="cancellationToken">The test cancellation token.</param>
-    /// <returns>The created club.</returns>
-    private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
-    {
-        using var response = await client.PostAsJsonAsync(
-            ClubEndpoints.Create,
-            new CreateClubInput { Name = $"Club {Guid.NewGuid():N}", City = "X", State = "TX" },
-            cancellationToken);
-        response.StatusCode.ShouldBe(HttpStatusCode.Created);
-        return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;
-    }
-
-    /// <summary>
-    /// Completes the club-membership flow so the client carries the refreshed membership cookie.
-    /// </summary>
-    /// <param name="client">The HTTP client whose membership cookie should be refreshed.</param>
-    /// <param name="cancellationToken">The test cancellation token.</param>
-    /// <returns>A task that completes when the cookie has been refreshed.</returns>
-    private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
-    {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
-        response.StatusCode.ShouldBe(HttpStatusCode.Found);
-    }
-
-    /// <summary>
-    /// Updates a user's club membership and display name directly in the database.
-    /// </summary>
-    /// <param name="email">The user's e-mail address.</param>
-    /// <param name="clubId">The club identifier to assign, or <see langword="null"/> to clear membership.</param>
-    /// <param name="firstName">The first name to assign.</param>
-    /// <param name="lastName">The last name to assign.</param>
-    /// <param name="cancellationToken">The test cancellation token.</param>
-    /// <returns>A task that completes when the user has been updated.</returns>
-    private async Task UpdateUserAsync(
-        string email,
-        long? clubId,
-        string firstName,
-        string lastName,
-        CancellationToken cancellationToken)
-    {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        user.ClubId = clubId;
-        user.FirstName = firstName;
-        user.LastName = lastName;
-        await context.SaveChangesAsync(cancellationToken);
+        var seeded = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
+            fixture, club.ClubId, adminEmail, prefix, participantCount: 1, placementOutcome: PlacementOutcome.Undecided, cancellationToken);
+        return (authorClient, observerClient, adminEmail, seeded.CampaignId, seeded.AssignmentIds[0]);
     }
 }
