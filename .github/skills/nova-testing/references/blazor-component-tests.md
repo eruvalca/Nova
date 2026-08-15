@@ -88,8 +88,9 @@ public void PlayersPage_DeclaresInteractiveAutoRenderMode()
 nothing for a static SSR page such as `ClubDetail`, so the same shape asserts either intent.
 
 Add this whenever a page or component gains its first event handler. For flows where interactivity
-must be proven end to end (auth/claims propagation, role-gated controls), use the
-[Aspire + Playwright validation](../../aspire-playwright-validation/SKILL.md) pass instead.
+must be proven end to end (auth/claims propagation, role-gated controls), add a
+[browser suite](browser-suite.md) scenario, or use the one-off
+[Aspire + Playwright validation](../../aspire-playwright-validation/SKILL.md) pass.
 
 ## Testing prerender/persisted-state behavior
 

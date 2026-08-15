@@ -1,16 +1,22 @@
 ---
 name: aspire-playwright-validation
 description: >-
-  Run a repeatable Aspire + Playwright manual validation pass for Nova UI flows.
-  USE FOR: ticket acceptance that requires browser-level validation of interactive behavior,
-  auth/claims propagation, and role-based UI controls. DO NOT USE FOR: replacing existing
-  unit/integration tests or broad exploratory testing without a concrete scenario.
+  Run a repeatable manual Aspire + Playwright validation pass for Nova UI flows.
+  USE FOR: one-off ticket acceptance that requires browser-level validation of interactive behavior,
+  auth/claims propagation, and role-based UI controls, or exploratory checks beyond the committed
+  browser suite. DO NOT USE FOR: committed, repeatable browser regression coverage (add a
+  Nova.Browser.Tests scenario via the nova-testing skill), replacing existing unit/integration
+  tests, or broad exploratory testing without a concrete scenario.
 ---
 
 # Aspire + Playwright Validation
 
 Use this skill when a feature is already implemented and the remaining evidence required is a
 browser-level validation pass against the Aspire-hosted app.
+
+**Route first:** if the flow should be guarded by repeatable regression coverage, add a scenario to
+`Nova.Browser.Tests` instead (see `nova-testing/references/browser-suite.md`). This manual pass is
+for acceptance evidence the committed suite does not cover and for exploratory checks.
 
 ## Preconditions
 

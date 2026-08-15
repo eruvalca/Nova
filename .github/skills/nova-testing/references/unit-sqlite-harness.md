@@ -71,4 +71,4 @@ public void TenantContext_ReturnsOnlyCurrentClubsRows()
   to the xUnit runner and preserves cancellation behavior during test interruption. If no token-
   accepting overload or parameter exists, leave the call as-is (or omit the token argument) rather
   than forcing unrelated refactors. Example: `await context.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken)`.
-- bunit and NSubstitute are available in both projects for component/service tests.
+- bunit and NSubstitute are available in the unit and integration test projects for component/service tests (not the browser suite).
