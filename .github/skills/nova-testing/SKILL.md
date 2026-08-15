@@ -1,8 +1,8 @@
 ---
 name: nova-testing
 description: >-
-    Write and run Nova tests: pick the right harness (in-memory SQLite tenancy unit tests vs Aspire Postgres integration tests) and run them on Microsoft.Testing.Platform.
-    USE FOR: write a unit test, add an integration test, run tests, dotnet test, which test project, tenancy test harness, NovaAppHostFixture, lifecycle race tests, uniqueness probe race, execution-strategy retry tests, transient fault injection, ambiguous commit verification, migration verification, filter tests, CreatedAtRoute Location test, MTP flags, bUnit component tests, Razor literal parameter regression, render-mode assertion.
+    Write and run Nova tests: pick the right harness (in-memory SQLite tenancy unit tests vs Aspire Postgres integration tests vs the Playwright browser suite) and run them on Microsoft.Testing.Platform.
+    USE FOR: write a unit test, add an integration test, add a browser test, run tests, dotnet test, which test project, tenancy test harness, NovaAppHostFixture, lifecycle race tests, uniqueness probe race, execution-strategy retry tests, transient fault injection, ambiguous commit verification, migration verification, filter tests, CreatedAtRoute Location test, MTP flags, bUnit component tests, Razor literal parameter regression, render-mode assertion, Playwright, Nova.Browser.Tests, browser fixture, seeding helpers.
     DO NOT USE FOR: domain/persistence work (use add-domain-persistence), building full features (use add-feature-slice), or adding endpoints (use add-api-endpoint).
 ---
 
@@ -15,7 +15,12 @@ Use this skill when writing or running Nova tests. Read the relevant reference b
   rendering, `EventCallback` assertions, the required render-mode assertion, and persisted-state
   restore coverage.
 - [Aspire integration harness](references/aspire-integration-harness.md) for `Nova.Integration.Tests`, real PostgreSQL 18 via Aspire AppHost, `NovaAppHostFixture`, HTTP e2e, and provider-specific checks.
-- [Aspire + Playwright validation](../aspire-playwright-validation/SKILL.md) for live browser acceptance flows that must run against the Aspire-hosted app.
+- [Browser suite](references/browser-suite.md) for `Nova.Browser.Tests` — Playwright against the
+  Aspire-hosted app, the browser fixture and seed, the three Blazor interaction pitfalls, and the
+  accessibility regression conventions.
+- [Aspire + Playwright validation](../aspire-playwright-validation/SKILL.md) for one-off manual
+  browser acceptance passes; for committed regression coverage, add a `Nova.Browser.Tests`
+  scenario instead.
 
 ## Choose the harness
 
@@ -24,26 +29,33 @@ Use this skill when writing or running Nova tests. Read the relevant reference b
 | Pure policy   | `Nova.Unit.Tests`        | None                                        | Deterministic decisions over constructed immutable facts; no harness, DI, mocks, or logger                                     |
 | Service shell | `Nova.Unit.Tests`        | Shared in-memory SQLite (`EnsureCreated()`) | Query filters, interceptors, authorization, tenancy, effects, and OneOf state                                                  |
 | Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via Aspire AppHost       | Migrations, constraints, advisory locks, transaction races, execution-strategy retries, ambiguous commits, and SQL translation |
+| Browser flow  | `Nova.Browser.Tests`     | Real app via the Aspire AppHost + Playwright Chromium | Interactive UI flows crossing the server boundary: multi-user/role behavior, lifecycle conflicts, URL/history state, responsive layouts, keyboard/focus, contrast/touch targets |
 
 Default new tests to `Nova.Unit.Tests`. Add an integration test only when the behavior depends
 on the real provider (type mappings, migrations, database constraints, advisory locks,
 transaction races, execution-strategy retries, ambiguous commits, SQL translation, collation).
+Add a browser test when the behavior is a real UI flow that bUnit cannot prove (interactive
+attach, focus/keyboard, history/URL state, real HTTP/Identity, multi-user sessions).
 
 ## Run commands
 
-Both test projects use xUnit v3 on Microsoft.Testing.Platform (MTP) with Shouldly assertions.
+All three test projects use xUnit v3 on Microsoft.Testing.Platform (MTP) with Shouldly assertions.
 Use the explicit `--project` form and avoid bare csproj invocation, which has been observed to fail
 MTP test discovery in this repo:
 
 ```powershell
 dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj
 dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj
+dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj
 dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --filter-class "*Name"
 dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --filter-class "*CampaignParticipantHttpTests"
 ```
 
 Do not pass VSTest-only flags (`--nologo`, `--collect`, `--logger`); MTP rejects them.
 Filter by class with `--filter-class "*Name"`.
+The browser suite needs a one-time browser download per machine before its first run:
+`Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`. CI runs build and unit
+tests only; run the integration and browser suites locally before merge.
 
 ## Checklist
 
@@ -69,4 +81,4 @@ Filter by class with `--filter-class "*Name"`.
     permitted role and exact counts for lifecycle or tenancy exclusions.
 13. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
     Repeat `--filter-class` for multiple classes; do not combine class names with `|`.
-14. Before commit or PR, run the relevant integration tests for provider/HTTP changes and confirm they pass.
+14. Before commit or PR, run the relevant integration tests for provider/HTTP changes and the relevant browser tests for interactive UI-flow changes; confirm they pass locally (CI does not run them).

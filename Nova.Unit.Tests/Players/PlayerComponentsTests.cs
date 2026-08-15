@@ -383,7 +383,7 @@ public sealed class PlayerComponentsTests : BunitContext
         var cut = Render<PlayersPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
-        cut.Find(".tag-pill").GetAttribute("style").ShouldBe("background-color: #6C757D; color: #ffffff;");
+        cut.Find(".tag-pill").GetAttribute("style").ShouldBe("background-color: #6C757D; color: #FFFFFF;");
     }
 
     [Fact]
@@ -406,7 +406,7 @@ public sealed class PlayerComponentsTests : BunitContext
 
         cut.WaitForAssertion(() =>
             cut.Find("span.badge.rounded-pill").GetAttribute("style")
-                .ShouldBe("background-color: #6C757D; color: #ffffff;"));
+                .ShouldBe("background-color: #6C757D; color: #FFFFFF;"));
     }
 
     private void RegisterServices(

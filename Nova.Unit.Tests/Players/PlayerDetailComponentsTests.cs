@@ -493,7 +493,7 @@ public sealed class PlayerDetailComponentsTests : BunitContext
         var cut = Render<PlayerDetailPage>(p => p.Add(c => c.PlayerId, 7));
         cut.WaitForAssertion(() =>
             cut.Find("span.badge.rounded-pill").GetAttribute("style")
-                .ShouldBe("background-color: #6C757D; color: #ffffff;"));
+                .ShouldBe("background-color: #6C757D; color: #FFFFFF;"));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

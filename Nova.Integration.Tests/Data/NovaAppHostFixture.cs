@@ -130,6 +130,52 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
         new(Options<NovaAdminDbContext>(withInterceptor: true), AdminContextUser);
 
     /// <summary>
+    /// Gets the base URI of the running "nova" web resource, preferring the https endpoint so
+    /// <c>UseHttpsRedirection</c> does not turn browser navigations into redirects.
+    /// </summary>
+    public Uri NovaBaseUri
+    {
+        get
+        {
+            var app = App ?? throw new InvalidOperationException("The AppHost has not been started.");
+
+            // Prefer the https endpoint so UseHttpsRedirection does not turn every request into a 307.
+            try
+            {
+                return app.GetEndpoint("nova", "https");
+            }
+            catch (ArgumentException)
+            {
+                return app.GetEndpoint("nova", "http");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Creates an <see cref="IDbContextFactory{NovaDbContext}"/> wired to the live database with
+    /// the tenant interceptor and the shared mutable <see cref="CurrentUser"/> provider.
+    /// Browser tests use it to drive server-side services (for example campaign close) that have
+    /// no HTTP or UI surface yet.
+    /// </summary>
+    /// <returns>A tenant-context factory.</returns>
+    public IDbContextFactory<NovaDbContext> CreateTenantContextFactory() =>
+        new TenantContextFactory(Options<NovaDbContext>(withInterceptor: true), CurrentUser);
+
+    /// <summary>
+    /// A plain context factory that constructs <see cref="NovaDbContext"/> instances with the
+    /// shared mutable current-user provider, mirroring <see cref="CreateTenantContext"/>.
+    /// </summary>
+    /// <param name="options">The live-database options.</param>
+    /// <param name="currentUserProvider">The mutable current-user provider.</param>
+    private sealed class TenantContextFactory(
+        DbContextOptions<NovaDbContext> options,
+        ICurrentUserProvider currentUserProvider) : IDbContextFactory<NovaDbContext>
+    {
+        /// <inheritdoc />
+        public NovaDbContext CreateDbContext() => new(options, currentUserProvider);
+    }
+
+    /// <summary>
     /// Creates an <see cref="HttpClient"/> targeting the running "nova" web resource, with a
     /// per-client cookie container (Identity + antiforgery cookies) and redirect-following
     /// disabled by default so tests can assert on status codes and Location headers.
@@ -138,18 +184,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// <returns>A new client owned by the caller.</returns>
     public HttpClient CreateNovaHttpClient(bool allowAutoRedirect = false)
     {
-        var app = App ?? throw new InvalidOperationException("The AppHost has not been started.");
-
-        // Prefer the https endpoint so UseHttpsRedirection does not turn every request into a 307.
-        Uri baseAddress;
-        try
-        {
-            baseAddress = app.GetEndpoint("nova", "https");
-        }
-        catch (ArgumentException)
-        {
-            baseAddress = app.GetEndpoint("nova", "http");
-        }
+        var baseAddress = NovaBaseUri;
 
         var handler = new HttpClientHandler
         {

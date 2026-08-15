@@ -71,8 +71,9 @@ Guard against it:
 - Whenever you add the first handler to a component, re-run this decision tree.
 - A child component inherits its host's render mode. If the child is interactive but the host page is
   static SSR, either give the host a render mode or give the child instance one.
-- Add a render-mode assertion or an Aspire/Playwright scenario for interactive pages — bUnit invokes
-  callbacks regardless of the deployed render mode, so a green component test proves nothing here.
+- Add a render-mode assertion or a browser-suite scenario (`Nova.Browser.Tests`) for interactive
+  pages — bUnit invokes callbacks regardless of the deployed render mode, so a green component
+  test proves nothing here.
 
 ## Placement consequences
 

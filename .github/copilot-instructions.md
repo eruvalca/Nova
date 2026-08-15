@@ -5,6 +5,7 @@
 - The Blazor WebAssembly project for interactive components is `Nova.Client/Nova.Client.csproj`.
 - The shared UI library is `Nova.UI/Nova.UI.csproj`.
 - The shared models, interfaces, endpoints, results, validation, and utilities project is `Nova.Shared/Nova.Shared.csproj`.
+- The automated browser workflow suite (Playwright, local-only) is `Nova.Browser.Tests/Nova.Browser.Tests.csproj`.
 - Aspire instrumentation is configured in `Nova.AppHost/Nova.AppHost.csproj` and `Nova.ServiceDefaults/Nova.ServiceDefaults.csproj`.
 
 ## Build & validation
@@ -15,6 +16,7 @@
 - Format check (required before commit): `dotnet format Nova.slnx --verify-no-changes`; apply fixes with `dotnet format Nova.slnx`
 - Unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`
 - Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — CI runs build and unit tests only, so run these locally before merge.
+- Browser tests (Playwright against the Aspire AppHost, local-only): `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — requires a one-time browser download per machine: `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`.
 
 ## Repository decisions
 
@@ -35,7 +37,7 @@ If a targeted instruction file is referenced but not available in context, state
 - `.github/instructions/csharp-conventions.instructions.md` for C# style, `.editorconfig`, OneOf/ServiceResult conventions, and source-generated logging.
 - `.github/instructions/ef-core-tenancy.instructions.md` for EF Core setup, club-based multi-tenancy, DbContext selection (`NovaDbContext`/`NovaReadDbContext`/`NovaAdminDbContext`), entity/relationship rules, and migrations.
 - `.github/instructions/observability.instructions.md` for OpenTelemetry and correlation conventions: W3C/`Activity.Current` correlation, ServiceDefaults-owned wiring, Blazor tracing source inclusion, WASM HTTP trace propagation, and `ProblemDetails` trace IDs.
-- `.github/instructions/testing.instructions.md` for the test suite: unit vs Aspire integration tests, the SQLite tenancy harness, the AppHost fixture, and how to run each project.
+- `.github/instructions/testing.instructions.md` for the test suite: unit vs Aspire integration vs Playwright browser tests, the SQLite tenancy harness, the AppHost fixture, the browser suite conventions, and how to run each project.
 - `.github/instructions/validation.instructions.md` for DataAnnotations on input records, `NotWhitespace`, `InputValidator`, structural vs contextual validation, and dual-layer validation.
 - `.github/instructions/service-layer.instructions.md` for service-layer patterns: ServiceProblem/ServiceResult types, OneOf preference, validation, DI registration, lifecycle-mutation locking, trace IDs, and logging.
 - `.github/instructions/functional-core.instructions.md` for selectively extracting deterministic business decisions into feature-local policies while services retain authorization, EF, locking, persistence, and effects.
@@ -51,4 +53,5 @@ examples) live in model-invoked Agent Skills under `.github/skills/`, loaded on 
 - `add-feature-slice` — orchestrate a full vertical slice end to end (input record + validation → service → endpoint → WASM client → tests); invokes `add-domain-persistence` when needed, `add-api-endpoint`, and `nova-testing`.
 - `add-blazor-ui` — build a Blazor page or component (placement and page-vs-component, render-mode decision tree, lifecycle and prerender/persisted state, parameters/`EventCallback`/binding, `EditForm` validation); invokes `nova-testing`.
 - `extract-functional-core` — extract deterministic business decisions from an existing service into a feature-local pure policy while preserving shell behavior; invokes `nova-testing`.
-- `nova-testing` — pick the harness (SQLite tenancy unit tests vs Aspire Postgres integration tests), write a test, and run it on Microsoft.Testing.Platform.
+- `nova-testing` — pick the harness (SQLite tenancy unit tests, Aspire Postgres integration tests, or the Playwright browser suite), write a test, and run it on Microsoft.Testing.Platform.
+- `aspire-playwright-validation` — one-off manual browser acceptance passes against the Aspire-hosted app; for committed browser regression coverage, add a `Nova.Browser.Tests` scenario instead.
