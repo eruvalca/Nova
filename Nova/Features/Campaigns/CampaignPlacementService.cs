@@ -11,12 +11,6 @@ using OneOf.Types;
 namespace Nova.Features.Campaigns;
 
 /// <summary>
-/// Reports the new concurrency token after a placement mutation succeeds.
-/// </summary>
-/// <param name="ConcurrencyToken">The token callers must use for the next mutation.</param>
-public readonly record struct PlacementMutationSuccess(Guid ConcurrencyToken);
-
-/// <summary>
 /// Reports that the current user is not authorized to mutate campaign placements.
 /// </summary>
 /// <param name="Detail">A description of the authorization failure.</param>
@@ -78,7 +72,50 @@ public sealed partial class CampaignPlacementService(
             LogPlacementForbidden(input.PlayerCampaignAssignmentId, currentUserProvider.UserId ?? 0);
             return new PlacementForbidden("You must be a club administrator to update campaign placements.");
         }
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await ExecuteWithFreshContextAsync(
+            db => UpdatePlacementAttemptAsync(db, input, userId, clubId, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs a placement mutation inside EF Core's retrying execution strategy with a fresh
+    /// tenant context per attempt.
+    /// </summary>
+    /// <typeparam name="TResult">The result produced by the operation.</typeparam>
+    /// <param name="operation">The mutation to execute with a fresh tenant context.</param>
+    /// <param name="cancellationToken">A token that cancels strategy setup or the operation.</param>
+    /// <returns>The result returned by the successful execution-strategy attempt.</returns>
+    private async Task<TResult> ExecuteWithFreshContextAsync<TResult>(
+        Func<NovaDbContext, Task<TResult>> operation,
+        CancellationToken cancellationToken)
+    {
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            return await operation(db);
+        });
+    }
+
+    /// <summary>
+    /// Executes one transactional campaign placement update attempt.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="input">The requested placement values and expected concurrency token.</param>
+    /// <param name="userId">The acting administrator identifier.</param>
+    /// <param name="clubId">The current tenant club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels database work.</param>
+    /// <returns>The placement update result for this attempt.</returns>
+    private async Task<PlacementUpdateResult> UpdatePlacementAttemptAsync(
+        NovaDbContext db,
+        UpdateCampaignPlacementInput input,
+        long userId,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var participation = await db.PlayerCampaignAssignments

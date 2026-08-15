@@ -258,6 +258,7 @@ app.MapCampaignParticipantEndpoints();
 app.MapCampaignMetadataEndpoints();
 app.MapCampaignTagApplicationEndpoints();
 app.MapCampaignEvaluationNoteEndpoints();
+app.MapCampaignPlacementEndpoints();
 
 // Player detail and campaign-history query endpoint.
 app.MapPlayerEndpoints();

@@ -116,6 +116,21 @@ public static class CampaignEndpoints
     public const string GetCampaignParticipantGraduationYearsRouteName = "GetCampaignParticipantGraduationYears";
 
     /// <summary>
+    /// Updates a campaign participant's placement outcome (PUT).
+    /// </summary>
+    public const string UpdateCampaignPlacement = $"{GroupPrefix}/participants/{{playerCampaignAssignmentId:long}}/placement";
+
+    /// <summary>
+    /// The relative placement-update path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string UpdateCampaignPlacementRelative = "participants/{playerCampaignAssignmentId:long}/placement";
+
+    /// <summary>
+    /// The route name assigned to campaign placement updates.
+    /// </summary>
+    public const string UpdateCampaignPlacementRouteName = "UpdateCampaignPlacement";
+
+    /// <summary>
     /// Applies a tag definition to a campaign participation (POST).
     /// </summary>
     public const string ApplyCampaignTagApplication = $"{GroupPrefix}/tag-applications";
@@ -357,6 +372,14 @@ public static class CampaignEndpoints
     /// <returns>The graduation-years URL.</returns>
     public static string GetCampaignParticipantGraduationYearsUrl(long campaignId)
         => $"{GroupPrefix}/{campaignId}/participants/graduation-years";
+
+    /// <summary>
+    /// Builds a campaign placement update URL.
+    /// </summary>
+    /// <param name="playerCampaignAssignmentId">The campaign participation identifier to update.</param>
+    /// <returns>The placement update URL.</returns>
+    public static string UpdateCampaignPlacementUrl(long playerCampaignAssignmentId)
+        => $"{GroupPrefix}/participants/{playerCampaignAssignmentId}/placement";
 
     /// <summary>
     /// Builds a campaign tag application removal URL.
