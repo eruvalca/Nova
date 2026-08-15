@@ -189,13 +189,13 @@ Status: Complete <!-- Not started | In progress | Complete -->
 
 ## Phase 6: Formatting, full validation, and acceptance review
 
-Status: Not started
+Status: Complete <!-- Not started | In progress | Complete -->
 
-- [ ] `dotnet format Nova.slnx` (apply), then `dotnet format Nova.slnx --verify-no-changes` passes.
-- [ ] `dotnet build Nova.slnx` clean.
-- [ ] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` full suite green.
-- [ ] Walk the issue acceptance criteria line by line and record evidence in the Final Recap.
-- [ ] Commit the change to `eruvalca-campaign-placement-mutation-api-and-clie` with the
+- [x] `dotnet format Nova.slnx` (apply), then `dotnet format Nova.slnx --verify-no-changes` passes.
+- [x] `dotnet build Nova.slnx` clean.
+- [x] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` full suite green.
+- [x] Walk the issue acceptance criteria line by line and record evidence in the Final Recap.
+- [x] Commit the change to `eruvalca-campaign-placement-mutation-api-and-clie` with the
       Co-authored-by trailer.
 
 ### Verification Plan
@@ -206,12 +206,59 @@ Status: Not started
 
 ### Phase Summary
 
-_(write when phase completes)_
+- Solution-wide `dotnet format` applied and re-verified clean for all touched files
+  (`--verify-no-changes` exits 0). Note: the solution has pre-existing format drift in
+  unrelated TagDefinition files; those were reverted to keep this change surgical.
+- Full build clean (0 warnings/0 errors); full unit suite 1399 passed.
+- All six issue acceptance criteria verified against the new HTTP/integration/client tests.
+- Committed as `1073175` on `eruvalca-campaign-placement-mutation-api-and-clie`.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Issue #85 (sub-issue of #11) is complete: the completed `CampaignPlacementService` update operation
+is now exposed through an administrator-only HTTP endpoint and a typed WASM client.
+
+- **HTTP**: `PUT /api/campaigns/participants/{playerCampaignAssignmentId}/placement` under the
+  shared campaign group, `RequireClubAdmin` policy, antiforgery disabled for the WASM client, full
+  `Produces*` metadata (200/400/401/403/404/409/500), route name, and a route/body identifier
+  mismatch guard returning 400. The `PlacementUpdateResult` OneOf is converted to HTTP exhaustively:
+  success 200 + replacement token; validation → validation ProblemDetails; not-found →
+  non-disclosing 404; forbidden → 403; conflict → 409 with the service detail.
+- **Shared**: `PlacementMutationSuccess` moved to `Nova.Shared` (`CampaignPlacementContracts.cs`);
+  `ICampaignPlacementService` added as the cross-tier contract; route constants and
+  `UpdateCampaignPlacementUrl` builder added to `CampaignEndpoints`.
+- **WASM**: `HttpCampaignPlacementService` PUTs to the shared URL, preserves structured problems,
+  and validates the success contract (fresh, non-empty token that replaces the submitted one) —
+  no success-shaped fallbacks. Registered in `Nova.Client/Program.cs`.
+- **Foundation defect fixed**: the placement service's direct `BeginTransactionAsync` threw on the
+  retrying PostgreSQL provider; refactored to the canonical `CreateExecutionStrategy().ExecuteAsync`
+  pattern with a fresh tenant context per attempt (no policy/persistence changes).
+- **Tests**: 15 new unit tests (endpoint metadata + exhaustive conversion + client contract);
+  11 new Aspire integration HTTP tests. Full unit suite 1399 passed; integration classes
+  `CampaignPlacementHttpTests` (11), `CampaignLifecyclePostgresTests` (8),
+  `CampaignParticipationPostgresTests` (9), `TeamPlayerGraduationYearRaceTests` (3), and
+  `CampaignTagApplicationHttpTests` (17) all passed locally.
+
+Acceptance criteria evidence:
+1. Only club administrators can mutate placements — endpoint policy + service guard; anonymous 401
+   and member 403 integration tests.
+2. Assigned requires a team; other outcomes reject non-null teams — shared input contract unchanged;
+   HTTP validation test + existing service matrix tests.
+3. Archived/unavailable/cross-tenant/ineligible/Closed preserve foundation behavior via
+   ProblemDetails — archived player 409, cross-tenant 404, ineligible 400 (TeamId errors), closed
+   campaign 409 through real HTTP.
+4. Stale token → conflict, winner preserved — integration test asserts 409 and unchanged row.
+5. Success returns the replacement token and the client validates it — integration 200 + client
+   contract unit tests.
+6. Exhaustive `PlacementUpdateResult` handling with no policy duplication — `Match` conversion with
+   all five cases unit-tested; policy remains service-internal.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Merge `eruvalca-campaign-placement-mutation-api-and-clie` into the default branch via PR.
+2. CI runs build + unit tests automatically; the integration HTTP suite was verified locally against
+   the Aspire AppHost and requires no additional environment beyond Docker.
+3. No migrations, configuration, or environment changes ship with this work. The endpoint is live
+   once the server deploys; there is no client-side UI in this slice, so no rollout ordering applies.
+4. Monitor `Campaign placement updated/conflict/forbidden` structured logs for admin mutation
+   activity after rollout.
