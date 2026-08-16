@@ -177,8 +177,10 @@ Status: Complete <!-- Not started | In progress | Complete -->
   `NpgsqlRetryingExecutionStrategy` provider (the SQLite unit harness and fixture contexts don't
   configure the strategy, so this only surfaced through the real HTTP path). Refactored the service
   to the repo's canonical `CreateExecutionStrategy().ExecuteAsync` pattern with a fresh tenant
-  context per attempt (matching `CampaignMetadataService` and peers); the concurrency token makes
-  retries safe (a re-run after an ambiguous commit fails the token check instead of double-applying).
+  context per attempt (matching `CampaignMetadataService` and peers); a stable per-request
+  replacement token plus commit verification (`VerifyPlacementCommittedAsync`) lets an ambiguous
+  commit be reconstructed as success when the persisted token matches this request's token, while a
+  genuine stale token still conflicts — no double-apply.
   No persistence rules or policy logic changed.
 - `CampaignPlacementHttpTests` (11 tests) covers: anonymous 401, member 403, admin 200 + replacement
   token + persisted row, route/body mismatch 400, Assigned-without-team validation, unparseable JSON
@@ -226,18 +228,24 @@ is now exposed through an administrator-only HTTP endpoint and a typed WASM clie
   non-disclosing 404; forbidden → 403; conflict → 409 with the service detail.
 - **Shared**: `PlacementMutationSuccess` moved to `Nova.Shared` (`CampaignPlacementContracts.cs`);
   `ICampaignPlacementService` added as the cross-tier contract; route constants and
-  `UpdateCampaignPlacementUrl` builder added to `CampaignEndpoints`.
+  `UpdateCampaignPlacementUrl` builder added to `CampaignEndpoints`. `CampaignPlacementService`
+  explicitly implements `ICampaignPlacementService` (mapping `PlacementUpdateResult` to
+  `ServiceResult`) and is registered in `Nova/Program.cs` so server-side prerender can resolve it.
 - **WASM**: `HttpCampaignPlacementService` PUTs to the shared URL, preserves structured problems,
   and validates the success contract (fresh, non-empty token that replaces the submitted one) —
   no success-shaped fallbacks. Registered in `Nova.Client/Program.cs`.
 - **Foundation defect fixed**: the placement service's direct `BeginTransactionAsync` threw on the
   retrying PostgreSQL provider; refactored to the canonical `CreateExecutionStrategy().ExecuteAsync`
-  pattern with a fresh tenant context per attempt (no policy/persistence changes).
+  pattern with a fresh tenant context per attempt, a stable per-request replacement token, and
+  commit verification that reconstructs success after an ambiguous commit (no policy/persistence
+  changes).
 - **Tests**: 15 new unit tests (endpoint metadata + exhaustive conversion + client contract);
-  11 new Aspire integration HTTP tests. Full unit suite 1399 passed; integration classes
-  `CampaignPlacementHttpTests` (11), `CampaignLifecyclePostgresTests` (8),
-  `CampaignParticipationPostgresTests` (9), `TeamPlayerGraduationYearRaceTests` (3), and
-  `CampaignTagApplicationHttpTests` (17) all passed locally.
+  11 new Aspire integration HTTP tests plus `CampaignPlacementRetryTests` (2 PostgreSQL retry tests —
+  pre-commit transient failure and lost commit acknowledgement). Full unit suite 1399 passed;
+  integration classes `CampaignPlacementHttpTests` (11), `CampaignPlacementRetryTests` (2),
+  `CampaignLifecyclePostgresTests` (8), `CampaignParticipationPostgresTests` (9),
+  `TeamPlayerGraduationYearRaceTests` (3), and `CampaignTagApplicationHttpTests` (17) all passed
+  locally.
 
 Acceptance criteria evidence:
 1. Only club administrators can mutate placements — endpoint policy + service guard; anonymous 401
