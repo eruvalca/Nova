@@ -228,6 +228,46 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a least-privileged club member without the ClubAdmin role can read both placement routes.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRoutes_ReturnPayload_ForLeastPrivilegedClubMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        // The club creator becomes a ClubAdmin, so a second user proves ordinary member access.
+        using var adminClient = fixture.CreateNovaHttpClient();
+        var adminEmail = UniqueEmail("placement-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
+        await UpdateUserAsync(adminEmail, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(adminClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
+
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var memberEmail = UniqueEmail("placement-least-privileged");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
+        await UpdateUserAsync(memberEmail, club.ClubId, cancellationToken);
+        await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
+        var seeded = await SeedPlacementDataAsync(club.ClubId, memberEmail, cancellationToken);
+
+        using var rosterResponse = await memberClient.GetAsync(
+            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = seeded.CampaignId }),
+            cancellationToken);
+        rosterResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var roster = await rosterResponse.Content.ReadFromJsonAsync<PagedResult<CampaignPlacementRosterItem>>(cancellationToken);
+        roster.ShouldNotBeNull();
+        roster.TotalCount.ShouldBe(5);
+
+        using var summaryResponse = await memberClient.GetAsync(
+            CampaignEndpoints.GetCampaignPlacementSummaryUrl(seeded.CampaignId),
+            cancellationToken);
+        summaryResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var summary = await summaryResponse.Content.ReadFromJsonAsync<CampaignPlacementSummaryDto>(cancellationToken);
+        summary.ShouldNotBeNull();
+        summary.TotalCount.ShouldBe(5);
+    }
+
+    /// <summary>
     /// Verifies anonymous callers receive unauthorized responses for both placement routes.
     /// </summary>
     [Fact]
@@ -337,6 +377,35 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
+    /// Verifies an overflowing page offset is rejected by endpoint input validation.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRoster_ReturnsValidationProblem_ForOverflowingPageOffset()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("placement-overflowing-page-offset");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        using var response = await client.GetAsync(
+            $"/api/campaigns/1/placements?page={int.MaxValue}&pageSize=2",
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        document.RootElement.GetProperty("errors")
+            .TryGetProperty(nameof(GetCampaignPlacementRosterInput.Page), out _)
+            .ShouldBeTrue();
         document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
     }
 

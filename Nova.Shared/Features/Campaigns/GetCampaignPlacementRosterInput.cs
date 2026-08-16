@@ -5,7 +5,7 @@ namespace Nova.Shared.Features.Campaigns;
 /// <summary>
 /// Request input for the bounded, filtered placement roster of a campaign.
 /// </summary>
-public sealed record GetCampaignPlacementRosterInput
+public sealed record GetCampaignPlacementRosterInput : IValidatableObject
 {
     /// <summary>
     /// The default 1-based page number for placement roster queries.
@@ -52,4 +52,17 @@ public sealed record GetCampaignPlacementRosterInput
     /// </summary>
     [Range(1, MaxPageSize)]
     public int? PageSize { get; init; } = DefaultPageSize;
+
+    /// <inheritdoc />
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        var page = Page ?? DefaultPage;
+        var pageSize = PageSize ?? DefaultPageSize;
+        if (page >= 1 && pageSize >= 1 && page > int.MaxValue / pageSize)
+        {
+            yield return new ValidationResult(
+                "The page number is too large for the requested page size.",
+                new[] { nameof(Page) });
+        }
+    }
 }

@@ -106,6 +106,37 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     }
 
     /// <summary>
+    /// Verifies paging combinations that would overflow are rejected before sending an HTTP request.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_ReturnsValidation_WithoutRequestForOverflowingPageOffset()
+    {
+        var requestSent = false;
+        var handler = new RecordingHandler(_ =>
+        {
+            requestSent = true;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput
+            {
+                CampaignId = 42,
+                Page = int.MaxValue,
+                PageSize = 2
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
+        result.Problem.Errors!.ShouldContainKey(nameof(GetCampaignPlacementRosterInput.Page));
+        requestSent.ShouldBeFalse();
+    }
+
+    /// <summary>
     /// Verifies non-success status codes are converted to service problems.
     /// </summary>
     [Fact]

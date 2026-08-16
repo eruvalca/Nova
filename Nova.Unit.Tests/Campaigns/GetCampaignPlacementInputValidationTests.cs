@@ -79,6 +79,23 @@ public sealed class GetCampaignPlacementInputValidationTests
     }
 
     /// <summary>
+    /// Verifies page offsets that would overflow an integer are rejected by shared validation.
+    /// </summary>
+    [Fact]
+    public void Validate_ReturnsPageError_WhenPageOffsetWouldOverflow()
+    {
+        var errors = InputValidator.Validate(
+            new GetCampaignPlacementRosterInput
+            {
+                CampaignId = 42,
+                Page = int.MaxValue,
+                PageSize = 2
+            });
+
+        errors.Keys.ShouldBe([nameof(GetCampaignPlacementRosterInput.Page)]);
+    }
+
+    /// <summary>
     /// Verifies non-positive campaign identifiers are rejected on the summary input.
     /// </summary>
     /// <param name="campaignId">The invalid campaign identifier.</param>

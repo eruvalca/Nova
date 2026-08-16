@@ -411,7 +411,7 @@ public static class CampaignEndpoints
             querySegments.Add($"page={input.Page.Value}");
         }
 
-        if (input.PageSize is > 0)
+        if (input.PageSize is >= 1 and <= GetCampaignPlacementRosterInput.MaxPageSize)
         {
             querySegments.Add($"pageSize={input.PageSize.Value}");
         }

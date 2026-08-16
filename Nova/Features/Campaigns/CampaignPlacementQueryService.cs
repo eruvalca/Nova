@@ -44,10 +44,6 @@ public sealed partial class CampaignPlacementQueryService(
 
         var page = input.Page ?? GetCampaignPlacementRosterInput.DefaultPage;
         var pageSize = input.PageSize ?? GetCampaignPlacementRosterInput.DefaultPageSize;
-        if (page < 1 || pageSize < 1 || page > int.MaxValue / pageSize)
-        {
-            return ServiceProblem.Validation(nameof(input.Page), "The page number is too large for the requested page size.");
-        }
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
         var campaignExists = await db.Campaigns
