@@ -1,7 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Net;
+using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Account;
+using Nova.Shared.Features.Clubs;
+using Shouldly;
 
 namespace Nova.Browser.Tests;
 
@@ -13,6 +18,8 @@ namespace Nova.Browser.Tests;
 /// <param name="ClosedCampaignId">The closed campaign identifier.</param>
 /// <param name="AdminUserId">The club administrator's user identifier.</param>
 /// <param name="AdminEmail">The club administrator's login e-mail.</param>
+/// <param name="SecondAdminUserId">The second club administrator's user identifier.</param>
+/// <param name="SecondAdminEmail">The second club administrator's login e-mail.</param>
 /// <param name="EvaluatorUserId">The approved evaluator's user identifier.</param>
 /// <param name="EvaluatorEmail">The approved evaluator's login e-mail.</param>
 /// <param name="EligibleTeamId">An active team eligible for the youngest seeded player.</param>
@@ -24,6 +31,8 @@ public sealed record SeededPlacementWorkspace(
     long ClosedCampaignId,
     long AdminUserId,
     string AdminEmail,
+    long SecondAdminUserId,
+    string SecondAdminEmail,
     long EvaluatorUserId,
     string EvaluatorEmail,
     long EligibleTeamId,
@@ -68,20 +77,54 @@ public static class PlacementSeed
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(evaluatorClient, evaluatorEmail, Password, cancellationToken);
         await SeedingHelpers.UpdateUserAsync(fixture, evaluatorEmail, club.ClubId, cancellationToken, firstName: "Bob", lastName: "Observer");
 
+        // Register a second member and promote them through the real assign-ClubAdmin endpoint so
+        // concurrent browser scenarios use independent, authoritative administrator cookies.
+        using var secondAdminClient = fixture.CreateNovaHttpClient();
+        var secondAdminEmail = SeedingHelpers.UniqueEmail("placement-second-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(secondAdminClient, secondAdminEmail, Password, cancellationToken);
+        await SeedingHelpers.UpdateUserAsync(fixture, secondAdminEmail, club.ClubId, cancellationToken, firstName: "Carol", lastName: "Reviewer");
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(secondAdminClient, cancellationToken);
+
         long adminUserId;
+        long secondAdminUserId;
         long evaluatorUserId;
         await using (var context = fixture.CreateAdminContext())
         {
             adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+            secondAdminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == secondAdminEmail.ToUpperInvariant(), cancellationToken)).Id;
             evaluatorUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == evaluatorEmail.ToUpperInvariant(), cancellationToken)).Id;
         }
+
+        using (var promotion = await adminClient.PostAsJsonAsync(
+                   ClubEndpoints.AssignAdmin,
+                   new AssignAdminInput { TargetUserId = secondAdminUserId },
+                   cancellationToken))
+        {
+            promotion.StatusCode.ShouldBe(HttpStatusCode.OK);
+            (await promotion.Content.ReadFromJsonAsync<bool>(cancellationToken)).ShouldBeTrue();
+        }
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(secondAdminClient, cancellationToken);
 
         // Active campaign: 60 Undecided participants across two pages.
         var active = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
             fixture, club.ClubId, adminEmail, "Placement", ParticipantCount, PlacementOutcome.Undecided, cancellationToken);
+        await using (var context = fixture.CreateAdminContext())
+        {
+            var assignments = await context.PlayerCampaignAssignments
+                .Where(assignment => assignment.CampaignId == active.CampaignId)
+                .OrderBy(assignment => assignment.TryoutNumber)
+                .Include(assignment => assignment.Player)
+                .ToListAsync(cancellationToken);
+            for (var index = 0; index < assignments.Count; index++)
+            {
+                assignments[index].Player.GraduationYear = index < 55 ? 2028 : 2031;
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+        }
 
         // Teams with ascending graduation-year cutoffs: Alpha/Bravo are eligible for most players,
-        // Charlie only for 2032 players, Delta is ineligible for everyone.
+        // Charlie is eligible only for the 2031 players, Delta is ineligible for everyone.
         var suffix = Guid.NewGuid().ToString("N");
         var eligibleTeamName = $"Alpha {suffix}";
         var ineligibleTeamName = $"Delta {suffix}";
@@ -108,6 +151,8 @@ public static class PlacementSeed
             closed.CampaignId,
             adminUserId,
             adminEmail,
+            secondAdminUserId,
+            secondAdminEmail,
             evaluatorUserId,
             evaluatorEmail,
             eligibleTeamId,
