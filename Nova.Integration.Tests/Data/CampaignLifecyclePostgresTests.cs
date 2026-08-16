@@ -187,7 +187,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
                 seed.ConcurrencyToken),
             cancellationToken);
 
-        await WaitForAdvisoryLockWaiterAsync(closeContext, cancellationToken);
+        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(closeContext, cancellationToken);
 
         var campaign = await closeContext.Campaigns
             .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, cancellationToken);
@@ -205,40 +205,6 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
             .SingleAsync(candidate => candidate.PlayerCampaignAssignmentId == seed.AssignmentId, cancellationToken);
         assignment.PlacementOutcome.ShouldBe(PlacementOutcome.Undecided);
         assignment.ConcurrencyToken.ShouldBe(seed.ConcurrencyToken);
-    }
-
-    /// <summary>
-    /// Waits until PostgreSQL reports a session blocked on an advisory lock.
-    /// </summary>
-    /// <param name="db">The context holding the campaign advisory lock.</param>
-    /// <param name="cancellationToken">A token that cancels polling.</param>
-    /// <returns>A task representing the polling operation.</returns>
-    private static async Task WaitForAdvisoryLockWaiterAsync(
-        NovaAdminDbContext db,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            var hasWaiter = await db.Database
-                .SqlQueryRaw<bool>(
-                    """
-                    SELECT EXISTS (
-                        SELECT 1
-                        FROM pg_stat_activity
-                        WHERE wait_event_type = 'Lock'
-                          AND wait_event = 'advisory'
-                    ) AS "Value"
-                    """)
-                .SingleAsync(cancellationToken);
-            if (hasWaiter)
-            {
-                return;
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
-        }
-
-        throw new TimeoutException("The placement mutation did not wait for the campaign advisory lock.");
     }
 
     /// <summary>
