@@ -253,11 +253,6 @@ public partial class CampaignWorkspace(
     private string _activeTab = EvaluateTabName;
 
     /// <summary>
-    /// Indicates whether the tab query parameter has been applied to component state.
-    /// </summary>
-    private bool _tabQueryApplied;
-
-    /// <summary>
     /// Indicates whether the current user holds the club administrator role.
     /// </summary>
     private bool _isClubAdmin;
@@ -409,11 +404,10 @@ public partial class CampaignWorkspace(
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
-        if (!_tabQueryApplied)
-        {
-            _tabQueryApplied = true;
-            _activeTab = CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
-        }
+        // Re-derive the active tab on every parameter set. In-app tab clicks perform a client-side,
+        // query-only navigation that reuses this component instance and re-supplies TabQuery, so a
+        // one-shot guard would leave the rendered view stuck on the initially loaded tab.
+        _activeTab = CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
 
         // The placements state is independent of the roster state; parse it on every parameter
         // set so the placements panel receives the URL-backed filters regardless of roster state.

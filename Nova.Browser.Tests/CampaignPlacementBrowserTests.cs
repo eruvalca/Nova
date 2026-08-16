@@ -33,8 +33,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
 
         var outcomeSelect = firstRow.Locator("select[aria-label^='Outcome for']");
         var teamSelect = firstRow.Locator("select[aria-label^='Team for']");
-        await outcomeSelect.SelectOptionAsync("1");
-        await Expect(teamSelect).ToBeEnabledAsync();
+        await AssignOutcomeAsync(page, outcomeSelect, teamSelect);
         await teamSelect.SelectOptionAsync(seed.EligibleTeamId.ToString());
 
         await firstRow.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
@@ -130,5 +129,43 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         }
 
         throw new TimeoutException("The unresolved-only checkbox did not hydrate within 5s.");
+    }
+
+    private static async Task AssignOutcomeAsync(IPage page, ILocator outcomeSelect, ILocator teamSelect)
+    {
+        // Prerendered row controls swallow change events until the interactive circuit re-attaches
+        // them after the roster reload. Select a distinct outcome (Assigned) and retry until the
+        // team select actually becomes enabled, never assuming a single select landed.
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            if (await teamSelect.IsEnabledAsync())
+            {
+                return;
+            }
+
+            try
+            {
+                // Force a value change on every attempt so the change event always fires, even if a
+                // previous swallowed select left the DOM value already at "1".
+                await outcomeSelect.SelectOptionAsync("0");
+                await outcomeSelect.SelectOptionAsync("1");
+            }
+            catch (PlaywrightException)
+            {
+                // The select was replaced mid-interaction or the row is still hydrating; retry.
+            }
+
+            try
+            {
+                await Expect(teamSelect).ToBeEnabledAsync(new() { Timeout = 1500 });
+                return;
+            }
+            catch (PlaywrightException)
+            {
+                await page.WaitForTimeoutAsync(250);
+            }
+        }
+
+        throw new TimeoutException("The team select did not become enabled after assigning the outcome.");
     }
 }

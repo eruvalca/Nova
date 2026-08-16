@@ -161,7 +161,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     [Fact]
-    public void CampaignWorkspace_PushesPlacementsUrl_WhenPlacementsTabSelected()
+    public void CampaignWorkspace_PushesPlacementsUrl_AndRendersPlacementsRegion_WhenPlacementsTabSelected()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -172,6 +172,30 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
         cut.FindAll("ul.nav-tabs button.nav-link")[1].Click();
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=placements"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
+        cut.Markup.ShouldNotContain("roster-region-heading");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_TabClicks_SwitchViewBackAndForth()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.Markup.ShouldContain("roster-region-heading");
+
+        // Evaluate → Placements switches the rendered region.
+        cut.FindAll("ul.nav-tabs button.nav-link")[1].Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
+        cut.Markup.ShouldNotContain("roster-region-heading");
+
+        // Placements → Evaluate switches back.
+        cut.FindAll("ul.nav-tabs button.nav-link")[0].Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("roster-region-heading"));
+        cut.Markup.ShouldNotContain("placements-region-heading");
     }
 
     // ── Not-found and forbidden ───────────────────────────────────────────────

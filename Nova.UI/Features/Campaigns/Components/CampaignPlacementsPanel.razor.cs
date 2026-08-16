@@ -584,51 +584,53 @@ public partial class CampaignPlacementsPanel(
 
         draft.IsSaving = true;
 
-        var result = await placementService.UpdatePlacementAsync(input, ComponentCancellationToken);
-
-        if (!_drafts.TryGetValue(item.PlayerCampaignAssignmentId, out draft))
+        try
         {
-            return;
-        }
+            var result = await placementService.UpdatePlacementAsync(input, ComponentCancellationToken);
 
-        draft.IsSaving = false;
-
-        var saved = false;
-        result.Switch(
-            success =>
-            {
-                draft.CurrentToken = success.ConcurrencyToken;
-                draft.RowError = null;
-                draft.SaveStatus = "Saved";
-                _saveMessage = "Placement saved.";
-                ApplySavedToDraft(draft);
-                RemoveFromUnresolvedViewIfNeeded(item, draft);
-                saved = true;
-            },
-            problem =>
-            {
-                draft.RowError = null;
-                switch (problem.Kind)
+            var saved = false;
+            result.Switch(
+                success =>
                 {
-                    case ServiceProblemKind.Conflict:
-                        EnterConflict(problem.Detail);
-                        break;
-                    case ServiceProblemKind.Validation:
-                        draft.RowError = FirstValidationMessage(problem.Errors);
-                        break;
-                    case ServiceProblemKind.Forbidden:
-                    case ServiceProblemKind.NotFound:
-                        draft.RowError = FirstNonBlank(problem.Detail, "This placement can no longer be updated.");
-                        break;
-                    default:
-                        draft.RowError = FirstNonBlank(problem.Detail, SaveFailureFallbackMessage);
-                        break;
-                }
-            });
+                    draft.CurrentToken = success.ConcurrencyToken;
+                    draft.RowError = null;
+                    draft.SaveStatus = "Saved";
+                    _saveMessage = "Placement saved.";
+                    ApplySavedToDraft(draft);
+                    RemoveFromUnresolvedViewIfNeeded(item, draft);
+                    saved = true;
+                },
+                problem =>
+                {
+                    draft.RowError = null;
+                    switch (problem.Kind)
+                    {
+                        case ServiceProblemKind.Conflict:
+                            EnterConflict(problem.Detail);
+                            break;
+                        case ServiceProblemKind.Validation:
+                            draft.RowError = FirstValidationMessage(problem.Errors);
+                            break;
+                        case ServiceProblemKind.Forbidden:
+                        case ServiceProblemKind.NotFound:
+                            draft.RowError = FirstNonBlank(problem.Detail, "This placement can no longer be updated.");
+                            break;
+                        default:
+                            draft.RowError = FirstNonBlank(problem.Detail, SaveFailureFallbackMessage);
+                            break;
+                    }
+                });
 
-        if (saved)
+            if (saved)
+            {
+                await LoadSummaryAsync();
+            }
+        }
+        finally
         {
-            await LoadSummaryAsync();
+            // Always release the per-row save gate, even if the mutation or summary refresh
+            // throws, so the row never stays stuck in the saving state.
+            draft.IsSaving = false;
         }
     }
 
@@ -696,17 +698,24 @@ public partial class CampaignPlacementsPanel(
         _conflictActive = true;
         ResetAllDrafts();
 
-        await Task.WhenAll(
-            LoadRosterAsync(),
-            LoadSummaryAsync(),
-            LoadTeamChoicesAsync(),
-            LoadGraduationYearChoicesAsync());
+        try
+        {
+            await Task.WhenAll(
+                LoadRosterAsync(),
+                LoadSummaryAsync(),
+                LoadTeamChoicesAsync(),
+                LoadGraduationYearChoicesAsync());
 
-        await OnReloadRequested.InvokeAsync();
-
-        _conflictActive = false;
-        _conflictMessage = null;
-        _reloading = false;
+            await OnReloadRequested.InvokeAsync();
+        }
+        finally
+        {
+            // Always clear the conflict/save gates, even if a reload or detail refresh throws,
+            // so the panel never stays permanently blocked with no recovery short of a page reload.
+            _conflictActive = false;
+            _conflictMessage = null;
+            _reloading = false;
+        }
     }
 
     /// <summary>

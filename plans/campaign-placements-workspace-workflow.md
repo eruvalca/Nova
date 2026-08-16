@@ -121,6 +121,12 @@ via `OnPlacementStateChangedAsync`/`OnCampaignReloadRequestedAsync`. The Placeme
 placement service substitutes; `PersistedStateCampaignWorkspace` was updated for the new constructor.
 Verified: clean build and 82 `*CampaignWorkspace*` tests pass.
 
+**Review remediation:** the tab token was originally derived once behind a `_tabQueryApplied` guard,
+which left `_activeTab` stuck after in-app (client-side, query-only) tab clicks. `OnParametersSet`
+now re-derives `_activeTab = NormalizeTab(TabQuery)` on every parameter set, and the
+`CampaignWorkspace_TabClicks_SwitchViewBackAndForth` / `…_AndRendersPlacementsRegion_WhenPlacementsTabSelected`
+bUnit tests exercise the click-to-switch path (asserting the region renders, not just the URL).
+
 ## Phase 2: Read-only placements region (data loading and rendering)
 
 Status: Complete <!-- Not started | In progress | Complete -->
@@ -250,6 +256,10 @@ the Closed transition is detected when the reloaded detail passes `CampaignStatu
 forbidden/not-found problems never trigger the discard-and-reload path. Verified: clean build and 16
 `*CampaignPlacementsPanel*` tests pass.
 
+**Review remediation:** `ReloadAndDiscardAsync` and `SaveRowAsync` now wrap their awaited bodies in
+`try/finally` so `_conflictActive`/`_reloading`/`draft.IsSaving` are always reset even if a reload,
+detail refresh, or mutation unexpectedly throws — preventing a permanently blocked panel.
+
 ## Phase 5: Browser scenarios (Aspire + Playwright)
 
 Status: Complete <!-- Not started | In progress | Complete -->
@@ -285,6 +295,11 @@ assign/save/summary/removal workflow plus a reload round-trip, the non-admin rea
 closed-campaign frozen banner. The unresolved-only checkbox toggle doubles as the hydration proof.
 Verified: 3 `*CampaignPlacementBrowserTests` pass and the full browser suite passes (15 pass, 1
 env-gated a11y skip).
+
+**Review remediation:** added the `AssignOutcomeAsync` hydration-retry helper so the outcome select
+retries until the team select actually becomes enabled — the prerendered row controls can swallow the
+first change event after the roster reload, which surfaced as an intermittent
+`Locator expected to be enabled` failure on the `SelectOptionAsync` + `ToBeEnabledAsync` sequence.
 
 ## Phase 6: Final verification
 
