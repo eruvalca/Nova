@@ -183,6 +183,71 @@ public sealed class CampaignWorkspaceUrlStateTests
             .ShouldBe("/campaigns/10?tab=evaluate");
     }
 
+    // ── Tab normalization ─────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(null, "evaluate")]
+    [InlineData("evaluate", "evaluate")]
+    [InlineData("EVALUATE", "evaluate")]
+    [InlineData("placements", "placements")]
+    [InlineData("PLACEMENTS", "placements")]
+    [InlineData("overview", "evaluate")]
+    [InlineData("garbage", "evaluate")]
+    public void NormalizeTab_ReturnsCanonicalToken_OrEvaluateFallback(string? raw, string expected)
+    {
+        CampaignWorkspaceUrlState.NormalizeTab(raw).ShouldBe(expected);
+    }
+
+    // ── Placement state ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void ParsePlacement_ThenBuild_RoundTripsEveryField()
+    {
+        var state = CampaignWorkspaceUrlState.ParsePlacement(2032, true, 3);
+        state.GraduationYear.ShouldBe(2032);
+        state.UnresolvedOnly.ShouldBeTrue();
+        state.Page.ShouldBe(3);
+
+        CampaignWorkspaceUrlState.BuildPlacementQueryString(state)
+            .ShouldBe("placementGraduationYear=2032&unresolvedOnly=true&placementPage=3");
+    }
+
+    [Fact]
+    public void ParsePlacement_FallsBackToDefaults_ForInvalidValues()
+    {
+        var state = CampaignWorkspaceUrlState.ParsePlacement(0, null, -3);
+        state.GraduationYear.ShouldBeNull();
+        state.UnresolvedOnly.ShouldBeFalse();
+        state.Page.ShouldBe(1);
+    }
+
+    [Fact]
+    public void BuildPlacementQueryString_OmitsDefaults()
+    {
+        CampaignWorkspaceUrlState.BuildPlacementQueryString(new CampaignWorkspacePlacementState()).ShouldBeEmpty();
+        CampaignWorkspaceUrlState.BuildPlacementQueryString(new CampaignWorkspacePlacementState { Page = 1 }).ShouldBeEmpty();
+        CampaignWorkspaceUrlState.BuildPlacementQueryString(new CampaignWorkspacePlacementState { UnresolvedOnly = false }).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void BuildPlacementsWorkspaceUrl_IsolatesPlacementParams_FromRosterParams()
+    {
+        CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(10, new CampaignWorkspacePlacementState())
+            .ShouldBe("/campaigns/10?tab=placements");
+
+        CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(
+                10,
+                new CampaignWorkspacePlacementState { GraduationYear = 2032, UnresolvedOnly = true, Page = 2 })
+            .ShouldBe("/campaigns/10?placementGraduationYear=2032&unresolvedOnly=true&placementPage=2&tab=placements");
+    }
+
+    [Fact]
+    public void BuildWorkspaceUrl_DoesNotEmitPlacementParams_ForRosterState()
+    {
+        CampaignWorkspaceUrlState.BuildWorkspaceUrl(10, new CampaignWorkspaceRosterState { Search = "ave" })
+            .ShouldBe("/campaigns/10?search=ave&tab=evaluate");
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static CampaignWorkspaceRosterState ParseFromQuery(string query)

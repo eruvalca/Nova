@@ -1,0 +1,264 @@
+@using System.Globalization
+@using Nova.Shared.Enums
+
+<section class="campaign-placements-panel" aria-labelledby="placements-region-heading">
+    <h2 class="h5 mb-3" id="placements-region-heading">Placements</h2>
+
+    @if (CampaignStatus == CampaignStatus.Closed)
+    {
+        <div class="alert alert-secondary py-2 small" role="note">Placements are frozen.</div>
+    }
+    else if (!CanEditPlacements)
+    {
+        <div class="alert alert-secondary py-2 small" role="note">Read-only — placements can only be edited by administrators while the campaign is active.</div>
+    }
+
+    @if (_conflictMessage is not null)
+    {
+        <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert" aria-live="assertive" tabindex="-1" @ref="_conflictRegion">
+            <span>@_conflictMessage</span>
+            <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_reloading" @onclick="ReloadAndDiscardAsync">Close and reload</button>
+        </div>
+    }
+
+    @if (_choicesLoadFailed)
+    {
+        <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+            <span>Couldn't load filter options.</span>
+            <button type="button" class="btn btn-sm btn-outline-warning" @onclick="RetryAsync">Retry</button>
+        </div>
+    }
+
+    <div class="mb-3" aria-label="Placement filters">
+        <div class="row g-3 align-items-end">
+            <div class="col-6 col-md-3">
+                <label for="placement-graduation-year" class="form-label">Graduation year</label>
+                <select id="placement-graduation-year" class="form-select" value="@GraduationYearText" @onchange="OnGraduationYearChangedAsync">
+                    <option value="">All years</option>
+                    @foreach (var year in _graduationYears)
+                    {
+                        <option value="@year.ToString(CultureInfo.InvariantCulture)">@year</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-md-9 d-flex align-items-center gap-2">
+                <div class="form-check">
+                    <input id="placement-unresolved-only" type="checkbox" class="form-check-input" checked="@State.UnresolvedOnly" @onchange="OnUnresolvedOnlyChangedAsync" />
+                    <label for="placement-unresolved-only" class="form-check-label">Unresolved only</label>
+                </div>
+                @if (HasPlacementFilter)
+                {
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OnClearFiltersAsync">Clear filters</button>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (_saveMessage is not null)
+    {
+        <div class="alert alert-success py-2 small mb-3" role="status" aria-live="polite">@_saveMessage</div>
+    }
+
+    @if (_summary is not null)
+    {
+        <div class="placement-summary text-muted small mb-3" role="status" aria-live="polite">
+            <span>@_summary.AssignedCount assigned</span><span aria-hidden="true"> | </span>
+            <span>@_summary.NotSelectedCount not selected</span><span aria-hidden="true"> | </span>
+            <span>@_summary.WithdrawnCount withdrawn</span><span aria-hidden="true"> | </span>
+            <span>@_summary.UndecidedCount undecided</span>
+        </div>
+    }
+
+    @if (_isLoading)
+    {
+        <div class="d-flex align-items-center gap-2 mt-3">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>Loading placements...</span>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3" role="alert">
+            <span>@_error</span>
+            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RetryAsync">Retry</button>
+        </div>
+    }
+    else if (_roster is not null)
+    {
+        @if (_roster.TotalCount == 0)
+        {
+            <div class="text-center py-5 mt-3">
+                @if (HasPlacementFilter)
+                {
+                    <p class="text-muted mb-3">No placements match the current filters.</p>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="OnClearFiltersAsync">Clear filters</button>
+                }
+                else
+                {
+                    <p class="text-muted mb-0">No placements in this campaign yet.</p>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive d-none d-md-block">
+                <table class="table table-hover align-middle mb-0">
+                    <caption class="visually-hidden">Campaign placements</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Player</th>
+                            <th scope="col">Grad year</th>
+                            <th scope="col">Outcome</th>
+                            <th scope="col">Team</th>
+                            @if (CanEditPlacements)
+                            {
+                                <th scope="col"><span class="visually-hidden">Save</span></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _roster.Items)
+                        {
+                            var draft = DraftFor(item);
+                            <tr id="@($"placement-row-{item.PlayerCampaignAssignmentId}")">
+                                <td><a href="@BuildPlayerLink(item)">@item.DisplayName</a></td>
+                                <td>@item.GraduationYear</td>
+                                <td>
+                                    @if (IsReadOnly)
+                                    {
+                                        <span class="badge @CampaignRosterDisplay.OutcomeBadgeClass(item.PlacementOutcome)">@CampaignRosterDisplay.OutcomeLabel(item.PlacementOutcome)</span>
+                                    }
+                                    else
+                                    {
+                                        <select aria-label="@($"Outcome for {item.DisplayName}")" class="form-select form-select-sm placement-row-control" value="@((int)draft.Outcome)" disabled="@(_conflictActive || draft.IsSaving)" @onchange="args => OnOutcomeChanged(item, args)">
+                                            <option value="0">Undecided</option>
+                                            <option value="1">Assigned</option>
+                                            <option value="2">Not selected</option>
+                                            <option value="3">Withdrawn</option>
+                                        </select>
+                                    }
+                                </td>
+                                <td>
+                                    @if (IsReadOnly)
+                                    {
+                                        <span>@(item.Team?.TeamName ?? "—")</span>
+                                    }
+                                    else
+                                    {
+                                        <select aria-label="@($"Team for {item.DisplayName}")" class="form-select form-select-sm placement-row-control" value="@TeamText(draft)" disabled="@(_conflictActive || draft.IsSaving || draft.Outcome != PlacementOutcome.Assigned)" @onchange="args => OnTeamChanged(item, args)">
+                                            <option value="">Select a team</option>
+                                            @foreach (var team in _teamChoices)
+                                            {
+                                                var ineligible = team.GraduationYear > item.GraduationYear;
+                                                <option value="@team.TeamId.ToString(CultureInfo.InvariantCulture)" disabled="@ineligible">@team.Name - cutoff @team.GraduationYear@(ineligible ? " (ineligible)" : null)</option>
+                                            }
+                                            @if (IsCurrentTeamMissing(draft))
+                                            {
+                                                <option value="@draft.TeamId!.Value.ToString(CultureInfo.InvariantCulture)" disabled>@(draft.Snapshot.Team?.TeamName ?? "Current team") (current team)</option>
+                                            }
+                                        </select>
+                                    }
+                                </td>
+                                @if (CanEditPlacements)
+                                {
+                                    <td>
+                                        @if (draft.IsSaving)
+                                        {
+                                            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                            <span class="visually-hidden">Saving</span>
+                                        }
+                                        else if (draft.IsDirty)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-primary" disabled="@_conflictActive" @onclick="() => SaveRowAsync(item)">Save</button>
+                                        }
+                                        else if (draft.SaveStatus is not null)
+                                        {
+                                            <span class="text-success small" role="status">@draft.SaveStatus</span>
+                                        }
+                                        @if (draft.RowError is not null)
+                                        {
+                                            <div class="text-danger small mt-1" role="alert">@draft.RowError</div>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-md-none" aria-label="Campaign placements">
+                <ul class="list-group list-group-flush">
+                    @foreach (var item in _roster.Items)
+                    {
+                        var draft = DraftFor(item);
+                        <li class="list-group-item" id="@($"placement-card-{item.PlayerCampaignAssignmentId}")">
+                            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                                <a href="@BuildPlayerLink(item)" class="fw-semibold">@item.DisplayName</a>
+                                @if (IsReadOnly)
+                                {
+                                    <span class="badge @CampaignRosterDisplay.OutcomeBadgeClass(item.PlacementOutcome)">@CampaignRosterDisplay.OutcomeLabel(item.PlacementOutcome)</span>
+                                }
+                                else if (draft.IsSaving)
+                                {
+                                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                }
+                                else if (draft.SaveStatus is not null)
+                                {
+                                    <span class="text-success small" role="status">@draft.SaveStatus</span>
+                                }
+                            </div>
+                            <div class="small text-muted mt-1">Grad year @item.GraduationYear</div>
+                            @if (!IsReadOnly)
+                            {
+                                <div class="mt-2 d-flex flex-column gap-2">
+                                    <div>
+                                        <label for="@($"placement-card-outcome-{item.PlayerCampaignAssignmentId}")" class="visually-hidden">Outcome for @item.DisplayName</label>
+                                        <select id="@($"placement-card-outcome-{item.PlayerCampaignAssignmentId}")" class="form-select form-select-sm placement-row-control" value="@((int)draft.Outcome)" disabled="@(_conflictActive || draft.IsSaving)" @onchange="args => OnOutcomeChanged(item, args)">
+                                            <option value="0">Undecided</option>
+                                            <option value="1">Assigned</option>
+                                            <option value="2">Not selected</option>
+                                            <option value="3">Withdrawn</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="@($"placement-card-team-{item.PlayerCampaignAssignmentId}")" class="visually-hidden">Team for @item.DisplayName</label>
+                                        <select id="@($"placement-card-team-{item.PlayerCampaignAssignmentId}")" class="form-select form-select-sm placement-row-control" value="@TeamText(draft)" disabled="@(_conflictActive || draft.IsSaving || draft.Outcome != PlacementOutcome.Assigned)" @onchange="args => OnTeamChanged(item, args)">
+                                            <option value="">Select a team</option>
+                                            @foreach (var team in _teamChoices)
+                                            {
+                                                var ineligible = team.GraduationYear > item.GraduationYear;
+                                                <option value="@team.TeamId.ToString(CultureInfo.InvariantCulture)" disabled="@ineligible">@team.Name - cutoff @team.GraduationYear@(ineligible ? " (ineligible)" : null)</option>
+                                            }
+                                            @if (IsCurrentTeamMissing(draft))
+                                            {
+                                                <option value="@draft.TeamId!.Value.ToString(CultureInfo.InvariantCulture)" disabled>@(draft.Snapshot.Team?.TeamName ?? "Current team") (current team)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    @if (draft.IsDirty && !draft.IsSaving)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-primary align-self-start" disabled="@_conflictActive" @onclick="() => SaveRowAsync(item)">Save</button>
+                                    }
+                                    @if (draft.RowError is not null)
+                                    {
+                                        <div class="text-danger small" role="alert">@draft.RowError</div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="small mt-1">Team: @(item.Team?.TeamName ?? "None")</div>
+                            }
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <CampaignRosterPager Page="@_roster.Page"
+                                 PageSize="@_roster.PageSize"
+                                 TotalCount="@_roster.TotalCount"
+                                 OnPageChanged="OnPageChangedAsync" />
+        }
+    }
+</section>

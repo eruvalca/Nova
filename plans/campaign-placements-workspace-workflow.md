@@ -75,16 +75,16 @@ result.
 
 ## Phase 1: URL state and tab bar enablement
 
-Status: Not started <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator (establishes the URL/tab contract Phases 2–4 build on).
 
-- [ ] Extend `CampaignWorkspaceUrlState` (Nova.UI/Features/Campaigns/Services/): add `PlacementsTab`
+- [x] Extend `CampaignWorkspaceUrlState` (Nova.UI/Features/Campaigns/Services/): add `PlacementsTab`
       token and `ValidTabs`; add a `CampaignWorkspacePlacementState` record (GraduationYear `int?`,
       UnresolvedOnly `bool`, Page `int`) with defensive `ParsePlacement(...)` (invalid year/bool/page
       fall back to defaults) and `BuildPlacementQueryString(...)` that omits defaults; add placement
       URL building that appends only placement params + `tab=placements`.
-- [ ] In `CampaignWorkspace.razor.cs`: add `[SupplyParameterFromQuery]` properties for
+- [x] In `CampaignWorkspace.razor.cs`: add `[SupplyParameterFromQuery]` properties for
       `placementGraduationYear`, `unresolvedOnly`, `placementPage`; replace the hard-coded
       `_activeTab = EvaluateTabName` fallback with tab-query normalization
       (`evaluate`/`placements` valid, unknown → `evaluate`) without altering roster parsing; add
@@ -92,14 +92,14 @@ Suggested executor: orchestrator (establishes the URL/tab contract Phases 2–4 
       `_canEditPlacements = detail.Status == CampaignStatus.Active && user.IsInRole(Roles.ClubAdmin)`
       from `AuthenticationStateProvider` (repo precedent: `Campaigns.razor.cs` /
       `Players.razor.cs`).
-- [ ] In `CampaignWorkspace.razor`: replace the disabled `<span>` Placements tab with a real
+- [x] In `CampaignWorkspace.razor`: replace the disabled `<span>` Placements tab with a real
       button (`role="tab"`, `aria-selected`, `@onclick="SelectPlacementsTabAsync"`); keep Evaluate as
       default; render the placements region only when `_activeTab == PlacementsTabName`; leave the
       Evaluate region untouched.
-- [ ] Update `CampaignWorkspaceTests.RegisterServices` to register substitutes for
+- [x] Update `CampaignWorkspaceTests.RegisterServices` to register substitutes for
       `ICampaignPlacementQueryService` and `ICampaignPlacementService` (and any auth test double the
       workspace now needs) so existing tests keep rendering.
-- [ ] bUnit: new `CampaignWorkspaceUrlStateTests` (parse/build round-trips, invalid tokens, page
+- [x] bUnit: new `CampaignWorkspaceUrlStateTests` (parse/build round-trips, invalid tokens, page
       bounds, placements-vs-roster param isolation); extend `CampaignWorkspaceTests` — tab switching
       pushes the placements URL, direct `?tab=placements` loads activate the tab, unknown tab falls
       back to Evaluate, Evaluate URL behavior is unchanged.
@@ -111,36 +111,44 @@ Suggested executor: orchestrator (establishes the URL/tab contract Phases 2–4 
 
 ### Phase Summary
 
-_(write when phase completes)_
+Implemented the placements URL/tab contract. Added `CampaignWorkspacePlacementState` and
+`NormalizeTab`/`ParsePlacement`/`BuildPlacementQueryString`/`BuildPlacementsWorkspaceUrl` to
+`CampaignWorkspaceUrlState` (placements params use distinct `placementGraduationYear`/`unresolvedOnly`/
+`placementPage` names). The workspace page now injects `AuthenticationStateProvider`, derives
+`_canEditPlacements` (Active + ClubAdmin), normalizes the tab query, and owns placements URL navigation
+via `OnPlacementStateChangedAsync`/`OnCampaignReloadRequestedAsync`. The Placements tab is now a real
+`role="tab"` button and the Evaluate region is wrapped in a tab guard. `RegisterServices` registers
+placement service substitutes; `PersistedStateCampaignWorkspace` was updated for the new constructor.
+Verified: clean build and 82 `*CampaignWorkspace*` tests pass.
 
 ## Phase 2: Read-only placements region (data loading and rendering)
 
-Status: Not started <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: sub-agent with a smaller model (well-specified once Phase 1 exists).
 
-- [ ] Add `CampaignPlacementsPanel.razor` / `.razor.cs` / `.razor.css` in
+- [x] Add `CampaignPlacementsPanel.razor` / `.razor.cs` / `.razor.css` in
       `Nova.UI/Features/Campaigns/Components/`: primary-constructor DI for
       `ICampaignPlacementQueryService`, `ITeamRosterService`, `ICampaignParticipantQueryService`;
       public `[Parameter]`s (CampaignId, CampaignStatus, CanEditPlacements, placement state) and
       `EventCallback`s for filter/page changes back to the page (page updates the URL).
-- [ ] Load the paged roster (`GetPlacementRosterAsync`), summary (`GetPlacementSummaryAsync`),
+- [x] Load the paged roster (`GetPlacementRosterAsync`), summary (`GetPlacementSummaryAsync`),
       Active team choices (`ITeamRosterService`, `LifecycleStatus="active"`), and graduation-year
       choices; guard duplicate startup fetches with the `[PersistentState]` Initialized pattern and
       keep explicit reload helpers for user-triggered refresh; flow `ComponentCancellationToken`
       everywhere.
-- [ ] Render loading, empty (with clear-filters affordance when filtered), and error-with-Retry
+- [x] Render loading, empty (with clear-filters affordance when filtered), and error-with-Retry
       states; reuse the pager pattern (Page/PageSize/TotalCount) per confirmed decision 3.
-- [ ] Filter bar: graduation-year select + "Unresolved only" checkbox; changes raise the
+- [x] Filter bar: graduation-year select + "Unresolved only" checkbox; changes raise the
       EventCallback and reset the page to 1.
-- [ ] Summary footer from `CampaignPlacementSummaryDto`: "`{n} assigned | {n} not selected |
+- [x] Summary footer from `CampaignPlacementSummaryDto`: "`{n} assigned | {n} not selected |
       {n} withdrawn | {n} undecided`" with `role="status" aria-live="polite"`.
-- [ ] Wide table (`d-none d-md-block`-style split) and narrow card equivalent: player name link to
+- [x] Wide table (`d-none d-md-block`-style split) and narrow card equivalent: player name link to
       `/players/{playerId}?returnUrl=...` (confirmed decision 11), graduation year, outcome, team.
       Read-only rendering = static text, no selects.
-- [ ] Read-only indicators: Closed campaigns show a muted "Placements are frozen" banner; Active +
+- [x] Read-only indicators: Closed campaigns show a muted "Placements are frozen" banner; Active +
       non-admin shows a muted read-only note (confirmed decision 7).
-- [ ] bUnit: loading/empty/error/retry; summary counts render from the DTO; read-only static
+- [x] bUnit: loading/empty/error/retry; summary counts render from the DTO; read-only static
       rendering (Closed and non-admin); player link carries the returnUrl; narrow cards render.
 
 ### Verification Plan
@@ -150,34 +158,41 @@ Suggested executor: sub-agent with a smaller model (well-specified once Phase 1 
 
 ### Phase Summary
 
-_(write when phase completes)_
+Added `CampaignPlacementsPanel.razor` / `.razor.cs` / `.razor.css` in
+`Nova.UI/Features/Campaigns/Components/`. It owns data loading (`[PersistentState]` + `Initialized`
+guard), the filter bar (graduation-year select + Unresolved-only checkbox), the
+`role="status" aria-live="polite"` summary footer, a wide table + narrow card equivalent, and the
+`CampaignRosterPager`. Read-only rendering shows static badges/text and the frozen/read-only banners.
+Player links carry `returnUrl` built from `_appliedState`. The page composes the panel on the
+placements tab. Verified: clean build and 16 `*CampaignPlacementsPanel*` tests pass (loading/empty/
+error/retry, summary, read-only, returnUrl, cards).
 
 ## Phase 3: Per-row edit state machine
 
-Status: Not started <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator (cross-cutting state machine the conflict phase extends).
 
-- [ ] Add a row-draft model (draft outcome/teamId, snapshot of the loaded row, current
+- [x] Add a row-draft model (draft outcome/teamId, snapshot of the loaded row, current
       `ConcurrencyToken`, dirty/saving/conflict flags); derive dirty by comparing draft to snapshot.
-- [ ] Per-row Outcome select (Undecided / Assigned / Not selected / Withdrawn) and Team select
+- [x] Per-row Outcome select (Undecided / Assigned / Not selected / Withdrawn) and Team select
       (format `{Team} - cutoff {year}`): Team select enabled and required only when
       Outcome = Assigned; changing away from Assigned clears the draft team; ineligible teams render
       disabled with the "ineligible" label (confirmed decision 1); a currently assigned team missing
       from Active choices renders as a disabled "current team" option (confirmed decision 12).
-- [ ] Per-row Save button (visible when dirty, disabled while saving); client-side validation before
+- [x] Per-row Save button (visible when dirty, disabled while saving); client-side validation before
       submission via `InputValidator.Validate<UpdateCampaignPlacementInput>`-shaped checks (team
       required for Assigned) with inline per-row validation messages.
-- [ ] Submit via `ICampaignPlacementService.UpdatePlacementAsync` with the row's token; map problem
+- [x] Submit via `ICampaignPlacementService.UpdatePlacementAsync` with the row's token; map problem
       kinds distinctly: validation (400) → inline row error, forbidden/not-found → row-level
       actionable message, conflict (409) → Phase 4 path; per-row duplicate-submission guard.
-- [ ] On success: adopt the returned token, mark the row saved (status message preserved across the
+- [x] On success: adopt the returned token, mark the row saved (status message preserved across the
       summary refresh and cleared at the next intentional action), refresh ONLY the summary, and
       remove the row from the unresolved-only view when the new outcome leaves `Undecided`
       (confirmed decision 5); sibling drafts untouched.
-- [ ] Accessibility: labelled selects per row (`Outcome for {name}`, `Team for {name}`), visible
+- [x] Accessibility: labelled selects per row (`Outcome for {name}`, `Team for {name}`), visible
       focus, `role="status"` save feedback, `role="alert"` row errors.
-- [ ] bUnit state-transition matrix: dirty→saving→saved; validation error renders and blocks submit;
+- [x] bUnit state-transition matrix: dirty→saving→saved; validation error renders and blocks submit;
       team required/cleared behavior; "ineligible" disabled labels; token adoption after success;
       unresolved-only row removal; duplicate-submission prevention while saving.
 
@@ -188,26 +203,34 @@ Suggested executor: orchestrator (cross-cutting state machine the conflict phase
 
 ### Phase Summary
 
-_(write when phase completes)_
+Added the per-row `PlacementRowDraft` state machine (snapshot, draft outcome/team, token,
+`IsDirty`, `IsSaving`, `SaveStatus`, `RowError`). Row Outcome/Team selects are labelled
+(`Outcome for {name}`/`Team for {name}`); the team select is enabled only for Assigned, clears on
+leaving Assigned, disables ineligible teams with an "ineligible" label, and renders a disabled
+"current team" option for a team missing from Active choices. Save runs `InputValidator.Validate`
+before submission, maps problem kinds distinctly (validation inline, forbidden/not-found row error,
+conflict → Phase 4), guards duplicate submission, adopts the returned token, refreshes only the
+summary, and removes the row from the unresolved-only view. Verified: clean build and 16
+`*CampaignPlacementsPanel*` tests pass.
 
 ## Phase 4: Conflict and Closed-transition recovery
 
-Status: Not started <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator.
 
-- [ ] On mutation conflict (409): render the actionable warning ("The placement was changed by
+- [x] On mutation conflict (409): render the actionable warning ("The placement was changed by
       someone else.") with a **Close and reload** button; block further submissions until the reload
       completes; the reload discards ALL drafts and refreshes campaign detail + roster + summary
       (confirmed decision 2); adopt server values for every row afterward.
-- [ ] Closed-while-open transition: when a rejected save or a reloaded detail shows
+- [x] Closed-while-open transition: when a rejected save or a reloaded detail shows
       `CampaignStatus == Closed`, clear all drafts and transition the panel to read-only with the
       frozen banner (issue requirement).
-- [ ] Distinguish conflict from other problem kinds so validation/forbidden/not-found never trigger
+- [x] Distinguish conflict from other problem kinds so validation/forbidden/not-found never trigger
       a full discard-and-reload.
-- [ ] Accessibility: warning region `role="alert" aria-live="assertive"` with focus moved to it;
+- [x] Accessibility: warning region `role="alert" aria-live="assertive"` with focus moved to it;
       success/failure announcements via `role="status"`.
-- [ ] bUnit: conflict clears drafts and disables saves until reload completes; reload repopulates
+- [x] bUnit: conflict clears drafts and disables saves until reload completes; reload repopulates
       rows with server values; Closed transition renders read-only and clears drafts; focus lands on
       the warning region.
 
@@ -218,27 +241,34 @@ Suggested executor: orchestrator.
 
 ### Phase Summary
 
-_(write when phase completes)_
+Conflict recovery: a 409 save sets `_conflictMessage`/`_conflictActive` (blocks all saves, focuses the
+`role="alert" aria-live="assertive"` warning via `_conflictRegion.FocusAsync()`), and "Close and
+reload" discards all drafts, reloads roster/summary/choices, then requests the page to reload detail
+via `OnReloadRequested`. Because a Closed-campaign save is returned as a conflict (409) by the server,
+the Closed transition is detected when the reloaded detail passes `CampaignStatus == Closed` down;
+`OnParametersSetAsync` then clears drafts and renders the frozen read-only banner. Validation/
+forbidden/not-found problems never trigger the discard-and-reload path. Verified: clean build and 16
+`*CampaignPlacementsPanel*` tests pass.
 
 ## Phase 5: Browser scenarios (Aspire + Playwright)
 
-Status: Not started <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: sub-agent with a smaller model (well-specified once Phases 1–4 exist).
 
-- [ ] Add `PlacementSeed` (`Nova.Browser.Tests/`) seeding an admin + approved evaluator (real
+- [x] Add `PlacementSeed` (`Nova.Browser.Tests/`) seeding an admin + approved evaluator (real
       Identity HTTP flow), an Active campaign with ~60 participants of mixed graduation years and
       outcomes (mostly `Undecided`), 3–4 active teams with different cutoff years, and a Closed
       campaign with placements; if a reusable team-insert helper is warranted, add it to
       `Nova.Integration.Tests/Http/SeedingHelpers.cs` (never copy seeding helpers per file).
-- [ ] `CampaignPlacementBrowserTests` — primary administrator workflow: open
+- [x] `CampaignPlacementBrowserTests` — primary administrator workflow: open
       `/campaigns/{id}?tab=placements`, enable "Unresolved only", assign an eligible team to a row,
       save, assert the saved status, the updated summary counts, and the row's removal from the
       unresolved-only view; assert URL/history round-trip (tab + filters restored on reload/back).
-- [ ] Non-admin approved member scenario: placements tab renders the static result view with no
+- [x] Non-admin approved member scenario: placements tab renders the static result view with no
       enabled mutation controls.
-- [ ] Closed campaign scenario: frozen banner and static rows for the admin as well.
-- [ ] Accessibility regression assertions (row control touch targets ≥24×24, contrast) in the
+- [x] Closed campaign scenario: frozen banner and static rows for the admin as well.
+- [x] Accessibility regression assertions (row control touch targets ≥24×24, contrast) in the
       exercised scenario, per the browser-suite conventions; remember the SSR-prerendered-row
       click-through/hydration helpers from `CampaignEvaluationBrowserTests`.
 
@@ -248,18 +278,24 @@ Suggested executor: sub-agent with a smaller model (well-specified once Phases 1
 
 ### Phase Summary
 
-_(write when phase completes)_
+Added `PlacementSeed` (admin + evaluator via Identity HTTP, an Active 60-participant Undecided
+campaign, four teams with cutoffs 2028/2030/2032/2033, and a Closed 3-participant campaign) and a
+shared `SeedingHelpers.InsertTeamAsync` helper. `CampaignPlacementBrowserTests` covers the admin
+assign/save/summary/removal workflow plus a reload round-trip, the non-admin read-only view, and the
+closed-campaign frozen banner. The unresolved-only checkbox toggle doubles as the hydration proof.
+Verified: 3 `*CampaignPlacementBrowserTests` pass and the full browser suite passes (15 pass, 1
+env-gated a11y skip).
 
 ## Phase 6: Final verification
 
-Status: Not started <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
-- [ ] `dotnet build Nova.slnx` — clean build.
-- [ ] `dotnet format Nova.slnx --verify-no-changes` — scope to touched files with `--include` if the
+- [x] `dotnet build Nova.slnx` — clean build.
+- [x] `dotnet format Nova.slnx --verify-no-changes` — scope to touched files with `--include` if the
       pre-existing sibling-session `CHARSET` failures persist.
-- [ ] Full unit suite: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — all pass.
-- [ ] Full integration suite: `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — all pass (Aspire AppHost + PostgreSQL).
-- [ ] Full browser suite: `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — all pass.
+- [x] Full unit suite: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — all pass.
+- [x] Full integration suite: `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — all pass (Aspire AppHost + PostgreSQL).
+- [x] Full browser suite: `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — all pass.
 
 ### Verification Plan
 
@@ -268,12 +304,32 @@ Status: Not started <!-- Not started | In progress | Complete -->
 
 ### Phase Summary
 
-_(write when phase completes)_
+All verification gates are green. `dotnet build Nova.slnx` builds clean; `dotnet format Nova.slnx
+--verify-no-changes --include <touched files>` reports no changes (exit 0); the full unit suite
+passes (1467 tests); the full integration suite passes (258 tests); the full browser suite passes
+(15 pass, 1 env-gated a11y screenshot skip — expected, requires `NOVA_A11Y_SCREENSHOTS=1`).
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Replaced the disabled Placements placeholder with a responsive campaign-placement workspace. The
+workspace page now owns a `tab=placements` URL state plus `placementGraduationYear`, `unresolvedOnly`,
+and `placementPage` query parameters (parsed defensively in `CampaignWorkspaceUrlState`), derives
+`_canEditPlacements` (Active + ClubAdmin), and composes a new `CampaignPlacementsPanel` component.
+The panel renders a filter bar, the authoritative summary footer, a wide table / narrow card
+equivalent with per-row outcome/team editing, and reuses `CampaignRosterPager`. It implements the
+per-row edit state machine (dirty/saving/saved/validation-error), concurrency-safe saves with token
+adoption, the ineligible/current-team select rules, and a conflict "Close and reload" flow that
+discards all drafts, reloads roster/summary/choices, and reloads campaign detail to detect a Closed
+transition. Read-only views render for Closed campaigns (frozen banner) and approved non-admins.
+Coverage: bUnit (`CampaignWorkspaceUrlStateTests`, `CampaignWorkspaceTests`, new
+`CampaignPlacementsPanelTests`) and browser scenarios (`PlacementSeed` +
+`CampaignPlacementBrowserTests`).
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Merge the PR into `main` (CI runs build + unit tests; integration/browser suites were validated
+   locally and are local-only).
+2. No schema, server, endpoint, or shared-contract changes are included — the placements mutation
+   (#85) and query (#86) endpoints and clients are already deployed and reused as-is.
+3. No configuration or environment changes are required; the placements tab becomes live for club
+   administrators once the UI build ships.
