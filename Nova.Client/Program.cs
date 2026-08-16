@@ -49,6 +49,7 @@ builder.Services.AddScoped<IPlayerDetailService, HttpPlayerDetailService>();
 builder.Services.AddScoped<ICampaignCreationService, HttpCampaignCreationService>();
 builder.Services.AddScoped<ICampaignQueryService, HttpCampaignQueryService>();
 builder.Services.AddScoped<ICampaignParticipantQueryService, HttpCampaignParticipantQueryService>();
+builder.Services.AddScoped<ICampaignPlacementQueryService, HttpCampaignPlacementQueryService>();
 builder.Services.AddScoped<ICampaignMetadataService, HttpCampaignMetadataService>();
 builder.Services.AddScoped<ISeasonMetadataService, HttpSeasonMetadataService>();
 builder.Services.AddScoped<ICampaignTagApplicationService, HttpCampaignTagApplicationService>();

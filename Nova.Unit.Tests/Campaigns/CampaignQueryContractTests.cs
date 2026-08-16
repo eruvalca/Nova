@@ -169,6 +169,21 @@ public sealed class CampaignQueryContractTests
     }
 
     /// <summary>
+    /// Verifies the placement roster URL builder omits page sizes rejected by the input contract.
+    /// </summary>
+    [Fact]
+    public void GetCampaignPlacementRosterUrl_OmitsOutOfRangePageSize()
+    {
+        var url = CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
+        {
+            CampaignId = 42,
+            PageSize = GetCampaignPlacementRosterInput.MaxPageSize + 1
+        });
+
+        url.ShouldBe("/api/campaigns/42/placements?page=1");
+    }
+
+    /// <summary>
     /// Verifies non-positive filter elements are rejected by the shared input validation.
     /// </summary>
     [Fact]

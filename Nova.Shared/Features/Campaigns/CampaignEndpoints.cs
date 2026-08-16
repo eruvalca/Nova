@@ -116,6 +116,36 @@ public static class CampaignEndpoints
     public const string GetCampaignParticipantGraduationYearsRouteName = "GetCampaignParticipantGraduationYears";
 
     /// <summary>
+    /// Gets the campaign placement roster route.
+    /// </summary>
+    public const string GetCampaignPlacementRoster = $"{GroupPrefix}/{{campaignId:long}}/placements";
+
+    /// <summary>
+    /// Gets the campaign placement roster route relative to the campaign group.
+    /// </summary>
+    public const string GetCampaignPlacementRosterRelative = "{campaignId:long}/placements";
+
+    /// <summary>
+    /// Gets the route name assigned to the campaign placement roster.
+    /// </summary>
+    public const string GetCampaignPlacementRosterRouteName = "GetCampaignPlacementRoster";
+
+    /// <summary>
+    /// Gets the campaign placement summary route.
+    /// </summary>
+    public const string GetCampaignPlacementSummary = $"{GroupPrefix}/{{campaignId:long}}/placements/summary";
+
+    /// <summary>
+    /// Gets the campaign placement summary route relative to the campaign group.
+    /// </summary>
+    public const string GetCampaignPlacementSummaryRelative = "{campaignId:long}/placements/summary";
+
+    /// <summary>
+    /// Gets the route name assigned to the campaign placement summary.
+    /// </summary>
+    public const string GetCampaignPlacementSummaryRouteName = "GetCampaignPlacementSummary";
+
+    /// <summary>
     /// Applies a tag definition to a campaign participation (POST).
     /// </summary>
     public const string ApplyCampaignTagApplication = $"{GroupPrefix}/tag-applications";
@@ -357,6 +387,48 @@ public static class CampaignEndpoints
     /// <returns>The graduation-years URL.</returns>
     public static string GetCampaignParticipantGraduationYearsUrl(long campaignId)
         => $"{GroupPrefix}/{campaignId}/participants/graduation-years";
+
+    /// <summary>
+    /// Builds a campaign placement roster URL from the accepted optional filters.
+    /// </summary>
+    /// <param name="input">The placement roster query input.</param>
+    /// <returns>The placement roster URL.</returns>
+    public static string GetCampaignPlacementRosterUrl(GetCampaignPlacementRosterInput input)
+    {
+        var querySegments = new List<string>();
+        if (input.GraduationYear is > 0)
+        {
+            querySegments.Add($"graduationYear={input.GraduationYear.Value}");
+        }
+
+        if (input.UnresolvedOnly == true)
+        {
+            querySegments.Add("unresolvedOnly=true");
+        }
+
+        if (input.Page is > 0)
+        {
+            querySegments.Add($"page={input.Page.Value}");
+        }
+
+        if (input.PageSize is >= 1 and <= GetCampaignPlacementRosterInput.MaxPageSize)
+        {
+            querySegments.Add($"pageSize={input.PageSize.Value}");
+        }
+
+        var baseUrl = $"{GroupPrefix}/{input.CampaignId}/placements";
+        return querySegments.Count == 0
+            ? baseUrl
+            : $"{baseUrl}?{string.Join('&', querySegments)}";
+    }
+
+    /// <summary>
+    /// Builds a campaign placement summary URL.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier.</param>
+    /// <returns>The placement summary URL.</returns>
+    public static string GetCampaignPlacementSummaryUrl(long campaignId)
+        => $"{GroupPrefix}/{campaignId}/placements/summary";
 
     /// <summary>
     /// Builds a campaign tag application removal URL.
