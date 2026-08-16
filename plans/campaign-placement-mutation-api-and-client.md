@@ -55,8 +55,9 @@ Status: Complete <!-- Not started | In progress | Complete -->
 - [x] Create `Nova/Features/Campaigns/CampaignPlacementEndpointRouteBuilderExtensions.cs`:
       - `extension(IEndpointRouteBuilder endpoints)` block with `MapCampaignPlacementEndpoints()`
         mapping `MapPut(CampaignEndpoints.UpdateCampaignPlacementRelative, ...)` under
-        `MapGroup(CampaignEndpoints.GroupPrefix).RequireAuthorization(Policies.RequireClubAdmin)`
-        with `.Produces<PlacementMutationSuccess>(200)`, `.ProducesValidationProblem()`,
+        `MapGroup(CampaignEndpoints.GroupPrefix).RequireAuthorization()` with
+        `.RequireAuthorization(Policies.RequireClubAdmin)` applied to the endpoint,
+        `.Produces<PlacementMutationSuccess>(200)`, `.ProducesValidationProblem()`,
         `.ProducesProblem(400/401/403/404/409/500)`, `.DisableAntiforgery()`, `.WithName(...)`.
       - Static `UpdateCampaignPlacementHandler(long playerCampaignAssignmentId, UpdateCampaignPlacementInput input, CampaignPlacementService placementService, CancellationToken)`
         that rejects a route/body identifier mismatch with
@@ -74,8 +75,10 @@ Status: Complete <!-- Not started | In progress | Complete -->
 
 ### Phase Summary
 
-- Endpoint builder created with `MapPut` under the shared campaign group, `RequireClubAdmin` policy, full
-  `Produces*` metadata (200/400/401/403/404/409/500), `DisableAntiforgery()`, and the shared route name.
+- Endpoint builder created with `MapPut` under the shared campaign group, where the group requires
+  authentication only (`.RequireAuthorization()`) and the PUT endpoint applies `RequireClubAdmin`
+  (the roster/summary GETs apply `RequireClubMember`), full `Produces*` metadata
+  (200/400/401/403/404/409/500), `DisableAntiforgery()`, and the shared route name.
 - Handler rejects route/body identifier mismatches with 400 BadRequest and delegates otherwise to the
   existing service, converting the OneOf via a feature-local `ToHttpResult` extension covering all five cases.
 - Wired `app.MapCampaignPlacementEndpoints()` in `Nova/Program.cs` after the other campaign mappings.
