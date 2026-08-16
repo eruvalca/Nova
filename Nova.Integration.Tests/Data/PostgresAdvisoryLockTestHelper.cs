@@ -34,11 +34,9 @@ internal static class PostgresAdvisoryLockTestHelper
             {
                 return;
             }
-
             await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
         }
 
         throw new TimeoutException("The mutation did not wait for the advisory lock.");
     }
 }
-
