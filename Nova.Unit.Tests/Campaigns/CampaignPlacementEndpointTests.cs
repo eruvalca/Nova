@@ -36,6 +36,7 @@ public sealed class CampaignPlacementEndpointTests
             Substitute.For<IDbContextFactory<NovaDbContext>>(),
             Substitute.For<ICurrentUserProvider>(),
             NullLogger<CampaignPlacementService>.Instance));
+        builder.Services.AddSingleton<ICampaignPlacementQueryService>(_ => Substitute.For<ICampaignPlacementQueryService>());
         await using var app = builder.Build();
 
         app.MapCampaignPlacementEndpoints();

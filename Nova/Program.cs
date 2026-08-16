@@ -115,6 +115,7 @@ builder.Services.AddScoped<CampaignLifecycleService>();
 builder.Services.AddScoped<ICampaignCreationService, CampaignCreationService>();
 builder.Services.AddScoped<ICampaignQueryService, CampaignQueryService>();
 builder.Services.AddScoped<ICampaignParticipantQueryService, CampaignParticipantQueryService>();
+builder.Services.AddScoped<ICampaignPlacementQueryService, CampaignPlacementQueryService>();
 builder.Services.AddScoped<ICampaignMetadataService, CampaignMetadataService>();
 builder.Services.AddScoped<ISeasonMetadataService, SeasonMetadataService>();
 builder.Services.AddScoped<IPlayerLifecycleService, PlayerLifecycleService>();
@@ -256,10 +257,10 @@ app.MapTagDefinitionEndpoints();
 app.MapCampaignCreationEndpoints();
 app.MapCampaignQueryEndpoints();
 app.MapCampaignParticipantEndpoints();
+app.MapCampaignPlacementEndpoints();
 app.MapCampaignMetadataEndpoints();
 app.MapCampaignTagApplicationEndpoints();
 app.MapCampaignEvaluationNoteEndpoints();
-app.MapCampaignPlacementEndpoints();
 
 // Player detail and campaign-history query endpoint.
 app.MapPlayerEndpoints();

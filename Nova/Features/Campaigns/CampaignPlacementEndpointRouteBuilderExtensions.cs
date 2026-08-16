@@ -6,14 +6,14 @@ using Nova.Shared.Security;
 namespace Nova.Features.Campaigns;
 
 /// <summary>
-/// Maps the administrator campaign placement update endpoint and converts placement results to HTTP.
+/// Maps campaign placement update, roster, and summary endpoints and converts placement results to HTTP.
 /// </summary>
 internal static class CampaignPlacementEndpointRouteBuilderExtensions
 {
     extension(IEndpointRouteBuilder endpoints)
     {
         /// <summary>
-        /// Maps the campaign placement update route under the shared campaign group with club-administrator authorization.
+        /// Maps the campaign placement update, roster, and summary routes under the shared campaign group.
         /// </summary>
         /// <returns>The endpoint route builder for chaining.</returns>
         public IEndpointRouteBuilder MapCampaignPlacementEndpoints()
@@ -22,7 +22,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
 
             var group = endpoints
                 .MapGroup(CampaignEndpoints.GroupPrefix)
-                .RequireAuthorization(Policies.RequireClubAdmin);
+                .RequireAuthorization();
 
             group.MapPut(CampaignEndpoints.UpdateCampaignPlacementRelative, UpdateCampaignPlacementHandler)
                 .Produces<PlacementMutationSuccess>(StatusCodes.Status200OK)
@@ -34,7 +34,28 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status409Conflict)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .DisableAntiforgery()
+                .RequireAuthorization(Policies.RequireClubAdmin)
                 .WithName(CampaignEndpoints.UpdateCampaignPlacementRouteName);
+
+            group.MapGet(CampaignEndpoints.GetCampaignPlacementRosterRelative, GetPlacementRosterHandler)
+                .Produces<PagedResult<CampaignPlacementRosterItem>>()
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .RequireAuthorization(Policies.RequireClubMember)
+                .WithName(CampaignEndpoints.GetCampaignPlacementRosterRouteName);
+
+            group.MapGet(CampaignEndpoints.GetCampaignPlacementSummaryRelative, GetPlacementSummaryHandler)
+                .Produces<CampaignPlacementSummaryDto>()
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .RequireAuthorization(Policies.RequireClubMember)
+                .WithName(CampaignEndpoints.GetCampaignPlacementSummaryRouteName);
 
             return endpoints;
         }
@@ -83,6 +104,38 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
         }
 
         var result = await placementService.UpdatePlacementAsync(input, cancellationToken);
+        return result.ToHttpResult();
+    }
+
+    /// <summary>
+    /// Handles the campaign placement roster GET request and converts the service result to an HTTP response.
+    /// </summary>
+    /// <param name="input">The paged placement roster query parameters.</param>
+    /// <param name="campaignPlacementQueryService">The service that resolves the placement roster query.</param>
+    /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
+    /// <returns>The HTTP result for the placement roster page.</returns>
+    private static async Task<IResult> GetPlacementRosterHandler(
+        [AsParameters] GetCampaignPlacementRosterInput input,
+        ICampaignPlacementQueryService campaignPlacementQueryService,
+        CancellationToken cancellationToken)
+    {
+        var result = await campaignPlacementQueryService.GetPlacementRosterAsync(input, cancellationToken);
+        return result.ToHttpResult();
+    }
+
+    /// <summary>
+    /// Handles the campaign placement summary GET request and converts the service result to an HTTP response.
+    /// </summary>
+    /// <param name="input">The placement summary query parameters.</param>
+    /// <param name="campaignPlacementQueryService">The service that resolves the placement summary query.</param>
+    /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
+    /// <returns>The HTTP result for the placement summary.</returns>
+    private static async Task<IResult> GetPlacementSummaryHandler(
+        [AsParameters] GetCampaignPlacementSummaryInput input,
+        ICampaignPlacementQueryService campaignPlacementQueryService,
+        CancellationToken cancellationToken)
+    {
+        var result = await campaignPlacementQueryService.GetPlacementSummaryAsync(input, cancellationToken);
         return result.ToHttpResult();
     }
 }
