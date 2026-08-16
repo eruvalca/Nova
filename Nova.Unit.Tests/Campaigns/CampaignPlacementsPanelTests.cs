@@ -238,6 +238,23 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
     }
 
     [Fact]
+    public void TeamSelect_RendersDisabledCurrentTeamOption_WhenAssignedTeamIsMissingFromActiveChoices()
+    {
+        var archivedTeam = new CampaignParticipantTeamSummaryDto(99, "Legacy");
+        var item = CreateRosterItem(outcome: PlacementOutcome.Assigned, team: archivedTeam);
+        RegisterServices(rosterResult: new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster(item)));
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        var currentOption = cut.FindAll("select[aria-label=\"Team for Avery Johnson\"] option")
+            .Single(option => option.GetAttribute("value") == "99");
+        currentOption.HasAttribute("disabled").ShouldBeTrue();
+        currentOption.TextContent.ShouldContain("Legacy");
+        currentOption.TextContent.ShouldContain("current team");
+    }
+
+    [Fact]
     public void Save_PreventsDuplicateSubmission_WhileSaving()
     {
         var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
