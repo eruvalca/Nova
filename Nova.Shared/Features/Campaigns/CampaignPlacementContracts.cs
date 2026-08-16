@@ -3,6 +3,12 @@
 namespace Nova.Shared.Features.Campaigns;
 
 /// <summary>
+/// Reports the new concurrency token after a placement mutation succeeds.
+/// </summary>
+/// <param name="ConcurrencyToken">The token callers must use for the next mutation.</param>
+public readonly record struct PlacementMutationSuccess(Guid ConcurrencyToken);
+
+/// <summary>
 /// Bounded placement roster row for a campaign participant. Carries every persisted field needed to
 /// render the row and to submit an <see cref="UpdateCampaignPlacementInput"/> without a per-row detail request.
 /// </summary>

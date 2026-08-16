@@ -108,6 +108,7 @@ builder.Services.AddScoped<IPlayerService, PlayerService>();
 builder.Services.AddScoped<EvaluationNoteService>();
 builder.Services.AddScoped<ICampaignEvaluationNoteService>(services => services.GetRequiredService<EvaluationNoteService>());
 builder.Services.AddScoped<CampaignPlacementService>();
+builder.Services.AddScoped<ICampaignPlacementService>(services => services.GetRequiredService<CampaignPlacementService>());
 builder.Services.AddScoped<CampaignTagApplicationService>();
 builder.Services.AddScoped<ICampaignTagApplicationService>(services => services.GetRequiredService<CampaignTagApplicationService>());
 builder.Services.AddScoped<CampaignLifecycleService>();
