@@ -1,9 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Shared;
 using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Results;
 using Nova.Shared.Validation;
 using OneOf;
 using OneOf.Types;
@@ -44,8 +46,22 @@ public partial class PlacementUpdateResult : OneOfBase<
 public sealed partial class CampaignPlacementService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<CampaignPlacementService> logger)
+    ILogger<CampaignPlacementService> logger) : ICampaignPlacementService
 {
+    /// <inheritdoc />
+    async Task<ServiceResult<PlacementMutationSuccess>> ICampaignPlacementService.UpdatePlacementAsync(
+        UpdateCampaignPlacementInput input,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await UpdatePlacementAsync(input, cancellationToken);
+        return outcome.Match<ServiceResult<PlacementMutationSuccess>>(
+            success => success,
+            validation => ServiceProblem.Validation(validation.Value),
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
+
     /// <summary>
     /// Updates one campaign participant's outcome and optional team.
     /// </summary>
@@ -73,31 +89,64 @@ public sealed partial class CampaignPlacementService(
             return new PlacementForbidden("You must be a club administrator to update campaign placements.");
         }
 
+        // One stable replacement token for the whole logical request lets a retry after an
+        // ambiguous commit recognize the write it already persisted instead of reporting a
+        // spurious conflict against its own committed token.
+        var replacementToken = Guid.NewGuid();
+
         return await ExecuteWithFreshContextAsync(
-            db => UpdatePlacementAttemptAsync(db, input, userId, clubId, cancellationToken),
+            (db, commitAttempted) => UpdatePlacementAttemptAsync(
+                db, input, userId, clubId, replacementToken, commitAttempted, cancellationToken),
+            db => VerifyPlacementCommittedAsync(
+                db, input.PlayerCampaignAssignmentId, replacementToken, cancellationToken),
             cancellationToken);
     }
 
     /// <summary>
     /// Runs a placement mutation inside EF Core's retrying execution strategy with a fresh
-    /// tenant context per attempt.
+    /// tenant context per attempt, and verifies whether an ambiguous commit succeeded before the
+    /// strategy replays the mutation. Verification only runs for an attempt that reached its commit;
+    /// a transient failure raised before the commit cannot have applied the mutation, so the observed
+    /// state belongs to an earlier request and must not be credited to this one.
     /// </summary>
     /// <typeparam name="TResult">The result produced by the operation.</typeparam>
-    /// <param name="operation">The mutation to execute with a fresh tenant context.</param>
-    /// <param name="cancellationToken">A token that cancels strategy setup or the operation.</param>
-    /// <returns>The result returned by the successful execution-strategy attempt.</returns>
+    /// <param name="operation">The mutation to execute with a fresh tenant context and commit tracker.</param>
+    /// <param name="verifySucceeded">The verification query to run with a fresh tenant context.</param>
+    /// <param name="cancellationToken">A token that cancels strategy setup, the mutation, or verification.</param>
+    /// <returns>The mutation result or the reconstructed result from successful commit verification.</returns>
     private async Task<TResult> ExecuteWithFreshContextAsync<TResult>(
-        Func<NovaDbContext, Task<TResult>> operation,
+        Func<NovaDbContext, CommitAttemptTracker, Task<TResult>> operation,
+        Func<NovaDbContext, Task<ExecutionResult<TResult>>> verifySucceeded,
         CancellationToken cancellationToken)
     {
         await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
 
-        return await strategy.ExecuteAsync(async () =>
-        {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            return await operation(db);
-        });
+        // Records whether the most recent attempt reached CommitAsync. Verification is only
+        // meaningful for that attempt: a transient failure raised before the commit cannot have
+        // applied the mutation, so the observed state belongs to some earlier request and must
+        // not be mistaken for this one's ambiguous commit.
+        var commitAttempted = new CommitAttemptTracker();
+
+        return await strategy.ExecuteAsync(
+            (Operation: operation, VerifySucceeded: verifySucceeded, CommitAttempted: commitAttempted),
+            async (state, _) =>
+            {
+                state.CommitAttempted.Reset();
+                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                return await state.Operation(db, state.CommitAttempted);
+            },
+            async (state, _) =>
+            {
+                if (!state.CommitAttempted.Attempted)
+                {
+                    return new ExecutionResult<TResult>(successful: false, default!);
+                }
+
+                await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+                return await state.VerifySucceeded(db);
+            },
+            cancellationToken);
     }
 
     /// <summary>
@@ -107,6 +156,8 @@ public sealed partial class CampaignPlacementService(
     /// <param name="input">The requested placement values and expected concurrency token.</param>
     /// <param name="userId">The acting administrator identifier.</param>
     /// <param name="clubId">The current tenant club identifier.</param>
+    /// <param name="replacementToken">The stable token this logical request writes on success.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels database work.</param>
     /// <returns>The placement update result for this attempt.</returns>
     private async Task<PlacementUpdateResult> UpdatePlacementAttemptAsync(
@@ -114,6 +165,8 @@ public sealed partial class CampaignPlacementService(
         UpdateCampaignPlacementInput input,
         long userId,
         long clubId,
+        Guid replacementToken,
+        CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -174,21 +227,33 @@ public sealed partial class CampaignPlacementService(
 
             participation.PlacementOutcome = input.Outcome;
             participation.TeamId = input.TeamId;
-            participation.ConcurrencyToken = Guid.NewGuid();
+            participation.ConcurrencyToken = replacementToken;
 
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
+                commitAttempted.MarkAttempted();
                 await transaction.CommitAsync(cancellationToken);
             }
             catch (DbUpdateConcurrencyException)
             {
+                // A retry after an ambiguous commit re-reads the already-written replacement token
+                // and fails the original-value check. Reload the persisted token: when it matches the
+                // token this logical request generated, the write already landed and the commit just
+                // surfaced as a conflict on replay, so report success. Otherwise the conflict is real.
+                await db.Entry(participation).ReloadAsync(cancellationToken);
+                if (participation.ConcurrencyToken == replacementToken)
+                {
+                    LogPlacementUpdated(input.PlayerCampaignAssignmentId, userId);
+                    return new PlacementMutationSuccess(replacementToken);
+                }
+
                 LogPlacementConflict(input.PlayerCampaignAssignmentId, userId);
                 return new PlacementConflict("The placement was changed by another user. Reload it and try again.");
             }
 
             LogPlacementUpdated(input.PlayerCampaignAssignmentId, userId);
-            return new PlacementMutationSuccess(participation.ConcurrencyToken);
+            return new PlacementMutationSuccess(replacementToken);
         }
 
         Task<PlacementUpdateResult> RejectClosedCampaignAsync(PlacementCampaignClosed _)
@@ -231,6 +296,34 @@ public sealed partial class CampaignPlacementService(
                         ]
                     }));
         }
+    }
+
+    /// <summary>
+    /// Verifies whether an ambiguous placement commit persisted this request's replacement token, and
+    /// reconstructs the success result when it did.
+    /// </summary>
+    /// <param name="db">The fresh tenant context used for commit verification.</param>
+    /// <param name="playerCampaignAssignmentId">The campaign participation identifier.</param>
+    /// <param name="replacementToken">The stable token this logical request generated.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>Whether the commit landed, along with the reconstructed result when it did.</returns>
+    private static async Task<ExecutionResult<PlacementUpdateResult>> VerifyPlacementCommittedAsync(
+        NovaDbContext db,
+        long playerCampaignAssignmentId,
+        Guid replacementToken,
+        CancellationToken cancellationToken)
+    {
+        var persistedToken = await db.PlayerCampaignAssignments
+            .AsNoTracking()
+            .Where(assignment => assignment.PlayerCampaignAssignmentId == playerCampaignAssignmentId)
+            .Select(assignment => (Guid?)assignment.ConcurrencyToken)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return persistedToken == replacementToken
+            ? new ExecutionResult<PlacementUpdateResult>(
+                successful: true,
+                new PlacementMutationSuccess(replacementToken))
+            : new ExecutionResult<PlacementUpdateResult>(successful: false, default!);
     }
 
     /// <summary>

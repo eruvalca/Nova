@@ -157,7 +157,9 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies an unparseable JSON payload is rejected before the handler runs. The framework's
     /// body binding throws BadHttpRequestException, which the API exception-handler pipeline
     /// surfaces as a 500 server error in the current foundation — the placement endpoint itself
-    /// never executes.
+    /// never executes. The pinned 500 is tracked as known foundation debt in
+    /// https://github.com/eruvalca/Nova/issues/91; this assertion stays until the pipeline maps
+    /// BadHttpRequestException to 400 ProblemDetails.
     /// </summary>
     [Fact]
     public async Task CampaignPlacementUpdate_ReturnsServerError_ForUnparseableJsonBody()
