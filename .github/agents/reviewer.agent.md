@@ -2,8 +2,17 @@
 name: reviewer
 description: "Reviewer agent for the Orchestrator workflow. Reviews the Builder agent's pull requests (or any PR, diff, branch, file, or pasted code) using the /code-review skill, producing severity-ranked findings with file:line evidence and concrete suggested fixes, posted to the PR as a pending review with a Comment verdict. Invoke when the Orchestrator needs a code review, PR review, review findings, a review of the Builder's completed work, or a severity-ranked review report for a change set."
 argument-hint: "PR number, branch, file path, or diff to review"
-tools: [read, search, web, skill, execute, github/*, github.vscode-pull-request-github/*]
-model: 7caf4448-4bc1-4744-9079-ba2695161d8c/deepseek-v4-pro
+tools:
+    [
+        read,
+        search,
+        web,
+        skill,
+        execute,
+        github/*,
+        github.vscode-pull-request-github/*,
+    ]
+model: mai-code-1.1-flash
 user-invocable: true
 ---
 
