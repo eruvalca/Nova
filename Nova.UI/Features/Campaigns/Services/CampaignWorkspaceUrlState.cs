@@ -49,14 +49,45 @@ public sealed record CampaignWorkspaceRosterState
 }
 
 /// <summary>
-/// Provides pure, defensive URL round-tripping for the campaign workspace roster.
+/// Represents the placement filter and paging state reflected in the campaign workspace URL.
+/// </summary>
+public sealed record CampaignWorkspacePlacementState
+{
+    /// <summary>
+    /// Gets the exact graduation-year filter, or <see langword="null"/> when unfiltered.
+    /// </summary>
+    public int? GraduationYear { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether only unresolved (Undecided) placements are shown.
+    /// </summary>
+    public bool UnresolvedOnly { get; init; }
+
+    /// <summary>
+    /// Gets the one-based placement roster page number.
+    /// </summary>
+    public int Page { get; init; } = 1;
+}
+
+/// <summary>
+/// Provides pure, defensive URL round-tripping for the campaign workspace roster and placements.
 /// </summary>
 public static class CampaignWorkspaceUrlState
 {
     /// <summary>
-    /// The only functional workspace tab token in this phase.
+    /// The evaluate workspace tab token.
     /// </summary>
     public const string EvaluateTab = "evaluate";
+
+    /// <summary>
+    /// The placements workspace tab token.
+    /// </summary>
+    public const string PlacementsTab = "placements";
+
+    /// <summary>
+    /// The contract-supported workspace tab tokens, in canonical lowercase form.
+    /// </summary>
+    private static readonly string[] ValidTabs = [EvaluateTab, PlacementsTab];
 
     /// <summary>
     /// The contract-supported placement-outcome tokens, in canonical lowercase form.
@@ -192,6 +223,77 @@ public static class CampaignWorkspaceUrlState
         {
             parts.Add($"participant={participantId}");
         }
+
+        return $"/campaigns/{campaignId}?{string.Join("&", parts)}";
+    }
+
+    /// <summary>
+    /// Normalizes a raw workspace tab token to a canonical tab, falling back to the evaluate tab.
+    /// </summary>
+    /// <param name="raw">The raw tab query value.</param>
+    /// <returns>The canonical tab token: <c>evaluate</c> or <c>placements</c>; unknown values fall back to <c>evaluate</c>.</returns>
+    public static string NormalizeTab(string? raw)
+        => NormalizeToken(raw, ValidTabs) ?? EvaluateTab;
+
+    /// <summary>
+    /// Parses raw placement query values into a defensive placement state, falling back to defaults for invalid values.
+    /// </summary>
+    /// <param name="graduationYear">The raw placement graduation-year query value.</param>
+    /// <param name="unresolvedOnly">The raw unresolved-only query value.</param>
+    /// <param name="page">The raw placement page-number query value.</param>
+    /// <returns>A defensive placement state built from the supplied values.</returns>
+    public static CampaignWorkspacePlacementState ParsePlacement(int? graduationYear, bool? unresolvedOnly, int? page)
+        => new()
+        {
+            GraduationYear = graduationYear is > 0 ? graduationYear : null,
+            UnresolvedOnly = unresolvedOnly == true,
+            Page = page is >= 1 ? page.Value : 1
+        };
+
+    /// <summary>
+    /// Builds the canonical placement query string for the supplied state, omitting default values.
+    /// </summary>
+    /// <param name="state">The placement state to serialize.</param>
+    /// <returns>The canonical query string without a leading question mark.</returns>
+    public static string BuildPlacementQueryString(CampaignWorkspacePlacementState state)
+    {
+        var parts = new List<string>(3);
+
+        if (state.GraduationYear is not null)
+        {
+            parts.Add($"placementGraduationYear={state.GraduationYear}");
+        }
+
+        if (state.UnresolvedOnly)
+        {
+            parts.Add("unresolvedOnly=true");
+        }
+
+        if (state.Page > 1)
+        {
+            parts.Add($"placementPage={state.Page}");
+        }
+
+        return string.Join("&", parts);
+    }
+
+    /// <summary>
+    /// Builds the full placements workspace URL for the supplied state, always carrying the
+    /// placements tab token and only the placement query parameters.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier from the route.</param>
+    /// <param name="state">The placement state to serialize.</param>
+    /// <returns>The relative placements workspace URL.</returns>
+    public static string BuildPlacementsWorkspaceUrl(long campaignId, CampaignWorkspacePlacementState state)
+    {
+        var parts = new List<string>(4);
+        var query = BuildPlacementQueryString(state);
+        if (!string.IsNullOrEmpty(query))
+        {
+            parts.Add(query);
+        }
+
+        parts.Add($"tab={PlacementsTab}");
 
         return $"/campaigns/{campaignId}?{string.Join("&", parts)}";
     }

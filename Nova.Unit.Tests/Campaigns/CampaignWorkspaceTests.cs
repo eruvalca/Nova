@@ -89,9 +89,12 @@ public sealed class CampaignWorkspaceTests : BunitContext
         activeTabs.Count.ShouldBe(1);
         activeTabs[0].TextContent.Trim().ShouldBe("Evaluate");
 
+        var tabButtons = cut.FindAll("ul.nav-tabs button.nav-link");
+        tabButtons.Select(tab => tab.TextContent.Trim()).ShouldBe(new[] { "Evaluate", "Placements" });
+
         var disabledTabs = cut.FindAll("ul.nav-tabs .nav-link.disabled");
-        disabledTabs.Count.ShouldBe(3);
-        disabledTabs.Select(tab => tab.TextContent.Trim()).ShouldBe(new[] { "Overview", "Placements", "Closeout" });
+        disabledTabs.Count.ShouldBe(2);
+        disabledTabs.Select(tab => tab.TextContent.Trim()).ShouldBe(new[] { "Overview", "Closeout" });
         disabledTabs.ShouldAllBe(tab => tab.GetAttribute("title") == "Coming soon");
     }
 
@@ -135,8 +138,64 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
 
-        cut.Find("ul.nav-tabs button.nav-link").Click();
+        cut.FindAll("ul.nav-tabs button.nav-link")[0].Click();
         cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=evaluate"));
+    }
+
+    [Fact]
+    public void CampaignWorkspace_ActivatesPlacementsTab_WhenTabQueryIsPlacements()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=placements");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        var activeTabs = cut.FindAll("ul.nav-tabs .nav-link.active");
+        activeTabs.Count.ShouldBe(1);
+        activeTabs[0].TextContent.Trim().ShouldBe("Placements");
+
+        cut.Markup.ShouldContain("placements-region-heading");
+        cut.Markup.ShouldNotContain("roster-region-heading");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_PushesPlacementsUrl_AndRendersPlacementsRegion_WhenPlacementsTabSelected()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.FindAll("ul.nav-tabs button.nav-link")[1].Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=placements"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
+        cut.Markup.ShouldNotContain("roster-region-heading");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_TabClicks_SwitchViewBackAndForth()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.Markup.ShouldContain("roster-region-heading");
+
+        // Evaluate → Placements switches the rendered region.
+        cut.FindAll("ul.nav-tabs button.nav-link")[1].Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("placements-region-heading"));
+        cut.Markup.ShouldNotContain("roster-region-heading");
+
+        // Placements → Evaluate switches back.
+        cut.FindAll("ul.nav-tabs button.nav-link")[0].Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("roster-region-heading"));
+        cut.Markup.ShouldNotContain("placements-region-heading");
     }
 
     // ── Not-found and forbidden ───────────────────────────────────────────────
@@ -1292,7 +1351,9 @@ public sealed class CampaignWorkspaceTests : BunitContext
         ServiceResult<PagedResult<CampaignParticipantRosterItem>>? rosterResult = null,
         IReadOnlyList<int>? graduationYearChoices = null,
         IReadOnlyList<TagDefinitionDto>? tagChoices = null,
-        IReadOnlyList<TeamRosterItem>? teamChoices = null)
+        IReadOnlyList<TeamRosterItem>? teamChoices = null,
+        ICampaignPlacementQueryService? placementQueryService = null,
+        ICampaignPlacementService? placementService = null)
     {
         if (campaignQueryService is null)
         {
@@ -1328,12 +1389,31 @@ public sealed class CampaignWorkspaceTests : BunitContext
             .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TeamRosterItem>>(
                 (teamChoices ?? CreateTeamChoices()).ToList())));
 
+        if (placementQueryService is null)
+        {
+            placementQueryService = Substitute.For<ICampaignPlacementQueryService>();
+            placementQueryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreatePlacementRoster())));
+            placementQueryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreatePlacementSummary())));
+        }
+
+        if (placementService is null)
+        {
+            placementService = Substitute.For<ICampaignPlacementService>();
+            placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new ServiceResult<PlacementMutationSuccess>(
+                    new PlacementMutationSuccess(Guid.NewGuid()))));
+        }
+
         Services.AddSingleton(campaignQueryService);
         Services.AddSingleton(participantQueryService);
         Services.AddSingleton(tagDefinitionQueryService);
         Services.AddSingleton(evaluationNoteService);
         Services.AddSingleton(tagApplicationService);
         Services.AddSingleton(teamRosterService);
+        Services.AddSingleton(placementQueryService);
+        Services.AddSingleton(placementService);
         Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal()));
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
@@ -1431,6 +1511,36 @@ public sealed class CampaignWorkspaceTests : BunitContext
         PlacementOutcome: PlacementOutcome.Undecided,
         Team: null,
         AppliedTags: []);
+
+    private static PagedResult<CampaignPlacementRosterItem> CreatePlacementRoster() => new(
+        Items: [CreatePlacementRosterItem()],
+        Page: 1,
+        PageSize: GetCampaignPlacementRosterInput.DefaultPageSize,
+        TotalCount: 1);
+
+    private static CampaignPlacementRosterItem CreatePlacementRosterItem(
+        string displayName = "Avery Johnson",
+        long assignmentId = 301,
+        PlacementOutcome outcome = PlacementOutcome.Undecided,
+        CampaignParticipantTeamSummaryDto? team = null) => new(
+        PlayerCampaignAssignmentId: assignmentId,
+        PlayerId: 7,
+        DisplayName: displayName,
+        GraduationYear: 2032,
+        outcome,
+        team,
+        Guid.NewGuid());
+
+    private static CampaignPlacementSummaryDto CreatePlacementSummary(
+        int assigned = 0,
+        int notSelected = 0,
+        int withdrawn = 0,
+        int undecided = 1) => new(
+        AssignedCount: assigned,
+        NotSelectedCount: notSelected,
+        WithdrawnCount: withdrawn,
+        UndecidedCount: undecided,
+        TotalCount: assigned + notSelected + withdrawn + undecided);
 
     /// <summary>
     /// Creates a participant query-service fake whose roster returns page 1 with assignments 301–303
@@ -1535,9 +1645,10 @@ public sealed class CampaignWorkspaceTests : BunitContext
         ICampaignParticipantQueryService participantQueryService,
         ITagDefinitionQueryService tagDefinitionQueryService,
         ITeamRosterService teamRosterService,
+        AuthenticationStateProvider authenticationStateProvider,
         NavigationManager navigationManager,
         IJSRuntime jsRuntime)
-        : CampaignWorkspacePage(campaignQueryService, participantQueryService, tagDefinitionQueryService, teamRosterService, navigationManager, jsRuntime)
+        : CampaignWorkspacePage(campaignQueryService, participantQueryService, tagDefinitionQueryService, teamRosterService, authenticationStateProvider, navigationManager, jsRuntime)
     {
         [Parameter]
         public bool StartInitialized { get; set; }

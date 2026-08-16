@@ -2,6 +2,7 @@
 @rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Enums
 @using Nova.Shared.Security
 @using Nova.UI.Features.Campaigns.Components
 
@@ -59,19 +60,23 @@
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <span class="nav-link disabled" aria-disabled="true" title="Coming soon">Overview</span>
+                <button type="button" class="nav-link @(_activeTab == PlacementsTabName ? "active" : null)" role="tab" aria-selected="@(_activeTab == PlacementsTabName ? "true" : "false")" @onclick="SelectPlacementsTabAsync">
+                    Placements
+                </button>
             </li>
             <li class="nav-item" role="presentation">
-                <span class="nav-link disabled" aria-disabled="true" title="Coming soon">Placements</span>
+                <span class="nav-link disabled" aria-disabled="true" title="Coming soon">Overview</span>
             </li>
             <li class="nav-item" role="presentation">
                 <span class="nav-link disabled" aria-disabled="true" title="Coming soon">Closeout</span>
             </li>
         </ul>
 
-        <section class="card shadow-sm border-0" aria-labelledby="roster-region-heading">
-            <div class="card-body">
-                <h2 class="h5 mb-3" id="roster-region-heading">Evaluate roster</h2>
+        @if (_activeTab == EvaluateTabName)
+        {
+            <section class="card shadow-sm border-0" aria-labelledby="roster-region-heading">
+                <div class="card-body">
+                    <h2 class="h5 mb-3" id="roster-region-heading">Evaluate roster</h2>
 
                 @if (_choicesLoadFailed)
                 {
@@ -149,6 +154,16 @@
                 }
             </div>
         </section>
+        }
+        else if (_activeTab == PlacementsTabName)
+        {
+            <CampaignPlacementsPanel CampaignId="@CampaignId"
+                                     CampaignStatus="@(_detail?.Status ?? CampaignStatus.Closed)"
+                                     CanEditPlacements="@_canEditPlacements"
+                                     State="@_placementState"
+                                     OnStateChanged="OnPlacementStateChangedAsync"
+                                     OnReloadRequested="OnCampaignReloadRequestedAsync" />
+        }
 
         @if (_selectedParticipantId is not null)
         {

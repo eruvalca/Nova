@@ -171,6 +171,39 @@ internal static class SeedingHelpers
     }
 
     /// <summary>
+    /// Inserts an active team for the given club with the requested graduation-year cutoff.
+    /// </summary>
+    /// <param name="fixture">The AppHost fixture providing the admin context.</param>
+    /// <param name="clubId">The owning club identifier.</param>
+    /// <param name="adminEmail">A registered user email whose database row provides the created-by identifier.</param>
+    /// <param name="name">The team name.</param>
+    /// <param name="graduationYear">The minimum player graduation year eligible for the team.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The new team identifier.</returns>
+    public static async Task<long> InsertTeamAsync(
+        NovaAppHostFixture fixture,
+        long clubId,
+        string adminEmail,
+        string name,
+        int graduationYear,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var user = await context.Users
+            .SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
+        var team = new TeamEntity
+        {
+            Name = name,
+            GraduationYear = graduationYear,
+            ClubId = clubId,
+            CreatedById = user.Id
+        };
+        context.Add(team);
+        await context.SaveChangesAsync(cancellationToken);
+        return team.TeamId;
+    }
+
+    /// <summary>
     /// Inserts a tag definition for the club that owns the given assignment.
     /// </summary>
     /// <param name="fixture">The AppHost fixture providing the admin context.</param>

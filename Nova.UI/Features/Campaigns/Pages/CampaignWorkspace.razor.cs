@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
+using Nova.Shared.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Campaigns.Services;
 
@@ -17,6 +19,7 @@ namespace Nova.UI.Features.Campaigns.Pages;
 /// <param name="participantQueryService">The campaign roster query service.</param>
 /// <param name="tagDefinitionQueryService">The tag-definition choices service used by roster filters.</param>
 /// <param name="teamRosterService">The team choices service used by roster filters.</param>
+/// <param name="authenticationStateProvider">The authentication state provider used for role derivation.</param>
 /// <param name="navigationManager">The navigation manager used for URL history and redirects.</param>
 /// <param name="jsRuntime">The JavaScript runtime used to import the collocated workspace module.</param>
 public partial class CampaignWorkspace(
@@ -24,6 +27,7 @@ public partial class CampaignWorkspace(
     ICampaignParticipantQueryService participantQueryService,
     ITagDefinitionQueryService tagDefinitionQueryService,
     ITeamRosterService teamRosterService,
+    AuthenticationStateProvider authenticationStateProvider,
     NavigationManager navigationManager,
     IJSRuntime jsRuntime) : NovaComponentBase
 {
@@ -38,9 +42,14 @@ public partial class CampaignWorkspace(
     private const int RosterPageSize = GetCampaignParticipantRosterInput.DefaultPageSize;
 
     /// <summary>
-    /// The name of the evaluate tab, the only functional workspace section in this phase.
+    /// The name of the evaluate workspace tab.
     /// </summary>
     private const string EvaluateTabName = CampaignWorkspaceUrlState.EvaluateTab;
+
+    /// <summary>
+    /// The name of the placements workspace tab.
+    /// </summary>
+    private const string PlacementsTabName = CampaignWorkspaceUrlState.PlacementsTab;
 
     /// <summary>
     /// The scrollable roster results region used for scroll anchoring and keyboard activation suppression.
@@ -132,6 +141,24 @@ public partial class CampaignWorkspace(
     private string? ParticipantQuery { get; set; }
 
     /// <summary>
+    /// Gets or sets the incoming placements graduation-year query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "placementGraduationYear")]
+    private int? PlacementGraduationYearQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming placements unresolved-only query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "unresolvedOnly")]
+    private bool? UnresolvedOnlyQuery { get; set; }
+
+    /// <summary>
+    /// Gets or sets the incoming placements page-number query parameter.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "placementPage")]
+    private int? PlacementPageQuery { get; set; }
+
+    /// <summary>
     /// Gets or sets the persisted campaign detail used across prerender and interactive attach.
     /// </summary>
     [PersistentState]
@@ -221,14 +248,19 @@ public partial class CampaignWorkspace(
     private bool _rosterLoading;
 
     /// <summary>
-    /// The active workspace tab; only the evaluate tab is functional in this phase.
+    /// The active workspace tab.
     /// </summary>
     private string _activeTab = EvaluateTabName;
 
     /// <summary>
-    /// Indicates whether the tab query parameter has been applied to component state.
+    /// Indicates whether the current user holds the club administrator role.
     /// </summary>
-    private bool _tabQueryApplied;
+    private bool _isClubAdmin;
+
+    /// <summary>
+    /// The applied placement filter and paging state reflected in the workspace URL.
+    /// </summary>
+    private CampaignWorkspacePlacementState _placementState = new();
 
     /// <summary>
     /// The applied roster filter, sort, and paging state.
@@ -311,6 +343,14 @@ public partial class CampaignWorkspace(
     private bool HasActiveFilters => CampaignWorkspaceUrlState.HasActiveFilters(_filters);
 
     /// <summary>
+    /// Gets a value indicating whether the current user may edit placements for the loaded campaign.
+    /// </summary>
+    private bool _canEditPlacements
+        => _detail is not null
+            && _detail.Status == CampaignStatus.Active
+            && _isClubAdmin;
+
+    /// <summary>
     /// Gets the roster item matching the open participant, or <see langword="null"/> when the drawer is closed or the item is not on the loaded page.
     /// </summary>
     private CampaignParticipantRosterItem? SelectedRosterItem
@@ -364,11 +404,20 @@ public partial class CampaignWorkspace(
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
-        if (!_tabQueryApplied)
+        // Re-derive the active tab on every parameter set. In-app tab clicks perform a client-side,
+        // query-only navigation that reuses this component instance and re-supplies TabQuery, so a
+        // one-shot guard would leave the rendered view stuck on the initially loaded tab.
+        _activeTab = CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
+
+        // The placements state is independent of the roster state; parse it on every parameter
+        // set so the placements panel receives the URL-backed filters regardless of roster state.
+        var placement = CampaignWorkspaceUrlState.ParsePlacement(
+            PlacementGraduationYearQuery,
+            UnresolvedOnlyQuery,
+            PlacementPageQuery);
+        if (placement != _placementState)
         {
-            _tabQueryApplied = true;
-            // Only the evaluate tab is functional; any other tab value falls back to it.
-            _activeTab = EvaluateTabName;
+            _placementState = placement;
         }
 
         // Participant selection lives outside the roster state so opening/closing the drawer
@@ -427,6 +476,9 @@ public partial class CampaignWorkspace(
     protected override async Task OnInitializedAsync()
     {
         ApplyInitialQueryState();
+
+        var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
+        _isClubAdmin = authenticationState.User.IsInRole(Roles.ClubAdmin);
 
         if (Initialized)
         {
@@ -850,6 +902,51 @@ public partial class CampaignWorkspace(
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Selects the placements tab, pushing the placements workspace URL.
+    /// </summary>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task SelectPlacementsTabAsync()
+    {
+        if (!string.Equals(TabQuery, PlacementsTabName, StringComparison.OrdinalIgnoreCase))
+        {
+            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, _placementState));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Applies a placement filter or page change raised by the placements panel and pushes the
+    /// matching placements workspace URL.
+    /// </summary>
+    /// <param name="next">The placement state to apply.</param>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnPlacementStateChangedAsync(CampaignWorkspacePlacementState next)
+    {
+        _placementState = next;
+
+        var targetUrl = CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, next);
+        var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
+        if (!string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
+        {
+            navigationManager.NavigateTo(targetUrl);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Reloads the campaign detail after the placements panel requests a full recovery reload
+    /// (for example, after a save conflict or a detected Closed transition).
+    /// </summary>
+    /// <returns>A task that completes when the detail reload is finished.</returns>
+    private async Task OnCampaignReloadRequestedAsync()
+    {
+        await LoadDetailAsync();
+        PersistStartupState();
     }
 
     /// <summary>
