@@ -1529,7 +1529,11 @@ public sealed class CampaignWorkspaceTests : BunitContext
         GraduationYear: 2032,
         outcome,
         team,
-        Guid.NewGuid());
+        Guid.NewGuid())
+        {
+            FirstName = displayName.Split(' ', 2)[0],
+            LastName = displayName.Split(' ', 2).Last()
+        };
 
     private static CampaignPlacementSummaryDto CreatePlacementSummary(
         int assigned = 0,

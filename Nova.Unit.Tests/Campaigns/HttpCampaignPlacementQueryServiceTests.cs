@@ -32,7 +32,11 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     2028,
                     PlacementOutcome.Undecided,
                     null,
-                    Guid.NewGuid())],
+                    Guid.NewGuid())
+                {
+                    FirstName = "Zoe",
+                    LastName = "Adams"
+                }],
                 1,
                 50,
                 1);
@@ -185,6 +189,45 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     }
 
     /// <summary>
+    /// Verifies ordering keys are required by the success-payload contract rather than silently
+    /// defaulting when the server omits one.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenOrderingKeyIsMissing()
+    {
+        const string body = """
+            {
+              "items": [{
+                "playerCampaignAssignmentId": 101,
+                "playerId": 202,
+                "displayName": "Zoe Adams",
+                "graduationYear": 2028,
+                "placementOutcome": 0,
+                "team": null,
+                "concurrencyToken": "11111111-1111-1111-1111-111111111111",
+                "firstName": "Zoe"
+              }],
+              "page": 1,
+              "pageSize": 50,
+              "totalCount": 1
+            }
+            """;
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+
+        var result = await new HttpCampaignPlacementQueryService(http).GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies roster rows violating portable invariants are rejected.
     /// </summary>
     [Fact]
@@ -200,7 +243,11 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     2028,
                     PlacementOutcome.Assigned,
                     null,
-                    Guid.NewGuid())],
+                    Guid.NewGuid())
+                {
+                    FirstName = "Zoe",
+                    LastName = "Adams"
+                }],
                 1,
                 50,
                 1);
@@ -233,7 +280,11 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     2028,
                     PlacementOutcome.Assigned,
                     new CampaignParticipantTeamSummaryDto(301, "Alpha"),
-                    Guid.NewGuid())],
+                    Guid.NewGuid())
+                {
+                    FirstName = "Zoe",
+                    LastName = "Adams"
+                }],
                 1,
                 50,
                 1);

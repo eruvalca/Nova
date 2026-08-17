@@ -30,7 +30,7 @@ build + unit tests only — integration and browser suites must be run locally b
 
 ## Phase 0: Sync branch with main
 
-Status: Complete
+Status: In progress
 
 Suggested executor: orchestrator
 
@@ -199,7 +199,7 @@ implemented. Full unit suite passes (1477), with missing-summary and out-of-orde
 
 ## Phase 5: Full-suite validation gate
 
-Status: In progress
+Status: Complete
 
 Suggested executor: task sub-agent (run commands, report)
 
@@ -221,11 +221,12 @@ Suggested executor: task sub-agent (run commands, report)
 
 Build, touched-file format, full unit, and targeted integration validation pass. Repository-wide format
 is blocked only by pre-existing unrelated tag CHARSET and migration IDE0161 findings. Browser suite
-remains pending.
+remains pending. Required `FirstName`/`LastName` members now make omitted ordering fields fail strict
+success-payload deserialization, with updated fixtures and a regression test.
 
 ## Phase 6: Ship — PR, merge, close epic
 
-Status: Not started
+Status: In progress
 
 Suggested executor: orchestrator
 

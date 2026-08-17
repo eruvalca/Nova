@@ -29,10 +29,10 @@ public sealed record CampaignPlacementRosterItem(
     Guid ConcurrencyToken)
 {
     /// <summary>Gets the participant's first name for validating server ordering.</summary>
-    public string FirstName { get; init; } = string.Empty;
+    public required string FirstName { get; init; }
 
     /// <summary>Gets the participant's last name for validating server ordering.</summary>
-    public string LastName { get; init; } = string.Empty;
+    public required string LastName { get; init; }
 }
 
 /// <summary>

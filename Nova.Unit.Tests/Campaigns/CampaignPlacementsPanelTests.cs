@@ -440,7 +440,11 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
         GraduationYear: graduationYear,
         PlacementOutcome: outcome,
         Team: team,
-        ConcurrencyToken: token ?? Guid.NewGuid());
+        ConcurrencyToken: token ?? Guid.NewGuid())
+        {
+            FirstName = displayName.Split(' ', 2)[0],
+            LastName = displayName.Split(' ', 2).Last()
+        };
 
     private static CampaignPlacementSummaryDto CreateSummary(
         int assigned = 0,
