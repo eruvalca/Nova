@@ -20,7 +20,7 @@ tools:
         nuget/*,
         microsoft-learn/*,
     ]
-model: gpt-5.6-luna
+model: 7caf4448-4bc1-4744-9079-ba2695161d8c/deepseek-v4-flash
 user-invocable: true
 ---
 
