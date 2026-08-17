@@ -158,14 +158,11 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>
     /// Verifies an unparseable JSON payload is rejected before the handler runs. The framework's
-    /// body binding throws BadHttpRequestException, which the API exception-handler pipeline
-    /// surfaces as a 500 server error in the current foundation — the placement endpoint itself
-    /// never executes. The pinned 500 is tracked as known foundation debt in
-    /// https://github.com/eruvalca/Nova/issues/91; this assertion stays until the pipeline maps
-    /// BadHttpRequestException to 400 ProblemDetails.
+    /// body binding throws BadHttpRequestException, which the API exception-handler pipeline maps
+    /// to a 400 ProblemDetails response.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsServerError_ForUnparseableJsonBody()
+    public async Task CampaignPlacementUpdate_ReturnsBadRequest_ForUnparseableJsonBody()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -181,7 +178,15 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
             new StringContent("{ not json", Encoding.UTF8, "application/json"),
             cancellationToken);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        document.RootElement.GetProperty("title").GetString().ShouldBe("Bad Request");
+        document.RootElement.GetProperty("detail").GetString().ShouldNotBeNullOrWhiteSpace();
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
     }
 
     /// <summary>

@@ -27,7 +27,6 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
             group.MapPut(CampaignEndpoints.UpdateCampaignPlacementRelative, UpdateCampaignPlacementHandler)
                 .Produces<PlacementMutationSuccess>(StatusCodes.Status200OK)
                 .ProducesValidationProblem()
-                .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)

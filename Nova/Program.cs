@@ -20,6 +20,7 @@ using Nova.Features.Campaigns;
 using Nova.Features.Clubs;
 using Nova.Features.Photos;
 using Nova.Features.Players;
+using Nova.Features.Shared;
 using Nova.Features.Tags;
 using Nova.Features.Teams;
 using Nova.ServiceDefaults;
@@ -183,6 +184,7 @@ builder.Services.AddProblemDetails(options =>
     };
 });
 
+builder.Services.AddExceptionHandler<BadHttpRequestExceptionHandler>();
 builder.Services.AddValidation();
 
 var app = builder.Build();
