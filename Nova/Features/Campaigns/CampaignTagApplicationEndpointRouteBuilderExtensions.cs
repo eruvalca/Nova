@@ -26,6 +26,7 @@ internal static class CampaignTagApplicationEndpointRouteBuilderExtensions
             group.MapPost(CampaignEndpoints.ApplyCampaignTagApplicationRelative, ApplyCampaignTagApplicationHandler)
                 .Produces<CampaignTagApplicationMutationSuccess>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)

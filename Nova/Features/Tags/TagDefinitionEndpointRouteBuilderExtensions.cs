@@ -1,4 +1,4 @@
-using Nova.Features.Shared;
+﻿using Nova.Features.Shared;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Security;
 
@@ -27,6 +27,7 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
             managementGroup.MapPost(TagEndpoints.CreateRelative, CreateTagDefinitionHandler)
                 .Produces<TagDefinitionDto>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status409Conflict)

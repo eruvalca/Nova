@@ -1,4 +1,6 @@
-﻿using System.Net.Http.Json;
+﻿using System.Net;
+using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
@@ -89,6 +91,32 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
         document.RootElement.GetProperty("errors")
             .TryGetProperty(nameof(CreateCampaignInput.OperationId), out _)
             .ShouldBeTrue();
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
+    /// Verifies an unparseable JSON payload is mapped to a 400 ProblemDetails response before the handler runs.
+    /// </summary>
+    [Fact]
+    public async Task CampaignCreate_ReturnsBadRequest_ForUnparseableJsonBody()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        _ = await RegisterClubAdminAsync(client, "campaign-malformed", cancellationToken);
+
+        using var response = await client.PostAsync(
+            CampaignEndpoints.Create,
+            new StringContent("{ not json", Encoding.UTF8, "application/json"),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        document.RootElement.GetProperty("title").GetString().ShouldBe("Bad Request");
+        document.RootElement.GetProperty("detail").GetString().ShouldNotBeNullOrWhiteSpace();
         document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
     }
 

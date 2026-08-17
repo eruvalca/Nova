@@ -26,6 +26,7 @@ internal static class TeamManagementEndpointRouteBuilderExtensions
             group.MapPost(TeamEndpoints.CreateRelative, CreateTeamHandler)
                 .Produces<TeamDto>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status409Conflict)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)

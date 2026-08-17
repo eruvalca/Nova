@@ -28,6 +28,7 @@ internal static class PlayerManagementEndpointRouteBuilderExtensions
             group.MapPost(PlayerEndpoints.CreateRelative, CreatePlayerHandler)
                 .Produces<PlayerDto>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status409Conflict)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
