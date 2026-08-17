@@ -20,7 +20,9 @@ Confirmed scope decisions (from the issue owner):
   `ExceptionHandlerOptions.StatusCodeSelector`, NOT an inline `UseExceptionHandler` lambda).
 - Status code: **preserve the exception's `StatusCode`** (400 for malformed JSON today; also correct
   for future framework cases such as 413 request-body-too-large). Do not hardcode 400.
-- OpenAPI metadata: **in scope** — add `.ProducesProblem(400)` to every JSON-body endpoint.
+- OpenAPI metadata: **in scope** — ensure every JSON-body endpoint has a non-conflicting
+  ProblemDetails response contract; retain `.ProducesValidationProblem()` instead of adding a
+  duplicate `.ProducesProblem(400)` entry.
 
 Design decisions made during planning (revisit if challenged):
 - **Detail content**: `ProblemDetails.Detail = exception.Message` (framework-authored, cause-specific,
