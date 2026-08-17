@@ -262,6 +262,7 @@ public partial class CampaignPlacementsPanel(
 
         _isLoading = true;
         await LoadInitialAsync();
+        _isLoading = false;
         PersistStartupState();
         Initialized = true;
     }
@@ -297,7 +298,7 @@ public partial class CampaignPlacementsPanel(
             }
 
             _appliedState = State;
-            await LoadRosterAsync();
+            await ReloadRosterHoldingLoadingAsync();
         }
         else
         {
@@ -335,7 +336,6 @@ public partial class CampaignPlacementsPanel(
         await Task.WhenAll(LoadRosterAsync(), LoadSummaryAsync(), teamChoicesTask, graduationYearsTask);
 
         _choicesLoadFailed = !await teamChoicesTask || !await graduationYearsTask;
-        _isLoading = false;
     }
 
     /// <summary>
@@ -375,6 +375,41 @@ public partial class CampaignPlacementsPanel(
                 _roster = null;
                 _drafts = [];
             });
+    }
+
+    /// <summary>
+    /// Reloads the placement roster while holding the panel loading state, releasing it only when
+    /// this reload is still the newest roster request. A superseded reload must not lift the guard
+    /// while a newer reload is still in flight, or the row controls would re-enable inside the
+    /// reload window and a save dispatched then could have its draft replaced when the reload
+    /// rebuilds drafts.
+    /// </summary>
+    /// <returns>A task that completes when the reload finishes.</returns>
+    private async Task ReloadRosterHoldingLoadingAsync()
+    {
+        var requestIdBefore = _requestSequence;
+        _isLoading = true;
+        try
+        {
+            await LoadRosterAsync();
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        {
+            // A network failure reloading the roster must not surface as an unhandled renderer
+            // error out of a Blazor lifecycle or event-handler boundary; surface it as the panel
+            // error instead. A component teardown cancellation is not a user-visible failure.
+            if (!ComponentCancellationToken.IsCancellationRequested)
+            {
+                _error = "Failed to reload placements. Please retry.";
+            }
+        }
+        finally
+        {
+            if (_requestSequence == requestIdBefore + 1)
+            {
+                _isLoading = false;
+            }
+        }
     }
 
     /// <summary>
@@ -574,8 +609,34 @@ public partial class CampaignPlacementsPanel(
             return;
         }
 
+        var requestIdBefore = _requestSequence;
         _isLoading = true;
-        await LoadInitialAsync();
+        try
+        {
+            await LoadInitialAsync();
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        {
+            // A network failure must not leave the panel stuck on the loading spinner (the clear
+            // below would be skipped when the load throws); surface it as the panel error instead,
+            // matching the roster-reload failure handling elsewhere. A component teardown
+            // cancellation is not a user-visible failure.
+            if (!ComponentCancellationToken.IsCancellationRequested)
+            {
+                _error = "Failed to load placements. Please retry.";
+            }
+        }
+        finally
+        {
+            // Release the loading state only while this retry's roster request is still the
+            // newest (a navigation/filter reload superseding it keeps the guard set until the
+            // newer reload completes, so row controls never re-enable inside a rebuild window).
+            if (_requestSequence == requestIdBefore + 1)
+            {
+                _isLoading = false;
+            }
+        }
+
         PersistStartupState();
     }
 
@@ -754,25 +815,7 @@ public partial class CampaignPlacementsPanel(
                 // deferred reload (a second save dispatched into that window would otherwise have
                 // its draft replaced when the reload rebuilds drafts).
                 StateHasChanged();
-                try
-                {
-                    await LoadRosterAsync();
-                }
-                catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
-                {
-                    // A network failure reloading for the deferred state must not let the finally
-                    // block throw (which would replace the save's own outcome or take the panel
-                    // down); surface it as the panel error instead. A component teardown
-                    // cancellation is not a user-visible failure.
-                    if (!ComponentCancellationToken.IsCancellationRequested)
-                    {
-                        _error = "Failed to reload placements. Please retry.";
-                    }
-                }
-                finally
-                {
-                    _isLoading = false;
-                }
+                await ReloadRosterHoldingLoadingAsync();
             }
         }
     }

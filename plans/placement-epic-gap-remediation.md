@@ -128,6 +128,23 @@ Implemented by the builder agent (branch `eruvalca-placement-epic-gap-remediatio
   deferred reload is pending; completing it renders the pending state's roster) and the backstop
   (a second-row save dispatched into the loading window no-ops and never reaches the placement
   service).
+- Fourth review remediation (2026-08-17, PR #97 review #4948656964): the `_isLoading` guard is a
+  single boolean cleared by whichever reload finishes first, so a *superseded* deferred reload
+  could lift it while a newer reload (filter change/navigation arriving during the deferred
+  reload) was still in flight, re-enabling the row controls inside the reload window. The newest
+  roster request now owns the flag: a shared `ReloadRosterHoldingLoadingAsync()` helper captures
+  `_requestSequence` before the reload, holds `_isLoading = true` for the whole reload, and
+  releases it only when `_requestSequence == requestIdBefore + 1` (this reload is still the
+  newest). Both reload paths use it — `OnParametersSetAsync`'s direct path (which previously
+  never held the flag) and the deferred reload in `SaveRowAsync`'s `finally` — and it keeps the
+  deferred path's non-throwing network-failure handling (`HttpRequestException` /
+  `OperationCanceledException` → panel error unless component teardown). `RetryAsync` was aligned
+  to the same ownership rule (sequence-aware release; a failed retry surfaces the panel error
+  instead of leaving the spinner stuck). Two new bUnit cases: save → deferred reload → superseded
+  by a filter-change reload → the superseded reload's completion does not release the loading
+  state or re-enable row controls (loading shown continuously until the newest reload completes,
+  and the stale roster is never applied); and a save dispatched into a filter-change (direct-path)
+  reload window no-ops because the direct path now holds the guard.
 
 Verification: `dotnet build Nova.slnx` clean; scoped `dotnet format` exit 0; new
 `CampaignPlacementsPanelTests` cases cover filters/pager disabled during an in-flight save and
@@ -137,7 +154,8 @@ transition mid-save still deferring a concurrent state change, the banner Retry 
 (and their handler no-oping) during a save, the deferred reload after a save surfacing a
 network failure as the panel error rather than throwing from the `finally`, and the deferred
 reload showing the loading state (hiding row controls) plus the second-save-during-reload
-no-op. Full unit suite: 1503 passing.
+no-op, plus the superseded-deferred-reload guard ownership and the direct-path guard hold. Full
+unit suite: 1505 passing.
 
 ## Phase 2: Surface summary load/refresh failures (finding 2)
 
@@ -343,9 +361,10 @@ Suggested executor: task sub-agent (run commands, report)
   tag-file CHARSET/IDE0161 findings (`Nova{,.Client,.Shared,.UI,.Unit.Tests,.Integration.Tests}`
   under `Features/Tags`, `Nova/Features/Shared/CommitAttemptTracker.cs`, tag migrations — none
   touched by this work). Scoped re-verification `--include <all 20 touched files>` exits **0**.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — **1503 passed / 0 failed**
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — **1505 passed / 0 failed**
   (23 new tests added by this work + 3 added by the PR #97 review-remediation turn + 3 added by
-  the PR #97 second review-remediation turn + 2 added by the PR #97 third review-remediation turn).
+  the PR #97 second review-remediation turn + 2 added by the PR #97 third review-remediation turn
+  + 2 added by the PR #97 fourth review-remediation turn).
 - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — **269 passed /
   0 failed** (Aspire AppHost + PostgreSQL 18; new team-roster `Limit` coverage included).
 - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — **21 passed / 0 failed /
@@ -360,7 +379,7 @@ Suggested executor: task sub-agent (run commands, report)
 
 ## Phase 6: Ship — PR, merge, close epic
 
-Status: In progress (builder completed commit/push/PR + three review-remediation turns; merge + epic close are post-merge)
+Status: In progress (builder completed commit/push/PR + four review-remediation turns; merge + epic close are post-merge)
 
 Suggested executor: orchestrator
 
@@ -399,7 +418,18 @@ dispatched into the reload window and have its draft replaced when the reload re
 it was fixed in a third review-remediation commit — the deferred reload now shows the loading
 state for its whole duration (hiding the row controls) and `SaveRowAsync` no-ops under
 `_isLoading` as the backstop — with two new focused bUnit cases, and the review thread was
-replied to and resolved. The remaining
+replied to and resolved. The Reviewer's fourth PR #97 review found one remaining issue in the new
+remediation surface (the `_isLoading` guard is a single boolean cleared by whichever reload
+finishes first, so a *superseded* deferred reload could lift it while a newer reload was still
+in flight); it was fixed in a fourth review-remediation commit — the newest roster request now
+owns the guard: a shared `ReloadRosterHoldingLoadingAsync()` helper holds `_isLoading` for the
+whole reload and releases it only while that reload is still the newest (`_requestSequence ==
+requestIdBefore + 1`), and both the direct `OnParametersSetAsync` reload path (which previously
+never held the flag) and the deferred reload use it; `RetryAsync` follows the same ownership rule
+and surfaces a network failure as the panel error instead of leaving the spinner stuck — with two
+new focused bUnit cases (superseded deferred reload no longer releases the guard, and a save
+dispatched into a direct-path reload window no-ops), and the review thread was replied to and
+resolved. The remaining
 Phase 6 steps — merge and closing epic #11 with the summary comment — are post-merge
 orchestrator/human outcomes and were deliberately not performed.
 
@@ -418,7 +448,11 @@ deferred state when the user navigates back to the applied state; the deferred r
 a pending navigation state after a save now shows the loading state for its whole duration (row
 controls hidden, flushed with `StateHasChanged`) and `SaveRowAsync` no-ops under `_isLoading`, so
 a second save can never be dispatched into the reload window and have its draft replaced when the
-reload rebuilds drafts.
+reload rebuilds drafts. The newest roster request owns the loading guard: a shared
+`ReloadRosterHoldingLoadingAsync()` helper (used by the direct `OnParametersSetAsync` reload path
+and the deferred reload) holds `_isLoading` and releases it only while that reload is still the
+newest request, so a superseded reload can never re-enable the row controls while a newer reload
+is still in flight.
 
 **Finding 2 — swallowed summary failures.** `LoadSummaryAsync` now reports success/failure, clears
 `_summary` on failure, and an inline `alert-warning` banner (distinct from the roster error) with
@@ -445,16 +479,18 @@ matching the existing `CompareCampaign` precedent after the PR #97 review.
 
 **Validation evidence (Phase 5):** build 0 warnings/0 errors; format — unscoped blocked only by the
 pre-existing unrelated tag-file CHARSET/IDE0161 findings, scoped `--include` over all touched
-files exits 0; unit **1503/1503** (23 new tests + 3 added by the PR #97 review-remediation turn +
+files exits 0; unit **1505/1505** (23 new tests + 3 added by the PR #97 review-remediation turn +
 3 added by the PR #97 second review-remediation turn + 2 added by the PR #97 third
-review-remediation turn); integration **269/269** (Aspire +
+review-remediation turn + 2 added by the PR #97 fourth review-remediation turn); integration
+**269/269** (Aspire +
 PostgreSQL 18); browser **21 passed / 1 env-gated a11y skip** (green twice). A pre-existing
 narrow-viewport keyboard browser flake (reproduced on clean `main`) was made deterministic
 without weakening assertions.
 
 **Plan bookkeeping:** Phases 1–5 Complete with summaries; Phase 6 In progress — commit/push/PR
-completed by the builder; three PR #97 review-remediation turns (ordering/deferral, banner-Retry
-+ non-throwing finally, deferred-reload loading state + second-save backstop) each replied to and
+completed by the builder; four PR #97 review-remediation turns (ordering/deferral, banner-Retry
++ non-throwing finally, deferred-reload loading state + second-save backstop, newest-request
+loading-guard ownership) each replied to and
 resolved; merge and epic close are post-merge orchestrator/human outcomes.
 
 ## Deployment Plan
@@ -465,7 +501,7 @@ Ship steps (post-merge, owned by the orchestrator/human; the builder does not me
    finds it ready and CI build + unit are green on the merge commit). Squash or rebase-merge per
    repo norm; do not delete the branch until #11 closeout is confirmed.
 2. **Comment on epic #11** with the four-gap summary and final evidence: build 0/0; format
-   (scoped) exit 0; unit 1503; integration 269; browser 21 passed + 1 env-gated skip.
+   (scoped) exit 0; unit 1505; integration 269; browser 21 passed + 1 env-gated skip.
 3. **Close epic #11** (state `closed`, reason `completed`). The epic remains the tracking issue;
    close/reopen and Overview/Closeout stay owned by open epic #12.
 4. No migrations, no new environment variables, no new dependencies, and no deployment
