@@ -58,14 +58,16 @@ public sealed partial class TeamRosterQueryService(
             query = query.Where(team => team.GraduationYear == graduationYear);
         }
 
+        query = query
+            .OrderBy(team => team.Name)
+            .ThenBy(team => team.TeamId);
+
         if (input.Limit is int limit)
         {
             query = query.Take(limit);
         }
 
         var rows = await query
-            .OrderBy(team => team.Name)
-            .ThenBy(team => team.TeamId)
             .Select(team => new TeamRosterItem
             {
                 TeamId = team.TeamId,

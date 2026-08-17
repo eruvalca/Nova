@@ -70,6 +70,27 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
     }
 
+    [Fact]
+    public void Panel_ShowsTeamChoiceTruncationNotice_WithoutConflict()
+    {
+        RegisterServices(teams: Enumerable.Range(1, 200).Select(teamId => new TeamRosterItem
+        {
+            TeamId = teamId,
+            Name = $"Team {teamId}",
+            GraduationYear = 2032,
+            LifecycleStatus = LifecycleStatus.Active,
+            ActivePlacementCount = 0
+        }).ToList());
+
+        var cut = RenderPanel();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Showing the first 200 active teams.");
+            cut.Markup.ShouldNotContain("The placement was changed by someone else.");
+        });
+    }
+
     // ── Summary footer ────────────────────────────────────────────────────────
 
     [Fact]

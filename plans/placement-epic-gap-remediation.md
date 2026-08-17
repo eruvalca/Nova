@@ -130,9 +130,8 @@ the shared input contract change and `nova-testing` for the tests.
 - [x] In `Nova.Shared/Features/Teams/GetTeamRosterInput.cs`, add optional `Limit` with
       `[Range(1, 200)]`; document that omission keeps the existing unbounded behavior for the
       team management UI and that choice-loading callers must pass a cap.
-- [x] In `Nova/Features/Teams/TeamRosterQueryService.cs` (line ~61), apply
-      `.Take(input.Limit.Value)` in SQL before materialization when `Limit` is set; keep the
-      existing deterministic ordering (Name, then TeamId).
+- [x] In `Nova/Features/Teams/TeamRosterQueryService.cs` (line ~61), apply the optional cap in SQL
+      after the deterministic `(Name, TeamId)` ordering and before materialization.
 - [x] In `CampaignPlacementsPanel` `LoadTeamChoicesAsync` (line ~350), pass the documented cap
       (constant, e.g. 200).
 - [x] Render a truncation notice near the team controls when `_teamChoices.Count == cap`:
@@ -151,8 +150,9 @@ the shared input contract change and `nova-testing` for the tests.
 
 ### Phase Summary
 
-Team roster supports a validated SQL-side cap, placement choices request 200 and show truncation, and
-unit plus HTTP integration coverage passes.
+Team roster supports a validated SQL-side cap that selects the first rows under deterministic ordering;
+placement choices request 200 and show truncation independently of conflict state, and unit plus HTTP
+integration coverage passes.
 
 ## Phase 4: Strict WASM success deserialization + ordering enforcement (finding 4)
 

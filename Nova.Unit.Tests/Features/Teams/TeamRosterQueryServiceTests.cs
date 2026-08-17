@@ -94,7 +94,7 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Count.ShouldBe(2);
-        result.Value.Select(team => team.Name).ShouldBe(["50% Wins", "U16 Blue"]);
+        result.Value.Select(team => team.Name).ShouldBe(["00 Aardvark", "50% Wins"]);
     }
 
     /// <summary>
@@ -165,7 +165,9 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
             // Literal underscore in name — must match "a_b" search literally.
             new TeamEntity { Name = "a_b Team", GraduationYear = 2029, ClubId = ClubId, CreatedById = AdminId },
             // Single-char substitution name — must NOT match "a_b" search.
-            new TeamEntity { Name = "axb Team", GraduationYear = 2030, ClubId = ClubId, CreatedById = AdminId });
+            new TeamEntity { Name = "axb Team", GraduationYear = 2030, ClubId = ClubId, CreatedById = AdminId },
+            // Inserted last but ordered first to prove the SQL cap follows the ordering.
+            new TeamEntity { Name = "00 Aardvark", GraduationYear = 2031, ClubId = ClubId, CreatedById = AdminId });
 
         db.SaveChanges();
     }

@@ -19,10 +19,11 @@
             <span>@_conflictMessage</span>
             <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_reloading" @onclick="ReloadAndDiscardAsync">Close and reload</button>
         </div>
-        @if (TeamChoicesTruncated)
-        {
-            <div class="alert alert-warning py-2 small" role="note">Showing the first @TeamChoiceLimit active teams. If a team is missing, refine via Team management.</div>
-        }
+    }
+
+    @if (TeamChoicesTruncated)
+    {
+        <div class="alert alert-warning py-2 small" role="note">Showing the first @TeamChoiceLimit active teams. If a team is missing, refine via Team management.</div>
     }
 
     @if (_choicesLoadFailed)
