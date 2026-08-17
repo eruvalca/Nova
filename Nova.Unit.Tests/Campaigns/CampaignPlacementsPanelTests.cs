@@ -207,6 +207,42 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
     }
 
     [Fact]
+    public void Save_ShowsSavedButCountsWarning_WhenSummaryRefreshFails()
+    {
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())),
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(
+                    ServiceProblem.ServerError("Summary unavailable."))),
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary(assigned: 1, undecided: 0))));
+
+        RegisterServices(placementQueryService: queryService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Placement saved, but counts could not be refreshed.");
+            cut.Markup.ShouldNotContain(">Placement saved.</");
+            cut.Find("button.btn-outline-warning").ShouldNotBeNull();
+        });
+
+        cut.Find("button.btn-outline-warning").Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("1 assigned");
+            cut.Markup.ShouldNotContain("counts could not be refreshed");
+        });
+    }
+
+    [Fact]
     public void Save_ShowsValidationError_WhenAssignedWithoutTeam_AndBlocksSubmit()
     {
         var placementService = Substitute.For<ICampaignPlacementService>();

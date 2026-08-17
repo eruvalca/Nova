@@ -119,6 +119,8 @@ Suggested executor: builder sub-agent (smaller model)
 ### Phase Summary
 
 Summary failures clear stale counts and render a retryable warning; recovery clears the warning.
+Post-save refresh failures now suppress the unqualified success message and render an explicit
+saved-but-counts-could-not-be-refreshed warning; focused bUnit coverage verifies retry recovery.
 
 ## Phase 3: Bound team choices (finding 3)
 

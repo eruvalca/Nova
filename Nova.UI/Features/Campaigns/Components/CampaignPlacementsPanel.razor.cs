@@ -182,6 +182,11 @@ public partial class CampaignPlacementsPanel(
     private string? _saveMessage;
 
     /// <summary>
+    /// Indicates that the last successful save could not refresh the authoritative summary.
+    /// </summary>
+    private bool _saveSummaryRefreshFailed;
+
+    /// <summary>
     /// The placement state that produced the currently loaded roster.
     /// </summary>
     private CampaignWorkspacePlacementState _appliedState = new();
@@ -352,24 +357,29 @@ public partial class CampaignPlacementsPanel(
     /// <summary>
     /// Loads the authoritative placement summary without touching row drafts.
     /// </summary>
-    /// <returns>A task that completes when the summary load finishes.</returns>
-    private async Task LoadSummaryAsync()
+    /// <returns>A task that completes with <see langword="true"/> when the summary loads successfully.</returns>
+    private async Task<bool> LoadSummaryAsync()
     {
         var result = await placementQueryService.GetPlacementSummaryAsync(
             new GetCampaignPlacementSummaryInput { CampaignId = CampaignId },
             ComponentCancellationToken);
 
+        var succeeded = false;
         result.Switch(
             summary =>
             {
                 _summary = summary;
                 _summaryLoadFailed = false;
+                _saveSummaryRefreshFailed = false;
+                succeeded = true;
             },
             _ =>
             {
                 _summary = null;
                 _summaryLoadFailed = true;
             });
+
+        return succeeded;
     }
 
     /// <summary>
@@ -602,6 +612,7 @@ public partial class CampaignPlacementsPanel(
         draft.RowError = null;
         draft.SaveStatus = null;
         _saveMessage = null;
+        _saveSummaryRefreshFailed = false;
 
         var input = draft.ToInput();
         var clientErrors = InputValidator.Validate(input);
@@ -624,7 +635,6 @@ public partial class CampaignPlacementsPanel(
                     draft.CurrentToken = success.ConcurrencyToken;
                     draft.RowError = null;
                     draft.SaveStatus = "Saved";
-                    _saveMessage = "Placement saved.";
                     ApplySavedToDraft(draft);
                     RemoveFromUnresolvedViewIfNeeded(item, draft);
                     saved = true;
@@ -652,7 +662,14 @@ public partial class CampaignPlacementsPanel(
 
             if (saved)
             {
-                await LoadSummaryAsync();
+                if (await LoadSummaryAsync())
+                {
+                    _saveMessage = "Placement saved.";
+                }
+                else
+                {
+                    _saveSummaryRefreshFailed = true;
+                }
             }
         }
         finally

@@ -76,7 +76,9 @@
     @if (_summaryLoadFailed)
     {
         <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
-            <span>@( _summary is null ? "Couldn't load placement counts." : "Placement saved, but counts could not be refreshed." )</span>
+            <span>@(_saveSummaryRefreshFailed
+                ? "Placement saved, but counts could not be refreshed."
+                : "Couldn't load placement counts.")</span>
             <button type="button" class="btn btn-sm btn-outline-warning" @onclick="RetryAsync">Retry</button>
         </div>
     }
