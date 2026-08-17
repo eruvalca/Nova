@@ -4,6 +4,7 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Teams;
 using Nova.Shared.Features.Teams;
+using Nova.Shared.Validation;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -78,6 +79,34 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldNotContain(item => item.Name == "axb Team");
+    }
+
+    /// <summary>
+    /// Verifies an explicit choice cap is applied after deterministic name and identifier ordering.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterAsync_Limit_ReturnsDeterministicallyOrderedRows()
+    {
+        ActAs(AdminId, ClubId);
+        var result = await CreateService().GetRosterAsync(
+            new GetTeamRosterInput { Limit = 2 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Count.ShouldBe(2);
+        result.Value.Select(team => team.Name).ShouldBe(["50% Wins", "U16 Blue"]);
+    }
+
+    /// <summary>
+    /// Verifies the documented choice cap validation rejects values outside the allowed range.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(201)]
+    public void GetRosterInput_Limit_RejectsValuesOutsideBounds(int limit)
+    {
+        InputValidator.Validate(new GetTeamRosterInput { Limit = limit })
+            .ShouldContainKey(nameof(GetTeamRosterInput.Limit));
     }
 
     /// <summary>

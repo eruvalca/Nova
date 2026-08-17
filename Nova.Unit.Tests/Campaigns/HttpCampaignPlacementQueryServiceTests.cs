@@ -251,6 +251,39 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     }
 
     /// <summary>
+    /// Verifies the client rejects a roster page that violates the server's ordering contract.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenRowsAreOutOfOrder()
+    {
+        var rows = new PagedResult<CampaignPlacementRosterItem>(
+            [
+                new CampaignPlacementRosterItem(101, 202, "Amy Brown", 2028, PlacementOutcome.Undecided, null, Guid.NewGuid())
+                {
+                    FirstName = "Amy",
+                    LastName = "Brown"
+                },
+                new CampaignPlacementRosterItem(102, 203, "Zoe Adams", 2028, PlacementOutcome.Undecided, null, Guid.NewGuid())
+                {
+                    FirstName = "Zoe",
+                    LastName = "Adams"
+                }
+            ],
+            1,
+            50,
+            2);
+        var handler = new RecordingHandler(_ => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(rows) }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var result = await new HttpCampaignPlacementQueryService(http).GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies the summary client uses the summary route and accepts a consistent payload.
     /// </summary>
     [Fact]
@@ -293,6 +326,29 @@ public sealed class HttpCampaignPlacementQueryServiceTests
         var service = new HttpCampaignPlacementQueryService(http);
 
         var result = await service.GetPlacementSummaryAsync(
+            new GetCampaignPlacementSummaryInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies an empty summary object cannot be treated as an authoritative zero-count response.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementSummaryAsync_ReturnsServerError_WhenRequiredCountsAreMissing()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{}", Encoding.UTF8, "application/json")
+        };
+        using var http = new HttpClient(new RecordingHandler(_ => Task.FromResult(response)))
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+
+        var result = await new HttpCampaignPlacementQueryService(http).GetPlacementSummaryAsync(
             new GetCampaignPlacementSummaryInput { CampaignId = 42 },
             TestContext.Current.CancellationToken);
 

@@ -26,7 +26,14 @@ public sealed record CampaignPlacementRosterItem(
     int GraduationYear,
     PlacementOutcome PlacementOutcome,
     CampaignParticipantTeamSummaryDto? Team,
-    Guid ConcurrencyToken);
+    Guid ConcurrencyToken)
+{
+    /// <summary>Gets the participant's first name for validating server ordering.</summary>
+    public string FirstName { get; init; } = string.Empty;
+
+    /// <summary>Gets the participant's last name for validating server ordering.</summary>
+    public string LastName { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// Authoritative whole-campaign placement outcome counts, independent of paging and filters.

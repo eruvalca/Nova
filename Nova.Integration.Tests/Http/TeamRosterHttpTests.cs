@@ -167,6 +167,27 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies endpoint validation rejects a choice cap outside the shared contract bounds.
+    /// </summary>
+    [Fact]
+    public async Task GetRoster_ReturnsValidationProblem_ForInvalidLimit()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("team-roster-invalid-limit");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        _ = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        using var response = await client.GetAsync(
+            $"{TeamRosterEndpoints.GetRoster}?limit=201",
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
     /// Verifies LIKE metacharacters in the search term are matched literally by PostgreSQL rather
     /// than acting as wildcards. This is the authoritative check for the escaping fix, because the
     /// SQLite unit-test harness uses a literal <c>Contains</c> and cannot reproduce the bug.

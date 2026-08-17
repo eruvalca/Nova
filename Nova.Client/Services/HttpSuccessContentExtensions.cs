@@ -32,7 +32,12 @@ internal static class HttpSuccessContentExtensions
                     return ServiceProblem.ServerError(errorDetail);
                 }
 
-                var value = json.Deserialize<T>(JsonSerializerOptions.Web);
+                var options = new JsonSerializerOptions(JsonSerializerOptions.Web)
+                {
+                    RespectRequiredConstructorParameters = true,
+                    RespectNullableAnnotations = true
+                };
+                var value = json.Deserialize<T>(options);
                 return value is not null && (validator?.Invoke(value) ?? true)
                     ? value
                     : ServiceProblem.ServerError(errorDetail);

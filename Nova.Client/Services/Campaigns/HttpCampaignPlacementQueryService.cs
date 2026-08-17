@@ -85,7 +85,13 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
             && result.PageSize == expectedPageSize
             && result.TotalCount >= 0
             && result.Items.Count <= result.PageSize
-            && result.Items.All(item => IsValidRosterItem(item, expectedGraduationYear, expectedUnresolvedOnly));
+            && result.Items.All(item => IsValidRosterItem(item, expectedGraduationYear, expectedUnresolvedOnly))
+            && result.Items.Zip(result.Items.Skip(1)).All(pair =>
+                string.Compare(pair.First.LastName, pair.Second.LastName, StringComparison.Ordinal) < 0
+                || (pair.First.LastName == pair.Second.LastName
+                    && (string.Compare(pair.First.FirstName, pair.Second.FirstName, StringComparison.Ordinal) < 0
+                        || (pair.First.FirstName == pair.Second.FirstName
+                            && pair.First.PlayerCampaignAssignmentId < pair.Second.PlayerCampaignAssignmentId))));
 
     /// <summary>
     /// Validates the structural shape of a single placement roster row.

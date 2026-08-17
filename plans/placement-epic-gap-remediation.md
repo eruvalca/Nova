@@ -67,21 +67,21 @@ and `api-endpoints.instructions.md` guidance. All findings and plan phases re-ve
 
 ## Phase 1: Fix filter-vs-save race (finding 1)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: builder sub-agent (smaller model); invoke the `add-blazor-ui` skill for
 component conventions.
 
-- [ ] In `Nova.UI/Features/Campaigns/Components/CampaignPlacementsPanel.razor.cs`, add a
+- [x] In `Nova.UI/Features/Campaigns/Components/CampaignPlacementsPanel.razor.cs`, add a
       computed `_savingActive` flag: any draft in `_drafts` has `IsSaving == true`.
-- [ ] Disable the filter bar while `_savingActive`: graduation-year select, unresolved-only
+- [x] Disable the filter bar while `_savingActive`: graduation-year select, unresolved-only
       checkbox, and Clear filters button (razor lines ~35–53). Keep `_conflictActive` disables as-is.
-- [ ] Disable paging while `_savingActive`: add an optional `Disabled` parameter to the shared
+- [x] Disable paging while `_savingActive`: add an optional `Disabled` parameter to the shared
       `CampaignRosterPager` component and pass it from the panel (buttons/skip to page links).
-- [ ] Defensive guard in `OnParametersSetAsync` (line ~258): if a draft is saving when
+- [x] Defensive guard in `OnParametersSetAsync` (line ~258): if a draft is saving when
       URL/navigation changes `State`, defer `LoadRosterAsync` (store pending state; apply it
       after the save completes) so back/forward cannot orphan an in-flight save.
-- [ ] Re-render after each save completes so controls re-enable.
+- [x] Re-render after each save completes so controls re-enable.
 
 ### Verification Plan
 
@@ -91,23 +91,24 @@ component conventions.
 
 ### Phase Summary
 
-_(write when phase completes)_
+Filters and pager disable during saves, navigation is deferred until save completion, and targeted
+panel tests pass.
 
 ## Phase 2: Surface summary load/refresh failures (finding 2)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: builder sub-agent (smaller model)
 
-- [ ] In `CampaignPlacementsPanel.razor.cs` `LoadSummaryAsync` (line ~335): track a
+- [x] In `CampaignPlacementsPanel.razor.cs` `LoadSummaryAsync` (line ~335): track a
       `_summaryLoadFailed` state; on problem, clear `_summary` (never present stale counts as
       authoritative) and set the flag.
-- [ ] Render an actionable inline warning (with Retry) when the summary failed — distinct from
+- [x] Render an actionable inline warning (with Retry) when the summary failed — distinct from
       the roster error alert; `RetryAsync` must reload summary along with roster/choices.
-- [ ] Post-save behavior in `SaveRowAsync` (lines ~624–627): if the summary refresh fails, do
+- [x] Post-save behavior in `SaveRowAsync` (lines ~624–627): if the summary refresh fails, do
       not show "Placement saved." beside stale counts; show a warning that the save succeeded
       but counts could not be refreshed, with retry.
-- [ ] Keep initial-load behavior: summary failure must not silently render a summary-less footer.
+- [x] Keep initial-load behavior: summary failure must not silently render a summary-less footer.
 
 ### Verification Plan
 
@@ -117,27 +118,27 @@ Suggested executor: builder sub-agent (smaller model)
 
 ### Phase Summary
 
-_(write when phase completes)_
+Summary failures clear stale counts and render a retryable warning; recovery clears the warning.
 
 ## Phase 3: Bound team choices (finding 3)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: builder sub-agent (smaller model); invoke the `add-api-endpoint` skill for
 the shared input contract change and `nova-testing` for the tests.
 
-- [ ] In `Nova.Shared/Features/Teams/GetTeamRosterInput.cs`, add optional `Limit` with
+- [x] In `Nova.Shared/Features/Teams/GetTeamRosterInput.cs`, add optional `Limit` with
       `[Range(1, 200)]`; document that omission keeps the existing unbounded behavior for the
       team management UI and that choice-loading callers must pass a cap.
-- [ ] In `Nova/Features/Teams/TeamRosterQueryService.cs` (line ~61), apply
+- [x] In `Nova/Features/Teams/TeamRosterQueryService.cs` (line ~61), apply
       `.Take(input.Limit.Value)` in SQL before materialization when `Limit` is set; keep the
       existing deterministic ordering (Name, then TeamId).
-- [ ] In `CampaignPlacementsPanel` `LoadTeamChoicesAsync` (line ~350), pass the documented cap
+- [x] In `CampaignPlacementsPanel` `LoadTeamChoicesAsync` (line ~350), pass the documented cap
       (constant, e.g. 200).
-- [ ] Render a truncation notice near the team controls when `_teamChoices.Count == cap`:
+- [x] Render a truncation notice near the team controls when `_teamChoices.Count == cap`:
       "Showing the first {cap} active teams. If a team is missing, refine via Team management."
       Keep the existing "current team" fallback option behavior.
-- [ ] Add unit coverage (SQLite tenancy harness) for limit + deterministic ordering, and input
+- [x] Add unit coverage (SQLite tenancy harness) for limit + deterministic ordering, and input
       validation bounds; add HTTP integration coverage for omitted `Limit` (unchanged behavior)
       and an invalid explicit `Limit` (rejected by binding/validation).
 
@@ -150,36 +151,37 @@ the shared input contract change and `nova-testing` for the tests.
 
 ### Phase Summary
 
-_(write when phase completes)_
+Team roster supports a validated SQL-side cap, placement choices request 200 and show truncation, and
+unit plus HTTP integration coverage passes.
 
 ## Phase 4: Strict WASM success deserialization + ordering enforcement (finding 4)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator (cross-slice blast radius needs judgment; no delegation of the
 audit itself)
 
-- [ ] In `Nova.Client/Services/HttpSuccessContentExtensions.cs` (line ~35), deserialize with a
+- [x] In `Nova.Client/Services/HttpSuccessContentExtensions.cs` (line ~35), deserialize with a
       new options instance derived from `JsonSerializerOptions.Web` with
       `RespectRequiredConstructorParameters = true` and `RespectNullableAnnotations = true`;
       keep the `JsonException → ServiceProblem.ServerError` mapping.
-- [ ] Enumerate every `ReadRequiredJsonAsync` call site (and direct `ReadFromJsonAsync` uses)
+- [x] Enumerate every `ReadRequiredJsonAsync` call site (and direct `ReadFromJsonAsync` uses)
       across `Nova.Client/Services/`; list the DTOs affected.
-- [ ] Run the full unit suite; for each newly failing WASM client test, fix the root cause in
+- [x] Run the full unit suite; for each newly failing WASM client test, fix the root cause in
       this branch: correct DTO nullability/optionality (nullable annotations or default values)
       or fix server serialization so responses satisfy the contract — never weaken the global
       enforcement to make a test pass.
-- [ ] Add `FirstName`/`LastName` to `CampaignPlacementRosterItem` (`Nova.Shared/Features/Campaigns/CampaignPlacementContracts.cs`);
+- [x] Add `FirstName`/`LastName` to `CampaignPlacementRosterItem` (`Nova.Shared/Features/Campaigns/CampaignPlacementContracts.cs`);
       fill from the existing `PlacementRosterPageRow` projection in `CampaignPlacementQueryService`
       (server already projects both names); keep `DisplayName` for the UI.
-- [ ] In `HttpCampaignPlacementQueryService`, extend `IsValidRoster` to verify adjacent rows
+- [x] In `HttpCampaignPlacementQueryService`, extend `IsValidRoster` to verify adjacent rows
       follow the server ordering contract (LastName asc, then FirstName asc, then
       `PlayerCampaignAssignmentId` asc).
-- [ ] Client contract tests (`HttpCampaignPlacementQueryServiceTests`): `{}` summary → ServerError;
+- [x] Client contract tests (`HttpCampaignPlacementQueryServiceTests`): `{}` summary → ServerError;
       summary missing a count → ServerError; roster row missing outcome → ServerError;
       out-of-order roster page → ServerError. Update existing success-payload fixtures with the
       new `FirstName`/`LastName` fields.
-- [ ] Update any integration/browser seeds or fixtures that construct roster items.
+- [x] Update any integration/browser seeds or fixtures that construct roster items.
 
 ### Verification Plan
 
@@ -192,19 +194,20 @@ audit itself)
 
 ### Phase Summary
 
-_(write when phase completes)_
+Strict JSON success deserialization is enabled globally; placement ordering keys and validation are
+implemented. Full unit suite passes (1477), with missing-summary and out-of-order contract coverage.
 
 ## Phase 5: Full-suite validation gate
 
-Status: Not started
+Status: In progress
 
 Suggested executor: task sub-agent (run commands, report)
 
-- [ ] `dotnet build Nova.slnx` — 0 warnings/errors.
-- [ ] `dotnet format Nova.slnx --verify-no-changes` — record result; if blocked only by the
+- [x] `dotnet build Nova.slnx` — 0 warnings/errors.
+- [x] `dotnet format Nova.slnx --verify-no-changes` — record result; if blocked only by the
       pre-existing unrelated CHARSET findings, re-verify with `--include <all touched files>` and record both.
-- [ ] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — all pass.
-- [ ] `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — all pass
+- [x] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — 1477 pass.
+- [x] `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --filter-class "*TeamRosterHttpTests"` — 4 pass
       (Aspire AppHost + PostgreSQL; run locally, CI does not cover this).
 - [ ] `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — all pass
       (Playwright Chromium; install via `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`
@@ -216,7 +219,9 @@ Suggested executor: task sub-agent (run commands, report)
 
 ### Phase Summary
 
-_(write when phase completes)_
+Build, touched-file format, full unit, and targeted integration validation pass. Repository-wide format
+is blocked only by pre-existing unrelated tag CHARSET and migration IDE0161 findings. Browser suite
+remains pending.
 
 ## Phase 6: Ship — PR, merge, close epic
 

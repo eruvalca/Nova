@@ -40,6 +40,9 @@ public partial class CampaignPlacementsPanel(
     /// </summary>
     private const string SaveFailureFallbackMessage = "Failed to save the placement. Please retry.";
 
+    /// <summary>The maximum number of active teams loaded for placement choices.</summary>
+    private const int TeamChoiceLimit = 200;
+
     /// <summary>
     /// Gets or sets the campaign identifier from the route.
     /// </summary>
@@ -152,6 +155,12 @@ public partial class CampaignPlacementsPanel(
     /// </summary>
     private bool _choicesLoadFailed;
 
+    /// <summary>Indicates that the authoritative summary is unavailable.</summary>
+    private bool _summaryLoadFailed;
+
+    /// <summary>Stores a navigation state received while a row is saving.</summary>
+    private CampaignWorkspacePlacementState? _pendingState;
+
     /// <summary>
     /// The current conflict warning message, or <see langword="null"/> when no conflict is active.
     /// </summary>
@@ -201,6 +210,12 @@ public partial class CampaignPlacementsPanel(
     /// Gets a value indicating whether the panel renders static read-only rows.
     /// </summary>
     private bool IsReadOnly => CampaignStatus == CampaignStatus.Closed || !CanEditPlacements;
+
+    /// <summary>Gets whether any row currently has an in-flight save.</summary>
+    private bool _savingActive => _drafts.Values.Any(draft => draft.IsSaving);
+
+    /// <summary>Gets whether team choices were capped and may be incomplete.</summary>
+    private bool TeamChoicesTruncated => _teamChoices.Count == TeamChoiceLimit;
 
     /// <summary>
     /// Gets a value indicating whether a placement filter is active.
@@ -257,6 +272,11 @@ public partial class CampaignPlacementsPanel(
 
         if (State != _appliedState)
         {
+            if (_savingActive)
+            {
+                _pendingState = State;
+                return;
+            }
             _appliedState = State;
             await LoadRosterAsync();
         }
@@ -280,6 +300,7 @@ public partial class CampaignPlacementsPanel(
     {
         _error = null;
         _choicesLoadFailed = false;
+        _summaryLoadFailed = false;
 
         var teamChoicesTask = LoadTeamChoicesAsync();
         var graduationYearsTask = LoadGraduationYearChoicesAsync();
@@ -339,8 +360,16 @@ public partial class CampaignPlacementsPanel(
             ComponentCancellationToken);
 
         result.Switch(
-            summary => _summary = summary,
-            _ => { });
+            summary =>
+            {
+                _summary = summary;
+                _summaryLoadFailed = false;
+            },
+            _ =>
+            {
+                _summary = null;
+                _summaryLoadFailed = true;
+            });
     }
 
     /// <summary>
@@ -350,7 +379,7 @@ public partial class CampaignPlacementsPanel(
     private async Task<bool> LoadTeamChoicesAsync()
     {
         var result = await teamRosterService.GetRosterAsync(
-            new GetTeamRosterInput { LifecycleStatus = "active" },
+            new GetTeamRosterInput { LifecycleStatus = "active", Limit = TeamChoiceLimit },
             ComponentCancellationToken);
         var succeeded = false;
         result.Switch(
@@ -631,6 +660,12 @@ public partial class CampaignPlacementsPanel(
             // Always release the per-row save gate, even if the mutation or summary refresh
             // throws, so the row never stays stuck in the saving state.
             draft.IsSaving = false;
+            if (_pendingState is { } pendingState)
+            {
+                _pendingState = null;
+                _appliedState = pendingState;
+                await LoadRosterAsync();
+            }
         }
     }
 

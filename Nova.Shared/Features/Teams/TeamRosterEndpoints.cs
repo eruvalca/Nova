@@ -32,7 +32,8 @@ public static class TeamRosterEndpoints
     public static string GetRosterUrl(
         string? search = null,
         string? lifecycleStatus = null,
-        int? graduationYear = null)
+        int? graduationYear = null,
+        int? limit = null)
     {
         var url = new StringBuilder(GetRoster);
         var querySegments = new List<string>();
@@ -56,6 +57,11 @@ public static class TeamRosterEndpoints
         if (graduationYear is >= 2000 and <= 2100)
         {
             querySegments.Add($"graduationYear={graduationYear.Value}");
+        }
+
+        if (limit is >= 1 and <= 200)
+        {
+            querySegments.Add($"limit={limit.Value}");
         }
 
         if (querySegments.Count > 0)

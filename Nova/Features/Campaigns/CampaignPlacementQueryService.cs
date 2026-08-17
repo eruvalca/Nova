@@ -96,7 +96,11 @@ public sealed partial class CampaignPlacementQueryService(
                 row.TeamId is null
                     ? null
                     : new CampaignParticipantTeamSummaryDto(row.TeamId.Value, row.TeamName ?? string.Empty),
-                row.ConcurrencyToken))
+                row.ConcurrencyToken)
+            {
+                FirstName = row.FirstName,
+                LastName = row.LastName
+            })
             .ToList()
             .AsReadOnly();
 
