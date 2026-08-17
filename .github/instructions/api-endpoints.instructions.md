@@ -33,7 +33,7 @@ description: "HTTP endpoint and WASM client rules: routes, handlers, contract fi
 - Convert service results with the `ToHttpResult` extensions in
   `Nova.Features.Shared.ServiceResultExtensions`. Prefer returning `IResult`; use `Results<T1, T2, …>`
   only when OpenAPI needs precise success-type information.
-- Keep endpoint metadata aligned with every status the handler can return (route/body mismatch 400s, conflicts, not-found, 500s). Client or service unit tests do not prove route registration, middleware, metadata, and status mapping agree.
+- Keep endpoint metadata aligned with every status the handler can return (conflicts, not-found, 500s; the single 400 contract on body endpoints is `.ProducesValidationProblem()` — see **ProblemDetails and trace IDs**). Client or service unit tests do not prove route registration, middleware, metadata, and status mapping agree.
 - ⚠️ `TypedResults.CreatedAtRoute<TValue>` takes the **value first**:
   `CreatedAtRoute(value, routeName, routeValues)`. Putting the route name first compiles but throws
   at runtime. Only use `CreatedAtRoute` when a matching GET route exists; otherwise return
@@ -56,6 +56,12 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
   round-trip tests together; never hand-construct a problem to bypass a missing shared factory.
 - Treat both 400 and 422 responses containing an `errors` payload as validation failures in WASM
   clients. Do not misclassify .NET 10 automatic-validation 422 responses as server errors.
+- Framework-generated `BadHttpRequestException` (e.g. a malformed JSON body) is mapped once at the
+  foundation by `BadHttpRequestExceptionHandler` (`Nova/Features/Shared/BadHttpRequestExceptionHandler.cs`,
+  registered via `AddExceptionHandler<T>()` in `Program.cs`); it returns a `ProblemDetails` carrying the
+  exception's status code and detail plus `traceId`. Endpoints must not add per-endpoint handling for
+  body-binding failures, and must not declare a second `.ProducesProblem(400)` on body endpoints:
+  OpenAPI allows one schema per status, and the 400 slot belongs to `.ProducesValidationProblem()`.
 
 ## Metadata, authorization, antiforgery
 
@@ -71,7 +77,7 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 
 - Validation is **dual-layer** (endpoint + service); both are always required — see `.github/instructions/service-layer.instructions.md` → **Dual-Layer Validation**.
 - `builder.Services.AddValidation()` (global in `Program.cs`) makes parameter validation automatic and opt-out. Use `DisableValidation()` on endpoints where model binding does not apply (streaming/multipart).
-- Annotate input records in `Nova.Shared` with DataAnnotations (see `.github/instructions/validation.instructions.md`). On body endpoints declare `.ProducesValidationProblem()` (not `.ProducesProblem(400)`).
+- Annotate input records in `Nova.Shared` with DataAnnotations (see `.github/instructions/validation.instructions.md`). On body endpoints declare `.ProducesValidationProblem()` (not `.ProducesProblem(400)`); the single-400 rationale is in **ProblemDetails and trace IDs**.
 - For inputs not expressible as DataAnnotations (file size, content-type, streaming), validate manually in the handler and return `ServiceProblem.Validation(...).ToHttpResult()`.
 
 ## Optional `[AsParameters]` query properties
