@@ -108,12 +108,23 @@ Implemented by the builder agent (branch `eruvalca-placement-epic-gap-remediatio
   silently bypass it, and navigating back to the already-applied state while a save is in flight
   clears `_pendingState` so the save's `finally` never applies a stale deferred state (URL/roster
   disagreement). Two new bUnit cases cover both paths.
+- Second review remediation (2026-08-17, PR #97 review #4948415434): the banner **Retry**
+  buttons (choices-failure and summary-failure) are disabled with `disabled="@_savingActive"` and
+  `RetryAsync` itself no-ops while a save is in flight — reloading mid-save would rebuild drafts
+  out from under the in-flight save and re-create the URL/roster disagreement the deferral
+  prevents. The deferred `LoadRosterAsync` in `SaveRowAsync`'s `finally` is now wrapped so a
+  transient network failure (`HttpRequestException`/`OperationCanceledException`, checked against
+  component teardown) surfaces as the panel error instead of throwing out of the `finally`. Three
+  new bUnit cases cover both guards.
 
 Verification: `dotnet build Nova.slnx` clean; scoped `dotnet format` exit 0; new
 `CampaignPlacementsPanelTests` cases cover filters/pager disabled during an in-flight save and
 re-enabled after, a state change during a save deferring the roster reload until the save
-completes, navigating back to the applied state discarding the deferred state, and a Closed
-transition mid-save still deferring a concurrent state change. Full unit suite: 1498 passing.
+completes, navigating back to the applied state discarding the deferred state, a Closed
+transition mid-save still deferring a concurrent state change, the banner Retry buttons disabled
+(and their handler no-oping) during a save, and the deferred reload after a save surfacing a
+network failure as the panel error rather than throwing from the `finally`. Full unit suite: 1501
+passing.
 
 ## Phase 2: Surface summary load/refresh failures (finding 2)
 
@@ -149,6 +160,11 @@ Suggested executor: builder sub-agent (smaller model)
 - Post-save: when the summary refresh after a successful mutation fails, the "Placement saved."
   success banner is suppressed and a "Placement saved, but the summary could not be refreshed."
   warning (with Retry) is shown instead; the per-row "Saved" status remains accurate.
+- Review remediation (2026-08-17, PR #97 review #4948415434): the banner Retry buttons are
+  disabled while a save is in flight and `RetryAsync` no-ops under `_savingActive`, so clicking
+  Retry cannot rebuild drafts out from under an in-flight save (the exact race finding 1 closes).
+  New bUnit coverage asserts the summary-failure and choices-failure Retry buttons render disabled
+  during a save and clicking them does not issue a second roster request.
 
 Verification: new `CampaignPlacementsPanelTests` cover initial summary failure → warning + Retry
 recovery, and post-save refresh failure → counts cleared + warning shown + success banner absent.
@@ -314,8 +330,9 @@ Suggested executor: task sub-agent (run commands, report)
   tag-file CHARSET/IDE0161 findings (`Nova{,.Client,.Shared,.UI,.Unit.Tests,.Integration.Tests}`
   under `Features/Tags`, `Nova/Features/Shared/CommitAttemptTracker.cs`, tag migrations — none
   touched by this work). Scoped re-verification `--include <all 20 touched files>` exits **0**.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — **1498 passed / 0 failed**
-  (23 new tests added by this work + 3 added by the PR #97 review-remediation turn).
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — **1501 passed / 0 failed**
+  (23 new tests added by this work + 3 added by the PR #97 review-remediation turn + 3 added by
+  the PR #97 second review-remediation turn).
 - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — **269 passed /
   0 failed** (Aspire AppHost + PostgreSQL 18; new team-roster `Limit` coverage included).
 - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — **21 passed / 0 failed /
@@ -330,7 +347,7 @@ Suggested executor: task sub-agent (run commands, report)
 
 ## Phase 6: Ship — PR, merge, close epic
 
-Status: In progress (builder completed commit/push/PR + review remediation; merge + epic close are post-merge)
+Status: In progress (builder completed commit/push/PR + two review-remediation turns; merge + epic close are post-merge)
 
 Suggested executor: orchestrator
 
@@ -356,7 +373,13 @@ co-author trailer, pushed `eruvalca-placement-epic-gap-remediation-aad`, and ope
 2026-08-17 the Reviewer's PR #97 review found three issues (collation-incompatible ordinal
 ordering check; stale `_pendingState` applied after navigating back to the applied state; the
 deferral guard bypassed by a Closed transition mid-save); all were fixed in a review-remediation
-commit with focused tests, and every review thread was replied to and resolved. The remaining
+commit with focused tests, and every review thread was replied to and resolved. The Reviewer's
+second PR #97 review found two remaining issues in the new remediation surface (the banner Retry
+buttons could still rebuild drafts out from under an in-flight save; the new `finally` block could
+throw via the deferred `LoadRosterAsync` on a transient network failure); both were fixed in a
+second review-remediation commit — `RetryAsync` guarded and the banner Retry buttons disabled,
+and the deferred reload wrapped to surface network failures as the panel error — with three new
+focused bUnit cases, and both review threads were replied to and resolved. The remaining
 Phase 6 steps — merge and closing epic #11 with the summary comment — are post-merge
 orchestrator/human outcomes and were deliberately not performed.
 
@@ -376,7 +399,11 @@ deferred state when the user navigates back to the applied state.
 **Finding 2 — swallowed summary failures.** `LoadSummaryAsync` now reports success/failure, clears
 `_summary` on failure, and an inline `alert-warning` banner (distinct from the roster error) with
 Retry replaces the summary footer; post-save refresh failure suppresses the "Placement saved."
-banner and shows "Placement saved, but the summary could not be refreshed." with retry.
+banner and shows "Placement saved, but the summary could not be refreshed." with retry. Review
+remediation: the banner Retry buttons are disabled while a save is in flight and `RetryAsync`
+no-ops under `_savingActive`, closing the last path that could rebuild drafts out from under an
+in-flight save; the deferred `LoadRosterAsync` in `SaveRowAsync`'s `finally` is wrapped so a
+transient network failure surfaces as the panel error instead of throwing out of the `finally`.
 
 **Finding 3 — unbounded team choices.** `GetTeamRosterInput.Limit` (`[Range(1, 200)]`, omission
 keeps unbounded team-management behavior), `.Take` applied after the deterministic
@@ -393,11 +420,12 @@ tie-breaker only, because the database collation (not ordinal comparison) orders
 matching the existing `CompareCampaign` precedent after the PR #97 review.
 
 **Validation evidence (Phase 5):** build 0 warnings/0 errors; format — unscoped blocked only by the
-pre-existing unrelated tag-file CHARSET/IDE0161 findings, scoped `--include` over all 20 touched
-files exits 0; unit **1498/1498** (23 new tests + 3 added by the PR #97 review-remediation turn);
-integration **269/269** (Aspire + PostgreSQL 18); browser **21 passed / 1 env-gated a11y skip**
-(green twice). A pre-existing narrow-viewport keyboard browser flake (reproduced on clean `main`)
-was made deterministic without weakening assertions.
+pre-existing unrelated tag-file CHARSET/IDE0161 findings, scoped `--include` over all touched
+files exits 0; unit **1501/1501** (23 new tests + 3 added by the PR #97 review-remediation turn +
+3 added by the PR #97 second review-remediation turn); integration **269/269** (Aspire +
+PostgreSQL 18); browser **21 passed / 1 env-gated a11y skip** (green twice). A pre-existing
+narrow-viewport keyboard browser flake (reproduced on clean `main`) was made deterministic
+without weakening assertions.
 
 **Plan bookkeeping:** Phases 1–5 Complete with summaries; Phase 6 In progress — commit/push/PR
 completed by the builder; merge and epic close are post-merge orchestrator/human outcomes.
@@ -410,7 +438,7 @@ Ship steps (post-merge, owned by the orchestrator/human; the builder does not me
    finds it ready and CI build + unit are green on the merge commit). Squash or rebase-merge per
    repo norm; do not delete the branch until #11 closeout is confirmed.
 2. **Comment on epic #11** with the four-gap summary and final evidence: build 0/0; format
-   (scoped) exit 0; unit 1498; integration 269; browser 21 passed + 1 env-gated skip.
+   (scoped) exit 0; unit 1501; integration 269; browser 21 passed + 1 env-gated skip.
 3. **Close epic #11** (state `closed`, reason `completed`). The epic remains the tracking issue;
    close/reopen and Overview/Closeout stay owned by open epic #12.
 4. No migrations, no new environment variables, no new dependencies, and no deployment

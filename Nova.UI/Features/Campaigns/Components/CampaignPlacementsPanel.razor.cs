@@ -565,6 +565,15 @@ public partial class CampaignPlacementsPanel(
     /// <returns>A task that completes when the retried load finishes.</returns>
     private async Task RetryAsync()
     {
+        // Reloading mid-save would rebuild drafts out from under the in-flight save (the same
+        // race the filter/pager guards close) and re-create a URL/roster disagreement when a
+        // navigation-requested state is pending. The banner Retry buttons are also disabled
+        // while a save is active; this guard is the authoritative backstop.
+        if (_savingActive)
+        {
+            return;
+        }
+
         _isLoading = true;
         await LoadInitialAsync();
         PersistStartupState();
@@ -729,7 +738,21 @@ public partial class CampaignPlacementsPanel(
             {
                 _pendingState = null;
                 _appliedState = pending;
-                await LoadRosterAsync();
+                try
+                {
+                    await LoadRosterAsync();
+                }
+                catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+                {
+                    // A network failure reloading for the deferred state must not let the finally
+                    // block throw (which would replace the save's own outcome or take the panel
+                    // down); surface it as the panel error instead. A component teardown
+                    // cancellation is not a user-visible failure.
+                    if (!ComponentCancellationToken.IsCancellationRequested)
+                    {
+                        _error = "Failed to reload placements. Please retry.";
+                    }
+                }
             }
         }
     }
