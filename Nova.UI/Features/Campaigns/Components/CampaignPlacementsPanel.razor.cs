@@ -645,9 +645,16 @@ public partial class CampaignPlacementsPanel(
     /// </summary>
     /// <param name="item">The roster item being saved.</param>
     /// <returns>A task that completes when the save and summary refresh finish.</returns>
-    private async Task SaveRowAsync(CampaignPlacementRosterItem item)
+    /// <remarks>
+    /// Internal for the unit-test suite (<see cref="InternalsVisibleToAttribute"/>) so the
+    /// deferred-reload guard can be exercised directly.
+    /// </remarks>
+    internal async Task SaveRowAsync(CampaignPlacementRosterItem item)
     {
-        if (IsReadOnly || _conflictActive || _reloading)
+        // _isLoading guards the deferred-reload window after a save: the row controls are hidden
+        // while it is set, and a click already queued for that window must not start a save whose
+        // draft would be replaced when the reload rebuilds drafts.
+        if (IsReadOnly || _conflictActive || _reloading || _isLoading)
         {
             return;
         }
@@ -734,10 +741,19 @@ public partial class CampaignPlacementsPanel(
 
             // Apply any placement state requested while this save was in flight now that the row
             // is no longer saving, so back/forward navigation cannot orphan the in-flight save.
+            // Show the loading state for the whole deferred reload: the row controls are hidden
+            // while it is set, so a second save cannot be dispatched into the reload window and
+            // have its draft replaced when the reload rebuilds drafts.
             if (_pendingState is { } pending && !_savingActive)
             {
                 _pendingState = null;
                 _appliedState = pending;
+                _isLoading = true;
+                // Blazor only re-renders an async event handler after its task completes, so the
+                // loading state must be flushed explicitly to hide the row controls for the whole
+                // deferred reload (a second save dispatched into that window would otherwise have
+                // its draft replaced when the reload rebuilds drafts).
+                StateHasChanged();
                 try
                 {
                     await LoadRosterAsync();
@@ -752,6 +768,10 @@ public partial class CampaignPlacementsPanel(
                     {
                         _error = "Failed to reload placements. Please retry.";
                     }
+                }
+                finally
+                {
+                    _isLoading = false;
                 }
             }
         }
