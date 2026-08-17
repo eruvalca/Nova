@@ -992,6 +992,138 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
     }
 
     [Fact]
+    public void Conflict_CloseAndReloadSupersedingDeferredReload_ReleasesLoadingGuard()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var deferredReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var conflictReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())),
+                deferredReload.Task,
+                conflictReload.Task);
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // Navigate to another placement state while the save is in flight; the reload is deferred.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+
+        // The save fails with a conflict. The deferred reload for the pending state begins and
+        // holds the loading guard; the conflict banner renders independently of the loading state.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(
+            ServiceProblem.Conflict("The placement was changed by another user.")));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close and reload"));
+        cut.Markup.ShouldContain("Loading placements...");
+        _ = queryService.Received(2).GetPlacementRosterAsync(
+            Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+
+        // While the deferred reload is pending, "Close and reload" supersedes it: the conflict
+        // recovery reload advances the request sequence, so the deferred reload's conditional
+        // release must not fire. Without the ownership fix this leaves the panel stuck on the
+        // loading spinner, because the recovery never cleared _isLoading either.
+        cut.Find("button.btn-outline-warning").Click();
+        _ = queryService.Received(3).GetPlacementRosterAsync(
+            Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+
+        // The superseded deferred reload completes first. It must not release the loading guard —
+        // the newest reload owns it now — so the loading state stays up and the stale roster is
+        // never applied.
+        var rendersBeforeStaleCompletion = cut.RenderCount;
+        deferredReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster()));
+        cut.WaitForAssertion(() => cut.RenderCount.ShouldBeGreaterThan(rendersBeforeStaleCompletion));
+        cut.Markup.ShouldContain("Loading placements...");
+        cut.Markup.ShouldNotContain("Avery Johnson");
+
+        // The conflict reload completes as the newest request: it applies its roster and releases
+        // the loading guard, so the panel is not stuck on the spinner and the conflict clears.
+        conflictReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster()));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Markup.ShouldNotContain("Loading placements...");
+        cut.Markup.ShouldNotContain("Close and reload");
+    }
+
+    [Fact]
+    public async Task Conflict_CloseAndReloadSupersedingFilterChangeReload_ReleasesLoadingGuard()
+    {
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlacementMutationSuccess>(
+                ServiceProblem.Conflict("The placement was changed by another user."))));
+
+        var filterReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var conflictReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())),
+                filterReload.Task,
+                conflictReload.Task);
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close and reload"));
+
+        // While the conflict is active, a filter change starts a direct-path reload that holds the
+        // loading guard for its whole duration. It is deliberately left pending so the conflict
+        // recovery can supersede it (the "Close and reload" button stays rendered in the browser
+        // because no render happens until the reload completes).
+        await cut.InvokeAsync(() =>
+        {
+            _ = cut.Instance.SetParametersAsync(ParameterView.FromDictionary(
+                new Dictionary<string, object?>
+                {
+                    [nameof(CampaignPlacementsPanel.State)] = new CampaignWorkspacePlacementState { GraduationYear = 2033 }
+                }));
+        });
+
+        _ = queryService.Received(2).GetPlacementRosterAsync(
+            Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+
+        // "Close and reload" supersedes the in-flight filter reload, advancing the request
+        // sequence past it. Without the ownership fix the filter reload's conditional release
+        // never fires and the recovery never clears the guard, leaving the spinner stuck.
+        cut.Find("button.btn-outline-warning").Click();
+        _ = queryService.Received(3).GetPlacementRosterAsync(
+            Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+
+        // The superseded filter reload completes first; it must not release the loading guard, so
+        // the loading state stays up and the stale roster is never applied.
+        var rendersBeforeStaleCompletion = cut.RenderCount;
+        filterReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster()));
+        cut.WaitForAssertion(() => cut.RenderCount.ShouldBeGreaterThan(rendersBeforeStaleCompletion));
+        cut.Markup.ShouldContain("Loading placements...");
+        cut.Markup.ShouldNotContain("Avery Johnson");
+
+        // The conflict reload completes as the newest request: it applies its roster and releases
+        // the loading guard, so the panel is not stuck on the spinner and the conflict clears.
+        conflictReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster()));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Markup.ShouldNotContain("Loading placements...");
+        cut.Markup.ShouldNotContain("Close and reload");
+    }
+
+    [Fact]
     public void ClosedTransition_ClearsDrafts_AndRendersReadOnly()
     {
         RegisterServices();

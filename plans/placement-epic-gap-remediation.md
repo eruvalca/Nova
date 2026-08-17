@@ -379,7 +379,8 @@ Suggested executor: task sub-agent (run commands, report)
 
 ## Phase 6: Ship — PR, merge, close epic
 
-Status: In progress (builder completed commit/push/PR + four review-remediation turns; merge + epic close are post-merge)
+Status: In progress (builder completed commit/push/PR + five review-remediation turns; merge + epic close
+are post-merge)
 
 Suggested executor: orchestrator
 
@@ -429,7 +430,18 @@ never held the flag) and the deferred reload use it; `RetryAsync` follows the sa
 and surfaces a network failure as the panel error instead of leaving the spinner stuck — with two
 new focused bUnit cases (superseded deferred reload no longer releases the guard, and a save
 dispatched into a direct-path reload window no-ops), and the review thread was replied to and
-resolved. The remaining
+resolved. The Reviewer's fifth PR #97 review found one remaining issue in the new remediation
+surface (`ReloadAndDiscardAsync`, the conflict "Close and reload" recovery, called
+`LoadRosterAsync` directly and did not participate in the loading-ownership rule, so when it
+superseded an in-flight sequence-aware reload — a deferred reload after a conflicted save, or a
+direct-path reload after a filter change during a conflict — the superseded reload's conditional
+release never fired and the recovery never cleared the flag, leaving the panel stuck on the
+loading spinner); it was fixed in a fifth review-remediation commit — the conflict-recovery
+reload now routes its roster load through the same `ReloadRosterHoldingLoadingAsync()` ownership
+helper as every other reload path, so it holds the loading guard for the whole recovery and
+releases it only while still the newest request — with two new focused bUnit cases covering both
+superseding triggers (deferred reload and filter-change reload), and the review thread was
+replied to and resolved. The remaining
 Phase 6 steps — merge and closing epic #11 with the summary comment — are post-merge
 orchestrator/human outcomes and were deliberately not performed.
 
@@ -452,7 +464,10 @@ reload rebuilds drafts. The newest roster request owns the loading guard: a shar
 `ReloadRosterHoldingLoadingAsync()` helper (used by the direct `OnParametersSetAsync` reload path
 and the deferred reload) holds `_isLoading` and releases it only while that reload is still the
 newest request, so a superseded reload can never re-enable the row controls while a newer reload
-is still in flight.
+is still in flight. The conflict "Close and reload" recovery
+(`ReloadAndDiscardAsync`) participates in the same ownership rule — its roster load routes through
+the helper — so a recovery that supersedes an in-flight reload releases the guard itself instead
+of leaving the panel stuck on the loading spinner.
 
 **Finding 2 — swallowed summary failures.** `LoadSummaryAsync` now reports success/failure, clears
 `_summary` on failure, and an inline `alert-warning` banner (distinct from the roster error) with
@@ -479,18 +494,20 @@ matching the existing `CompareCampaign` precedent after the PR #97 review.
 
 **Validation evidence (Phase 5):** build 0 warnings/0 errors; format — unscoped blocked only by the
 pre-existing unrelated tag-file CHARSET/IDE0161 findings, scoped `--include` over all touched
-files exits 0; unit **1505/1505** (23 new tests + 3 added by the PR #97 review-remediation turn +
+files exits 0; unit **1507/1507** (23 new tests + 3 added by the PR #97 review-remediation turn +
 3 added by the PR #97 second review-remediation turn + 2 added by the PR #97 third
-review-remediation turn + 2 added by the PR #97 fourth review-remediation turn); integration
+review-remediation turn + 2 added by the PR #97 fourth review-remediation turn + 2 added by the
+PR #97 fifth review-remediation turn); integration
 **269/269** (Aspire +
 PostgreSQL 18); browser **21 passed / 1 env-gated a11y skip** (green twice). A pre-existing
 narrow-viewport keyboard browser flake (reproduced on clean `main`) was made deterministic
 without weakening assertions.
 
 **Plan bookkeeping:** Phases 1–5 Complete with summaries; Phase 6 In progress — commit/push/PR
-completed by the builder; four PR #97 review-remediation turns (ordering/deferral, banner-Retry
+completed by the builder; five PR #97 review-remediation turns (ordering/deferral, banner-Retry
 + non-throwing finally, deferred-reload loading state + second-save backstop, newest-request
-loading-guard ownership) each replied to and
+loading-guard ownership, conflict-recovery reload participating in that ownership rule) each
+replied to and
 resolved; merge and epic close are post-merge orchestrator/human outcomes.
 
 ## Deployment Plan
@@ -501,7 +518,7 @@ Ship steps (post-merge, owned by the orchestrator/human; the builder does not me
    finds it ready and CI build + unit are green on the merge commit). Squash or rebase-merge per
    repo norm; do not delete the branch until #11 closeout is confirmed.
 2. **Comment on epic #11** with the four-gap summary and final evidence: build 0/0; format
-   (scoped) exit 0; unit 1505; integration 269; browser 21 passed + 1 env-gated skip.
+   (scoped) exit 0; unit 1507; integration 269; browser 21 passed + 1 env-gated skip.
 3. **Close epic #11** (state `closed`, reason `completed`). The epic remains the tracking issue;
    close/reopen and Overview/Closeout stay owned by open epic #12.
 4. No migrations, no new environment variables, no new dependencies, and no deployment

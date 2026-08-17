@@ -886,8 +886,16 @@ public partial class CampaignPlacementsPanel(
 
         try
         {
+            // Route the roster reload through the same loading-ownership helper as every other
+            // reload path: hold the loading guard for the whole reload and release it only while
+            // this reload is still the newest roster request. Calling LoadRosterAsync directly
+            // would advance _requestSequence without ever clearing _isLoading, so when this
+            // recovery supersedes an in-flight sequence-aware reload (a deferred reload after a
+            // conflicted save, or a direct-path reload after a filter change during a conflict),
+            // the superseded reload's conditional release never fires and the panel would be stuck
+            // on the loading spinner with the loaded roster hidden.
             await Task.WhenAll(
-                LoadRosterAsync(),
+                ReloadRosterHoldingLoadingAsync(),
                 LoadSummaryAsync(),
                 LoadTeamChoicesAsync(),
                 LoadGraduationYearChoicesAsync());
