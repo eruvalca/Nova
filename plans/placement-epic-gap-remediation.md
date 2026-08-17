@@ -103,11 +103,17 @@ Implemented by the builder agent (branch `eruvalca-placement-epic-gap-remediatio
   applied in `SaveRowAsync`'s `finally` block once no row is saving, so back/forward navigation
   cannot rebuild drafts out from under an in-flight save. Blazor's post-event re-render re-enables
   the controls after every save completes (no manual `StateHasChanged` needed).
+- Review remediation (2026-08-17, PR #97 review): the deferral guard now captures `saveInFlight`
+  **before** the Closed-transition `ResetAllDrafts()` so closing the campaign mid-save cannot
+  silently bypass it, and navigating back to the already-applied state while a save is in flight
+  clears `_pendingState` so the save's `finally` never applies a stale deferred state (URL/roster
+  disagreement). Two new bUnit cases cover both paths.
 
 Verification: `dotnet build Nova.slnx` clean; scoped `dotnet format` exit 0; new
 `CampaignPlacementsPanelTests` cases cover filters/pager disabled during an in-flight save and
-re-enabled after, and a state change during a save deferring the roster reload until the save
-completes. Full unit suite: 1495 passing.
+re-enabled after, a state change during a save deferring the roster reload until the save
+completes, navigating back to the applied state discarding the deferred state, and a Closed
+transition mid-save still deferring a concurrent state change. Full unit suite: 1498 passing.
 
 ## Phase 2: Surface summary load/refresh failures (finding 2)
 
@@ -262,11 +268,20 @@ audit itself)
   from the existing `PlacementRosterPageRow` (the server already projected both names) and keeps
   `DisplayName`. All constructors updated (server projection, panel/workspace test helpers,
   contract-test fixtures).
-- `IsValidRoster` now requires non-blank `FirstName`/`LastName` per row and verifies adjacent rows
-  follow the server ordering contract (LastName asc → FirstName asc → `PlayerCampaignAssignmentId`
-  asc; ordinal name comparison). New contract tests: `{}` summary → ServerError; summary missing a
-  count → ServerError; roster row missing `placementOutcome` → ServerError; out-of-order roster
-  page → ServerError; in-order multi-row page accepted.
+- `IsValidRoster` now requires non-blank `FirstName`/`LastName` per row and verifies the portable
+  part of the server ordering contract: when adjacent rows share identical last and first names,
+  `PlayerCampaignAssignmentId` must be non-decreasing. Different names are **not** compared
+  ordinally because the database collation (not ordinal comparison) determines how the server
+  orders them — mirroring the existing `HttpCampaignQueryService.CompareCampaign` precedent. New
+  contract tests: `{}` summary → ServerError; summary missing a count → ServerError; roster row
+  missing `placementOutcome` → ServerError; out-of-order equal-name page (descending assignment
+  ids) → ServerError; in-order multi-row page accepted; a collation-ordered page ("Álvarez" before
+  "Bond", ordinally descending) accepted.
+- Review remediation (2026-08-17, PR #97 review): the original ordinal name comparison in
+  `IsOrdered` could reject valid server pages when the DB collation orders accented names first
+  (e.g. `postgres:18` `en_US.utf8`); replaced with the equal-name ID tie-breaker above, updated
+  the out-of-order fixture to use same-name rows with descending ids, and added the
+  collation-ordered acceptance test.
 - Integration/browser seeds construct DB entities only (no roster-item fixtures); the real server
   now serializes the new fields, so the HTTP/browser suites exercise the enriched contract.
 
@@ -299,8 +314,8 @@ Suggested executor: task sub-agent (run commands, report)
   tag-file CHARSET/IDE0161 findings (`Nova{,.Client,.Shared,.UI,.Unit.Tests,.Integration.Tests}`
   under `Features/Tags`, `Nova/Features/Shared/CommitAttemptTracker.cs`, tag migrations — none
   touched by this work). Scoped re-verification `--include <all 20 touched files>` exits **0**.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — **1495 passed / 0 failed**
-  (23 new tests added by this work).
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — **1498 passed / 0 failed**
+  (23 new tests added by this work + 3 added by the PR #97 review-remediation turn).
 - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — **269 passed /
   0 failed** (Aspire AppHost + PostgreSQL 18; new team-roster `Limit` coverage included).
 - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — **21 passed / 0 failed /
@@ -315,7 +330,7 @@ Suggested executor: task sub-agent (run commands, report)
 
 ## Phase 6: Ship — PR, merge, close epic
 
-Status: In progress (builder completed commit/push/PR; merge + epic close are post-merge)
+Status: In progress (builder completed commit/push/PR + review remediation; merge + epic close are post-merge)
 
 Suggested executor: orchestrator
 
@@ -337,8 +352,12 @@ Suggested executor: orchestrator
 
 The builder agent (2026-08-16/17) committed all implementation + plan updates with the Copilot
 co-author trailer, pushed `eruvalca-placement-epic-gap-remediation-aad`, and opened the PR to
-`main` with `Closes #11` and full validation evidence. CI (build + unit) runs on the PR head. The
-remaining Phase 6 steps — merge and closing epic #11 with the summary comment — are post-merge
+`main` with `Closes #11` and full validation evidence. CI (build + unit) runs on the PR head. On
+2026-08-17 the Reviewer's PR #97 review found three issues (collation-incompatible ordinal
+ordering check; stale `_pendingState` applied after navigating back to the applied state; the
+deferral guard bypassed by a Closed transition mid-save); all were fixed in a review-remediation
+commit with focused tests, and every review thread was replied to and resolved. The remaining
+Phase 6 steps — merge and closing epic #11 with the summary comment — are post-merge
 orchestrator/human outcomes and were deliberately not performed.
 
 ## Final Recap
@@ -350,7 +369,9 @@ under orchestrator delegation) as one PR to `main` closing epic #11.
 and the shared `CampaignRosterPager` (new `Disabled` parameter) while any row is saving; the
 filter/page handlers no-op during a save; `OnParametersSetAsync` defers a URL/navigation-driven
 `State` change into `_pendingState` and applies it after the save completes, so back/forward cannot
-orphan an in-flight save.
+orphan an in-flight save. Review remediation: the guard captures the in-flight flag before the
+Closed transition resets drafts (so closing mid-save cannot bypass the deferral) and drops a
+deferred state when the user navigates back to the applied state.
 
 **Finding 2 — swallowed summary failures.** `LoadSummaryAsync` now reports success/failure, clears
 `_summary` on failure, and an inline `alert-warning` banner (distinct from the roster error) with
@@ -367,13 +388,16 @@ keeps unbounded team-management behavior), `.Take` applied after the determinist
 audited across ~20 services; the full unit suite passed unchanged — no contract corrections needed
 because every server payload already satisfies the strict contract). `CampaignPlacementRosterItem`
 gained `FirstName`/`LastName` filled from the existing server projection, and the client validator
-enforces the server ordering contract (LastName → FirstName → assignment id).
+enforces the portable part of the server ordering contract: the equal-name assignment-id
+tie-breaker only, because the database collation (not ordinal comparison) orders different names —
+matching the existing `CompareCampaign` precedent after the PR #97 review.
 
 **Validation evidence (Phase 5):** build 0 warnings/0 errors; format — unscoped blocked only by the
 pre-existing unrelated tag-file CHARSET/IDE0161 findings, scoped `--include` over all 20 touched
-files exits 0; unit **1495/1495**; integration **269/269** (Aspire + PostgreSQL 18); browser
-**21 passed / 1 env-gated a11y skip** (green twice). A pre-existing narrow-viewport keyboard browser
-flake (reproduced on clean `main`) was made deterministic without weakening assertions.
+files exits 0; unit **1498/1498** (23 new tests + 3 added by the PR #97 review-remediation turn);
+integration **269/269** (Aspire + PostgreSQL 18); browser **21 passed / 1 env-gated a11y skip**
+(green twice). A pre-existing narrow-viewport keyboard browser flake (reproduced on clean `main`)
+was made deterministic without weakening assertions.
 
 **Plan bookkeeping:** Phases 1–5 Complete with summaries; Phase 6 In progress — commit/push/PR
 completed by the builder; merge and epic close are post-merge orchestrator/human outcomes.
@@ -386,7 +410,7 @@ Ship steps (post-merge, owned by the orchestrator/human; the builder does not me
    finds it ready and CI build + unit are green on the merge commit). Squash or rebase-merge per
    repo norm; do not delete the branch until #11 closeout is confirmed.
 2. **Comment on epic #11** with the four-gap summary and final evidence: build 0/0; format
-   (scoped) exit 0; unit 1495; integration 269; browser 21 passed + 1 env-gated skip.
+   (scoped) exit 0; unit 1498; integration 269; browser 21 passed + 1 env-gated skip.
 3. **Close epic #11** (state `closed`, reason `completed`). The epic remains the tracking issue;
    close/reopen and Overview/Closeout stay owned by open epic #12.
 4. No migrations, no new environment variables, no new dependencies, and no deployment

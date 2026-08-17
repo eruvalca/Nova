@@ -269,6 +269,11 @@ public partial class CampaignPlacementsPanel(
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
+        // Capture the in-flight state before the Closed transition resets every draft, so the
+        // deferral below still applies when the campaign closes while a row save is in flight
+        // (ResetAllDrafts() replaces drafts with fresh non-saving drafts).
+        var saveInFlight = _savingActive;
+
         var becameClosed = CampaignStatus == CampaignStatus.Closed && _appliedStatus != CampaignStatus.Closed;
         _appliedStatus = CampaignStatus;
 
@@ -282,7 +287,7 @@ public partial class CampaignPlacementsPanel(
 
         if (State != _appliedState)
         {
-            if (_savingActive)
+            if (saveInFlight)
             {
                 // A row save is in flight. Defer the roster reload so back/forward navigation
                 // cannot rebuild drafts out from under the in-flight save; apply the requested
@@ -293,6 +298,14 @@ public partial class CampaignPlacementsPanel(
 
             _appliedState = State;
             await LoadRosterAsync();
+        }
+        else
+        {
+            // The caller navigated back to the state that produced the loaded roster. Drop any
+            // deferred state so completing a save cannot apply a stale request for a state the
+            // user already left (the URL and roster would otherwise disagree until the next
+            // navigation).
+            _pendingState = null;
         }
     }
 

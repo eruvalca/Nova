@@ -90,12 +90,14 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
             && IsOrdered(result.Items);
 
     /// <summary>
-    /// Verifies that adjacent roster rows follow the server ordering contract: last name ascending,
-    /// then first name ascending, then <see cref="CampaignPlacementRosterItem.PlayerCampaignAssignmentId"/>
-    /// ascending. Names are compared ordinally; the server orders by the same logical keys.
+    /// Verifies the portable part of the server ordering contract: when two adjacent rows share
+    /// identical last and first names, the <see cref="CampaignPlacementRosterItem.PlayerCampaignAssignmentId"/>
+    /// tie-breaker must be non-decreasing. Different names are not compared ordinally because the
+    /// database collation — not ordinal comparison — determines how the server orders them; this
+    /// mirrors the precedent in <see cref="HttpCampaignQueryService.CompareCampaign"/>.
     /// </summary>
     /// <param name="items">The roster rows to verify.</param>
-    /// <returns><see langword="true"/> when the rows are in non-decreasing contract order.</returns>
+    /// <returns><see langword="true"/> when every equal-name adjacent pair has a non-decreasing assignment identifier.</returns>
     private static bool IsOrdered(IReadOnlyList<CampaignPlacementRosterItem> items)
     {
         for (var index = 1; index < items.Count; index++)
@@ -103,29 +105,9 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
             var previous = items[index - 1];
             var current = items[index];
 
-            var lastNameComparison = StringComparer.Ordinal.Compare(previous.LastName, current.LastName);
-            if (lastNameComparison > 0)
-            {
-                return false;
-            }
-
-            if (lastNameComparison < 0)
-            {
-                continue;
-            }
-
-            var firstNameComparison = StringComparer.Ordinal.Compare(previous.FirstName, current.FirstName);
-            if (firstNameComparison > 0)
-            {
-                return false;
-            }
-
-            if (firstNameComparison < 0)
-            {
-                continue;
-            }
-
-            if (previous.PlayerCampaignAssignmentId > current.PlayerCampaignAssignmentId)
+            if (string.Equals(previous.LastName, current.LastName, StringComparison.Ordinal)
+                && string.Equals(previous.FirstName, current.FirstName, StringComparison.Ordinal)
+                && previous.PlayerCampaignAssignmentId > current.PlayerCampaignAssignmentId)
             {
                 return false;
             }

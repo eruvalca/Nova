@@ -374,6 +374,89 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
             Arg.Any<CancellationToken>()));
     }
 
+    [Fact]
+    public void Panel_ClearsPendingState_WhenNavigationReturnsToAppliedStateDuringSave()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // Navigate away while the save is in flight; the roster reload is deferred.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+        queryService.DidNotReceive().GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+
+        // Navigate back to the state that produced the loaded roster while still saving.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState()));
+
+        // Completing the save must not apply the stale deferred state: the roster stays on the
+        // applied state and is never reloaded for the abandoned GraduationYear 2033.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saved"));
+        queryService.DidNotReceive().GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ClosedTransitionDuringSave_StillDefersStateChange_UntilSaveCompletes()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel(status: CampaignStatus.Active, canEdit: true);
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // The campaign closes while a save is in flight and the parameter update also carries a
+        // state change. ResetAllDrafts() replaces every draft with a fresh non-saving draft, so
+        // the deferral must use the pre-reset in-flight flag.
+        cut.Render(parameters => parameters
+            .Add(panel => panel.CampaignStatus, CampaignStatus.Closed)
+            .Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+
+        // The roster reload is still deferred until the in-flight save completes.
+        queryService.DidNotReceive().GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+
+        // Completing the save applies the deferred state and reloads the roster for it.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => queryService.Received(1).GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>()));
+    }
+
     // ── Summary failure surfacing (finding 2) ───────────────────────────────
 
     [Fact]

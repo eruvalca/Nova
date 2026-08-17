@@ -398,8 +398,8 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     }
 
     /// <summary>
-    /// Verifies a roster page whose adjacent rows violate the server ordering contract
-    /// (last name ascending, then first name ascending, then assignment id ascending) is rejected.
+    /// Verifies a roster page whose equal-name rows violate the server ordering tie-breaker
+    /// (assignment id must be non-decreasing within identical names) is rejected.
     /// </summary>
     [Fact]
     public async Task GetPlacementRosterAsync_ReturnsServerError_WhenRowsAreOutOfOrder()
@@ -424,9 +424,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     {
                       "playerCampaignAssignmentId": 101,
                       "playerId": 202,
-                      "displayName": "Zoe Adams",
-                      "firstName": "Zoe",
-                      "lastName": "Adams",
+                      "displayName": "Avery Johnson",
+                      "firstName": "Avery",
+                      "lastName": "Johnson",
                       "graduationYear": 2028,
                       "placementOutcome": 0,
                       "team": null,
@@ -451,6 +451,64 @@ public sealed class HttpCampaignPlacementQueryServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a roster page whose name order follows the database collation rather than ordinal
+    /// comparison is accepted: the server orders different names by the database collation (for
+    /// example, accented names can precede otherwise-ordinally-earlier names), so only the
+    /// equal-name assignment-id tie-breaker is portable to the client.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_AcceptsRows_WhenDatabaseCollationOrdersNamesDifferentlyFromOrdinal()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "items": [
+                    {
+                      "playerCampaignAssignmentId": 101,
+                      "playerId": 202,
+                      "displayName": "Ana Álvarez",
+                      "firstName": "Ana",
+                      "lastName": "Álvarez",
+                      "graduationYear": 2028,
+                      "placementOutcome": 0,
+                      "team": null,
+                      "concurrencyToken": "34d6a1d0-4f2e-4f2e-9f2e-34d6a1d0abcd"
+                    },
+                    {
+                      "playerCampaignAssignmentId": 102,
+                      "playerId": 203,
+                      "displayName": "James Bond",
+                      "firstName": "James",
+                      "lastName": "Bond",
+                      "graduationYear": 2028,
+                      "placementOutcome": 0,
+                      "team": null,
+                      "concurrencyToken": "34d6a1d0-4f2e-4f2e-9f2e-34d6a1d0abce"
+                    }
+                  ],
+                  "page": 1,
+                  "pageSize": 50,
+                  "totalCount": 2
+                }
+                """,
+                Encoding.UTF8,
+                "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Count.ShouldBe(2);
     }
 
     /// <summary>
