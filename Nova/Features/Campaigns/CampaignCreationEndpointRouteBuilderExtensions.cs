@@ -26,7 +26,6 @@ internal static class CampaignCreationEndpointRouteBuilderExtensions
             group.MapPost(CampaignEndpoints.CreateRelative, CreateCampaignHandler)
                 .Produces<CreateCampaignResult>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
-                .ProducesProblem(StatusCodes.Status400BadRequest)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)

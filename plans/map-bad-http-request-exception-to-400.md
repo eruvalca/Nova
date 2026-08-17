@@ -185,18 +185,18 @@ Added unit coverage for non-handler exceptions plus preserved 400 and 413 status
 ProblemDetails detail/status behavior. The full unit suite passed with 1,472 tests, and the
 changed-file format check passed.
 
-## Phase 5: OpenAPI metadata sweep — `.ProducesProblem(400)` on JSON-body endpoints
+## Phase 5: OpenAPI metadata verification for JSON-body endpoints
 
 Status: Complete
 
 Suggested executor: sub-agent w/ smaller model (mechanical sweep; give it this exact list and the
 instruction to verify existing metadata first)
 
-- [x] For each endpoint below, confirm the mapping's current metadata, then add
-      `.ProducesProblem(400)` where it is missing (several already declare 400 for
-      route/body mismatch — e.g. placement update declares 400/401/403/404/409/500). Do not
-      duplicate, do not touch `.ProducesValidationProblem()` (validation problems are 422 in
-      .NET 10 auto-validation, a distinct response), and do not reorder or remove existing metadata.
+- [x] For each endpoint below, confirm the mapping's current metadata. Body endpoints retain their
+      single `.ProducesValidationProblem()` declaration; do not add `.ProducesProblem(400)`
+      alongside it because both describe the same 400 response and create conflicting OpenAPI
+      metadata. Existing standalone 400 metadata on endpoints without validation metadata remains
+      unchanged.
   - [x] `Nova/Features/Clubs/ClubEndpointRouteBuilderExtensions.cs`: `CreateClub`, `AssignClubAdmin`
   - [x] `Nova/Features/Players/PlayerManagementEndpointRouteBuilderExtensions.cs`: `CreatePlayer`, `UpdatePlayer`
   - [x] `Nova/Features/Teams/TeamManagementEndpointRouteBuilderExtensions.cs`: `CreateTeam`, `UpdateTeam`
@@ -221,10 +221,11 @@ instruction to verify existing metadata first)
 
 ### Phase Summary
 
-Added `ProducesProblem(StatusCodes.Status400BadRequest)` metadata to the planned JSON-body
-endpoints, preserved existing validation and response metadata, and kept the multipart and
-route-only exclusions. The solution build passed; the endpoint sweep found no additional
-body-bound mutation endpoint outside the approved list.
+Verified the planned JSON-body endpoints and removed duplicate `ProducesProblem(400)` metadata from
+all mappings that already declare `ProducesValidationProblem()`. Standalone 400 metadata on
+endpoints without validation metadata, the multipart exclusion, and the route-only exclusions
+remain unchanged. The endpoint sweep found no additional body-bound mutation endpoint outside the
+approved list.
 
 ## Phase 6: Full validation
 
@@ -265,8 +266,8 @@ commit. The full-solution format check retains unrelated pre-existing `CHARSET` 
 Implemented issue #91 end to end. The API now maps framework-generated
 `BadHttpRequestException` instances to correlated ProblemDetails while preserving the exception
 status code and detail, malformed JSON is covered by placement and creation integration tests,
-the handler has 400/413 unit coverage, and all planned JSON-body endpoints advertise the 400
-ProblemDetails response. No client or browser changes were needed.
+the handler has 400/413 unit coverage, and planned JSON-body endpoints avoid conflicting duplicate
+400 OpenAPI metadata. No client or browser changes were needed.
 
 ## Deployment Plan
 
@@ -275,7 +276,7 @@ ProblemDetails response. No client or browser changes were needed.
    required.
 3. Smoke-test one malformed JSON request against a JSON-body `/api` endpoint and confirm a
    `400 application/problem+json` response with `status`, `detail`, and `traceId`.
-4. Verify the generated `/openapi` document lists the 400 ProblemDetails response for the
+4. Verify the generated `/openapi` document has no duplicate 400 response entries for the
    updated JSON-body endpoints.
 5. Monitor normal API error telemetry after deployment; handled bad-request exceptions should no
    longer appear as unhandled 500 diagnostics.
