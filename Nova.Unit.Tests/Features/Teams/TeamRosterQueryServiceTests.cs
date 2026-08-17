@@ -81,6 +81,52 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies that a bounded limit returns exactly the first rows in deterministic
+    /// (Name, then TeamId) order without applying the limit to an unordered set.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterAsync_Limit_ReturnsFirstTeamsInDeterministicOrder()
+    {
+        ActAs(AdminId, ClubId);
+        var result = await CreateService().GetRosterAsync(
+            new GetTeamRosterInput { Limit = 2 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Select(team => team.Name).ShouldBe(["50% Wins", "U16 Blue"]);
+    }
+
+    /// <summary>
+    /// Verifies that omitting the limit keeps the existing unbounded behavior.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterAsync_WithoutLimit_ReturnsEveryMatchingTeam()
+    {
+        ActAs(AdminId, ClubId);
+        var result = await CreateService().GetRosterAsync(
+            new GetTeamRosterInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Count.ShouldBe(4);
+    }
+
+    /// <summary>
+    /// Verifies a limit that exceeds the match count returns every matching team.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterAsync_LimitAboveMatchCount_ReturnsEveryMatchingTeam()
+    {
+        ActAs(AdminId, ClubId);
+        var result = await CreateService().GetRosterAsync(
+            new GetTeamRosterInput { Limit = 200 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Count.ShouldBe(4);
+    }
+
+    /// <summary>
     /// Creates a <see cref="TeamRosterQueryService"/> wired to the SQLite tenancy harness.
     /// </summary>
     /// <returns>The configured service under test.</returns>

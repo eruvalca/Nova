@@ -31,6 +31,11 @@ public partial class CampaignPlacementsPanel(
     private const int PlacementPageSize = GetCampaignPlacementRosterInput.DefaultPageSize;
 
     /// <summary>
+    /// The documented cap passed to the team roster query for the bounded team-choice selects.
+    /// </summary>
+    private const int TeamChoiceLimit = 200;
+
+    /// <summary>
     /// The fallback conflict warning shown when the server does not supply a detail message.
     /// </summary>
     private const string ConflictFallbackMessage = "The placement was changed by someone else.";
@@ -173,6 +178,21 @@ public partial class CampaignPlacementsPanel(
     private string? _saveMessage;
 
     /// <summary>
+    /// Indicates that the authoritative placement summary could not be loaded or refreshed.
+    /// </summary>
+    private bool _summaryLoadFailed;
+
+    /// <summary>
+    /// The summary-failure warning message, or <see langword="null"/> for the default warning text.
+    /// </summary>
+    private string? _summaryWarning;
+
+    /// <summary>
+    /// The placement state requested while a save was in flight, applied once every save completes.
+    /// </summary>
+    private CampaignWorkspacePlacementState? _pendingState;
+
+    /// <summary>
     /// The placement state that produced the currently loaded roster.
     /// </summary>
     private CampaignWorkspacePlacementState _appliedState = new();
@@ -201,6 +221,11 @@ public partial class CampaignPlacementsPanel(
     /// Gets a value indicating whether the panel renders static read-only rows.
     /// </summary>
     private bool IsReadOnly => CampaignStatus == CampaignStatus.Closed || !CanEditPlacements;
+
+    /// <summary>
+    /// Gets a value indicating whether at least one row save is currently in flight.
+    /// </summary>
+    private bool _savingActive => _drafts.Values.Any(draft => draft.IsSaving);
 
     /// <summary>
     /// Gets a value indicating whether a placement filter is active.
@@ -257,6 +282,15 @@ public partial class CampaignPlacementsPanel(
 
         if (State != _appliedState)
         {
+            if (_savingActive)
+            {
+                // A row save is in flight. Defer the roster reload so back/forward navigation
+                // cannot rebuild drafts out from under the in-flight save; apply the requested
+                // state once the save completes. The latest requested state wins.
+                _pendingState = State;
+                return;
+            }
+
             _appliedState = State;
             await LoadRosterAsync();
         }
@@ -280,6 +314,8 @@ public partial class CampaignPlacementsPanel(
     {
         _error = null;
         _choicesLoadFailed = false;
+        _summaryLoadFailed = false;
+        _summaryWarning = null;
 
         var teamChoicesTask = LoadTeamChoicesAsync();
         var graduationYearsTask = LoadGraduationYearChoicesAsync();
@@ -331,16 +367,30 @@ public partial class CampaignPlacementsPanel(
     /// <summary>
     /// Loads the authoritative placement summary without touching row drafts.
     /// </summary>
-    /// <returns>A task that completes when the summary load finishes.</returns>
-    private async Task LoadSummaryAsync()
+    /// <returns>A task that completes with <see langword="true"/> when the summary loaded successfully.</returns>
+    private async Task<bool> LoadSummaryAsync()
     {
         var result = await placementQueryService.GetPlacementSummaryAsync(
             new GetCampaignPlacementSummaryInput { CampaignId = CampaignId },
             ComponentCancellationToken);
 
+        var succeeded = false;
         result.Switch(
-            summary => _summary = summary,
-            _ => { });
+            summary =>
+            {
+                _summary = summary;
+                _summaryLoadFailed = false;
+                _summaryWarning = null;
+                succeeded = true;
+            },
+            _ =>
+            {
+                // Never leave stale counts rendered as authoritative when a refresh fails.
+                _summary = null;
+                _summaryLoadFailed = true;
+            });
+
+        return succeeded;
     }
 
     /// <summary>
@@ -350,7 +400,7 @@ public partial class CampaignPlacementsPanel(
     private async Task<bool> LoadTeamChoicesAsync()
     {
         var result = await teamRosterService.GetRosterAsync(
-            new GetTeamRosterInput { LifecycleStatus = "active" },
+            new GetTeamRosterInput { LifecycleStatus = "active", Limit = TeamChoiceLimit },
             ComponentCancellationToken);
         var succeeded = false;
         result.Switch(
@@ -436,6 +486,11 @@ public partial class CampaignPlacementsPanel(
     /// <returns>A task that completes when the callback is delivered.</returns>
     private Task OnGraduationYearChangedAsync(ChangeEventArgs args)
     {
+        if (_savingActive)
+        {
+            return Task.CompletedTask;
+        }
+
         _saveMessage = null;
         var raw = args.Value?.ToString();
         var graduationYear = int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value > 0
@@ -451,6 +506,11 @@ public partial class CampaignPlacementsPanel(
     /// <returns>A task that completes when the callback is delivered.</returns>
     private Task OnUnresolvedOnlyChangedAsync(ChangeEventArgs args)
     {
+        if (_savingActive)
+        {
+            return Task.CompletedTask;
+        }
+
         _saveMessage = null;
         return RaiseStateChangedAsync(State with { UnresolvedOnly = args.Value is true, Page = 1 });
     }
@@ -461,6 +521,11 @@ public partial class CampaignPlacementsPanel(
     /// <returns>A task that completes when the callback is delivered.</returns>
     private Task OnClearFiltersAsync()
     {
+        if (_savingActive)
+        {
+            return Task.CompletedTask;
+        }
+
         _saveMessage = null;
         return RaiseStateChangedAsync(new CampaignWorkspacePlacementState());
     }
@@ -472,6 +537,11 @@ public partial class CampaignPlacementsPanel(
     /// <returns>A task that completes when the callback is delivered.</returns>
     private Task OnPageChangedAsync(int page)
     {
+        if (_savingActive)
+        {
+            return Task.CompletedTask;
+        }
+
         _saveMessage = null;
         return RaiseStateChangedAsync(State with { Page = Math.Max(1, page) });
     }
@@ -623,7 +693,15 @@ public partial class CampaignPlacementsPanel(
 
             if (saved)
             {
-                await LoadSummaryAsync();
+                var summaryRefreshed = await LoadSummaryAsync();
+                if (!summaryRefreshed)
+                {
+                    // The mutation persisted, but the authoritative counts could not be refreshed.
+                    // Do not show a success message beside stale counts; surface the refresh
+                    // failure with a retry instead.
+                    _saveMessage = null;
+                    _summaryWarning = "Placement saved, but the summary could not be refreshed.";
+                }
             }
         }
         finally
@@ -631,6 +709,15 @@ public partial class CampaignPlacementsPanel(
             // Always release the per-row save gate, even if the mutation or summary refresh
             // throws, so the row never stays stuck in the saving state.
             draft.IsSaving = false;
+
+            // Apply any placement state requested while this save was in flight now that the row
+            // is no longer saving, so back/forward navigation cannot orphan the in-flight save.
+            if (_pendingState is { } pending && !_savingActive)
+            {
+                _pendingState = null;
+                _appliedState = pending;
+                await LoadRosterAsync();
+            }
         }
     }
 

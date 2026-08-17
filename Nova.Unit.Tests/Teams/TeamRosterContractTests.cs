@@ -51,4 +51,48 @@ public sealed class TeamRosterContractTests
 
         url.ShouldBe("/api/teams");
     }
+
+    [Fact]
+    public void GetRosterUrl_IncludesBoundedLimit()
+    {
+        var url = TeamRosterEndpoints.GetRosterUrl(limit: 200);
+
+        url.ShouldBe("/api/teams?limit=200");
+    }
+
+    [Fact]
+    public void GetRosterUrl_OmitsOutOfRangeLimit()
+    {
+        var url = TeamRosterEndpoints.GetRosterUrl(limit: 201);
+
+        url.ShouldBe("/api/teams");
+    }
+
+    /// <summary>
+    /// Verifies explicit limit values outside the documented 1..200 cap are rejected.
+    /// </summary>
+    /// <param name="limit">The out-of-range explicit limit.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(201)]
+    public void GetTeamRosterInput_RejectsOutOfRangeLimit(int limit)
+    {
+        var errors = InputValidator.Validate(new GetTeamRosterInput { Limit = limit });
+
+        errors.ShouldContainKey(nameof(GetTeamRosterInput.Limit));
+    }
+
+    /// <summary>
+    /// Verifies the documented cap and an omitted limit both validate.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(1)]
+    [InlineData(200)]
+    public void GetTeamRosterInput_AcceptsValidLimit(int? limit)
+    {
+        var errors = InputValidator.Validate(new GetTeamRosterInput { Limit = limit });
+
+        errors.ShouldBeEmpty();
+    }
 }

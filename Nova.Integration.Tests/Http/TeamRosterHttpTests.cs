@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
@@ -225,6 +226,92 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         var backslashRows = await backslashResponse.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
         backslashRows.ShouldNotBeNull();
         backslashRows.Select(row => row.Name).ShouldBe([@"Path\Team"]);
+    }
+
+    /// <summary>
+    /// Verifies a bounded explicit limit returns exactly the first teams in deterministic
+    /// (Name, then TeamId) order.
+    /// </summary>
+    [Fact]
+    public async Task GetRoster_AppliesLimit_ReturnsFirstTeamsInDeterministicOrder()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var (club, email) = await SeedRosterClubAsync(client, cancellationToken);
+        await SeedingHelpers.InsertTeamAsync(fixture, club.ClubId, email, "Alpha", 2030, cancellationToken);
+        await SeedingHelpers.InsertTeamAsync(fixture, club.ClubId, email, "Bravo", 2030, cancellationToken);
+        await SeedingHelpers.InsertTeamAsync(fixture, club.ClubId, email, "Charlie", 2030, cancellationToken);
+
+        using var response = await client.GetAsync("/api/teams?limit=2", cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var rows = await response.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
+        rows.ShouldNotBeNull();
+        rows.Select(row => row.Name).ShouldBe(["Alpha", "Bravo"]);
+    }
+
+    /// <summary>
+    /// Verifies that omitting the limit keeps the existing unbounded behavior at the endpoint boundary.
+    /// </summary>
+    [Fact]
+    public async Task GetRoster_OmittedLimit_ReturnsEveryMatchingTeam()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var (club, email) = await SeedRosterClubAsync(client, cancellationToken);
+        await SeedingHelpers.InsertTeamAsync(fixture, club.ClubId, email, "Alpha", 2030, cancellationToken);
+        await SeedingHelpers.InsertTeamAsync(fixture, club.ClubId, email, "Bravo", 2030, cancellationToken);
+        await SeedingHelpers.InsertTeamAsync(fixture, club.ClubId, email, "Charlie", 2030, cancellationToken);
+
+        using var response = await client.GetAsync(TeamRosterEndpoints.GetRoster, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var rows = await response.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
+        rows.ShouldNotBeNull();
+        rows.Select(row => row.Name).ShouldBe(["Alpha", "Bravo", "Charlie"]);
+    }
+
+    /// <summary>
+    /// Verifies explicit limit values outside the documented 1..200 cap are rejected with
+    /// validation ProblemDetails before the handler runs.
+    /// </summary>
+    /// <param name="limit">The out-of-range explicit limit.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(201)]
+    public async Task GetRoster_InvalidLimit_ReturnsValidationProblem(int limit)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        await SeedRosterClubAsync(client, cancellationToken);
+
+        using var response = await client.GetAsync($"/api/teams?limit={limit}", cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe((int)HttpStatusCode.BadRequest);
+        document.RootElement.GetProperty("errors")
+            .TryGetProperty(nameof(GetTeamRosterInput.Limit), out _)
+            .ShouldBeTrue();
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
+    /// Registers a club-owning user, creates the club, and refreshes the membership cookie.
+    /// </summary>
+    /// <param name="client">The authenticated HTTP client.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The created club and the owning user's e-mail address.</returns>
+    private async Task<(ClubDto Club, string Email)> SeedRosterClubAsync(HttpClient client, CancellationToken cancellationToken)
+    {
+        var email = UniqueEmail("team-roster-limit");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        return (club, email);
     }
 
     /// <summary>

@@ -28,6 +28,12 @@ public partial class CampaignRosterPager
     public int TotalCount { get; set; }
 
     /// <summary>
+    /// Gets or sets whether paging is disabled, for example while a row save is in flight.
+    /// </summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>
     /// Gets or sets the callback invoked when a pager button is clicked, with the requested page.
     /// </summary>
     [Parameter]

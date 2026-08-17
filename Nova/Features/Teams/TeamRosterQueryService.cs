@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Entities;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
@@ -58,9 +59,18 @@ public sealed partial class TeamRosterQueryService(
             query = query.Where(team => team.GraduationYear == graduationYear);
         }
 
-        var rows = await query
+        // Order first, then bound, so the limit never changes which rows are selected for
+        // equivalent names; the deterministic (Name, TeamId) ordering is preserved.
+        IQueryable<TeamEntity> ordered = query
             .OrderBy(team => team.Name)
-            .ThenBy(team => team.TeamId)
+            .ThenBy(team => team.TeamId);
+
+        if (input.Limit is int limit)
+        {
+            ordered = ordered.Take(limit);
+        }
+
+        var rows = await ordered
             .Select(team => new TeamRosterItem
             {
                 TeamId = team.TeamId,

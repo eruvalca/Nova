@@ -9,6 +9,17 @@ namespace Nova.Client.Services;
 /// </summary>
 internal static class HttpSuccessContentExtensions
 {
+    /// <summary>
+    /// Strict web defaults: every positional record constructor parameter is required and
+    /// non-nullable reference-type members reject JSON nulls, so a contract-violating success
+    /// payload fails loudly instead of silently defaulting.
+    /// </summary>
+    private static readonly JsonSerializerOptions StrictWebOptions = new(JsonSerializerOptions.Web)
+    {
+        RespectRequiredConstructorParameters = true,
+        RespectNullableAnnotations = true
+    };
+
     extension(HttpContent content)
     {
         /// <summary>
@@ -32,7 +43,7 @@ internal static class HttpSuccessContentExtensions
                     return ServiceProblem.ServerError(errorDetail);
                 }
 
-                var value = json.Deserialize<T>(JsonSerializerOptions.Web);
+                var value = json.Deserialize<T>(StrictWebOptions);
                 return value is not null && (validator?.Invoke(value) ?? true)
                     ? value
                     : ServiceProblem.ServerError(errorDetail);
