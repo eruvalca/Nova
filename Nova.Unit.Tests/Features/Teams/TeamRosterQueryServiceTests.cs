@@ -81,6 +81,27 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies a bounded <c>Limit</c> returns the first rows of the deterministic unbounded order.
+    /// </summary>
+    [Fact]
+    public async Task GetRosterAsync_Limit_ReturnsBoundedPrefix_OfUnboundedOrder()
+    {
+        ActAs(AdminId, ClubId);
+
+        var unbounded = await CreateService().GetRosterAsync(
+            new GetTeamRosterInput(),
+            TestContext.Current.CancellationToken);
+        var limited = await CreateService().GetRosterAsync(
+            new GetTeamRosterInput { Limit = 2 },
+            TestContext.Current.CancellationToken);
+
+        unbounded.IsSuccess.ShouldBeTrue();
+        limited.IsSuccess.ShouldBeTrue();
+        limited.Value.Select(team => team.TeamId)
+            .ShouldBe(unbounded.Value.Take(2).Select(team => team.TeamId));
+    }
+
+    /// <summary>
     /// Creates a <see cref="TeamRosterQueryService"/> wired to the SQLite tenancy harness.
     /// </summary>
     /// <returns>The configured service under test.</returns>

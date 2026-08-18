@@ -25,4 +25,12 @@ public sealed record GetTeamRosterInput
     /// </summary>
     [Range(2000, 2100)]
     public int? GraduationYear { get; init; }
+
+    /// <summary>
+    /// Gets the optional maximum number of roster rows to return. Omission preserves the existing
+    /// unbounded behavior for the team management UI; callers that load choices for a bounded UI
+    /// control (for example, a placement team select) must supply an explicit cap.
+    /// </summary>
+    [Range(1, 200)]
+    public int? Limit { get; init; }
 }

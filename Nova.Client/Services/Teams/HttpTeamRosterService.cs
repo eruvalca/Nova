@@ -29,7 +29,7 @@ public sealed class HttpTeamRosterService(HttpClient http) : ITeamRosterService
                 ? LifecycleStatus.Archived
                 : LifecycleStatus.Active;
         using var response = await http.GetAsync(
-            TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, input.GraduationYear),
+            TeamRosterEndpoints.GetRosterUrl(input.Search, input.LifecycleStatus, input.GraduationYear, input.Limit),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {

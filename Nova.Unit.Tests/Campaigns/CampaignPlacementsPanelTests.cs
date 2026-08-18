@@ -341,6 +341,162 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
         cut.FindAll("select[aria-label^=\"Team for\"]").ShouldBeEmpty();
     }
 
+    // ── Filter/save race (finding 1) ──────────────────────────────────────────
+
+    [Fact]
+    public void Save_DisablesFiltersAndPager_WhileInFlight()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var roster = new PagedResult<CampaignPlacementRosterItem>(
+            [CreateRosterItem()],
+            1,
+            GetCampaignPlacementRosterInput.DefaultPageSize,
+            120);
+        RegisterServices(
+            placementService: placementService,
+            rosterResult: new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(roster));
+
+        var cut = RenderPanel(state: new CampaignWorkspacePlacementState { UnresolvedOnly = true });
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        cut.Find("#placement-graduation-year").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#placement-unresolved-only").HasAttribute("disabled").ShouldBeTrue();
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Clear filters").HasAttribute("disabled").ShouldBeTrue();
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Next").HasAttribute("disabled").ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Save_ReEnablesControls_AfterSaveCompletes()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var roster = new PagedResult<CampaignPlacementRosterItem>(
+            [CreateRosterItem()],
+            1,
+            GetCampaignPlacementRosterInput.DefaultPageSize,
+            120);
+        RegisterServices(
+            placementService: placementService,
+            rosterResult: new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(roster));
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+        cut.Find("#placement-graduation-year").HasAttribute("disabled").ShouldBeTrue();
+
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Placement saved."));
+        cut.Find("#placement-graduation-year").HasAttribute("disabled").ShouldBeFalse();
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Next").HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void NavigationChange_WhileSaving_DefersRosterReload_UntilSaveCompletes()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        cut.Render(parameters => parameters.Add(
+            panel => panel.State,
+            new CampaignWorkspacePlacementState { UnresolvedOnly = true }));
+
+        // The roster must not reload for the navigation state while the save is in flight.
+        queryService.DidNotReceive().GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.UnresolvedOnly == true),
+            Arg.Any<CancellationToken>());
+
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+
+        // Once the save completes, the deferred navigation state is applied.
+        cut.WaitForAssertion(() => queryService.Received(1).GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.UnresolvedOnly == true),
+            Arg.Any<CancellationToken>()));
+    }
+
+    // ── Summary failure (finding 2) ───────────────────────────────────────────
+
+    [Fact]
+    public void Panel_ShowsSummaryWarningAndRetries_WhenSummaryLoadFails()
+    {
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(ServiceProblem.ServerError("Summary unavailable."))),
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Couldn't load placement summary."));
+        cut.FindAll("div.placement-summary").ShouldBeEmpty();
+
+        cut.Find("div.placement-summary-warning button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("0 assigned"));
+    }
+
+    [Fact]
+    public void Save_ShowsWarningAndClearsCounts_WhenSummaryRefreshFails()
+    {
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())),
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(ServiceProblem.ServerError("Summary unavailable."))));
+
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid()))));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("0 assigned"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Placement saved, but the counts could not be refreshed."));
+        cut.Markup.ShouldNotContain("Placement saved.");
+        cut.FindAll("div.placement-summary").ShouldBeEmpty();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void RegisterServices(
@@ -416,6 +572,8 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
         PlayerCampaignAssignmentId: assignmentId,
         PlayerId: 7,
         DisplayName: displayName,
+        FirstName: "Avery",
+        LastName: "Johnson",
         GraduationYear: graduationYear,
         PlacementOutcome: outcome,
         Team: team,

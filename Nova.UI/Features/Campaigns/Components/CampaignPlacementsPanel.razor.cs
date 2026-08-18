@@ -41,6 +41,21 @@ public partial class CampaignPlacementsPanel(
     private const string SaveFailureFallbackMessage = "Failed to save the placement. Please retry.";
 
     /// <summary>
+    /// The maximum number of active team choices loaded for the team selects.
+    /// </summary>
+    private const int TeamChoiceLimit = 200;
+
+    /// <summary>
+    /// The warning shown when the placement summary could not be loaded.
+    /// </summary>
+    private const string SummaryFailureFallbackMessage = "Couldn't load placement summary.";
+
+    /// <summary>
+    /// The warning shown when a placement saved but the summary could not be refreshed.
+    /// </summary>
+    private const string SaveSummaryRefreshFailureMessage = "Placement saved, but the counts could not be refreshed.";
+
+    /// <summary>
     /// Gets or sets the campaign identifier from the route.
     /// </summary>
     [Parameter]
@@ -173,6 +188,21 @@ public partial class CampaignPlacementsPanel(
     private string? _saveMessage;
 
     /// <summary>
+    /// Indicates that the placement summary could not be loaded and no authoritative counts are available.
+    /// </summary>
+    private bool _summaryLoadFailed;
+
+    /// <summary>
+    /// The actionable summary-failure warning, or <see langword="null"/> when the summary is available.
+    /// </summary>
+    private string? _summaryWarningMessage;
+
+    /// <summary>
+    /// A navigation-deferred placement state that should be applied once any in-flight save completes.
+    /// </summary>
+    private CampaignWorkspacePlacementState? _pendingState;
+
+    /// <summary>
     /// The placement state that produced the currently loaded roster.
     /// </summary>
     private CampaignWorkspacePlacementState _appliedState = new();
@@ -206,6 +236,11 @@ public partial class CampaignPlacementsPanel(
     /// Gets a value indicating whether a placement filter is active.
     /// </summary>
     private bool HasPlacementFilter => _appliedState.GraduationYear is not null || _appliedState.UnresolvedOnly;
+
+    /// <summary>
+    /// Gets a value indicating whether any row draft has a save in flight.
+    /// </summary>
+    private bool _savingActive => _drafts.Values.Any(draft => draft.IsSaving);
 
     /// <summary>
     /// Gets the selected graduation year as a select-binding string.
@@ -257,8 +292,17 @@ public partial class CampaignPlacementsPanel(
 
         if (State != _appliedState)
         {
-            _appliedState = State;
-            await LoadRosterAsync();
+            if (_savingActive)
+            {
+                // Defer the roster reload until the in-flight save completes so back/forward
+                // navigation cannot orphan an in-flight save or overwrite its row state.
+                _pendingState = State;
+            }
+            else
+            {
+                _appliedState = State;
+                await LoadRosterAsync();
+            }
         }
     }
 
@@ -280,6 +324,8 @@ public partial class CampaignPlacementsPanel(
     {
         _error = null;
         _choicesLoadFailed = false;
+        _summaryLoadFailed = false;
+        _summaryWarningMessage = null;
 
         var teamChoicesTask = LoadTeamChoicesAsync();
         var graduationYearsTask = LoadGraduationYearChoicesAsync();
@@ -331,16 +377,29 @@ public partial class CampaignPlacementsPanel(
     /// <summary>
     /// Loads the authoritative placement summary without touching row drafts.
     /// </summary>
-    /// <returns>A task that completes when the summary load finishes.</returns>
-    private async Task LoadSummaryAsync()
+    /// <returns>A task that completes with <see langword="true"/> when the summary load succeeded.</returns>
+    private async Task<bool> LoadSummaryAsync()
     {
         var result = await placementQueryService.GetPlacementSummaryAsync(
             new GetCampaignPlacementSummaryInput { CampaignId = CampaignId },
             ComponentCancellationToken);
 
+        var succeeded = false;
         result.Switch(
-            summary => _summary = summary,
-            _ => { });
+            summary =>
+            {
+                _summary = summary;
+                _summaryLoadFailed = false;
+                _summaryWarningMessage = null;
+                succeeded = true;
+            },
+            _ =>
+            {
+                _summary = null;
+                _summaryLoadFailed = true;
+                _summaryWarningMessage = SummaryFailureFallbackMessage;
+            });
+        return succeeded;
     }
 
     /// <summary>
@@ -350,7 +409,7 @@ public partial class CampaignPlacementsPanel(
     private async Task<bool> LoadTeamChoicesAsync()
     {
         var result = await teamRosterService.GetRosterAsync(
-            new GetTeamRosterInput { LifecycleStatus = "active" },
+            new GetTeamRosterInput { LifecycleStatus = "active", Limit = TeamChoiceLimit },
             ComponentCancellationToken);
         var succeeded = false;
         result.Switch(
@@ -488,6 +547,23 @@ public partial class CampaignPlacementsPanel(
     }
 
     /// <summary>
+    /// Applies a navigation-deferred placement state once no save is in flight.
+    /// </summary>
+    /// <returns>A task that completes when the deferred roster load finishes, if any.</returns>
+    private async Task ApplyPendingStateIfReadyAsync()
+    {
+        if (_pendingState is null || _savingActive)
+        {
+            return;
+        }
+
+        var pending = _pendingState;
+        _pendingState = null;
+        _appliedState = pending;
+        await LoadRosterAsync();
+    }
+
+    /// <summary>
     /// Gets the row draft for a roster item, falling back to a clean throwaway draft when absent.
     /// </summary>
     /// <param name="item">The roster item whose draft is requested.</param>
@@ -595,7 +671,6 @@ public partial class CampaignPlacementsPanel(
                     draft.CurrentToken = success.ConcurrencyToken;
                     draft.RowError = null;
                     draft.SaveStatus = "Saved";
-                    _saveMessage = "Placement saved.";
                     ApplySavedToDraft(draft);
                     RemoveFromUnresolvedViewIfNeeded(item, draft);
                     saved = true;
@@ -623,7 +698,17 @@ public partial class CampaignPlacementsPanel(
 
             if (saved)
             {
-                await LoadSummaryAsync();
+                if (await LoadSummaryAsync())
+                {
+                    _saveMessage = "Placement saved.";
+                }
+                else
+                {
+                    // The row saved, but the counts could not be refreshed; surface that
+                    // distinctly instead of showing "Placement saved." beside stale counts.
+                    _saveMessage = null;
+                    _summaryWarningMessage = SaveSummaryRefreshFailureMessage;
+                }
             }
         }
         finally
@@ -631,6 +716,8 @@ public partial class CampaignPlacementsPanel(
             // Always release the per-row save gate, even if the mutation or summary refresh
             // throws, so the row never stays stuck in the saving state.
             draft.IsSaving = false;
+            // If navigation deferred a roster load while this save was in flight, apply it now.
+            await ApplyPendingStateIfReadyAsync();
         }
     }
 

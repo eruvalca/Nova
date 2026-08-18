@@ -29,6 +29,8 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     101,
                     202,
                     "Zoe Adams",
+                    "Zoe",
+                    "Adams",
                     2028,
                     PlacementOutcome.Undecided,
                     null,
@@ -197,6 +199,8 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     101,
                     202,
                     "Zoe Adams",
+                    "Zoe",
+                    "Adams",
                     2028,
                     PlacementOutcome.Assigned,
                     null,
@@ -230,6 +234,8 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     101,
                     202,
                     "Zoe Adams",
+                    "Zoe",
+                    "Adams",
                     2028,
                     PlacementOutcome.Assigned,
                     new CampaignParticipantTeamSummaryDto(301, "Alpha"),
@@ -317,6 +323,173 @@ public sealed class HttpCampaignPlacementQueryServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+    }
+
+    /// <summary>
+    /// Verifies a summary success payload with no counts is rejected as a protocol failure instead of
+    /// silently defaulting every count to zero.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementSummaryAsync_ReturnsServerError_WhenSuccessBodyIsEmptyObject()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{}", Encoding.UTF8, "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementSummaryAsync(
+            new GetCampaignPlacementSummaryInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a summary success payload missing one required count is rejected as a protocol failure.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementSummaryAsync_ReturnsServerError_WhenSummaryMissingACount()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "{\"assignedCount\":65,\"notSelectedCount\":11,\"withdrawnCount\":2,\"undecidedCount\":6}",
+                Encoding.UTF8,
+                "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementSummaryAsync(
+            new GetCampaignPlacementSummaryInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a roster row missing its required placement outcome is rejected as a protocol failure.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenRosterRowMissingOutcome()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "{\"items\":[{\"playerCampaignAssignmentId\":101,\"playerId\":202,\"displayName\":\"Zoe Adams\",\"firstName\":\"Zoe\",\"lastName\":\"Adams\",\"graduationYear\":2028,\"team\":null,\"concurrencyToken\":\"6f8b3e1a-0000-0000-0000-000000000001\"}],\"page\":1,\"pageSize\":50,\"totalCount\":1}",
+                Encoding.UTF8,
+                "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies an out-of-order roster page is rejected against the server's deterministic ordering contract.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenRosterPageIsOutOfOrder()
+    {
+        var handler = new RecordingHandler(_ =>
+        {
+            var payload = new PagedResult<CampaignPlacementRosterItem>(
+                [
+                    new CampaignPlacementRosterItem(
+                        101,
+                        202,
+                        "Zoe Smith",
+                        "Zoe",
+                        "Smith",
+                        2028,
+                        PlacementOutcome.Undecided,
+                        null,
+                        Guid.NewGuid()),
+                    new CampaignPlacementRosterItem(
+                        102,
+                        203,
+                        "Aaron Adams",
+                        "Aaron",
+                        "Adams",
+                        2028,
+                        PlacementOutcome.Undecided,
+                        null,
+                        Guid.NewGuid())
+                ],
+                1,
+                50,
+                2);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a correctly-ordered multi-row roster page is accepted.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_AcceptsCorrectlyOrderedRosterPage()
+    {
+        var handler = new RecordingHandler(_ =>
+        {
+            var payload = new PagedResult<CampaignPlacementRosterItem>(
+                [
+                    new CampaignPlacementRosterItem(
+                        102,
+                        203,
+                        "Aaron Adams",
+                        "Aaron",
+                        "Adams",
+                        2028,
+                        PlacementOutcome.Undecided,
+                        null,
+                        Guid.NewGuid()),
+                    new CampaignPlacementRosterItem(
+                        101,
+                        202,
+                        "Zoe Smith",
+                        "Zoe",
+                        "Smith",
+                        2028,
+                        PlacementOutcome.Undecided,
+                        null,
+                        Guid.NewGuid())
+                ],
+                1,
+                50,
+                2);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Count.ShouldBe(2);
     }
 
     /// <summary>

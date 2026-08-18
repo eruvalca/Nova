@@ -9,6 +9,17 @@ namespace Nova.Client.Services;
 /// </summary>
 internal static class HttpSuccessContentExtensions
 {
+    /// <summary>
+    /// Web-compatible JSON options that also enforce required, non-nullable members so a missing
+    /// or null field in an otherwise successful payload is surfaced as a contract defect instead
+    /// of a silently defaulted value.
+    /// </summary>
+    private static readonly JsonSerializerOptions StrictWebJsonOptions = new(JsonSerializerOptions.Web)
+    {
+        RespectRequiredConstructorParameters = true,
+        RespectNullableAnnotations = true
+    };
+
     extension(HttpContent content)
     {
         /// <summary>
@@ -32,7 +43,7 @@ internal static class HttpSuccessContentExtensions
                     return ServiceProblem.ServerError(errorDetail);
                 }
 
-                var value = json.Deserialize<T>(JsonSerializerOptions.Web);
+                var value = json.Deserialize<T>(StrictWebJsonOptions);
                 return value is not null && (validator?.Invoke(value) ?? true)
                     ? value
                     : ServiceProblem.ServerError(errorDetail);

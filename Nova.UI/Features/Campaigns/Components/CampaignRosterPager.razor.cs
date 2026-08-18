@@ -34,6 +34,12 @@ public partial class CampaignRosterPager
     public EventCallback<int> OnPageChanged { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether paging is disabled (for example, while a save is in flight).
+    /// </summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>
     /// Gets the total number of pages, never less than one.
     /// </summary>
     private int TotalPages => CampaignWorkspaceUrlState.CalculatePageCount(TotalCount, PageSize);

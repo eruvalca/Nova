@@ -228,6 +228,75 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a bounded <c>Limit</c> returns only the first rows of the deterministic order,
+    /// while omitting the limit preserves the existing unbounded behavior.
+    /// </summary>
+    [Fact]
+    public async Task GetRoster_Limit_BoundsRows_AndOmittingLimitReturnsAll()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        var email = UniqueEmail("team-roster-limit");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        await using (var context = fixture.CreateAdminContext())
+        {
+            var userId = await context.Users
+                .Where(user => user.NormalizedEmail == email.ToUpperInvariant())
+                .Select(user => user.Id)
+                .SingleAsync(cancellationToken);
+
+            context.Teams.AddRange(
+                NewTeam("Alpha", club.ClubId, userId),
+                NewTeam("Beta", club.ClubId, userId),
+                NewTeam("Gamma", club.ClubId, userId));
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        using (var limitedResponse = await client.GetAsync(
+            TeamRosterEndpoints.GetRosterUrl(limit: 2),
+            cancellationToken))
+        {
+            limitedResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var rows = await limitedResponse.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
+            rows.ShouldNotBeNull();
+            rows.Select(row => row.Name).ShouldBe(["Alpha", "Beta"]);
+        }
+
+        using var allResponse = await client.GetAsync(TeamRosterEndpoints.GetRoster, cancellationToken);
+        allResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var allRows = await allResponse.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
+        allRows.ShouldNotBeNull();
+        allRows.Count.ShouldBe(3);
+    }
+
+    /// <summary>
+    /// Verifies an out-of-contract explicit <c>Limit</c> is rejected by endpoint binding/validation.
+    /// </summary>
+    [Fact]
+    public async Task GetRoster_ReturnsValidationProblem_ForInvalidLimit()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        var email = UniqueEmail("team-roster-invalid-limit");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        using var response = await client.GetAsync(
+            $"{TeamRosterEndpoints.GetRoster}?limit=0",
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
     /// Creates an unsaved active team entity for roster seeding.
     /// </summary>
     /// <param name="name">The team name.</param>

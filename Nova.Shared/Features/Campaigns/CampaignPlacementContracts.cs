@@ -15,6 +15,8 @@ public readonly record struct PlacementMutationSuccess(Guid ConcurrencyToken);
 /// <param name="PlayerCampaignAssignmentId">The campaign-assignment identifier for this participant.</param>
 /// <param name="PlayerId">The player identifier.</param>
 /// <param name="DisplayName">The participant display name.</param>
+/// <param name="FirstName">The participant first name, used by the client to verify deterministic row ordering.</param>
+/// <param name="LastName">The participant last name, used by the client to verify deterministic row ordering.</param>
 /// <param name="GraduationYear">The participant graduation year.</param>
 /// <param name="PlacementOutcome">The current placement outcome.</param>
 /// <param name="Team">The optional assigned team summary.</param>
@@ -23,6 +25,8 @@ public sealed record CampaignPlacementRosterItem(
     long PlayerCampaignAssignmentId,
     long PlayerId,
     string DisplayName,
+    string FirstName,
+    string LastName,
     int GraduationYear,
     PlacementOutcome PlacementOutcome,
     CampaignParticipantTeamSummaryDto? Team,

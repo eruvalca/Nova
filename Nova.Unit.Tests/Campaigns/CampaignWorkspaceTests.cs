@@ -1526,10 +1526,12 @@ public sealed class CampaignWorkspaceTests : BunitContext
         PlayerCampaignAssignmentId: assignmentId,
         PlayerId: 7,
         DisplayName: displayName,
+        FirstName: "Avery",
+        LastName: "Johnson",
         GraduationYear: 2032,
-        outcome,
-        team,
-        Guid.NewGuid());
+        PlacementOutcome: outcome,
+        Team: team,
+        ConcurrencyToken: Guid.NewGuid());
 
     private static CampaignPlacementSummaryDto CreatePlacementSummary(
         int assigned = 0,

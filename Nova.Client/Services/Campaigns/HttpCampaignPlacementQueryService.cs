@@ -66,14 +66,15 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
     }
 
     /// <summary>
-    /// Validates that a decoded placement roster page matches the requested page and row shape.
+    /// Validates that a decoded placement roster page matches the requested page, row shape, and
+    /// the server's deterministic ordering contract.
     /// </summary>
     /// <param name="result">The decoded roster page.</param>
     /// <param name="expectedPage">The page the client requested.</param>
     /// <param name="expectedPageSize">The page size the client requested.</param>
     /// <param name="expectedGraduationYear">The optional exact graduation-year filter sent to the server.</param>
     /// <param name="expectedUnresolvedOnly">Whether the client requested unresolved rows only.</param>
-    /// <returns><see langword="true"/> when the page is structurally valid and bounded.</returns>
+    /// <returns><see langword="true"/> when the page is structurally valid, bounded, and ordered.</returns>
     private static bool IsValidRoster(
         PagedResult<CampaignPlacementRosterItem> result,
         int expectedPage,
@@ -85,7 +86,32 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
             && result.PageSize == expectedPageSize
             && result.TotalCount >= 0
             && result.Items.Count <= result.PageSize
-            && result.Items.All(item => IsValidRosterItem(item, expectedGraduationYear, expectedUnresolvedOnly));
+            && result.Items.All(item => IsValidRosterItem(item, expectedGraduationYear, expectedUnresolvedOnly))
+            && AreRosterRowsOrdered(result.Items);
+
+    /// <summary>
+    /// Validates that adjacent roster rows follow the server ordering contract: last name
+    /// ascending, then first name ascending, then assignment identifier ascending.
+    /// </summary>
+    /// <param name="items">The roster rows to check.</param>
+    /// <returns><see langword="true"/> when every adjacent pair is in non-decreasing order.</returns>
+    private static bool AreRosterRowsOrdered(IReadOnlyList<CampaignPlacementRosterItem> items)
+        => items.Zip(items.Skip(1)).All(pair =>
+        {
+            var lastNameComparison = string.Compare(pair.First.LastName, pair.Second.LastName, StringComparison.Ordinal);
+            if (lastNameComparison != 0)
+            {
+                return lastNameComparison < 0;
+            }
+
+            var firstNameComparison = string.Compare(pair.First.FirstName, pair.Second.FirstName, StringComparison.Ordinal);
+            if (firstNameComparison != 0)
+            {
+                return firstNameComparison < 0;
+            }
+
+            return pair.First.PlayerCampaignAssignmentId < pair.Second.PlayerCampaignAssignmentId;
+        });
 
     /// <summary>
     /// Validates the structural shape of a single placement roster row.
