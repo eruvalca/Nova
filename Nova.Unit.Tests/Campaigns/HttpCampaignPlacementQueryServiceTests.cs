@@ -493,6 +493,57 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     }
 
     /// <summary>
+    /// Verifies the ordering contract is ordinal, not locale-aware: the server orders name columns
+    /// with PostgreSQL's "C" collation, so accent-differing names sort by code point and the client's
+    /// <see cref="StringComparison.Ordinal"/> comparison must not reject a correct page. "Peterson"
+    /// precedes "Pérez" ordinally (code point 'e' &lt; 'é'), whereas a locale-aware collation would
+    /// order "Pérez" first — the divergence the reviewer flagged.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_AcceptsOrdinalOrdering_ForAccentDifferingNames()
+    {
+        var handler = new RecordingHandler(_ =>
+        {
+            var payload = new PagedResult<CampaignPlacementRosterItem>(
+                [
+                    new CampaignPlacementRosterItem(
+                        102,
+                        203,
+                        "Avery Peterson",
+                        "Avery",
+                        "Peterson",
+                        2028,
+                        PlacementOutcome.Undecided,
+                        null,
+                        Guid.NewGuid()),
+                    new CampaignPlacementRosterItem(
+                        101,
+                        202,
+                        "Zoe Pérez",
+                        "Zoe",
+                        "Pérez",
+                        2028,
+                        PlacementOutcome.Undecided,
+                        null,
+                        Guid.NewGuid())
+                ],
+                1,
+                50,
+                2);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Count.ShouldBe(2);
+    }
+
+    /// <summary>
     /// Minimal problem-details payload shape for problem-response tests.
     /// </summary>
     private sealed record ProblemPayload(int Status, string Title, string Detail);

@@ -91,7 +91,10 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
 
     /// <summary>
     /// Validates that adjacent roster rows follow the server ordering contract: last name
-    /// ascending, then first name ascending, then assignment identifier ascending.
+    /// ascending, then first name ascending, then assignment identifier ascending. The server orders
+    /// the name columns with PostgreSQL's "C" collation (binary/ordinal), which matches the
+    /// <see cref="StringComparison.Ordinal"/> comparison used here (the only reliably available
+    /// comparison in WebAssembly's invariant-globalization runtime).
     /// </summary>
     /// <param name="items">The roster rows to check.</param>
     /// <returns><see langword="true"/> when every adjacent pair is in non-decreasing order.</returns>

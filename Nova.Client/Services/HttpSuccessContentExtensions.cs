@@ -48,8 +48,12 @@ internal static class HttpSuccessContentExtensions
                     ? value
                     : ServiceProblem.ServerError(errorDetail);
             }
-            catch (JsonException)
+            catch (Exception exception) when (exception is JsonException or NotSupportedException or InvalidOperationException)
             {
+                // In addition to malformed/contract-violating JSON (JsonException), the strict options
+                // reject DTO shapes System.Text.Json cannot bind — for example a type that mixes a
+                // parameterized constructor with `required` members (NotSupportedException/
+                // InvalidOperationException). Surface those as a contract defect instead of crashing.
                 return ServiceProblem.ServerError(errorDetail);
             }
         }

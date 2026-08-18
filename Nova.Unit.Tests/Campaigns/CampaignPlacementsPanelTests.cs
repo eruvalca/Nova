@@ -497,6 +497,34 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
         cut.FindAll("div.placement-summary").ShouldBeEmpty();
     }
 
+    [Fact]
+    public void Panel_SummaryRetry_DoesNotReloadRosterOrDiscardDrafts()
+    {
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(ServiceProblem.ServerError("Summary unavailable."))),
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary(assigned: 1))));
+
+        RegisterServices(placementQueryService: queryService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Couldn't load placement summary."));
+
+        // Make an unsaved edit to the only roster row.
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("1");
+        cut.Find("button.btn-primary").ShouldNotBeNull();
+
+        // Retry only the summary; this must not rebuild the roster drafts from the server snapshot.
+        cut.Find("div.placement-summary-warning button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("1 assigned"));
+
+        queryService.Received(1).GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+        cut.Find("button.btn-primary").ShouldNotBeNull();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void RegisterServices(

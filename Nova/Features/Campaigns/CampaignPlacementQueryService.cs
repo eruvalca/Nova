@@ -68,9 +68,19 @@ public sealed partial class CampaignPlacementQueryService(
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
+
+        // Pin the name ordering to ordinal on PostgreSQL via the "C" collation so it is deterministic
+        // and independent of the database default collation; SQLite's default BINARY collation is
+        // already ordinal. The WebAssembly client verifies this same ordinal order
+        // (StringComparison.Ordinal) and cannot reproduce a locale-aware collation.
+        var isNpgsql = db.Database.IsNpgsql();
         var pageRows = await query
-            .OrderBy(assignment => assignment.Player.LastName)
-            .ThenBy(assignment => assignment.Player.FirstName)
+            .OrderBy(assignment => isNpgsql
+                ? EF.Functions.Collate(assignment.Player.LastName, "C")
+                : assignment.Player.LastName)
+            .ThenBy(assignment => isNpgsql
+                ? EF.Functions.Collate(assignment.Player.FirstName, "C")
+                : assignment.Player.FirstName)
             .ThenBy(assignment => assignment.PlayerCampaignAssignmentId)
             .Select(assignment => new PlacementRosterPageRow(
                 assignment.PlayerCampaignAssignmentId,

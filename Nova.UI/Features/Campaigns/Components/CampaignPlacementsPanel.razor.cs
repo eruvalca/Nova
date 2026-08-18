@@ -547,6 +547,14 @@ public partial class CampaignPlacementsPanel(
     }
 
     /// <summary>
+    /// Retries only the placement summary load without rebuilding the roster drafts, so a summary
+    /// refresh failure never discards unsaved edits the user has made to other rows.
+    /// </summary>
+    /// <returns>A task that completes when the summary reload finishes.</returns>
+    private async Task RetrySummaryAsync()
+        => await LoadSummaryAsync();
+
+    /// <summary>
     /// Applies a navigation-deferred placement state once no save is in flight.
     /// </summary>
     /// <returns>A task that completes when the deferred roster load finishes, if any.</returns>
