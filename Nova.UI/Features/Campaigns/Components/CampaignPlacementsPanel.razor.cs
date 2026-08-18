@@ -31,6 +31,11 @@ public partial class CampaignPlacementsPanel(
     private const int PlacementPageSize = GetCampaignPlacementRosterInput.DefaultPageSize;
 
     /// <summary>
+    /// The documented cap passed to the team roster query for the bounded team-choice selects.
+    /// </summary>
+    private const int TeamChoiceLimit = 200;
+
+    /// <summary>
     /// The fallback conflict warning shown when the server does not supply a detail message.
     /// </summary>
     private const string ConflictFallbackMessage = "The placement was changed by someone else.";
@@ -173,6 +178,21 @@ public partial class CampaignPlacementsPanel(
     private string? _saveMessage;
 
     /// <summary>
+    /// Indicates that the authoritative placement summary could not be loaded or refreshed.
+    /// </summary>
+    private bool _summaryLoadFailed;
+
+    /// <summary>
+    /// The summary-failure warning message, or <see langword="null"/> for the default warning text.
+    /// </summary>
+    private string? _summaryWarning;
+
+    /// <summary>
+    /// The placement state requested while a save was in flight, applied once every save completes.
+    /// </summary>
+    private CampaignWorkspacePlacementState? _pendingState;
+
+    /// <summary>
     /// The placement state that produced the currently loaded roster.
     /// </summary>
     private CampaignWorkspacePlacementState _appliedState = new();
@@ -201,6 +221,11 @@ public partial class CampaignPlacementsPanel(
     /// Gets a value indicating whether the panel renders static read-only rows.
     /// </summary>
     private bool IsReadOnly => CampaignStatus == CampaignStatus.Closed || !CanEditPlacements;
+
+    /// <summary>
+    /// Gets a value indicating whether at least one row save is currently in flight.
+    /// </summary>
+    private bool _savingActive => _drafts.Values.Any(draft => draft.IsSaving);
 
     /// <summary>
     /// Gets a value indicating whether a placement filter is active.
@@ -237,6 +262,7 @@ public partial class CampaignPlacementsPanel(
 
         _isLoading = true;
         await LoadInitialAsync();
+        _isLoading = false;
         PersistStartupState();
         Initialized = true;
     }
@@ -244,6 +270,11 @@ public partial class CampaignPlacementsPanel(
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
+        // Capture the in-flight state before the Closed transition resets every draft, so the
+        // deferral below still applies when the campaign closes while a row save is in flight
+        // (ResetAllDrafts() replaces drafts with fresh non-saving drafts).
+        var saveInFlight = _savingActive;
+
         var becameClosed = CampaignStatus == CampaignStatus.Closed && _appliedStatus != CampaignStatus.Closed;
         _appliedStatus = CampaignStatus;
 
@@ -257,8 +288,25 @@ public partial class CampaignPlacementsPanel(
 
         if (State != _appliedState)
         {
+            if (saveInFlight)
+            {
+                // A row save is in flight. Defer the roster reload so back/forward navigation
+                // cannot rebuild drafts out from under the in-flight save; apply the requested
+                // state once the save completes. The latest requested state wins.
+                _pendingState = State;
+                return;
+            }
+
             _appliedState = State;
-            await LoadRosterAsync();
+            await ReloadRosterHoldingLoadingAsync();
+        }
+        else
+        {
+            // The caller navigated back to the state that produced the loaded roster. Drop any
+            // deferred state so completing a save cannot apply a stale request for a state the
+            // user already left (the URL and roster would otherwise disagree until the next
+            // navigation).
+            _pendingState = null;
         }
     }
 
@@ -280,13 +328,14 @@ public partial class CampaignPlacementsPanel(
     {
         _error = null;
         _choicesLoadFailed = false;
+        _summaryLoadFailed = false;
+        _summaryWarning = null;
 
         var teamChoicesTask = LoadTeamChoicesAsync();
         var graduationYearsTask = LoadGraduationYearChoicesAsync();
         await Task.WhenAll(LoadRosterAsync(), LoadSummaryAsync(), teamChoicesTask, graduationYearsTask);
 
         _choicesLoadFailed = !await teamChoicesTask || !await graduationYearsTask;
-        _isLoading = false;
     }
 
     /// <summary>
@@ -329,18 +378,67 @@ public partial class CampaignPlacementsPanel(
     }
 
     /// <summary>
+    /// Reloads the placement roster while holding the panel loading state, releasing it only when
+    /// this reload is still the newest roster request. A superseded reload must not lift the guard
+    /// while a newer reload is still in flight, or the row controls would re-enable inside the
+    /// reload window and a save dispatched then could have its draft replaced when the reload
+    /// rebuilds drafts.
+    /// </summary>
+    /// <returns>A task that completes when the reload finishes.</returns>
+    private async Task ReloadRosterHoldingLoadingAsync()
+    {
+        var requestIdBefore = _requestSequence;
+        _isLoading = true;
+        try
+        {
+            await LoadRosterAsync();
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        {
+            // A network failure reloading the roster must not surface as an unhandled renderer
+            // error out of a Blazor lifecycle or event-handler boundary; surface it as the panel
+            // error instead. A component teardown cancellation is not a user-visible failure.
+            if (!ComponentCancellationToken.IsCancellationRequested)
+            {
+                _error = "Failed to reload placements. Please retry.";
+            }
+        }
+        finally
+        {
+            if (_requestSequence == requestIdBefore + 1)
+            {
+                _isLoading = false;
+            }
+        }
+    }
+
+    /// <summary>
     /// Loads the authoritative placement summary without touching row drafts.
     /// </summary>
-    /// <returns>A task that completes when the summary load finishes.</returns>
-    private async Task LoadSummaryAsync()
+    /// <returns>A task that completes with <see langword="true"/> when the summary loaded successfully.</returns>
+    private async Task<bool> LoadSummaryAsync()
     {
         var result = await placementQueryService.GetPlacementSummaryAsync(
             new GetCampaignPlacementSummaryInput { CampaignId = CampaignId },
             ComponentCancellationToken);
 
+        var succeeded = false;
         result.Switch(
-            summary => _summary = summary,
-            _ => { });
+            summary =>
+            {
+                _summary = summary;
+                _summaryLoadFailed = false;
+                _summaryWarning = null;
+                succeeded = true;
+            },
+            _ =>
+            {
+                // Never leave stale counts rendered as authoritative when a refresh fails.
+                _summary = null;
+                _summaryLoadFailed = true;
+            });
+
+        return succeeded;
     }
 
     /// <summary>
@@ -350,7 +448,7 @@ public partial class CampaignPlacementsPanel(
     private async Task<bool> LoadTeamChoicesAsync()
     {
         var result = await teamRosterService.GetRosterAsync(
-            new GetTeamRosterInput { LifecycleStatus = "active" },
+            new GetTeamRosterInput { LifecycleStatus = "active", Limit = TeamChoiceLimit },
             ComponentCancellationToken);
         var succeeded = false;
         result.Switch(
@@ -436,6 +534,11 @@ public partial class CampaignPlacementsPanel(
     /// <returns>A task that completes when the callback is delivered.</returns>
     private Task OnGraduationYearChangedAsync(ChangeEventArgs args)
     {
+        if (_savingActive)
+        {
+            return Task.CompletedTask;
+        }
+
         _saveMessage = null;
         var raw = args.Value?.ToString();
         var graduationYear = int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value > 0
@@ -451,6 +554,11 @@ public partial class CampaignPlacementsPanel(
     /// <returns>A task that completes when the callback is delivered.</returns>
     private Task OnUnresolvedOnlyChangedAsync(ChangeEventArgs args)
     {
+        if (_savingActive)
+        {
+            return Task.CompletedTask;
+        }
+
         _saveMessage = null;
         return RaiseStateChangedAsync(State with { UnresolvedOnly = args.Value is true, Page = 1 });
     }
@@ -461,6 +569,11 @@ public partial class CampaignPlacementsPanel(
     /// <returns>A task that completes when the callback is delivered.</returns>
     private Task OnClearFiltersAsync()
     {
+        if (_savingActive)
+        {
+            return Task.CompletedTask;
+        }
+
         _saveMessage = null;
         return RaiseStateChangedAsync(new CampaignWorkspacePlacementState());
     }
@@ -472,6 +585,11 @@ public partial class CampaignPlacementsPanel(
     /// <returns>A task that completes when the callback is delivered.</returns>
     private Task OnPageChangedAsync(int page)
     {
+        if (_savingActive)
+        {
+            return Task.CompletedTask;
+        }
+
         _saveMessage = null;
         return RaiseStateChangedAsync(State with { Page = Math.Max(1, page) });
     }
@@ -482,8 +600,43 @@ public partial class CampaignPlacementsPanel(
     /// <returns>A task that completes when the retried load finishes.</returns>
     private async Task RetryAsync()
     {
+        // Reloading mid-save would rebuild drafts out from under the in-flight save (the same
+        // race the filter/pager guards close) and re-create a URL/roster disagreement when a
+        // navigation-requested state is pending. The banner Retry buttons are also disabled
+        // while a save is active; this guard is the authoritative backstop.
+        if (_savingActive)
+        {
+            return;
+        }
+
+        var requestIdBefore = _requestSequence;
         _isLoading = true;
-        await LoadInitialAsync();
+        try
+        {
+            await LoadInitialAsync();
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        {
+            // A network failure must not leave the panel stuck on the loading spinner (the clear
+            // below would be skipped when the load throws); surface it as the panel error instead,
+            // matching the roster-reload failure handling elsewhere. A component teardown
+            // cancellation is not a user-visible failure.
+            if (!ComponentCancellationToken.IsCancellationRequested)
+            {
+                _error = "Failed to load placements. Please retry.";
+            }
+        }
+        finally
+        {
+            // Release the loading state only while this retry's roster request is still the
+            // newest (a navigation/filter reload superseding it keeps the guard set until the
+            // newer reload completes, so row controls never re-enable inside a rebuild window).
+            if (_requestSequence == requestIdBefore + 1)
+            {
+                _isLoading = false;
+            }
+        }
+
         PersistStartupState();
     }
 
@@ -553,9 +706,16 @@ public partial class CampaignPlacementsPanel(
     /// </summary>
     /// <param name="item">The roster item being saved.</param>
     /// <returns>A task that completes when the save and summary refresh finish.</returns>
-    private async Task SaveRowAsync(CampaignPlacementRosterItem item)
+    /// <remarks>
+    /// Internal for the unit-test suite (<see cref="InternalsVisibleToAttribute"/>) so the
+    /// deferred-reload guard can be exercised directly.
+    /// </remarks>
+    internal async Task SaveRowAsync(CampaignPlacementRosterItem item)
     {
-        if (IsReadOnly || _conflictActive || _reloading)
+        // _isLoading guards the deferred-reload window after a save: the row controls are hidden
+        // while it is set, and a click already queued for that window must not start a save whose
+        // draft would be replaced when the reload rebuilds drafts.
+        if (IsReadOnly || _conflictActive || _reloading || _isLoading)
         {
             return;
         }
@@ -623,7 +783,15 @@ public partial class CampaignPlacementsPanel(
 
             if (saved)
             {
-                await LoadSummaryAsync();
+                var summaryRefreshed = await LoadSummaryAsync();
+                if (!summaryRefreshed)
+                {
+                    // The mutation persisted, but the authoritative counts could not be refreshed.
+                    // Do not show a success message beside stale counts; surface the refresh
+                    // failure with a retry instead.
+                    _saveMessage = null;
+                    _summaryWarning = "Placement saved, but the summary could not be refreshed.";
+                }
             }
         }
         finally
@@ -631,6 +799,24 @@ public partial class CampaignPlacementsPanel(
             // Always release the per-row save gate, even if the mutation or summary refresh
             // throws, so the row never stays stuck in the saving state.
             draft.IsSaving = false;
+
+            // Apply any placement state requested while this save was in flight now that the row
+            // is no longer saving, so back/forward navigation cannot orphan the in-flight save.
+            // Show the loading state for the whole deferred reload: the row controls are hidden
+            // while it is set, so a second save cannot be dispatched into the reload window and
+            // have its draft replaced when the reload rebuilds drafts.
+            if (_pendingState is { } pending && !_savingActive)
+            {
+                _pendingState = null;
+                _appliedState = pending;
+                _isLoading = true;
+                // Blazor only re-renders an async event handler after its task completes, so the
+                // loading state must be flushed explicitly to hide the row controls for the whole
+                // deferred reload (a second save dispatched into that window would otherwise have
+                // its draft replaced when the reload rebuilds drafts).
+                StateHasChanged();
+                await ReloadRosterHoldingLoadingAsync();
+            }
         }
     }
 
@@ -700,8 +886,16 @@ public partial class CampaignPlacementsPanel(
 
         try
         {
+            // Route the roster reload through the same loading-ownership helper as every other
+            // reload path: hold the loading guard for the whole reload and release it only while
+            // this reload is still the newest roster request. Calling LoadRosterAsync directly
+            // would advance _requestSequence without ever clearing _isLoading, so when this
+            // recovery supersedes an in-flight sequence-aware reload (a deferred reload after a
+            // conflicted save, or a direct-path reload after a filter change during a conflict),
+            // the superseded reload's conditional release never fires and the panel would be stuck
+            // on the loading spinner with the loaded roster hidden.
             await Task.WhenAll(
-                LoadRosterAsync(),
+                ReloadRosterHoldingLoadingAsync(),
                 LoadSummaryAsync(),
                 LoadTeamChoicesAsync(),
                 LoadGraduationYearChoicesAsync());

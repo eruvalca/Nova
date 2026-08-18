@@ -44,6 +44,37 @@ public sealed class HttpTeamRosterServiceTests
     }
 
     /// <summary>
+    /// Verifies the bounded limit reaches the team roster route.
+    /// </summary>
+    [Fact]
+    public async Task GetRoster_SendsLimitToTeamRoute()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new[]
+            {
+                new TeamRosterItem
+                {
+                    TeamId = 7,
+                    Name = "U16",
+                    GraduationYear = 2028,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ActivePlacementCount = 0
+                }
+            })
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamRosterService(http).GetRosterAsync(
+            new GetTeamRosterInput { Limit = 200 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        handler.LastRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/teams?limit=200");
+    }
+
+    /// <summary>
     /// Verifies a valid empty roster remains a successful response.
     /// </summary>
     [Fact]

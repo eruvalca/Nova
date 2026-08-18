@@ -29,6 +29,8 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     101,
                     202,
                     "Zoe Adams",
+                    "Zoe",
+                    "Adams",
                     2028,
                     PlacementOutcome.Undecided,
                     null,
@@ -197,6 +199,8 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     101,
                     202,
                     "Zoe Adams",
+                    "Zoe",
+                    "Adams",
                     2028,
                     PlacementOutcome.Assigned,
                     null,
@@ -230,6 +234,8 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     101,
                     202,
                     "Zoe Adams",
+                    "Zoe",
+                    "Adams",
                     2028,
                     PlacementOutcome.Assigned,
                     new CampaignParticipantTeamSummaryDto(301, "Alpha"),
@@ -298,6 +304,266 @@ public sealed class HttpCampaignPlacementQueryServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies an empty-object success summary is rejected by strict required-member enforcement.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementSummaryAsync_ReturnsServerError_WhenSuccessBodyIsEmptyObject()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{}", Encoding.UTF8, "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementSummaryAsync(
+            new GetCampaignPlacementSummaryInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a summary missing one required count is rejected by strict required-member enforcement.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementSummaryAsync_ReturnsServerError_WhenSummaryMissesACount()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """{"assignedCount":65,"notSelectedCount":11,"withdrawnCount":2,"undecidedCount":6}""",
+                Encoding.UTF8,
+                "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementSummaryAsync(
+            new GetCampaignPlacementSummaryInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a roster row missing the placement outcome is rejected by strict required-member
+    /// enforcement before the row invariant validator runs.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenRowMissesOutcome()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "items": [
+                    {
+                      "playerCampaignAssignmentId": 101,
+                      "playerId": 202,
+                      "displayName": "Zoe Adams",
+                      "firstName": "Zoe",
+                      "lastName": "Adams",
+                      "graduationYear": 2028,
+                      "team": null,
+                      "concurrencyToken": "34d6a1d0-4f2e-4f2e-9f2e-34d6a1d0abcd"
+                    }
+                  ],
+                  "page": 1,
+                  "pageSize": 50,
+                  "totalCount": 1
+                }
+                """,
+                Encoding.UTF8,
+                "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a roster page whose equal-name rows violate the server ordering tie-breaker
+    /// (assignment id must be non-decreasing within identical names) is rejected.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenRowsAreOutOfOrder()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "items": [
+                    {
+                      "playerCampaignAssignmentId": 102,
+                      "playerId": 203,
+                      "displayName": "Avery Johnson",
+                      "firstName": "Avery",
+                      "lastName": "Johnson",
+                      "graduationYear": 2028,
+                      "placementOutcome": 0,
+                      "team": null,
+                      "concurrencyToken": "34d6a1d0-4f2e-4f2e-9f2e-34d6a1d0abcd"
+                    },
+                    {
+                      "playerCampaignAssignmentId": 101,
+                      "playerId": 202,
+                      "displayName": "Avery Johnson",
+                      "firstName": "Avery",
+                      "lastName": "Johnson",
+                      "graduationYear": 2028,
+                      "placementOutcome": 0,
+                      "team": null,
+                      "concurrencyToken": "34d6a1d0-4f2e-4f2e-9f2e-34d6a1d0abce"
+                    }
+                  ],
+                  "page": 1,
+                  "pageSize": 50,
+                  "totalCount": 2
+                }
+                """,
+                Encoding.UTF8,
+                "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies a roster page whose name order follows the database collation rather than ordinal
+    /// comparison is accepted: the server orders different names by the database collation (for
+    /// example, accented names can precede otherwise-ordinally-earlier names), so only the
+    /// equal-name assignment-id tie-breaker is portable to the client.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_AcceptsRows_WhenDatabaseCollationOrdersNamesDifferentlyFromOrdinal()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "items": [
+                    {
+                      "playerCampaignAssignmentId": 101,
+                      "playerId": 202,
+                      "displayName": "Ana Álvarez",
+                      "firstName": "Ana",
+                      "lastName": "Álvarez",
+                      "graduationYear": 2028,
+                      "placementOutcome": 0,
+                      "team": null,
+                      "concurrencyToken": "34d6a1d0-4f2e-4f2e-9f2e-34d6a1d0abcd"
+                    },
+                    {
+                      "playerCampaignAssignmentId": 102,
+                      "playerId": 203,
+                      "displayName": "James Bond",
+                      "firstName": "James",
+                      "lastName": "Bond",
+                      "graduationYear": 2028,
+                      "placementOutcome": 0,
+                      "team": null,
+                      "concurrencyToken": "34d6a1d0-4f2e-4f2e-9f2e-34d6a1d0abce"
+                    }
+                  ],
+                  "page": 1,
+                  "pageSize": 50,
+                  "totalCount": 2
+                }
+                """,
+                Encoding.UTF8,
+                "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Count.ShouldBe(2);
+    }
+
+    /// <summary>
+    /// Verifies an in-order multi-row roster page is accepted.
+    /// </summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_AcceptsRowsInServerOrderingContract()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "items": [
+                    {
+                      "playerCampaignAssignmentId": 101,
+                      "playerId": 202,
+                      "displayName": "Zoe Adams",
+                      "firstName": "Zoe",
+                      "lastName": "Adams",
+                      "graduationYear": 2028,
+                      "placementOutcome": 0,
+                      "team": null,
+                      "concurrencyToken": "34d6a1d0-4f2e-4f2e-9f2e-34d6a1d0abcd"
+                    },
+                    {
+                      "playerCampaignAssignmentId": 102,
+                      "playerId": 203,
+                      "displayName": "Avery Johnson",
+                      "firstName": "Avery",
+                      "lastName": "Johnson",
+                      "graduationYear": 2028,
+                      "placementOutcome": 0,
+                      "team": null,
+                      "concurrencyToken": "34d6a1d0-4f2e-4f2e-9f2e-34d6a1d0abce"
+                    }
+                  ],
+                  "page": 1,
+                  "pageSize": 50,
+                  "totalCount": 2
+                }
+                """,
+                Encoding.UTF8,
+                "application/json")
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignPlacementQueryService(http);
+
+        var result = await service.GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Count.ShouldBe(2);
     }
 
     /// <summary>

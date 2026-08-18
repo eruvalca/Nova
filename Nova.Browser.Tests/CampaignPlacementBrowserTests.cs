@@ -204,9 +204,15 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         {
             await outcome.FocusAsync();
             await Expect(outcome).ToBeFocusedAsync();
+            // Reset to Undecided first so a single ArrowDown deterministically reaches Assigned.
+            // Without the reset, a queued change from a previous attempt can move the select past
+            // Assigned while the team-enabled check still observes the stale enabled state, and the
+            // subsequent change disables the team select again. Retry until the team actually
+            // enables so a swallowed prerender change event recovers once the circuit attaches.
+            await outcome.SelectOptionAsync("0");
             await page.Keyboard.PressAsync("ArrowDown");
             await page.Keyboard.PressAsync("Enter");
-            if (await team.IsEnabledAsync())
+            if (await outcome.InputValueAsync() == "1" && await team.IsEnabledAsync())
             {
                 break;
             }
@@ -214,6 +220,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
             await page.WaitForTimeoutAsync(250);
         }
 
+        await Expect(outcome).ToHaveValueAsync("1");
         await Expect(team).ToBeEnabledAsync();
         await team.FocusAsync();
         await Expect(team).ToBeFocusedAsync();

@@ -1520,12 +1520,16 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
     private static CampaignPlacementRosterItem CreatePlacementRosterItem(
         string displayName = "Avery Johnson",
+        string firstName = "Avery",
+        string lastName = "Johnson",
         long assignmentId = 301,
         PlacementOutcome outcome = PlacementOutcome.Undecided,
         CampaignParticipantTeamSummaryDto? team = null) => new(
         PlayerCampaignAssignmentId: assignmentId,
         PlayerId: 7,
         DisplayName: displayName,
+        FirstName: firstName,
+        LastName: lastName,
         GraduationYear: 2032,
         outcome,
         team,

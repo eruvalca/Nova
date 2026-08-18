@@ -25,7 +25,7 @@
     {
         <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
             <span>Couldn't load filter options.</span>
-            <button type="button" class="btn btn-sm btn-outline-warning" @onclick="RetryAsync">Retry</button>
+            <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_savingActive" @onclick="RetryAsync">Retry</button>
         </div>
     }
 
@@ -33,7 +33,7 @@
         <div class="row g-3 align-items-end">
             <div class="col-6 col-md-3">
                 <label for="placement-graduation-year" class="form-label">Graduation year</label>
-                <select id="placement-graduation-year" class="form-select" value="@GraduationYearText" @onchange="OnGraduationYearChangedAsync">
+                <select id="placement-graduation-year" class="form-select" value="@GraduationYearText" disabled="@_savingActive" @onchange="OnGraduationYearChangedAsync">
                     <option value="">All years</option>
                     @foreach (var year in _graduationYears)
                     {
@@ -43,12 +43,12 @@
             </div>
             <div class="col-6 col-md-9 d-flex align-items-center gap-2">
                 <div class="form-check">
-                    <input id="placement-unresolved-only" type="checkbox" class="form-check-input" checked="@State.UnresolvedOnly" @onchange="OnUnresolvedOnlyChangedAsync" />
+                    <input id="placement-unresolved-only" type="checkbox" class="form-check-input" checked="@State.UnresolvedOnly" disabled="@_savingActive" @onchange="OnUnresolvedOnlyChangedAsync" />
                     <label for="placement-unresolved-only" class="form-check-label">Unresolved only</label>
                 </div>
                 @if (HasPlacementFilter)
                 {
-                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OnClearFiltersAsync">Clear filters</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_savingActive" @onclick="OnClearFiltersAsync">Clear filters</button>
                 }
             </div>
         </div>
@@ -59,7 +59,14 @@
         <div class="alert alert-success py-2 small mb-3" role="status" aria-live="polite">@_saveMessage</div>
     }
 
-    @if (_summary is not null)
+    @if (_summaryLoadFailed)
+    {
+        <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3" role="alert">
+            <span>@(_summaryWarning ?? "Couldn't load the placement summary.")</span>
+            <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_savingActive" @onclick="RetryAsync">Retry</button>
+        </div>
+    }
+    else if (_summary is not null)
     {
         <div class="placement-summary text-muted small mb-3" role="status" aria-live="polite">
             <span>@_summary.AssignedCount assigned</span><span aria-hidden="true"> | </span>
@@ -85,6 +92,11 @@
     }
     else if (_roster is not null)
     {
+        @if (_teamChoices.Count == TeamChoiceLimit)
+        {
+            <div class="text-muted small mb-2" role="note">Showing the first @TeamChoiceLimit active teams. If a team is missing, refine via Team management.</div>
+        }
+
         @if (_roster.TotalCount == 0)
         {
             <div class="text-center py-5 mt-3">
@@ -258,6 +270,7 @@
             <CampaignRosterPager Page="@_roster.Page"
                                  PageSize="@_roster.PageSize"
                                  TotalCount="@_roster.TotalCount"
+                                 Disabled="_savingActive"
                                  OnPageChanged="OnPageChangedAsync" />
         }
     }

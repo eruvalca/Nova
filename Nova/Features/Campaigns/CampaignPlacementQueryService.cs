@@ -91,6 +91,8 @@ public sealed partial class CampaignPlacementQueryService(
                 row.PlayerCampaignAssignmentId,
                 row.PlayerId,
                 string.Join(" ", new[] { row.FirstName, row.LastName }.Where(value => !string.IsNullOrWhiteSpace(value))),
+                row.FirstName,
+                row.LastName,
                 row.GraduationYear,
                 row.PlacementOutcome,
                 row.TeamId is null

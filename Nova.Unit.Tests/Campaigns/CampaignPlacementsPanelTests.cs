@@ -292,6 +292,674 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("No placements match the current filters."));
     }
 
+    // ── Filter/save race (finding 1) ────────────────────────────────────────
+
+    [Fact]
+    public void Panel_DisablesFiltersAndPager_WhileSaveIsInFlight_AndReEnablesAfter()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        // Two pages so the pager renders while the save is in flight.
+        var roster = new PagedResult<CampaignPlacementRosterItem>(
+            Items: [CreateRosterItem()],
+            Page: 1,
+            PageSize: GetCampaignPlacementRosterInput.DefaultPageSize,
+            TotalCount: GetCampaignPlacementRosterInput.DefaultPageSize + 1);
+
+        RegisterServices(
+            placementService: placementService,
+            rosterResult: new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(roster));
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // The filter bar and pager are disabled while any row save is in flight.
+        cut.Find("#placement-graduation-year").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#placement-unresolved-only").HasAttribute("disabled").ShouldBeTrue();
+        cut.FindAll("nav[aria-label=\"Roster pagination\"] button")
+            .ShouldAllBe(button => button.HasAttribute("disabled"));
+
+        // Completing the save re-enables the controls. The Previous button stays disabled on page 1.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Saving"));
+        cut.Find("#placement-graduation-year").HasAttribute("disabled").ShouldBeFalse();
+        cut.Find("#placement-unresolved-only").HasAttribute("disabled").ShouldBeFalse();
+        var nextButton = cut.FindAll("nav[aria-label=\"Roster pagination\"] button")
+            .Single(button => button.TextContent.Trim() == "Next");
+        nextButton.HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void SummaryRetryDuringSave_IsDisabledAndCannotRebuildDrafts_WhenSaveInFlight()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(
+                    ServiceProblem.ServerError("Summary unavailable."))),
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Markup.ShouldContain("Couldn't load the placement summary.");
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // The summary-failure banner Retry is disabled while a save is in flight.
+        var retry = cut.FindAll("button.btn-outline-warning")
+            .Single(button => button.TextContent == "Retry");
+        retry.HasAttribute("disabled").ShouldBeTrue();
+
+        // Clicking it must not rebuild drafts out from under the in-flight save: the roster is
+        // never requested again, and completing the save still lands on the saved row.
+        retry.Click();
+        queryService.Received(1).GetPlacementRosterAsync(
+            Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saved"));
+        cut.Markup.ShouldContain("Avery Johnson");
+    }
+
+    [Fact]
+    public void ChoicesRetryDuringSave_IsDisabledAndCannotReloadRoster_WhenSaveInFlight()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        var teamRosterService = Substitute.For<ITeamRosterService>();
+        teamRosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TeamRosterItem>>(
+                ServiceProblem.ServerError("Teams unavailable."))));
+
+        RegisterServices(
+            placementQueryService: queryService,
+            placementService: placementService,
+            teamRosterService: teamRosterService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Couldn't load filter options."));
+        cut.Markup.ShouldContain("Avery Johnson");
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // The choices-failure banner Retry is disabled while a save is in flight.
+        var retry = cut.FindAll("button.btn-outline-warning")
+            .Single(button => button.TextContent == "Retry");
+        retry.HasAttribute("disabled").ShouldBeTrue();
+
+        // Clicking it must not trigger a roster reload (which would rebuild drafts mid-save).
+        retry.Click();
+        queryService.Received(1).GetPlacementRosterAsync(
+            Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saved"));
+    }
+
+    [Fact]
+    public void Panel_DefersRosterReload_WhenStateChangesDuringSave_AndAppliesAfter()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // Simulate a URL/navigation-driven state change while the save is in flight.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+
+        // The roster reload must be deferred until the save completes.
+        queryService.DidNotReceive().GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+
+        // Completing the save applies the pending state and reloads the roster for it.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => queryService.Received(1).GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>()));
+    }
+
+    [Fact]
+    public void Save_DeferredReloadNetworkFailure_SurfacesPanelError_AndDoesNotThrowFromFinally()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())),
+                Task.FromException<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>(
+                    new HttpRequestException("Network down.")));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // Navigate to another placement state while the save is in flight; the reload is deferred.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+
+        // The deferred reload fails on the network. The finally block must not throw (which would
+        // replace the save's outcome or take the panel down); the failure surfaces as the panel
+        // error instead, and the per-row save gate is still released.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Failed to reload placements. Please retry."));
+    }
+
+    [Fact]
+    public void Save_DeferredReload_ShowsLoadingState_AndHidesRowControls_WhileReloadPending()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        // Two rows so a second row's Save button exists before the deferred reload begins.
+        var roster = new PagedResult<CampaignPlacementRosterItem>(
+            Items:
+            [
+                CreateRosterItem(),
+                CreateRosterItem(displayName: "Blake Miller", firstName: "Blake", lastName: "Miller", assignmentId: 302, playerId: 8)
+            ],
+            Page: 1,
+            PageSize: GetCampaignPlacementRosterInput.DefaultPageSize,
+            TotalCount: 2);
+
+        var deferredReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(roster)),
+                deferredReload.Task);
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Blake Miller"));
+
+        // Dirty both rows so both Save buttons are rendered before the deferred reload begins.
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("select[aria-label=\"Outcome for Blake Miller\"]").Change("3");
+        cut.FindAll("button.btn-primary").Count.ShouldBe(4);
+
+        cut.FindAll("button.btn-primary")[0].Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // Navigate to another placement state while the save is in flight; the reload is deferred.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+        queryService.DidNotReceive().GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+
+        // Completing the save starts the deferred reload for the pending state.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => queryService.Received(1).GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>()));
+
+        // While the deferred reload is pending, the loading state is shown and every row control
+        // (including the second row's Save button) is hidden, so a second save cannot be dispatched
+        // into the reload window and have its draft replaced when the reload rebuilds drafts.
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Loading placements..."));
+        cut.FindAll("button.btn-primary").ShouldBeEmpty();
+        cut.Markup.ShouldNotContain("Avery Johnson");
+        cut.Markup.ShouldNotContain("Blake Miller");
+
+        // Completing the reload renders the pending state's roster and clears the loading state.
+        deferredReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(
+            CreateRoster(CreateRosterItem(
+                displayName: "Zoe Carter", firstName: "Zoe", lastName: "Carter", assignmentId: 303, graduationYear: 2033, playerId: 9))));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Zoe Carter"));
+        cut.Markup.ShouldNotContain("Loading placements...");
+    }
+
+    [Fact]
+    public async Task Save_SecondRowSaveDispatchedDuringDeferredReload_IsNoOp()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        // Two rows so a second row's Save button exists before the deferred reload begins.
+        var roster = new PagedResult<CampaignPlacementRosterItem>(
+            Items:
+            [
+                CreateRosterItem(),
+                CreateRosterItem(displayName: "Blake Miller", firstName: "Blake", lastName: "Miller", assignmentId: 302, playerId: 8)
+            ],
+            Page: 1,
+            PageSize: GetCampaignPlacementRosterInput.DefaultPageSize,
+            TotalCount: 2);
+
+        var deferredReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(roster)),
+                deferredReload.Task);
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Blake Miller"));
+
+        // Dirty both rows so both Save buttons render before the deferred reload begins.
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("select[aria-label=\"Outcome for Blake Miller\"]").Change("3");
+        cut.FindAll("button.btn-primary").Count.ShouldBe(4);
+
+        cut.FindAll("button.btn-primary")[0].Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // Navigate to another placement state while the save is in flight; the reload is deferred.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+
+        // Completing the save starts the deferred reload; the loading state hides the row controls.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Loading placements..."));
+
+        // Dispatch a second row save into the loading window — the queued-click case the
+        // _isLoading guard is the authoritative backstop for. The second row's Save button is
+        // already gone from the DOM (exactly as in a real browser), so invoke the handler
+        // directly: it must no-op, the placement service is never called a second time, and the
+        // deferred reload's RebuildDrafts cannot detach a save that never started.
+        await cut.InvokeAsync(() => cut.Instance.SaveRowAsync(roster.Items[1]));
+        _ = placementService.Received(1).UpdatePlacementAsync(
+            Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
+
+        // Completing the deferred reload renders the pending state's roster.
+        deferredReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(
+            CreateRoster(CreateRosterItem(
+                displayName: "Zoe Carter", firstName: "Zoe", lastName: "Carter", assignmentId: 303, graduationYear: 2033, playerId: 9))));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Zoe Carter"));
+    }
+
+    [Fact]
+    public async Task Save_SupersedingNavigationDuringDeferredReload_KeepsLoadingUntilNewestReloadCompletes()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var deferredReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var supersedingReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())),
+                deferredReload.Task,
+                supersedingReload.Task);
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // Navigate to another placement state while the save is in flight; the reload is deferred.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+        _ = queryService.DidNotReceive().GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+
+        // Completing the save starts the deferred reload; the loading state hides the row controls.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Loading placements..."));
+        _ = queryService.Received(1).GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+
+        // While the deferred reload is pending, a filter change supersedes it with a newer
+        // direct-path reload. SetParametersAsync is invoked without awaiting it because the
+        // newer reload is deliberately left pending so both requests are in flight at once.
+        await cut.InvokeAsync(() =>
+        {
+            _ = cut.Instance.SetParametersAsync(ParameterView.FromDictionary(
+                new Dictionary<string, object?>
+                {
+                    [nameof(CampaignPlacementsPanel.State)] = new CampaignWorkspacePlacementState { GraduationYear = 2034 }
+                }));
+        });
+
+        _ = queryService.Received(1).GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2034),
+            Arg.Any<CancellationToken>());
+
+        // The superseded deferred reload completes first. It must not release the loading guard —
+        // the newest reload owns it now — so the post-save render still shows the loading state,
+        // no row controls re-appear, and the stale roster is never applied.
+        var rendersBeforeStaleCompletion = cut.RenderCount;
+        deferredReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster()));
+        cut.WaitForAssertion(() => cut.RenderCount.ShouldBeGreaterThan(rendersBeforeStaleCompletion));
+        cut.Markup.ShouldContain("Loading placements...");
+        cut.FindAll("button.btn-primary").ShouldBeEmpty();
+        cut.Markup.ShouldNotContain("Avery Johnson");
+
+        // Completing the newest reload renders its roster and releases the loading state.
+        supersedingReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(
+            CreateRoster(CreateRosterItem(
+                displayName: "Zoe Carter", firstName: "Zoe", lastName: "Carter", assignmentId: 303, graduationYear: 2034, playerId: 9))));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Zoe Carter"));
+        cut.Markup.ShouldNotContain("Loading placements...");
+    }
+
+    [Fact]
+    public async Task Save_DispatchedDuringFilterChangeReload_IsNoOp()
+    {
+        var pendingReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())),
+                pendingReload.Task);
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        // Make the row dirty so a save could be dispatched, then change the filter outside a
+        // save. The direct-path reload holds the loading guard for its whole duration even
+        // though the old roster (and its row controls) stays rendered until the reload completes.
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.FindAll("button.btn-primary").Count.ShouldBe(2);
+
+        await cut.InvokeAsync(() =>
+        {
+            _ = cut.Instance.SetParametersAsync(ParameterView.FromDictionary(
+                new Dictionary<string, object?>
+                {
+                    [nameof(CampaignPlacementsPanel.State)] = new CampaignWorkspacePlacementState { GraduationYear = 2033 }
+                }));
+        });
+
+        _ = queryService.Received(1).GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+
+        // A save queued into the direct-reload window no-ops under the held loading guard and
+        // never reaches the placement service (its draft would be replaced when the reload
+        // rebuilds drafts).
+        await cut.InvokeAsync(() => cut.Instance.SaveRowAsync(CreateRosterItem()));
+        _ = placementService.DidNotReceive().UpdatePlacementAsync(
+            Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>());
+
+        pendingReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(
+            CreateRoster(CreateRosterItem(
+                displayName: "Zoe Carter", firstName: "Zoe", lastName: "Carter", assignmentId: 303, graduationYear: 2033, playerId: 9))));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Zoe Carter"));
+    }
+
+    [Fact]
+    public void Panel_ClearsPendingState_WhenNavigationReturnsToAppliedStateDuringSave()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // Navigate away while the save is in flight; the roster reload is deferred.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+        queryService.DidNotReceive().GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+
+        // Navigate back to the state that produced the loaded roster while still saving.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState()));
+
+        // Completing the save must not apply the stale deferred state: the roster stays on the
+        // applied state and is never reloaded for the abandoned GraduationYear 2033.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saved"));
+        queryService.DidNotReceive().GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ClosedTransitionDuringSave_StillDefersStateChange_UntilSaveCompletes()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel(status: CampaignStatus.Active, canEdit: true);
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // The campaign closes while a save is in flight and the parameter update also carries a
+        // state change. ResetAllDrafts() replaces every draft with a fresh non-saving draft, so
+        // the deferral must use the pre-reset in-flight flag.
+        cut.Render(parameters => parameters
+            .Add(panel => panel.CampaignStatus, CampaignStatus.Closed)
+            .Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+
+        // The roster reload is still deferred until the in-flight save completes.
+        queryService.DidNotReceive().GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>());
+
+        // Completing the save applies the deferred state and reloads the roster for it.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(new PlacementMutationSuccess(Guid.NewGuid())));
+        cut.WaitForAssertion(() => queryService.Received(1).GetPlacementRosterAsync(
+            Arg.Is<GetCampaignPlacementRosterInput>(input => input.GraduationYear == 2033),
+            Arg.Any<CancellationToken>()));
+    }
+
+    // ── Summary failure surfacing (finding 2) ───────────────────────────────
+
+    [Fact]
+    public void Panel_ShowsSummaryWarning_AndRetryRecovers_WhenInitialSummaryLoadFails()
+    {
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(
+                    ServiceProblem.ServerError("Summary unavailable."))),
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        // A distinct warning replaces the summary footer, and the roster error alert is absent.
+        cut.Markup.ShouldContain("Couldn't load the placement summary.");
+        cut.FindAll("div.placement-summary[role=status]").ShouldBeEmpty();
+        cut.FindAll("div.alert-danger").ShouldBeEmpty();
+
+        // Retry reloads the summary along with roster and choices.
+        cut.FindAll("button.btn-outline-warning")
+            .Single(button => button.TextContent == "Retry")
+            .Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("1 undecided"));
+        cut.Markup.ShouldNotContain("Couldn't load the placement summary.");
+    }
+
+    [Fact]
+    public void Save_ShowsSummaryRefreshWarning_WhenSummaryRefreshFailsAfterSave()
+    {
+        var item = CreateRosterItem(outcome: PlacementOutcome.Undecided);
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlacementMutationSuccess>(
+                new PlacementMutationSuccess(Guid.NewGuid()))));
+
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster(item))));
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary(undecided: 1))),
+                Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(
+                    ServiceProblem.ServerError("Summary unavailable."))));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+
+        // The success banner is suppressed and a refresh warning with retry is shown instead.
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Placement saved, but the summary could not be refreshed."));
+        cut.FindAll("div.alert-success[role=status]").ShouldBeEmpty();
+        cut.FindAll("div.placement-summary[role=status]").ShouldBeEmpty();
+        cut.FindAll("button.btn-outline-warning")
+            .Single(button => button.TextContent == "Retry")
+            .ShouldNotBeNull();
+    }
+
+    // ── Bounded team choices (finding 3) ────────────────────────────────────
+
+    [Fact]
+    public void Panel_RequestsBoundedTeamChoices_WithDocumentedCap()
+    {
+        var teamRosterService = Substitute.For<ITeamRosterService>();
+        teamRosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TeamRosterItem>>(CreateTeams().ToList())));
+
+        RegisterServices(teamRosterService: teamRosterService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        teamRosterService.Received(1).GetRosterAsync(
+            Arg.Is<GetTeamRosterInput>(input => input.LifecycleStatus == "active" && input.Limit == 200),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Panel_RendersTruncationNotice_WhenTeamChoicesReachCap()
+    {
+        var teams = Enumerable.Range(1, 200)
+            .Select(index => new TeamRosterItem
+            {
+                TeamId = index,
+                Name = $"Team {index}",
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ActivePlacementCount = 0
+            })
+            .ToList();
+
+        RegisterServices(teams: teams);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Markup.ShouldContain("Showing the first 200 active teams.");
+        cut.Markup.ShouldContain("refine via Team management");
+    }
+
+    [Fact]
+    public void Panel_OmitsTruncationNotice_WhenTeamChoicesBelowCap()
+    {
+        RegisterServices();
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Markup.ShouldNotContain("Showing the first 200 active teams.");
+    }
+
     // ── Conflict recovery ─────────────────────────────────────────────────────
 
     [Fact]
@@ -324,6 +992,138 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
     }
 
     [Fact]
+    public void Conflict_CloseAndReloadSupersedingDeferredReload_ReleasesLoadingGuard()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlacementMutationSuccess>>();
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(pending.Task);
+
+        var deferredReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var conflictReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())),
+                deferredReload.Task,
+                conflictReload.Task);
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Saving"));
+
+        // Navigate to another placement state while the save is in flight; the reload is deferred.
+        cut.Render(parameters => parameters.Add(panel => panel.State, new CampaignWorkspacePlacementState { GraduationYear = 2033 }));
+
+        // The save fails with a conflict. The deferred reload for the pending state begins and
+        // holds the loading guard; the conflict banner renders independently of the loading state.
+        pending.SetResult(new ServiceResult<PlacementMutationSuccess>(
+            ServiceProblem.Conflict("The placement was changed by another user.")));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close and reload"));
+        cut.Markup.ShouldContain("Loading placements...");
+        _ = queryService.Received(2).GetPlacementRosterAsync(
+            Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+
+        // While the deferred reload is pending, "Close and reload" supersedes it: the conflict
+        // recovery reload advances the request sequence, so the deferred reload's conditional
+        // release must not fire. Without the ownership fix this leaves the panel stuck on the
+        // loading spinner, because the recovery never cleared _isLoading either.
+        cut.Find("button.btn-outline-warning").Click();
+        _ = queryService.Received(3).GetPlacementRosterAsync(
+            Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+
+        // The superseded deferred reload completes first. It must not release the loading guard —
+        // the newest reload owns it now — so the loading state stays up and the stale roster is
+        // never applied.
+        var rendersBeforeStaleCompletion = cut.RenderCount;
+        deferredReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster()));
+        cut.WaitForAssertion(() => cut.RenderCount.ShouldBeGreaterThan(rendersBeforeStaleCompletion));
+        cut.Markup.ShouldContain("Loading placements...");
+        cut.Markup.ShouldNotContain("Avery Johnson");
+
+        // The conflict reload completes as the newest request: it applies its roster and releases
+        // the loading guard, so the panel is not stuck on the spinner and the conflict clears.
+        conflictReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster()));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Markup.ShouldNotContain("Loading placements...");
+        cut.Markup.ShouldNotContain("Close and reload");
+    }
+
+    [Fact]
+    public async Task Conflict_CloseAndReloadSupersedingFilterChangeReload_ReleasesLoadingGuard()
+    {
+        var placementService = Substitute.For<ICampaignPlacementService>();
+        placementService.UpdatePlacementAsync(Arg.Any<UpdateCampaignPlacementInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<PlacementMutationSuccess>(
+                ServiceProblem.Conflict("The placement was changed by another user."))));
+
+        var filterReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var conflictReload = new TaskCompletionSource<ServiceResult<PagedResult<CampaignPlacementRosterItem>>>();
+        var queryService = Substitute.For<ICampaignPlacementQueryService>();
+        queryService.GetPlacementRosterAsync(Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster())),
+                filterReload.Task,
+                conflictReload.Task);
+        queryService.GetPlacementSummaryAsync(Arg.Any<GetCampaignPlacementSummaryInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignPlacementSummaryDto>(CreateSummary())));
+
+        RegisterServices(placementQueryService: queryService, placementService: placementService);
+
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close and reload"));
+
+        // While the conflict is active, a filter change starts a direct-path reload that holds the
+        // loading guard for its whole duration. It is deliberately left pending so the conflict
+        // recovery can supersede it (the "Close and reload" button stays rendered in the browser
+        // because no render happens until the reload completes).
+        await cut.InvokeAsync(() =>
+        {
+            _ = cut.Instance.SetParametersAsync(ParameterView.FromDictionary(
+                new Dictionary<string, object?>
+                {
+                    [nameof(CampaignPlacementsPanel.State)] = new CampaignWorkspacePlacementState { GraduationYear = 2033 }
+                }));
+        });
+
+        _ = queryService.Received(2).GetPlacementRosterAsync(
+            Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+
+        // "Close and reload" supersedes the in-flight filter reload, advancing the request
+        // sequence past it. Without the ownership fix the filter reload's conditional release
+        // never fires and the recovery never clears the guard, leaving the spinner stuck.
+        cut.Find("button.btn-outline-warning").Click();
+        _ = queryService.Received(3).GetPlacementRosterAsync(
+            Arg.Any<GetCampaignPlacementRosterInput>(), Arg.Any<CancellationToken>());
+
+        // The superseded filter reload completes first; it must not release the loading guard, so
+        // the loading state stays up and the stale roster is never applied.
+        var rendersBeforeStaleCompletion = cut.RenderCount;
+        filterReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster()));
+        cut.WaitForAssertion(() => cut.RenderCount.ShouldBeGreaterThan(rendersBeforeStaleCompletion));
+        cut.Markup.ShouldContain("Loading placements...");
+        cut.Markup.ShouldNotContain("Avery Johnson");
+
+        // The conflict reload completes as the newest request: it applies its roster and releases
+        // the loading guard, so the panel is not stuck on the spinner and the conflict clears.
+        conflictReload.SetResult(new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster()));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Markup.ShouldNotContain("Loading placements...");
+        cut.Markup.ShouldNotContain("Close and reload");
+    }
+
+    [Fact]
     public void ClosedTransition_ClearsDrafts_AndRendersReadOnly()
     {
         RegisterServices();
@@ -346,6 +1146,7 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
     private void RegisterServices(
         ICampaignPlacementQueryService? placementQueryService = null,
         ICampaignPlacementService? placementService = null,
+        ITeamRosterService? teamRosterService = null,
         ServiceResult<PagedResult<CampaignPlacementRosterItem>>? rosterResult = null,
         ServiceResult<CampaignPlacementSummaryDto>? summaryResult = null,
         IReadOnlyList<TeamRosterItem>? teams = null,
@@ -368,10 +1169,13 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
                     new PlacementMutationSuccess(Guid.NewGuid()))));
         }
 
-        var teamRosterService = Substitute.For<ITeamRosterService>();
-        teamRosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TeamRosterItem>>(
-                (teams ?? CreateTeams()).ToList())));
+        if (teamRosterService is null)
+        {
+            teamRosterService = Substitute.For<ITeamRosterService>();
+            teamRosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(new ServiceResult<IReadOnlyList<TeamRosterItem>>(
+                    (teams ?? CreateTeams()).ToList())));
+        }
 
         var participantQueryService = Substitute.For<ICampaignParticipantQueryService>();
         participantQueryService.GetRosterGraduationYearsAsync(
@@ -408,14 +1212,19 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
 
     private static CampaignPlacementRosterItem CreateRosterItem(
         string displayName = "Avery Johnson",
+        string firstName = "Avery",
+        string lastName = "Johnson",
         long assignmentId = 301,
         PlacementOutcome outcome = PlacementOutcome.Undecided,
         CampaignParticipantTeamSummaryDto? team = null,
         int graduationYear = 2032,
-        Guid? token = null) => new(
+        Guid? token = null,
+        long playerId = 7) => new(
         PlayerCampaignAssignmentId: assignmentId,
-        PlayerId: 7,
+        PlayerId: playerId,
         DisplayName: displayName,
+        FirstName: firstName,
+        LastName: lastName,
         GraduationYear: graduationYear,
         PlacementOutcome: outcome,
         Team: team,

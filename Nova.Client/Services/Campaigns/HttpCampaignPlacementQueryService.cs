@@ -66,14 +66,15 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
     }
 
     /// <summary>
-    /// Validates that a decoded placement roster page matches the requested page and row shape.
+    /// Validates that a decoded placement roster page matches the requested page, row shape, and
+    /// the server's deterministic ordering contract.
     /// </summary>
     /// <param name="result">The decoded roster page.</param>
     /// <param name="expectedPage">The page the client requested.</param>
     /// <param name="expectedPageSize">The page size the client requested.</param>
     /// <param name="expectedGraduationYear">The optional exact graduation-year filter sent to the server.</param>
     /// <param name="expectedUnresolvedOnly">Whether the client requested unresolved rows only.</param>
-    /// <returns><see langword="true"/> when the page is structurally valid and bounded.</returns>
+    /// <returns><see langword="true"/> when the page is structurally valid, bounded, and ordered.</returns>
     private static bool IsValidRoster(
         PagedResult<CampaignPlacementRosterItem> result,
         int expectedPage,
@@ -85,7 +86,35 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
             && result.PageSize == expectedPageSize
             && result.TotalCount >= 0
             && result.Items.Count <= result.PageSize
-            && result.Items.All(item => IsValidRosterItem(item, expectedGraduationYear, expectedUnresolvedOnly));
+            && result.Items.All(item => IsValidRosterItem(item, expectedGraduationYear, expectedUnresolvedOnly))
+            && IsOrdered(result.Items);
+
+    /// <summary>
+    /// Verifies the portable part of the server ordering contract: when two adjacent rows share
+    /// identical last and first names, the <see cref="CampaignPlacementRosterItem.PlayerCampaignAssignmentId"/>
+    /// tie-breaker must be non-decreasing. Different names are not compared ordinally because the
+    /// database collation — not ordinal comparison — determines how the server orders them; this
+    /// mirrors the precedent in <see cref="HttpCampaignQueryService.CompareCampaign"/>.
+    /// </summary>
+    /// <param name="items">The roster rows to verify.</param>
+    /// <returns><see langword="true"/> when every equal-name adjacent pair has a non-decreasing assignment identifier.</returns>
+    private static bool IsOrdered(IReadOnlyList<CampaignPlacementRosterItem> items)
+    {
+        for (var index = 1; index < items.Count; index++)
+        {
+            var previous = items[index - 1];
+            var current = items[index];
+
+            if (string.Equals(previous.LastName, current.LastName, StringComparison.Ordinal)
+                && string.Equals(previous.FirstName, current.FirstName, StringComparison.Ordinal)
+                && previous.PlayerCampaignAssignmentId > current.PlayerCampaignAssignmentId)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>
     /// Validates the structural shape of a single placement roster row.
@@ -102,6 +131,8 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
             && item.PlayerCampaignAssignmentId > 0
             && item.PlayerId > 0
             && !string.IsNullOrWhiteSpace(item.DisplayName)
+            && !string.IsNullOrWhiteSpace(item.FirstName)
+            && !string.IsNullOrWhiteSpace(item.LastName)
             && item.GraduationYear > 0
             && item.PlacementOutcome is >= PlacementOutcome.Undecided and <= PlacementOutcome.Withdrawn
             && IsValidPlacementRelationship(item.PlacementOutcome, item.Team)

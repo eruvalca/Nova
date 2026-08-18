@@ -3,7 +3,7 @@
 Close the four evidence-backed gaps found in the epic #11 review of the placement slice
 (merged via PRs #89/#90/#92/#93 on `main`): an in-flight-save/filter race, silently swallowed
 summary failures, unbounded team choices, and lax WASM success-payload deserialization. Fixes
-land in this branch (`eruvalca-issue-11-epic-team-placement-and-closeout-outcom-2efff3`) as one
+land in this branch (`eruvalca-placement-epic-gap-remediation-aad`) as one
 PR to `main`; epic #11 is the tracking issue and is closed when the work merges.
 
 ## Decisions (confirmed with user)
@@ -67,21 +67,21 @@ and `api-endpoints.instructions.md` guidance. All findings and plan phases re-ve
 
 ## Phase 1: Fix filter-vs-save race (finding 1)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: builder sub-agent (smaller model); invoke the `add-blazor-ui` skill for
 component conventions.
 
-- [ ] In `Nova.UI/Features/Campaigns/Components/CampaignPlacementsPanel.razor.cs`, add a
+- [x] In `Nova.UI/Features/Campaigns/Components/CampaignPlacementsPanel.razor.cs`, add a
       computed `_savingActive` flag: any draft in `_drafts` has `IsSaving == true`.
-- [ ] Disable the filter bar while `_savingActive`: graduation-year select, unresolved-only
+- [x] Disable the filter bar while `_savingActive`: graduation-year select, unresolved-only
       checkbox, and Clear filters button (razor lines ~35–53). Keep `_conflictActive` disables as-is.
-- [ ] Disable paging while `_savingActive`: add an optional `Disabled` parameter to the shared
+- [x] Disable paging while `_savingActive`: add an optional `Disabled` parameter to the shared
       `CampaignRosterPager` component and pass it from the panel (buttons/skip to page links).
-- [ ] Defensive guard in `OnParametersSetAsync` (line ~258): if a draft is saving when
+- [x] Defensive guard in `OnParametersSetAsync` (line ~258): if a draft is saving when
       URL/navigation changes `State`, defer `LoadRosterAsync` (store pending state; apply it
       after the save completes) so back/forward cannot orphan an in-flight save.
-- [ ] Re-render after each save completes so controls re-enable.
+- [x] Re-render after each save completes so controls re-enable.
 
 ### Verification Plan
 
@@ -91,23 +91,87 @@ component conventions.
 
 ### Phase Summary
 
-_(write when phase completes)_
+Implemented by the builder agent (branch `eruvalca-placement-epic-gap-remediation-aad`).
+
+- Added the computed `_savingActive` flag (`_drafts.Values.Any(draft => draft.IsSaving)`).
+- Filter bar (graduation-year select, unresolved-only checkbox, Clear filters button) and the
+  shared `CampaignRosterPager` (new optional `Disabled` parameter, passed from the panel) are
+  disabled while any row is saving; `_conflictActive` disables kept as-is. The filter/page
+  handlers now no-op while a save is in flight (defense in depth).
+- `OnParametersSetAsync` defers `LoadRosterAsync` when a URL/navigation `State` change arrives
+  while a save is in flight: the requested state is stored in `_pendingState` (latest wins) and
+  applied in `SaveRowAsync`'s `finally` block once no row is saving, so back/forward navigation
+  cannot rebuild drafts out from under an in-flight save. Blazor's post-event re-render re-enables
+  the controls after every save completes (no manual `StateHasChanged` needed).
+- Review remediation (2026-08-17, PR #97 review): the deferral guard now captures `saveInFlight`
+  **before** the Closed-transition `ResetAllDrafts()` so closing the campaign mid-save cannot
+  silently bypass it, and navigating back to the already-applied state while a save is in flight
+  clears `_pendingState` so the save's `finally` never applies a stale deferred state (URL/roster
+  disagreement). Two new bUnit cases cover both paths.
+- Second review remediation (2026-08-17, PR #97 review #4948415434): the banner **Retry**
+  buttons (choices-failure and summary-failure) are disabled with `disabled="@_savingActive"` and
+  `RetryAsync` itself no-ops while a save is in flight — reloading mid-save would rebuild drafts
+  out from under the in-flight save and re-create the URL/roster disagreement the deferral
+  prevents. The deferred `LoadRosterAsync` in `SaveRowAsync`'s `finally` is now wrapped so a
+  transient network failure (`HttpRequestException`/`OperationCanceledException`, checked against
+  component teardown) surfaces as the panel error instead of throwing out of the `finally`. Three
+  new bUnit cases cover both guards.
+- Third review remediation (2026-08-17, PR #97 review #4948499424): the deferred
+  `LoadRosterAsync` in `SaveRowAsync`'s `finally` now shows the loading state for the whole
+  reload — `_isLoading = true` flushed with `StateHasChanged()` (Blazor only re-renders an async
+  event handler after its task completes) and cleared in a nested `finally` — so the row controls
+  are hidden while the reload runs and a second save cannot be dispatched into the reload window
+  (whose `RebuildDrafts` would replace its draft). `SaveRowAsync` also no-ops under `_isLoading`
+  as the authoritative backstop for a click already queued into that window; the method is now
+  `internal` (repo's `InternalsVisibleTo` test seam) so the backstop can be exercised directly.
+  Two new bUnit cases cover the mechanism (loading state shown + row controls hidden while the
+  deferred reload is pending; completing it renders the pending state's roster) and the backstop
+  (a second-row save dispatched into the loading window no-ops and never reaches the placement
+  service).
+- Fourth review remediation (2026-08-17, PR #97 review #4948656964): the `_isLoading` guard is a
+  single boolean cleared by whichever reload finishes first, so a *superseded* deferred reload
+  could lift it while a newer reload (filter change/navigation arriving during the deferred
+  reload) was still in flight, re-enabling the row controls inside the reload window. The newest
+  roster request now owns the flag: a shared `ReloadRosterHoldingLoadingAsync()` helper captures
+  `_requestSequence` before the reload, holds `_isLoading = true` for the whole reload, and
+  releases it only when `_requestSequence == requestIdBefore + 1` (this reload is still the
+  newest). Both reload paths use it — `OnParametersSetAsync`'s direct path (which previously
+  never held the flag) and the deferred reload in `SaveRowAsync`'s `finally` — and it keeps the
+  deferred path's non-throwing network-failure handling (`HttpRequestException` /
+  `OperationCanceledException` → panel error unless component teardown). `RetryAsync` was aligned
+  to the same ownership rule (sequence-aware release; a failed retry surfaces the panel error
+  instead of leaving the spinner stuck). Two new bUnit cases: save → deferred reload → superseded
+  by a filter-change reload → the superseded reload's completion does not release the loading
+  state or re-enable row controls (loading shown continuously until the newest reload completes,
+  and the stale roster is never applied); and a save dispatched into a filter-change (direct-path)
+  reload window no-ops because the direct path now holds the guard.
+
+Verification: `dotnet build Nova.slnx` clean; scoped `dotnet format` exit 0; new
+`CampaignPlacementsPanelTests` cases cover filters/pager disabled during an in-flight save and
+re-enabled after, a state change during a save deferring the roster reload until the save
+completes, navigating back to the applied state discarding the deferred state, a Closed
+transition mid-save still deferring a concurrent state change, the banner Retry buttons disabled
+(and their handler no-oping) during a save, the deferred reload after a save surfacing a
+network failure as the panel error rather than throwing from the `finally`, and the deferred
+reload showing the loading state (hiding row controls) plus the second-save-during-reload
+no-op, plus the superseded-deferred-reload guard ownership and the direct-path guard hold. Full
+unit suite: 1505 passing.
 
 ## Phase 2: Surface summary load/refresh failures (finding 2)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: builder sub-agent (smaller model)
 
-- [ ] In `CampaignPlacementsPanel.razor.cs` `LoadSummaryAsync` (line ~335): track a
+- [x] In `CampaignPlacementsPanel.razor.cs` `LoadSummaryAsync` (line ~335): track a
       `_summaryLoadFailed` state; on problem, clear `_summary` (never present stale counts as
       authoritative) and set the flag.
-- [ ] Render an actionable inline warning (with Retry) when the summary failed — distinct from
+- [x] Render an actionable inline warning (with Retry) when the summary failed — distinct from
       the roster error alert; `RetryAsync` must reload summary along with roster/choices.
-- [ ] Post-save behavior in `SaveRowAsync` (lines ~624–627): if the summary refresh fails, do
+- [x] Post-save behavior in `SaveRowAsync` (lines ~624–627): if the summary refresh fails, do
       not show "Placement saved." beside stale counts; show a warning that the save succeeded
       but counts could not be refreshed, with retry.
-- [ ] Keep initial-load behavior: summary failure must not silently render a summary-less footer.
+- [x] Keep initial-load behavior: summary failure must not silently render a summary-less footer.
 
 ### Verification Plan
 
@@ -117,27 +181,46 @@ Suggested executor: builder sub-agent (smaller model)
 
 ### Phase Summary
 
-_(write when phase completes)_
+- `LoadSummaryAsync` now returns `Task<bool>`: on success it stores the summary, clears
+  `_summaryLoadFailed`/`_summaryWarning`; on problem it clears `_summary` (stale counts are never
+  shown as authoritative) and sets `_summaryLoadFailed`.
+- The razor renders an inline `alert-warning` summary-failure banner with a Retry button — distinct
+  from the `alert-danger` roster error — replacing the summary footer when the flag is set, so a
+  summary-less state is never silent. The banner's Retry is wired to `RetryAsync`, which reloads
+  roster + summary + choices via `LoadInitialAsync`.
+- Post-save: when the summary refresh after a successful mutation fails, the "Placement saved."
+  success banner is suppressed and a "Placement saved, but the summary could not be refreshed."
+  warning (with Retry) is shown instead; the per-row "Saved" status remains accurate.
+- Review remediation (2026-08-17, PR #97 review #4948415434): the banner Retry buttons are
+  disabled while a save is in flight and `RetryAsync` no-ops under `_savingActive`, so clicking
+  Retry cannot rebuild drafts out from under an in-flight save (the exact race finding 1 closes).
+  New bUnit coverage asserts the summary-failure and choices-failure Retry buttons render disabled
+  during a save and clicking them does not issue a second roster request.
+
+Verification: new `CampaignPlacementsPanelTests` cover initial summary failure → warning + Retry
+recovery, and post-save refresh failure → counts cleared + warning shown + success banner absent.
+Full unit suite: 1495 passing; the browser workflow still sees the success banner and summary footer
+on the happy path.
 
 ## Phase 3: Bound team choices (finding 3)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: builder sub-agent (smaller model); invoke the `add-api-endpoint` skill for
 the shared input contract change and `nova-testing` for the tests.
 
-- [ ] In `Nova.Shared/Features/Teams/GetTeamRosterInput.cs`, add optional `Limit` with
+- [x] In `Nova.Shared/Features/Teams/GetTeamRosterInput.cs`, add optional `Limit` with
       `[Range(1, 200)]`; document that omission keeps the existing unbounded behavior for the
       team management UI and that choice-loading callers must pass a cap.
-- [ ] In `Nova/Features/Teams/TeamRosterQueryService.cs` (line ~61), apply
+- [x] In `Nova/Features/Teams/TeamRosterQueryService.cs` (line ~61), apply
       `.Take(input.Limit.Value)` in SQL before materialization when `Limit` is set; keep the
       existing deterministic ordering (Name, then TeamId).
-- [ ] In `CampaignPlacementsPanel` `LoadTeamChoicesAsync` (line ~350), pass the documented cap
+- [x] In `CampaignPlacementsPanel` `LoadTeamChoicesAsync` (line ~350), pass the documented cap
       (constant, e.g. 200).
-- [ ] Render a truncation notice near the team controls when `_teamChoices.Count == cap`:
+- [x] Render a truncation notice near the team controls when `_teamChoices.Count == cap`:
       "Showing the first {cap} active teams. If a team is missing, refine via Team management."
       Keep the existing "current team" fallback option behavior.
-- [ ] Add unit coverage (SQLite tenancy harness) for limit + deterministic ordering, and input
+- [x] Add unit coverage (SQLite tenancy harness) for limit + deterministic ordering, and input
       validation bounds; add HTTP integration coverage for omitted `Limit` (unchanged behavior)
       and an invalid explicit `Limit` (rejected by binding/validation).
 
@@ -150,36 +233,52 @@ the shared input contract change and `nova-testing` for the tests.
 
 ### Phase Summary
 
-_(write when phase completes)_
+- `GetTeamRosterInput` gained optional `Limit` (`int?`, `[Range(1, 200)]`) with XML docs stating
+  omission keeps the existing unbounded behavior for the team management UI and choice-loading
+  callers must pass a documented cap.
+- `TeamRosterQueryService` applies `.Take(limit)` **after** the deterministic
+  `OrderBy(Name).ThenBy(TeamId)` so the limit never changes which rows are selected for equal names.
+- `TeamRosterEndpoints.GetRosterUrl` gained the `limit` query segment (emits only 1..200 per the
+  contract) and `HttpTeamRosterService` passes `input.Limit` through.
+- `CampaignPlacementsPanel.LoadTeamChoicesAsync` passes `Limit = 200` (new `TeamChoiceLimit`
+  constant); the razor shows "Showing the first 200 active teams. If a team is missing, refine via
+  Team management." when `_teamChoices.Count == TeamChoiceLimit`. The "current team" fallback option
+  is unchanged.
+
+Verification: SQLite tenancy unit tests (bounded limit returns the first teams in deterministic
+order; omitted and above-match-count limits return everything); input-validation and URL-builder
+contract tests; WASM client limit-passing test; Aspire integration tests for `limit=2` (bounded +
+ordered), omitted limit (unchanged), and `limit=0`/`limit=201` (400 ValidationProblemDetails with
+`errors.Limit` and traceId). Full unit 1495 and full integration 269 passing.
 
 ## Phase 4: Strict WASM success deserialization + ordering enforcement (finding 4)
 
-Status: Not started
+Status: Complete
 
 Suggested executor: orchestrator (cross-slice blast radius needs judgment; no delegation of the
 audit itself)
 
-- [ ] In `Nova.Client/Services/HttpSuccessContentExtensions.cs` (line ~35), deserialize with a
+- [x] In `Nova.Client/Services/HttpSuccessContentExtensions.cs` (line ~35), deserialize with a
       new options instance derived from `JsonSerializerOptions.Web` with
       `RespectRequiredConstructorParameters = true` and `RespectNullableAnnotations = true`;
       keep the `JsonException → ServiceProblem.ServerError` mapping.
-- [ ] Enumerate every `ReadRequiredJsonAsync` call site (and direct `ReadFromJsonAsync` uses)
+- [x] Enumerate every `ReadRequiredJsonAsync` call site (and direct `ReadFromJsonAsync` uses)
       across `Nova.Client/Services/`; list the DTOs affected.
-- [ ] Run the full unit suite; for each newly failing WASM client test, fix the root cause in
+- [x] Run the full unit suite; for each newly failing WASM client test, fix the root cause in
       this branch: correct DTO nullability/optionality (nullable annotations or default values)
       or fix server serialization so responses satisfy the contract — never weaken the global
       enforcement to make a test pass.
-- [ ] Add `FirstName`/`LastName` to `CampaignPlacementRosterItem` (`Nova.Shared/Features/Campaigns/CampaignPlacementContracts.cs`);
+- [x] Add `FirstName`/`LastName` to `CampaignPlacementRosterItem` (`Nova.Shared/Features/Campaigns/CampaignPlacementContracts.cs`);
       fill from the existing `PlacementRosterPageRow` projection in `CampaignPlacementQueryService`
       (server already projects both names); keep `DisplayName` for the UI.
-- [ ] In `HttpCampaignPlacementQueryService`, extend `IsValidRoster` to verify adjacent rows
+- [x] In `HttpCampaignPlacementQueryService`, extend `IsValidRoster` to verify adjacent rows
       follow the server ordering contract (LastName asc, then FirstName asc, then
       `PlayerCampaignAssignmentId` asc).
-- [ ] Client contract tests (`HttpCampaignPlacementQueryServiceTests`): `{}` summary → ServerError;
+- [x] Client contract tests (`HttpCampaignPlacementQueryServiceTests`): `{}` summary → ServerError;
       summary missing a count → ServerError; roster row missing outcome → ServerError;
       out-of-order roster page → ServerError. Update existing success-payload fixtures with the
       new `FirstName`/`LastName` fields.
-- [ ] Update any integration/browser seeds or fixtures that construct roster items.
+- [x] Update any integration/browser seeds or fixtures that construct roster items.
 
 ### Verification Plan
 
@@ -192,21 +291,62 @@ audit itself)
 
 ### Phase Summary
 
-_(write when phase completes)_
+- `HttpSuccessContentExtensions.ReadRequiredJsonAsync` now deserializes with `StrictWebOptions`
+  (a fresh instance derived from `JsonSerializerOptions.Web` with
+  `RespectRequiredConstructorParameters = true` and `RespectNullableAnnotations = true`); the
+  `JsonException → ServiceProblem.ServerError` mapping is unchanged.
+- Audit: 34 `ReadRequiredJsonAsync` call sites across ~20 WASM services
+  (`Nova.Client/Services/{Campaigns,Clubs,Photos,Players,Tags,Teams}/`). DTO families affected:
+  `CreateCampaignResult`, `EvaluationNoteMutationSuccess`, `UpdateCampaignMetadataResult`,
+  `PagedResult<CampaignParticipantRosterItem>`, `CampaignParticipantDetailDto`, `List<int>`,
+  `PagedResult<CampaignPlacementRosterItem>`, `CampaignPlacementSummaryDto`,
+  `PlacementMutationSuccess`, `CampaignListResult`, `CampaignDetailResult`,
+  `CampaignCreationSetupResult`, `CampaignTagApplicationMutationSuccess`,
+  `UpdateSeasonMetadataResult`, `ClubJoinRequestDto`, `List<ClubJoinRequestDto>`,
+  `List<ClubMemberDto>`, `bool`, `ClubDto`, `List<ClubDto>`, `ProfilePhotoInfo`,
+  `PlayerDetailDto`, `PlayerDto`, `PagedResult<PlayerListItem>`, `TagDefinitionListResult`,
+  `List<TagDefinitionDto>`, `TeamDetailDto`, `TeamDto`, `List<TeamRosterItem>`. The only direct
+  `ReadFromJsonAsync` use is the intermediate `JsonElement` read inside the extension itself.
+- After enabling strict enforcement, the **full unit suite passed unchanged** (1495) — no WASM
+  client regression. No DTO nullability/optionality corrections or server serialization fixes were
+  required: every server success payload already satisfies the strict contract (populated
+  positional-record parameters and `required` members, no JSON nulls for non-nullable references).
+- Added `FirstName`/`LastName` to `CampaignPlacementRosterItem`; the server projection fills them
+  from the existing `PlacementRosterPageRow` (the server already projected both names) and keeps
+  `DisplayName`. All constructors updated (server projection, panel/workspace test helpers,
+  contract-test fixtures).
+- `IsValidRoster` now requires non-blank `FirstName`/`LastName` per row and verifies the portable
+  part of the server ordering contract: when adjacent rows share identical last and first names,
+  `PlayerCampaignAssignmentId` must be non-decreasing. Different names are **not** compared
+  ordinally because the database collation (not ordinal comparison) determines how the server
+  orders them — mirroring the existing `HttpCampaignQueryService.CompareCampaign` precedent. New
+  contract tests: `{}` summary → ServerError; summary missing a count → ServerError; roster row
+  missing `placementOutcome` → ServerError; out-of-order equal-name page (descending assignment
+  ids) → ServerError; in-order multi-row page accepted; a collation-ordered page ("Álvarez" before
+  "Bond", ordinally descending) accepted.
+- Review remediation (2026-08-17, PR #97 review): the original ordinal name comparison in
+  `IsOrdered` could reject valid server pages when the DB collation orders accented names first
+  (e.g. `postgres:18` `en_US.utf8`); replaced with the equal-name ID tie-breaker above, updated
+  the out-of-order fixture to use same-name rows with descending ids, and added the
+  collation-ordered acceptance test.
+- Integration/browser seeds construct DB entities only (no roster-item fixtures); the real server
+  now serializes the new fields, so the HTTP/browser suites exercise the enriched contract.
+
+Verification: build clean; scoped format exit 0; full unit 1495 and full integration 269 passing.
 
 ## Phase 5: Full-suite validation gate
 
-Status: Not started
+Status: Complete
 
 Suggested executor: task sub-agent (run commands, report)
 
-- [ ] `dotnet build Nova.slnx` — 0 warnings/errors.
-- [ ] `dotnet format Nova.slnx --verify-no-changes` — record result; if blocked only by the
+- [x] `dotnet build Nova.slnx` — 0 warnings/errors.
+- [x] `dotnet format Nova.slnx --verify-no-changes` — record result; if blocked only by the
       pre-existing unrelated CHARSET findings, re-verify with `--include <all touched files>` and record both.
-- [ ] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — all pass.
-- [ ] `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — all pass
+- [x] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — all pass.
+- [x] `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — all pass
       (Aspire AppHost + PostgreSQL; run locally, CI does not cover this).
-- [ ] `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — all pass
+- [x] `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — all pass
       (Playwright Chromium; install via `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`
       if needed; 1 env-gated a11y-screenshot skip is acceptable).
 
@@ -216,16 +356,36 @@ Suggested executor: task sub-agent (run commands, report)
 
 ### Phase Summary
 
-_(write when phase completes)_
+- `dotnet build Nova.slnx` — **0 warnings / 0 errors**.
+- `dotnet format Nova.slnx --verify-no-changes` — fails **only** on the pre-existing unrelated
+  tag-file CHARSET/IDE0161 findings (`Nova{,.Client,.Shared,.UI,.Unit.Tests,.Integration.Tests}`
+  under `Features/Tags`, `Nova/Features/Shared/CommitAttemptTracker.cs`, tag migrations — none
+  touched by this work). Scoped re-verification `--include <all 20 touched files>` exits **0**.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — **1505 passed / 0 failed**
+  (23 new tests added by this work + 3 added by the PR #97 review-remediation turn + 3 added by
+  the PR #97 second review-remediation turn + 2 added by the PR #97 third review-remediation turn
+  + 2 added by the PR #97 fourth review-remediation turn).
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — **269 passed /
+  0 failed** (Aspire AppHost + PostgreSQL 18; new team-roster `Limit` coverage included).
+- `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — **21 passed / 0 failed /
+  1 skipped** (the skip is the env-gated `NOVA_A11Y_SCREENSHOTS` evidence test); ran green twice.
+  Playwright Chromium installed with `playwright.ps1 install chromium`.
+- Pre-existing browser flake found and fixed: `NarrowViewport_CardsRemainKeyboardOperable_WithLabelsAndAnnouncements`
+  failed at base `3ce47f0` (reproduced on a clean main worktree in this environment) because a
+  queued keyboard change could move the outcome select past Assigned while the stale team-enabled
+  check broke out early, disabling the team select mid-assertion. The flow now resets the outcome
+  to Undecided before each ArrowDown (so it can never escalate past Assigned) and retries until the
+  team select actually enables — keyboard-operability and touch-target assertions unchanged.
 
 ## Phase 6: Ship — PR, merge, close epic
 
-Status: Not started
+Status: In progress (builder completed commit/push/PR + five review-remediation turns; merge + epic close
+are post-merge)
 
 Suggested executor: orchestrator
 
-- [ ] Commit the changes (conventional, kebab-case summary referencing #11) and push the branch.
-- [ ] Create the PR to `main` via `create_pull_request` (title like "Remediate placement epic
+- [x] Commit the changes (conventional, kebab-case summary referencing #11) and push the branch.
+- [x] Create the PR to `main` via `create_pull_request` (title like "Remediate placement epic
       review gaps (#11)"); request a Copilot code review before merging.
 - [ ] After merge: add a comment on #11 summarizing the four gaps, the fixes, and the final
       validation evidence (build/format/unit/integration/browser pass counts).
@@ -240,12 +400,128 @@ Suggested executor: orchestrator
 
 ### Phase Summary
 
-_(write when phase completes)_
+The builder agent (2026-08-16/17) committed all implementation + plan updates with the Copilot
+co-author trailer, pushed `eruvalca-placement-epic-gap-remediation-aad`, and opened the PR to
+`main` with `Closes #11` and full validation evidence. CI (build + unit) runs on the PR head. On
+2026-08-17 the Reviewer's PR #97 review found three issues (collation-incompatible ordinal
+ordering check; stale `_pendingState` applied after navigating back to the applied state; the
+deferral guard bypassed by a Closed transition mid-save); all were fixed in a review-remediation
+commit with focused tests, and every review thread was replied to and resolved. The Reviewer's
+second PR #97 review found two remaining issues in the new remediation surface (the banner Retry
+buttons could still rebuild drafts out from under an in-flight save; the new `finally` block could
+throw via the deferred `LoadRosterAsync` on a transient network failure); both were fixed in a
+second review-remediation commit — `RetryAsync` guarded and the banner Retry buttons disabled,
+and the deferred reload wrapped to surface network failures as the panel error — with three new
+focused bUnit cases, and both review threads were replied to and resolved. The Reviewer's third
+PR #97 review found one remaining issue in the new remediation surface (the deferred reload in
+`SaveRowAsync`'s `finally` ran with the row controls enabled, so a second save could be
+dispatched into the reload window and have its draft replaced when the reload rebuilt drafts);
+it was fixed in a third review-remediation commit — the deferred reload now shows the loading
+state for its whole duration (hiding the row controls) and `SaveRowAsync` no-ops under
+`_isLoading` as the backstop — with two new focused bUnit cases, and the review thread was
+replied to and resolved. The Reviewer's fourth PR #97 review found one remaining issue in the new
+remediation surface (the `_isLoading` guard is a single boolean cleared by whichever reload
+finishes first, so a *superseded* deferred reload could lift it while a newer reload was still
+in flight); it was fixed in a fourth review-remediation commit — the newest roster request now
+owns the guard: a shared `ReloadRosterHoldingLoadingAsync()` helper holds `_isLoading` for the
+whole reload and releases it only while that reload is still the newest (`_requestSequence ==
+requestIdBefore + 1`), and both the direct `OnParametersSetAsync` reload path (which previously
+never held the flag) and the deferred reload use it; `RetryAsync` follows the same ownership rule
+and surfaces a network failure as the panel error instead of leaving the spinner stuck — with two
+new focused bUnit cases (superseded deferred reload no longer releases the guard, and a save
+dispatched into a direct-path reload window no-ops), and the review thread was replied to and
+resolved. The Reviewer's fifth PR #97 review found one remaining issue in the new remediation
+surface (`ReloadAndDiscardAsync`, the conflict "Close and reload" recovery, called
+`LoadRosterAsync` directly and did not participate in the loading-ownership rule, so when it
+superseded an in-flight sequence-aware reload — a deferred reload after a conflicted save, or a
+direct-path reload after a filter change during a conflict — the superseded reload's conditional
+release never fired and the recovery never cleared the flag, leaving the panel stuck on the
+loading spinner); it was fixed in a fifth review-remediation commit — the conflict-recovery
+reload now routes its roster load through the same `ReloadRosterHoldingLoadingAsync()` ownership
+helper as every other reload path, so it holds the loading guard for the whole recovery and
+releases it only while still the newest request — with two new focused bUnit cases covering both
+superseding triggers (deferred reload and filter-change reload), and the review thread was
+replied to and resolved. The remaining
+Phase 6 steps — merge and closing epic #11 with the summary comment — are post-merge
+orchestrator/human outcomes and were deliberately not performed.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+Completed on 2026-08-16/17 in branch `eruvalca-placement-epic-gap-remediation-aad` (builder agent
+under orchestrator delegation) as one PR to `main` closing epic #11.
+
+**Finding 1 — in-flight-save/filter race.** `_savingActive` computed flag disables the filter bar
+and the shared `CampaignRosterPager` (new `Disabled` parameter) while any row is saving; the
+filter/page handlers no-op during a save; `OnParametersSetAsync` defers a URL/navigation-driven
+`State` change into `_pendingState` and applies it after the save completes, so back/forward cannot
+orphan an in-flight save. Review remediation: the guard captures the in-flight flag before the
+Closed transition resets drafts (so closing mid-save cannot bypass the deferral) and drops a
+deferred state when the user navigates back to the applied state; the deferred reload that applies
+a pending navigation state after a save now shows the loading state for its whole duration (row
+controls hidden, flushed with `StateHasChanged`) and `SaveRowAsync` no-ops under `_isLoading`, so
+a second save can never be dispatched into the reload window and have its draft replaced when the
+reload rebuilds drafts. The newest roster request owns the loading guard: a shared
+`ReloadRosterHoldingLoadingAsync()` helper (used by the direct `OnParametersSetAsync` reload path
+and the deferred reload) holds `_isLoading` and releases it only while that reload is still the
+newest request, so a superseded reload can never re-enable the row controls while a newer reload
+is still in flight. The conflict "Close and reload" recovery
+(`ReloadAndDiscardAsync`) participates in the same ownership rule — its roster load routes through
+the helper — so a recovery that supersedes an in-flight reload releases the guard itself instead
+of leaving the panel stuck on the loading spinner.
+
+**Finding 2 — swallowed summary failures.** `LoadSummaryAsync` now reports success/failure, clears
+`_summary` on failure, and an inline `alert-warning` banner (distinct from the roster error) with
+Retry replaces the summary footer; post-save refresh failure suppresses the "Placement saved."
+banner and shows "Placement saved, but the summary could not be refreshed." with retry. Review
+remediation: the banner Retry buttons are disabled while a save is in flight and `RetryAsync`
+no-ops under `_savingActive`, closing the last path that could rebuild drafts out from under an
+in-flight save; the deferred `LoadRosterAsync` in `SaveRowAsync`'s `finally` is wrapped so a
+transient network failure surfaces as the panel error instead of throwing out of the `finally`.
+
+**Finding 3 — unbounded team choices.** `GetTeamRosterInput.Limit` (`[Range(1, 200)]`, omission
+keeps unbounded team-management behavior), `.Take` applied after the deterministic
+(Name, TeamId) ordering, URL builder + WASM client pass-through, panel requests the documented cap
+(200) and renders the truncation notice when the count equals it.
+
+**Finding 4 — lax WASM success deserialization.** `ReadRequiredJsonAsync` now enforces
+`RespectRequiredConstructorParameters` + `RespectNullableAnnotations` globally (34 call sites
+audited across ~20 services; the full unit suite passed unchanged — no contract corrections needed
+because every server payload already satisfies the strict contract). `CampaignPlacementRosterItem`
+gained `FirstName`/`LastName` filled from the existing server projection, and the client validator
+enforces the portable part of the server ordering contract: the equal-name assignment-id
+tie-breaker only, because the database collation (not ordinal comparison) orders different names —
+matching the existing `CompareCampaign` precedent after the PR #97 review.
+
+**Validation evidence (Phase 5):** build 0 warnings/0 errors; format — unscoped blocked only by the
+pre-existing unrelated tag-file CHARSET/IDE0161 findings, scoped `--include` over all touched
+files exits 0; unit **1507/1507** (23 new tests + 3 added by the PR #97 review-remediation turn +
+3 added by the PR #97 second review-remediation turn + 2 added by the PR #97 third
+review-remediation turn + 2 added by the PR #97 fourth review-remediation turn + 2 added by the
+PR #97 fifth review-remediation turn); integration
+**269/269** (Aspire +
+PostgreSQL 18); browser **21 passed / 1 env-gated a11y skip** (green twice). A pre-existing
+narrow-viewport keyboard browser flake (reproduced on clean `main`) was made deterministic
+without weakening assertions.
+
+**Plan bookkeeping:** Phases 1–5 Complete with summaries; Phase 6 In progress — commit/push/PR
+completed by the builder; five PR #97 review-remediation turns (ordering/deferral, banner-Retry
++ non-throwing finally, deferred-reload loading state + second-save backstop, newest-request
+loading-guard ownership, conflict-recovery reload participating in that ownership rule) each
+replied to and
+resolved; merge and epic close are post-merge orchestrator/human outcomes.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+Ship steps (post-merge, owned by the orchestrator/human; the builder does not merge or close):
+
+1. **Merge the PR** `Remediate placement epic review gaps (#11)` into `main` (after the Reviewer
+   finds it ready and CI build + unit are green on the merge commit). Squash or rebase-merge per
+   repo norm; do not delete the branch until #11 closeout is confirmed.
+2. **Comment on epic #11** with the four-gap summary and final evidence: build 0/0; format
+   (scoped) exit 0; unit 1507; integration 269; browser 21 passed + 1 env-gated skip.
+3. **Close epic #11** (state `closed`, reason `completed`). The epic remains the tracking issue;
+   close/reopen and Overview/Closeout stay owned by open epic #12.
+4. No migrations, no new environment variables, no new dependencies, and no deployment
+   configuration changes are required — the change is application code + tests only. Existing
+   CI (build + unit) covers the merge commit; integration and browser suites were validated
+   locally per repo convention.

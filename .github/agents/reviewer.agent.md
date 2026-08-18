@@ -12,7 +12,7 @@ tools:
         github/*,
         github.vscode-pull-request-github/*,
     ]
-model: mai-code-1.1-flash
+model: 7caf4448-4bc1-4744-9079-ba2695161d8c/deepseek-v4-flash
 user-invocable: true
 ---
 
