@@ -113,6 +113,7 @@ builder.Services.AddScoped<ICampaignPlacementService>(services => services.GetRe
 builder.Services.AddScoped<CampaignTagApplicationService>();
 builder.Services.AddScoped<ICampaignTagApplicationService>(services => services.GetRequiredService<CampaignTagApplicationService>());
 builder.Services.AddScoped<CampaignLifecycleService>();
+builder.Services.AddScoped<ICampaignLifecycleService>(services => services.GetRequiredService<CampaignLifecycleService>());
 builder.Services.AddScoped<ICampaignCreationService, CampaignCreationService>();
 builder.Services.AddScoped<ICampaignQueryService, CampaignQueryService>();
 builder.Services.AddScoped<ICampaignParticipantQueryService, CampaignParticipantQueryService>();
@@ -262,6 +263,7 @@ app.MapCampaignQueryEndpoints();
 app.MapCampaignParticipantEndpoints();
 app.MapCampaignPlacementEndpoints();
 app.MapCampaignCloseoutEndpoints();
+app.MapCampaignLifecycleEndpoints();
 app.MapCampaignMetadataEndpoints();
 app.MapCampaignTagApplicationEndpoints();
 app.MapCampaignEvaluationNoteEndpoints();
