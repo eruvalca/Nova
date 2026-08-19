@@ -211,7 +211,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
         result.Value.Events.Select(item => item.CampaignLifecycleEventId).ShouldBe(expectedIds);
     }
 
-    /// <summary>Verifies actor display names are resolved and missing actors fall back to empty.</summary>
+    /// <summary>Verifies actor display names are resolved and missing actors fall back to the "Former member" text.</summary>
     [Fact]
     public async Task GetActivity_ResolvesActorDisplayNames_WithMissingActorFallback()
     {
@@ -234,7 +234,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
         var resolved = result.Value.Events.Single(item => item.ActorUserId == ClubAAdminId);
         resolved.ActorDisplayName.ShouldBe("Admin A");
         var missing = result.Value.Events.Single(item => item.ActorUserId == MissingActorUserId);
-        missing.ActorDisplayName.ShouldBe(string.Empty);
+        missing.ActorDisplayName.ShouldBe("Former member");
     }
 
     /// <summary>Verifies a requested explicit limit is honored.</summary>

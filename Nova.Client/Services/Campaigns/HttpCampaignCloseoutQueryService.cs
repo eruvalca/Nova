@@ -77,8 +77,7 @@ public sealed class HttpCampaignCloseoutQueryService(HttpClient http) : ICampaig
             && result.Blockers.All(blocker => blocker is not null)
             && result.IsReady == (result.Blockers.Count == 0)
             && result.Blockers.Select(blocker => blocker.Condition).Distinct().Count() == result.Blockers.Count
-            && result.Blockers.All(IsValidBlocker)
-            && HasConsistentOutcomesCount(result);
+            && result.Blockers.All(IsValidBlocker);
 
     /// <summary>
     /// Validates one condition-keyed blocker row.
@@ -92,23 +91,6 @@ public sealed class HttpCampaignCloseoutQueryService(HttpClient http) : ICampaig
             && blocker.AssignmentIds.All(id => id > 0)
             && blocker.AssignmentIds.Distinct().Count() == blocker.AssignmentIds.Count
             && IsKnownCondition(blocker.Condition);
-
-    /// <summary>
-    /// Verifies the not-ready payload's outcomes blocker count matches the summary undecided count.
-    /// </summary>
-    /// <param name="result">The decoded closeout readiness.</param>
-    /// <returns><see langword="true"/> when the outcomes count is consistent with the summary.</returns>
-    private static bool HasConsistentOutcomesCount(CampaignCloseoutReadinessDto result)
-    {
-        if (result.IsReady)
-        {
-            return true;
-        }
-
-        var outcomesBlocker = result.Blockers.FirstOrDefault(
-            blocker => blocker.Condition == CloseoutBlockerConditions.Outcomes);
-        return outcomesBlocker is null || outcomesBlocker.Count == result.Summary.UndecidedCount;
-    }
 
     /// <summary>
     /// Determines whether a condition key is one of the three shared foundation constants.

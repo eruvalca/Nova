@@ -19,6 +19,8 @@ public sealed partial class CampaignQueryService(
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignQueryService> logger) : ICampaignQueryService
 {
+    private const string UnresolvedActorFallback = "Former member";
+
     /// <inheritdoc />
     public async Task<ServiceResult<CampaignListResult>> GetCampaignListAsync(
         GetCampaignListInput input,
@@ -176,14 +178,14 @@ public sealed partial class CampaignQueryService(
     }
 
     /// <summary>
-    /// Resolves the display name of the user who closed a campaign, falling back to empty when the
-    /// actor user row is no longer available in the club.
+    /// Resolves the display name of the user who closed a campaign, falling back to the stable
+    /// "Former member" text when the actor user row is no longer available in the club.
     /// </summary>
     /// <param name="db">The read-only tenant-scoped context.</param>
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="closedByUserId">The closer user identifier.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>The resolved closer display name, or <see cref="string.Empty"/> when unavailable.</returns>
+    /// <returns>The resolved closer display name, or <see cref="UnresolvedActorFallback"/> when unavailable.</returns>
     private static async Task<string> ResolveClosedByDisplayNameAsync(
         NovaReadDbContext db,
         long clubId,
@@ -192,7 +194,7 @@ public sealed partial class CampaignQueryService(
         => await db.Users
             .Where(user => user.ClubId == clubId && user.Id == closedByUserId)
             .Select(user => $"{user.FirstName} {user.LastName}")
-            .FirstOrDefaultAsync(cancellationToken) ?? string.Empty;
+            .FirstOrDefaultAsync(cancellationToken) ?? UnresolvedActorFallback;
 
     /// <inheritdoc />
     public async Task<ServiceResult<CampaignCreationSetupResult>> GetCreationSetupAsync(

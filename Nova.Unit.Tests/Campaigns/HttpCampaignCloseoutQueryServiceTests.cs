@@ -75,6 +75,40 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
         result.Value.Blockers[0].AssignmentIds.ShouldBe([1, 2]);
     }
 
+    /// <summary>
+    /// Verifies a not-ready payload whose outcomes blocker count differs from the summary undecided
+    /// count — a momentary cross-read disagreement the server does not guarantee atomically — is
+    /// accepted rather than surfaced as a server error.
+    /// </summary>
+    [Fact]
+    public async Task GetCloseoutReadinessAsync_AcceptsMismatchedOutcomesCount()
+    {
+        var payload = new CampaignCloseoutReadinessDto(
+            42,
+            CampaignStatus.Active,
+            IsReady: false,
+            new CampaignPlacementSummaryDto(0, 0, 0, 2, 2),
+            [
+                new CampaignCloseoutBlockerDto(
+                    CloseoutBlockerConditions.Outcomes,
+                    1,
+                    [1],
+                    "Every participant must have a final outcome before closing. Found 1 undecided participation record(s).")
+            ]);
+        var handler = new RecordingHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpCampaignCloseoutQueryService(http);
+
+        var result = await service.GetCloseoutReadinessAsync(
+            new GetCampaignCloseoutReadinessInput { CampaignId = 42 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Blockers.ShouldHaveSingleItem();
+        result.Value.Blockers[0].Count.ShouldBe(1);
+    }
+
     /// <summary>Verifies invalid caller input is rejected before any HTTP request is made.</summary>
     [Fact]
     public async Task GetCloseoutReadinessAsync_ReturnsValidation_ForInvalidInput()

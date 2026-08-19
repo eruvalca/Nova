@@ -53,7 +53,8 @@ Skills (step-by-step recipes): `add-api-endpoint`, `add-feature-slice`, `nova-te
 - "Final outcomes" count shown on the Closeout screen is derived by the UI as
   `TotalCount - UndecidedCount`; the contract only embeds the five authoritative counts.
 - Actor display name = `"{FirstName} {LastName}"` from the club-scoped users table, falling back to
-  `string.Empty` when the actor row is missing (same pattern as `PlayerDetailQueryService`).
+  the stable `"Former member"` text when the actor row is missing (same pattern as
+  `PlayerDetailQueryService`).
 - New service/file names (see phases): `CampaignCloseoutQueryService` / `HttpCampaignCloseoutQueryService`
   / `CampaignCloseoutEndpointRouteBuilderExtensions` (the `Query`-less extension name is avoided
   deliberately so #104 can own close/reopen mutation mappings without a filename collision).
@@ -211,8 +212,9 @@ Task<ServiceResult<CampaignActivityResult>> GetActivityAsync(
       (`Total == Assigned + NotSelected + Withdrawn + Undecided`, all `>= 0`), `Blockers` non-null with
       no null rows, per-blocker `Count >= 0`, `AssignmentIds` non-null/non-negative/unique,
       `Condition` one of the three shared constants, `IsReady == (Blockers.Count == 0)`,
-      `!IsReady` ⇒ `Summary.UndecidedCount` or an eligibility/archived blocker is consistent with the
-      counts carried in blockers (verify `outcomes` blocker `Count == Summary.UndecidedCount`). Empty,
+      The client deliberately does NOT enforce `outcomes` blocker `Count == Summary.UndecidedCount`:
+      the summary and the blocker ids come from separate reads, so a concurrent placement mutation can
+      make them briefly disagree (see `.github/instructions/ef-core-tenancy.instructions.md`). Empty,
       null, or malformed success bodies → `ServiceProblem.ServerError` via `ReadRequiredJsonAsync`.
 - [x] Register WASM client in `Nova.Client/Program.cs` (`AddScoped<ICampaignCloseoutQueryService,
       HttpCampaignCloseoutQueryService>()`).
@@ -291,7 +293,8 @@ match `GetCampaignPlacementRosterInput` precedent).
       `ClubId == clubId && CampaignId == input.CampaignId`, `OrderByDescending(CreatedAt)
       .ThenByDescending(CampaignLifecycleEventId)`, `Take(limit)` → resolve actor display names with the
       `PlayerDetailQueryService` pattern (club-scoped `db.Users` lookup, `"{FirstName} {LastName}"`,
-      fallback `string.Empty`) → map to `CampaignActivityItemDto` list → wrap in `CampaignActivityResult`.
+      fallback `"Former member"`) → map to `CampaignActivityItemDto` list → wrap in
+      `CampaignActivityResult`.
 - [x] Map the activity GET route in `CampaignCloseoutEndpointRouteBuilderExtensions` (Phase 2 file) with
       the same metadata block as readiness.
 - [x] `HttpCampaignCloseoutQueryService.GetActivityAsync`: validate input, GET via URL builder,
@@ -325,7 +328,7 @@ Complete. Added `CampaignActivityItemDto`, `CampaignActivityResult`, `GetCampaig
 null). `CampaignCloseoutQueryService.GetActivityAsync` validates, authorizes, performs a tenant-safe
 existence check, and queries bounded events ordered `CreatedAt` desc then id desc — SQL-side for
 PostgreSQL, with an isolated in-memory fallback for SQLite (documented in code, since SQLite cannot
-translate `DateTimeOffset` ORDER BY). Actor display names resolve club-scoped with empty fallback.
+translate `DateTimeOffset` ORDER BY). Actor display names resolve club-scoped with the `"Former member"` fallback.
 WASM client validates bound/ordering/rows. Unit, HTTP, and Postgres integration tests all green
 (including close+reopen ordering seeded via `CampaignLifecycleService`).
 
@@ -342,14 +345,14 @@ Suggested executor: sub-agent w/ smaller model (mechanical, shape fixed)
       `string? ClosedByDisplayName { get; init; }` (nullable, non-required — additive).
 - [x] `Nova/Features/Campaigns/CampaignQueryService.GetCampaignDetailAsync`: include `ClosedAt` and
       `ClosedById` in the existing projection and resolve `ClosedByDisplayName` via a second club-scoped
-      `db.Users` lookup (fallback `string.Empty`), reusing the `PlayerDetailQueryService` name pattern.
+      `db.Users` lookup (fallback `"Former member"`), reusing the `PlayerDetailQueryService` name pattern.
 - [x] `Nova.Client/Services/Campaigns/HttpCampaignQueryService.IsValidCampaignDetail`: add closure
       invariants — `Status == Closed` ⇒ `ClosedAt != null && ClosedByUserId > 0 && non-empty
       ClosedByDisplayName`; `Status == Active` ⇒ `ClosedAt == null && ClosedByUserId == null`.
 - [x] Update `Nova.Unit.Tests/Campaigns/CampaignQueryServiceTests.cs` (detail cases) and
       `Nova.Unit.Tests/Campaigns/HttpCampaignQueryServiceTests.cs`: closed campaign returns populated
       closure fields with resolved display name; active campaign returns nulls; missing actor row falls
-      back to `string.Empty`; tenant isolation unchanged; client validator accepts the valid closed
+      back to `"Former member"`; tenant isolation unchanged; client validator accepts the valid closed
       payload and rejects Active-with-ClosedAt / Closed-without-ClosedAt payloads.
 - [x] Integration: extend the existing campaign-detail HTTP tests (or `CampaignCloseoutHttpTests.cs`)
       asserting a Closed campaign's detail response carries `closedAt` and `closedByUserId` after a
@@ -365,11 +368,11 @@ Suggested executor: sub-agent w/ smaller model (mechanical, shape fixed)
 
 Complete. `CampaignDetailResult` gained nullable `ClosedAt`, `ClosedByUserId`, `ClosedByDisplayName`.
 `CampaignQueryService.GetCampaignDetailAsync` now projects `ClosedAt`/`ClosedById` and resolves
-`ClosedByDisplayName` via a second club-scoped `db.Users` lookup (empty fallback, mirroring the
+`ClosedByDisplayName` via a second club-scoped `db.Users` lookup (`"Former member"` fallback, mirroring the
 `PlayerDetailQueryService` name pattern). `HttpCampaignQueryService.IsValidCampaignDetail` enforces
 `Closed ⇒ ClosedAt != null && ClosedByUserId > 0 && non-empty ClosedByDisplayName` and
 `Active ⇒ ClosedAt == null && ClosedByUserId == null`. Unit + HTTP tests cover closed-populated,
-active-nulls, missing-actor empty fallback, tenant isolation, and client rejections; the
+active-nulls, missing-actor `"Former member"` fallback, tenant isolation, and client rejections; the
 `CampaignCloseoutHttpTests` integration asserts a Closed detail response carries `closedAt` and
 `closedByUserId` after a close via `CampaignLifecycleService`.
 

@@ -405,9 +405,9 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Value.ClosedByDisplayName.ShouldBe("Amelia Member");
     }
 
-    /// <summary>Verifies a Closed campaign with a missing closer row falls back to an empty display name.</summary>
+    /// <summary>Verifies a Closed campaign with a missing closer row falls back to the "Former member" display name.</summary>
     [Fact]
-    public async Task GetCampaignDetail_ReturnsEmptyDisplayName_WhenCloserIsUnavailable()
+    public async Task GetCampaignDetail_ReturnsFormerMemberDisplayName_WhenCloserIsUnavailable()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -431,7 +431,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Value.Status.ShouldBe(CampaignStatus.Closed);
         result.Value.ClosedAt.ShouldNotBeNull();
         result.Value.ClosedByUserId.ShouldBe(999_999);
-        result.Value.ClosedByDisplayName.ShouldBe(string.Empty);
+        result.Value.ClosedByDisplayName.ShouldBe("Former member");
     }
 
     /// <summary>Verifies the detail query returns NotFound for another club's campaign.</summary>

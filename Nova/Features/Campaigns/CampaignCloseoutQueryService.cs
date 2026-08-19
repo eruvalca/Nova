@@ -22,6 +22,8 @@ public sealed partial class CampaignCloseoutQueryService(
     ICampaignPlacementQueryService placementQueryService,
     ILogger<CampaignCloseoutQueryService> logger) : ICampaignCloseoutQueryService
 {
+    private const string UnresolvedActorFallback = "Former member";
+
     /// <inheritdoc />
     public async Task<ServiceResult<CampaignCloseoutReadinessDto>> GetCloseoutReadinessAsync(
         GetCampaignCloseoutReadinessInput input,
@@ -231,16 +233,16 @@ public sealed partial class CampaignCloseoutQueryService(
     }
 
     /// <summary>
-    /// Resolves an actor display name from the club-scoped lookup, falling back to empty when the
-    /// actor user row is unavailable.
+    /// Resolves an actor display name from the club-scoped lookup, falling back to the stable
+    /// "Former member" text when the actor user row is unavailable.
     /// </summary>
     /// <param name="actorDisplayNames">The actor display-name lookup dictionary.</param>
     /// <param name="actorUserId">The actor user identifier.</param>
-    /// <returns>The resolved display name, or <see cref="string.Empty"/> when unavailable.</returns>
+    /// <returns>The resolved display name, or <see cref="UnresolvedActorFallback"/> when unavailable.</returns>
     private static string ResolveActorDisplayName(IReadOnlyDictionary<long, string> actorDisplayNames, long actorUserId)
         => actorDisplayNames.TryGetValue(actorUserId, out var displayName)
             ? displayName
-            : string.Empty;
+            : UnresolvedActorFallback;
 
     /// <summary>
     /// Logs a closeout-readiness read rejected because the caller is not scoped to a club.
