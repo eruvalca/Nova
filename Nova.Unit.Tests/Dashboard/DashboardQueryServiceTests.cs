@@ -115,6 +115,53 @@ public sealed class DashboardQueryServiceTests : IDisposable
         attention.FirstUnresolvedCampaignId.ShouldBe(_campaignAId);
     }
 
+    /// <summary>
+    /// Verifies the administrator unresolved placement count is authoritative across all active
+    /// campaigns, not bounded by the 20-card cap: the only campaign with undecided placements is
+    /// pushed beyond the visible cards by newer empty campaigns.
+    /// </summary>
+    [Fact]
+    public async Task GetDashboard_AdminUnresolvedCount_IsAuthoritativeBeyondCardCap()
+    {
+        using (var admin = _harness.CreateAdminContext())
+        {
+            var season = admin.Seasons.Single(season => season.ClubId == ClubAId);
+            for (var index = 0; index < ClubDashboardResult.ActiveCampaignMaxCount; index++)
+            {
+                admin.Campaigns.Add(new CampaignEntity
+                {
+                    Name = $"Cap {index:D2}",
+                    StartDate = new DateOnly(2026, 7, 1),
+                    Status = CampaignStatus.Active,
+                    SeasonId = season.SeasonId,
+                    ClubId = ClubAId,
+                    CreatedById = ClubAMemberId
+                });
+            }
+
+            admin.SaveChanges();
+        }
+
+        _harness.CurrentUser.UserId = ClubAAdminId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+
+        List<ClubJoinRequestDto> pending = [];
+        var joinRequests = Substitute.For<IClubJoinRequestService>();
+        ServiceResult<IReadOnlyList<ClubJoinRequestDto>> pendingResult = pending;
+        joinRequests.GetClubJoinRequestsAsync(ClubAId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(pendingResult));
+
+        var result = await CreateService(joinRequests).GetDashboardAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ActiveCampaigns.Count.ShouldBe(ClubDashboardResult.ActiveCampaignMaxCount);
+        var attention = result.Value.AdminAttention;
+        attention.ShouldNotBeNull();
+        attention!.UnresolvedPlacementCount.ShouldBe(2);
+        attention.FirstUnresolvedCampaignId.ShouldBe(_campaignAId);
+    }
+
     /// <summary>Verifies a problem from a composed service is propagated rather than masked.</summary>
     [Fact]
     public async Task GetDashboard_PropagatesComposedJoinRequestProblem()
@@ -245,12 +292,10 @@ public sealed class DashboardQueryServiceTests : IDisposable
     {
         var readFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
         var campaignQueryService = new CampaignQueryService(readFactory, _harness.CurrentUser, NullLogger<CampaignQueryService>.Instance);
-        var placementQueryService = new CampaignPlacementQueryService(readFactory, _harness.CurrentUser, NullLogger<CampaignPlacementQueryService>.Instance);
         var joinRequests = joinRequestService ?? Substitute.For<IClubJoinRequestService>();
 
         return new DashboardQueryService(
             campaignQueryService,
-            placementQueryService,
             joinRequests,
             readFactory,
             _harness.CurrentUser,

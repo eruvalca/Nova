@@ -12,19 +12,17 @@ namespace Nova.Features.Dashboard;
 
 /// <summary>
 /// Server-side implementation of <see cref="IDashboardQueryService"/>. Composes the authoritative
-/// campaign list, placement summary, and join-request surfaces instead of recomputing their counts,
-/// and reads the active/archived roster and team counts plus the bounded recent-activity feed
-/// through the tenant-filtered read context.
+/// campaign list and join-request surfaces instead of recomputing their counts, and reads the
+/// active/archived roster and team counts, the whole-club unresolved placement summary, and the
+/// bounded recent-activity feed through the tenant-filtered read context.
 /// </summary>
 /// <param name="campaignQueryService">The composed campaign list surface.</param>
-/// <param name="placementQueryService">The composed placement summary surface.</param>
 /// <param name="joinRequestService">The composed join-request surface.</param>
 /// <param name="readDbContextFactory">The read-only tenant-scoped context factory.</param>
 /// <param name="currentUserProvider">The current user and club context.</param>
 /// <param name="logger">The logger for rejected access attempts.</param>
 public sealed partial class DashboardQueryService(
     ICampaignQueryService campaignQueryService,
-    ICampaignPlacementQueryService placementQueryService,
     IClubJoinRequestService joinRequestService,
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
@@ -76,7 +74,7 @@ public sealed partial class DashboardQueryService(
         AdminAttentionDto? adminAttention = null;
         if (currentUserProvider.IsClubAdmin)
         {
-            var attentionResult = await ComposeAdminAttentionAsync(clubId, cards, cancellationToken);
+            var attentionResult = await ComposeAdminAttentionAsync(db, clubId, cancellationToken);
             if (attentionResult.IsProblem)
             {
                 return attentionResult.Problem;
@@ -149,16 +147,17 @@ public sealed partial class DashboardQueryService(
 
     /// <summary>
     /// Composes the administrator-only attention counts: the pending join-request count from the
-    /// join-request surface and the unresolved placement total (plus first unresolved campaign) from
-    /// the authoritative per-campaign placement summary surface.
+    /// join-request surface and the whole-club unresolved placement summary (total undecided count
+    /// plus first unresolved campaign) read from the tenant-filtered read context, independent of the
+    /// dashboard active-campaign card cap.
     /// </summary>
+    /// <param name="db">The read-only tenant-scoped context.</param>
     /// <param name="clubId">The current club identifier.</param>
-    /// <param name="cards">The bounded active campaign cards.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The attention DTO or a propagated composed problem.</returns>
     private async Task<ServiceResult<AdminAttentionDto>> ComposeAdminAttentionAsync(
+        NovaReadDbContext db,
         long clubId,
-        IReadOnlyList<ActiveCampaignCardDto> cards,
         CancellationToken cancellationToken)
     {
         var joinRequestsResult = await joinRequestService.GetClubJoinRequestsAsync(clubId, cancellationToken);
@@ -167,32 +166,57 @@ public sealed partial class DashboardQueryService(
             return joinRequestsResult.Problem;
         }
 
-        var unresolvedPlacementCount = 0;
-        long? firstUnresolvedCampaignId = null;
-        foreach (var card in cards)
-        {
-            var summaryResult = await placementQueryService.GetPlacementSummaryAsync(
-                new GetCampaignPlacementSummaryInput { CampaignId = card.CampaignId },
-                cancellationToken);
-            if (summaryResult.IsProblem)
-            {
-                return summaryResult.Problem;
-            }
-
-            var undecided = summaryResult.Value.UndecidedCount;
-            unresolvedPlacementCount += undecided;
-            if (undecided > 0 && firstUnresolvedCampaignId is null)
-            {
-                firstUnresolvedCampaignId = card.CampaignId;
-            }
-        }
+        var unresolved = await ReadClubUnresolvedPlacementAsync(db, clubId, cancellationToken);
 
         return new AdminAttentionDto
         {
             PendingJoinRequestCount = joinRequestsResult.Value.Count,
-            UnresolvedPlacementCount = unresolvedPlacementCount,
-            FirstUnresolvedCampaignId = firstUnresolvedCampaignId
+            UnresolvedPlacementCount = unresolved.UnresolvedPlacementCount,
+            FirstUnresolvedCampaignId = unresolved.FirstUnresolvedCampaignId
         };
+    }
+
+    /// <summary>
+    /// Reads the authoritative whole-club unresolved placement summary from the tenant-filtered read
+    /// context: the total number of undecided participants across every active campaign (independent
+    /// of the dashboard active-campaign card cap) and the first active campaign in campaign-list card
+    /// order with an undecided participant.
+    /// </summary>
+    /// <param name="db">The read-only tenant-scoped context.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The whole-club unresolved placement summary.</returns>
+    private static async Task<ClubUnresolvedPlacement> ReadClubUnresolvedPlacementAsync(
+        NovaReadDbContext db,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
+        var undecidedQuery = db.PlayerCampaignAssignments
+            .AsNoTracking()
+            .Where(assignment => assignment.ClubId == clubId
+                && assignment.Campaign.Status == CampaignStatus.Active
+                && assignment.PlacementOutcome == PlacementOutcome.Undecided);
+
+        var unresolvedPlacementCount = await undecidedQuery.CountAsync(cancellationToken);
+
+        long? firstUnresolvedCampaignId = null;
+        if (unresolvedPlacementCount > 0)
+        {
+            firstUnresolvedCampaignId = await undecidedQuery
+                .OrderByDescending(assignment => assignment.Campaign.Season.StartDate)
+                .ThenByDescending(assignment => assignment.Campaign.SeasonId)
+                .ThenBy(assignment => assignment.Campaign.Status)
+                .ThenByDescending(assignment => assignment.Campaign.StartDate)
+                .ThenByDescending(assignment => assignment.Campaign.EndDate.HasValue)
+                .ThenByDescending(assignment => assignment.Campaign.EndDate)
+                .ThenBy(assignment => assignment.Campaign.Name)
+                .ThenByDescending(assignment => assignment.Campaign.CampaignId)
+                .ThenByDescending(assignment => assignment.PlayerCampaignAssignmentId)
+                .Select(assignment => (long?)assignment.CampaignId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        return new ClubUnresolvedPlacement(unresolvedPlacementCount, firstUnresolvedCampaignId);
     }
 
     /// <summary>
@@ -551,6 +575,13 @@ public sealed partial class DashboardQueryService(
     /// <param name="Status">The lifecycle status.</param>
     /// <param name="Count">The number of rows with that status.</param>
     private sealed record LifecycleCountRow(LifecycleStatus Status, int Count);
+
+    /// <summary>
+    /// Projection of the authoritative whole-club unresolved placement summary read from the read context.
+    /// </summary>
+    /// <param name="UnresolvedPlacementCount">The total number of undecided participants across all active campaigns.</param>
+    /// <param name="FirstUnresolvedCampaignId">The first active campaign in card order with an undecided participant, or <see langword="null"/>.</param>
+    private sealed record ClubUnresolvedPlacement(int UnresolvedPlacementCount, long? FirstUnresolvedCampaignId);
 
     /// <summary>
     /// Logs a dashboard summary read rejected because the caller is not an approved club member.

@@ -15,7 +15,7 @@ Sequencing: #109 (dashboard Razor UI) has a hard compile-time dependency on this
 3. **Placement events**: derived from `PlayerCampaignAssignmentEntity.ModifiedAt`/`ModifiedById`. Verified: the only code path that modifies existing assignments is `CampaignPlacementService` (all other services only add or read them), and `TenantSaveChangesInterceptor` stamps `ModifiedAt`/`ModifiedById` on every modify. Each participant contributes at most its most recent placement change; earlier changes are overwritten.
 4. **Composition (acceptance criterion "nothing is recomputed here")**:
    - Active campaign cards: compose `ICampaignQueryService.GetCampaignListAsync(Status="active", Limit=cap)` in-process and flatten season groups — no new campaign projection.
-   - Unresolved placement count: compose `ICampaignPlacementQueryService.GetPlacementSummaryAsync` per active campaign (bounded by the card cap) and sum `UndecidedCount` — #11's summary contract is authoritative.
+   - Unresolved placement count: read the whole-club undecided total (and first active campaign in card order with an undecided participant) through the tenant-filtered `NovaReadDbContext` in one count plus one ordered `FirstOrDefault` query — authoritative across **all** active campaigns, independent of the 20-card cap. (Revised 2026-08-19 review: the shared per-campaign `GetPlacementSummaryAsync` has no bulk variant and is also implemented by the WASM client, so it cannot host a club-wide surface; reading directly mirrors the roster/team count pattern and eliminates the prior 21-round-trip N+1.)
    - Pending join-request count: compose `IClubJoinRequestService.GetClubJoinRequestsAsync(clubId)` and count — the join-request foundation is authoritative.
    - Roster/team counts: this issue owns the active+archived breakdown (no existing surface provides archived counts); read `Players`/`Teams` grouped by `LifecycleStatus` through the tenant-filtered `NovaReadDbContext`.
 5. **Role-aware shaping**: both endpoints require `Policies.RequireClubMember`; the single summary payload omits `AdminAttention` (null) for non-administrators, computed in the service from `ICurrentUserProvider.IsClubAdmin`. Admin-only counts are never disclosed to evaluators.
@@ -58,7 +58,7 @@ Status: Complete
 
 - [x] Add `DashboardActivityFeedPolicy.cs` — a pure, static policy that merges per-source event rows into one bounded list: order by `EventAt` desc → `DashboardActivityEventKind` rank desc → `EventId` desc, then `Take(limit)`. No EF, no auth, no logging. The service is the imperative shell; the policy owns only the deterministic merge/order/bound rule.
 - [x] Add `DashboardQueryService.cs` (`IDashboardQueryService`):
-  - `GetDashboardAsync`: guard `UserId`/`ClubId` present (else `Forbidden` + `[LoggerMessage]` warning, mirroring `CampaignQueryService`); compose the campaign list surface (flatten seasons, cap at `ActiveCampaignMaxCount`, map cards + `WorkspaceUrl`); read active/archived player and team counts from `NovaReadDbContext` grouped by `LifecycleStatus`; when `IsClubAdmin`, compose pending join-request count and per-campaign #11 summaries (sum `UndecidedCount`, first unresolved campaign id, propagate any composed problem); set `AdminAttention = null` for non-admins.
+  - `GetDashboardAsync`: guard `UserId`/`ClubId` present (else `Forbidden` + `[LoggerMessage]` warning, mirroring `CampaignQueryService`); compose the campaign list surface (flatten seasons, cap at `ActiveCampaignMaxCount`, map cards + `WorkspaceUrl`); read active/archived player and team counts from `NovaReadDbContext` grouped by `LifecycleStatus`; when `IsClubAdmin`, compose pending join-request count and read the whole-club unresolved placement summary (total `Undecided` count + first unresolved campaign in card order) from `NovaReadDbContext` independent of the card cap; set `AdminAttention = null` for non-admins.
   - `GetActivityAsync`: `InputValidator.Validate` first; member guard; four tenant-safe sources through `NovaReadDbContext` — notes (`NoteEntity` → assignment → player + campaign), tag applications (`CampaignTagApplicationEntity` → assignment → player + campaign + `PlayerTag.Name`), placements (`PlayerCampaignAssignmentEntity` where `ModifiedAt != null` → player + campaign, event time = `ModifiedAt`), lifecycle events (`CampaignLifecycleEventEntity` → campaign). Per source, bound with `Take(limit)` ordered by (event time desc, entity id desc) on Npgsql; materialize-and-sort in memory on SQLite (SQLite cannot translate `DateTimeOffset` ORDER BY — mirror `CampaignCloseoutQueryService.GetActivityAsync`'s branching). Merge via the policy, then batch-resolve actor display names from `Users` with the `"Former member"` fallback used by `CampaignQueryService`.
 - [x] Register `builder.Services.AddScoped<IDashboardQueryService, DashboardQueryService>()` in `Nova/Program.cs` (composition root — same change as the service).
 
@@ -70,9 +70,10 @@ Status: Complete
 ### Phase Summary
 
 Added `DashboardActivityFeedPolicy.cs` (pure static merge/order/bound) and `DashboardQueryService.cs`
-composing `ICampaignQueryService`/`ICampaignPlacementQueryService`/`IClubJoinRequestService` plus
-tenant-filtered roster/team counts and the four-source activity feed with Npgsql/SQLite ordering
-branching and "Former member" fallback. Registered `IDashboardQueryService` in `Nova/Program.cs`.
+composing `ICampaignQueryService`/`IClubJoinRequestService` plus tenant-filtered roster/team counts,
+the authoritative whole-club unresolved placement summary (independent of the card cap), and the
+four-source activity feed with Npgsql/SQLite ordering branching and "Former member" fallback.
+Registered `IDashboardQueryService` in `Nova/Program.cs`.
 Verification: `dotnet build Nova.slnx` succeeds; policy smoke-build clean (tests added in Phase 5).
 
 ## Phase 3: HTTP endpoints
@@ -126,7 +127,7 @@ Status: Complete
 Suggested executor: orchestrator (harness and convention details are dense; only delegate to a smaller-model sub-agent if the orchestrator writes one complete reference test per category first)
 
 - [x] `Nova.Unit.Tests/Dashboard/DashboardActivityFeedPolicyTests.cs` — pure policy: cross-kind merge order, exact tie-break rank behavior, per-source and final bounds, empty sources.
-- [x] `Nova.Unit.Tests/Dashboard/DashboardQueryServiceTests.cs` (SQLite `TenancyTestHarness`, mirror `CampaignQueryServiceTests`): active-only cards with cap and workspace links; active+archived roster/team counts; tenant isolation (club B data never visible); admin sees `AdminAttention` with correct unresolved sum and pending-request count; evaluator gets `AdminAttention == null`; composed problem propagation (e.g. member guard).
+- [x] `Nova.Unit.Tests/Dashboard/DashboardQueryServiceTests.cs` (SQLite `TenancyTestHarness`, mirror `CampaignQueryServiceTests`): active-only cards with cap and workspace links; active+archived roster/team counts; tenant isolation (club B data never visible); admin sees `AdminAttention` with correct unresolved sum and pending-request count; the unresolved count is authoritative across all active campaigns even when the only undecided campaign lies beyond the 20-card cap; evaluator gets `AdminAttention == null`; composed problem propagation (e.g. member guard).
 - [x] `Nova.Unit.Tests/Dashboard/DashboardActivityQueryServiceTests.cs` (harness): all four event kinds with correct context; removed tags absent; placement event time = assignment `ModifiedAt` and only latest change per assignment; deterministic ordering incl. cross-source ties; limit bound; tenant isolation; "Former member" fallback for a missing actor.
 - [x] `Nova.Unit.Tests/Dashboard/HttpDashboardQueryServiceTests.cs` (mock handler pattern from `HttpCampaignQueryServiceTests`): URL builder emits/omits `limit` correctly; non-success → correct `ServiceProblem` (incl. 422-with-errors treated as validation); success validators accept populated payloads and reject nested nulls, malformed JSON, invalid counts, ordering violations, and bound violations.
 - [x] `Nova.Integration.Tests/Http/DashboardHttpTests.cs` (Aspire fixture + `SeedingHelpers`): 401 unauthenticated; 403 for a member-policy violation; admin summary carries attention, evaluator summary omits it; activity success serialization; omitted `limit` → default, invalid explicit `limit` (0 / 51) → validation problem; ProblemDetails traceId present; per-endpoint metadata/status mapping.
@@ -142,7 +143,7 @@ Suggested executor: orchestrator (harness and convention details are dense; only
 Added four unit-test files (`DashboardActivityFeedPolicyTests`, `DashboardQueryServiceTests`,
 `DashboardActivityQueryServiceTests`, `HttpDashboardQueryServiceTests`), the HTTP integration suite
 (`DashboardHttpTests`), and the provider-sensitive Postgres test (`DashboardQueryPostgresTests`).
-Verification: all 50 new unit tests pass; the full unit suite is green (1692 tests); all 8 Dashboard
+Verification: all 51 new unit tests pass; the full unit suite is green (1693 tests); all 8 Dashboard
 integration tests pass against the Aspire PostgreSQL AppHost.
 
 ## Phase 6: Full validation and wrap-up
@@ -164,7 +165,7 @@ Status: Complete
 ### Phase Summary
 
 `dotnet build Nova.slnx` clean (0 warnings/errors); `dotnet format Nova.slnx --verify-no-changes`
-clean; full unit suite green (1692 tests); the 8 Dashboard integration tests pass against the Aspire
+clean; full unit suite green (1693 tests); the 8 Dashboard integration tests pass against the Aspire
 PostgreSQL AppHost. `git status` diff review confirms no migrations, entity changes, or Razor/UI
 changes — only the intended dashboard contract/service/endpoint/client/test files plus the two
 `Program.cs` wiring files.
@@ -174,13 +175,14 @@ changes — only the intended dashboard contract/service/endpoint/client/test fi
 Delivered the bounded, tenant-safe, role-shaped club dashboard read surface end to end without any
 Razor/UI, mutation endpoint, entity, or migration change. Shared contracts
 (`Nova.Shared/Features/Dashboard/`) define the two-route contract and DTOs; the server
-(`Nova/Features/Dashboard/`) composes the authoritative campaign-list, placement-summary, and
-join-request surfaces (nothing recomputed), reads active/archived roster and team counts plus the
-four-source recent-activity feed through `NovaReadDbContext`, and owns a pure deterministic merge
-policy. The minimal-API endpoints are authorized with `RequireClubMember` and carry the repository's
-ProblemDetails/traceId conventions; the WASM client enforces strict success-payload fidelity. Tests
-cover the pure policy, tenant isolation, role-aware shaping, deterministic ordering, bounds, and
-provider translation. Build, format, full unit suite, and the Dashboard integration suite are green.
+(`Nova/Features/Dashboard/`) composes the authoritative campaign-list and join-request surfaces
+(nothing recomputed), reads active/archived roster and team counts, the authoritative whole-club
+unresolved placement summary, and the four-source recent-activity feed through `NovaReadDbContext`,
+and owns a pure deterministic merge policy. The minimal-API endpoints are authorized with
+`RequireClubMember` and carry the repository's ProblemDetails/traceId conventions; the WASM client
+enforces strict success-payload fidelity. Tests cover the pure policy, tenant isolation, role-aware
+shaping, deterministic ordering, bounds, and provider translation. Build, format, full unit suite,
+and the Dashboard integration suite are green.
 
 ## Deployment Plan
 

@@ -134,7 +134,6 @@ public sealed class DashboardQueryPostgresTests(NovaAppHostFixture fixture)
     private DashboardQueryService CreateService()
         => new(
             Substitute.For<ICampaignQueryService>(),
-            Substitute.For<ICampaignPlacementQueryService>(),
             Substitute.For<IClubJoinRequestService>(),
             new PostgresReadContextFactory(fixture),
             fixture.CurrentUser,

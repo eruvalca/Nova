@@ -275,7 +275,6 @@ public sealed class DashboardActivityQueryServiceTests : IDisposable
     private DashboardQueryService CreateService()
         => new(
             Substitute.For<ICampaignQueryService>(),
-            Substitute.For<ICampaignPlacementQueryService>(),
             Substitute.For<IClubJoinRequestService>(),
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
             _harness.CurrentUser,
