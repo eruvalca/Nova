@@ -187,7 +187,10 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
                 seed.ConcurrencyToken),
             cancellationToken);
 
-        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(closeContext, cancellationToken);
+        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+            closeContext,
+            lockKey,
+            cancellationToken);
 
         var campaign = await closeContext.Campaigns
             .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, cancellationToken);

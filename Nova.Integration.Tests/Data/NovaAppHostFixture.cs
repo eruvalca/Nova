@@ -9,13 +9,14 @@ using Nova.Shared.Security;
 namespace Nova.Integration.Tests.Data;
 
 /// <summary>
-/// A mutable <see cref="ICurrentUserProvider"/> for simulating different users in tests.
+/// A flow-scoped <see cref="ICurrentUserProvider"/> for simulating different users in tests.
 /// </summary>
 /// <remarks>
 /// The property values are backed by <see cref="AsyncLocal{T}"/> so that mutations made inside one
 /// test method flow across its awaits and child tasks but never leak into concurrently running
-/// tests (xUnit v3 resets the execution context between test cases). Prefer
-/// <see cref="NovaAppHostFixture.UseUser"/> over setting the properties directly.
+/// tests (xUnit v3 resets the execution context between test cases). Direct assignment is the
+/// normal flow-local idiom; use <see cref="NovaAppHostFixture.UseUser"/> when restore-on-dispose
+/// semantics are needed.
 /// </remarks>
 public sealed class FakeCurrentUserProvider : ICurrentUserProvider
 {

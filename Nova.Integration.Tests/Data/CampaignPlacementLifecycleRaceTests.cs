@@ -49,6 +49,7 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
 
         await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
             archiveContext,
+            seed.PlayerId,
             cancellationToken);
 
         var player = await archiveContext.Players

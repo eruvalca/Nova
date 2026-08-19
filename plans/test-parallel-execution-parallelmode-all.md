@@ -518,3 +518,20 @@ Adopted xUnit v4's full test-case parallelism (`ParallelMode.All`,
    `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj`.
 5. Nothing runtime-facing changes: all edits are test projects and docs. No deployable artifacts,
    no migrations, no server changes.
+
+## Post-review follow-up (2026-08-18)
+
+Code review of commit `d5ea51d` produced two findings, both addressed:
+
+1. **Medium — key-scope the advisory-lock waiter poll.** `PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync`
+   previously polled for *any* advisory-lock waiter in `pg_stat_activity`; under `ParallelMode.All`
+   a concurrent lock test could satisfy the poll early and mask a lock-waiting regression. Fixed
+   by adding a `long lockKey` parameter and polling `pg_locks` for the specific key
+   (`classid::int8 = (({0}::bigint >> 32) & 4294967295)`, `objid::int8 = ({0}::bigint & 4294967295)`,
+   `NOT granted`, scoped to the current database). Verified against a live PostgreSQL 18 container:
+   PostgreSQL's `>>` is sign-filling (hence the post-shift mask), and the predicate matches the
+   exact `pg_locks` row for both a positive (`PlayerId`) and a negative
+   (`long.MinValue + CampaignId`) key. Both call sites updated to pass their held keys.
+2. **Low — doc contradiction on the current-user idiom.** `FakeCurrentUserProvider` XML remarks
+   now match the adopted convention (direct assignment is the normal flow-local idiom; `UseUser`
+   for restore-on-dispose semantics), and the summary says "flow-scoped" instead of "mutable".
