@@ -395,6 +395,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(row).ToBeVisibleAsync();
         var outcomeSelect = row.Locator("select[aria-label^='Outcome for']");
         var outcomeValue = ((int)outcome).ToString();
+        var undecidedValue = ((int)PlacementOutcome.Undecided).ToString();
         var teamSelect = row.Locator("select[aria-label^='Team for']");
         var save = row.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
 
@@ -405,7 +406,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         {
             try
             {
-                await outcomeSelect.SelectOptionAsync("0");
+                await outcomeSelect.SelectOptionAsync(undecidedValue);
                 await outcomeSelect.SelectOptionAsync(outcomeValue);
 
                 if (outcome == PlacementOutcome.Assigned)
@@ -482,10 +483,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             {
                 await act();
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
             {
-                // The element was replaced mid-interaction, is not yet actionable, or the click was
-                // swallowed by the SSR hydration window; retry.
+                // The element was replaced mid-interaction, is not yet actionable (Playwright throws
+                // System.TimeoutException when an action cannot complete within its timeout), or the
+                // click was swallowed by the SSR hydration window; retry.
             }
 
             await page.WaitForTimeoutAsync(250);

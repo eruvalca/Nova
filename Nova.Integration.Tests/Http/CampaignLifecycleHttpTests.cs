@@ -397,6 +397,14 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
                 cancellationToken);
         untouched.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
         untouched.TeamId.ShouldBe(eligibleTeamId);
+
+        var reopenEvents = await verify.CampaignLifecycleEvents
+            .Where(candidate => candidate.CampaignId == seeded.CampaignId)
+            .OrderBy(candidate => candidate.CampaignLifecycleEventId)
+            .Select(candidate => new { candidate.EventType, candidate.CreatedById })
+            .ToListAsync(cancellationToken);
+        reopenEvents.Last().EventType.ShouldBe(CampaignLifecycleEventType.Reopened);
+        reopenEvents.Last().CreatedById.ShouldBe(seeded.AdminUserId);
     }
 
     /// <summary>
