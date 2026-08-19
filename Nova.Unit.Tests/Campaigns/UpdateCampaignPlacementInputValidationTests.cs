@@ -15,7 +15,7 @@ public sealed class UpdateCampaignPlacementInputValidationTests
     /// </summary>
     /// <param name="outcome">The requested placement outcome.</param>
     /// <param name="teamId">The optional requested team.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.Assigned, null)]
     [InlineData(PlacementOutcome.Undecided, 10L)]
     [InlineData(PlacementOutcome.NotSelected, 10L)]
@@ -35,7 +35,7 @@ public sealed class UpdateCampaignPlacementInputValidationTests
     /// </summary>
     /// <param name="outcome">The requested placement outcome.</param>
     /// <param name="teamId">The optional requested team.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.Assigned, 10L)]
     [InlineData(PlacementOutcome.Undecided, null)]
     [InlineData(PlacementOutcome.NotSelected, null)]

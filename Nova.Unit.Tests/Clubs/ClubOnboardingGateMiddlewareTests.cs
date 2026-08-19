@@ -41,7 +41,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/")]
     [InlineData("/dashboard")]
     [InlineData("/players")]
@@ -55,7 +55,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeTrue();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/Account")]
     [InlineData("/Account/Manage")]
     [InlineData("/Account/ProfilePhoto")]
@@ -70,7 +70,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/api/clubs")]
     [InlineData("/api/clubs/search")]
     [InlineData("/api/users/profile")]
@@ -84,7 +84,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/_framework/blazor.web.js")]
     [InlineData("/_framework/blazor.web.js.map")]
     public void ShouldRedirect_ReturnsFalse_ForFrameworkPaths(string path)
@@ -96,7 +96,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/_content/Cropper.Blazor/cropper.min.js")]
     [InlineData("/_content/bootstrap/css/bootstrap.min.css")]
     public void ShouldRedirect_ReturnsFalse_ForContentPaths(string path)
@@ -108,7 +108,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/_blazor")]
     public void ShouldRedirect_ReturnsFalse_ForBlazorPaths(string path)
     {
@@ -119,7 +119,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/health")]
     [InlineData("/alive")]
     public void ShouldRedirect_ReturnsFalse_ForHealthCheckPaths(string path)
@@ -131,7 +131,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/not-found")]
     [InlineData("/Error")]
     [InlineData("/Error/404")]
@@ -144,7 +144,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/favicon.ico")]
     [InlineData("/favicon.png")]
     public void ShouldRedirect_ReturnsFalse_ForFaviconPaths(string path)
@@ -156,7 +156,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/Clubs")]
     [InlineData("/Clubs/Onboarding")]
     [InlineData("/clubs/search")]
@@ -169,7 +169,7 @@ public class ClubOnboardingGateMiddlewareTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/styles.css")]
     [InlineData("/app.js")]
     [InlineData("/lib/bootstrap.min.js")]

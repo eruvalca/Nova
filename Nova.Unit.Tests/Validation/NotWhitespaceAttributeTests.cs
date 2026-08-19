@@ -37,7 +37,7 @@ public class NotWhitespaceAttributeTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("   ")]
     [InlineData("\t")]
     [InlineData("\n")]
@@ -52,7 +52,7 @@ public class NotWhitespaceAttributeTests
         result.ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("a")]
     [InlineData("hello")]
     [InlineData("  hello  ")]
@@ -68,7 +68,7 @@ public class NotWhitespaceAttributeTests
         result.ShouldBeTrue();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(42)]
     [InlineData(3.14)]
     [InlineData(true)]

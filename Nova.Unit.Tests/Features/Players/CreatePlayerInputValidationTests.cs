@@ -24,7 +24,7 @@ public sealed class CreatePlayerInputValidationTests
         InputValidator.Validate(ValidInput()).ShouldBeEmpty();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
@@ -35,7 +35,7 @@ public sealed class CreatePlayerInputValidationTests
         errors.ShouldContainKey("FirstName");
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
@@ -62,7 +62,7 @@ public sealed class CreatePlayerInputValidationTests
         errors.ShouldContainKey("LastName");
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999)]
     [InlineData(2101)]
     public void Validate_WithOutOfRangeGraduationYear_ReturnsError(int year)
@@ -72,7 +72,7 @@ public sealed class CreatePlayerInputValidationTests
         errors.ShouldContainKey("GraduationYear");
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(2000)]
     [InlineData(2050)]
     [InlineData(2100)]
@@ -82,7 +82,7 @@ public sealed class CreatePlayerInputValidationTests
         InputValidator.Validate(input).ShouldBeEmpty();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(-1)]
     [InlineData(10000)]
     public void Validate_WithOutOfRangeJerseyNumber_ReturnsError(int jersey)
@@ -92,7 +92,7 @@ public sealed class CreatePlayerInputValidationTests
         errors.ShouldContainKey("JerseyNumber");
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(99)]
     [InlineData(9999)]

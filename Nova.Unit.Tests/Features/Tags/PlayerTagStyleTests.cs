@@ -13,7 +13,7 @@ public sealed class PlayerTagStyleTests
     /// <summary>
     /// Verifies the text color flips to black on light badge backgrounds.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("#00CC00")] // Bright green: white text would be ~2.9:1.
     [InlineData("#999999")] // Mid gray.
     [InlineData("#FFFFFF")] // Pure white.
@@ -29,7 +29,7 @@ public sealed class PlayerTagStyleTests
     /// <summary>
     /// Verifies the text color stays white on dark badge backgrounds.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("#CC0000")] // Deep red.
     [InlineData("#000000")] // Pure black.
     [InlineData("#1D3557")] // Dark navy.
@@ -45,7 +45,7 @@ public sealed class PlayerTagStyleTests
     /// Verifies invalid or missing color tokens fall back to the default gray background with
     /// white text at an acceptable contrast ratio.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]

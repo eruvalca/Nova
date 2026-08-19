@@ -51,7 +51,7 @@ public class HttpResponseMessageExtensionsTests
         problem.Errors.ShouldBeNull();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(HttpStatusCode.NotFound, ServiceProblemKind.NotFound)]
     [InlineData(HttpStatusCode.Forbidden, ServiceProblemKind.Forbidden)]
     [InlineData(HttpStatusCode.Conflict, ServiceProblemKind.Conflict)]

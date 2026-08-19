@@ -11,7 +11,7 @@ description: "Testing rules: project and harness selection, HTTP/UI boundary cov
 
 ## Which project
 
-All three test projects use **xUnit v3 on Microsoft.Testing.Platform (MTP)** with **Shouldly** assertions.
+All three test projects use **xUnit v4 on Microsoft.Testing.Platform (MTP)** with **Shouldly** assertions.
 
 | Test shape    | Project                  | Database                                    | Use for                                                                                                                                                |
 | ------------- | ------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -33,7 +33,7 @@ semantics, or SQL-translation limits.
     - `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`
     - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --filter-class "*CampaignParticipantHttpTests"`
     - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj`
-- Bare invocation such as `dotnet test <project>.csproj` can fail to discover tests in this xUnit v3/MTP setup, so avoid it in repo instructions and scripts.
+- Bare invocation such as `dotnet test <project>.csproj` can fail to discover tests in this xUnit v4/MTP setup, so avoid it in repo instructions and scripts.
 - **Do NOT pass VSTest-only flags** (`--nologo`, `--collect`, `--logger`) — MTP rejects them.
 - Filter by class with `--filter-class "*Name"`.
 - **CI runs build and unit tests only.** Run the integration and browser suites locally before merge.
@@ -86,11 +86,13 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 
 - One behavior per test; name `Subject_Outcome_Condition` (e.g. `Interceptor_Throws_OnCrossTenantAdd`).
   Use Shouldly (`ShouldBe`, `Should.Throw<T>`) and `[Theory]`/`[InlineData]` for case matrices.
+  Theories use `[Theory(IncludeTestCaseIndex = true)]` (xUnit v4) so a failing data row is
+  identifiable by its zero-padded `_NNN` display-name suffix.
 - Test pure policies directly with real policy types and constructed values. Do not use a database
   harness, DI, mocks, or substitute policy implementations; use `[Theory]` for tabular rule matrices.
 - Prefer `Xunit.TestContext.Current.CancellationToken` over `CancellationToken.None` whenever the async
   API accepts a token; otherwise leave the call as-is rather than forcing refactors.
-- xUnit v3: fixtures implement `IAsyncLifetime` with `ValueTask`; test classes receive fixtures via
+- xUnit v4: fixtures implement `IAsyncLifetime` with `ValueTask`; test classes receive fixtures via
   primary-constructor injection.
 - When adding a tenant-owned entity (`ITenantOwnedEntity`), add unit filter coverage: visible to its
   club, invisible to another club, cross-tenant writes rejected. Bespoke-filtered entities
@@ -106,6 +108,11 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 - For interactive pages with event handlers, include a render-mode assertion or a focused Aspire/Playwright scenario; bUnit can invoke callbacks even when the deployed page would render as static SSR.
 - Build culture-sensitive expected display strings (dates, numbers, currencies) with the same explicit culture the component uses. Do not hard-code an English rendering unless the product contract fixes that culture.
 - bunit and NSubstitute are available in the unit and integration test projects for component/service tests; the browser suite does not use them.
+- xUnit v4 additions available for future tests: `Assert.All`/`Assert.AllAsync(strict: true)` (fail on
+  empty collections), per-test `Assert.OverrideMax*` message-formatting overrides, and fixture
+  lifecycle notification interfaces (`INotifyTestCollectionLifecycle` and friends). `ParallelMode.All`
+  is intentionally not adopted — shared harness/database state would race; keep the default
+  collection-level parallelization.
 - Do not pass `null` or `null!` for required mock dependencies; supply `Substitute.For<T>()` (or a real implementation) and `Array.Empty<T>()` for empty collections. Reserve nulls for tests that intentionally exercise nullable behavior.
 
 ## Related

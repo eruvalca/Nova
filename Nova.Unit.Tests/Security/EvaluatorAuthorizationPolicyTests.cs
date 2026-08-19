@@ -20,7 +20,7 @@ public sealed class EvaluatorAuthorizationPolicyTests
     /// <param name="hasClub">Whether the test principal carries a club membership claim.</param>
     /// <param name="role">The optional role assigned to the test principal.</param>
     /// <param name="expected">Whether evaluator authorization should succeed.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false, false, null, false)]
     [InlineData(false, true, null, false)]
     [InlineData(true, false, null, false)]
@@ -88,7 +88,7 @@ public sealed class EvaluatorAuthorizationPolicyTests
     /// <param name="hasClub">Whether the test principal carries a club membership claim.</param>
     /// <param name="role">The optional role assigned to the test principal.</param>
     /// <param name="expected">Whether authorization should succeed.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(Policies.RequireAdmin, false, Roles.Admin, true)]
     [InlineData(Policies.RequireAdmin, true, Roles.ClubAdmin, false)]
     [InlineData(Policies.RequireClubAdmin, false, Roles.ClubAdmin, true)]
@@ -120,7 +120,7 @@ public sealed class EvaluatorAuthorizationPolicyTests
     /// principal happens to carry a club membership claim.
     /// </summary>
     /// <param name="hasClub">Whether the global administrator also carries a club claim.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ClubAdminPolicy_DeniesGlobalAdmin(bool hasClub)

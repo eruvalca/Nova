@@ -806,7 +806,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.Find("#participant-drawer-next").HasAttribute("disabled").ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(301, true, false)]
     [InlineData(302, false, false)]
     [InlineData(303, false, true)]

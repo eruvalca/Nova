@@ -164,7 +164,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies invalid successful roster bodies are surfaced as protocol failures.
     /// </summary>
     /// <param name="body">The invalid successful response body.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]

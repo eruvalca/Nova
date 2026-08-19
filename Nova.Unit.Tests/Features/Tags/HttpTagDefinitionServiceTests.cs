@@ -131,7 +131,7 @@ public sealed class HttpTagDefinitionServiceTests
     /// Verifies invalid successful create-response bodies are surfaced as protocol failures.
     /// </summary>
     /// <param name="body">The invalid successful response body.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
@@ -177,7 +177,7 @@ public sealed class HttpTagDefinitionServiceTests
     /// <param name="name">The name returned by the server.</param>
     /// <param name="color">The color returned by the server.</param>
     /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("Forward", "#ff0000", LifecycleStatus.Active)]
     [InlineData("Forward", "#FF0000", (LifecycleStatus)99)]
     public async Task CreateAsync_ReturnsServerError_WhenTagDefinitionStateIsInvalid(

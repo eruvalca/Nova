@@ -72,7 +72,7 @@ public sealed class TeamRosterContractTests
     /// Verifies explicit limit values outside the documented 1..200 cap are rejected.
     /// </summary>
     /// <param name="limit">The out-of-range explicit limit.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(201)]
     public void GetTeamRosterInput_RejectsOutOfRangeLimit(int limit)
@@ -85,7 +85,7 @@ public sealed class TeamRosterContractTests
     /// <summary>
     /// Verifies the documented cap and an omitted limit both validate.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData(1)]
     [InlineData(200)]

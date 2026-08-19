@@ -73,7 +73,7 @@ public class HttpClubMemberServiceTests
     /// <summary>
     /// GetClubMembersAsync returns a server error when a successful response has an invalid body.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
@@ -168,7 +168,7 @@ public class HttpClubMemberServiceTests
     /// <summary>
     /// AssignClubAdminAsync returns a server error when a successful response has an invalid body.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]

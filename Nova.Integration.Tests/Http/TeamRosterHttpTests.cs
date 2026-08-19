@@ -276,7 +276,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     /// validation ProblemDetails before the handler runs.
     /// </summary>
     /// <param name="limit">The out-of-range explicit limit.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(201)]
     public async Task GetRoster_InvalidLimit_ReturnsValidationProblem(int limit)

@@ -24,7 +24,7 @@ public sealed class TeamGraduationYearPolicyTests
     /// Verifies placements whose players graduate on or after the proposed year stay eligible.
     /// </summary>
     /// <param name="playerGraduationYear">The placed player's graduation year.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(2030)]
     [InlineData(2031)]
     public void Evaluate_Allows_WhenEveryPlayerGraduatesOnOrAfterProposedYear(int playerGraduationYear)

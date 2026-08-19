@@ -109,7 +109,7 @@ public sealed class HttpTagDefinitionQueryServiceTests
     /// Verifies invalid successful list-response bodies are surfaced as protocol failures.
     /// </summary>
     /// <param name="body">The invalid successful response body.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]

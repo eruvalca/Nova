@@ -26,7 +26,7 @@ public sealed class TagInputValidationTests
     public void Create_WithValidInput_ReturnsNoErrors()
         => InputValidator.Validate(ValidCreate()).ShouldBeEmpty();
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
@@ -38,7 +38,7 @@ public sealed class TagInputValidationTests
         => InputValidator.Validate(ValidCreate() with { Name = new string('x', 101) })
             .ShouldContainKey("Name");
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
@@ -50,7 +50,7 @@ public sealed class TagInputValidationTests
     public void Create_WithInvalidColor_ReturnsError(string? color)
         => InputValidator.Validate(ValidCreate() with { Color = color! }).ShouldContainKey("Color");
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("#a1b2c3")] // lowercase is valid
     [InlineData("#A1B2C3")] // uppercase is valid
     [InlineData("#09AfF0")] // mixed case is valid
@@ -78,7 +78,7 @@ public sealed class TagInputValidationTests
         => InputValidator.Validate(new GetTagDefinitionsInput { Search = "for", LifecycleStatus = "active" })
             .ShouldBeEmpty();
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("active")]
     [InlineData("archived")]
     [InlineData("all")]
@@ -87,7 +87,7 @@ public sealed class TagInputValidationTests
     public void GetList_WithValidLifecycleStatus_ReturnsNoErrors(string? status)
         => InputValidator.Validate(new GetTagDefinitionsInput { LifecycleStatus = status }).ShouldBeEmpty();
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("bogus")]
     [InlineData("   ")]
     public void GetList_WithInvalidLifecycleStatus_ReturnsError(string? status)

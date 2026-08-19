@@ -24,7 +24,7 @@ public class ProfilePhotoGateMiddlewareTests
             .ShouldBeFalse();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/")]
     [InlineData("/clubs")]
     [InlineData("/players/42")]
@@ -34,7 +34,7 @@ public class ProfilePhotoGateMiddlewareTests
             .ShouldBeTrue();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/Account/ProfilePhoto")]
     [InlineData("/Account/ProfilePhoto/Complete")]
     [InlineData("/Account/Logout")]

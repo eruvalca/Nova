@@ -178,7 +178,7 @@ public sealed class HttpCampaignQueryServiceTests
     /// Verifies strict list-payload invariants map invalid successful responses to server errors.
     /// </summary>
     /// <param name="payload">The invalid successful JSON payload.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("""{"seasons":null,"totalCount":0}""")]
     [InlineData("""{"seasons":[null],"totalCount":0}""")]
     [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","campaigns":null}],"totalCount":0}""")]
@@ -250,7 +250,7 @@ public sealed class HttpCampaignQueryServiceTests
     /// Verifies strict setup-payload invariants map invalid successful responses to server errors.
     /// </summary>
     /// <param name="payload">The invalid successful JSON payload.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("""{"seasons":null,"totalSeasonCount":0,"activePlayerCount":0,"activeTeamCount":0}""")]
     [InlineData("""{"seasons":[null],"totalSeasonCount":1,"activePlayerCount":0,"activeTeamCount":0}""")]
     [InlineData("""{"seasons":[],"totalSeasonCount":-1,"activePlayerCount":0,"activeTeamCount":0}""")]
@@ -346,7 +346,7 @@ public sealed class HttpCampaignQueryServiceTests
     /// Verifies strict detail-payload invariants map invalid successful responses to server errors.
     /// </summary>
     /// <param name="payload">The invalid successful JSON payload.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("""{"campaignId":0,"name":"Campaign","status":0,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":1,"seasonName":"S"}""")]
     [InlineData("""{"campaignId":2,"name":null,"status":0,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":1,"seasonName":"S"}""")]
     [InlineData("""{"campaignId":2,"name":" ","status":0,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":1,"seasonName":"S"}""")]

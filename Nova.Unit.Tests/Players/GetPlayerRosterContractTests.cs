@@ -63,7 +63,7 @@ public sealed class GetPlayerRosterContractTests
     /// Verifies explicitly blank optional choice values are not treated as omissions.
     /// </summary>
     /// <param name="propertyName">The optional choice property under test.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(nameof(GetPlayerRosterInput.LifecycleStatus))]
     [InlineData(nameof(GetPlayerRosterInput.SortBy))]
     [InlineData(nameof(GetPlayerRosterInput.SortDirection))]

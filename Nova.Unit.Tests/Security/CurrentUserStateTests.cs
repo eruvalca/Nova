@@ -62,7 +62,7 @@ public sealed class CurrentUserStateTests
     /// </summary>
     /// <param name="role">The optional role claim to apply.</param>
     /// <param name="isClubAdmin">Expected administration capability for the supplied role.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null, false)]
     [InlineData(Roles.ClubAdmin, true)]
     [InlineData(Roles.Admin, false)]

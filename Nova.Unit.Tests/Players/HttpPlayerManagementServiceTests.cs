@@ -115,7 +115,7 @@ public sealed class HttpPlayerManagementServiceTests
     /// Verifies invalid successful create-response bodies become server errors.
     /// </summary>
     /// <param name="body">The invalid successful response body.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
@@ -162,7 +162,7 @@ public sealed class HttpPlayerManagementServiceTests
     /// </summary>
     /// <param name="graduationYear">The graduation year returned by the server.</param>
     /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999, LifecycleStatus.Active)]
     [InlineData(2028, (LifecycleStatus)99)]
     public async Task CreateAsync_ReturnsServerError_WhenPlayerStateIsInvalid(
@@ -192,7 +192,7 @@ public sealed class HttpPlayerManagementServiceTests
     /// Verifies nullable jersey numbers retain the shared range in player responses.
     /// </summary>
     /// <param name="jerseyNumber">The invalid jersey number returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(-1)]
     [InlineData(10000)]
     public async Task CreateAsync_ReturnsServerError_WhenJerseyNumberIsOutOfRange(int jerseyNumber)

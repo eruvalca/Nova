@@ -38,7 +38,7 @@ public sealed class HttpProfilePhotoServiceTests
     /// Verifies invalid successful photo-response bodies become server errors.
     /// </summary>
     /// <param name="body">The invalid successful response body.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]

@@ -39,7 +39,7 @@ attach, focus/keyboard, history/URL state, real HTTP/Identity, multi-user sessio
 
 ## Run commands
 
-All three test projects use xUnit v3 on Microsoft.Testing.Platform (MTP) with Shouldly assertions.
+All three test projects use xUnit v4 on Microsoft.Testing.Platform (MTP) with Shouldly assertions.
 Use the explicit `--project` form and avoid bare csproj invocation, which has been observed to fail
 MTP test discovery in this repo:
 

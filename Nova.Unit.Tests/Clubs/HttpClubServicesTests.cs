@@ -131,7 +131,7 @@ public class HttpClubServicesTests
     /// <summary>
     /// SearchClubsAsync returns a server error when a successful response has an invalid body.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
@@ -504,7 +504,7 @@ public class HttpClubServicesTests
     /// <summary>
     /// CreateJoinRequestUrl builds the correct URL for a given club ID.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1, "/api/clubs/1/join-requests")]
     [InlineData(42, "/api/clubs/42/join-requests")]
     [InlineData(12345, "/api/clubs/12345/join-requests")]
@@ -521,7 +521,7 @@ public class HttpClubServicesTests
     /// <summary>
     /// CancelJoinRequestUrl builds the correct URL for a given request ID.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1, "/api/clubs/join-requests/1")]
     [InlineData(42, "/api/clubs/join-requests/42")]
     [InlineData(12345, "/api/clubs/join-requests/12345")]
@@ -542,7 +542,7 @@ public class HttpClubServicesTests
     /// <summary>
     /// CreateClubAsync returns a server error when a successful response has an invalid body.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
@@ -642,7 +642,7 @@ public class HttpClubServicesTests
     /// <summary>
     /// GetCurrentUserPendingRequestAsync returns a server error for an invalid successful body.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
@@ -716,7 +716,7 @@ public class HttpClubServicesTests
     /// <summary>
     /// GetClubJoinRequestsAsync returns a server error when a successful response has an invalid body.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]

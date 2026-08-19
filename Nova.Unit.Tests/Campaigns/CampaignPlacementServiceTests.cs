@@ -74,7 +74,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
     /// </summary>
     /// <param name="outcome">The invalid placement outcome.</param>
     /// <param name="teamId">The invalid team value for the outcome.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.Assigned, null)]
     [InlineData(PlacementOutcome.Undecided, EligibleTeamId)]
     [InlineData(PlacementOutcome.NotSelected, EligibleTeamId)]
@@ -102,7 +102,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
     /// Verifies non-positive team identifiers are reported as invalid input.
     /// </summary>
     /// <param name="teamId">The invalid team identifier.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(-1)]
     public async Task UpdatePlacementAsync_ReturnsValidation_ForNonPositiveTeamId(long teamId)

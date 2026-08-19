@@ -147,7 +147,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
     /// <summary>Verifies both supported status filters are case-insensitive.</summary>
     /// <param name="status">The status spelling supplied to the service.</param>
     /// <param name="expectedStatus">The expected campaign status.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("ACTIVE", CampaignStatus.Active)]
     [InlineData("CLOSED", CampaignStatus.Closed)]
     public async Task GetCampaignList_StatusFiltering_IsCaseInsensitive(

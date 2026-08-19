@@ -304,7 +304,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// <summary>
     /// Verifies non-assigned outcomes clear a previously assigned team at the PostgreSQL boundary.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.NotSelected)]
     [InlineData(PlacementOutcome.Withdrawn)]
     public async Task CampaignPlacementUpdate_ClearsTeam_ForNonAssignedOutcomes(PlacementOutcome outcome)

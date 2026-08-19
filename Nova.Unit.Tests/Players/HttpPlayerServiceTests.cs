@@ -145,7 +145,7 @@ public sealed class HttpPlayerServiceTests
     /// Verifies other invalid successful roster-response bodies become server errors.
     /// </summary>
     /// <param name="body">The invalid successful response body.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("")]
     [InlineData("{not-json")]
     public async Task GetPlayerRosterAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
@@ -237,7 +237,7 @@ public sealed class HttpPlayerServiceTests
     /// </summary>
     /// <param name="responsePage">The page returned by the server.</param>
     /// <param name="responsePageSize">The page size returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1, 25)]
     [InlineData(2, 20)]
     public async Task GetPlayerRosterAsync_ReturnsServerError_WhenPageMetadataDoesNotMatchRequest(
@@ -269,7 +269,7 @@ public sealed class HttpPlayerServiceTests
     /// </summary>
     /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
     /// <param name="graduationYear">The graduation year returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(Nova.Shared.Enums.LifecycleStatus.Active, 2031)]
     [InlineData(Nova.Shared.Enums.LifecycleStatus.Archived, 2030)]
     public async Task GetPlayerRosterAsync_ReturnsServerError_WhenRowDoesNotMatchExactFilters(

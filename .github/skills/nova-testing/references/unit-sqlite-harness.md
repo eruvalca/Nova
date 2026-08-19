@@ -60,7 +60,7 @@ public void TenantContext_ReturnsOnlyCurrentClubsRows()
 - One behavior per test; name `Subject_Outcome_Condition` style (e.g.
   `Interceptor_Throws_OnCrossTenantAdd`). Use Shouldly (`ShouldBe`, `Should.Throw<T>`),
   `[Theory]`/`[InlineData]` for case matrices.
-- xUnit v3: fixtures implement `IAsyncLifetime` with `ValueTask`; test classes get fixtures via
+- xUnit v4: fixtures implement `IAsyncLifetime` with `ValueTask`; test classes get fixtures via
   primary-constructor injection.
 - When adding a tenant-owned entity (`ITenantOwnedEntity`), add unit filter coverage: visible to
   its club, invisible to another club, cross-tenant writes rejected. Bespoke-filtered entities

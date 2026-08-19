@@ -95,7 +95,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("forward")]
     [InlineData("FORWARD")]
     [InlineData("Forward ")]

@@ -222,7 +222,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// </summary>
     /// <param name="graduationYear">The team graduation year returned by the server.</param>
     /// <param name="lifecycleStatus">The team lifecycle status returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999, LifecycleStatus.Active)]
     [InlineData(2028, (LifecycleStatus)99)]
     public async Task GetPlayerDetailAsync_ReturnsServerError_WhenHistoryTeamStateIsInvalid(
@@ -271,7 +271,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// </summary>
     /// <param name="outcome">The placement outcome returned by the server.</param>
     /// <param name="includeTeam">Whether the response includes a team summary.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.Assigned, false)]
     [InlineData(PlacementOutcome.NotSelected, true)]
     public async Task GetPlayerDetailAsync_ReturnsServerError_WhenPlacementTeamRelationshipIsInvalid(
@@ -444,7 +444,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies invalid successful detail-response bodies become server errors.
     /// </summary>
     /// <param name="body">The invalid successful response body.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
@@ -502,7 +502,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// </summary>
     /// <param name="graduationYear">The graduation year returned by the server.</param>
     /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999, LifecycleStatus.Active)]
     [InlineData(2028, (LifecycleStatus)99)]
     public async Task GetPlayerDetailAsync_ReturnsServerError_WhenPlayerStateIsInvalid(
@@ -539,7 +539,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies nullable jersey numbers retain the shared range in player details.
     /// </summary>
     /// <param name="jerseyNumber">The invalid jersey number returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(-1)]
     [InlineData(10000)]
     public async Task GetPlayerDetailAsync_ReturnsServerError_WhenJerseyNumberIsOutOfRange(

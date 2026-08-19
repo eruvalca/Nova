@@ -30,7 +30,7 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies each lifecycle-managed table rejects partial archive provenance.
     /// </summary>
     /// <param name="target">The lifecycle-managed table to test.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(LifecycleTarget.Player)]
     [InlineData(LifecycleTarget.Team)]
     [InlineData(LifecycleTarget.TagDefinition)]
@@ -52,7 +52,7 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies each lifecycle-managed table rejects archive provenance while the status is Active.
     /// </summary>
     /// <param name="target">The lifecycle-managed table to test.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(LifecycleTarget.Player)]
     [InlineData(LifecycleTarget.Team)]
     [InlineData(LifecycleTarget.TagDefinition)]

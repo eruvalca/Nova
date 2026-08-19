@@ -278,7 +278,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// campaign.
     /// </summary>
     /// <param name="campaignWinsLock">Whether campaign creation acquires the roster lock first.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(true)]
     [InlineData(false)]
     public async Task ConcurrentCampaignAndPlayerCreation_ProducesParticipation_ForEitherLockWinner(

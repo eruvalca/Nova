@@ -38,7 +38,7 @@ public sealed class CampaignQueryContractTests
     /// <summary>Verifies non-positive campaign identifiers are rejected.</summary>
     /// <param name="campaignId">The campaign identifier to validate.</param>
     /// <param name="isValid">Whether the identifier is valid.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0, false)]
     [InlineData(-1, false)]
     [InlineData(1, true)]
@@ -78,7 +78,7 @@ public sealed class CampaignQueryContractTests
     /// </summary>
     /// <param name="limit">The explicit limit to validate.</param>
     /// <param name="isValid">Whether the limit is valid.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0, false)]
     [InlineData(1, true)]
     [InlineData(100, true)]
@@ -94,7 +94,7 @@ public sealed class CampaignQueryContractTests
     /// Verifies both accepted campaign status values are case-insensitive.
     /// </summary>
     /// <param name="status">The status spelling to validate.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("active")]
     [InlineData("ACTIVE")]
     [InlineData("closed")]
@@ -233,7 +233,7 @@ public sealed class CampaignQueryContractTests
     /// Verifies both accepted sort directions are case-insensitive.
     /// </summary>
     /// <param name="direction">The direction spelling to validate.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("asc")]
     [InlineData("ASC")]
     [InlineData("desc")]

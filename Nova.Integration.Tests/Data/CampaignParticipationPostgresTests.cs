@@ -103,7 +103,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
     /// </summary>
     /// <param name="outcomeValue">The numeric placement outcome to persist.</param>
     /// <param name="useTeam">Whether to persist a team reference.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData((int)PlacementOutcome.Assigned, false)]
     [InlineData((int)PlacementOutcome.Undecided, true)]
     [InlineData((int)PlacementOutcome.NotSelected, true)]

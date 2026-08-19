@@ -79,7 +79,7 @@ public sealed class PlayerGraduationYearPolicyTests
         result.AsT1.Blockers.Count.ShouldBe(2);
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(2028, 2027, false)] // player year > team year — eligible
     [InlineData(2028, 2028, false)] // equal — eligible
     [InlineData(2028, 2029, true)]  // player year < team year — blocked

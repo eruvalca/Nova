@@ -100,7 +100,7 @@ public sealed class HttpTeamRosterServiceTests
     /// Verifies invalid successful response bodies are surfaced as protocol failures.
     /// </summary>
     /// <param name="body">The invalid successful response body.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
@@ -188,7 +188,7 @@ public sealed class HttpTeamRosterServiceTests
     /// </summary>
     /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
     /// <param name="graduationYear">The graduation year returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(LifecycleStatus.Active, 2029)]
     [InlineData(LifecycleStatus.Archived, 2028)]
     public async Task GetRosterAsync_ReturnsServerError_WhenRowDoesNotMatchExactFilters(

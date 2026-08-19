@@ -96,7 +96,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// </summary>
     /// <param name="page">The invalid page number.</param>
     /// <param name="pageSize">The invalid page size.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0, 50)]
     [InlineData(1, 0)]
     [InlineData(1, 101)]

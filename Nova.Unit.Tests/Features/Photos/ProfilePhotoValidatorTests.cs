@@ -14,7 +14,7 @@ public class ProfilePhotoValidatorTests
     private static readonly byte[] WebpBytes = [.. "RIFF"u8.ToArray(), 0x24, 0x00, 0x00, 0x00, .. "WEBP"u8.ToArray(), .. "VP8 "u8.ToArray()];
     private static readonly byte[] GifBytes = [.. "GIF89a"u8.ToArray(), 0x01, 0x00, 0x01, 0x00];
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("image/jpeg")]
     [InlineData("image/png")]
     [InlineData("image/webp")]
@@ -52,7 +52,7 @@ public class ProfilePhotoValidatorTests
         errors.ShouldContain(error => error.Contains("maximum allowed size"));
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("image/gif")]
     [InlineData("image/svg+xml")]
@@ -81,7 +81,7 @@ public class ProfilePhotoValidatorTests
         errors.ShouldContain(error => error.Contains("does not match"));
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(new byte[] { 0xFF, 0xD8, 0xFF }, "image/jpeg")]
     [InlineData(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, "image/png")]
     public void SniffContentType_DetectsFormat_FromMagicBytes(byte[] content, string expected) => ProfilePhotoValidator.SniffContentType(content).ShouldBe(expected);
@@ -89,7 +89,7 @@ public class ProfilePhotoValidatorTests
     [Fact]
     public void SniffContentType_DetectsWebp_FromRiffHeader() => ProfilePhotoValidator.SniffContentType(WebpBytes).ShouldBe("image/webp");
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(new byte[0])]
     [InlineData(new byte[] { 0x00, 0x01, 0x02, 0x03 })]
     public void SniffContentType_ReturnsNull_ForUnknownContent(byte[] content) => ProfilePhotoValidator.SniffContentType(content).ShouldBeNull();

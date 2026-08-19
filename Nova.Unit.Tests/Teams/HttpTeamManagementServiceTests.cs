@@ -98,7 +98,7 @@ public sealed class HttpTeamManagementServiceTests
     /// Verifies invalid successful create-response bodies are surfaced as protocol failures.
     /// </summary>
     /// <param name="body">The invalid successful response body.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
@@ -152,7 +152,7 @@ public sealed class HttpTeamManagementServiceTests
     /// </summary>
     /// <param name="graduationYear">The graduation year returned by the server.</param>
     /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999, LifecycleStatus.Active)]
     [InlineData(2028, (LifecycleStatus)99)]
     public async Task CreateAsync_ReturnsServerError_WhenTeamStateIsInvalid(

@@ -13,7 +13,7 @@ public sealed class GetCampaignPlacementInputValidationTests
     /// Verifies non-positive campaign identifiers are rejected on the roster input.
     /// </summary>
     /// <param name="campaignId">The invalid campaign identifier.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(-1)]
     public void Validate_ReturnsCampaignIdError_ForNonPositiveRosterCampaignId(long campaignId)
@@ -99,7 +99,7 @@ public sealed class GetCampaignPlacementInputValidationTests
     /// Verifies non-positive campaign identifiers are rejected on the summary input.
     /// </summary>
     /// <param name="campaignId">The invalid campaign identifier.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(-1)]
     public void Validate_ReturnsCampaignIdError_ForNonPositiveSummaryCampaignId(long campaignId)

@@ -102,7 +102,7 @@ public sealed class CampaignWorkspaceUrlStateTests
 
     // ── Page math ──────────────────────────────────────────────────────────────
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0, 50, 1)]
     [InlineData(1, 50, 1)]
     [InlineData(50, 50, 1)]
@@ -185,7 +185,7 @@ public sealed class CampaignWorkspaceUrlStateTests
 
     // ── Tab normalization ─────────────────────────────────────────────────────
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null, "evaluate")]
     [InlineData("evaluate", "evaluate")]
     [InlineData("EVALUATE", "evaluate")]

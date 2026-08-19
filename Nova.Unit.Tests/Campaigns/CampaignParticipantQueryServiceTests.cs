@@ -363,7 +363,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     /// <summary>
     /// Verifies every documented sort key honors the requested direction over the seeded participants.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [MemberData(nameof(SortDirectionCases))]
     public async Task GetParticipantRoster_AppliesSortKeyAndDirection(string sortBy, string sortDirection, string[] expectedDisplayNames)
     {
@@ -392,7 +392,7 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
     /// <summary>
     /// Verifies equal sort keys are ordered by ascending assignment identifier in both directions.
     /// </summary>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("displayName")]
     [InlineData("graduationYear")]
     [InlineData("tryoutNumber")]

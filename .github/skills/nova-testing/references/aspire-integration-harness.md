@@ -122,4 +122,4 @@ private void ActAs(long? userId, long? clubId, bool isClubAdmin = false)
 }
 ```
 
-See `nova-testing/SKILL.md` for xUnit v3, Shouldly, naming, and run commands that apply to both harnesses.
+See `nova-testing/SKILL.md` for xUnit v4, Shouldly, naming, and run commands that apply to both harnesses.

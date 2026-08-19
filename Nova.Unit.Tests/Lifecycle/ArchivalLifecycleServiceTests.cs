@@ -203,7 +203,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies regular club members cannot archive any lifecycle-managed record.
     /// </summary>
     /// <param name="target">The lifecycle-managed record type.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(LifecycleTarget.Team)]
     [InlineData(LifecycleTarget.TagDefinition)]
     public async Task LifecycleMutation_ReturnsForbidden_WhenCallerIsNotClubAdmin(LifecycleTarget target)
@@ -219,7 +219,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
     /// Verifies tenant filters hide every cross-club lifecycle target.
     /// </summary>
     /// <param name="target">The lifecycle-managed record type.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(LifecycleTarget.Team)]
     [InlineData(LifecycleTarget.TagDefinition)]
     public async Task LifecycleMutation_ReturnsNotFound_ForCrossTenantRecord(LifecycleTarget target)

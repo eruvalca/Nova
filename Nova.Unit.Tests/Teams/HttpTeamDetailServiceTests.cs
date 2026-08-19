@@ -62,7 +62,7 @@ public sealed class HttpTeamDetailServiceTests
     /// Verifies other invalid successful response bodies are surfaced as protocol failures.
     /// </summary>
     /// <param name="body">The invalid successful response body.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("")]
     [InlineData("{not-json")]
     public async Task GetTeamDetailAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
@@ -112,7 +112,7 @@ public sealed class HttpTeamDetailServiceTests
     /// </summary>
     /// <param name="graduationYear">The graduation year returned by the server.</param>
     /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999, LifecycleStatus.Active)]
     [InlineData(2028, (LifecycleStatus)99)]
     public async Task GetTeamDetailAsync_ReturnsServerError_WhenTeamStateIsInvalid(

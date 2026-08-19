@@ -24,7 +24,7 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
     /// Verifies both lifecycle endpoints reject anonymous callers.
     /// </summary>
     /// <param name="operation">The lifecycle operation under test.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("archive")]
     [InlineData("restore")]
     public async Task TeamLifecycleEndpoints_ReturnUnauthorized_ForAnonymous(string operation)

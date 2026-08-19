@@ -24,7 +24,7 @@ public sealed class UpdatePlayerInputValidationTests
         InputValidator.Validate(ValidInput()).ShouldBeEmpty();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(-1)]
     public void Validate_WithInvalidPlayerId_ReturnsError(long id)
@@ -41,7 +41,7 @@ public sealed class UpdatePlayerInputValidationTests
         InputValidator.Validate(input).ShouldBeEmpty();
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
@@ -52,7 +52,7 @@ public sealed class UpdatePlayerInputValidationTests
         errors.ShouldContainKey("FirstName");
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
@@ -77,7 +77,7 @@ public sealed class UpdatePlayerInputValidationTests
         InputValidator.Validate(input).ShouldContainKey("LastName");
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999)]
     [InlineData(2101)]
     public void Validate_WithOutOfRangeGraduationYear_ReturnsError(int year)
@@ -86,7 +86,7 @@ public sealed class UpdatePlayerInputValidationTests
         InputValidator.Validate(input).ShouldContainKey("GraduationYear");
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(-1)]
     [InlineData(10000)]
     public void Validate_WithOutOfRangeJerseyNumber_ReturnsError(int jersey)

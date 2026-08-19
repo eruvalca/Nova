@@ -26,14 +26,14 @@ public sealed class TeamInputValidationTests
     public void Create_WithValidInput_ReturnsNoErrors()
         => InputValidator.Validate(ValidCreate()).ShouldBeEmpty();
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
     public void Create_WithBlankName_ReturnsError(string? name)
         => InputValidator.Validate(ValidCreate() with { Name = name! }).ShouldContainKey("Name");
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999)]
     [InlineData(2101)]
     public void Create_WithOutOfRangeGraduationYear_ReturnsError(int year)
