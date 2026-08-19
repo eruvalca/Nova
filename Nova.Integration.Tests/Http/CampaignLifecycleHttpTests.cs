@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
@@ -321,6 +322,134 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
             CampaignLifecycleEventType.Closed,
             CampaignLifecycleEventType.Reopened
         ]);
+    }
+
+    /// <summary>
+    /// Verifies that reopening a closed campaign restores placement editing without discarding the
+    /// previously decided outcomes.
+    /// </summary>
+    [Fact]
+    public async Task CampaignReopen_RestoresEditing_WithoutDiscardingOutcomes()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("lifecycle-reopen-restores");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
+            client, email, Password, cancellationToken);
+        await UpdateUserAsync(fixture, email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var seeded = await SeedCampaignAsync(
+            club.ClubId,
+            email,
+            "lifecycle-reopen-restores",
+            [
+                new CampaignParticipantSpec(PlacementOutcome.Assigned, PlayerGraduationYear: 2030, TeamGraduationYear: 2029),
+                new CampaignParticipantSpec(PlacementOutcome.NotSelected, PlayerGraduationYear: 2030)
+            ],
+            cancellationToken);
+
+        using (var closeResponse = await client.PostAsync(
+                   CampaignEndpoints.CloseUrl(seeded.CampaignId), content: null, cancellationToken))
+        {
+            closeResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+
+        using (var reopenResponse = await client.PostAsync(
+                   CampaignEndpoints.ReopenUrl(seeded.CampaignId), content: null, cancellationToken))
+        {
+            reopenResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+
+        var previouslyNotSelected = seeded.Participants[1];
+        var eligibleTeamId = seeded.Participants[0].TeamId!.Value;
+
+        Guid expectedToken;
+        await using (var context = fixture.CreateAdminContext())
+        {
+            expectedToken = await context.PlayerCampaignAssignments
+                .Where(assignment => assignment.PlayerCampaignAssignmentId == previouslyNotSelected.AssignmentId)
+                .Select(assignment => assignment.ConcurrencyToken)
+                .SingleAsync(cancellationToken);
+        }
+
+        using var updateResponse = await client.PutAsJsonAsync(
+            CampaignEndpoints.UpdateCampaignPlacementUrl(previouslyNotSelected.AssignmentId),
+            new UpdateCampaignPlacementInput(
+                previouslyNotSelected.AssignmentId,
+                PlacementOutcome.Assigned,
+                eligibleTeamId,
+                expectedToken),
+            cancellationToken);
+        updateResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await using var verify = fixture.CreateAdminContext();
+        var updated = await verify.PlayerCampaignAssignments
+            .SingleAsync(
+                assignment => assignment.PlayerCampaignAssignmentId == previouslyNotSelected.AssignmentId,
+                cancellationToken);
+        updated.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
+        updated.TeamId.ShouldBe(eligibleTeamId);
+
+        var untouched = await verify.PlayerCampaignAssignments
+            .SingleAsync(
+                assignment => assignment.PlayerCampaignAssignmentId == seeded.Participants[0].AssignmentId,
+                cancellationToken);
+        untouched.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
+        untouched.TeamId.ShouldBe(eligibleTeamId);
+
+        var reopenEvents = await verify.CampaignLifecycleEvents
+            .Where(candidate => candidate.CampaignId == seeded.CampaignId)
+            .OrderBy(candidate => candidate.CampaignLifecycleEventId)
+            .Select(candidate => new { candidate.EventType, candidate.CreatedById })
+            .ToListAsync(cancellationToken);
+        reopenEvents.Last().EventType.ShouldBe(CampaignLifecycleEventType.Reopened);
+        reopenEvents.Last().CreatedById.ShouldBe(seeded.AdminUserId);
+    }
+
+    /// <summary>
+    /// Verifies another club's closed campaign is hidden behind a non-disclosing not-found response
+    /// when a club administrator attempts to reopen it.
+    /// </summary>
+    [Fact]
+    public async Task CampaignReopen_ReturnsNotFound_ForCrossTenantCampaign()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        using var ownerClient = fixture.CreateNovaHttpClient();
+        var ownerEmail = UniqueEmail("lifecycle-reopen-cross-owner");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
+            ownerClient, ownerEmail, Password, cancellationToken);
+        await UpdateUserAsync(fixture, ownerEmail, clubId: null, cancellationToken);
+        var ownerClub = await CreateClubAsync(ownerClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(ownerClient, cancellationToken);
+        var seeded = await SeedCampaignAsync(
+            ownerClub.ClubId,
+            ownerEmail,
+            "lifecycle-reopen-cross",
+            [ReadyParticipant],
+            cancellationToken,
+            closed: true);
+
+        using var otherClient = fixture.CreateNovaHttpClient();
+        var otherEmail = UniqueEmail("lifecycle-reopen-cross-other");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
+            otherClient, otherEmail, Password, cancellationToken);
+        await UpdateUserAsync(fixture, otherEmail, clubId: null, cancellationToken);
+        var otherClub = await CreateClubAsync(otherClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(otherClient, cancellationToken);
+        otherClub.ClubId.ShouldNotBe(ownerClub.ClubId);
+
+        using var response = await otherClient.PostAsync(
+            CampaignEndpoints.ReopenUrl(seeded.CampaignId),
+            content: null,
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.TryGetProperty("detail", out _).ShouldBeFalse();
     }
 
     /// <summary>

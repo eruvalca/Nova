@@ -2,10 +2,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Nova.Data;
 using Nova.Entities;
-using Nova.Features.Campaigns;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
@@ -141,11 +138,13 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
         using (var readiness = await memberClient.GetAsync(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(seeded.CampaignId), cancellationToken))
         {
             readiness.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+            await AssertNoDetailAsync(readiness, cancellationToken);
         }
 
         using (var activity = await memberClient.GetAsync(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = seeded.CampaignId }), cancellationToken))
         {
             activity.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+            await AssertNoDetailAsync(activity, cancellationToken);
         }
     }
 
@@ -180,7 +179,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
             participantCount: 2,
             PlacementOutcome.NotSelected,
             cancellationToken);
-        await CloseCampaignAsync(club.ClubId, adminUserId, seeded.CampaignId, cancellationToken);
+        await SeedingHelpers.CloseCampaignThroughServiceAsync(fixture, club.ClubId, adminUserId, seeded.CampaignId, cancellationToken);
 
         using var viewer = isAdmin ? adminClient : viewerClient;
 
@@ -260,8 +259,8 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
             participantCount: 1,
             PlacementOutcome.NotSelected,
             cancellationToken);
-        await CloseCampaignAsync(club.ClubId, adminUserId, seeded.CampaignId, cancellationToken);
-        await ReopenCampaignAsync(club.ClubId, adminUserId, seeded.CampaignId, cancellationToken);
+        await SeedingHelpers.CloseCampaignThroughServiceAsync(fixture, club.ClubId, adminUserId, seeded.CampaignId, cancellationToken);
+        await SeedingHelpers.ReopenCampaignThroughServiceAsync(fixture, club.ClubId, adminUserId, seeded.CampaignId, cancellationToken);
 
         using var response = await memberClient.GetAsync(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = seeded.CampaignId }), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -351,43 +350,15 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
             .SingleAsync(cancellationToken);
     }
 
-    /// <summary>Closes a campaign through the real lifecycle service.</summary>
-    /// <param name="clubId">The campaign's club identifier.</param>
-    /// <param name="actorUserId">The acting administrator identifier.</param>
-    /// <param name="campaignId">The campaign identifier.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that completes when the campaign is closed.</returns>
-    private async Task CloseCampaignAsync(long clubId, long actorUserId, long campaignId, CancellationToken cancellationToken)
+    /// <summary>Asserts a not-found response carries no non-disclosing <c>detail</c> property.</summary>
+    /// <param name="response">The problem-details response to inspect.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>A task that completes when the body has been inspected.</returns>
+    private static async Task AssertNoDetailAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
-        fixture.CurrentUser.UserId = actorUserId;
-        fixture.CurrentUser.ClubId = clubId;
-        fixture.CurrentUser.IsClubAdmin = true;
-
-        var service = new CampaignLifecycleService(
-            fixture.CreateTenantContextFactory(),
-            fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
-        var result = await service.CloseAsync(campaignId, cancellationToken);
-        result.IsT0.ShouldBeTrue();
-    }
-
-    /// <summary>Reopens a campaign through the real lifecycle service.</summary>
-    /// <param name="clubId">The campaign's club identifier.</param>
-    /// <param name="actorUserId">The acting administrator identifier.</param>
-    /// <param name="campaignId">The campaign identifier.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that completes when the campaign is reopened.</returns>
-    private async Task ReopenCampaignAsync(long clubId, long actorUserId, long campaignId, CancellationToken cancellationToken)
-    {
-        fixture.CurrentUser.UserId = actorUserId;
-        fixture.CurrentUser.ClubId = clubId;
-        fixture.CurrentUser.IsClubAdmin = true;
-
-        var service = new CampaignLifecycleService(
-            fixture.CreateTenantContextFactory(),
-            fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
-        var result = await service.ReopenAsync(campaignId, cancellationToken);
-        result.IsT0.ShouldBeTrue();
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.TryGetProperty("detail", out _).ShouldBeFalse();
     }
 }
