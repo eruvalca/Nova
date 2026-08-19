@@ -19,6 +19,8 @@ public sealed partial class CampaignQueryService(
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignQueryService> logger) : ICampaignQueryService
 {
+    private const string UnresolvedActorFallback = "Former member";
+
     /// <inheritdoc />
     public async Task<ServiceResult<CampaignListResult>> GetCampaignListAsync(
         GetCampaignListInput input,
@@ -135,7 +137,7 @@ public sealed partial class CampaignQueryService(
         var campaign = await db.Campaigns
             .AsNoTracking()
             .Where(campaign => campaign.ClubId == clubId && campaign.CampaignId == input.CampaignId)
-            .Select(campaign => new CampaignDetailResult
+            .Select(campaign => new CampaignDetailProjection
             {
                 CampaignId = campaign.CampaignId,
                 Name = campaign.Name,
@@ -144,14 +146,55 @@ public sealed partial class CampaignQueryService(
                 PlannedEndDate = campaign.EndDate,
                 ParticipantCount = campaign.PlayerAssignments.Count,
                 SeasonId = campaign.SeasonId,
-                SeasonName = campaign.Season.Name
+                SeasonName = campaign.Season.Name,
+                ClosedAt = campaign.ClosedAt,
+                ClosedByUserId = campaign.ClosedById
             })
             .FirstOrDefaultAsync(cancellationToken);
 
-        return campaign is null
-            ? ServiceProblem.NotFound()
-            : campaign;
+        if (campaign is null)
+        {
+            return ServiceProblem.NotFound();
+        }
+
+        var closedByDisplayName = campaign.ClosedByUserId is long closedByUserId
+            ? await ResolveClosedByDisplayNameAsync(db, clubId, closedByUserId, cancellationToken)
+            : null;
+
+        return new CampaignDetailResult
+        {
+            CampaignId = campaign.CampaignId,
+            Name = campaign.Name,
+            Status = campaign.Status,
+            StartDate = campaign.StartDate,
+            PlannedEndDate = campaign.PlannedEndDate,
+            ParticipantCount = campaign.ParticipantCount,
+            SeasonId = campaign.SeasonId,
+            SeasonName = campaign.SeasonName,
+            ClosedAt = campaign.ClosedAt,
+            ClosedByUserId = campaign.ClosedByUserId,
+            ClosedByDisplayName = closedByDisplayName
+        };
     }
+
+    /// <summary>
+    /// Resolves the display name of the user who closed a campaign, falling back to the stable
+    /// "Former member" text when the actor user row is no longer available in the club.
+    /// </summary>
+    /// <param name="db">The read-only tenant-scoped context.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="closedByUserId">The closer user identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The resolved closer display name, or <see cref="UnresolvedActorFallback"/> when unavailable.</returns>
+    private static async Task<string> ResolveClosedByDisplayNameAsync(
+        NovaReadDbContext db,
+        long clubId,
+        long closedByUserId,
+        CancellationToken cancellationToken)
+        => await db.Users
+            .Where(user => user.ClubId == clubId && user.Id == closedByUserId)
+            .Select(user => $"{user.FirstName} {user.LastName}")
+            .FirstOrDefaultAsync(cancellationToken) ?? UnresolvedActorFallback;
 
     /// <inheritdoc />
     public async Task<ServiceResult<CampaignCreationSetupResult>> GetCreationSetupAsync(
@@ -207,6 +250,33 @@ public sealed partial class CampaignQueryService(
 
         clubId = default;
         return false;
+    }
+
+    /// <summary>
+    /// Holds the flat SQL projection for one campaign-detail row before closer display-name resolution.
+    /// </summary>
+    private sealed class CampaignDetailProjection
+    {
+        /// <summary>Gets the campaign identifier.</summary>
+        public required long CampaignId { get; init; }
+        /// <summary>Gets the campaign name.</summary>
+        public required string Name { get; init; }
+        /// <summary>Gets the campaign lifecycle status.</summary>
+        public CampaignStatus Status { get; init; }
+        /// <summary>Gets the campaign start date.</summary>
+        public DateOnly StartDate { get; init; }
+        /// <summary>Gets the optional planned end date.</summary>
+        public DateOnly? PlannedEndDate { get; init; }
+        /// <summary>Gets the persisted participant count.</summary>
+        public int ParticipantCount { get; init; }
+        /// <summary>Gets the season identifier.</summary>
+        public long SeasonId { get; init; }
+        /// <summary>Gets the season name.</summary>
+        public required string SeasonName { get; init; }
+        /// <summary>Gets when the campaign was closed, or null when active.</summary>
+        public DateTimeOffset? ClosedAt { get; init; }
+        /// <summary>Gets the closer user identifier, or null when active.</summary>
+        public long? ClosedByUserId { get; init; }
     }
 
     /// <summary>

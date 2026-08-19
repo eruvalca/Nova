@@ -161,6 +161,36 @@ public static class CampaignEndpoints
     public const string GetCampaignPlacementSummaryRouteName = "GetCampaignPlacementSummary";
 
     /// <summary>
+    /// Gets the campaign closeout-readiness route.
+    /// </summary>
+    public const string GetCampaignCloseoutReadiness = $"{GroupPrefix}/{{campaignId:long}}/closeout-readiness";
+
+    /// <summary>
+    /// Gets the closeout-readiness route relative to the campaign group.
+    /// </summary>
+    public const string GetCampaignCloseoutReadinessRelative = "{campaignId:long}/closeout-readiness";
+
+    /// <summary>
+    /// Gets the route name assigned to the campaign closeout readiness query.
+    /// </summary>
+    public const string GetCampaignCloseoutReadinessRouteName = "GetCampaignCloseoutReadiness";
+
+    /// <summary>
+    /// Gets the bounded recent campaign activity route.
+    /// </summary>
+    public const string GetCampaignActivity = $"{GroupPrefix}/{{campaignId:long}}/activity";
+
+    /// <summary>
+    /// Gets the recent activity route relative to the campaign group.
+    /// </summary>
+    public const string GetCampaignActivityRelative = "{campaignId:long}/activity";
+
+    /// <summary>
+    /// Gets the route name assigned to the recent campaign activity query.
+    /// </summary>
+    public const string GetCampaignActivityRouteName = "GetCampaignActivity";
+
+    /// <summary>
     /// Closes a campaign (POST).
     /// </summary>
     public const string Close = $"{GroupPrefix}/{{campaignId:long}}/close";
@@ -482,6 +512,28 @@ public static class CampaignEndpoints
     /// <returns>The placement summary URL.</returns>
     public static string GetCampaignPlacementSummaryUrl(long campaignId)
         => $"{GroupPrefix}/{campaignId}/placements/summary";
+
+    /// <summary>
+    /// Builds a campaign closeout-readiness URL.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier.</param>
+    /// <returns>The closeout-readiness URL.</returns>
+    public static string GetCampaignCloseoutReadinessUrl(long campaignId)
+        => $"{GroupPrefix}/{campaignId}/closeout-readiness";
+
+    /// <summary>
+    /// Builds a bounded recent campaign activity URL, omitting the optional limit when it is not
+    /// supplied or would not be accepted by the input contract.
+    /// </summary>
+    /// <param name="input">The activity query input.</param>
+    /// <returns>The recent activity URL.</returns>
+    public static string GetCampaignActivityUrl(GetCampaignActivityInput input)
+    {
+        var baseUrl = $"{GroupPrefix}/{input.CampaignId}/activity";
+        return input.Limit is int limit and >= 1 and <= GetCampaignActivityInput.MaxEventCount
+            ? $"{baseUrl}?limit={limit}"
+            : baseUrl;
+    }
 
     /// <summary>
     /// Builds a campaign close URL.

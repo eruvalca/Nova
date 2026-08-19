@@ -60,6 +60,9 @@ public sealed class CampaignQueryServiceTests : IDisposable
             new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "A", State = "TX", CreatedById = ClubAMemberId },
             new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "B", State = "MA", CreatedById = ClubAMemberId });
 
+        admin.Users.Add(
+            new NovaUserEntity { Id = ClubAMemberId, FirstName = "Amelia", LastName = "Member", ClubId = ClubAId });
+
         var season = new SeasonEntity { Name = "Season 1", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubAId, CreatedById = ClubAMemberId };
         var seasonB = new SeasonEntity { Name = "Season B", StartDate = new DateOnly(2025, 1, 1), ClubId = ClubBId, CreatedById = ClubAMemberId };
         admin.Seasons.AddRange(season, seasonB);
@@ -67,8 +70,9 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
         var campaignA = new CampaignEntity { Name = "A1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
         var campaignA2 = new CampaignEntity { Name = "A2", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAMemberId, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignA3 = new CampaignEntity { Name = "A3", StartDate = new DateOnly(2026, 4, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = 999_999, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
         var campaignB = new CampaignEntity { Name = "B1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonB.SeasonId, ClubId = ClubBId, CreatedById = ClubAMemberId };
-        admin.Campaigns.AddRange(campaignA, campaignA2, campaignB);
+        admin.Campaigns.AddRange(campaignA, campaignA2, campaignA3, campaignB);
         admin.SaveChanges();
 
         var playerA = new PlayerEntity { FirstName = "P1", LastName = "One", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
@@ -137,7 +141,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
         var result = await service.GetCampaignListAsync(new GetCampaignListInput { Limit = 1 }, TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBeTrue();
-        result.Value.TotalCount.ShouldBe(2); // two campaigns seeded for club A
+        result.Value.TotalCount.ShouldBe(3); // three campaigns seeded for club A
         var rows = result.Value.Seasons.SelectMany(s => s.Campaigns).ToList();
         rows.Count.ShouldBe(1); // bounded to limit
         rows[0].ParticipantCount.ShouldBe(2);
@@ -367,6 +371,67 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Value.ParticipantCount.ShouldBe(2);
         result.Value.SeasonId.ShouldBe(seasonId);
         result.Value.SeasonName.ShouldBe("Season 1");
+        result.Value.ClosedAt.ShouldBeNull();
+        result.Value.ClosedByUserId.ShouldBeNull();
+        result.Value.ClosedByDisplayName.ShouldBeNull();
+    }
+
+    /// <summary>Verifies a Closed campaign's detail carries populated closure fields with a resolved display name.</summary>
+    [Fact]
+    public async Task GetCampaignDetail_ReturnsClosureFields_ForClosedCampaign()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        long campaignId;
+        using (var admin = _harness.CreateAdminContext())
+        {
+            campaignId = admin.Campaigns.Single(campaign => campaign.Name == "A2").CampaignId;
+        }
+
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCampaignDetailAsync(
+            new GetCampaignDetailInput { CampaignId = campaignId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Status.ShouldBe(CampaignStatus.Closed);
+        result.Value.ClosedAt.ShouldNotBeNull();
+        result.Value.ClosedByUserId.ShouldBe(ClubAMemberId);
+        result.Value.ClosedByDisplayName.ShouldBe("Amelia Member");
+    }
+
+    /// <summary>Verifies a Closed campaign with a missing closer row falls back to the "Former member" display name.</summary>
+    [Fact]
+    public async Task GetCampaignDetail_ReturnsFormerMemberDisplayName_WhenCloserIsUnavailable()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+
+        long campaignId;
+        using (var admin = _harness.CreateAdminContext())
+        {
+            campaignId = admin.Campaigns.Single(campaign => campaign.Name == "A3").CampaignId;
+        }
+
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCampaignDetailAsync(
+            new GetCampaignDetailInput { CampaignId = campaignId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Status.ShouldBe(CampaignStatus.Closed);
+        result.Value.ClosedAt.ShouldNotBeNull();
+        result.Value.ClosedByUserId.ShouldBe(999_999);
+        result.Value.ClosedByDisplayName.ShouldBe("Former member");
     }
 
     /// <summary>Verifies the detail query returns NotFound for another club's campaign.</summary>

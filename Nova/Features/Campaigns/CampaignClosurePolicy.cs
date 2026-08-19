@@ -1,4 +1,5 @@
 ﻿using Nova.Shared.Enums;
+using Nova.Shared.Features.Campaigns;
 using OneOf;
 
 namespace Nova.Features.Campaigns;
@@ -26,6 +27,21 @@ public readonly record struct CampaignCloseBlocked(
     /// Gets the number of assigned participation records that reference archived teams.
     /// </summary>
     internal int ArchivedTeamCount { get; init; }
+
+    /// <summary>
+    /// Gets the campaign-assignment identifiers without a final outcome, in policy-evaluation order.
+    /// </summary>
+    internal IReadOnlyList<long> UndecidedAssignmentIds { get; init; } = [];
+
+    /// <summary>
+    /// Gets the campaign-assignment identifiers that fail team eligibility, in policy-evaluation order.
+    /// </summary>
+    internal IReadOnlyList<long> IneligibleAssignmentIds { get; init; } = [];
+
+    /// <summary>
+    /// Gets the campaign-assignment identifiers that reference archived teams, in policy-evaluation order.
+    /// </summary>
+    internal IReadOnlyList<long> ArchivedTeamAssignmentIds { get; init; } = [];
 }
 
 /// <summary>
@@ -55,9 +71,9 @@ internal sealed record CampaignAssignmentClosureState(
 /// </summary>
 internal static class CampaignClosurePolicy
 {
-    private const string OutcomeBlockerKey = "outcomes";
-    private const string EligibilityBlockerKey = "eligibility";
-    private const string ArchivedTeamBlockerKey = "archivedTeams";
+    internal const string OutcomeBlockerKey = CloseoutBlockerConditions.Outcomes;
+    internal const string EligibilityBlockerKey = CloseoutBlockerConditions.Eligibility;
+    internal const string ArchivedTeamBlockerKey = CloseoutBlockerConditions.ArchivedTeams;
 
     /// <summary>
     /// Determines whether all campaign participation records satisfy closure requirements.
@@ -68,7 +84,11 @@ internal static class CampaignClosurePolicy
         IReadOnlyCollection<CampaignAssignmentClosureState> assignmentStates)
     {
         Dictionary<string, string[]> blockers = [];
-        var undecidedCount = assignmentStates.Count(state => state.Outcome == PlacementOutcome.Undecided);
+        var undecidedAssignments = assignmentStates
+            .Where(state => state.Outcome == PlacementOutcome.Undecided)
+            .Select(state => state.AssignmentId)
+            .ToArray();
+        var undecidedCount = undecidedAssignments.Length;
         if (undecidedCount > 0)
         {
             blockers[OutcomeBlockerKey] =
@@ -113,7 +133,10 @@ internal static class CampaignClosurePolicy
             {
                 UndecidedCount = undecidedCount,
                 IneligibleCount = ineligibleAssignments.Length,
-                ArchivedTeamCount = archivedTeamAssignments.Length
+                ArchivedTeamCount = archivedTeamAssignments.Length,
+                UndecidedAssignmentIds = undecidedAssignments,
+                IneligibleAssignmentIds = ineligibleAssignments,
+                ArchivedTeamAssignmentIds = archivedTeamAssignments
             };
     }
 }
