@@ -161,6 +161,36 @@ public static class CampaignEndpoints
     public const string GetCampaignPlacementSummaryRouteName = "GetCampaignPlacementSummary";
 
     /// <summary>
+    /// Closes a campaign (POST).
+    /// </summary>
+    public const string Close = $"{GroupPrefix}/{{campaignId:long}}/close";
+
+    /// <summary>
+    /// The relative close path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string CloseRelative = "{campaignId:long}/close";
+
+    /// <summary>
+    /// The route name assigned to campaign close.
+    /// </summary>
+    public const string CloseRouteName = "CloseCampaign";
+
+    /// <summary>
+    /// Reopens a closed campaign (POST).
+    /// </summary>
+    public const string Reopen = $"{GroupPrefix}/{{campaignId:long}}/reopen";
+
+    /// <summary>
+    /// The relative reopen path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string ReopenRelative = "{campaignId:long}/reopen";
+
+    /// <summary>
+    /// The route name assigned to campaign reopen.
+    /// </summary>
+    public const string ReopenRouteName = "ReopenCampaign";
+
+    /// <summary>
     /// Applies a tag definition to a campaign participation (POST).
     /// </summary>
     public const string ApplyCampaignTagApplication = $"{GroupPrefix}/tag-applications";
@@ -452,6 +482,22 @@ public static class CampaignEndpoints
     /// <returns>The placement summary URL.</returns>
     public static string GetCampaignPlacementSummaryUrl(long campaignId)
         => $"{GroupPrefix}/{campaignId}/placements/summary";
+
+    /// <summary>
+    /// Builds a campaign close URL.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier to close.</param>
+    /// <returns>The close URL.</returns>
+    public static string CloseUrl(long campaignId)
+        => $"{GroupPrefix}/{campaignId}/close";
+
+    /// <summary>
+    /// Builds a campaign reopen URL.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier to reopen.</param>
+    /// <returns>The reopen URL.</returns>
+    public static string ReopenUrl(long campaignId)
+        => $"{GroupPrefix}/{campaignId}/reopen";
 
     /// <summary>
     /// Builds a campaign tag application removal URL.
