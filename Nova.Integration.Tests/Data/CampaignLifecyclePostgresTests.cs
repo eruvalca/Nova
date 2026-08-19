@@ -211,6 +211,135 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a close that waits behind an in-flight close is rejected after the lock is released
+    /// and the campaign reloads as already closed, with the winner's closure and single event preserved.
+    /// </summary>
+    [Fact]
+    public async Task CloseConcurrency_RejectsSecondClose_WhenCampaignClosesWhileWaitingForLock()
+    {
+        var seed = await SeedCampaignAsync();
+        fixture.CurrentUser.UserId = seed.ActorUserId;
+        fixture.CurrentUser.ClubId = seed.ClubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+        var service = new CampaignLifecycleService(
+            new FixtureDbContextFactory(fixture),
+            fixture.CurrentUser,
+            NullLogger<CampaignLifecycleService>.Instance);
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var closeContext = fixture.CreateAdminContext();
+        await using var transaction = await closeContext.Database.BeginTransactionAsync(cancellationToken);
+        var lockKey = long.MinValue + seed.CampaignId;
+        await closeContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({lockKey})",
+            cancellationToken);
+
+        var closeTask = service.CloseAsync(seed.CampaignId, cancellationToken);
+
+        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+            closeContext,
+            lockKey,
+            cancellationToken);
+
+        var campaign = await closeContext.Campaigns
+            .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, cancellationToken);
+        campaign.Status = CampaignStatus.Closed;
+        campaign.ClosedAt = DateTimeOffset.UtcNow;
+        campaign.ClosedById = seed.ActorUserId;
+        closeContext.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
+        {
+            CampaignId = seed.CampaignId,
+            ClubId = seed.ClubId,
+            EventType = CampaignLifecycleEventType.Closed,
+            CreatedById = seed.ActorUserId
+        });
+        await closeContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        var result = await closeTask;
+
+        result.IsT4.ShouldBeTrue();
+        result.AsT4.Detail.ShouldBe("The campaign is already closed.");
+
+        await using var verify = fixture.CreateAdminContext();
+        var persisted = await verify.Campaigns
+            .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, cancellationToken);
+        persisted.Status.ShouldBe(CampaignStatus.Closed);
+        persisted.ClosedById.ShouldBe(seed.ActorUserId);
+
+        var closedEvents = await verify.CampaignLifecycleEvents
+            .Where(candidate => candidate.CampaignId == seed.CampaignId
+                && candidate.EventType == CampaignLifecycleEventType.Closed)
+            .ToListAsync(cancellationToken);
+        closedEvents.Count.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// Verifies a reopen that waits behind an in-flight reopen is rejected after the lock is released
+    /// and the campaign reloads as already active, with the winner's transition and single event preserved.
+    /// </summary>
+    [Fact]
+    public async Task ReopenConcurrency_RejectsSecondReopen_WhenCampaignReopensWhileWaitingForLock()
+    {
+        var seed = await SeedCampaignAsync(closed: true);
+        fixture.CurrentUser.UserId = seed.ActorUserId;
+        fixture.CurrentUser.ClubId = seed.ClubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+        var service = new CampaignLifecycleService(
+            new FixtureDbContextFactory(fixture),
+            fixture.CurrentUser,
+            NullLogger<CampaignLifecycleService>.Instance);
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var reopenContext = fixture.CreateAdminContext();
+        await using var transaction = await reopenContext.Database.BeginTransactionAsync(cancellationToken);
+        var lockKey = long.MinValue + seed.CampaignId;
+        await reopenContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({lockKey})",
+            cancellationToken);
+
+        var reopenTask = service.ReopenAsync(seed.CampaignId, cancellationToken);
+
+        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+            reopenContext,
+            lockKey,
+            cancellationToken);
+
+        var campaign = await reopenContext.Campaigns
+            .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, cancellationToken);
+        campaign.Status = CampaignStatus.Active;
+        campaign.ClosedAt = null;
+        campaign.ClosedById = null;
+        reopenContext.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
+        {
+            CampaignId = seed.CampaignId,
+            ClubId = seed.ClubId,
+            EventType = CampaignLifecycleEventType.Reopened,
+            CreatedById = seed.ActorUserId
+        });
+        await reopenContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        var result = await reopenTask;
+
+        result.IsT3.ShouldBeTrue();
+        result.AsT3.Detail.ShouldBe("The campaign is already active.");
+
+        await using var verify = fixture.CreateAdminContext();
+        var persisted = await verify.Campaigns
+            .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, cancellationToken);
+        persisted.Status.ShouldBe(CampaignStatus.Active);
+        persisted.ClosedAt.ShouldBeNull();
+        persisted.ClosedById.ShouldBeNull();
+
+        var reopenedEvents = await verify.CampaignLifecycleEvents
+            .Where(candidate => candidate.CampaignId == seed.CampaignId
+                && candidate.EventType == CampaignLifecycleEventType.Reopened)
+            .ToListAsync(cancellationToken);
+        reopenedEvents.Count.ShouldBe(1);
+    }
+
+    /// <summary>
     /// Seeds one active campaign with an undecided participation for placement concurrency testing.
     /// </summary>
     /// <returns>The seeded campaign and participation identifiers.</returns>
@@ -255,8 +384,9 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// <summary>
     /// Seeds one campaign in a unique club and returns it detached for invalid-state mutation.
     /// </summary>
+    /// <param name="closed">Whether the campaign should be seeded as closed with closure provenance.</param>
     /// <returns>The seeded campaign metadata.</returns>
-    private async Task<CampaignLifecycleSeed> SeedCampaignAsync()
+    private async Task<CampaignLifecycleSeed> SeedCampaignAsync(bool closed = false)
     {
         fixture.CurrentUser.UserId = null;
         fixture.CurrentUser.ClubId = null;
@@ -289,6 +419,9 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         {
             Name = $"Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
+            Status = closed ? CampaignStatus.Closed : CampaignStatus.Active,
+            ClosedAt = closed ? DateTimeOffset.UtcNow : null,
+            ClosedById = closed ? actorUserId : null,
             SeasonId = season.SeasonId,
             ClubId = club.ClubId,
             CreatedById = actorUserId

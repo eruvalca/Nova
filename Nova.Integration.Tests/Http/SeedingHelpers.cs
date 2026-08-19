@@ -1,6 +1,8 @@
 ﻿using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
+using Nova.Features.Campaigns;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Clubs;
@@ -241,5 +243,65 @@ internal static class SeedingHelpers
         context.Add(playerTag);
         await context.SaveChangesAsync(cancellationToken);
         return playerTag.PlayerTagId;
+    }
+
+    /// <summary>
+    /// Closes a campaign through the real server-side lifecycle service, so tests obtain a genuine
+    /// <c>Closed</c> lifecycle event and closure provenance without an HTTP round-trip. The simulated
+    /// user is assigned directly on the AsyncLocal-backed provider, which is flow-local and
+    /// parallel-safe under <see cref="ParallelMode.All"/>.
+    /// </summary>
+    /// <param name="fixture">The AppHost fixture providing the tenant context factory.</param>
+    /// <param name="clubId">The campaign's club identifier.</param>
+    /// <param name="actorUserId">The acting administrator identifier.</param>
+    /// <param name="campaignId">The campaign identifier.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>A task that completes when the campaign is closed.</returns>
+    public static async Task CloseCampaignThroughServiceAsync(
+        NovaAppHostFixture fixture,
+        long clubId,
+        long actorUserId,
+        long campaignId,
+        CancellationToken cancellationToken)
+    {
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var service = new CampaignLifecycleService(
+            fixture.CreateTenantContextFactory(),
+            fixture.CurrentUser,
+            NullLogger<CampaignLifecycleService>.Instance);
+        var result = await service.CloseAsync(campaignId, cancellationToken);
+        result.IsT0.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Reopens a closed campaign through the real server-side lifecycle service, so tests obtain a
+    /// genuine <c>Reopened</c> lifecycle event without an HTTP round-trip.
+    /// </summary>
+    /// <param name="fixture">The AppHost fixture providing the tenant context factory.</param>
+    /// <param name="clubId">The campaign's club identifier.</param>
+    /// <param name="actorUserId">The acting administrator identifier.</param>
+    /// <param name="campaignId">The campaign identifier.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>A task that completes when the campaign is reopened.</returns>
+    public static async Task ReopenCampaignThroughServiceAsync(
+        NovaAppHostFixture fixture,
+        long clubId,
+        long actorUserId,
+        long campaignId,
+        CancellationToken cancellationToken)
+    {
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+
+        var service = new CampaignLifecycleService(
+            fixture.CreateTenantContextFactory(),
+            fixture.CurrentUser,
+            NullLogger<CampaignLifecycleService>.Instance);
+        var result = await service.ReopenAsync(campaignId, cancellationToken);
+        result.IsT0.ShouldBeTrue();
     }
 }
