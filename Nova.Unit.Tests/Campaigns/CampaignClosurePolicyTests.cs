@@ -57,6 +57,9 @@ public sealed class CampaignClosurePolicyTests
         [
             "Every participant must have a final outcome before closing. Found 2 undecided participation record(s)."
         ]);
+        blocked.UndecidedAssignmentIds.ShouldBe([1, 2]);
+        blocked.IneligibleAssignmentIds.ShouldBeEmpty();
+        blocked.ArchivedTeamAssignmentIds.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -72,6 +75,9 @@ public sealed class CampaignClosurePolicyTests
 
         var blocked = result.Value.ShouldBeOfType<CampaignCloseBlocked>();
         blocked.Errors.ShouldContainKey("eligibility");
+        blocked.IneligibleAssignmentIds.ShouldBe([7]);
+        blocked.UndecidedAssignmentIds.ShouldBeEmpty();
+        blocked.ArchivedTeamAssignmentIds.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -105,6 +111,7 @@ public sealed class CampaignClosurePolicyTests
         [
             "Every assigned participant must remain eligible for their team. Ineligible assignment ids: 9."
         ]);
+        blocked.IneligibleAssignmentIds.ShouldBe([9]);
     }
 
     /// <summary>
@@ -126,6 +133,9 @@ public sealed class CampaignClosurePolicyTests
 
         var blocked = result.Value.ShouldBeOfType<CampaignCloseBlocked>();
         blocked.Errors.ShouldContainKey("archivedTeams");
+        blocked.ArchivedTeamAssignmentIds.ShouldBe([10]);
+        blocked.UndecidedAssignmentIds.ShouldBeEmpty();
+        blocked.IneligibleAssignmentIds.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -174,6 +184,37 @@ public sealed class CampaignClosurePolicyTests
         blocked.UndecidedCount.ShouldBe(1);
         blocked.IneligibleCount.ShouldBe(1);
         blocked.ArchivedTeamCount.ShouldBe(1);
+        blocked.UndecidedAssignmentIds.ShouldBe([20]);
+        blocked.IneligibleAssignmentIds.ShouldBe([30]);
+        blocked.ArchivedTeamAssignmentIds.ShouldBe([40]);
+    }
+
+    /// <summary>
+    /// Verifies each blocker id collection is populated in the policy's stable, ascending
+    /// assignment-id evaluation order (including undecided rows) and never scrambled.
+    /// </summary>
+    [Fact]
+    public void Evaluate_PopulatesStableAssignmentIdCollections_InAscendingInputOrder()
+    {
+        CampaignAssignmentClosureState[] states =
+        [
+            CreateState(2, PlacementOutcome.Undecided),
+            CreateState(4, PlacementOutcome.Undecided),
+            CreateState(6, PlacementOutcome.Assigned, playerYear: 2029, teamId: 10, teamYear: 2030),
+            CreateState(
+                8,
+                PlacementOutcome.Assigned,
+                playerYear: 2030,
+                teamId: 11,
+                teamYear: 2029,
+                teamStatus: LifecycleStatus.Archived)
+        ];
+
+        var blocked = CampaignClosurePolicy.Evaluate(states).Value.ShouldBeOfType<CampaignCloseBlocked>();
+
+        blocked.UndecidedAssignmentIds.ShouldBe([2, 4]);
+        blocked.IneligibleAssignmentIds.ShouldBe([6]);
+        blocked.ArchivedTeamAssignmentIds.ShouldBe([8]);
     }
 
     /// <summary>

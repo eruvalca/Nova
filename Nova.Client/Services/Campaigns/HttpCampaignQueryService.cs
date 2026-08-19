@@ -90,7 +90,23 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             && result.ParticipantCount >= 0
             && result.SeasonId > 0
             && !string.IsNullOrWhiteSpace(result.SeasonName)
-            && result.Status is CampaignStatus.Active or CampaignStatus.Closed;
+            && result.Status is CampaignStatus.Active or CampaignStatus.Closed
+            && HasValidClosureFields(result);
+
+    /// <summary>
+    /// Validates that the closure fields are consistent with the campaign lifecycle status: a Closed
+    /// campaign must carry a closure timestamp, closer identifier, and non-empty closer display name,
+    /// while an Active campaign must carry none of them.
+    /// </summary>
+    /// <param name="result">The campaign-detail payload.</param>
+    /// <returns><see langword="true"/> when the closure fields match the status.</returns>
+    private static bool HasValidClosureFields(CampaignDetailResult result)
+        => result.Status == CampaignStatus.Closed
+            ? result.ClosedAt is not null
+                && result.ClosedByUserId is > 0
+                && !string.IsNullOrWhiteSpace(result.ClosedByDisplayName)
+            : result.ClosedAt is null
+                && result.ClosedByUserId is null;
 
     /// <summary>
     /// Validates the structural and ordering invariants of a campaign-list success payload.

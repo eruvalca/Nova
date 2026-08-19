@@ -50,6 +50,10 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
         payload.PlayerId.ShouldBe(playerId);
         payload.CampaignHistory.Count.ShouldBe(2);
         payload.CampaignHistory[0].CampaignStartDate.ShouldBeGreaterThanOrEqualTo(payload.CampaignHistory[1].CampaignStartDate);
+
+        var closedHistory = payload.CampaignHistory.Single(history => history.CampaignStatus == CampaignStatus.Closed);
+        closedHistory.PlacementOutcome.ShouldBe(PlacementOutcome.Withdrawn);
+
         payload.CurrentTraits.Select(trait => trait.Name).ToList().ShouldBe(["Agility"]);
     }
 

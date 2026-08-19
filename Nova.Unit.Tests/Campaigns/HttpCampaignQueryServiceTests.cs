@@ -343,6 +343,23 @@ public sealed class HttpCampaignQueryServiceTests
     }
 
     /// <summary>
+    /// Verifies a populated, structurally valid Closed campaign-detail response is accepted.
+    /// </summary>
+    [Fact]
+    public async Task GetCampaignDetailAsync_AcceptsPopulatedClosedPayload()
+    {
+        const string payload = """
+            {"campaignId":2,"name":"Campaign","status":1,"startDate":"2026-06-01",
+            "plannedEndDate":"2026-08-01","participantCount":3,"seasonId":1,"seasonName":"Season 2026",
+            "closedAt":"2026-08-01T00:00:00+00:00","closedByUserId":5,"closedByDisplayName":"Admin A"}
+            """;
+
+        var result = await GetCampaignDetailFromJsonAsync(payload);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    /// <summary>
     /// Verifies strict detail-payload invariants map invalid successful responses to server errors.
     /// </summary>
     /// <param name="payload">The invalid successful JSON payload.</param>
@@ -356,6 +373,11 @@ public sealed class HttpCampaignQueryServiceTests
     [InlineData("""{"campaignId":2,"name":"Campaign","status":0,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":0,"seasonName":"S"}""")]
     [InlineData("""{"campaignId":2,"name":"Campaign","status":0,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":1,"seasonName":" "}""")]
     [InlineData("""{"campaignId":2,"name":"Campaign","status":99,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":1,"seasonName":"S"}""")]
+    [InlineData("""{"campaignId":2,"name":"Campaign","status":0,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":1,"seasonName":"S","closedAt":"2026-08-01T00:00:00+00:00"}""")]
+    [InlineData("""{"campaignId":2,"name":"Campaign","status":0,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":1,"seasonName":"S","closedByUserId":5}""")]
+    [InlineData("""{"campaignId":2,"name":"Campaign","status":1,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":1,"seasonName":"S"}""")]
+    [InlineData("""{"campaignId":2,"name":"Campaign","status":1,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":1,"seasonName":"S","closedAt":"2026-08-01T00:00:00+00:00","closedByUserId":null,"closedByDisplayName":"Admin A"}""")]
+    [InlineData("""{"campaignId":2,"name":"Campaign","status":1,"startDate":"2026-06-01","plannedEndDate":null,"participantCount":0,"seasonId":1,"seasonName":"S","closedAt":"2026-08-01T00:00:00+00:00","closedByUserId":5,"closedByDisplayName":" "}""")]
     public async Task GetCampaignDetailAsync_ReturnsServerError_ForInvalidPopulatedPayload(string payload)
     {
         var result = await GetCampaignDetailFromJsonAsync(payload);

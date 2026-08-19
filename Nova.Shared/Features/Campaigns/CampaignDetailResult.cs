@@ -46,4 +46,20 @@ public sealed record CampaignDetailResult
     /// Gets the season name.
     /// </summary>
     public required string SeasonName { get; init; }
+
+    /// <summary>
+    /// Gets when the campaign was closed, or <see langword="null"/> while the campaign is active.
+    /// </summary>
+    public DateTimeOffset? ClosedAt { get; init; }
+
+    /// <summary>
+    /// Gets the identifier of the user who closed the campaign, or <see langword="null"/> while active.
+    /// </summary>
+    public long? ClosedByUserId { get; init; }
+
+    /// <summary>
+    /// Gets the resolved display name of the user who closed the campaign, or <see langword="null"/>
+    /// while active.
+    /// </summary>
+    public string? ClosedByDisplayName { get; init; }
 }
