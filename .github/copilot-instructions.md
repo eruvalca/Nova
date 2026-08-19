@@ -11,7 +11,7 @@
 ## Build & validation
 
 - Build: `dotnet build Nova.slnx`
-- Run: `dotnet run --project Nova.AppHost` (Aspire provisions PostgreSQL 18 and the Azurite blob emulator for `profile-photos`, and exposes the dashboard plus `/health`/`/alive`). `Nova` has no usable connection string or blob client without the AppHost.
+- Run: `dotnet run --project Nova.AppHost` (delegates through the Aspire 13.5 CLI bundle; Aspire provisions PostgreSQL 18 and the Azurite blob emulator for `profile-photos`, and exposes the dashboard plus `/health`/`/alive`). `Nova` has no usable connection string or blob client without the AppHost.
 - OpenAPI document: `/openapi` (Development only).
 - Format check (required before commit): `dotnet format Nova.slnx --verify-no-changes`; apply fixes with `dotnet format Nova.slnx`
 - Unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`

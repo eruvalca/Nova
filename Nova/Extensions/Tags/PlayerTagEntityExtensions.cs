@@ -1,4 +1,4 @@
-using Nova.Entities;
+﻿using Nova.Entities;
 using Nova.Shared.Features.Tags;
 
 namespace Nova.Extensions.Tags;

@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
+    <AspireUseCliBundle>true</AspireUseCliBundle>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UserSecretsId>6358ae70-73e7-4228-a6a2-d01895d1d719</UserSecretsId>
@@ -15,6 +16,8 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Azure.Storage" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="Npgsql" />
   </ItemGroup>
 
 </Project>

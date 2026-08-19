@@ -1,4 +1,4 @@
-using Nova.Entities;
+﻿using Nova.Entities;
 using Nova.Shared.Enums;
 using Nova.Unit.Tests.Data;
 using Shouldly;

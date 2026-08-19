@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Tags;
+﻿namespace Nova.Shared.Features.Tags;
 
 /// <summary>
 /// Represents the bounded tag-definition management-list response. <see cref="Items"/> is capped at
