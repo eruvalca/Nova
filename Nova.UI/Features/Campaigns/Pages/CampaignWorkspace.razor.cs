@@ -8,6 +8,7 @@ using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Components;
+using Nova.UI.Features.Campaigns.Components;
 using Nova.UI.Features.Campaigns.Services;
 
 namespace Nova.UI.Features.Campaigns.Pages;
@@ -19,6 +20,7 @@ namespace Nova.UI.Features.Campaigns.Pages;
 /// <param name="participantQueryService">The campaign roster query service.</param>
 /// <param name="tagDefinitionQueryService">The tag-definition choices service used by roster filters.</param>
 /// <param name="teamRosterService">The team choices service used by roster filters.</param>
+/// <param name="campaignMetadataService">The campaign metadata correction service used by the edit-metadata flow.</param>
 /// <param name="authenticationStateProvider">The authentication state provider used for role derivation.</param>
 /// <param name="navigationManager">The navigation manager used for URL history and redirects.</param>
 /// <param name="jsRuntime">The JavaScript runtime used to import the collocated workspace module.</param>
@@ -27,6 +29,7 @@ public partial class CampaignWorkspace(
     ICampaignParticipantQueryService participantQueryService,
     ITagDefinitionQueryService tagDefinitionQueryService,
     ITeamRosterService teamRosterService,
+    ICampaignMetadataService campaignMetadataService,
     AuthenticationStateProvider authenticationStateProvider,
     NavigationManager navigationManager,
     IJSRuntime jsRuntime) : NovaComponentBase
@@ -50,6 +53,16 @@ public partial class CampaignWorkspace(
     /// The name of the placements workspace tab.
     /// </summary>
     private const string PlacementsTabName = CampaignWorkspaceUrlState.PlacementsTab;
+
+    /// <summary>
+    /// The name of the overview workspace tab.
+    /// </summary>
+    private const string OverviewTabName = CampaignWorkspaceUrlState.OverviewTab;
+
+    /// <summary>
+    /// The name of the closeout workspace tab.
+    /// </summary>
+    private const string CloseoutTabName = CampaignWorkspaceUrlState.CloseoutTab;
 
     /// <summary>
     /// The scrollable roster results region used for scroll anchoring and keyboard activation suppression.
@@ -316,6 +329,54 @@ public partial class CampaignWorkspace(
     /// Indicates that at least one filter-choice load failed, showing the choices retry affordance.
     /// </summary>
     private bool _choicesLoadFailed;
+
+    /// <summary>
+    /// The campaign metadata form state when a metadata correction is active.
+    /// </summary>
+    private CampaignMetadataFormState? _editCampaignForm;
+
+    /// <summary>
+    /// The season choices loaded for the metadata edit form dropdown.
+    /// </summary>
+    private IReadOnlyList<CampaignSeasonChoice> _seasonChoices = [];
+
+    /// <summary>
+    /// The total number of tenant seasons before the choice bound, used to disclose truncation.
+    /// </summary>
+    private int _seasonChoiceTotalCount;
+
+    /// <summary>
+    /// The per-edit season list passed to the metadata form; may include the edited campaign's
+    /// current season when the bounded cache omits it.
+    /// </summary>
+    private IReadOnlyList<CampaignSeasonChoice> _editFormSeasonChoices = [];
+
+    /// <summary>
+    /// Indicates whether a metadata correction mutation is in progress.
+    /// </summary>
+    private bool _isMutating;
+
+    /// <summary>
+    /// The current mutation-level error message shown inside the metadata form.
+    /// </summary>
+    private string? _mutationError;
+
+    /// <summary>
+    /// Indicates whether the active metadata mutation ended in a lifecycle conflict, which offers a
+    /// close-and-reload affordance.
+    /// </summary>
+    private bool _mutationConflict;
+
+    /// <summary>
+    /// The current status message shown after successful mutations.
+    /// </summary>
+    private string? _statusMessage;
+
+    /// <summary>
+    /// Version counter for edit-form selection, incremented whenever the form closes so a stale
+    /// begin-edit continuation cannot reopen a superseded form.
+    /// </summary>
+    private int _editVersion;
 
     /// <summary>
     /// The open participant assignment identifier, or <see langword="null"/> when the drawer is closed.
@@ -919,6 +980,69 @@ public partial class CampaignWorkspace(
     }
 
     /// <summary>
+    /// Selects the overview tab, pushing the overview workspace URL.
+    /// </summary>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task SelectOverviewTabAsync()
+    {
+        if (!string.Equals(TabQuery, OverviewTabName, StringComparison.OrdinalIgnoreCase))
+        {
+            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(CampaignId));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Selects the closeout tab, pushing the closeout workspace URL.
+    /// </summary>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task SelectCloseoutTabAsync()
+    {
+        if (!string.Equals(TabQuery, CloseoutTabName, StringComparison.OrdinalIgnoreCase))
+        {
+            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildCloseoutWorkspaceUrl(CampaignId));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Opens the closeout tab from the overview panel.
+    /// </summary>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnOpenCloseoutAsync() => SelectCloseoutTabAsync();
+
+    /// <summary>
+    /// Navigates to the placements tab, optionally filtered to unresolved placements, in response to
+    /// a closeout blocker drill-down.
+    /// </summary>
+    /// <param name="unresolvedOnly">Whether the target placements URL should filter to unresolved placements.</param>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnReviewUnresolvedAsync(bool unresolvedOnly)
+    {
+        var url = unresolvedOnly
+            ? CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(CampaignId)
+            : CampaignWorkspaceUrlState.BuildPlacementsWorkspaceUrl(CampaignId, new CampaignWorkspacePlacementState());
+        navigationManager.NavigateTo(url);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Cancels the closeout view and returns to the evaluate tab, preserving the current roster state.
+    /// </summary>
+    /// <returns>A task that completes when navigation is initiated.</returns>
+    private Task OnCancelCloseoutAsync()
+    {
+        if (!string.Equals(TabQuery, EvaluateTabName, StringComparison.OrdinalIgnoreCase))
+        {
+            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, EvaluateTabName, _selectedParticipantId));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Applies a placement filter or page change raised by the placements panel and pushes the
     /// matching placements workspace URL.
     /// </summary>
@@ -947,6 +1071,216 @@ public partial class CampaignWorkspace(
     {
         await LoadDetailAsync();
         PersistStartupState();
+    }
+
+    /// <summary>
+    /// Opens the inline campaign metadata correction form, loading bounded season choices first.
+    /// </summary>
+    /// <returns>A task that completes when the form is ready or the season choices fail.</returns>
+    private async Task BeginEditMetadataAsync()
+    {
+        if (_detail is null)
+        {
+            return;
+        }
+
+        CancelMutationForm();
+        _statusMessage = null;
+        var editVersion = _editVersion;
+
+        if (!await EnsureSeasonChoicesLoadedAsync(editVersion))
+        {
+            return;
+        }
+
+        if (editVersion != _editVersion)
+        {
+            return;
+        }
+
+        _editFormSeasonChoices = EnsureCurrentSeasonSelectable(_seasonChoices);
+        _editCampaignForm = CampaignMetadataFormState.FromDetail(_detail);
+    }
+
+    /// <summary>
+    /// Loads the season choices used by the metadata edit form when not already available. Failure
+    /// feedback is published only when the calling edit selection is still current.
+    /// </summary>
+    /// <param name="editVersion">The edit-selection version captured by the caller.</param>
+    /// <returns><see langword="true"/> when season choices are available; otherwise <see langword="false"/>.</returns>
+    private async Task<bool> EnsureSeasonChoicesLoadedAsync(int editVersion)
+    {
+        if (_seasonChoices.Count > 0)
+        {
+            return true;
+        }
+
+        ServiceResult<CampaignCreationSetupResult> result;
+        try
+        {
+            result = await campaignQueryService.GetCreationSetupAsync(ComponentCancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            if (ComponentCancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            if (editVersion == _editVersion)
+            {
+                _mutationError = "Could not reach the server. Check your connection and retry.";
+            }
+
+            return false;
+        }
+
+        var loaded = false;
+        result.Switch(
+            setup =>
+            {
+                if (editVersion == _editVersion)
+                {
+                    _seasonChoices = setup.Seasons;
+                    _seasonChoiceTotalCount = setup.TotalSeasonCount;
+                }
+
+                loaded = true;
+            },
+            problem =>
+            {
+                if (problem.Kind == ServiceProblemKind.Forbidden)
+                {
+                    navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
+                    return;
+                }
+
+                if (editVersion == _editVersion)
+                {
+                    _mutationError = FirstNonBlank(problem.Detail, "Failed to load seasons. Please retry.");
+                }
+            });
+
+        return loaded;
+    }
+
+    /// <summary>
+    /// Ensures the edited campaign's current season remains selectable even when the bounded setup
+    /// payload omits it, without polluting the shared cached choices.
+    /// </summary>
+    /// <param name="choices">The cached bounded season choices.</param>
+    /// <returns>The choices to pass to the metadata form.</returns>
+    private IReadOnlyList<CampaignSeasonChoice> EnsureCurrentSeasonSelectable(IReadOnlyList<CampaignSeasonChoice> choices)
+    {
+        if (_detail is null || choices.Any(choice => choice.SeasonId == _detail.SeasonId))
+        {
+            return choices;
+        }
+
+        // The detail payload carries no season start/end dates, so the campaign start date is used
+        // as the display fallback for this rare omitted-season case.
+        return choices
+            .Prepend(new CampaignSeasonChoice
+            {
+                SeasonId = _detail.SeasonId,
+                Name = _detail.SeasonName,
+                StartDate = _detail.StartDate,
+                EndDate = null
+            })
+            .ToList()
+            .AsReadOnly();
+    }
+
+    /// <summary>
+    /// Applies an Active campaign metadata correction and reloads the detail on success, preserving
+    /// the status message across the refresh.
+    /// </summary>
+    /// <param name="model">The validated campaign metadata form state.</param>
+    /// <returns>A task that completes when the update request and follow-up reload finish.</returns>
+    private async Task UpdateMetadataAsync(CampaignMetadataFormState model)
+    {
+        if (_isMutating)
+        {
+            return;
+        }
+
+        _isMutating = true;
+        _mutationError = null;
+        _mutationConflict = false;
+
+        try
+        {
+            var result = await campaignMetadataService.UpdateAsync(model.ToUpdateInput(), ComponentCancellationToken);
+            var succeeded = false;
+            result.Switch(
+                updated =>
+                {
+                    _editCampaignForm = null;
+                    _statusMessage = $"Campaign \"{updated.Name}\" metadata updated.";
+                    succeeded = true;
+                },
+                problem =>
+                {
+                    if (problem.Kind == ServiceProblemKind.Forbidden)
+                    {
+                        navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
+                        return;
+                    }
+
+                    if (problem.Kind == ServiceProblemKind.Conflict)
+                    {
+                        _mutationError = FirstNonBlank(problem.Detail, "This campaign is Closed. Reopen the campaign before editing its metadata.");
+                        _mutationConflict = true;
+                        return;
+                    }
+
+                    _mutationError = FirstNonBlank(problem.Detail, FlattenValidationErrors(problem), "Failed to save changes. Please retry.");
+                });
+
+            if (succeeded)
+            {
+                await LoadDetailAsync();
+                PersistStartupState();
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
+        {
+            if (ComponentCancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _mutationError = "Could not reach the server. Check your connection and retry.";
+        }
+        finally
+        {
+            _isMutating = false;
+        }
+    }
+
+    /// <summary>
+    /// Closes the conflicted edit form and reloads the detail so it reflects the campaign's current
+    /// lifecycle state.
+    /// </summary>
+    /// <returns>A task that completes when the reload finishes.</returns>
+    private async Task CloseFormAndReloadAsync()
+    {
+        CancelMutationForm();
+        _statusMessage = null;
+        await LoadDetailAsync();
+        PersistStartupState();
+    }
+
+    /// <summary>
+    /// Closes the metadata correction form and clears its feedback.
+    /// </summary>
+    private void CancelMutationForm()
+    {
+        _editCampaignForm = null;
+        _mutationError = null;
+        _mutationConflict = false;
+        _editFormSeasonChoices = [];
+        _editVersion++;
     }
 
     /// <summary>
@@ -1194,6 +1528,16 @@ public partial class CampaignWorkspace(
     /// <returns>The first non-blank candidate.</returns>
     private static string FirstNonBlank(params string?[] candidates)
         => candidates.First(candidate => !string.IsNullOrWhiteSpace(candidate))!;
+
+    /// <summary>
+    /// Flattens field-level validation messages when the problem carries no detail text.
+    /// </summary>
+    /// <param name="problem">The service problem.</param>
+    /// <returns>The joined field messages, or <see langword="null"/> when the problem has no errors.</returns>
+    private static string? FlattenValidationErrors(ServiceProblem problem)
+        => problem.Errors is { Count: > 0 }
+            ? string.Join(" ", problem.Errors.SelectMany(pair => pair.Value))
+            : null;
 
     /// <summary>
     /// A pending cross-page participant move: the target edge, the exact roster query the move was

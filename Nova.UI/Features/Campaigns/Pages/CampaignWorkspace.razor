@@ -48,10 +48,52 @@
                             @FormatCampaignDates(_detail) · @_detail.SeasonName · @_detail.ParticipantCount participants
                         </p>
                     </div>
-                    <span class="badge @CampaignStatusBadgeClass(_detail.Status)">@_detail.Status</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge @CampaignStatusBadgeClass(_detail.Status)">@_detail.Status</span>
+                        <CampaignMenu IsClubAdmin="@_isClubAdmin"
+                                      IsClosed="@(_detail.Status == CampaignStatus.Closed)"
+                                      OnEditMetadata="BeginEditMetadataAsync"
+                                      OnCloseCampaign="SelectCloseoutTabAsync"
+                                      OnReopen="SelectCloseoutTabAsync" />
+                    </div>
                 </div>
             </div>
         </section>
+
+        @if (!string.IsNullOrWhiteSpace(_statusMessage))
+        {
+            <div class="alert alert-success" role="status" aria-live="polite">@_statusMessage</div>
+        }
+
+        @if (_editCampaignForm is not null)
+        {
+            <div class="mb-3">
+                <CampaignMetadataForm Heading="Edit campaign metadata"
+                                      Model="_editCampaignForm"
+                                      Seasons="_editFormSeasonChoices"
+                                      TotalSeasonCount="_seasonChoiceTotalCount"
+                                      SubmitButtonText="Save changes"
+                                      IsSubmitting="_isMutating"
+                                      ErrorMessage="@_mutationError"
+                                      OnValidSubmit="UpdateMetadataAsync"
+                                      OnCancel="CancelMutationForm" />
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_mutationError))
+        {
+            <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3" role="alert">
+                <span>@_mutationError</span>
+                <button type="button" class="btn btn-sm btn-outline-danger" @onclick="BeginEditMetadataAsync">Retry</button>
+            </div>
+        }
+
+        @if (_mutationConflict)
+        {
+            <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3" role="alert">
+                <span>The save was rejected due to a conflict. Close the form and reload to see the current state before trying again.</span>
+                <button type="button" class="btn btn-sm btn-outline-warning" @onclick="CloseFormAndReloadAsync">Close and reload</button>
+            </div>
+        }
 
         <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Campaign workspace sections">
             <li class="nav-item" role="presentation">
@@ -65,10 +107,14 @@
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <span class="nav-link disabled" aria-disabled="true" title="Coming soon">Overview</span>
+                <button type="button" class="nav-link @(_activeTab == OverviewTabName ? "active" : null)" role="tab" aria-selected="@(_activeTab == OverviewTabName ? "true" : "false")" @onclick="SelectOverviewTabAsync">
+                    Overview
+                </button>
             </li>
             <li class="nav-item" role="presentation">
-                <span class="nav-link disabled" aria-disabled="true" title="Coming soon">Closeout</span>
+                <button type="button" class="nav-link @(_activeTab == CloseoutTabName ? "active" : null)" role="tab" aria-selected="@(_activeTab == CloseoutTabName ? "true" : "false")" @onclick="SelectCloseoutTabAsync">
+                    Closeout
+                </button>
             </li>
         </ul>
 
@@ -163,6 +209,22 @@
                                      State="@_placementState"
                                      OnStateChanged="OnPlacementStateChangedAsync"
                                      OnReloadRequested="OnCampaignReloadRequestedAsync" />
+        }
+        else if (_activeTab == OverviewTabName)
+        {
+            <CampaignOverviewPanel CampaignId="@CampaignId"
+                                   Detail="@_detail"
+                                   IsClubAdmin="@_isClubAdmin"
+                                   OnOpenCloseout="OnOpenCloseoutAsync" />
+        }
+        else if (_activeTab == CloseoutTabName)
+        {
+            <CampaignCloseoutPanel CampaignId="@CampaignId"
+                                   Detail="@_detail"
+                                   IsClubAdmin="@_isClubAdmin"
+                                   OnReviewUnresolved="OnReviewUnresolvedAsync"
+                                   OnCancel="OnCancelCloseoutAsync"
+                                   OnReloadRequested="OnCampaignReloadRequestedAsync" />
         }
 
         @if (_selectedParticipantId is not null)

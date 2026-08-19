@@ -85,9 +85,19 @@ public static class CampaignWorkspaceUrlState
     public const string PlacementsTab = "placements";
 
     /// <summary>
+    /// The overview workspace tab token.
+    /// </summary>
+    public const string OverviewTab = "overview";
+
+    /// <summary>
+    /// The closeout workspace tab token.
+    /// </summary>
+    public const string CloseoutTab = "closeout";
+
+    /// <summary>
     /// The contract-supported workspace tab tokens, in canonical lowercase form.
     /// </summary>
-    private static readonly string[] ValidTabs = [EvaluateTab, PlacementsTab];
+    private static readonly string[] ValidTabs = [EvaluateTab, PlacementsTab, OverviewTab, CloseoutTab];
 
     /// <summary>
     /// The contract-supported placement-outcome tokens, in canonical lowercase form.
@@ -297,6 +307,31 @@ public static class CampaignWorkspaceUrlState
 
         return $"/campaigns/{campaignId}?{string.Join("&", parts)}";
     }
+
+    /// <summary>
+    /// Builds the full overview workspace URL carrying only the overview tab token.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier from the route.</param>
+    /// <returns>The relative overview workspace URL.</returns>
+    public static string BuildOverviewWorkspaceUrl(long campaignId)
+        => $"/campaigns/{campaignId}?tab={OverviewTab}";
+
+    /// <summary>
+    /// Builds the full closeout workspace URL carrying only the closeout tab token.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier from the route.</param>
+    /// <returns>The relative closeout workspace URL.</returns>
+    public static string BuildCloseoutWorkspaceUrl(long campaignId)
+        => $"/campaigns/{campaignId}?tab={CloseoutTab}";
+
+    /// <summary>
+    /// Builds the placements workspace URL filtered to unresolved (Undecided) placements, used by the
+    /// closeout blocker drill-down.
+    /// </summary>
+    /// <param name="campaignId">The campaign identifier from the route.</param>
+    /// <returns>The relative unresolved-only placements workspace URL.</returns>
+    public static string BuildReviewUnresolvedUrl(long campaignId)
+        => BuildPlacementsWorkspaceUrl(campaignId, new CampaignWorkspacePlacementState { UnresolvedOnly = true });
 
     /// <summary>
     /// Determines whether any roster filter (search, years, tags, outcome, or team) is active.

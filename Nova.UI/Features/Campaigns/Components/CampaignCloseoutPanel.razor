@@ -1,0 +1,178 @@
+@using Nova.Shared.Enums
+@using Nova.Shared.Features.Campaigns
+
+<section class="card shadow-sm border-0" aria-labelledby="closeout-region-heading">
+    <div class="card-body">
+        <h2 class="h5 mb-3" id="closeout-region-heading">Closeout</h2>
+
+        @if (_successMessage is not null)
+        {
+            <div class="alert alert-success py-2 small" role="status" aria-live="polite">@_successMessage</div>
+        }
+
+        @if (_mutationError is not null)
+        {
+            <div class="alert @(_mutationConflict ? "alert-warning" : "alert-danger")" role="alert" aria-live="assertive">
+                <span>@_mutationError</span>
+            </div>
+        }
+
+        @if (_isLoading)
+        {
+            <div class="d-flex align-items-center gap-2">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>Loading closeout...</span>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+                <span>@_error</span>
+                <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RetryAsync">Retry</button>
+            </div>
+        }
+        else if (Detail.Status == CampaignStatus.Closed)
+        {
+            <div class="alert alert-secondary py-2 small" role="note">This campaign is closed and read-only.</div>
+
+            <div class="mb-3">
+                Closed @FormatClosedDate(Detail.ClosedAt) by @(Detail.ClosedByDisplayName ?? "Unknown")
+            </div>
+
+            @if (_readiness is not null)
+            {
+                <div class="row g-2 mb-3" aria-label="Final outcome summary">
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2 text-center">
+                            <div class="fs-4 fw-semibold">@_readiness.Summary.AssignedCount</div>
+                            <div class="text-muted small">Assigned</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2 text-center">
+                            <div class="fs-4 fw-semibold">@_readiness.Summary.NotSelectedCount</div>
+                            <div class="text-muted small">Not selected</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2 text-center">
+                            <div class="fs-4 fw-semibold">@_readiness.Summary.WithdrawnCount</div>
+                            <div class="text-muted small">Withdrawn</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="border rounded p-2 text-center">
+                            <div class="fs-4 fw-semibold">@_readiness.Summary.UndecidedCount</div>
+                            <div class="text-muted small">Undecided</div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (IsClubAdmin)
+            {
+                <button type="button" class="btn btn-outline-warning" @onclick="ConfirmReopen">Reopen campaign</button>
+
+                @if (_showReopenConfirm)
+                {
+                    <div class="border rounded p-3 mt-2" role="group" aria-label="Reopen confirmation">
+                        <p class="mb-2">Reopening restores editing without discarding outcomes and is recorded for audit.</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-outline-warning" disabled="@_isReopening" @onclick="ReopenAsync">
+                                @if (_isReopening)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                                }
+                                Confirm reopen
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" disabled="@_isReopening" @onclick="CancelReopen">Cancel</button>
+                        </div>
+                    </div>
+                }
+            }
+        }
+        else if (_readiness is not null)
+        {
+            <ul class="list-group mb-3">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>Enrolled</span>
+                    <span class="fw-semibold">@_readiness.Summary.TotalCount</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>Final outcomes</span>
+                    <span class="fw-semibold">@(_readiness.Summary.TotalCount - _readiness.Summary.UndecidedCount)</span>
+                </li>
+
+                @if (BlockerFor(CloseoutBlockerConditions.Outcomes) is { } outcomes)
+                {
+                    <li class="list-group-item list-group-item-warning">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Undecided</span>
+                            <span class="fw-semibold">@outcomes.Count</span>
+                        </div>
+                        <div class="text-muted small">@outcomes.Message</div>
+                        <button type="button" class="btn btn-sm btn-outline-warning mt-2" @onclick="() => ReviewUnresolvedAsync(true)">Review unresolved</button>
+                    </li>
+                }
+                else
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>Undecided</span>
+                        <span class="text-success">Satisfied</span>
+                    </li>
+                }
+
+                @if (BlockerFor(CloseoutBlockerConditions.Eligibility) is { } eligibility)
+                {
+                    <li class="list-group-item list-group-item-warning">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Eligibility</span>
+                            <span class="fw-semibold">@eligibility.Count</span>
+                        </div>
+                        <div class="text-muted small">@eligibility.Message</div>
+                        <button type="button" class="btn btn-sm btn-outline-warning mt-2" @onclick="() => ReviewUnresolvedAsync(false)">Review unresolved</button>
+                    </li>
+                }
+                else
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>Eligibility</span>
+                        <span class="text-success">Satisfied</span>
+                    </li>
+                }
+
+                @if (BlockerFor(CloseoutBlockerConditions.ArchivedTeams) is { } archivedTeams)
+                {
+                    <li class="list-group-item list-group-item-warning">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Archived teams</span>
+                            <span class="fw-semibold">@archivedTeams.Count</span>
+                        </div>
+                        <div class="text-muted small">@archivedTeams.Message</div>
+                        <button type="button" class="btn btn-sm btn-outline-warning mt-2" @onclick="() => ReviewUnresolvedAsync(false)">Review unresolved</button>
+                    </li>
+                }
+                else
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>Archived teams</span>
+                        <span class="text-success">Satisfied</span>
+                    </li>
+                }
+            </ul>
+
+            <p class="text-muted small">Closing freezes notes, tags, outcomes, and placements.</p>
+
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-primary" disabled="@(!CanClose)" @onclick="CloseAsync">
+                    @if (_isClosing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                    }
+                    Close campaign
+                </button>
+                <button type="button" class="btn btn-outline-secondary" disabled="@_isClosing" @onclick="OnCancel">Cancel</button>
+            </div>
+        }
+    </div>
+</section>

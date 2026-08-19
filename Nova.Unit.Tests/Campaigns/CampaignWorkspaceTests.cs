@@ -78,7 +78,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     // ── Tab bar ───────────────────────────────────────────────────────────────
 
     [Fact]
-    public void CampaignWorkspace_ShowsEvaluateActive_AndOtherTabsDisabled()
+    public void CampaignWorkspace_ShowsAllTabsEnabled_AndEvaluateActive()
     {
         RegisterServices();
 
@@ -90,12 +90,9 @@ public sealed class CampaignWorkspaceTests : BunitContext
         activeTabs[0].TextContent.Trim().ShouldBe("Evaluate");
 
         var tabButtons = cut.FindAll("ul.nav-tabs button.nav-link");
-        tabButtons.Select(tab => tab.TextContent.Trim()).ShouldBe(new[] { "Evaluate", "Placements" });
+        tabButtons.Select(tab => tab.TextContent.Trim()).ShouldBe(new[] { "Evaluate", "Placements", "Overview", "Closeout" });
 
-        var disabledTabs = cut.FindAll("ul.nav-tabs .nav-link.disabled");
-        disabledTabs.Count.ShouldBe(2);
-        disabledTabs.Select(tab => tab.TextContent.Trim()).ShouldBe(new[] { "Overview", "Closeout" });
-        disabledTabs.ShouldAllBe(tab => tab.GetAttribute("title") == "Coming soon");
+        cut.FindAll("ul.nav-tabs .nav-link.disabled").ShouldBeEmpty();
     }
 
     [Fact]
@@ -118,7 +115,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("/campaigns/10?tab=overview");
+        navigationManager.NavigateTo("/campaigns/10?tab=garbage");
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
@@ -196,6 +193,152 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.FindAll("ul.nav-tabs button.nav-link")[0].Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("roster-region-heading"));
         cut.Markup.ShouldNotContain("placements-region-heading");
+    }
+
+    // ── Overview / Closeout tabs ──────────────────────────────────────────────
+
+    [Fact]
+    public void CampaignWorkspace_OverviewTabClick_PushesOverviewUrl_AndRendersOverviewRegion()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.FindAll("ul.nav-tabs button.nav-link")[2].Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=overview"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("overview-region-heading"));
+        cut.Markup.ShouldNotContain("roster-region-heading");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_CloseoutTabClick_PushesCloseoutUrl_AndRendersCloseoutRegion()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.FindAll("ul.nav-tabs button.nav-link")[3].Click();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/campaigns/10?tab=closeout"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("closeout-region-heading"));
+        cut.Markup.ShouldNotContain("roster-region-heading");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_ActivatesOverviewTab_WhenTabQueryIsOverview()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=overview");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.FindAll("ul.nav-tabs .nav-link.active")[0].TextContent.Trim().ShouldBe("Overview");
+        cut.Markup.ShouldContain("overview-region-heading");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_ActivatesCloseoutTab_WhenTabQueryIsCloseout()
+    {
+        RegisterServices();
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/campaigns/10?tab=closeout");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.FindAll("ul.nav-tabs .nav-link.active")[0].TextContent.Trim().ShouldBe("Closeout");
+        cut.Markup.ShouldContain("closeout-region-heading");
+    }
+
+    // ── Header campaign menu ───────────────────────────────────────────────────
+
+    [Fact]
+    public void CampaignWorkspace_HeaderRendersCampaignMenu_ForAdmin()
+    {
+        RegisterServices(isClubAdmin: true);
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Markup.ShouldContain("Campaign menu");
+    }
+
+    [Fact]
+    public void CampaignWorkspace_NonAdmin_DoesNotSeeMenuItems()
+    {
+        RegisterServices(isClubAdmin: false);
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Markup.ShouldNotContain("Campaign menu");
+        cut.Markup.ShouldNotContain("Edit metadata");
+        cut.Markup.ShouldNotContain("Close campaign");
+        cut.Markup.ShouldNotContain("Reopen");
+    }
+
+    // ── Edit metadata ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void CampaignWorkspace_EditMetadataFlow_RendersForm_Saves_AndUpdatesHeader()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<CampaignDetailResult>(CreateDetail())),
+                Task.FromResult(new ServiceResult<CampaignDetailResult>(CreateDetail("Fall Tryouts"))));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignCreationSetupResult>(CreateSetup())));
+
+        var metadataService = Substitute.For<ICampaignMetadataService>();
+        metadataService.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<UpdateCampaignMetadataResult>(
+                new UpdateCampaignMetadataResult(10, "Fall Tryouts", new DateOnly(2026, 6, 15), new DateOnly(2026, 6, 20), CampaignStatus.Active, 5, "Summer 2026"))));
+
+        RegisterServices(campaignQueryService: queryService, campaignMetadataService: metadataService, isClubAdmin: true);
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("button[aria-haspopup='menu']").Click();
+        cut.FindAll("button[role='menuitem']").Single(button => button.TextContent.Trim() == "Edit metadata").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+        cut.Find("#edit-campaign-name").GetAttribute("value").ShouldBe("Summer Tryouts");
+
+        cut.Find("#edit-campaign-name").Change("Fall Tryouts");
+        cut.Find("button[type='submit']").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Campaign \"Fall Tryouts\" metadata updated."));
+        cut.WaitForAssertion(() => cut.Find("h1").TextContent.Trim().ShouldBe("Fall Tryouts"));
+    }
+
+    [Fact]
+    public void CampaignWorkspace_EditMetadataConflict_ShowsWarningAffordance()
+    {
+        var metadataService = Substitute.For<ICampaignMetadataService>();
+        metadataService.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<UpdateCampaignMetadataResult>(
+                ServiceProblem.Conflict("The campaign is Closed. Reopen the campaign before editing its metadata."))));
+
+        RegisterServices(campaignMetadataService: metadataService, isClubAdmin: true);
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("button[aria-haspopup='menu']").Click();
+        cut.FindAll("button[role='menuitem']").Single(button => button.TextContent.Trim() == "Edit metadata").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+
+        cut.Find("button[type='submit']").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Close and reload"));
     }
 
     // ── Not-found and forbidden ───────────────────────────────────────────────
@@ -1353,13 +1496,18 @@ public sealed class CampaignWorkspaceTests : BunitContext
         IReadOnlyList<TagDefinitionDto>? tagChoices = null,
         IReadOnlyList<TeamRosterItem>? teamChoices = null,
         ICampaignPlacementQueryService? placementQueryService = null,
-        ICampaignPlacementService? placementService = null)
+        ICampaignPlacementService? placementService = null,
+        ICampaignMetadataService? campaignMetadataService = null,
+        ServiceResult<CampaignCreationSetupResult>? setupResult = null,
+        bool isClubAdmin = false)
     {
         if (campaignQueryService is null)
         {
             campaignQueryService = Substitute.For<ICampaignQueryService>();
             campaignQueryService.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(detailResult ?? new ServiceResult<CampaignDetailResult>(CreateDetail())));
+            campaignQueryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(setupResult ?? new ServiceResult<CampaignCreationSetupResult>(CreateSetup())));
         }
 
         if (participantQueryService is null)
@@ -1406,6 +1554,15 @@ public sealed class CampaignWorkspaceTests : BunitContext
                     new PlacementMutationSuccess(Guid.NewGuid()))));
         }
 
+        campaignMetadataService ??= Substitute.For<ICampaignMetadataService>();
+
+        var closeoutQueryService = Substitute.For<ICampaignCloseoutQueryService>();
+        closeoutQueryService.GetCloseoutReadinessAsync(Arg.Any<GetCampaignCloseoutReadinessInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignCloseoutReadinessDto>(CreateReadiness())));
+        closeoutQueryService.GetActivityAsync(Arg.Any<GetCampaignActivityInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignActivityResult>(new CampaignActivityResult([]))));
+        var lifecycleService = Substitute.For<ICampaignLifecycleService>();
+
         Services.AddSingleton(campaignQueryService);
         Services.AddSingleton(participantQueryService);
         Services.AddSingleton(tagDefinitionQueryService);
@@ -1414,7 +1571,10 @@ public sealed class CampaignWorkspaceTests : BunitContext
         Services.AddSingleton(teamRosterService);
         Services.AddSingleton(placementQueryService);
         Services.AddSingleton(placementService);
-        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal()));
+        Services.AddSingleton(campaignMetadataService);
+        Services.AddSingleton(closeoutQueryService);
+        Services.AddSingleton(lifecycleService);
+        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
@@ -1446,16 +1606,42 @@ public sealed class CampaignWorkspaceTests : BunitContext
         }
     ];
 
-    private static CampaignDetailResult CreateDetail() => new()
+    private static CampaignDetailResult CreateDetail(
+        string name = "Summer Tryouts",
+        CampaignStatus status = CampaignStatus.Active) => new()
+        {
+            CampaignId = 10,
+            Name = name,
+            Status = status,
+            StartDate = new DateOnly(2026, 6, 15),
+            PlannedEndDate = new DateOnly(2026, 6, 20),
+            ParticipantCount = 12,
+            SeasonId = 5,
+            SeasonName = "Summer 2026"
+        };
+
+    private static CampaignCreationSetupResult CreateSetup() => new()
     {
-        CampaignId = 10,
-        Name = "Summer Tryouts",
-        Status = CampaignStatus.Active,
-        StartDate = new DateOnly(2026, 6, 15),
-        PlannedEndDate = new DateOnly(2026, 6, 20),
-        ParticipantCount = 12,
-        SeasonId = 5,
-        SeasonName = "Summer 2026"
+        Seasons =
+        [
+            new CampaignSeasonChoice
+            {
+                SeasonId = 5,
+                Name = "Summer 2026",
+                StartDate = new DateOnly(2026, 6, 1),
+                EndDate = new DateOnly(2026, 8, 31)
+            },
+            new CampaignSeasonChoice
+            {
+                SeasonId = 6,
+                Name = "Fall 2026",
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = null
+            }
+        ],
+        TotalSeasonCount = 2,
+        ActivePlayerCount = 20,
+        ActiveTeamCount = 4
     };
 
     private static CampaignParticipantDetailDto CreateParticipantDetail(
@@ -1546,6 +1732,13 @@ public sealed class CampaignWorkspaceTests : BunitContext
         UndecidedCount: undecided,
         TotalCount: assigned + notSelected + withdrawn + undecided);
 
+    private static CampaignCloseoutReadinessDto CreateReadiness() => new(
+        CampaignId: 10,
+        Status: CampaignStatus.Active,
+        IsReady: true,
+        Summary: CreatePlacementSummary(),
+        Blockers: []);
+
     /// <summary>
     /// Creates a participant query-service fake whose roster returns page 1 with assignments 301–303
     /// and page 2 with assignments 304–306 (or the supplied override), so sequence moves can be exercised.
@@ -1602,13 +1795,18 @@ public sealed class CampaignWorkspaceTests : BunitContext
         PageSize: pageSize,
         TotalCount: totalCount);
 
-    private static ClaimsPrincipal CreatePrincipal()
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin = false)
     {
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, "101"),
             new(NovaClaimTypes.ClubId, "42")
         };
+
+        if (isClubAdmin)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, Roles.ClubAdmin));
+        }
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
     }
@@ -1649,10 +1847,11 @@ public sealed class CampaignWorkspaceTests : BunitContext
         ICampaignParticipantQueryService participantQueryService,
         ITagDefinitionQueryService tagDefinitionQueryService,
         ITeamRosterService teamRosterService,
+        ICampaignMetadataService campaignMetadataService,
         AuthenticationStateProvider authenticationStateProvider,
         NavigationManager navigationManager,
         IJSRuntime jsRuntime)
-        : CampaignWorkspacePage(campaignQueryService, participantQueryService, tagDefinitionQueryService, teamRosterService, authenticationStateProvider, navigationManager, jsRuntime)
+        : CampaignWorkspacePage(campaignQueryService, participantQueryService, tagDefinitionQueryService, teamRosterService, campaignMetadataService, authenticationStateProvider, navigationManager, jsRuntime)
     {
         [Parameter]
         public bool StartInitialized { get; set; }
