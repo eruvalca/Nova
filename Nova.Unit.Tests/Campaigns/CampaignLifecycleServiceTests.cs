@@ -4,8 +4,11 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
+using OneOf.Types;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -225,6 +228,92 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         var result = await service.ReopenAsync(ClosedCampaignId, TestContext.Current.CancellationToken);
 
         result.IsT1.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies the cross-tier interface returns a success result when a close succeeds.
+    /// </summary>
+    [Fact]
+    public async Task ICampaignLifecycleService_CloseAsync_ReturnsSuccess_WhenCloseSucceeds()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        ICampaignLifecycleService service = CreateService();
+
+        var result = await service.CloseAsync(ReadyCampaignId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies the cross-tier interface maps close blockers to a conflict problem that preserves the
+    /// condition-keyed error groups.
+    /// </summary>
+    [Fact]
+    public async Task ICampaignLifecycleService_CloseAsync_MapsBlockers_ToConflictWithErrors()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        ICampaignLifecycleService service = CreateService();
+
+        var result = await service.CloseAsync(BlockedCampaignId, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Errors.ShouldNotBeNull();
+        result.Problem.Errors!.ShouldContainKey("outcomes");
+        result.Problem.Errors.ShouldContainKey("eligibility");
+        result.Problem.Errors.ShouldContainKey("archivedTeams");
+    }
+
+    /// <summary>
+    /// Verifies the cross-tier interface maps forbidden, not-found, and already-closed outcomes for close.
+    /// </summary>
+    [Fact]
+    public async Task ICampaignLifecycleService_CloseAsync_MapsForbiddenNotFoundAndConflict()
+    {
+        ActAs(ClubAMemberId, ClubAId);
+        ICampaignLifecycleService memberService = CreateService();
+        var forbidden = await memberService.CloseAsync(ReadyCampaignId, TestContext.Current.CancellationToken);
+        forbidden.IsProblem.ShouldBeTrue();
+        forbidden.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        ICampaignLifecycleService adminService = CreateService();
+        var notFound = await adminService.CloseAsync(ClubBCampaignId, TestContext.Current.CancellationToken);
+        notFound.IsProblem.ShouldBeTrue();
+        notFound.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+
+        var alreadyClosed = await adminService.CloseAsync(ClosedCampaignId, TestContext.Current.CancellationToken);
+        alreadyClosed.IsProblem.ShouldBeTrue();
+        alreadyClosed.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        alreadyClosed.Problem.Errors.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Verifies the cross-tier interface maps success, conflict, forbidden, and not-found outcomes for reopen.
+    /// </summary>
+    [Fact]
+    public async Task ICampaignLifecycleService_ReopenAsync_MapsSuccessConflictForbiddenAndNotFound()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        ICampaignLifecycleService adminService = CreateService();
+
+        var success = await adminService.ReopenAsync(ClosedCampaignId, TestContext.Current.CancellationToken);
+        success.IsSuccess.ShouldBeTrue();
+
+        var alreadyActive = await adminService.ReopenAsync(ClosedCampaignId, TestContext.Current.CancellationToken);
+        alreadyActive.IsProblem.ShouldBeTrue();
+        alreadyActive.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        alreadyActive.Problem.Errors.ShouldBeNull();
+
+        var notFound = await adminService.ReopenAsync(ClubBCampaignId, TestContext.Current.CancellationToken);
+        notFound.IsProblem.ShouldBeTrue();
+        notFound.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+
+        ActAs(ClubAMemberId, ClubAId);
+        ICampaignLifecycleService memberService = CreateService();
+        var forbidden = await memberService.ReopenAsync(ClosedCampaignId, TestContext.Current.CancellationToken);
+        forbidden.IsProblem.ShouldBeTrue();
+        forbidden.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
     /// <summary>

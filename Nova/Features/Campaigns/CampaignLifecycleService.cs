@@ -1,9 +1,12 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Results;
 using OneOf;
 using OneOf.Types;
 
@@ -31,8 +34,35 @@ public partial class CampaignCloseResult : OneOfBase<
 public sealed partial class CampaignLifecycleService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<CampaignLifecycleService> logger)
+    ILogger<CampaignLifecycleService> logger) : ICampaignLifecycleService
 {
+    /// <inheritdoc />
+    async Task<ServiceResult<Success>> ICampaignLifecycleService.CloseAsync(
+        long campaignId,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await CloseAsync(campaignId, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            blocked => ServiceProblem.Conflict(blocked.Detail, blocked.Errors),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
+
+    /// <inheritdoc />
+    async Task<ServiceResult<Success>> ICampaignLifecycleService.ReopenAsync(
+        long campaignId,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await ReopenAsync(campaignId, cancellationToken);
+        return outcome.Match<ServiceResult<Success>>(
+            success => success,
+            _ => ServiceProblem.NotFound(),
+            forbidden => ServiceProblem.Forbidden(forbidden.Detail),
+            conflict => ServiceProblem.Conflict(conflict.Detail));
+    }
+
     /// <summary>
     /// Closes a campaign only when every participant has a final outcome, every assigned placement remains eligible,
     /// and no assigned team is archived.
@@ -52,7 +82,65 @@ public sealed partial class CampaignLifecycleService(
             return new LifecycleForbidden("You must be a club administrator to close a campaign.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+
+        // Records whether the most recent attempt reached CommitAsync. Verification is only
+        // meaningful for that attempt: a transient failure raised before the commit cannot have
+        // applied the closure, so the observed status belongs to some earlier request and must
+        // not be mistaken for this one's ambiguous commit.
+        var commitAttempted = new CommitAttemptTracker();
+
+        return await strategy.ExecuteAsync(
+            (CampaignId: campaignId, ActorUserId: actorUserId, ClubId: clubId, CommitAttempted: commitAttempted),
+            async (state, token) =>
+            {
+                state.CommitAttempted.Reset();
+                await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                return await CloseAttemptAsync(
+                    db,
+                    state.CampaignId,
+                    state.ActorUserId,
+                    state.ClubId,
+                    state.CommitAttempted,
+                    token);
+            },
+            async (state, token) =>
+            {
+                if (!state.CommitAttempted.Attempted)
+                {
+                    return new ExecutionResult<CampaignCloseResult>(successful: false, default!);
+                }
+
+                await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                return await VerifyClosureCommittedAsync(
+                    db,
+                    state.CampaignId,
+                    state.ActorUserId,
+                    state.ClubId,
+                    token);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies one campaign-close attempt inside a single transaction using a fresh tenant context.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="campaignId">The campaign identifier to close.</param>
+    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>The campaign-close result for this attempt.</returns>
+    private async Task<CampaignCloseResult> CloseAttemptAsync(
+        NovaDbContext db,
+        long campaignId,
+        long actorUserId,
+        long clubId,
+        CommitAttemptTracker commitAttempted,
+        CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await db.AcquireCampaignMutationLockAsync(campaignId, cancellationToken);
 
@@ -102,6 +190,7 @@ public sealed partial class CampaignLifecycleService(
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
+                commitAttempted.MarkAttempted();
                 await transaction.CommitAsync(cancellationToken);
             }
             catch (DbUpdateConcurrencyException)
@@ -126,6 +215,39 @@ public sealed partial class CampaignLifecycleService(
     }
 
     /// <summary>
+    /// Determines whether an ambiguous close commit already applied the closure so the execution
+    /// strategy can report success instead of replaying the attempt.
+    /// </summary>
+    /// <param name="db">The fresh tenant context used for verification.</param>
+    /// <param name="campaignId">The campaign identifier that was being closed.</param>
+    /// <param name="actorUserId">The administrator who requested the closure.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>A successful result when the closure is already persisted; otherwise unsuccessful.</returns>
+    private async Task<ExecutionResult<CampaignCloseResult>> VerifyClosureCommittedAsync(
+        NovaDbContext db,
+        long campaignId,
+        long actorUserId,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
+        var applied = await db.Campaigns
+            .AsNoTracking()
+            .Where(candidate => candidate.CampaignId == campaignId && candidate.ClubId == clubId)
+            .Select(candidate => new { candidate.Status, candidate.ClosedById })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (applied is { Status: CampaignStatus.Closed, ClosedById: var closedById }
+            && closedById == actorUserId)
+        {
+            LogCampaignLifecycleCommitVerified(campaignId);
+            return new ExecutionResult<CampaignCloseResult>(successful: true, new Success());
+        }
+
+        return new ExecutionResult<CampaignCloseResult>(successful: false, default!);
+    }
+
+    /// <summary>
     /// Reopens a closed campaign and records the transition as an append-only lifecycle event.
     /// </summary>
     /// <param name="campaignId">The campaign identifier to reopen.</param>
@@ -143,7 +265,62 @@ public sealed partial class CampaignLifecycleService(
             return new LifecycleForbidden("You must be a club administrator to reopen a campaign.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
+
+        // Records whether the most recent attempt reached CommitAsync. Verification is only
+        // meaningful for that attempt: a transient failure raised before the commit cannot have
+        // applied the reopen, so the observed status belongs to some earlier request and must
+        // not be mistaken for this one's ambiguous commit.
+        var commitAttempted = new CommitAttemptTracker();
+
+        return await strategy.ExecuteAsync(
+            (CampaignId: campaignId, ActorUserId: actorUserId, ClubId: clubId, CommitAttempted: commitAttempted),
+            async (state, token) =>
+            {
+                state.CommitAttempted.Reset();
+                await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                return await ReopenAttemptAsync(
+                    db,
+                    state.CampaignId,
+                    state.ActorUserId,
+                    state.ClubId,
+                    state.CommitAttempted,
+                    token);
+            },
+            async (state, token) =>
+            {
+                if (!state.CommitAttempted.Attempted)
+                {
+                    return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>(
+                        successful: false,
+                        default!);
+                }
+
+                await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                return await VerifyReopenCommittedAsync(db, state.CampaignId, state.ClubId, token);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies one campaign-reopen attempt inside a single transaction using a fresh tenant context.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="campaignId">The campaign identifier to reopen.</param>
+    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>The campaign-reopen result for this attempt.</returns>
+    private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> ReopenAttemptAsync(
+        NovaDbContext db,
+        long campaignId,
+        long actorUserId,
+        long clubId,
+        CommitAttemptTracker commitAttempted,
+        CancellationToken cancellationToken)
+    {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await db.AcquireCampaignMutationLockAsync(campaignId, cancellationToken);
 
@@ -177,6 +354,7 @@ public sealed partial class CampaignLifecycleService(
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            commitAttempted.MarkAttempted();
             await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
@@ -187,6 +365,40 @@ public sealed partial class CampaignLifecycleService(
 
         LogCampaignLifecycleChanged(campaignId, CampaignStatus.Active, actorUserId);
         return new Success();
+    }
+
+    /// <summary>
+    /// Determines whether an ambiguous reopen commit already applied the transition so the execution
+    /// strategy can report success instead of replaying the attempt.
+    /// </summary>
+    /// <param name="db">The fresh tenant context used for verification.</param>
+    /// <param name="campaignId">The campaign identifier that was being reopened.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>A successful result when the reopen is already persisted; otherwise unsuccessful.</returns>
+    private async Task<ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>> VerifyReopenCommittedAsync(
+        NovaDbContext db,
+        long campaignId,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
+        var applied = await db.Campaigns
+            .AsNoTracking()
+            .Where(candidate => candidate.CampaignId == campaignId && candidate.ClubId == clubId)
+            .Select(candidate => new { candidate.Status, candidate.ClosedById })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (applied is { Status: CampaignStatus.Active, ClosedById: null })
+        {
+            LogCampaignLifecycleCommitVerified(campaignId);
+            return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>(
+                successful: true,
+                new Success());
+        }
+
+        return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>>(
+            successful: false,
+            default!);
     }
 
     /// <summary>
@@ -238,4 +450,11 @@ public sealed partial class CampaignLifecycleService(
     /// <param name="actorUserId">The acting administrator identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "CampaignId={CampaignId} lifecycle changed to {Status} by UserId={ActorUserId}.")]
     private partial void LogCampaignLifecycleChanged(long campaignId, CampaignStatus status, long actorUserId);
+
+    /// <summary>
+    /// Logs an ambiguous commit that verification confirmed had already applied the transition.
+    /// </summary>
+    /// <param name="campaignId">The verified campaign identifier.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "CampaignId={CampaignId} lifecycle transition was already committed before the transient failure; skipping replay.")]
+    private partial void LogCampaignLifecycleCommitVerified(long campaignId);
 }
