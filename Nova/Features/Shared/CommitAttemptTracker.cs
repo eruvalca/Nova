@@ -1,4 +1,4 @@
-namespace Nova.Features.Shared;
+﻿namespace Nova.Features.Shared;
 
 /// <summary>
 /// Tracks whether a mutation attempt reached its commit, scoping ambiguous-commit verification

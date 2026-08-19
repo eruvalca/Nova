@@ -1,4 +1,4 @@
-namespace Nova.Shared.Features.Tags;
+﻿namespace Nova.Shared.Features.Tags;
 
 /// <summary>
 /// Shared limits for the tag-definition feature so the server, WebAssembly clients, and URL

@@ -1,4 +1,4 @@
-using Nova.Shared.Features.Tags;
+﻿using Nova.Shared.Features.Tags;
 using Nova.Shared.Validation;
 using Shouldly;
 

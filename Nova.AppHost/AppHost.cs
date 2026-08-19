@@ -1,4 +1,6 @@
-﻿var builder = DistributedApplication.CreateBuilder(args);
+﻿using Nova.AppHost;
+
+var builder = DistributedApplication.CreateBuilder(args);
 
 var postgres = builder
     .AddPostgres("postgres")
@@ -13,7 +15,7 @@ var storage = builder
 
 var profilePhotos = storage.AddBlobContainer("profile-photos");
 
-builder
+var nova = builder
     .AddProject<Projects.Nova>("nova")
     .WithReference(novaDatabase)
     .WaitFor(novaDatabase)
@@ -21,5 +23,25 @@ builder
     .WaitFor(profilePhotos)
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health");
+
+postgres.WithCommand(
+    name: "reset-db",
+    displayName: "Reset nova database",
+    executeCommand: context => AppHostCommands.ResetDatabaseAsync(
+        context,
+        novaDatabase.Resource.ConnectionStringExpression,
+        novaDatabase.Resource.DatabaseName,
+        nova.Resource),
+    commandOptions: AppHostCommands.CreateConfirmationOptions(
+        "Drops and recreates the nova database, then restarts Nova so migrations run again."));
+
+storage.WithCommand(
+    name: "clear-profile-photos",
+    displayName: "Clear profile photos",
+    executeCommand: context => AppHostCommands.ClearProfilePhotosAsync(
+        context,
+        profilePhotos.Resource.Parent.ConnectionStringExpression),
+    commandOptions: AppHostCommands.CreateConfirmationOptions(
+        "Deletes every blob from the profile-photos container."));
 
 builder.Build().Run();
