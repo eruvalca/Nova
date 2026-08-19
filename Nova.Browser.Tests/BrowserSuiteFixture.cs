@@ -85,8 +85,9 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
 
     /// <summary>
     /// Closes a campaign as a club administrator directly through the server-side lifecycle
-    /// service (there is no close UI or HTTP endpoint yet), then resets the shared mutable
-    /// current-user provider so later tests are unaffected.
+    /// service (there is no close UI or HTTP endpoint yet). The simulated user is scoped with
+    /// <see cref="NovaAppHostFixture.UseUser"/> so the previous flow-local values are restored on
+    /// completion without affecting concurrently running tests.
     /// </summary>
     /// <param name="campaignId">The campaign to close.</param>
     /// <param name="adminUserId">The acting administrator's user identifier.</param>
@@ -101,25 +102,14 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
     {
         var factory = _appHost.CreateTenantContextFactory();
         var currentUser = _appHost.CurrentUser;
-        try
-        {
-            currentUser.UserId = adminUserId;
-            currentUser.ClubId = clubId;
-            currentUser.IsClubAdmin = true;
+        using var userScope = _appHost.UseUser(adminUserId, clubId, isClubAdmin: true);
 
-            var service = new CampaignLifecycleService(
-                factory,
-                currentUser,
-                Microsoft.Extensions.Logging.Abstractions.NullLogger<CampaignLifecycleService>.Instance);
-            var result = await service.CloseAsync(campaignId, cancellationToken);
-            result.IsT0.ShouldBeTrue();
-        }
-        finally
-        {
-            currentUser.UserId = null;
-            currentUser.ClubId = null;
-            currentUser.IsClubAdmin = false;
-        }
+        var service = new CampaignLifecycleService(
+            factory,
+            currentUser,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CampaignLifecycleService>.Instance);
+        var result = await service.CloseAsync(campaignId, cancellationToken);
+        result.IsT0.ShouldBeTrue();
     }
 }
 

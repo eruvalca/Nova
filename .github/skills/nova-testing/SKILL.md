@@ -57,6 +57,12 @@ The browser suite needs a one-time browser download per machine before its first
 `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`. CI runs build and unit
 tests only; run the integration and browser suites locally before merge.
 
+All three projects run xUnit v4 `ParallelMode.All` (Conservative algorithm; browser capped at
+4 threads) via per-project `TestAssemblyParallelization.cs`. Tests share the AppHost/database,
+so keep data per-test unique and the simulated user flow-local: direct `fixture.CurrentUser.X = ...`
+assignment is parallel-safe (AsyncLocal-backed); use `fixture.UseUser(...)` only when restore-on-dispose
+semantics are needed. Never introduce static mutable test state.
+
 ## Checklist
 
 1. Pick `Nova.Unit.Tests` unless the behavior is provider-specific.

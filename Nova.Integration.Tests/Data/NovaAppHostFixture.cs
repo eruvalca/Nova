@@ -9,18 +9,29 @@ using Nova.Shared.Security;
 namespace Nova.Integration.Tests.Data;
 
 /// <summary>
-/// A mutable <see cref="ICurrentUserProvider"/> for simulating different users in tests.
+/// A flow-scoped <see cref="ICurrentUserProvider"/> for simulating different users in tests.
 /// </summary>
+/// <remarks>
+/// The property values are backed by <see cref="AsyncLocal{T}"/> so that mutations made inside one
+/// test method flow across its awaits and child tasks but never leak into concurrently running
+/// tests (xUnit v3 resets the execution context between test cases). Direct assignment is the
+/// normal flow-local idiom; use <see cref="NovaAppHostFixture.UseUser"/> when restore-on-dispose
+/// semantics are needed.
+/// </remarks>
 public sealed class FakeCurrentUserProvider : ICurrentUserProvider
 {
+    private readonly AsyncLocal<long?> _userId = new();
+    private readonly AsyncLocal<long?> _clubId = new();
+    private readonly AsyncLocal<bool> _isClubAdmin = new();
+
     /// <summary>Gets or sets the simulated user id, or <see langword="null"/> for anonymous.</summary>
-    public long? UserId { get; set; }
+    public long? UserId { get => _userId.Value; set => _userId.Value = value; }
 
     /// <summary>Gets or sets the simulated club id, or <see langword="null"/> when the user has no club.</summary>
-    public long? ClubId { get; set; }
+    public long? ClubId { get => _clubId.Value; set => _clubId.Value = value; }
 
     /// <summary>Gets or sets a value indicating whether the simulated user is a club admin.</summary>
-    public bool IsClubAdmin { get; set; }
+    public bool IsClubAdmin { get => _isClubAdmin.Value; set => _isClubAdmin.Value = value; }
 
     /// <summary>
     /// Builds the <see cref="CurrentUserState"/> union from the current property values.
@@ -38,7 +49,7 @@ public sealed class FakeCurrentUserProvider : ICurrentUserProvider
 /// <summary>
 /// Starts the real Nova AppHost (PostgreSQL 18 container plus the Nova web app) once per test
 /// collection, applies the production EF Core migrations, and exposes the live "novadb"
-/// connection string plus factories for the three application contexts wired to a mutable
+/// connection string plus factories for the three application contexts wired to a flow-scoped
 /// <see cref="FakeCurrentUserProvider"/>.
 /// </summary>
 public sealed class NovaAppHostFixture : IAsyncLifetime
@@ -51,6 +62,42 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
 
     /// <summary>Gets the mutable current-user provider used by all contexts created by this fixture.</summary>
     public FakeCurrentUserProvider CurrentUser { get; } = new();
+
+    /// <summary>
+    /// Sets the simulated current user for the remainder of the current test flow and restores the
+    /// previous values when the returned scope is disposed. Because the provider is AsyncLocal-backed,
+    /// the scope only affects the calling test — concurrent tests are unaffected.
+    /// </summary>
+    /// <param name="userId">The simulated user id, or <see langword="null"/> for anonymous.</param>
+    /// <param name="clubId">The simulated club id, or <see langword="null"/> when the user has no club.</param>
+    /// <param name="isClubAdmin">Whether the simulated user is a club admin.</param>
+    /// <returns>A scope that restores the previous current-user values on disposal.</returns>
+    public IDisposable UseUser(long? userId, long? clubId, bool isClubAdmin)
+    {
+        var previous = (CurrentUser.UserId, CurrentUser.ClubId, CurrentUser.IsClubAdmin);
+        CurrentUser.UserId = userId;
+        CurrentUser.ClubId = clubId;
+        CurrentUser.IsClubAdmin = isClubAdmin;
+        return new RestoreUserScope(CurrentUser, previous);
+    }
+
+    /// <summary>
+    /// Restores a <see cref="FakeCurrentUserProvider"/> to a snapshot on disposal.
+    /// </summary>
+    /// <param name="provider">The provider to restore.</param>
+    /// <param name="previous">The values captured before the scope was entered.</param>
+    private sealed class RestoreUserScope(
+        FakeCurrentUserProvider provider,
+        (long? UserId, long? ClubId, bool IsClubAdmin) previous) : IDisposable
+    {
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            provider.UserId = previous.UserId;
+            provider.ClubId = previous.ClubId;
+            provider.IsClubAdmin = previous.IsClubAdmin;
+        }
+    }
 
     /// <summary>
     /// A dedicated, never-mutated provider used only by admin contexts. Admin contexts bypass

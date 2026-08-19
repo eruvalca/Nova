@@ -100,7 +100,9 @@ flow, ProblemDetails bodies with `traceId`, ETag/304 caching, and owner-only acc
 
 1. Mark the test class with `[Collection(NovaAppHostCollection.Name)]` and use primary-constructor injection for `NovaAppHostFixture`.
 2. Seed through `fixture.CreateAdminContext()` and capture database-generated ids.
-3. Set `fixture.CurrentUser` before creating filtered contexts.
+3. Set `fixture.CurrentUser` before creating filtered contexts. The provider is AsyncLocal-backed,
+   so direct assignment is flow-local and parallel-safe under `ParallelMode.All`; use
+   `fixture.UseUser(userId, clubId, isAdmin)` when restore-on-dispose semantics are needed.
 4. Use `fixture.CreateTenantContext()`, `fixture.CreateReadContext()`, and `fixture.CreateAdminContext()` against the live PostgreSQL database.
 5. For HTTP e2e, use `fixture.CreateNovaHttpClient(allowAutoRedirect: false)` and assert redirects/status codes directly.
 6. Use unique emails/data per test; never rely on global counts.

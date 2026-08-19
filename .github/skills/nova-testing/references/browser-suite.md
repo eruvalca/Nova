@@ -54,8 +54,8 @@ them when writing any browser test:
   pass `new ViewportSize { Width = 480, Height = 800 }` for narrow-layout scenarios.
 - `fixture.CloseCampaignAsAdminAsync(campaignId, adminUserId, clubId, ct)` drives
   `CampaignLifecycleService` directly (there is no close UI or endpoint yet) through the
-  fixture's `CreateTenantContextFactory()` and resets the shared `CurrentUser` afterwards.
-  Use it for stale-close/conflict scenarios.
+  fixture's `CreateTenantContextFactory()` under a `UseUser` scope that restores the previous
+  simulated user on completion. Use it for stale-close/conflict scenarios.
 - Dispose each context with `await using`.
 
 ## Seeding

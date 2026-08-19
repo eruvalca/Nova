@@ -127,9 +127,15 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 - bunit and NSubstitute are available in the unit and integration test projects for component/service tests; the browser suite does not use them.
 - xUnit v4 additions available for future tests: `Assert.All`/`Assert.AllAsync(strict: true)` (fail on
   empty collections), per-test `Assert.OverrideMax*` message-formatting overrides, and fixture
-  lifecycle notification interfaces (`INotifyTestCollectionLifecycle` and friends). `ParallelMode.All`
-  is intentionally not adopted — shared harness/database state would race; keep the default
-  collection-level parallelization.
+  lifecycle notification interfaces (`INotifyTestCollectionLifecycle` and friends).
+- **Parallel execution**: all three test projects run `ParallelMode.All` (`ParallelAlgorithm.Conservative`;
+  unit + integration at CPU-thread default, browser capped at `MaxThreads = 4`) via per-project
+  `TestAssemblyParallelization.cs`. The simulated current user is AsyncLocal-backed, so direct
+  `fixture.CurrentUser.X = ...` assignment is flow-local and parallel-safe — never introduce
+  static/shared mutable user state. Use `fixture.UseUser(...)` when restore-on-dispose semantics
+  are needed. Opting out of parallelism (`[TestClass(DisableParallelism = true)]`, `[Fact]/[Theory(DisableParallelism = true)]`,
+  or a collection definition with `DisableParallelization = true`) is allowed only with an inline
+  reason; opt-out cannot be reversed at a lower level. Rationale: `plans/test-parallel-execution-parallelmode-all.md`.
 - Do not pass `null` or `null!` for required mock dependencies; supply `Substitute.For<T>()` (or a real implementation) and `Array.Empty<T>()` for empty collections. Reserve nulls for tests that intentionally exercise nullable behavior.
 
 ## Related
