@@ -130,8 +130,8 @@ public sealed record AdminAttentionDto
     public required int PendingJoinRequestCount { get; init; }
 
     /// <summary>
-    /// Gets the total number of unresolved placements across active campaigns, composed from the
-    /// authoritative placement summary contract.
+    /// Gets the total number of unresolved placements across active campaigns, read directly from the
+    /// tenant-filtered read context (authoritative across all active campaigns, independent of the card cap).
     /// </summary>
     public required int UnresolvedPlacementCount { get; init; }
 
