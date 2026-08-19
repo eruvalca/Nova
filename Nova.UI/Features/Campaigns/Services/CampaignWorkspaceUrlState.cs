@@ -241,7 +241,7 @@ public static class CampaignWorkspaceUrlState
     /// Normalizes a raw workspace tab token to a canonical tab, falling back to the evaluate tab.
     /// </summary>
     /// <param name="raw">The raw tab query value.</param>
-    /// <returns>The canonical tab token: <c>evaluate</c> or <c>placements</c>; unknown values fall back to <c>evaluate</c>.</returns>
+    /// <returns>The canonical tab token: <c>evaluate</c>, <c>placements</c>, <c>overview</c>, or <c>closeout</c>; unknown values fall back to <c>evaluate</c>.</returns>
     public static string NormalizeTab(string? raw)
         => NormalizeToken(raw, ValidTabs) ?? EvaluateTab;
 
