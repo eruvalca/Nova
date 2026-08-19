@@ -203,6 +203,11 @@ Status: Complete <!-- Not started | In progress | Complete -->
   `InvalidOperationException: The configured execution strategy 'NpgsqlRetryingExecutionStrategy' does not support user-initiated transactions` on the service's direct `BeginTransactionAsync` (the SQLite unit harness and fixture contexts do not configure the strategy). Refactored `CloseAsync`/`ReopenAsync` to the repo's canonical `CreateExecutionStrategy().ExecuteAsync` pattern with a fresh tenant context per attempt and commit verification (`VerifyClosureCommittedAsync`/`VerifyReopenCommittedAsync`) that reconstructs success after an ambiguous commit — no policy, persistence, or schema changes.
 - `CampaignLifecycleHttpTests` (7 tests): anonymous 401, member 403 (both endpoints), admin close 204 + persisted `Closed`/`ClosedAt`/`ClosedById` + `Closed` event, blocked close 409 with `outcomes`/`eligibility`/`archivedTeams` keys + counts/assignment ids and campaign still `Active`, cross-tenant 404 (non-disclosing), already-closed close 409 + already-active reopen 409, admin reopen 204 + closure metadata cleared + `Reopened` event.
 - Regression runs: `CampaignLifecyclePostgresTests` 8 passed, `CampaignTagApplicationHttpTests` 17 passed.
+- Review remediation: added `Nova.Integration.Tests/Data/CampaignLifecycleRetryTests.cs` (6 tests) plus a
+  `FailFirstCampaignReadInterceptor` to `ExecutionStrategyRetryTestSupport.cs`, covering close/reopen retries
+  after transient save failures, ambiguous-commit reconstruction (close + reopen), and pre-commit
+  transient-failure conflicts (already-closed close / already-active reopen) exercising the
+  `!Attempted` short-circuit; all 6 passed against the AppHost.
 
 ## Phase 6: Formatting, full validation, acceptance walk, and PR
 
@@ -251,9 +256,10 @@ operations are now exposed through administrator-only HTTP endpoints and a typed
   retrying PostgreSQL provider; refactored to the canonical `CreateExecutionStrategy().ExecuteAsync`
   pattern with a fresh tenant context per attempt and commit verification (no policy/persistence changes).
 - **Tests**: 20 new unit tests (endpoint metadata + exhaustive conversion + client contract + explicit
-  interface mapping) and 7 new Aspire integration HTTP tests. Full unit suite 1527 passed; integration
-  classes `CampaignLifecycleHttpTests` (7), `CampaignLifecyclePostgresTests` (8), and
-  `CampaignTagApplicationHttpTests` (17) all passed locally.
+  interface mapping), 7 new Aspire integration HTTP tests, and 6 new PostgreSQL retry integration tests
+  (`CampaignLifecycleRetryTests`). Full unit suite 1527 passed; integration classes
+  `CampaignLifecycleHttpTests` (7), `CampaignLifecyclePostgresTests` (8), and
+  `CampaignLifecycleRetryTests` (6) all passed locally.
 
 Acceptance criteria evidence:
 1. Only club administrators can close or reopen — group-level `RequireClubAdmin` policy plus the
