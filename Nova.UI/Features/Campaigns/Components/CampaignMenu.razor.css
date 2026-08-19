@@ -1,0 +1,8 @@
+.campaign-menu {
+    position: relative;
+}
+
+.campaign-menu-list {
+    top: 100%;
+    right: 0;
+}

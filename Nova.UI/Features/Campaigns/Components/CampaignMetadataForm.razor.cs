@@ -155,6 +155,20 @@ public sealed class CampaignMetadataFormState : IValidatableObject
     };
 
     /// <summary>
+    /// Creates a form state from a loaded campaign detail payload.
+    /// </summary>
+    /// <param name="detail">The loaded campaign detail.</param>
+    /// <returns>A form state initialized with the current metadata.</returns>
+    public static CampaignMetadataFormState FromDetail(CampaignDetailResult detail) => new()
+    {
+        CampaignId = detail.CampaignId,
+        Name = detail.Name,
+        SeasonId = detail.SeasonId,
+        StartDate = detail.StartDate,
+        PlannedEndDate = detail.PlannedEndDate
+    };
+
+    /// <summary>
     /// Converts this state to an update-campaign-metadata input payload.
     /// </summary>
     /// <returns>An update-campaign-metadata input payload.</returns>

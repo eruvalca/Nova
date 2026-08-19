@@ -1,0 +1,29 @@
+@if (IsClubAdmin)
+{
+    <div class="campaign-menu">
+        <button type="button" class="btn btn-outline-secondary btn-sm" aria-haspopup="menu" aria-expanded="@(_isOpen ? "true" : "false")" @onclick="ToggleMenu" @onkeydown="OnKeyDown">
+            Campaign menu
+        </button>
+
+        @if (_isOpen)
+        {
+            <ul class="dropdown-menu show campaign-menu-list" role="menu" @onkeydown="OnKeyDown">
+                @if (!IsClosed)
+                {
+                    <li role="none">
+                        <button type="button" role="menuitem" class="dropdown-item" @onclick="() => SelectItemAsync(OnEditMetadata)">Edit metadata</button>
+                    </li>
+                    <li role="none">
+                        <button type="button" role="menuitem" class="dropdown-item" @onclick="() => SelectItemAsync(OnCloseCampaign)">Close campaign</button>
+                    </li>
+                }
+                else
+                {
+                    <li role="none">
+                        <button type="button" role="menuitem" class="dropdown-item" @onclick="() => SelectItemAsync(OnReopen)">Reopen</button>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+}

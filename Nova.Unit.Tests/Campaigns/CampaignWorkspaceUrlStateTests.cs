@@ -191,7 +191,10 @@ public sealed class CampaignWorkspaceUrlStateTests
     [InlineData("EVALUATE", "evaluate")]
     [InlineData("placements", "placements")]
     [InlineData("PLACEMENTS", "placements")]
-    [InlineData("overview", "evaluate")]
+    [InlineData("overview", "overview")]
+    [InlineData("OVERVIEW", "overview")]
+    [InlineData("closeout", "closeout")]
+    [InlineData("CLOSEOUT", "closeout")]
     [InlineData("garbage", "evaluate")]
     public void NormalizeTab_ReturnsCanonicalToken_OrEvaluateFallback(string? raw, string expected)
     {
@@ -246,6 +249,38 @@ public sealed class CampaignWorkspaceUrlStateTests
     {
         CampaignWorkspaceUrlState.BuildWorkspaceUrl(10, new CampaignWorkspaceRosterState { Search = "ave" })
             .ShouldBe("/campaigns/10?search=ave&tab=evaluate");
+    }
+
+    // ── Overview / closeout / review-unresolved URLs ──────────────────────────
+
+    [Fact]
+    public void BuildOverviewWorkspaceUrl_EmitsOnlyOverviewTab()
+    {
+        CampaignWorkspaceUrlState.BuildOverviewWorkspaceUrl(10)
+            .ShouldBe("/campaigns/10?tab=overview");
+    }
+
+    [Fact]
+    public void BuildCloseoutWorkspaceUrl_EmitsOnlyCloseoutTab()
+    {
+        CampaignWorkspaceUrlState.BuildCloseoutWorkspaceUrl(10)
+            .ShouldBe("/campaigns/10?tab=closeout");
+    }
+
+    [Fact]
+    public void BuildReviewUnresolvedUrl_EmitsUnresolvedOnly_AndPlacementsTab()
+    {
+        CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(10)
+            .ShouldBe("/campaigns/10?unresolvedOnly=true&tab=placements");
+    }
+
+    [Fact]
+    public void OverviewAndCloseoutTabTokens_AreCanonicalAndNormalizeRoundTrip()
+    {
+        CampaignWorkspaceUrlState.NormalizeTab(CampaignWorkspaceUrlState.OverviewTab).ShouldBe("overview");
+        CampaignWorkspaceUrlState.NormalizeTab(CampaignWorkspaceUrlState.CloseoutTab).ShouldBe("closeout");
+        CampaignWorkspaceUrlState.NormalizeTab("OVERVIEW").ShouldBe("overview");
+        CampaignWorkspaceUrlState.NormalizeTab("CLOSEOUT").ShouldBe("closeout");
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
