@@ -67,10 +67,10 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies another club's join request is non-disclosing (404) for approve/reject and is left pending.
+    /// Verifies approving another club's join request is non-disclosing (404) and leaves it pending.
     /// </summary>
     [Fact]
-    public async Task ApproveReject_ReturnsNotFound_ForCrossTenantRequest()
+    public async Task Approve_ReturnsNotFound_ForCrossTenantRequest()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAClient = fixture.CreateNovaHttpClient();
@@ -83,17 +83,42 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
 
         _ = await RegisterClubAdminAsync(clubBClient, "approve-xclub-b", "Cross Approve B", cancellationToken);
 
-        using (var approve = await clubBClient.PostAsync(ClubEndpoints.ApproveJoinRequestUrl(request.ClubJoinRequestId), content: null, cancellationToken))
-        {
-            approve.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-            var problem = await approve.ToServiceProblemAsync(cancellationToken);
-            problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
-        }
+        using var approve = await clubBClient.PostAsync(
+            ClubEndpoints.ApproveJoinRequestUrl(request.ClubJoinRequestId), content: null, cancellationToken);
+        approve.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var problem = await approve.ToServiceProblemAsync(cancellationToken);
+        problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
 
-        using (var reject = await clubBClient.PostAsync(ClubEndpoints.RejectJoinRequestUrl(request.ClubJoinRequestId), content: null, cancellationToken))
-        {
-            reject.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        }
+        await using var db = fixture.CreateAdminContext();
+        var status = await db.ClubJoinRequests
+            .Where(candidate => candidate.ClubJoinRequestId == request.ClubJoinRequestId)
+            .Select(candidate => candidate.Status)
+            .SingleAsync(cancellationToken);
+        status.ShouldBe(RequestStatus.Pending);
+    }
+
+    /// <summary>
+    /// Verifies rejecting another club's join request is non-disclosing (404) and leaves it pending.
+    /// </summary>
+    [Fact]
+    public async Task Reject_ReturnsNotFound_ForCrossTenantRequest()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var clubAClient = fixture.CreateNovaHttpClient();
+        using var clubBClient = fixture.CreateNovaHttpClient();
+        using var joinerClient = fixture.CreateNovaHttpClient();
+
+        var clubA = await RegisterClubAdminAsync(clubAClient, "reject-xclub-a", "Cross Reject A", cancellationToken);
+        _ = await RegisterUserAsync(joinerClient, "reject-xclub-joiner", "Joiner", "Cross", clubId: null, cancellationToken);
+        var request = await CreateJoinRequestAsync(joinerClient, clubA.Club.ClubId, cancellationToken);
+
+        _ = await RegisterClubAdminAsync(clubBClient, "reject-xclub-b", "Cross Reject B", cancellationToken);
+
+        using var reject = await clubBClient.PostAsync(
+            ClubEndpoints.RejectJoinRequestUrl(request.ClubJoinRequestId), content: null, cancellationToken);
+        reject.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var problem = await reject.ToServiceProblemAsync(cancellationToken);
+        problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
 
         await using var db = fixture.CreateAdminContext();
         var status = await db.ClubJoinRequests
