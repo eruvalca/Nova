@@ -97,6 +97,49 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Create_DoesNotEnrollInOtherClubsActiveCampaign()
+    {
+        // Seed an active campaign in Club B so the tenant filter has cross-tenant rows to hide.
+        long clubBActiveCampaignId;
+        using (var seedDb = _harness.CreateAdminContext())
+        {
+            var seasonB = new SeasonEntity
+            {
+                Name = "Season B",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = ClubBId,
+                CreatedById = ClubBAdminId
+            };
+            seedDb.Seasons.Add(seasonB);
+            seedDb.SaveChanges();
+
+            var campaignB = new CampaignEntity
+            {
+                Name = "Club B Active Campaign",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = seasonB.SeasonId,
+                ClubId = ClubBId,
+                CreatedById = ClubBAdminId
+            };
+            seedDb.Campaigns.Add(campaignB);
+            seedDb.SaveChanges();
+            clubBActiveCampaignId = campaignB.CampaignId;
+        }
+
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        var sut = CreateService();
+
+        var result = await sut.CreateAsync(ValidCreateInput(), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        using var verifyDb = _harness.CreateAdminContext();
+        verifyDb.PlayerCampaignAssignments
+            .Any(a => a.PlayerId == result.Value.PlayerId && a.CampaignId == clubBActiveCampaignId)
+            .ShouldBeFalse("a player created in Club A must not be enrolled in Club B's active campaign");
+    }
+
+    [Fact]
     public async Task Create_ReturnsForbidden_ForNonAdmin()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);

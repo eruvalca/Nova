@@ -173,6 +173,57 @@ internal static class SeedingHelpers
     }
 
     /// <summary>
+    /// The identifiers produced by season/campaign seeding without participants.
+    /// </summary>
+    /// <param name="SeasonId">The season identifier.</param>
+    /// <param name="CampaignId">The active campaign identifier.</param>
+    public sealed record SeededSeasonAndCampaign(long SeasonId, long CampaignId);
+
+    /// <summary>
+    /// Seeds an active season and an active campaign (no participants) for the given club.
+    /// </summary>
+    /// <param name="fixture">The AppHost fixture providing the admin context.</param>
+    /// <param name="clubId">The owning club identifier.</param>
+    /// <param name="adminEmail">A registered user email whose database row provides the created-by identifier.</param>
+    /// <param name="namePrefix">A stable name prefix for the seeded records.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The seeded season and campaign identifiers.</returns>
+    public static async Task<SeededSeasonAndCampaign> SeedSeasonAndCampaignAsync(
+        NovaAppHostFixture fixture,
+        long clubId,
+        string adminEmail,
+        string namePrefix,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var user = await context.Users.SingleAsync(
+            candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
+        var suffix = Guid.NewGuid().ToString("N");
+        var season = new SeasonEntity
+        {
+            Name = $"{namePrefix} Season {suffix}",
+            StartDate = new DateOnly(2026, 1, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            ClubId = clubId,
+            CreatedById = user.Id
+        };
+        var campaign = new CampaignEntity
+        {
+            Name = $"{namePrefix} Campaign {suffix}",
+            StartDate = new DateOnly(2026, 6, 1),
+            Status = CampaignStatus.Active,
+            Season = season,
+            SeasonId = 0,
+            ClubId = clubId,
+            CreatedById = user.Id
+        };
+        context.AddRange(season, campaign);
+        await context.SaveChangesAsync(cancellationToken);
+
+        return new SeededSeasonAndCampaign(season.SeasonId, campaign.CampaignId);
+    }
+
+    /// <summary>
     /// Inserts an active team for the given club with the requested graduation-year cutoff.
     /// </summary>
     /// <param name="fixture">The AppHost fixture providing the admin context.</param>

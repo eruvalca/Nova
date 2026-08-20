@@ -126,6 +126,65 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
         }
     }
 
+    /// <summary>
+    /// Creates a player in Club A while Club B also has an active campaign, then asserts the new
+    /// player is enrolled only in Club A's campaign — never in another club's active campaign.
+    /// </summary>
+    [Fact]
+    public async Task PlayerCreation_DoesNotEnrollInOtherClubsActiveCampaign()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        long clubAId, clubACampaignId, clubBCampaignId, clubAAdminId;
+        await using (var db = fixture.CreateAdminContext())
+        {
+            var suffix = Guid.NewGuid().ToString("N");
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+
+            var clubA = new ClubEntity { Name = $"Isolation Club A {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+            var clubB = new ClubEntity { Name = $"Isolation Club B {suffix}", City = "Boston", State = "MA", CreatedById = actorUserId };
+            db.Clubs.AddRange(clubA, clubB);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var seasonA = new SeasonEntity { Name = $"Season A {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = actorUserId };
+            var seasonB = new SeasonEntity { Name = $"Season B {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = actorUserId };
+            db.Seasons.AddRange(seasonA, seasonB);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var campaignA = new CampaignEntity { Name = $"Campaign A {suffix}", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonA.SeasonId, ClubId = clubA.ClubId, CreatedById = actorUserId };
+            var campaignB = new CampaignEntity { Name = $"Campaign B {suffix}", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonB.SeasonId, ClubId = clubB.ClubId, CreatedById = actorUserId };
+            db.Campaigns.AddRange(campaignA, campaignB);
+            await db.SaveChangesAsync(cancellationToken);
+
+            clubAId = clubA.ClubId;
+            clubACampaignId = campaignA.CampaignId;
+            clubBCampaignId = campaignB.CampaignId;
+            clubAAdminId = actorUserId;
+        }
+
+        ActAs(clubAAdminId, clubAId, isAdmin: true);
+
+        var result = await CreateService().CreateAsync(
+            new CreatePlayerInput
+            {
+                FirstName = "Isolation",
+                LastName = "Player",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030
+            },
+            cancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+
+        await using var verifyDb = fixture.CreateAdminContext();
+        var assignments = await verifyDb.PlayerCampaignAssignments
+            .Where(a => a.PlayerId == result.Value.PlayerId)
+            .ToListAsync(cancellationToken);
+
+        assignments.Count.ShouldBe(1, "the new player should only enroll in their own club's active campaign");
+        assignments[0].CampaignId.ShouldBe(clubACampaignId);
+        assignments.ShouldNotContain(a => a.CampaignId == clubBCampaignId);
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private void ActAs(long? userId, long? clubId, bool isAdmin)

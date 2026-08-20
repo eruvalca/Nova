@@ -174,6 +174,17 @@ public sealed class TagDefinitionLifecycleServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Restore_ReturnsForbidden_ForNonAdmin()
+    {
+        ActAs(ClubAMemberId, ClubAId, isAdmin: false);
+
+        var result = await CreateService().RestoreAsync(ArchivedTagId, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    [Fact]
     public async Task Restore_ReturnsNotFound_ForCrossTenantTag()
     {
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);

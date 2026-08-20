@@ -100,6 +100,120 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a non-admin club member cannot create a team.
+    /// </summary>
+    [Fact]
+    public async Task CreateTeam_ReturnsForbidden_ForClubMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+
+        var club = await RegisterClubAdminAsync(adminClient, "team-create-member-admin", "Member Blockers", cancellationToken);
+        await RegisterClubMemberAsync(memberClient, "team-create-member", club.ClubId, cancellationToken);
+
+        using var response = await memberClient.PostAsJsonAsync(
+            TeamEndpoints.Create,
+            new CreateTeamInput { Name = $"Team-{Guid.CreateVersion7():N}", GraduationYear = 2031 },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>
+    /// Verifies the team update endpoint rejects anonymous callers.
+    /// </summary>
+    [Fact]
+    public async Task UpdateTeam_ReturnsUnauthorized_ForAnonymous()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        using var response = await client.PutAsJsonAsync(
+            TeamEndpoints.UpdateUrl(1),
+            new UpdateTeamInput { TeamId = 1, Name = "Anonymous", GraduationYear = 2031 },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// Verifies a non-admin club member cannot update a team in their own club.
+    /// </summary>
+    [Fact]
+    public async Task UpdateTeam_ReturnsForbidden_ForClubMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+
+        var club = await RegisterClubAdminAsync(adminClient, "team-update-member-admin", "Update Blockers", cancellationToken);
+        var team = await CreateTeamAsync(adminClient, cancellationToken);
+        await RegisterClubMemberAsync(memberClient, "team-update-member", club.ClubId, cancellationToken);
+
+        using var response = await memberClient.PutAsJsonAsync(
+            TeamEndpoints.UpdateUrl(team.TeamId),
+            new UpdateTeamInput { TeamId = team.TeamId, Name = "Hijacked", GraduationYear = team.GraduationYear },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>
+    /// Verifies a club administrator can update a team and receives the updated DTO.
+    /// </summary>
+    [Fact]
+    public async Task UpdateTeam_ReturnsOk_ForClubAdmin()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+
+        await RegisterClubAdminAsync(client, "team-update-admin", "Update Lancers", cancellationToken);
+        var team = await CreateTeamAsync(client, cancellationToken);
+        var updatedName = $"Updated-{Guid.CreateVersion7():N}";
+
+        using var response = await client.PutAsJsonAsync(
+            TeamEndpoints.UpdateUrl(team.TeamId),
+            new UpdateTeamInput { TeamId = team.TeamId, Name = updatedName, GraduationYear = team.GraduationYear },
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var updated = await response.Content.ReadFromJsonAsync<TeamDto>(cancellationToken);
+        updated.ShouldNotBeNull();
+        updated.Name.ShouldBe(updatedName);
+    }
+
+    /// <summary>
+    /// Creates a team through the HTTP API and returns its DTO.
+    /// </summary>
+    private async Task<TeamDto> CreateTeamAsync(HttpClient client, CancellationToken cancellationToken)
+    {
+        using var response = await client.PostAsJsonAsync(
+            TeamEndpoints.Create,
+            new CreateTeamInput { Name = $"Team-{Guid.CreateVersion7():N}", GraduationYear = 2031 },
+            cancellationToken);
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var team = await response.Content.ReadFromJsonAsync<TeamDto>(cancellationToken);
+        team.ShouldNotBeNull();
+        return team;
+    }
+
+    /// <summary>
+    /// Registers a completed-profile user as a member of an existing club and refreshes their claims.
+    /// </summary>
+    private async Task RegisterClubMemberAsync(
+        HttpClient client,
+        string emailPrefix,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
+        var email = SeedingHelpers.UniqueEmail(emailPrefix);
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await SeedingHelpers.UpdateUserAsync(fixture, email, clubId, cancellationToken, "Team", "Member");
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
+    }
+
+    /// <summary>
     /// Registers a new user, creates a club for them, and refreshes their membership claims so they
     /// act as that club's administrator.
     /// </summary>

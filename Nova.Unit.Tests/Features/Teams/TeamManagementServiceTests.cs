@@ -135,6 +135,19 @@ public sealed class TeamManagementServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Update_ReturnsForbidden_ForNonAdmin()
+    {
+        ActAs(ClubAMemberId, ClubAId, isAdmin: false);
+
+        var result = await CreateService().UpdateAsync(
+            new UpdateTeamInput { TeamId = _teamId, Name = "Changed", GraduationYear = 2028 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    [Fact]
     public async Task Update_ReturnsNotFound_ForOtherClubTeam()
     {
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);

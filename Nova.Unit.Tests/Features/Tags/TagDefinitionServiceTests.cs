@@ -205,6 +205,19 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Update_ReturnsForbidden_ForNonAdmin()
+    {
+        ActAs(ClubAMemberId, ClubAId, isAdmin: false);
+
+        var result = await CreateService().UpdateAsync(
+            new UpdateTagDefinitionInput { TagId = ClubATagId, Name = "Changed", Color = "#1a2b3c" },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    [Fact]
     public async Task Update_ReturnsNotFound_ForCrossTenantTag()
     {
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);

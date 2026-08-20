@@ -374,6 +374,79 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies updating another club's tag identifier is non-disclosing (404) and leaves it unchanged.
+    /// </summary>
+    [Fact]
+    public async Task UpdateTagDefinition_ReturnsNotFound_ForCrossTenantTag()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var clubAClient = fixture.CreateNovaHttpClient();
+        using var clubBClient = fixture.CreateNovaHttpClient();
+
+        _ = await RegisterClubAdminAsync(clubAClient, "tag-update-cross-a", "Update Cross A", cancellationToken);
+        var tagA = await CreateTagAsync(clubAClient, $"CrossA-{Guid.CreateVersion7():N}", "#111111", cancellationToken);
+
+        _ = await RegisterClubAdminAsync(clubBClient, "tag-update-cross-b", "Update Cross B", cancellationToken);
+
+        using var response = await clubBClient.PutAsJsonAsync(
+            TagEndpoints.UpdateUrl(tagA.PlayerTagId),
+            new UpdateTagDefinitionInput { TagId = tagA.PlayerTagId, Name = "Hijacked", Color = "#222222" },
+            cancellationToken);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        await using var db = fixture.CreateAdminContext();
+        var tag = await db.PlayerTags.SingleAsync(t => t.PlayerTagId == tagA.PlayerTagId, cancellationToken);
+        tag.Name.ShouldBe(tagA.Name);
+        tag.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
+    }
+
+    /// <summary>
+    /// Verifies archiving another club's tag identifier is non-disclosing (404) and leaves it active.
+    /// </summary>
+    [Fact]
+    public async Task ArchiveTagDefinition_ReturnsNotFound_ForCrossTenantTag()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var clubAClient = fixture.CreateNovaHttpClient();
+        using var clubBClient = fixture.CreateNovaHttpClient();
+
+        _ = await RegisterClubAdminAsync(clubAClient, "tag-archive-cross-a", "Archive Cross A", cancellationToken);
+        var tagA = await CreateTagAsync(clubAClient, $"CrossA-{Guid.CreateVersion7():N}", "#111111", cancellationToken);
+
+        _ = await RegisterClubAdminAsync(clubBClient, "tag-archive-cross-b", "Archive Cross B", cancellationToken);
+
+        using var response = await clubBClient.PostAsync(TagEndpoints.ArchiveUrl(tagA.PlayerTagId), null, cancellationToken);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        await using var db = fixture.CreateAdminContext();
+        var tag = await db.PlayerTags.SingleAsync(t => t.PlayerTagId == tagA.PlayerTagId, cancellationToken);
+        tag.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
+    }
+
+    /// <summary>
+    /// Verifies restoring another club's tag identifier is non-disclosing (404) and leaves it active.
+    /// </summary>
+    [Fact]
+    public async Task RestoreTagDefinition_ReturnsNotFound_ForCrossTenantTag()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var clubAClient = fixture.CreateNovaHttpClient();
+        using var clubBClient = fixture.CreateNovaHttpClient();
+
+        _ = await RegisterClubAdminAsync(clubAClient, "tag-restore-cross-a", "Restore Cross A", cancellationToken);
+        var tagA = await CreateTagAsync(clubAClient, $"CrossA-{Guid.CreateVersion7():N}", "#111111", cancellationToken);
+
+        _ = await RegisterClubAdminAsync(clubBClient, "tag-restore-cross-b", "Restore Cross B", cancellationToken);
+
+        using var response = await clubBClient.PostAsync(TagEndpoints.RestoreUrl(tagA.PlayerTagId), null, cancellationToken);
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        await using var db = fixture.CreateAdminContext();
+        var tag = await db.PlayerTags.SingleAsync(t => t.PlayerTagId == tagA.PlayerTagId, cancellationToken);
+        tag.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
+    }
+
+    /// <summary>
     /// Creates a tag definition through the HTTP API and returns its DTO.
     /// </summary>
     private async Task<TagDefinitionDto> CreateTagAsync(
