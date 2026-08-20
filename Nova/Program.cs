@@ -226,6 +226,12 @@ app.UseWhen(
 
 app.UseHttpsRedirection();
 
+// Authenticate before the onboarding gates so they can inspect the user's profile-photo and
+// club-membership claims. The automatic WebApplication pipeline places UseAuthorization before
+// user middleware, which would deny photo-less/club-less users (redirect to AccessDenied) before
+// the gates could redirect them to onboarding — register these explicitly in the correct order.
+app.UseAuthentication();
+
 app.UseAntiforgery();
 
 // Required-profile-photo gate: signed-in users without a photo are sent to the photo page.
@@ -233,6 +239,9 @@ app.UseMiddleware<ProfilePhotoGateMiddleware>();
 
 // Club onboarding gate: users with a photo but no club are sent to the club onboarding page.
 app.UseMiddleware<ClubOnboardingGateMiddleware>();
+
+// Authorize after the onboarding gates so completed onboarding is enforced before policy denials.
+app.UseAuthorization();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
