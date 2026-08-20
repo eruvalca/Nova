@@ -304,11 +304,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(blockerRows.Nth(0)).ToContainTextAsync("Undecided");
         await Expect(blockerRows.Nth(1)).ToContainTextAsync("Eligibility");
         await Expect(blockerRows.Nth(2)).ToContainTextAsync("Archived teams");
-        await AssertTouchTargetAsync(narrowPage, narrowPage.GetByRole(AriaRole.Button, new() { Name = "Close campaign" }), "Close campaign");
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(narrowPage, narrowPage.GetByRole(AriaRole.Button, new() { Name = "Close campaign" }), "Close campaign");
 
         // The wide-viewport pass closed the ready campaign, so its closeout now shows "Reopen campaign".
         await OpenCloseoutAsync(narrowPage, seed.ReadyCampaignId);
-        await AssertTouchTargetAsync(narrowPage, narrowPage.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" }), "Reopen campaign");
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(narrowPage, narrowPage.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" }), "Reopen campaign");
     }
 
     [Fact]
@@ -331,6 +331,78 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await OpenCloseoutAsync(page, seed.ClosedCampaignId);
         await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "closeout-closed.png") });
     }
+
+    [Fact]
+    public async Task Closeout_Loading_ShowsIndicator_ThenRendersChecklist()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}").ToString());
+        await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
+
+        // Hold the closeout-readiness fetch open while the loading state is asserted, then release it.
+        var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var intercepted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync(
+            IsCloseoutReadinessUrl,
+            async route =>
+            {
+                intercepted.TrySetResult(null);
+                await release.Task;
+                await route.ContinueAsync();
+            });
+
+        await ActUntilAsync(
+            page,
+            () => page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }).ClickAsync(new() { Timeout = 3000 }),
+            () => page.Locator("#closeout-region-heading").IsVisibleAsync());
+        await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        await Expect(page.GetByText("Loading closeout...")).ToBeVisibleAsync();
+
+        release.TrySetResult(null);
+        await Expect(page.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(3);
+        await page.UnrouteAsync(IsCloseoutReadinessUrl);
+    }
+
+    [Fact]
+    public async Task Closeout_Failure_ShowsRetry_AndRetryRecovers()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}").ToString());
+        await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
+
+        await page.RouteAsync(IsCloseoutReadinessUrl, route => route.FulfillAsync(new() { Status = 500 }));
+
+        await ActUntilAsync(
+            page,
+            () => page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }).ClickAsync(new() { Timeout = 3000 }),
+            () => page.Locator("#closeout-region-heading").IsVisibleAsync());
+
+        var errorAlert = page.Locator("div.alert-danger[role=alert]");
+        await Expect(errorAlert).ToContainTextAsync("Failed to load closeout readiness");
+        var retry = errorAlert.GetByRole(AriaRole.Button, new() { Name = "Retry" });
+        await Expect(retry).ToBeVisibleAsync();
+
+        await page.UnrouteAsync(IsCloseoutReadinessUrl);
+        await retry.ClickAsync();
+
+        await Expect(page.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(3);
+        await Expect(page.Locator("div.alert-danger[role=alert]")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>Matches the closeout-readiness fetch.</summary>
+    private static bool IsCloseoutReadinessUrl(string url) =>
+        url.Contains("/api/campaigns/", StringComparison.Ordinal)
+        && url.Contains("/closeout-readiness", StringComparison.Ordinal);
 
     /// <summary>Navigates to the closeout tab and waits for its heading.</summary>
     private async Task OpenCloseoutAsync(IPage page, long campaignId)
@@ -436,30 +508,6 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             page,
             () => save.ClickAsync(new() { Timeout = 3000 }),
             () => page.GetByText("Placement saved.").IsVisibleAsync());
-    }
-
-    /// <summary>Asserts a control meets the WCAG 2.5.8 minimum target size (24×24 CSS px).</summary>
-    private static async Task AssertTouchTargetAsync(IPage page, ILocator locator, string name)
-    {
-        await Expect(locator).ToBeVisibleAsync();
-
-        // The circuit can re-render right after visibility, briefly collapsing the control to a
-        // zero-size bounding box. Retry the measurement until the layout settles.
-        double[] size = [];
-        for (var attempt = 0; attempt < 20; attempt++)
-        {
-            size = await locator.EvaluateAsync<double[]>(
-                "(el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }");
-            if (size[0] > 0 && size[1] > 0)
-            {
-                break;
-            }
-
-            await page.WaitForTimeoutAsync(200);
-        }
-
-        size[0].ShouldBeGreaterThanOrEqualTo(24, $"touch-target width for {name}");
-        size[1].ShouldBeGreaterThanOrEqualTo(24, $"touch-target height for {name}");
     }
 
     /// <summary>Repeatedly clicks a locator until the supplied settle predicate succeeds.</summary>

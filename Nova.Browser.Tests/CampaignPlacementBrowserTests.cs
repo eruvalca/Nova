@@ -286,6 +286,128 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Save" })).ToHaveCountAsync(0);
     }
 
+    [Fact]
+    public async Task Placements_AllResolved_ShowsZeroUndecided_AndEmptyUnresolvedView()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
+        var page = context.Pages[0];
+        await OpenPlacementsAsync(page, seed.AllResolvedCampaignId);
+
+        // Every placement is resolved, so the summary reports zero undecided.
+        await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("0 undecided");
+        await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("3 not selected");
+
+        // The unresolved-only view is empty and offers a clear-filters escape hatch.
+        await CheckUnresolvedOnlyAsync(page);
+        await Expect(page.GetByText("No placements match the current filters.")).ToBeVisibleAsync();
+        await Expect(page.Locator("tbody tr[id^='placement-row-']")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task Placements_AssignedWithoutTeam_ShowsInlineValidationError()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
+        var page = context.Pages[0];
+        await OpenPlacementsAsync(page, seed.CampaignId);
+
+        var firstRow = page.Locator("tbody tr[id^='placement-row-']").First;
+        await Expect(firstRow).ToBeVisibleAsync();
+        var outcomeSelect = firstRow.Locator("select[aria-label^='Outcome for']");
+        var teamSelect = firstRow.Locator("select[aria-label^='Team for']");
+        await AssignOutcomeAsync(page, outcomeSelect, teamSelect);
+
+        // Save Assigned without selecting a team: the save is rejected client-side and no request fires.
+        var save = firstRow.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
+        await Expect(save).ToBeVisibleAsync();
+        await save.ClickAsync();
+
+        await Expect(firstRow.Locator("div.text-danger[role=alert]")).ToContainTextAsync("A team is required");
+        await Expect(page.Locator("div.alert-success[role=status]")).ToHaveCountAsync(0);
+        await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("60 undecided");
+    }
+
+    [Fact]
+    public async Task Placements_Loading_ShowsIndicator_ThenRendersRows()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
+        var page = context.Pages[0];
+        await OpenPlacementsAsync(page, seed.CampaignId);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await OpenPlacementsAsync(page, seed.CampaignId);
+
+        // Hold the placements-list fetch open while the loading state is asserted, then release it.
+        var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var intercepted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync(
+            IsPlacementRosterUrl,
+            async route =>
+            {
+                intercepted.TrySetResult(null);
+                await release.Task;
+                await route.ContinueAsync();
+            });
+
+        await CheckUnresolvedOnlyAsync(page);
+        await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        await Expect(page.GetByText("Loading placements...")).ToBeVisibleAsync();
+
+        release.TrySetResult(null);
+        await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("60 undecided");
+        await Expect(page.Locator("tbody tr[id^='placement-row-']")).ToHaveCountAsync(50);
+        await page.UnrouteAsync(IsPlacementRosterUrl);
+    }
+
+    [Fact]
+    public async Task Placements_SaveFailure_ShowsRowError_AndRetryRecovers()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await PlacementSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, PlacementSeed.Password);
+        var page = context.Pages[0];
+        await OpenPlacementsAsync(page, seed.CampaignId);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await OpenPlacementsAsync(page, seed.CampaignId);
+
+        var firstRow = page.Locator("tbody tr[id^='placement-row-']").First;
+        await Expect(firstRow).ToBeVisibleAsync();
+        var outcomeSelect = firstRow.Locator("select[aria-label^='Outcome for']");
+        var teamSelect = firstRow.Locator("select[aria-label^='Team for']");
+        await AssignOutcomeAsync(page, outcomeSelect, teamSelect);
+        await teamSelect.SelectOptionAsync(seed.EligibleTeamId.ToString());
+
+        await page.RouteAsync(IsPlacementSaveUrl, route => route.FulfillAsync(new() { Status = 500 }));
+
+        var save = firstRow.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
+        await Expect(save).ToBeVisibleAsync();
+        await save.ClickAsync();
+
+        await Expect(firstRow.Locator("div.text-danger[role=alert]")).ToContainTextAsync("Failed to save the placement");
+        await Expect(page.Locator("div.alert-success[role=status]")).ToHaveCountAsync(0);
+
+        await page.UnrouteAsync(IsPlacementSaveUrl);
+        await save.ClickAsync();
+
+        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Placement saved.");
+        await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("1 assigned");
+    }
+
+    /// <summary>Matches the placements-list fetch, excluding the placements summary fetch.</summary>
+    private static bool IsPlacementRosterUrl(string url) =>
+        url.Contains("/api/campaigns/", StringComparison.Ordinal)
+        && url.Contains("/placements", StringComparison.Ordinal)
+        && !url.Contains("/placements/summary", StringComparison.Ordinal);
+
+    /// <summary>Matches the placement-save mutation fetch.</summary>
+    private static bool IsPlacementSaveUrl(string url) =>
+        url.Contains("/placement", StringComparison.Ordinal)
+        && !url.Contains("/placements", StringComparison.Ordinal);
+
     private async Task OpenPlacementsAsync(IPage page, long campaignId)
     {
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{campaignId}?tab=placements").ToString());

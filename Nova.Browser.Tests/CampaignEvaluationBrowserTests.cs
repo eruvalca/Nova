@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
+using Nova.Integration.Tests.Http;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -390,16 +392,10 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await Expect(archivedItem.Locator("button")).ToHaveCountAsync(0);
 
         // The chip text meets the WCAG AA 4.5:1 contrast threshold against its background.
-        var chipContrast = await archivedItem.Locator(".participant-drawer-tag").EvaluateAsync<double>(@"(el) => {
-            const parse = c => { const m = c.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/); return m ? { r: +m[1], g: +m[2], b: +m[3] } : null; };
-            const lin = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
-            const lum = c => 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
-            const style = getComputedStyle(el);
-            const fg = parse(style.color), bg = parse(style.backgroundColor);
-            const l1 = lum(fg), l2 = lum(bg);
-            return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-        }");
-        chipContrast.ShouldBeGreaterThanOrEqualTo(4.5);
+        await A11yMeasurementHelpers.AssertContrastRatioAsync(
+            archivedItem.Locator(".participant-drawer-tag"),
+            4.5,
+            "archived tag chip text");
 
         // The apply choices exclude the archived definition and keep the active ones.
         await page.Locator("#participant-drawer-close").ClickAsync();
@@ -498,10 +494,10 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
             var page = wideContext.Pages[0];
             await OpenWorkspaceAsync(page, seed.CampaignId);
             await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "01-workspace-wide.png") });
-            measurements.AddRange(await MeasureAsync(page, "wide-workspace"));
+            measurements.AddRange(await A11yMeasurementHelpers.MeasureChecklistAsync(page, "wide-workspace"));
             await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
             await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "02-drawer-wide.png") });
-            measurements.AddRange(await MeasureAsync(page, "wide-drawer"));
+            measurements.AddRange(await A11yMeasurementHelpers.MeasureChecklistAsync(page, "wide-drawer"));
         }
 
         // Narrow viewport: card list and the full-screen drawer.
@@ -511,82 +507,188 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
             var page = narrowContext.Pages[0];
             await OpenWorkspaceAsync(page, seed.CampaignId);
             await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "03-workspace-narrow.png") });
-            measurements.AddRange(await MeasureAsync(page, "narrow-workspace"));
+            measurements.AddRange(await A11yMeasurementHelpers.MeasureChecklistAsync(page, "narrow-workspace"));
             await OpenParticipantAsync(page, page.Locator("#roster-card-" + seed.AssignmentIds[0]));
             await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "04-drawer-narrow.png") });
-            measurements.AddRange(await MeasureAsync(page, "narrow-drawer"));
+            measurements.AddRange(await A11yMeasurementHelpers.MeasureChecklistAsync(page, "narrow-drawer"));
         }
 
         await File.WriteAllLinesAsync(Path.Combine(outputDirectory, "measurements.txt"), measurements, cancellationToken);
     }
 
-    /// <summary>
-    /// Measures contrast ratios and touch-target sizes for the manual accessibility checklist
-    /// items and returns one line per finding.
-    /// </summary>
-    private static async Task<IReadOnlyList<string>> MeasureAsync(IPage page, string scope)
+    [Fact]
+    public async Task Roster_EmptySearch_ShowsNoResults_WithZeroCountAnnouncement()
     {
-        var result = await page.EvaluateAsync<string>(@"() => {
-            const results = [];
-            const targets = [
-                { name: 'status-badge', selector: '.badge', limit: 3 },
-                { name: 'note-meta', selector: '.participant-drawer-note-meta', limit: 1 },
-                { name: 'tag-meta', selector: '.participant-drawer-tag-meta', limit: 1 },
-                { name: 'readonly-note', selector: '.participant-drawer-readonly-note', limit: 1 },
-                { name: 'primary-button', selector: '.participant-drawer button.btn-primary', limit: 1 },
-                { name: 'secondary-button', selector: '.participant-drawer button.btn-outline-secondary', limit: 2 },
-                { name: 'drawer-close', selector: '#participant-drawer-close', limit: 1 },
-                { name: 'drawer-prev', selector: '#participant-drawer-previous', limit: 1 },
-                { name: 'drawer-next', selector: '#participant-drawer-next', limit: 1 },
-                { name: 'roster-row', selector: 'tbody tr[id^=\'roster-row-\']', limit: 1 },
-                { name: 'roster-card', selector: '[id^=\'roster-card-\']', limit: 1 },
-                { name: 'pager-button', selector: 'nav[aria-label=\'Roster pagination\'] button', limit: 2 },
-                { name: 'search-input', selector: '#roster-search', limit: 1 }
-            ];
-            const luminance = (r, g, b) => {
-                const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
-                return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-            };
-            const parse = color => {
-                const m = color.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/);
-                return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null;
-            };
-            // Composite a semi-transparent color over white (the page surface).
-            const overWhite = c => {
-                if (c === null || c.a === 1) return c;
-                return {
-                    r: c.r * c.a + 255 * (1 - c.a),
-                    g: c.g * c.a + 255 * (1 - c.a),
-                    b: c.b * c.a + 255 * (1 - c.a)
-                };
-            };
-            const contrast = (fg, bg) => {
-                const f = overWhite(fg), b = overWhite(bg) ?? { r: 255, g: 255, b: 255 };
-                const l1 = luminance(f.r, f.g, f.b);
-                const l2 = luminance(b.r, b.g, b.b);
-                const [hi, lo] = l1 >= l2 ? [l1, l2] : [l2, l1];
-                return ((hi + 0.05) / (lo + 0.05)).toFixed(2);
-            };
-            for (const t of targets) {
-                let count = 0;
-                for (const el of document.querySelectorAll(t.selector)) {
-                    const rect = el.getBoundingClientRect();
-                    if (rect.width === 0 || rect.height === 0) continue;
-                    const style = getComputedStyle(el);
-                    const fg = parse(style.color);
-                    const bg = parse(style.backgroundColor);
-                    const item = [];
-                    item.push(t.name);
-                    if (fg && bg) item.push('contrast=' + contrast(fg, bg));
-                    item.push(rect.width.toFixed(0) + 'x' + rect.height.toFixed(0));
-                    results.push(item.join(' '));
-                    if (++count >= t.limit) break;
-                }
-            }
-            return results.join('\n');
-        }");
-        return result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
+        var page = context.Pages[0];
+        await OpenWorkspaceAsync(page, seed.CampaignId);
+
+        await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
+        await page.Keyboard.PressAsync("Escape");
+        await Expect(page.Locator("aside.participant-drawer")).ToBeHiddenAsync();
+
+        await page.Locator("#roster-search").FillAsync("Nobody McMissing");
+
+        await Expect(page.Locator("p[aria-live=\"polite\"]")).ToContainTextAsync("0 participants");
+        await Expect(page.GetByText("No participants match the current filters.")).ToBeVisibleAsync();
+        await Expect(page.Locator("tbody tr[id^='roster-row-']")).ToHaveCountAsync(0);
+        await Expect(page.Locator("[id^='roster-card-']")).ToHaveCountAsync(0);
     }
+
+    [Fact]
+    public async Task Drawer_NoteValidation_RejectsWhitespaceContent()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
+        var page = context.Pages[0];
+        await OpenWorkspaceAsync(page, seed.CampaignId);
+
+        await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Add note" }).ClickAsync();
+        await Expect(page.Locator("#participant-drawer-note-content")).ToBeVisibleAsync();
+        await page.Locator("#participant-drawer-note-content").FillAsync("   ");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Save note" }).ClickAsync();
+
+        // The inline validation error renders, no success alert appears, and the note list is unchanged.
+        await Expect(page.Locator("#participant-drawer-note-content")).ToHaveClassAsync(new Regex("is-invalid"));
+        await Expect(page.Locator("div.alert-success[role=status]")).ToHaveCountAsync(0);
+        await Expect(page.Locator("li.participant-drawer-note")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task Roster_AssignedOutcomeBadge_MeetsContrastThreshold()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
+
+        // Assign the first participant to a team so their roster outcome badge renders "Assigned"
+        // (the text-bg-success surface). The roster query does not re-validate eligibility.
+        var suffix = Guid.NewGuid().ToString("N");
+        var teamId = await SeedingHelpers.InsertTeamAsync(
+            fixture.AppHost, seed.ClubId, seed.AdminEmail, $"Assigned Team {suffix}", 2030, cancellationToken);
+        await SeedingHelpers.AssignPlacementAsync(fixture.AppHost, seed.AssignmentIds[0], teamId, cancellationToken);
+
+        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
+        var page = context.Pages[0];
+        await OpenWorkspaceAsync(page, seed.CampaignId);
+
+        var badge = page.Locator($"#roster-row-{seed.AssignmentIds[0]} span.badge.text-bg-success");
+        await Expect(badge).ToHaveTextAsync("Assigned");
+        await A11yMeasurementHelpers.AssertContrastRatioAsync(badge, 4.5, "roster assigned outcome badge");
+    }
+
+    [Fact]
+    public async Task Roster_Loading_ShowsIndicator_ThenRendersRows()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
+        var page = context.Pages[0];
+        await OpenWorkspaceAsync(page, seed.CampaignId);
+
+        // Switch the page to WebAssembly so the roster list load becomes a browser /api/... fetch.
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await OpenWorkspaceAsync(page, seed.CampaignId);
+
+        // Prove hydration before driving the filter, so the search below is never swallowed.
+        await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
+        await page.Keyboard.PressAsync("Escape");
+        await Expect(page.Locator("aside.participant-drawer")).ToBeHiddenAsync();
+
+        // Hold the roster list fetch open while the loading state is asserted, then release it.
+        var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var intercepted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync(
+            IsRosterListUrl,
+            async route =>
+            {
+                intercepted.TrySetResult(null);
+                await release.Task;
+                await route.ContinueAsync();
+            });
+
+        await page.Locator("#roster-search").FillAsync("Player 47");
+        await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        await Expect(page.GetByText("Loading roster...")).ToBeVisibleAsync();
+
+        release.TrySetResult(null);
+        await Expect(page.Locator("p[aria-live=\"polite\"]")).ToContainTextAsync("1 participant");
+        await Expect(page.Locator("tbody tr[id^='roster-row-']")).ToHaveCountAsync(1);
+        await page.UnrouteAsync(IsRosterListUrl);
+    }
+
+    [Fact]
+    public async Task Roster_Failure_ShowsRetry_AndRetryRecovers()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
+        var page = context.Pages[0];
+        await OpenWorkspaceAsync(page, seed.CampaignId);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await OpenWorkspaceAsync(page, seed.CampaignId);
+
+        // Prove hydration before driving the filter.
+        await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
+        await page.Keyboard.PressAsync("Escape");
+        await Expect(page.Locator("aside.participant-drawer")).ToBeHiddenAsync();
+
+        await page.RouteAsync(IsRosterListUrl, route => route.FulfillAsync(new() { Status = 500 }));
+
+        await page.Locator("#roster-search").FillAsync("Player 47");
+        var errorAlert = page.Locator("div.alert-danger[role=alert]");
+        await Expect(errorAlert).ToContainTextAsync("Failed to load the roster");
+        var retry = errorAlert.GetByRole(AriaRole.Button, new() { Name = "Retry" });
+        await Expect(retry).ToBeVisibleAsync();
+
+        await page.UnrouteAsync(IsRosterListUrl);
+        await retry.ClickAsync();
+
+        await Expect(page.Locator("p[aria-live=\"polite\"]")).ToContainTextAsync("1 participant");
+        await Expect(page.Locator("tbody tr[id^='roster-row-']")).ToHaveCountAsync(1);
+        await Expect(page.Locator("div.alert-danger[role=alert]")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task Drawer_DetailFailure_ShowsRetry_AndRetryRecovers()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, EvaluationSeed.Password);
+        var page = context.Pages[0];
+        await OpenWorkspaceAsync(page, seed.CampaignId);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await OpenWorkspaceAsync(page, seed.CampaignId);
+
+        // Intercept only the drawer's participant-detail fetch.
+        await page.RouteAsync(IsParticipantDetailUrl, route => route.FulfillAsync(new() { Status = 500 }));
+
+        await OpenDrawerAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
+        await Expect(page.Locator("div.alert-danger[role=alert]")).ToContainTextAsync("Failed to load participant details");
+        var retry = page.Locator("#participant-drawer-retry");
+        await Expect(retry).ToBeVisibleAsync();
+
+        await page.UnrouteAsync(IsParticipantDetailUrl);
+        await retry.ClickAsync();
+
+        await Expect(page.Locator(".participant-drawer-section-title").First).ToBeVisibleAsync();
+        await Expect(page.Locator("div.alert-danger[role=alert]")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>Matches the campaign roster list fetch, excluding detail and graduation-years fetches.</summary>
+    private static bool IsRosterListUrl(string url) =>
+        url.Contains("/api/campaigns/", StringComparison.Ordinal)
+        && url.Contains("/participants", StringComparison.Ordinal)
+        && !url.Contains("/participants/", StringComparison.Ordinal);
+
+    /// <summary>Matches the campaign participant-detail fetch, excluding the graduation-years fetch.</summary>
+    private static bool IsParticipantDetailUrl(string url) =>
+        url.Contains("/api/campaigns/", StringComparison.Ordinal)
+        && url.Contains("/participants/", StringComparison.Ordinal)
+        && !url.Contains("/graduation-years", StringComparison.Ordinal);
 
     private async Task OpenWorkspaceAsync(IPage page, long campaignId)
     {
@@ -596,6 +698,16 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
     }
 
     private static async Task OpenParticipantAsync(IPage page, ILocator row)
+    {
+        await OpenDrawerAsync(page, row);
+        await Expect(page.Locator(".participant-drawer-section-title").First).ToBeVisibleAsync();
+    }
+
+    /// <summary>
+    /// Opens the participant drawer by clicking the row, retrying through the SSR hydration window,
+    /// and waits for the drawer shell to be visible (without requiring a successful detail load).
+    /// </summary>
+    private static async Task OpenDrawerAsync(IPage page, ILocator row)
     {
         // Prerendered rows ignore clicks until the interactive circuit attaches, and the drawer
         // renders only after the Blazor server round-trip completes. Retry until the drawer is
@@ -630,7 +742,6 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         }
 
         await Expect(drawer).ToBeVisibleAsync();
-        await Expect(page.Locator(".participant-drawer-section-title").First).ToBeVisibleAsync();
     }
 
     private static async Task<long> ReadAssignmentIdAsync(ILocator row)

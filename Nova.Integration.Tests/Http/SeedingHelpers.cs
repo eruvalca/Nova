@@ -257,6 +257,30 @@ internal static class SeedingHelpers
     }
 
     /// <summary>
+    /// Assigns an existing campaign participation record to the supplied team and marks its placement
+    /// outcome as <see cref="PlacementOutcome.Assigned"/>, so browser scenarios can seed a roster or
+    /// placements view that renders the assigned <c>text-bg-success</c> outcome badge.
+    /// </summary>
+    /// <param name="fixture">The AppHost fixture providing the admin context.</param>
+    /// <param name="assignmentId">The participation record to assign.</param>
+    /// <param name="teamId">The team identifier to assign the participant to.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>A task that completes when the placement has been assigned.</returns>
+    public static async Task AssignPlacementAsync(
+        NovaAppHostFixture fixture,
+        long assignmentId,
+        long teamId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var assignment = await context.PlayerCampaignAssignments
+            .SingleAsync(candidate => candidate.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
+        assignment.PlacementOutcome = PlacementOutcome.Assigned;
+        assignment.TeamId = teamId;
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Inserts a tag definition for the club that owns the given assignment.
     /// </summary>
     /// <param name="fixture">The AppHost fixture providing the admin context.</param>
