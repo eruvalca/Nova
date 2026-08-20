@@ -281,7 +281,9 @@ cap/active-first; closed the `PlayerLifecycleService` ambiguous-commit gap (prod
 retry tests).
 
 **User-visible change:** club search and player roster search now treat `%`, `_`, and `\` as literal
-characters rather than `LIKE` wildcards.
+characters rather than `LIKE` wildcards; additionally, the club search query is now trimmed before
+matching (consistent with the other search services, and harmless because club names/cities/states
+are stored trimmed).
 
 ## Deployment Plan
 
@@ -291,4 +293,5 @@ Normal PR merge — no migrations, configuration, or infra changes.
    the Aspire AppHost + PostgreSQL 18.
 2. No data migration or rollback steps are required.
 3. Note for users: club/player search queries containing `%`, `_`, or `\` now match those characters
-   literally (previously they acted as wildcards in `ILIKE`).
+   literally (previously they acted as wildcards in `ILIKE`). Club search additionally trims the
+   query before matching.
