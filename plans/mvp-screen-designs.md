@@ -644,4 +644,4 @@ Detail screens render a centered `card shadow-sm border-0` with an `h4`-level ti
 
 ## 14. Explicitly Out of Scope for Design Mockups
 
-Per the plan's deferred list — do not design: player/parent self-registration portals, CSV import, numeric ratings/rubrics, evaluator tag votes, append-only tag history, campaign-specific team customization, invitations/notifications, public result publication, automated season closeout, or analytics dashboards. Also out of scope: the profile-photo and Identity account-management screens (existing, unchanged), though their entry/exit points are referenced in the Entry Flow.
+Per the plan's deferred list — do not design: player/parent self-registration portals, CSV import, CSV roster/placement export, numeric ratings/rubrics, evaluator tag votes, append-only tag history, campaign-specific team customization, invitations/notifications, public result publication, automated season closeout, or analytics dashboards. Also out of scope: the profile-photo and Identity account-management screens (existing, unchanged), though their entry/exit points are referenced in the Entry Flow.

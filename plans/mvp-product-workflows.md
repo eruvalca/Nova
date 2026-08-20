@@ -298,7 +298,7 @@ Placement invariants:
 - Close is blocked while any participant is Undecided or any Assigned participant lacks an active, eligible team.
 - `CampaignLifecycleService` projects fresh assignment facts after acquiring the campaign mutation lock, delegates readiness to `CampaignClosurePolicy`, and applies closure effects only when the policy returns `CampaignMayClose`.
 - Closing records `ClosedAt`, FK-less `ClosedById`, and an append-only lifecycle event.
-- Closed workspace tabs remain readable and export-ready.
+- Closed workspace tabs remain readable.
 - Reopen is administrator-only, records an audit event, and restores editing without discarding outcomes.
 
 ## Core Workflows
@@ -515,7 +515,6 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
   - Add loading, empty, validation, conflict, and retry states.
   - Add focused integration tests for create campaign, late player enrollment, evaluation, placement, close, and reopen.
   - Add database-free matrix coverage for every new deterministic policy, representative SQLite shell coverage, and PostgreSQL coverage for provider, lock, concurrency, and race behavior.
-  - Add basic campaign roster and final placement CSV export only after the core closeout workflow is stable.
 
 ## Reviewed Implementation Order
 
@@ -533,6 +532,7 @@ Removal authorization is enforced in the service: the applying user's `CreatedBy
 
 - Player/parent self-registration and outcome portal.
 - CSV player import.
+- CSV roster and final-placement export.
 - Numeric ratings or configurable evaluation rubrics.
 - Evaluator-specific votes on tags.
 - Append-only tag add/remove history.

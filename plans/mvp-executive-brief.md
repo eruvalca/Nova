@@ -124,7 +124,7 @@ Every step feeds the next, and nothing is re-entered manually between seasons.
 
 **In scope for the MVP:** club onboarding and membership, the role-aware dashboard, player and team management, season and campaign creation, qualitative evaluation (notes + tags), team placement, campaign close/reopen with frozen history, and tag-definition management.
 
-**Deliberately deferred (post-MVP):** player/parent self-registration and result portals, email invitations and notifications, numeric ratings or evaluation rubrics, CSV import, public result publication, and advanced analytics.
+**Deliberately deferred (post-MVP):** player/parent self-registration and result portals, email invitations and notifications, numeric ratings or evaluation rubrics, CSV import, CSV roster/placement export, public result publication, and advanced analytics.
 
 ---
 
