@@ -257,6 +257,69 @@ internal static class SeedingHelpers
     }
 
     /// <summary>
+    /// Inserts an active player for the given club, returning its identifier. Used by browser
+    /// scenarios that need a pre-seeded player to open in detail or edit forms.
+    /// </summary>
+    /// <param name="fixture">The AppHost fixture providing the admin context.</param>
+    /// <param name="clubId">The owning club identifier.</param>
+    /// <param name="adminEmail">A registered user email whose database row provides the created-by identifier.</param>
+    /// <param name="firstName">The player's first name.</param>
+    /// <param name="lastName">The player's last name.</param>
+    /// <param name="graduationYear">The player's graduation year.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The new player identifier.</returns>
+    public static async Task<long> InsertPlayerAsync(
+        NovaAppHostFixture fixture,
+        long clubId,
+        string adminEmail,
+        string firstName,
+        string lastName,
+        int graduationYear,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var user = await context.Users
+            .SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
+        var player = new PlayerEntity
+        {
+            FirstName = firstName,
+            LastName = lastName,
+            DateOfBirth = new DateOnly(2012, 1, 1),
+            GraduationYear = graduationYear,
+            LifecycleStatus = LifecycleStatus.Active,
+            ClubId = clubId,
+            CreatedById = user.Id
+        };
+        context.Add(player);
+        await context.SaveChangesAsync(cancellationToken);
+        return player.PlayerId;
+    }
+
+    /// <summary>
+    /// Assigns an existing campaign participation record to the supplied team and marks its placement
+    /// outcome as <see cref="PlacementOutcome.Assigned"/>, so browser scenarios can seed a roster or
+    /// placements view that renders the assigned <c>text-bg-success</c> outcome badge.
+    /// </summary>
+    /// <param name="fixture">The AppHost fixture providing the admin context.</param>
+    /// <param name="assignmentId">The participation record to assign.</param>
+    /// <param name="teamId">The team identifier to assign the participant to.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>A task that completes when the placement has been assigned.</returns>
+    public static async Task AssignPlacementAsync(
+        NovaAppHostFixture fixture,
+        long assignmentId,
+        long teamId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var assignment = await context.PlayerCampaignAssignments
+            .SingleAsync(candidate => candidate.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
+        assignment.PlacementOutcome = PlacementOutcome.Assigned;
+        assignment.TeamId = teamId;
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Inserts a tag definition for the club that owns the given assignment.
     /// </summary>
     /// <param name="fixture">The AppHost fixture providing the admin context.</param>

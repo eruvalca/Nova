@@ -1,6 +1,4 @@
-﻿using Shouldly;
-
-namespace Nova.Browser.Tests;
+﻿namespace Nova.Browser.Tests;
 
 /// <summary>
 /// Browser-level validation of the club dashboard cross-slice scenarios: the administrator happy path,
@@ -194,8 +192,28 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
 
             var workspaceLink = page.GetByRole(AriaRole.Link, new() { Name = $"Open workspace for {seed.UndecidedCampaignName}" });
             await Expect(workspaceLink).ToBeVisibleAsync();
-            await AssertTouchTargetAsync(page, workspaceLink, "Open workspace");
+            await A11yMeasurementHelpers.AssertTouchTargetAsync(page, workspaceLink, "Open workspace");
         }
+    }
+
+    /// <summary>
+    /// BS7: the campaign list renders the active campaign's <c>text-bg-success</c> status badge, whose
+    /// text/background contrast meets the WCAG AA 4.5:1 threshold (closing the residual from #69).
+    /// </summary>
+    [Fact]
+    public async Task CampaignList_ActiveBadge_MeetsContrastThreshold()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password);
+        var page = context.Pages[0];
+
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/campaigns").ToString());
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns" })).ToBeVisibleAsync();
+
+        var badge = page.Locator("span.badge.text-bg-success").First;
+        await Expect(badge).ToHaveTextAsync("Active");
+        await A11yMeasurementHelpers.AssertContrastRatioAsync(badge, 4.5, "campaign list active status badge");
     }
 
     /// <summary>
@@ -252,31 +270,4 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         throw new TimeoutException("The target never received keyboard focus.");
     }
 
-    /// <summary>Asserts a control meets the WCAG 2.5.8 minimum target size (24×24 CSS px).</summary>
-    /// <param name="page">The page to wait for layout settlement.</param>
-    /// <param name="locator">The control to measure.</param>
-    /// <param name="name">The control's display name for the failure message.</param>
-    /// <returns>A task that completes once the size assertion passes.</returns>
-    private static async Task AssertTouchTargetAsync(IPage page, ILocator locator, string name)
-    {
-        await Expect(locator).ToBeVisibleAsync();
-
-        // The circuit can re-render right after visibility, briefly collapsing the control to a
-        // zero-size bounding box. Retry the measurement until the layout settles.
-        double[] size = [];
-        for (var attempt = 0; attempt < 20; attempt++)
-        {
-            size = await locator.EvaluateAsync<double[]>(
-                "(el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }");
-            if (size[0] > 0 && size[1] > 0)
-            {
-                break;
-            }
-
-            await page.WaitForTimeoutAsync(200);
-        }
-
-        size[0].ShouldBeGreaterThanOrEqualTo(24, $"touch-target width for {name}");
-        size[1].ShouldBeGreaterThanOrEqualTo(24, $"touch-target height for {name}");
-    }
 }

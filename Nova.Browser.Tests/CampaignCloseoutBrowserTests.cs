@@ -304,11 +304,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(blockerRows.Nth(0)).ToContainTextAsync("Undecided");
         await Expect(blockerRows.Nth(1)).ToContainTextAsync("Eligibility");
         await Expect(blockerRows.Nth(2)).ToContainTextAsync("Archived teams");
-        await AssertTouchTargetAsync(narrowPage, narrowPage.GetByRole(AriaRole.Button, new() { Name = "Close campaign" }), "Close campaign");
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(narrowPage, narrowPage.GetByRole(AriaRole.Button, new() { Name = "Close campaign" }), "Close campaign");
 
         // The wide-viewport pass closed the ready campaign, so its closeout now shows "Reopen campaign".
         await OpenCloseoutAsync(narrowPage, seed.ReadyCampaignId);
-        await AssertTouchTargetAsync(narrowPage, narrowPage.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" }), "Reopen campaign");
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(narrowPage, narrowPage.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" }), "Reopen campaign");
     }
 
     [Fact]
@@ -436,30 +436,6 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             page,
             () => save.ClickAsync(new() { Timeout = 3000 }),
             () => page.GetByText("Placement saved.").IsVisibleAsync());
-    }
-
-    /// <summary>Asserts a control meets the WCAG 2.5.8 minimum target size (24×24 CSS px).</summary>
-    private static async Task AssertTouchTargetAsync(IPage page, ILocator locator, string name)
-    {
-        await Expect(locator).ToBeVisibleAsync();
-
-        // The circuit can re-render right after visibility, briefly collapsing the control to a
-        // zero-size bounding box. Retry the measurement until the layout settles.
-        double[] size = [];
-        for (var attempt = 0; attempt < 20; attempt++)
-        {
-            size = await locator.EvaluateAsync<double[]>(
-                "(el) => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }");
-            if (size[0] > 0 && size[1] > 0)
-            {
-                break;
-            }
-
-            await page.WaitForTimeoutAsync(200);
-        }
-
-        size[0].ShouldBeGreaterThanOrEqualTo(24, $"touch-target width for {name}");
-        size[1].ShouldBeGreaterThanOrEqualTo(24, $"touch-target height for {name}");
     }
 
     /// <summary>Repeatedly clicks a locator until the supplied settle predicate succeeds.</summary>

@@ -16,6 +16,7 @@ namespace Nova.Browser.Tests;
 /// <param name="ClubId">The owning club identifier.</param>
 /// <param name="CampaignId">The active campaign identifier.</param>
 /// <param name="ClosedCampaignId">The closed campaign identifier.</param>
+/// <param name="AllResolvedCampaignId">The active campaign identifier whose placements are all resolved.</param>
 /// <param name="AdminUserId">The club administrator's user identifier.</param>
 /// <param name="AdminEmail">The club administrator's login e-mail.</param>
 /// <param name="SecondAdminUserId">The second club administrator's user identifier.</param>
@@ -29,6 +30,7 @@ public sealed record SeededPlacementWorkspace(
     long ClubId,
     long CampaignId,
     long ClosedCampaignId,
+    long AllResolvedCampaignId,
     long AdminUserId,
     string AdminEmail,
     long SecondAdminUserId,
@@ -145,10 +147,16 @@ public static class PlacementSeed
             await context.SaveChangesAsync(cancellationToken);
         }
 
+        // All-resolved active campaign: every participant already has a final outcome, so the
+        // unresolved-only placements view is empty while the summary reports zero undecided.
+        var allResolved = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
+            fixture, club.ClubId, adminEmail, "Resolved", 3, PlacementOutcome.NotSelected, cancellationToken);
+
         return new SeededPlacementWorkspace(
             club.ClubId,
             active.CampaignId,
             closed.CampaignId,
+            allResolved.CampaignId,
             adminUserId,
             adminEmail,
             secondAdminUserId,

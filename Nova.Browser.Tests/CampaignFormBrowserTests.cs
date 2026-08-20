@@ -1,0 +1,246 @@
+﻿using Microsoft.EntityFrameworkCore;
+using Nova.Integration.Tests.Data;
+using Nova.Integration.Tests.Http;
+using Shouldly;
+
+namespace Nova.Browser.Tests;
+
+/// <summary>
+/// Browser-level validation of the campaign-creation form (<c>/campaigns/new</c>): validation,
+/// successful creation, responsive rendering, and keyboard operability.
+/// </summary>
+/// <param name="fixture">The Aspire-hosted browser suite fixture.</param>
+[Collection(BrowserSuiteCollection.Name)]
+public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
+{
+    private const string Password = "Test#Passw0rd!";
+
+    [Fact]
+    public async Task CampaignForm_Validation_RejectsWhitespaceName_AndStaysOnForm()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenNewCampaignAsync(page);
+
+        // Proving the radio toggle renders the inline-season fields also proves hydration, so the
+        // submit below drives Blazor validation instead of a swallowed pre-hydration form post.
+        await CheckInlineSeasonAsync(page);
+        await page.Locator("#campaign-name").FillAsync("   ");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true }).ClickAsync();
+
+        // The form surfaces a field-level validation message and does not navigate away.
+        await Expect(page.Locator(".text-danger").First).ToBeVisibleAsync();
+        page.Url.ShouldContain("/campaigns/new");
+    }
+
+    [Fact]
+    public async Task CampaignForm_Success_CreatesCampaign_AndRedirectsToCampaignList()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenNewCampaignAsync(page);
+
+        var suffix = Guid.NewGuid().ToString("N");
+        var campaignName = $"Form Campaign {suffix}";
+        await CheckInlineSeasonAsync(page);
+        await page.Locator("#campaign-name").FillAsync(campaignName);
+        await page.Locator("#inline-season-name").FillAsync($"Form Season {suffix}");
+        await page.Locator("#inline-season-start-date").FillAsync("2026-06-01");
+
+        var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
+        await ActUntilAsync(
+            page,
+            () => submit.ClickAsync(new() { Timeout = 3000 }),
+            () => Task.FromResult(page.Url.Contains("/campaigns", StringComparison.OrdinalIgnoreCase) && !page.Url.Contains("/new", StringComparison.OrdinalIgnoreCase)));
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns" })).ToBeVisibleAsync();
+        await Expect(page.GetByText(campaignName)).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task CampaignForm_Responsive_PreservesInputs_AcrossViewports()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenNewCampaignAsync(page);
+
+        var name = $"Narrow {Guid.NewGuid():N}";
+        await CheckInlineSeasonAsync(page);
+        await page.Locator("#campaign-name").FillAsync(name);
+        await page.Locator("#inline-season-name").FillAsync("Narrow Season");
+
+        await page.SetViewportSizeAsync(480, 800);
+
+        // The labelled input retains its value and the submit control remains reachable.
+        await Expect(page.Locator("#campaign-name")).ToHaveValueAsync(name);
+        await Expect(page.GetByLabel("Campaign name")).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true })).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task CampaignForm_Keyboard_TabAndEnter_Submits()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenNewCampaignAsync(page);
+
+        var suffix = Guid.NewGuid().ToString("N");
+        var name = page.Locator("#campaign-name");
+        await name.FocusAsync();
+        await page.Keyboard.TypeAsync($"Form Campaign {suffix}");
+
+        // Reach the submit button via Tab and submit with Enter.
+        var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
+        await TabUntilFocusedAsync(page, submit);
+        await page.Keyboard.PressAsync("Enter");
+
+        // The empty season selection surfaces validation without navigating, proving the keyboard
+        // submission reached the interactive form.
+        await Expect(page.Locator(".text-danger").First).ToBeVisibleAsync();
+        page.Url.ShouldContain("/campaigns/new");
+    }
+
+    /// <summary>
+    /// Captures campaign-creation-form accessibility evidence when <c>NOVA_A11Y_SCREENSHOTS=1</c>;
+    /// otherwise skips so a green run always means the assertions executed.
+    /// </summary>
+    [Fact]
+    public async Task CampaignForm_A11yEvidence_CapturesScreenshots()
+    {
+        if (Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS") != "1")
+        {
+            Assert.Skip("Set NOVA_A11Y_SCREENSHOTS=1 to capture campaign form accessibility evidence.");
+        }
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        var outputDirectory = Path.Combine(Path.GetTempPath(), "nova-a11y-screenshots");
+        Directory.CreateDirectory(outputDirectory);
+
+        await OpenNewCampaignAsync(page);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "campaign-form-wide.png") });
+
+        await page.SetViewportSizeAsync(480, 800);
+        await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "campaign-form-narrow.png") });
+    }
+
+    /// <summary>Navigates to the campaign-creation page and waits for the form.</summary>
+    private async Task OpenNewCampaignAsync(IPage page)
+    {
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/campaigns/new").ToString());
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Create campaign" })).ToBeVisibleAsync();
+        await Expect(page.Locator("#campaign-name")).ToBeVisibleAsync();
+    }
+
+    /// <summary>
+    /// Selects the "Create a new season" radio and waits for the inline-season fields to render,
+    /// retrying through the SSR hydration window. The rendered inline fields are the hydration proof
+    /// used by the scenarios that then drive the rest of the form.
+    /// </summary>
+    private static async Task CheckInlineSeasonAsync(IPage page)
+    {
+        var radio = page.Locator("#season-mode-inline");
+        var inlineName = page.Locator("#inline-season-name");
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            if (await inlineName.IsVisibleAsync())
+            {
+                return;
+            }
+
+            try
+            {
+                await radio.CheckAsync(new() { Timeout = 2000 });
+            }
+            catch (PlaywrightException)
+            {
+                // The radio was replaced mid-interaction or the change was swallowed pre-hydration.
+            }
+
+            try
+            {
+                await Expect(inlineName).ToBeVisibleAsync(new() { Timeout = 1500 });
+                return;
+            }
+            catch (PlaywrightException)
+            {
+                await page.WaitForTimeoutAsync(250);
+            }
+        }
+
+        await Expect(inlineName).ToBeVisibleAsync();
+    }
+
+    /// <summary>Seeds a club with a single administrator and returns the login credentials and identifiers.</summary>
+    private async Task<(long ClubId, string AdminEmail, long AdminUserId)> SeedAdminAsync(CancellationToken cancellationToken)
+    {
+        using var adminClient = fixture.AppHost.CreateNovaHttpClient();
+        var adminEmail = SeedingHelpers.UniqueEmail("campaign-form-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
+        await SeedingHelpers.UpdateUserAsync(fixture.AppHost, adminEmail, clubId: null, cancellationToken, firstName: "Alice", lastName: "Author");
+        var club = await SeedingHelpers.CreateClubAsync(adminClient, cancellationToken);
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
+
+        long adminUserId;
+        await using (var context = fixture.AppHost.CreateAdminContext())
+        {
+            adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+        }
+
+        return (club.ClubId, adminEmail, adminUserId);
+    }
+
+    /// <summary>Repeats an interaction until the settle predicate succeeds, tolerating the SSR hydration window.</summary>
+    private static async Task ActUntilAsync(IPage page, Func<Task> act, Func<Task<bool>> settled)
+    {
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            if (await settled())
+            {
+                return;
+            }
+
+            try
+            {
+                await act();
+            }
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+            {
+                // The element was replaced mid-interaction or the click was swallowed pre-hydration.
+            }
+
+            await page.WaitForTimeoutAsync(250);
+        }
+
+        throw new TimeoutException("Interaction did not settle within the retry window.");
+    }
+
+    /// <summary>Presses Tab until the target receives keyboard focus, then returns.</summary>
+    private static async Task TabUntilFocusedAsync(IPage page, ILocator target)
+    {
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            try
+            {
+                await Expect(target).ToBeFocusedAsync(new() { Timeout = 400 });
+                return;
+            }
+            catch (PlaywrightException)
+            {
+                await page.Keyboard.PressAsync("Tab");
+            }
+        }
+
+        throw new TimeoutException("The target never received keyboard focus.");
+    }
+}
