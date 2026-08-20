@@ -308,7 +308,7 @@ public class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AssignClubAdminAsync_ReturnsForbidden_WhenTargetInDifferentClub()
+    public async Task AssignClubAdminAsync_ReturnsNotFound_WhenTargetInDifferentClub()
     {
         // Arrange
         _harness.CurrentUser.UserId = ClubAdminUserId;
@@ -319,9 +319,9 @@ public class ClubMemberServiceTests : IDisposable
         // Act
         var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = ClubBAdminUserId }, TestContext.Current.CancellationToken);
 
-        // Assert
+        // Assert: a cross-club target must be non-disclosing (NotFound), never Forbidden.
         result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
     [Fact]

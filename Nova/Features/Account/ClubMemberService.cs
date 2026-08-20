@@ -89,11 +89,12 @@ public sealed partial class ClubMemberService(
             return ServiceProblem.NotFound("The specified member was not found.");
         }
 
-        // Verify target is in the same club
+        // Verify target is in the same club. A cross-club target must be non-disclosing
+        // (NotFound rather than Forbidden) so a caller cannot probe for another club's members.
         if (targetUser.ClubId != actorClubId)
         {
             LogAssignRejected(input.TargetUserId, actorClubId);
-            return ServiceProblem.Forbidden("The specified user is not a member of your club.");
+            return ServiceProblem.NotFound("The specified member was not found.");
         }
 
         // Check if already a ClubAdmin (idempotent)

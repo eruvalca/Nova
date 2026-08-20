@@ -374,6 +374,46 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a cross-tenant tag identifier is non-disclosing: update, archive, and restore all
+    /// return 404 and leave the tag unchanged.
+    /// </summary>
+    [Fact]
+    public async Task TagMutations_ReturnNotFound_ForCrossTenantTag()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var clubAClient = fixture.CreateNovaHttpClient();
+        using var clubBClient = fixture.CreateNovaHttpClient();
+
+        _ = await RegisterClubAdminAsync(clubAClient, "tag-cross-a", "Cross Club A", cancellationToken);
+        var tagA = await CreateTagAsync(clubAClient, $"CrossA-{Guid.CreateVersion7():N}", "#111111", cancellationToken);
+
+        _ = await RegisterClubAdminAsync(clubBClient, "tag-cross-b", "Cross Club B", cancellationToken);
+
+        using (var update = await clubBClient.PutAsJsonAsync(
+            TagEndpoints.UpdateUrl(tagA.PlayerTagId),
+            new UpdateTagDefinitionInput { TagId = tagA.PlayerTagId, Name = "Hijacked", Color = "#222222" },
+            cancellationToken))
+        {
+            update.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        }
+
+        using (var archive = await clubBClient.PostAsync(TagEndpoints.ArchiveUrl(tagA.PlayerTagId), null, cancellationToken))
+        {
+            archive.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        }
+
+        using (var restore = await clubBClient.PostAsync(TagEndpoints.RestoreUrl(tagA.PlayerTagId), null, cancellationToken))
+        {
+            restore.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        }
+
+        await using var db = fixture.CreateAdminContext();
+        var tag = await db.PlayerTags.SingleAsync(t => t.PlayerTagId == tagA.PlayerTagId, cancellationToken);
+        tag.Name.ShouldBe(tagA.Name);
+        tag.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
+    }
+
+    /// <summary>
     /// Creates a tag definition through the HTTP API and returns its DTO.
     /// </summary>
     private async Task<TagDefinitionDto> CreateTagAsync(

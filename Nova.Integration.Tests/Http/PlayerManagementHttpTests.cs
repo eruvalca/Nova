@@ -195,6 +195,43 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies that a non-admin club member receives 403 Forbidden when attempting to update
+    /// a player in their own club.
+    /// </summary>
+    [Fact]
+    public async Task Update_ReturnsForbidden_ForClubMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+
+        var adminEmail = UniqueEmail("update-forbidden-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
+        await UpdateUserAsync(adminEmail, "Sam", "Admin", clubId: null, cancellationToken);
+        var club = await CreateClubAsync(adminClient, "Update Forbidden Club", "Denver", "CO", cancellationToken);
+        await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
+        var player = await CreatePlayerAsync(adminClient, ValidCreateInput(), cancellationToken);
+
+        var memberEmail = UniqueEmail("update-forbidden-member");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
+        await UpdateUserAsync(memberEmail, "Morgan", "Member", club.ClubId, cancellationToken);
+        await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
+
+        var updateInput = new UpdatePlayerInput
+        {
+            PlayerId = player.PlayerId,
+            FirstName = "Hijacked",
+            LastName = "ShouldFail",
+            DateOfBirth = new DateOnly(2012, 6, 15),
+            GraduationYear = 2030
+        };
+
+        using var response = await memberClient.PutAsJsonAsync(PlayerEndpoints.UpdateUrl(player.PlayerId), updateInput, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>
     /// Verifies that changing a player's graduation year to one that would make an Active Assigned
     /// placement ineligible returns 409 Conflict with structured blocker information.
     /// </summary>
