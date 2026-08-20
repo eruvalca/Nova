@@ -167,6 +167,12 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
             IsCampaignCreateUrl,
             async route =>
             {
+                if (route.Request.Method != "POST")
+                {
+                    await route.ContinueAsync();
+                    return;
+                }
+
                 intercepted.TrySetResult(null);
                 await release.Task;
                 await route.ContinueAsync();
@@ -201,7 +207,11 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#inline-season-name").FillAsync($"Form Season {suffix}");
         await page.Locator("#inline-season-start-date").FillAsync("2026-06-01");
 
-        await page.RouteAsync(IsCampaignCreateUrl, route => route.FulfillAsync(new() { Status = 500 }));
+        await page.RouteAsync(
+            IsCampaignCreateUrl,
+            route => route.Request.Method == "POST"
+                ? route.FulfillAsync(new() { Status = 500 })
+                : route.ContinueAsync());
 
         var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
         await submit.ClickAsync();
@@ -215,7 +225,11 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByText(campaignName)).ToBeVisibleAsync();
     }
 
-    /// <summary>Matches the campaign-create mutation fetch (POST /api/campaigns).</summary>
+    /// <summary>
+    /// Matches the campaign create/list URL (<c>/api/campaigns</c>). The URL alone cannot distinguish
+    /// the create <c>POST</c> from the list <c>GET</c>, so each <c>RouteAsync</c> handler additionally
+    /// guards on <see cref="IRequest.Method"/>.
+    /// </summary>
     private static bool IsCampaignCreateUrl(string url) =>
         url.Contains("/api/campaigns", StringComparison.Ordinal)
         && !url.Contains("/api/campaigns/", StringComparison.Ordinal);

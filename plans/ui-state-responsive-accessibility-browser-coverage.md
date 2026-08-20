@@ -150,8 +150,11 @@ to WebAssembly. A Playwright `Request`-event probe showed that waiting only for 
 *download* and then reloading is not enough (the circuit is re-established). After a bounded localhost
 delay (≈15s) for the WASM runtime to finish *booting*, `page.ReloadAsync()` switches `InteractiveAuto`
 to WebAssembly (no further `/_blazor/negotiate`), and the probe then observed
-`GET /api/campaigns/{id}/participants?search=…` in the browser. This is captured as
-`WasmWarmupHelper.ReloadAsWebAssemblyAsync`, used by every loading/failure/retry scenario in this plan.
+`GET /api/campaigns/{id}/participants?search=…` in the browser. `WasmWarmupHelper.ReloadAsWebAssemblyAsync`
+captures this as a *self-verifying* reload — it lets the runtime boot, reloads, and confirms the switch by
+checking that the reloaded page did *not* re-establish the server circuit (`/_blazor/negotiate`), retrying
+with more boot time (up to a bounded number of attempts) if it did. It is used by every
+loading/failure/retry scenario in this plan.
 The three roster/drawer scenarios (`Roster_Loading_ShowsIndicator_ThenRendersRows`,
 `Roster_Failure_ShowsRetry_AndRetryRecovers`, `Drawer_DetailFailure_ShowsRetry_AndRetryRecovers`) pass.
 
@@ -406,8 +409,9 @@ Test-only browser coverage for issue #118 (sub-issue of #13), implementing the p
   review — the player badge/detail tests project the player id from `SeedCampaignWithParticipantsAsync`).
 - `PlacementSeed` extended with an all-resolved active campaign (`AllResolvedCampaignId`).
 - A `WasmWarmupHelper.ReloadAsWebAssemblyAsync` helper that switches an `InteractiveAuto` page to
-  WebAssembly (bounded localhost boot delay + full reload) so list loads and mutations become browser
-  `/api/...` fetches interceptable by `RouteAsync`.
+  WebAssembly (self-verifying reload: confirms the reloaded page did not re-establish the server
+  `/_blazor/negotiate` circuit, retrying with more boot time if it did) so list loads and mutations
+  become browser `/api/...` fetches interceptable by `RouteAsync`.
 - New scenarios: roster empty, drawer note validation, roster assigned-badge contrast, roster
   loading/failure+retry, and drawer detail failure (Evaluation); placements all-resolved empty,
   Assigned-without-team validation, placements loading, and placement save failure+retry (Placement);
@@ -426,9 +430,10 @@ blocker: after the WASM runtime finishes *booting* (a bounded localhost delay �
 asset *download*), a full `page.ReloadAsync()` switches the page to WebAssembly — a `Request`-event
 probe confirmed the reloaded page has no further `/_blazor/negotiate` circuit and issues
 `GET /api/campaigns/{id}/participants?search=…` in the browser. `WasmWarmupHelper.ReloadAsWebAssemblyAsync`
-captures this, so `RouteAsync` interception now drives all nine list-load and mutation
-loading/failure/retry scenarios. The conflict state on campaign create remains not-applicable (no
-uniqueness constraint on campaign name).
+captures this as a self-verifying reload (confirm the reloaded page did not re-establish the server
+`/_blazor/negotiate` circuit, retry with more boot time otherwise), so `RouteAsync` interception now
+drives all nine list-load and mutation loading/failure/retry scenarios. The conflict state on campaign
+create remains not-applicable (no uniqueness constraint on campaign name).
 
 **Validation evidence**
 
