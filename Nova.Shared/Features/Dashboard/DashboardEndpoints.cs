@@ -49,6 +49,12 @@ public static class DashboardEndpoints
     public const string CampaignWorkspaceRoutePrefix = "/campaigns";
 
     /// <summary>
+    /// The route of the campaign list page, used as the administrator attention fallback target when
+    /// no active campaign has an unresolved placement.
+    /// </summary>
+    public const string CampaignListRoute = "/campaigns";
+
+    /// <summary>
     /// Builds the bounded recent-activity URL, omitting the optional limit when it is not supplied
     /// or would not be accepted by the input contract.
     /// </summary>

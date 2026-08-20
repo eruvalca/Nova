@@ -1,0 +1,137 @@
+@page "/"
+@rendermode InteractiveAuto
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Security
+@using Nova.UI.Features.Dashboard
+
+<PageTitle>Dashboard</PageTitle>
+
+<div class="container py-4">
+    <h1 class="mb-4">Dashboard</h1>
+
+    @if (_isLoading)
+    {
+        <div class="card shadow-sm border-0" role="status" aria-live="polite">
+            <div class="card-body d-flex align-items-center gap-2">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>Loading dashboard...</span>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_pageError))
+    {
+        <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+            <span>@_pageError</span>
+            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RetryAsync">Retry</button>
+        </div>
+    }
+    else if (_summary is not null)
+    {
+        <section class="card shadow-sm border-0 mb-4" aria-labelledby="active-campaigns-heading">
+            <div class="card-body">
+                <h2 class="h5 mb-3" id="active-campaigns-heading">Active campaigns</h2>
+                @if (_summary.ActiveCampaigns.Count == 0)
+                {
+                    @if (_isClubAdmin)
+                    {
+                        <p class="text-muted mb-3">Create your first campaign to enroll active players and begin evaluations.</p>
+                        <a class="btn btn-primary" href="campaigns/new">Create campaign</a>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">No active campaigns right now. Check back once an administrator creates one.</p>
+                    }
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Name</th>
+                                    <th scope="col">Participants</th>
+                                    <th scope="col">Unresolved</th>
+                                    <th scope="col" class="text-end">Workspace</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var card in _summary.ActiveCampaigns)
+                                {
+                                    <tr>
+                                        <td>@card.Name</td>
+                                        <td>@card.ParticipantCount</td>
+                                        <td>@card.UnresolvedCount</td>
+                                        <td class="text-end">
+                                            <a class="btn btn-sm btn-outline-primary" href="@card.WorkspaceUrl" aria-label="Open workspace for @card.Name">Open workspace</a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="@StatRowClass" aria-label="Club summary">
+            <div class="col">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h3 class="h6 text-muted text-uppercase">Roster</h3>
+                        <p class="mb-1">@_summary.Roster.ActivePlayers active</p>
+                        <p class="text-muted small mb-3">@_summary.Roster.ArchivedPlayers archived</p>
+                        <a class="btn btn-sm btn-outline-primary" href="players">View players</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h3 class="h6 text-muted text-uppercase">Teams</h3>
+                        <p class="mb-1">@_summary.Teams.ActiveTeams active</p>
+                        <p class="text-muted small mb-3">@_summary.Teams.ArchivedTeams archived</p>
+                        <a class="btn btn-sm btn-outline-primary" href="teams">View teams</a>
+                    </div>
+                </div>
+            </div>
+            @if (_summary.AdminAttention is not null)
+            {
+                <div class="col">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <h3 class="h6 text-muted text-uppercase">Admin attention</h3>
+                            <p class="mb-1">@_summary.AdminAttention.PendingJoinRequestCount pending join requests</p>
+                            <p class="text-muted small mb-3">@_summary.AdminAttention.UnresolvedPlacementCount unresolved placements</p>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a class="btn btn-sm btn-outline-primary" href="@ReviewRequestsUrl">Review requests</a>
+                                <a class="btn btn-sm btn-outline-primary" href="@ReviewPlacementsUrl">Review placements</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </section>
+
+        <section class="card shadow-sm border-0" aria-labelledby="recent-activity-heading">
+            <div class="card-body">
+                <h2 class="h5 mb-3" id="recent-activity-heading">Recent activity</h2>
+                @if (_activity is null || _activity.Events.Count == 0)
+                {
+                    <p class="text-muted mb-0">No recent activity.</p>
+                }
+                else
+                {
+                    <ul class="list-unstyled mb-0">
+                        @foreach (var item in _activity.Events)
+                        {
+                            <li class="py-1 border-bottom">
+                                @DashboardDisplay.FormatActivityDate(item.EventAt) @item.ActorDisplayName @DashboardDisplay.ActivityVerb(item) (@item.CampaignName)
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </section>
+    }
+</div>
