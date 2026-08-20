@@ -61,13 +61,15 @@ public sealed partial class PlayerService(
             var hasTryoutNumberSearch = int.TryParse(normalizedSearch, out var tryoutNumberSearch);
             if (isNpgsql)
             {
+                var escapedSearch = EscapeLikePattern(normalizedSearch);
+                var likePattern = $"%{escapedSearch}%";
                 query = hasTryoutNumberSearch
                     ? query.Where(player =>
-                        EF.Functions.ILike(player.FirstName + " " + player.LastName, $"%{normalizedSearch}%")
+                        EF.Functions.ILike(player.FirstName + " " + player.LastName, likePattern, @"\")
                         || player.CampaignAssignments.Any(assignment =>
                             assignment.Campaign.Status == CampaignStatus.Active
                             && assignment.TryoutNumber == tryoutNumberSearch))
-                    : query.Where(player => EF.Functions.ILike(player.FirstName + " " + player.LastName, $"%{normalizedSearch}%"));
+                    : query.Where(player => EF.Functions.ILike(player.FirstName + " " + player.LastName, likePattern, @"\"));
             }
             else
             {
@@ -254,6 +256,16 @@ public sealed partial class PlayerService(
         => string.Equals(lifecycleStatus, "archived", StringComparison.OrdinalIgnoreCase)
             ? LifecycleStatus.Archived
             : LifecycleStatus.Active;
+
+    /// <summary>
+    /// Escapes <c>ILIKE</c> pattern metacharacters so that a user-supplied search term is treated
+    /// as a literal substring. Backslash is escaped first to avoid double-escaping, then
+    /// <c>%</c> and <c>_</c> are escaped with the backslash escape character.
+    /// </summary>
+    /// <param name="value">The raw user search term.</param>
+    /// <returns>The term with <c>\</c>, <c>%</c>, and <c>_</c> escaped for use in an <c>ILIKE '%…%' ESCAPE '\'</c> pattern.</returns>
+    private static string EscapeLikePattern(string value)
+        => value.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 
     /// <summary>
     /// Represents one ordered roster row projected before tag/campaign enrichment.

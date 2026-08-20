@@ -124,11 +124,18 @@ public sealed partial class ClubService(
 
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var searchTerm = $"%{query}%";
-            baseQuery = baseQuery.Where(c =>
-                EF.Functions.ILike(c.Name, searchTerm) ||
-                EF.Functions.ILike(c.City, searchTerm) ||
-                EF.Functions.ILike(c.State, searchTerm));
+            var trimmedQuery = query.Trim();
+            var uppercaseSearch = trimmedQuery.ToUpperInvariant();
+            var escapedSearch = EscapeLikePattern(trimmedQuery);
+            baseQuery = db.Database.IsNpgsql()
+                ? baseQuery.Where(c =>
+                    EF.Functions.ILike(c.Name, $"%{escapedSearch}%", @"\") ||
+                    EF.Functions.ILike(c.City, $"%{escapedSearch}%", @"\") ||
+                    EF.Functions.ILike(c.State, $"%{escapedSearch}%", @"\"))
+                : baseQuery.Where(c =>
+                    c.Name.ToUpper().Contains(uppercaseSearch) ||
+                    c.City.ToUpper().Contains(uppercaseSearch) ||
+                    c.State.ToUpper().Contains(uppercaseSearch));
         }
 
         var clubs = await baseQuery
@@ -138,6 +145,16 @@ public sealed partial class ClubService(
         var dtos = clubs.Select(c => c.ToClubDto()).ToList().AsReadOnly();
         return dtos;
     }
+
+    /// <summary>
+    /// Escapes <c>ILIKE</c> pattern metacharacters so that a user-supplied search term is treated
+    /// as a literal substring. Backslash is escaped first to avoid double-escaping, then
+    /// <c>%</c> and <c>_</c> are escaped with the backslash escape character.
+    /// </summary>
+    /// <param name="value">The raw user search term.</param>
+    /// <returns>The term with <c>\</c>, <c>%</c>, and <c>_</c> escaped for use in an <c>ILIKE '%…%' ESCAPE '\'</c> pattern.</returns>
+    private static string EscapeLikePattern(string value)
+        => value.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Club created successfully: ClubId={ClubId} by UserId={UserId}.")]
     private partial void LogClubCreated(long userId, long clubId);

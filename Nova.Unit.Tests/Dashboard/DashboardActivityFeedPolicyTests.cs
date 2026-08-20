@@ -112,6 +112,23 @@ public sealed class DashboardActivityFeedPolicyTests
     }
 
     /// <summary>
+    /// Verifies a zero limit bounds the merged feed to an empty result even when rows exist.
+    /// </summary>
+    [Fact]
+    public void OrderAndBound_ReturnsEmpty_WhenLimitIsZero()
+    {
+        var rows = new List<DashboardActivityEventRow>
+        {
+            Row(DashboardActivityEventKind.NoteAdded, 1, Base),
+            Row(DashboardActivityEventKind.TagApplied, 2, Base),
+        };
+
+        var result = DashboardActivityFeedPolicy.OrderAndBound(rows, limit: 0);
+
+        result.ShouldBeEmpty();
+    }
+
+    /// <summary>
     /// Builds a minimal activity row carrying only the ordering keys used by the policy.
     /// </summary>
     /// <param name="kind">The event kind.</param>
