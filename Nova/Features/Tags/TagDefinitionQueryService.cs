@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Results;
@@ -50,7 +51,7 @@ public sealed partial class TagDefinitionQueryService(
         if (search is not null)
         {
             var uppercaseSearch = search.ToUpperInvariant();
-            var escapedSearch = EscapeLikePattern(search);
+            var escapedSearch = LikePatternEscaper.EscapeLikePattern(search);
             query = db.Database.IsNpgsql()
                 ? query.Where(tag => EF.Functions.ILike(tag.Name, $"%{escapedSearch}%", @"\"))
                 : query.Where(tag => tag.Name.ToUpper().Contains(uppercaseSearch));
@@ -121,16 +122,6 @@ public sealed partial class TagDefinitionQueryService(
             "archived" => LifecycleStatus.Archived,
             _ => null
         };
-
-    /// <summary>
-    /// Escapes <c>ILIKE</c> pattern metacharacters so that a user-supplied search term is treated
-    /// as a literal substring. Backslash is escaped first to avoid double-escaping, then
-    /// <c>%</c> and <c>_</c> are escaped with the backslash escape character.
-    /// </summary>
-    /// <param name="value">The raw user search term.</param>
-    /// <returns>The term with <c>\</c>, <c>%</c>, and <c>_</c> escaped for use in an <c>ILIKE '%…%' ESCAPE '\'</c> pattern.</returns>
-    private static string EscapeLikePattern(string value)
-        => value.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 
     /// <summary>
     /// Logs an attempted tag-definition read without the required authorization.

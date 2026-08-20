@@ -1,6 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Nova.Data;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Dashboard;
 using Nova.Shared.Enums;
@@ -201,16 +199,4 @@ public sealed class DashboardQueryPostgresTests(NovaAppHostFixture fixture)
         long AssignmentId,
         long Player2Id,
         long TagId);
-
-    /// <summary>Wraps the fixture's read-context factory behind the EF factory contract.</summary>
-    /// <param name="fixture">The AppHost fixture.</param>
-    private sealed class PostgresReadContextFactory(NovaAppHostFixture fixture) : IDbContextFactory<NovaReadDbContext>
-    {
-        /// <inheritdoc />
-        public NovaReadDbContext CreateDbContext() => fixture.CreateReadContext();
-
-        /// <inheritdoc />
-        public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(fixture.CreateReadContext());
-    }
 }
