@@ -2,6 +2,7 @@
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
@@ -61,13 +62,15 @@ public sealed partial class PlayerService(
             var hasTryoutNumberSearch = int.TryParse(normalizedSearch, out var tryoutNumberSearch);
             if (isNpgsql)
             {
+                var escapedSearch = LikePatternEscaper.EscapeLikePattern(normalizedSearch);
+                var likePattern = $"%{escapedSearch}%";
                 query = hasTryoutNumberSearch
                     ? query.Where(player =>
-                        EF.Functions.ILike(player.FirstName + " " + player.LastName, $"%{normalizedSearch}%")
+                        EF.Functions.ILike(player.FirstName + " " + player.LastName, likePattern, @"\")
                         || player.CampaignAssignments.Any(assignment =>
                             assignment.Campaign.Status == CampaignStatus.Active
                             && assignment.TryoutNumber == tryoutNumberSearch))
-                    : query.Where(player => EF.Functions.ILike(player.FirstName + " " + player.LastName, $"%{normalizedSearch}%"));
+                    : query.Where(player => EF.Functions.ILike(player.FirstName + " " + player.LastName, likePattern, @"\"));
             }
             else
             {

@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Features.Shared;
@@ -83,86 +84,175 @@ public sealed partial class PlayerLifecycleService(
 
         await using var executionStrategyDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var strategy = executionStrategyDb.Database.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, PlayerArchiveBlockedConflict>>(async () =>
-        {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-            await db.AcquirePlayerMutationLockAsync(playerId, cancellationToken);
-            var player = await db.Players
-                .SingleOrDefaultAsync(candidate => candidate.PlayerId == playerId, cancellationToken);
 
-            if (player is null || player.ClubId != clubId)
+        // Records whether the most recent attempt reached CommitAsync. Verification is only
+        // meaningful for that attempt: a transient failure raised before the commit cannot have
+        // applied the transition, so the observed status belongs to some earlier request and must
+        // not be mistaken for this one's ambiguous commit.
+        var commitAttempted = new CommitAttemptTracker();
+
+        return await strategy.ExecuteAsync(
+            (PlayerId: playerId, TargetStatus: targetStatus, ActorUserId: actorUserId, ClubId: clubId, CommitAttempted: commitAttempted),
+            async (state, token) =>
             {
-                LogPlayerNotFound(playerId, clubId);
-                return new NotFound();
-            }
-
-            if (player.LifecycleStatus == targetStatus)
+                state.CommitAttempted.Reset();
+                await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                return await ApplyTransitionAsync(
+                    db,
+                    state.PlayerId,
+                    state.TargetStatus,
+                    state.ActorUserId,
+                    state.ClubId,
+                    state.CommitAttempted,
+                    token);
+            },
+            async (state, token) =>
             {
-                LogPlayerLifecycleConflict(playerId, targetStatus);
-                return new LifecycleConflict($"The player is already {targetStatus.ToString().ToLowerInvariant()}.");
-            }
-
-            if (targetStatus == LifecycleStatus.Archived)
-            {
-                var blockingParticipations = await db.PlayerCampaignAssignments
-                    .Where(
-                        assignment => assignment.PlayerId == playerId
-                            && assignment.Campaign.Status == CampaignStatus.Active
-                            && assignment.PlacementOutcome == PlacementOutcome.Undecided)
-                    .Select(assignment => new
-                    {
-                        assignment.CampaignId,
-                        CampaignName = assignment.Campaign.Name,
-                        assignment.PlayerCampaignAssignmentId
-                    })
-                    .ToListAsync(cancellationToken);
-
-                if (blockingParticipations.Count > 0)
+                if (!state.CommitAttempted.Attempted)
                 {
-                    var blockers = blockingParticipations
-                        .GroupBy(
-                            entry => new { entry.CampaignId, entry.CampaignName },
-                            entry => entry.PlayerCampaignAssignmentId)
-                        .Select(group => new PlayerArchiveBlocker
-                        {
-                            CampaignId = group.Key.CampaignId,
-                            CampaignName = group.Key.CampaignName,
-                            ParticipationIds = group.OrderBy(id => id).ToList().AsReadOnly()
-                        })
-                        .OrderBy(blocker => blocker.CampaignId)
-                        .ToList()
-                        .AsReadOnly();
-
-                    LogPlayerArchiveBlocked(playerId, blockers.Count);
-                    return new PlayerArchiveBlockedConflict(blockers);
+                    return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, PlayerArchiveBlockedConflict>>(
+                        successful: false,
+                        default!);
                 }
 
-                player.LifecycleStatus = LifecycleStatus.Archived;
-                player.ArchivedAt = DateTimeOffset.UtcNow;
-                player.ArchivedById = actorUserId;
-            }
-            else
+                await using var db = await dbContextFactory.CreateDbContextAsync(token);
+                return await VerifyTransitionCommittedAsync(db, state.PlayerId, state.TargetStatus, state.ClubId, token);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Determines whether an ambiguous commit already applied the requested transition so the
+    /// execution strategy can report success instead of replaying the attempt.
+    /// </summary>
+    /// <param name="db">The fresh tenant context used for verification.</param>
+    /// <param name="playerId">The player identifier that was being mutated.</param>
+    /// <param name="targetStatus">The lifecycle status the interrupted attempt was applying.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>A successful result when the transition is already persisted; otherwise unsuccessful.</returns>
+    private async Task<ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, PlayerArchiveBlockedConflict>>> VerifyTransitionCommittedAsync(
+        NovaDbContext db,
+        long playerId,
+        LifecycleStatus targetStatus,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
+        var appliedStatus = await db.Players
+            .Where(candidate => candidate.PlayerId == playerId && candidate.ClubId == clubId)
+            .Select(candidate => (LifecycleStatus?)candidate.LifecycleStatus)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (appliedStatus == targetStatus)
+        {
+            LogPlayerTransitionCommitVerified(playerId, targetStatus);
+            return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, PlayerArchiveBlockedConflict>>(
+                successful: true,
+                new Success());
+        }
+
+        return new ExecutionResult<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, PlayerArchiveBlockedConflict>>(
+            successful: false,
+            default!);
+    }
+
+    /// <summary>
+    /// Applies one lifecycle transition attempt inside a single transaction using a fresh tenant context.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="playerId">The player identifier to mutate.</param>
+    /// <param name="targetStatus">The lifecycle status to apply.</param>
+    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
+    /// <param name="cancellationToken">A token that cancels the database operation.</param>
+    /// <returns>Internal lifecycle outcomes before boundary mapping to shared service contracts.</returns>
+    private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, PlayerArchiveBlockedConflict>> ApplyTransitionAsync(
+        NovaDbContext db,
+        long playerId,
+        LifecycleStatus targetStatus,
+        long actorUserId,
+        long clubId,
+        CommitAttemptTracker commitAttempted,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquirePlayerMutationLockAsync(playerId, cancellationToken);
+        var player = await db.Players
+            .SingleOrDefaultAsync(candidate => candidate.PlayerId == playerId, cancellationToken);
+
+        if (player is null || player.ClubId != clubId)
+        {
+            LogPlayerNotFound(playerId, clubId);
+            return new NotFound();
+        }
+
+        if (player.LifecycleStatus == targetStatus)
+        {
+            LogPlayerLifecycleConflict(playerId, targetStatus);
+            return new LifecycleConflict($"The player is already {targetStatus.ToString().ToLowerInvariant()}.");
+        }
+
+        if (targetStatus == LifecycleStatus.Archived)
+        {
+            var blockingParticipations = await db.PlayerCampaignAssignments
+                .Where(
+                    assignment => assignment.PlayerId == playerId
+                        && assignment.Campaign.Status == CampaignStatus.Active
+                        && assignment.PlacementOutcome == PlacementOutcome.Undecided)
+                .Select(assignment => new
+                {
+                    assignment.CampaignId,
+                    CampaignName = assignment.Campaign.Name,
+                    assignment.PlayerCampaignAssignmentId
+                })
+                .ToListAsync(cancellationToken);
+
+            if (blockingParticipations.Count > 0)
             {
-                player.LifecycleStatus = LifecycleStatus.Active;
-                player.ArchivedAt = null;
-                player.ArchivedById = null;
+                var blockers = blockingParticipations
+                    .GroupBy(
+                        entry => new { entry.CampaignId, entry.CampaignName },
+                        entry => entry.PlayerCampaignAssignmentId)
+                    .Select(group => new PlayerArchiveBlocker
+                    {
+                        CampaignId = group.Key.CampaignId,
+                        CampaignName = group.Key.CampaignName,
+                        ParticipationIds = group.OrderBy(id => id).ToList().AsReadOnly()
+                    })
+                    .OrderBy(blocker => blocker.CampaignId)
+                    .ToList()
+                    .AsReadOnly();
+
+                LogPlayerArchiveBlocked(playerId, blockers.Count);
+                return new PlayerArchiveBlockedConflict(blockers);
             }
 
-            try
-            {
-                await db.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                LogPlayerLifecycleConcurrencyConflict(playerId);
-                return new LifecycleConflict("The player's lifecycle changed. Reload it and try again.");
-            }
+            player.LifecycleStatus = LifecycleStatus.Archived;
+            player.ArchivedAt = DateTimeOffset.UtcNow;
+            player.ArchivedById = actorUserId;
+        }
+        else
+        {
+            player.LifecycleStatus = LifecycleStatus.Active;
+            player.ArchivedAt = null;
+            player.ArchivedById = null;
+        }
 
-            LogPlayerLifecycleChanged(playerId, targetStatus, actorUserId);
-            return new Success();
-        });
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            commitAttempted.MarkAttempted();
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            LogPlayerLifecycleConcurrencyConflict(playerId);
+            return new LifecycleConflict("The player's lifecycle changed. Reload it and try again.");
+        }
+
+        LogPlayerLifecycleChanged(playerId, targetStatus, actorUserId);
+        return new Success();
     }
 
     /// <summary>
@@ -234,6 +324,14 @@ public sealed partial class PlayerLifecycleService(
     /// <param name="actorUserId">The acting administrator identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "PlayerId={PlayerId} lifecycle changed to {Status} by UserId={ActorUserId}.")]
     private partial void LogPlayerLifecycleChanged(long playerId, LifecycleStatus status, long actorUserId);
+
+    /// <summary>
+    /// Logs an ambiguous commit that verification confirmed had already applied the transition.
+    /// </summary>
+    /// <param name="playerId">The verified player identifier.</param>
+    /// <param name="status">The lifecycle status found already applied.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "PlayerId={PlayerId} transition to {Status} was already committed before the transient failure; skipping replay.")]
+    private partial void LogPlayerTransitionCommitVerified(long playerId, LifecycleStatus status);
 
     /// <summary>
     /// Represents an archive conflict with structured active-campaign participation blockers.

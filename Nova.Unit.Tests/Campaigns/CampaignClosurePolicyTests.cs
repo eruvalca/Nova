@@ -190,6 +190,46 @@ public sealed class CampaignClosurePolicyTests
     }
 
     /// <summary>
+    /// Verifies a single assigned participant can fail both eligibility and archived-team rules,
+    /// and that both blocker groups are populated for the same assignment.
+    /// </summary>
+    [Fact]
+    public void Evaluate_ReturnsEligibilityAndArchivedTeamBlockers_ForSameAssignment()
+    {
+        var result = CampaignClosurePolicy.Evaluate(
+        [
+            CreateState(
+                12,
+                PlacementOutcome.Assigned,
+                playerYear: 2030,
+                teamId: 10,
+                teamYear: null,
+                teamStatus: LifecycleStatus.Archived)
+        ]);
+
+        var blocked = result.Value.ShouldBeOfType<CampaignCloseBlocked>();
+        blocked.Errors.Keys.ShouldBe(["eligibility", "archivedTeams"]);
+        blocked.IneligibleAssignmentIds.ShouldBe([12]);
+        blocked.ArchivedTeamAssignmentIds.ShouldBe([12]);
+        blocked.UndecidedAssignmentIds.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies a player graduating strictly later than the assigned team's graduation year remains
+    /// eligible, exercising the greater-than boundary of the eligibility rule.
+    /// </summary>
+    [Fact]
+    public void Evaluate_AllowsClosure_WhenAssignedPlayerGraduatesAfterTeamYear()
+    {
+        var result = CampaignClosurePolicy.Evaluate(
+        [
+            CreateState(13, PlacementOutcome.Assigned, playerYear: 2031, teamId: 10, teamYear: 2030)
+        ]);
+
+        result.Value.ShouldBeOfType<CampaignMayClose>();
+    }
+
+    /// <summary>
     /// Verifies each blocker id collection is populated in the policy's stable, ascending
     /// assignment-id evaluation order (including undecided rows) and never scrambled.
     /// </summary>

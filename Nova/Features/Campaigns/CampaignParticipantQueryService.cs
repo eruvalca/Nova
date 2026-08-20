@@ -2,6 +2,7 @@
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
@@ -70,7 +71,7 @@ public sealed partial class CampaignParticipantQueryService(
         if (!string.IsNullOrWhiteSpace(normalizedSearch))
         {
             var uppercaseSearch = normalizedSearch.ToUpperInvariant();
-            var escapedSearch = EscapeLikePattern(normalizedSearch);
+            var escapedSearch = LikePatternEscaper.EscapeLikePattern(normalizedSearch);
             var likePattern = $"%{escapedSearch}%";
             var isNpgsql = db.Database.IsNpgsql();
             query = query.Where(assignment => isNpgsql
@@ -423,19 +424,6 @@ public sealed partial class CampaignParticipantQueryService(
             .ToListAsync(cancellationToken);
 
         return years.AsReadOnly();
-    }
-
-    /// <summary>
-    /// Escapes LIKE wildcard characters so a user-provided search term is matched literally.
-    /// </summary>
-    /// <param name="value">The raw search term to escape.</param>
-    /// <returns>The search term with backslash, percent, and underscore characters escaped.</returns>
-    private static string EscapeLikePattern(string value)
-    {
-        return value
-            .Replace("\\", "\\\\")
-            .Replace("%", "\\%")
-            .Replace("_", "\\_");
     }
 
     /// <summary>

@@ -16,6 +16,7 @@ public sealed class AccountDeletionPolicyTests
     /// <param name="userExists">Whether the Identity user exists.</param>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false, false)]
+    [InlineData(false, true)]
     [InlineData(true, false)]
     public void Evaluate_ReturnsNoClubOrNonAdmin_WhenUserIsUnavailable(
         bool isAuthenticated,

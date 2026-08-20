@@ -112,6 +112,74 @@ public sealed class CampaignPlacementPolicyTests
     }
 
     /// <summary>
+    /// Verifies a closed campaign is rejected before a requested team's archived state.
+    /// </summary>
+    [Fact]
+    public void Evaluate_ReturnsCampaignClosed_WhenRequestedTeamWouldBeArchived()
+    {
+        var result = CampaignPlacementPolicy.Evaluate(
+            CreateContext(
+                campaignStatus: CampaignStatus.Closed,
+                teamRequested: true,
+                teamFound: true,
+                teamStatus: LifecycleStatus.Archived,
+                teamYear: 2029));
+
+        result.Value.ShouldBeOfType<PlacementCampaignClosed>();
+    }
+
+    /// <summary>
+    /// Verifies a closed campaign is rejected before a requested team's eligibility check.
+    /// </summary>
+    [Fact]
+    public void Evaluate_ReturnsCampaignClosed_WhenRequestedTeamWouldBeIneligible()
+    {
+        var result = CampaignPlacementPolicy.Evaluate(
+            CreateContext(
+                campaignStatus: CampaignStatus.Closed,
+                playerYear: 2029,
+                teamRequested: true,
+                teamFound: true,
+                teamYear: 2030));
+
+        result.Value.ShouldBeOfType<PlacementCampaignClosed>();
+    }
+
+    /// <summary>
+    /// Verifies an archived player is rejected before a requested team's archived state.
+    /// </summary>
+    [Fact]
+    public void Evaluate_ReturnsPlayerArchived_WhenRequestedTeamWouldBeArchived()
+    {
+        var result = CampaignPlacementPolicy.Evaluate(
+            CreateContext(
+                playerStatus: LifecycleStatus.Archived,
+                teamRequested: true,
+                teamFound: true,
+                teamStatus: LifecycleStatus.Archived,
+                teamYear: 2029));
+
+        result.Value.ShouldBeOfType<PlacementPlayerArchived>();
+    }
+
+    /// <summary>
+    /// Verifies an archived player is rejected before a requested team's eligibility check.
+    /// </summary>
+    [Fact]
+    public void Evaluate_ReturnsPlayerArchived_WhenRequestedTeamWouldBeIneligible()
+    {
+        var result = CampaignPlacementPolicy.Evaluate(
+            CreateContext(
+                playerStatus: LifecycleStatus.Archived,
+                playerYear: 2029,
+                teamRequested: true,
+                teamFound: true,
+                teamYear: 2030));
+
+        result.Value.ShouldBeOfType<PlacementPlayerArchived>();
+    }
+
+    /// <summary>
     /// Creates placement decision facts with valid active defaults.
     /// </summary>
     /// <param name="campaignStatus">The campaign status.</param>

@@ -4,6 +4,7 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Clubs;
+using Nova.Features.Shared;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
@@ -124,11 +125,18 @@ public sealed partial class ClubService(
 
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var searchTerm = $"%{query}%";
-            baseQuery = baseQuery.Where(c =>
-                EF.Functions.ILike(c.Name, searchTerm) ||
-                EF.Functions.ILike(c.City, searchTerm) ||
-                EF.Functions.ILike(c.State, searchTerm));
+            var trimmedQuery = query.Trim();
+            var uppercaseSearch = trimmedQuery.ToUpperInvariant();
+            var escapedSearch = LikePatternEscaper.EscapeLikePattern(trimmedQuery);
+            baseQuery = db.Database.IsNpgsql()
+                ? baseQuery.Where(c =>
+                    EF.Functions.ILike(c.Name, $"%{escapedSearch}%", @"\") ||
+                    EF.Functions.ILike(c.City, $"%{escapedSearch}%", @"\") ||
+                    EF.Functions.ILike(c.State, $"%{escapedSearch}%", @"\"))
+                : baseQuery.Where(c =>
+                    c.Name.ToUpper().Contains(uppercaseSearch) ||
+                    c.City.ToUpper().Contains(uppercaseSearch) ||
+                    c.State.ToUpper().Contains(uppercaseSearch));
         }
 
         var clubs = await baseQuery
