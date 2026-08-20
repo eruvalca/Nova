@@ -212,7 +212,7 @@ public sealed partial class CampaignTagApplicationService(
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Whether the apply committed, along with the reconstructed result when it did.</returns>
-    private static async Task<ExecutionResult<OneOf<
+    private async Task<ExecutionResult<OneOf<
         CampaignTagApplicationMutationSuccess,
         Error<IReadOnlyDictionary<string, string[]>>,
         NotFound,
@@ -234,21 +234,25 @@ public sealed partial class CampaignTagApplicationService(
                     && candidate.CreationOperationId == creationOperationId,
                 cancellationToken);
 
-        return application is null
-            ? new ExecutionResult<OneOf<
+        if (application is null)
+        {
+            return new ExecutionResult<OneOf<
                 CampaignTagApplicationMutationSuccess,
                 Error<IReadOnlyDictionary<string, string[]>>,
                 NotFound,
                 CampaignTagApplicationForbidden,
-                CampaignTagApplicationConflict>>(successful: false, default!)
-            : new ExecutionResult<OneOf<
-                CampaignTagApplicationMutationSuccess,
-                Error<IReadOnlyDictionary<string, string[]>>,
-                NotFound,
-                CampaignTagApplicationForbidden,
-                CampaignTagApplicationConflict>>(
-                    successful: true,
-                    new CampaignTagApplicationMutationSuccess(application.CampaignTagApplicationId));
+                CampaignTagApplicationConflict>>(successful: false, default!);
+        }
+
+        LogApplyCommitRecovered(application.CampaignTagApplicationId, creationOperationId);
+        return new ExecutionResult<OneOf<
+            CampaignTagApplicationMutationSuccess,
+            Error<IReadOnlyDictionary<string, string[]>>,
+            NotFound,
+            CampaignTagApplicationForbidden,
+            CampaignTagApplicationConflict>>(
+                successful: true,
+                new CampaignTagApplicationMutationSuccess(application.CampaignTagApplicationId));
     }
 
     /// <summary>
@@ -421,7 +425,7 @@ public sealed partial class CampaignTagApplicationService(
     /// <param name="removalOperationId">The stable identifier for the logical remove operation.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Whether the remove committed, along with the reconstructed result when it did.</returns>
-    private static async Task<ExecutionResult<OneOf<
+    private async Task<ExecutionResult<OneOf<
         Success,
         Error<IReadOnlyDictionary<string, string[]>>,
         NotFound,
@@ -439,19 +443,23 @@ public sealed partial class CampaignTagApplicationService(
             .AsNoTracking()
             .AnyAsync(candidate => candidate.RemovalOperationId == removalOperationId, cancellationToken);
 
-        return !receiptExists
-            ? new ExecutionResult<OneOf<
+        if (!receiptExists)
+        {
+            return new ExecutionResult<OneOf<
                 Success,
                 Error<IReadOnlyDictionary<string, string[]>>,
                 NotFound,
                 CampaignTagApplicationForbidden,
-                CampaignTagApplicationConflict>>(successful: false, default!)
-            : new ExecutionResult<OneOf<
-                Success,
-                Error<IReadOnlyDictionary<string, string[]>>,
-                NotFound,
-                CampaignTagApplicationForbidden,
-                CampaignTagApplicationConflict>>(successful: true, new Success());
+                CampaignTagApplicationConflict>>(successful: false, default!);
+        }
+
+        LogRemoveCommitRecovered(removalOperationId);
+        return new ExecutionResult<OneOf<
+            Success,
+            Error<IReadOnlyDictionary<string, string[]>>,
+            NotFound,
+            CampaignTagApplicationForbidden,
+            CampaignTagApplicationConflict>>(successful: true, new Success());
     }
 
     /// <summary>
@@ -548,6 +556,12 @@ public sealed partial class CampaignTagApplicationService(
     [LoggerMessage(Level = LogLevel.Information, Message = "Campaign tag application created: CampaignTagApplicationId={ApplicationId}, AssignmentId={AssignmentId}, TagId={TagId}, UserId={ActorUserId}.")]
     private partial void LogApplySucceeded(long assignmentId, long tagId, long actorUserId, long applicationId);
 
+    /// <summary>Logs an apply result reconstructed from an ambiguous commit.</summary>
+    /// <param name="applicationId">The committed campaign tag application identifier.</param>
+    /// <param name="operationId">The stable identifier for the logical apply operation.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Campaign tag application OperationId={OperationId} recovered committed CampaignTagApplicationId={ApplicationId} after an ambiguous commit.")]
+    private partial void LogApplyCommitRecovered(long applicationId, Guid operationId);
+
     /// <summary>
     /// Logs a remove request rejected due to invalid input values.
     /// </summary>
@@ -594,6 +608,11 @@ public sealed partial class CampaignTagApplicationService(
     /// <param name="actorUserId">The acting user identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "Campaign tag application removed: CampaignTagApplicationId={ApplicationId}, UserId={ActorUserId}.")]
     private partial void LogRemoveSucceeded(long applicationId, long actorUserId);
+
+    /// <summary>Logs a remove result reconstructed from an ambiguous commit.</summary>
+    /// <param name="operationId">The stable identifier for the logical removal operation.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Campaign tag application removal OperationId={OperationId} recovered committed removal after an ambiguous commit.")]
+    private partial void LogRemoveCommitRecovered(Guid operationId);
 
     /// <summary>
     /// Logs a remove mutation that failed because the application was concurrently deleted.

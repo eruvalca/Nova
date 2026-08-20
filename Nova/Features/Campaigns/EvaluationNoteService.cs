@@ -203,7 +203,7 @@ public sealed partial class EvaluationNoteService(
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Whether the add committed, along with the reconstructed result when it did.</returns>
-    private static async Task<ExecutionResult<OneOf<
+    private async Task<ExecutionResult<OneOf<
         EvaluationNoteMutationSuccess,
         Error<IReadOnlyDictionary<string, string[]>>,
         NotFound,
@@ -225,21 +225,25 @@ public sealed partial class EvaluationNoteService(
                     && candidate.ClubId == clubId,
                 cancellationToken);
 
-        return receipt is null
-            ? new ExecutionResult<OneOf<
+        if (receipt is null)
+        {
+            return new ExecutionResult<OneOf<
                 EvaluationNoteMutationSuccess,
                 Error<IReadOnlyDictionary<string, string[]>>,
                 NotFound,
                 LifecycleForbidden,
-                LifecycleConflict>>(successful: false, default!)
-            : new ExecutionResult<OneOf<
-                EvaluationNoteMutationSuccess,
-                Error<IReadOnlyDictionary<string, string[]>>,
-                NotFound,
-                LifecycleForbidden,
-                LifecycleConflict>>(
-                    successful: true,
-                    new EvaluationNoteMutationSuccess(receipt.NoteId));
+                LifecycleConflict>>(successful: false, default!);
+        }
+
+        LogNoteAddCommitRecovered(receipt.NoteId, creationOperationId);
+        return new ExecutionResult<OneOf<
+            EvaluationNoteMutationSuccess,
+            Error<IReadOnlyDictionary<string, string[]>>,
+            NotFound,
+            LifecycleForbidden,
+            LifecycleConflict>>(
+                successful: true,
+                new EvaluationNoteMutationSuccess(receipt.NoteId));
     }
 
     /// <summary>
@@ -368,7 +372,7 @@ public sealed partial class EvaluationNoteService(
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Whether the edit committed, along with the reconstructed result when it did.</returns>
-    private static async Task<ExecutionResult<OneOf<
+    private async Task<ExecutionResult<OneOf<
         Success,
         Error<IReadOnlyDictionary<string, string[]>>,
         NotFound,
@@ -390,19 +394,23 @@ public sealed partial class EvaluationNoteService(
                     && candidate.ClubId == clubId,
                 cancellationToken);
 
-        return !receiptExists
-            ? new ExecutionResult<OneOf<
+        if (!receiptExists)
+        {
+            return new ExecutionResult<OneOf<
                 Success,
                 Error<IReadOnlyDictionary<string, string[]>>,
                 NotFound,
                 LifecycleForbidden,
-                LifecycleConflict>>(successful: false, default!)
-            : new ExecutionResult<OneOf<
-                Success,
-                Error<IReadOnlyDictionary<string, string[]>>,
-                NotFound,
-                LifecycleForbidden,
-                LifecycleConflict>>(successful: true, new Success());
+                LifecycleConflict>>(successful: false, default!);
+        }
+
+        LogNoteEditCommitRecovered(editOperationId);
+        return new ExecutionResult<OneOf<
+            Success,
+            Error<IReadOnlyDictionary<string, string[]>>,
+            NotFound,
+            LifecycleForbidden,
+            LifecycleConflict>>(successful: true, new Success());
     }
 
     /// <summary>
@@ -541,7 +549,7 @@ public sealed partial class EvaluationNoteService(
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Whether the delete committed, along with the reconstructed result when it did.</returns>
-    private static async Task<ExecutionResult<OneOf<
+    private async Task<ExecutionResult<OneOf<
         Success,
         NotFound,
         LifecycleForbidden,
@@ -557,17 +565,21 @@ public sealed partial class EvaluationNoteService(
                 candidate => candidate.NoteId == noteId && candidate.ClubId == clubId,
                 cancellationToken);
 
-        return note is not null
-            ? new ExecutionResult<OneOf<
+        if (note is not null)
+        {
+            return new ExecutionResult<OneOf<
                 Success,
                 NotFound,
                 LifecycleForbidden,
-                LifecycleConflict>>(successful: false, default!)
-            : new ExecutionResult<OneOf<
-                Success,
-                NotFound,
-                LifecycleForbidden,
-                LifecycleConflict>>(successful: true, new Success());
+                LifecycleConflict>>(successful: false, default!);
+        }
+
+        LogNoteDeleteCommitRecovered(noteId);
+        return new ExecutionResult<OneOf<
+            Success,
+            NotFound,
+            LifecycleForbidden,
+            LifecycleConflict>>(successful: true, new Success());
     }
 
     /// <summary>
@@ -669,15 +681,31 @@ public sealed partial class EvaluationNoteService(
     [LoggerMessage(Level = LogLevel.Information, Message = "Evaluation note NoteId={NoteId} added to AssignmentId={AssignmentId} by UserId={ActorUserId}.")]
     private partial void LogNoteAdded(long noteId, long assignmentId, long actorUserId);
 
+    /// <summary>Logs a note add result reconstructed from an ambiguous commit.</summary>
+    /// <param name="noteId">The committed note identifier.</param>
+    /// <param name="operationId">The stable identifier for the logical add operation.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Evaluation note add OperationId={OperationId} recovered committed NoteId={NoteId} after an ambiguous commit.")]
+    private partial void LogNoteAddCommitRecovered(long noteId, Guid operationId);
+
     /// <summary>Logs a successfully edited evaluation note.</summary>
     /// <param name="noteId">The edited note identifier.</param>
     /// <param name="actorUserId">The acting user identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "Evaluation note NoteId={NoteId} edited by UserId={ActorUserId}.")]
     private partial void LogNoteEdited(long noteId, long actorUserId);
 
+    /// <summary>Logs a note edit result reconstructed from an ambiguous commit.</summary>
+    /// <param name="operationId">The stable identifier for the logical edit operation.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Evaluation note edit OperationId={OperationId} recovered committed edit after an ambiguous commit.")]
+    private partial void LogNoteEditCommitRecovered(Guid operationId);
+
     /// <summary>Logs a successfully deleted evaluation note.</summary>
     /// <param name="noteId">The deleted note identifier.</param>
     /// <param name="actorUserId">The acting user identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "Evaluation note NoteId={NoteId} deleted by UserId={ActorUserId}.")]
     private partial void LogNoteDeleted(long noteId, long actorUserId);
+
+    /// <summary>Logs a note delete result reconstructed from an ambiguous commit.</summary>
+    /// <param name="noteId">The deleted note identifier.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Evaluation note delete NoteId={NoteId} recovered committed delete after an ambiguous commit.")]
+    private partial void LogNoteDeleteCommitRecovered(long noteId);
 }
