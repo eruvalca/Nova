@@ -135,7 +135,7 @@ Status: Complete
 ### Phase Summary
 
 Added `Nova.Integration.Tests/Http/TraceCorrelationHttpTests.cs` with three tests, one per
-ProblemDetails producer, each generating a random W3C `traceparent`
+covered (non-exception) ProblemDetails producer, each generating a random W3C `traceparent`
 (`00-<32hex>-<16hex>-01`) and asserting the response `traceId` **equals** the sent trace id:
 
 1. `ServiceProblem_ReturnsTraceIdMatchingSentTraceparent` — authenticated POST to
@@ -147,6 +147,13 @@ ProblemDetails producer, each generating a random W3C `traceparent`
    `CampaignEndpoints.GetCampaignList` → 401 via `UseStatusCodePages`.
 
 All three green against the real Aspire AppHost.
+
+**Untested producer (recorded, not covered).** The fourth producer in the Phase 1 matrix —
+unhandled exceptions (`UseExceptionHandler`) → 500 — has no committed end-to-end test. Its
+`traceId` is injected by the same `CustomizeProblemDetails` hook in `Nova/Program.cs` (verified
+statically in Phase 4), but triggering a deterministic 500 requires a fault-injection surface,
+which is an application feature change and therefore out of scope for this review. No
+fault-injection surface was added, so the 500 path remains explicitly untested.
 
 ## Phase 3: Runtime trace walk across the primary workflows
 
@@ -283,14 +290,17 @@ service families). No browser-affecting change, so the browser suite was not run
 
 ## Final Recap
 
-Verified W3C trace continuity end to end for the MVP slices and proved every ProblemDetails
-producer carries a `traceId` equal to the request `traceparent`, without adding exporters/backends
-and without moving observability wiring out of `Nova.ServiceDefaults`.
+Verified W3C trace continuity end to end for the MVP slices and proved each of the three
+committed-test (non-exception) ProblemDetails producers carries a `traceId` equal to the request
+`traceparent`, without adding exporters/backends and without moving observability wiring out of
+`Nova.ServiceDefaults`. The fourth producer (unhandled exceptions → 500) is recorded in Phase 2 as
+an explicit untested item — no deterministic 500 fault-injection surface was added.
 
 - **Phase 1** audited all 30 services and every `/api` endpoint family; the only real gap was
   10 ambiguous-commit `Verify*Async` methods across 6 services that did not log commit-recovery.
 - **Phase 2** added `TraceCorrelationHttpTests` (3 green tests) proving `traceId` == sent
-  `traceparent` for all three producers.
+  `traceparent` for the three non-exception producers (the 500/unhandled-exception producer is
+  recorded as untested).
 - **Phase 3** confirmed runtime W3C continuation against a CLI-started AppHost (server span's
   `parentSpanId` == the sent span id, `traceId` matched, trace visible in the dashboard). The
   full browser walk was best-effort and not completed in this environment.
