@@ -96,7 +96,7 @@ public partial class ClubDashboard(
     protected string ReviewPlacementsUrl =>
         _summary?.AdminAttention?.FirstUnresolvedCampaignId is long campaignId
             ? DashboardEndpoints.CampaignWorkspaceUrl(campaignId)
-            : DashboardEndpoints.CampaignWorkspaceRoutePrefix;
+            : DashboardEndpoints.CampaignListRoute;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -117,6 +117,15 @@ public partial class ClubDashboard(
         }
 
         _isLoading = true;
+        if (_clubId is null)
+        {
+            _pageError = "You must join a club before viewing the dashboard.";
+            PersistStartupState();
+            Initialized = true;
+            _isLoading = false;
+            return;
+        }
+
         await LoadDashboardAsync();
         PersistStartupState();
         Initialized = true;

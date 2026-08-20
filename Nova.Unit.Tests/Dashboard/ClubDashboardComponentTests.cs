@@ -294,6 +294,24 @@ public sealed class ClubDashboardComponentTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Active campaigns"));
     }
 
+    /// <summary>Verifies a user without a club id claim sees the friendly error and no dashboard payload is fetched.</summary>
+    [Fact]
+    public void ClubDashboard_ShowsFriendlyError_WhenClubIdClaimMissing()
+    {
+        var dashboardService = Substitute.For<IDashboardQueryService>();
+
+        RegisterServices(isClubAdmin: false, dashboardService, clubId: null);
+
+        var cut = Render<ClubDashboardPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("You must join a club before viewing the dashboard."));
+
+        cut.Markup.ShouldContain("role=\"alert\"");
+        cut.Markup.ShouldNotContain("Active campaigns");
+        cut.Markup.ShouldNotContain("Admin attention");
+        dashboardService.DidNotReceive().GetDashboardAsync(Arg.Any<CancellationToken>());
+        dashboardService.DidNotReceive().GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Verifies seeded persisted state is restored without re-fetching either dashboard payload.</summary>
     [Fact]
     public void ClubDashboard_RestoresPersistedState_WithoutRefetching()
@@ -316,10 +334,10 @@ public sealed class ClubDashboardComponentTests : BunitContext
         dashboardService.DidNotReceive().GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>());
     }
 
-    private void RegisterServices(bool isClubAdmin, IDashboardQueryService dashboardService)
+    private void RegisterServices(bool isClubAdmin, IDashboardQueryService dashboardService, string? clubId = "42")
     {
         Services.AddSingleton(dashboardService);
-        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
+        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin, clubId)));
     }
 
     private static ClubDashboardResult CreatePopulatedSummary(AdminAttentionDto? attention = null) => new()
@@ -396,13 +414,17 @@ public sealed class ClubDashboardComponentTests : BunitContext
             LifecycleEventType = lifecycle
         };
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, string? clubId = "42")
     {
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, "101"),
-            new(NovaClaimTypes.ClubId, "42")
+            new(ClaimTypes.NameIdentifier, "101")
         };
+
+        if (clubId is not null)
+        {
+            claims.Add(new Claim(NovaClaimTypes.ClubId, clubId));
+        }
 
         if (isClubAdmin)
         {
