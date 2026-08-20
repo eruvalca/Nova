@@ -79,11 +79,12 @@ needed on this machine.
 Gap matrix (confirmed): **covered already** — conflict, read-only, and dashboard empty states as listed.
 **Closed by this work** — empty (roster search no-results, fully-resolved placements), validation
 (drawer note, placement save-without-team, campaign/player/team forms), badge contrast (4 `text-bg-success`
-surfaces), form responsive + keyboard, and failure/retry for **mutation** surfaces (placement save,
-campaign/player/team create). **Blocked by architecture** — the *list-load* loading/failure/retry
-scenarios (roster, placements list, closeout, drawer detail). See Phase 2/3 summaries for the exact
-finding: those loads are enhanced-navigation SSR fetches (server-side), not browser `fetch`es, so
-Playwright `RouteAsync` interception only applies to client-side *mutations*.
+surfaces), form responsive + keyboard, and — via a WebAssembly warm-up helper — the *list-load*
+loading/failure/retry scenarios (roster, placements list, closeout, drawer detail) and the *mutation*
+loading/failure/retry scenarios (placement save, campaign create). See the Phase 2 summary for the
+`InteractiveAuto` finding and the `WasmWarmupHelper.ReloadAsWebAssemblyAsync` pattern that unblocks
+`RouteAsync` interception: after the WASM runtime boots and a full reload, those loads become browser
+`/api/...` fetches.
 
 ## Phase 2: Roster and player drawer state families (CampaignEvaluationBrowserTests)
 
@@ -97,10 +98,10 @@ later phases reuse; do not delegate until these patterns are proven).
       `CampaignEvaluationBrowserTests.A11yManualChecklist_CapturesContrastAndTouchTargetEvidence`
       and the touch-target retry loop from `DashboardBrowserTests.AssertTouchTargetAsync`. Refactor
       the three existing call sites to use it; no behavior change.
-- [ ] Add roster **loading**: intercept the roster fetch route with a delayed
+- [x] Add roster **loading**: intercept the roster fetch route with a delayed
       `RouteAsync`/`FulfillAsync` continuation after an interactive navigation (e.g. apply the
-      search filter), assert the "Loading participants…" indicator
-      (`CampaignRosterFilters.razor`), then `UnrouteAsync` and assert the rows render. SSR first
+      search filter), assert the "Loading roster…" indicator
+      (`CampaignWorkspace.razor`), then `UnrouteAsync` and assert the rows render. SSR first
       paint is exempt — assert only the client-side transition.
 - [x] Add roster **empty**: search for a non-existent name; assert the zero-result message, the
       `p[aria-live="polite"]` "0 participants" announcement, and that no rows/cards render.
@@ -108,10 +109,10 @@ later phases reuse; do not delegate until these patterns are proven).
       inline validation error, no success alert, and the note list unchanged. (Confirm the exact
       validator behavior in `CampaignParticipantDrawer` during implementation; if there is no
       note-level validation, record that and cover validation on the apply-tag select instead.)
-- [ ] Add roster **failure + retry**: abort (500) the roster fetch route, assert the error alert
+- [x] Add roster **failure + retry**: abort (500) the roster fetch route, assert the error alert
       (`role=alert`, includes retry affordance text), unroute, click the retry control, assert
       roster renders and the alert clears.
-- [ ] Add drawer open on a participant whose fetch fails: assert the drawer error surface and that
+- [x] Add drawer open on a participant whose fetch fails: assert the drawer error surface and that
       closing the drawer returns focus to the activating row. (Only if the drawer has a distinct
       failure surface; otherwise fold into the roster failure scenario and note why.)
 - [x] Add the **roster outcome badge contrast regression** (`.text-bg-success` from
@@ -132,24 +133,27 @@ Extracted `A11yMeasurementHelpers.cs` with `AssertTouchTargetAsync`, `MeasureCon
 (Dashboard, Closeout, Evaluation) to use it; no behavior change (evaluation/closeout/dashboard suites
 remain green).
 
-Added three passing scenarios to `CampaignEvaluationBrowserTests`:
+Added six passing scenarios to `CampaignEvaluationBrowserTests`:
 `Roster_EmptySearch_ShowsNoResults_WithZeroCountAnnouncement`,
-`Drawer_NoteValidation_RejectsWhitespaceContent`, and
+`Drawer_NoteValidation_RejectsWhitespaceContent`,
 `Roster_AssignedOutcomeBadge_MeetsContrastThreshold` (uses a new `SeedingHelpers.AssignPlacementAsync`
-primitive to seed an assigned roster row). The note validator confirms
+primitive to seed an assigned roster row), plus the three list-load/failure scenarios
+`Roster_Loading_ShowsIndicator_ThenRendersRows`, `Roster_Failure_ShowsRetry_AndRetryRecovers`, and
+`Drawer_DetailFailure_ShowsRetry_AndRetryRecovers`. The note validator confirms
 `AddEvaluationNoteInput.Content` carries `[Required, NotWhitespace]`, so whitespace-only content is
 rejected client-side via `InputValidator`.
 
-**Key architectural finding (blocks three planned scenarios).** Roster/drawer/detail list loads are
-`InteractiveAuto` enhanced-navigation SSR fetches, not browser `fetch`es. A Playwright `Request`-event
-probe confirmed the search transition issues `GET /campaigns/{id}?search=…` (the page URL) with **no**
-`/api/campaigns/{id}/participants` request in the browser — the roster is re-fetched server-side during
-enhanced navigation. Consequently `RouteAsync` interception cannot drive the roster **loading**,
-roster **failure+retry**, or drawer **detail-fetch failure** scenarios; they are recorded here as
-blocked rather than silently skipped. The UI does render those surfaces (the "Loading participants…"
-indicator, the roster/drawer `role=alert` + Retry affordances); they are just SSR-prerendered and not
-reachable through client-side fetch interception. Failure/retry and loading coverage is instead
-delivered for client-side *mutations* in Phases 3 and 4, where interception does apply.
+**Key architectural finding (resolved).** Roster/drawer/detail list loads are server-side on the
+`InteractiveAuto` *first visit* (enhanced navigation, no browser `/api/...` fetch, a `/_blazor/negotiate`
+SignalR circuit) — but they are reachable through client-side fetch interception once the page switches
+to WebAssembly. A Playwright `Request`-event probe showed that waiting only for the WASM asset
+*download* and then reloading is not enough (the circuit is re-established). After a bounded localhost
+delay (≈15s) for the WASM runtime to finish *booting*, `page.ReloadAsync()` switches `InteractiveAuto`
+to WebAssembly (no further `/_blazor/negotiate`), and the probe then observed
+`GET /api/campaigns/{id}/participants?search=…` in the browser. This is captured as
+`WasmWarmupHelper.ReloadAsWebAssemblyAsync`, used by every loading/failure/retry scenario in this plan.
+The three roster/drawer scenarios (`Roster_Loading_ShowsIndicator_ThenRendersRows`,
+`Roster_Failure_ShowsRetry_AndRetryRecovers`, `Drawer_DetailFailure_ShowsRetry_AndRetryRecovers`) pass.
 
 ## Phase 3: Placement controls and closeout state families
 
@@ -158,7 +162,7 @@ Status: Complete
 Suggested executor: sub-agent (patterns now proven in Phase 2; well-scoped mechanical writing) with
 the orchestrator running the verification.
 
-- [ ] Placement **loading**: delay the placements-list fetch route on an interactive transition
+- [x] Placement **loading**: delay the placements-list fetch route on an interactive transition
       (graduation-year filter or unresolved-only toggle), assert the in-row/panel spinner
       (`CampaignPlacementsPanel.razor` spinner-border), unroute, assert rows.
 - [x] Placement **empty**: seed a campaign whose placements are all resolved (extend `PlacementSeed`
@@ -168,13 +172,13 @@ the orchestrator running the verification.
       inline validation message and that no save request fires (summary unchanged). (Confirm the
       panel's validation surface during implementation; if the Save button is simply disabled,
       assert the disabled + explanation state instead and record which one exists.)
-- [ ] Placement **failure + retry**: abort (500) the placement-save route, assert the
+- [x] Placement **failure + retry**: abort (500) the placement-save route, assert the
       `div.alert-danger[role=alert]` with retry, unroute, retry the save, assert "Placement saved."
       and the summary update.
-- [ ] Closeout **loading**: delay the closeout fetch route on an interactive transition (tab
+- [x] Closeout **loading**: delay the closeout fetch route on an interactive transition (tab
       switch or blocker drill-down return), assert the panel loading indicator, unroute, assert the
       checklist.
-- [ ] Closeout **failure + retry**: abort (500) the closeout fetch route, assert the error surface
+- [x] Closeout **failure + retry**: abort (500) the closeout fetch route, assert the error surface
       with retry, unroute, retry, assert the checklist renders.
 - [x] Confirm closeout **empty** state: a fully-blocked vs. ready campaign matrix already exists;
       add the "all blockers resolved" clean-checklist assertion only if not already covered by
@@ -209,15 +213,21 @@ separate test: `CampaignPlacementsPanel` only renders the `OutcomeBadgeClass` ba
 (closed campaign / non-admin), and the single `OutcomeBadgeClass(Assigned)` → `text-bg-success`
 surface is already covered by the Phase 2 roster badge regression, so no duplication.
 
-**Blocked by the same architecture finding as Phase 2.** Placement/closeout *list* loading and
-failure/retry (`CampaignPlacementsPanel` list fetch, `CampaignCloseoutPanel` readiness fetch) are
-enhanced-navigation SSR fetches, not browser `fetch`es. A `Request`-event probe confirmed the
-placement **save mutation** also travels over the InteractiveServer circuit (no `/api/...` request
-reaches the browser) for the whole test lifetime — `InteractiveAuto` does not switch to WebAssembly in
-this environment, so Playwright `RouteAsync` cannot intercept the placement-save failure path either.
-The placement `SaveRowAsync` 500 → `draft.RowError` surface and the closeout `role=alert` + Retry
-surfaces exist in the components but are not reachable through client-side fetch interception; they are
-recorded here as blocked rather than silently skipped.
+Added the four list-load/mutation scenarios via the Phase 2 `WasmWarmupHelper.ReloadAsWebAssemblyAsync`
+pattern:
+
+- `Placements_Loading_ShowsIndicator_ThenRendersRows` — holds the `/placements` list fetch open on the
+  unresolved-only transition, asserts the "Loading placements..." indicator, then releases it.
+- `Placements_SaveFailure_ShowsRowError_AndRetryRecovers` — 500s the `/participants/{id}/placement`
+  save mutation, asserts the per-row `div.text-danger[role=alert]` "Failed to save the placement",
+  then unroutes and re-saves to "Placement saved." + "1 assigned".
+- `Closeout_Loading_ShowsIndicator_ThenRendersChecklist` — holds the `/closeout-readiness` fetch open
+  on the Closeout tab switch, asserts the "Loading closeout..." indicator, then releases it.
+- `Closeout_Failure_ShowsRetry_AndRetryRecovers` — 500s `/closeout-readiness`, asserts the
+  `role=alert` + Retry surface, then unroutes and retries to the blocker checklist.
+
+The placement **save mutation** is now covered client-side too: the save travels over the browser
+`PUT /api/campaigns/participants/{assignmentId}/placement` once the page is in WebAssembly.
 
 ## Phase 4: Form state families, responsive, and keyboard coverage
 
@@ -236,10 +246,10 @@ files; the orchestrator runs verification to avoid AppHost contention.
             conflict `ProblemDetails`; assert the form-level conflict alert and preserved inputs.
             (If the create path cannot conflict, record why and cover conflict on metadata-save
             instead.)
-      - [ ] **Failure + retry**: abort (500) the create route, assert the form-level error with
+      - [x] **Failure + retry**: abort (500) the create route, assert the form-level error with
             retry, unroute, resubmit, assert success.
-      - [ ] **Loading**: delay the create route on submit, assert the submit-button spinner
-            (`SeasonMetadataForm` has the pattern), unroute, assert completion.
+      - [x] **Loading**: delay the create route on submit, assert the submit-button spinner
+            (`CampaignCreateForm` has the pattern), unroute, assert completion.
       - [x] **Responsive**: at 480×800 and 1280×800 the form renders without overlap/lost input
             (all labelled fields visible; submit reachable) and inputs keep values across a
             viewport resize.
@@ -257,9 +267,10 @@ files; the orchestrator runs verification to avoid AppHost contention.
       `TeamDetail.razor` edit form):
       - [x] Same state/responsive/keyboard list as the player form.
       - [x] **TeamDetail badge contrast regression** for the `Active` status badge.
-- [x] Seeding: add any missing shared primitives to `SeedingHelpers` (e.g. an
-      `InsertPlayerAsync` and/or pre-seeded player/team for edit scenarios) — reuse
-      `InsertTeamAsync` and `SeedCampaignWithParticipantsAsync` where possible.
+- [x] Seeding: add any missing shared primitives to `SeedingHelpers` (`AssignPlacementAsync`) —
+      reuse `InsertTeamAsync` and `SeedCampaignWithParticipantsAsync` where possible. (A
+      pre-seeded-player primitive was not needed: the player badge/detail tests project the player id
+      from `SeedCampaignWithParticipantsAsync`, so no bare `InsertPlayerAsync` primitive remains.)
 
 ### Verification Plan
 
@@ -275,19 +286,23 @@ no navigation away), **success** (create → roster reflects the new entity), **
 value retained across a 480px resize, submit reachable), **keyboard** (Tab order reaches the submit
 button, Enter submits), and an env-gated **a11y evidence** test (screenshot + badge measurement,
 `Assert.Skip` without `NOVA_A11Y_SCREENSHOTS=1`). PlayerDetail/TeamDetail **badge contrast** tests seed
-an active campaign (via `SeedingHelpers.InsertTeamAsync`/`InsertPlayerAsync`/`AssignPlacementAsync` +
+an active campaign (via `SeedingHelpers.InsertTeamAsync`/`AssignPlacementAsync` +
 `SeedCampaignWithParticipantsAsync`) and assert the campaign-status `text-bg-success` badge ≥ 4.5:1.
 
-New shared seeding primitive: `SeedingHelpers.InsertPlayerAsync` (and `AssignPlacementAsync`, added in
-Phase 2). `InsertTeamAsync` and `SeedCampaignWithParticipantsAsync` were reused.
+New shared seeding primitive: `SeedingHelpers.AssignPlacementAsync` (added in Phase 2). `InsertTeamAsync`
+and `SeedCampaignWithParticipantsAsync` were reused.
 
 **Conflict** is recorded as not-applicable: campaign creation has no uniqueness conflict surface (the
 create path has no unique-name constraint; `NewCampaign` only maps `Conflict` defensively), and the
 plan's metadata-save fallback is out of scope for a test-only issue. **Failure + retry** and
-**loading** (submit spinner) for the three forms are blocked by the same InteractiveAuto finding as
-Phases 2/3: the form submits travel over the InteractiveServer circuit (no browser `fetch`), so
-`RouteAsync` interception cannot drive a 500 or a held submit. The form-level `role=alert` error and
-submit-spinner surfaces exist but are not reachable through client-side fetch interception.
+**loading** (submit spinner) for campaign creation are now covered via the Phase 2
+`WasmWarmupHelper.ReloadAsWebAssemblyAsync` pattern: the create `POST /api/campaigns` becomes a browser
+fetch after the WASM switch, so `RouteAsync` intercepts both the held-submit spinner
+(`CampaignForm_Loading_ShowsSubmitSpinner_ThenCompletes`) and the 500 →
+`div.alert-danger[role=alert]` "Failed to create the campaign" → resubmit recovery
+(`CampaignForm_Failure_ShowsRetry_AndRetryRecovers`). Player/team form failure+retry remains struck
+through in the checklist (out of scope; the campaign-create path is the single covered mutation
+surface for forms).
 
 ## Phase 5: Badge contrast sweep and a11y evidence completion
 
@@ -362,10 +377,10 @@ Suggested executor: orchestrator.
 
 ### Phase Summary
 
-Full regression green: **60 scenarios total — 54 passed + 6 env-gated skipped** without the flag, and
-**60 passed + 0 skipped** with `NOVA_A11Y_SCREENSHOTS=1`. Baseline was 37 (34 passed + 3 skipped), so
-this issue adds **23 scenarios** across the evaluation, placement, dashboard, and three new form test
-files (net of the 3 removed/blocked list-load scenarios).
+Full regression green: **69 scenarios total — 63 passed + 6 env-gated skipped** without the flag, and
+**69 passed + 0 skipped** with `NOVA_A11Y_SCREENSHOTS=1`. Baseline was 37 (34 passed + 3 skipped), so
+this issue adds **32 scenarios** across the evaluation, placement, closeout, dashboard, and three new
+form test files (including the nine loading/failure/retry scenarios unblocked by `WasmWarmupHelper`).
 
 - `dotnet build Nova.slnx` — 0 warnings, 0 errors.
 - `dotnet format Nova.slnx --verify-no-changes` — clean (no violations). (One CHARSET fix was applied
@@ -386,32 +401,39 @@ Test-only browser coverage for issue #118 (sub-issue of #13), implementing the p
   contrast-ratio and touch-target measurement logic; the Dashboard, Closeout, and Evaluation call
   sites now reuse it (no behavior change). The single-element contrast helper retries through the
   transient "circuit re-render leaves computed colors unparseable" window.
-- New shared seeding primitives in `Nova.Integration.Tests/Http/SeedingHelpers.cs`:
-  `AssignPlacementAsync` and `InsertPlayerAsync`.
+- New shared seeding primitive in `Nova.Integration.Tests/Http/SeedingHelpers.cs`:
+  `AssignPlacementAsync` (a bare `InsertPlayerAsync` was added speculatively and then removed after
+  review — the player badge/detail tests project the player id from `SeedCampaignWithParticipantsAsync`).
 - `PlacementSeed` extended with an all-resolved active campaign (`AllResolvedCampaignId`).
-- New scenarios: roster empty, drawer note validation, roster assigned-badge contrast (Evaluation);
-  placements all-resolved empty and Assigned-without-team validation (Placement); campaign-list
-  Active-badge contrast (Dashboard); and three new form test files (`CampaignFormBrowserTests`,
-  `PlayerFormBrowserTests`, `TeamFormBrowserTests`) covering validation, success, responsive, keyboard,
-  and PlayerDetail/TeamDetail badge contrast, plus env-gated evidence capture.
+- A `WasmWarmupHelper.ReloadAsWebAssemblyAsync` helper that switches an `InteractiveAuto` page to
+  WebAssembly (bounded localhost boot delay + full reload) so list loads and mutations become browser
+  `/api/...` fetches interceptable by `RouteAsync`.
+- New scenarios: roster empty, drawer note validation, roster assigned-badge contrast, roster
+  loading/failure+retry, and drawer detail failure (Evaluation); placements all-resolved empty,
+  Assigned-without-team validation, placements loading, and placement save failure+retry (Placement);
+  closeout loading/failure+retry (Closeout); campaign-list Active-badge contrast (Dashboard); and three
+  new form test files (`CampaignFormBrowserTests`, `PlayerFormBrowserTests`, `TeamFormBrowserTests`)
+  covering validation, success, responsive, keyboard, campaign-create loading/failure+retry, and
+  PlayerDetail/TeamDetail badge contrast, plus env-gated evidence capture.
 - Four `text-bg-success` surfaces are each covered by a ≥4.5:1 regression assertion (Bootstrap
   `text-bg-success` measures ≈4.53–4.54:1): campaign list, roster outcome, PlayerDetail, TeamDetail.
 
-**Architectural finding (recorded, not silently skipped)**
+**Architectural finding (resolved)**
 
-`InteractiveAuto` in this environment never switches list loads or mutations to WebAssembly during a
-test's lifetime — list loads are enhanced-navigation SSR fetches, and even the placement-save mutation
-travels over the InteractiveServer circuit (a `Request`-event probe showed no `/api/...` request in
-the browser). Consequently Playwright `RouteAsync` interception cannot drive the *list-load* loading/
-failure/retry scenarios (roster, placements list, closeout, drawer detail) nor the *mutation* 500/
-loading scenarios. Those UI surfaces exist and are described in the Phase 2/3/4 summaries; they were
-recorded as blocked rather than faked. The conflict state on campaign create was likewise recorded as
-not-applicable (no uniqueness constraint on campaign name).
+`InteractiveAuto` serves each page's first visit on InteractiveServer (enhanced navigation; list loads
+and mutations travel over the SignalR circuit, not the browser). That first-visit observation is not a
+blocker: after the WASM runtime finishes *booting* (a bounded localhost delay ≈15s, distinct from the
+asset *download*), a full `page.ReloadAsync()` switches the page to WebAssembly — a `Request`-event
+probe confirmed the reloaded page has no further `/_blazor/negotiate` circuit and issues
+`GET /api/campaigns/{id}/participants?search=…` in the browser. `WasmWarmupHelper.ReloadAsWebAssemblyAsync`
+captures this, so `RouteAsync` interception now drives all nine list-load and mutation
+loading/failure/retry scenarios. The conflict state on campaign create remains not-applicable (no
+uniqueness constraint on campaign name).
 
 **Validation evidence**
 
 - Baseline: 37 scenarios (34 passed + 3 skipped).
-- Final: 60 scenarios — 54 passed + 6 skipped without `NOVA_A11Y_SCREENSHOTS=1`; 60 passed + 0 skipped
+- Final: 69 scenarios — 63 passed + 6 skipped without `NOVA_A11Y_SCREENSHOTS=1`; 69 passed + 0 skipped
   with it.
 - `dotnet build Nova.slnx` clean; `dotnet format Nova.slnx --verify-no-changes` clean.
 - Evidence pass wrote 13 screenshots and a populated `measurements.txt` (including

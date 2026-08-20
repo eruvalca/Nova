@@ -24,14 +24,20 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenNewCampaignAsync(page);
 
-        // Proving the radio toggle renders the inline-season fields also proves hydration, so the
-        // submit below drives Blazor validation instead of a swallowed pre-hydration form post.
+        // Select the inline season and fill its required fields first, so the campaign name is the
+        // only empty field when the form is submitted below (the radio toggle also proves hydration,
+        // ensuring the submit drives Blazor validation instead of a swallowed pre-hydration form post).
         await CheckInlineSeasonAsync(page);
+        await page.Locator("#inline-season-name").FillAsync("Whitespace Season");
+        await page.Locator("#inline-season-start-date").FillAsync("2026-06-01");
         await page.Locator("#campaign-name").FillAsync("   ");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true }).ClickAsync();
 
-        // The form surfaces a field-level validation message and does not navigate away.
-        await Expect(page.Locator(".text-danger").First).ToBeVisibleAsync();
+        // Only the campaign name field surfaces its validation message — exactly one field-level
+        // message renders (the filled season fields are valid) and it is the name's required error.
+        await Expect(page.Locator(".validation-message")).ToHaveCountAsync(1);
+        await Expect(page.Locator(".validation-message"))
+            .ToContainTextAsync("The Name field is required.");
         page.Url.ShouldContain("/campaigns/new");
     }
 
@@ -93,19 +99,21 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await OpenNewCampaignAsync(page);
 
         var suffix = Guid.NewGuid().ToString("N");
-        var name = page.Locator("#campaign-name");
-        await name.FocusAsync();
-        await page.Keyboard.TypeAsync($"Form Campaign {suffix}");
+        var campaignName = $"Form Campaign {suffix}";
+        await CheckInlineSeasonAsync(page);
+        await page.Locator("#inline-season-name").FillAsync($"Form Season {suffix}");
+        await page.Locator("#inline-season-start-date").FillAsync("2026-06-01");
 
-        // Reach the submit button via Tab and submit with Enter.
+        // Type the campaign name from the keyboard, reach the submit button via Tab, and submit with Enter.
+        await page.Locator("#campaign-name").FocusAsync();
+        await page.Keyboard.TypeAsync(campaignName);
         var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
         await TabUntilFocusedAsync(page, submit);
         await page.Keyboard.PressAsync("Enter");
 
-        // The empty season selection surfaces validation without navigating, proving the keyboard
-        // submission reached the interactive form.
-        await Expect(page.Locator(".text-danger").First).ToBeVisibleAsync();
-        page.Url.ShouldContain("/campaigns/new");
+        // A valid keyboard submission creates the campaign and redirects to the campaign list.
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns" })).ToBeVisibleAsync();
+        await Expect(page.GetByText(campaignName)).ToBeVisibleAsync();
     }
 
     /// <summary>
@@ -133,6 +141,84 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await page.SetViewportSizeAsync(480, 800);
         await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "campaign-form-narrow.png") });
     }
+
+    [Fact]
+    public async Task CampaignForm_Loading_ShowsSubmitSpinner_ThenCompletes()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenNewCampaignAsync(page);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await OpenNewCampaignAsync(page);
+
+        var suffix = Guid.NewGuid().ToString("N");
+        var campaignName = $"Form Campaign {suffix}";
+        await CheckInlineSeasonAsync(page);
+        await page.Locator("#campaign-name").FillAsync(campaignName);
+        await page.Locator("#inline-season-name").FillAsync($"Form Season {suffix}");
+        await page.Locator("#inline-season-start-date").FillAsync("2026-06-01");
+
+        // Hold the create mutation open while the submit spinner is asserted, then release it.
+        var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var intercepted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync(
+            IsCampaignCreateUrl,
+            async route =>
+            {
+                intercepted.TrySetResult(null);
+                await release.Task;
+                await route.ContinueAsync();
+            });
+
+        var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
+        await submit.ClickAsync();
+        await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        await Expect(submit.Locator(".spinner-border")).ToBeVisibleAsync();
+
+        release.TrySetResult(null);
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns" })).ToBeVisibleAsync();
+        await Expect(page.GetByText(campaignName)).ToBeVisibleAsync();
+        await page.UnrouteAsync(IsCampaignCreateUrl);
+    }
+
+    [Fact]
+    public async Task CampaignForm_Failure_ShowsRetry_AndRetryRecovers()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAdminAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
+        var page = context.Pages[0];
+        await OpenNewCampaignAsync(page);
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await OpenNewCampaignAsync(page);
+
+        var suffix = Guid.NewGuid().ToString("N");
+        var campaignName = $"Form Campaign {suffix}";
+        await CheckInlineSeasonAsync(page);
+        await page.Locator("#campaign-name").FillAsync(campaignName);
+        await page.Locator("#inline-season-name").FillAsync($"Form Season {suffix}");
+        await page.Locator("#inline-season-start-date").FillAsync("2026-06-01");
+
+        await page.RouteAsync(IsCampaignCreateUrl, route => route.FulfillAsync(new() { Status = 500 }));
+
+        var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
+        await submit.ClickAsync();
+        await Expect(page.Locator("div.alert-danger[role=alert]")).ToContainTextAsync("Failed to create the campaign");
+        page.Url.ShouldContain("/campaigns/new");
+
+        await page.UnrouteAsync(IsCampaignCreateUrl);
+        await submit.ClickAsync();
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns" })).ToBeVisibleAsync();
+        await Expect(page.GetByText(campaignName)).ToBeVisibleAsync();
+    }
+
+    /// <summary>Matches the campaign-create mutation fetch (POST /api/campaigns).</summary>
+    private static bool IsCampaignCreateUrl(string url) =>
+        url.Contains("/api/campaigns", StringComparison.Ordinal)
+        && !url.Contains("/api/campaigns/", StringComparison.Ordinal);
 
     /// <summary>Navigates to the campaign-creation page and waits for the form.</summary>
     private async Task OpenNewCampaignAsync(IPage page)

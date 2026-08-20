@@ -332,6 +332,78 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "closeout-closed.png") });
     }
 
+    [Fact]
+    public async Task Closeout_Loading_ShowsIndicator_ThenRendersChecklist()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}").ToString());
+        await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
+
+        // Hold the closeout-readiness fetch open while the loading state is asserted, then release it.
+        var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var intercepted = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await page.RouteAsync(
+            IsCloseoutReadinessUrl,
+            async route =>
+            {
+                intercepted.TrySetResult(null);
+                await release.Task;
+                await route.ContinueAsync();
+            });
+
+        await ActUntilAsync(
+            page,
+            () => page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }).ClickAsync(new() { Timeout = 3000 }),
+            () => page.Locator("#closeout-region-heading").IsVisibleAsync());
+        await intercepted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        await Expect(page.GetByText("Loading closeout...")).ToBeVisibleAsync();
+
+        release.TrySetResult(null);
+        await Expect(page.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(3);
+        await page.UnrouteAsync(IsCloseoutReadinessUrl);
+    }
+
+    [Fact]
+    public async Task Closeout_Failure_ShowsRetry_AndRetryRecovers()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/campaigns/{seed.BlockedCampaignId}").ToString());
+        await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await Expect(page.Locator("#roster-region-heading")).ToBeVisibleAsync();
+
+        await page.RouteAsync(IsCloseoutReadinessUrl, route => route.FulfillAsync(new() { Status = 500 }));
+
+        await ActUntilAsync(
+            page,
+            () => page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }).ClickAsync(new() { Timeout = 3000 }),
+            () => page.Locator("#closeout-region-heading").IsVisibleAsync());
+
+        var errorAlert = page.Locator("div.alert-danger[role=alert]");
+        await Expect(errorAlert).ToContainTextAsync("Failed to load closeout readiness");
+        var retry = errorAlert.GetByRole(AriaRole.Button, new() { Name = "Retry" });
+        await Expect(retry).ToBeVisibleAsync();
+
+        await page.UnrouteAsync(IsCloseoutReadinessUrl);
+        await retry.ClickAsync();
+
+        await Expect(page.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(3);
+        await Expect(page.Locator("div.alert-danger[role=alert]")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>Matches the closeout-readiness fetch.</summary>
+    private static bool IsCloseoutReadinessUrl(string url) =>
+        url.Contains("/api/campaigns/", StringComparison.Ordinal)
+        && url.Contains("/closeout-readiness", StringComparison.Ordinal);
+
     /// <summary>Navigates to the closeout tab and waits for its heading.</summary>
     private async Task OpenCloseoutAsync(IPage page, long campaignId)
     {
