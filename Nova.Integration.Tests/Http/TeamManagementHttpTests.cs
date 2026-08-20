@@ -207,20 +207,10 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
         long clubId,
         CancellationToken cancellationToken)
     {
-        var email = $"{emailPrefix}-{Guid.CreateVersion7():N}@example.com";
+        var email = SeedingHelpers.UniqueEmail(emailPrefix);
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
-
-        await using var context = fixture.CreateAdminContext();
-        var normalizedEmail = email.ToUpperInvariant();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
-        user.FirstName = "Team";
-        user.LastName = "Member";
-        user.ClubId = clubId;
-        context.Users.Update(user);
-        await context.SaveChangesAsync(cancellationToken);
-
-        using var refresh = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
-        refresh.StatusCode.ShouldBe(HttpStatusCode.Found);
+        await SeedingHelpers.UpdateUserAsync(fixture, email, clubId, cancellationToken, "Team", "Member");
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
     }
 
     /// <summary>

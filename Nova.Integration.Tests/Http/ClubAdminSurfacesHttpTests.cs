@@ -23,10 +23,10 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
     // ── Join-request approve/reject ─────────────────────────────────────────────
 
     /// <summary>
-    /// Verifies a non-admin club member cannot approve or reject a join request.
+    /// Verifies a non-admin club member cannot approve a join request.
     /// </summary>
     [Fact]
-    public async Task ApproveReject_ReturnsForbidden_ForClubMember()
+    public async Task Approve_ReturnsForbidden_ForClubMember()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -38,15 +38,32 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         _ = await RegisterUserAsync(joinerClient, "approve-joiner", "Joiner", "Approver", clubId: null, cancellationToken);
         var request = await CreateJoinRequestAsync(joinerClient, admin.Club.ClubId, cancellationToken);
 
-        using (var approve = await memberClient.PostAsync(ClubEndpoints.ApproveJoinRequestUrl(request.ClubJoinRequestId), content: null, cancellationToken))
-        {
-            approve.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        }
+        using var response = await memberClient.PostAsync(
+            ClubEndpoints.ApproveJoinRequestUrl(request.ClubJoinRequestId), content: null, cancellationToken);
 
-        using (var reject = await memberClient.PostAsync(ClubEndpoints.RejectJoinRequestUrl(request.ClubJoinRequestId), content: null, cancellationToken))
-        {
-            reject.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        }
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>
+    /// Verifies a non-admin club member cannot reject a join request.
+    /// </summary>
+    [Fact]
+    public async Task Reject_ReturnsForbidden_ForClubMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        using var joinerClient = fixture.CreateNovaHttpClient();
+
+        var admin = await RegisterClubAdminAsync(adminClient, "reject-member-admin", "Member Reject Club", cancellationToken);
+        await RegisterUserAsync(memberClient, "reject-member", "Member", "Rejecter", admin.Club.ClubId, cancellationToken);
+        _ = await RegisterUserAsync(joinerClient, "reject-joiner", "Joiner", "Rejecter", clubId: null, cancellationToken);
+        var request = await CreateJoinRequestAsync(joinerClient, admin.Club.ClubId, cancellationToken);
+
+        using var response = await memberClient.PostAsync(
+            ClubEndpoints.RejectJoinRequestUrl(request.ClubJoinRequestId), content: null, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     /// <summary>
@@ -265,7 +282,7 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
         club.ShouldNotBeNull();
 
-        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
         return (club, email, userId);
     }
 
@@ -277,7 +294,7 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         long? clubId,
         CancellationToken cancellationToken)
     {
-        var email = UniqueEmail(emailPrefix);
+        var email = SeedingHelpers.UniqueEmail(emailPrefix);
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
 
         await using var context = fixture.CreateAdminContext();
@@ -288,7 +305,7 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         user.ClubId = clubId;
         await context.SaveChangesAsync(cancellationToken);
 
-        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
         return (email, user.Id);
     }
 
@@ -303,12 +320,4 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         request.ShouldNotBeNull();
         return request;
     }
-
-    private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
-    {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
-        response.StatusCode.ShouldBe(HttpStatusCode.Found);
-    }
-
-    private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";
 }
