@@ -168,9 +168,9 @@ split per workflow if the audit prefers; keep one journey class unless it grows 
       creates campaign via HTTP with inline season (`POST CampaignEndpoints.Create`);
       assert `CreateCampaignResult` (`EnrolledPlayerCount == 2`, `Status == Active`);
       `GET CampaignEndpoints.GetCampaignParticipantRoster` shows both players; EF
-      (`fixture.CreateAdminContext()`) asserts exactly 2 participation rows with distinct
-      tryout numbers and `PlacementOutcome.Undecided`. _(Implemented with the corrected
-      tryout-number assertion: the HTTP auto-enrollment path leaves `TryoutNumber == null`.)_
+      (`fixture.CreateAdminContext()`) asserts exactly 2 participation rows with
+      `PlacementOutcome.Undecided` and null tryout numbers (the HTTP auto-enrollment path
+      leaves `TryoutNumber == null`).
 - [x] `LateEnrollmentJourney_NewPlayerEntersActiveCampaign`: admin creates club + campaign
       via HTTP; then creates a player via HTTP (201); assert the new player appears in the
       campaign roster (HTTP) and has a participation row (EF) — enrollment happened at
@@ -284,6 +284,11 @@ gap fill uses `ExecutionStrategyRetryTestSupport` — read it first)
       three outcomes), new stale-close/provider race mechanics (`CampaignLifecyclePostgresTests`,
       `CampaignLifecycleRaceHttpTests` cover them) — **verified present and left untouched**;
       recorded here.
+
+**Read-assertion overlap note:** the close journey's `GetCampaignCloseoutReadiness` blocked-shape
+assertions and the reopen journey's `GetCampaignActivity` ordered-events assertion intentionally
+overlap `CampaignCloseoutHttpTests` read contracts; they are kept as in-journey state checkpoints
+for the HTTP-created path (the mutation/state-transition assertions are the unique coverage).
 
 ### Verification Plan
 
