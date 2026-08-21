@@ -4,6 +4,12 @@
 
 This document describes the current application state and a proposed MVP for club roster management, tryout campaigns, qualitative player evaluation, team placement, and campaign closeout.
 
+## Operational documentation
+
+Operator-facing runbook covering AppHost startup and resources, health endpoints, EF Core migrations,
+Identity no-op email behavior, and operational caveats:
+[`../docs/operational-runbook.md`](../docs/operational-runbook.md).
+
 ## Product Decisions
 
 - Primary users are club administrators and evaluators/coaches.
