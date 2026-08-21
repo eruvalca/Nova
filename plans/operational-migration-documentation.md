@@ -56,9 +56,10 @@ Status: Complete
       first `dotnet run --project Nova.AppHost` may acquire the Aspire CLI bundle (`AspireUseCliBundle`
       delegates through `dnx`).
 - [x] Document startup and resources from `Nova.AppHost/AppHost.cs`: `postgres` container (tag 18,
-      data volume) with `novadb` database; `storage` Azure Storage running the Azurite blob emulator
-      (data volume) with the `profile-photos` blob container; the `nova` project wired with external
-      HTTP endpoints, `WaitFor` both resources, and a `/health` HTTP health check.
+      data volume) with a `nova` database exposed as the `novadb` connection string/resource; `storage`
+      Azure Storage running the Azurite blob emulator (data volume) with the `profile-photos` blob
+      container; the `nova` project wired with external HTTP endpoints, `WaitFor` both resources, and
+      a `/health` HTTP health check.
 - [x] Document the Aspire dashboard, the health endpoints `/health` and `/alive`
       (`MapDefaultEndpoints()` via ServiceDefaults, `.WithHttpHealthCheck("/health")` on the nova
       resource), and that `/openapi` is Development-only.
