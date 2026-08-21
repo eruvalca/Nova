@@ -1,4 +1,5 @@
 ﻿using Aspire.Hosting;
+using Azure;
 using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
 using Nova.Data;
@@ -55,6 +56,21 @@ public sealed class FakeCurrentUserProvider : ICurrentUserProvider
 public sealed class NovaAppHostFixture : IAsyncLifetime
 {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Best-effort bound on how long to wait for the Azurite <c>storage</c> resource to report healthy
+    /// before falling through to the bounded container probe, which is the authoritative readiness gate.
+    /// </summary>
+    private static readonly TimeSpan AzuriteReadyWaitTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Azurite retry bounds are deliberately hard-coded (not environment-tunable): environment-tunable
+    /// retry windows are scoped to the browser hydration retries in <c>Nova.Browser.Tests</c>, per issue
+    /// #130. The container probe below is the whole suite's Azurite readiness gate.
+    /// </summary>
+    private const int AzuriteContainerProbeMaxAttempts = 20;
+
+    private static readonly TimeSpan AzuriteContainerProbeDelay = TimeSpan.FromMilliseconds(500);
 
     private DistributedApplication? App { get; set; }
     private string? ConnectionStringValue { get; set; }
@@ -134,10 +150,15 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
         ConnectionStringValue = await App.GetConnectionStringAsync("novadb", cancellationToken)
             ?? throw new InvalidOperationException("No connection string was resolved for 'novadb'.");
 
+        // Best-effort: give the Azurite emulator a bounded window to report healthy before probing the
+        // container. The emulator has no health-check annotation, so "healthy" resolves as soon as the
+        // storage resource reaches Running; the bounded container probe below is the authoritative gate.
+        await WaitForStorageHealthyAsync(App, cancellationToken);
+
         var blobConnectionString = await App.GetConnectionStringAsync("profile-photos", cancellationToken)
             ?? throw new InvalidOperationException("No connection string was resolved for 'profile-photos'.");
         ProfilePhotosContainerValue = CreateBlobContainerClient(blobConnectionString);
-        await ProfilePhotosContainerValue.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await CreateProfilePhotosContainerWithRetryAsync(ProfilePhotosContainerValue, cancellationToken);
 
         // The app only migrates at startup in the Development environment, which the testing
         // builder does not guarantee — apply the production migrations explicitly. Migrations
@@ -264,6 +285,80 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
         }
 
         return new BlobServiceClient(string.Join(';', segments)).GetBlobContainerClient(containerName);
+    }
+
+    /// <summary>
+    /// Best-effort wait for the Azurite <c>storage</c> resource to report healthy. The wait is bounded
+    /// so a slow, non-reporting, or failed-to-start emulator cannot stall the whole suite; the bounded
+    /// container probe in <see cref="CreateProfilePhotosContainerWithRetryAsync"/> is the authoritative
+    /// readiness gate and fails fast with the last <see cref="RequestFailedException"/> if Azurite is
+    /// genuinely broken.
+    /// </summary>
+    /// <param name="app">The running <see cref="DistributedApplication"/>.</param>
+    /// <param name="cancellationToken">The overall startup cancellation token.</param>
+    /// <returns>A task that completes when storage is healthy or the bounded wait elapses.</returns>
+    private static async Task WaitForStorageHealthyAsync(
+        DistributedApplication app,
+        CancellationToken cancellationToken)
+    {
+        using var storageReadyCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        storageReadyCts.CancelAfter(AzuriteReadyWaitTimeout);
+
+        try
+        {
+            await app.ResourceNotifications.WaitForResourceHealthyAsync("storage", storageReadyCts.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Best-effort only: the bounded container probe below is the authoritative readiness gate.
+        }
+        catch (DistributedApplicationException)
+        {
+            // Azurite failed to start outright (e.g. a port conflict). Let the container probe below
+            // produce the descriptive failure with the last RequestFailedException instead of surfacing
+            // this as a raw DistributedApplicationException.
+        }
+    }
+
+    /// <summary>
+    /// Creates the profile-photos container, retrying through the Azurite connection-refusal window.
+    /// The retry bounds are hard-coded (see <see cref="AzuriteContainerProbeMaxAttempts"/>) rather than
+    /// environment-tunable; only the browser hydration retries are environment-tunable, per issue #130.
+    /// </summary>
+    /// <param name="container">The profile-photos container client.</param>
+    /// <param name="cancellationToken">The startup cancellation token.</param>
+    /// <returns>A task that completes once the container exists.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the container remains unreachable after <see cref="AzuriteContainerProbeMaxAttempts"/>
+    /// attempts; the inner exception is the last <see cref="RequestFailedException"/>.
+    /// </exception>
+    private static async Task CreateProfilePhotosContainerWithRetryAsync(
+        BlobContainerClient container,
+        CancellationToken cancellationToken)
+    {
+        RequestFailedException? lastException = null;
+        for (var attempt = 1; attempt <= AzuriteContainerProbeMaxAttempts; attempt++)
+        {
+            try
+            {
+                await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+                return;
+            }
+            catch (RequestFailedException exception)
+            {
+                lastException = exception;
+                if (attempt < AzuriteContainerProbeMaxAttempts)
+                {
+                    await Task.Delay(AzuriteContainerProbeDelay, cancellationToken);
+                }
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"The Azurite profile-photos container '{container.Name}' was not reachable after " +
+            $"{AzuriteContainerProbeMaxAttempts} attempts of {AzuriteContainerProbeDelay.TotalMilliseconds:0} ms each. " +
+            $"Last error: {lastException?.Message ?? "(none)"}",
+            lastException);
     }
 
     /// <summary>

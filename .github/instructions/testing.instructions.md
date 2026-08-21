@@ -89,6 +89,16 @@ Conventions:
   `/Account/Login` page.
 - New shared seeding helpers go in `Nova.Integration.Tests\Http\SeedingHelpers.cs` (internal,
   visible to the browser project); do not copy seeding helpers per file.
+- Hydration-retry windows are centralized in `Nova.Browser.Tests\BrowserRetryPolicy.cs`
+  (env-tunable `NOVA_BROWSER_RETRY_MAX_ATTEMPTS` / `NOVA_BROWSER_RETRY_DELAY_MS`) and consumed by
+  `Nova.Browser.Tests\InteractionHelpers.cs`; do not reintroduce per-file hard-coded
+  `ActUntilAsync`/`ClickUntilAsync`/`TabUntilFocusedAsync` copies. Defaults and the Azurite/upload
+  seeding-retry bounds live in `.github/skills/nova-testing/references/browser-suite.md`.
+- The AppHost fixture (`Nova.Integration.Tests\Data\NovaAppHostFixture.cs`) best-effort waits for the
+  Azurite `storage` resource to report healthy and retries the `profile-photos` container probe
+  through a bounded hard-coded window before failing fast; `IdentityHttpClientHelper` retries the
+  profile-photo upload on transient failures (transport errors / 5xx) with a fresh multipart payload
+  per attempt.
 - The full step-by-step recipe lives in `.github/skills/nova-testing/references/browser-suite.md`.
 
 ## Aspire + Playwright validation (manual browser pass)

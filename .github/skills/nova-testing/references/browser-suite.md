@@ -15,14 +15,20 @@ Canonical files:
   approved evaluator over HTTP, seeds the workspace (60 participants = 2 pages, active + archived
   tags, an archived pre-application), returns `SeededEvaluationWorkspace`.
 - `Nova.Browser.Tests\CampaignEvaluationBrowserTests.cs` — the scenario tests plus the
-  `OpenWorkspaceAsync`/`OpenParticipantAsync`/`WaitForMutationSettlementAsync` interaction helpers.
+  `OpenWorkspaceAsync`/`OpenParticipantAsync`/`CloseDrawerAsync` helpers (which delegate to
+  `InteractionHelpers`/`BrowserRetryPolicy` for hydration retries).
+- `Nova.Browser.Tests\InteractionHelpers.cs` — shared SSR-hydration interaction retry helpers
+  (`ActUntilAsync`, `ClickUntilAsync`, `TabUntilFocusedAsync`), all driven by `BrowserRetryPolicy`.
+- `Nova.Browser.Tests\BrowserRetryPolicy.cs` — lazily-initialized, environment-tunable retry policy
+  (`NOVA_BROWSER_RETRY_MAX_ATTEMPTS` / `NOVA_BROWSER_RETRY_DELAY_MS`; defaults 60 × 250 ms).
 - `Nova.Integration.Tests\Http\SeedingHelpers.cs` — shared seeding primitives
   (`UniqueEmail`, `CreateClubAsync`, `RefreshClubMembershipCookieAsync`, `UpdateUserAsync`,
   `SeedCampaignWithParticipantsAsync`, `InsertTagDefinitionAsync`). Internal, shared with the
   browser project via `InternalsVisibleTo("Nova.Browser.Tests")` in `Nova.Integration.Tests`.
 - `Nova.Integration.Tests\Data\NovaAppHostFixture.cs` — `NovaBaseUri` and
   `CreateTenantContextFactory()` were added for the browser suite; `CreateNovaHttpClient`
-  reuses `NovaBaseUri`.
+  reuses `NovaBaseUri`. It also best-effort waits for Azurite `storage` readiness and retries the
+  `profile-photos` container probe (see "Seeding" below).
 
 ## The three Blazor interaction pitfalls
 
@@ -43,6 +49,29 @@ them when writing any browser test:
    re-clicks. Use a retry helper that clicks until the drawer is actually visible and never
    re-clicks once it is (`OpenParticipantAsync`). For URL-state tests, open and close a
    participant first — a successful drawer open proves hydration before filters are driven.
+
+## Hydration retry policy
+
+The four per-file copies of the SSR-hydration click/act/tab retry helpers were collapsed into two
+shared types in `Nova.Browser.Tests`:
+
+- `BrowserRetryPolicy` — a static, lazily-initialized policy. It reads the environment exactly once
+  and exposes `MaxAttempts` (default 60) and `Delay` (default 250 ms). Missing, invalid, or
+  non-positive values fall back to the defaults.
+- `InteractionHelpers` — `ActUntilAsync`/`ClickUntilAsync`/`TabUntilFocusedAsync`, all driven by
+  `BrowserRetryPolicy`. Per-interaction Playwright timeouts (the 3 s click timeout and the 400 ms
+  focus probe) stay hard-coded; only the attempt count and the between-attempt delay are tunable.
+
+Environment knobs:
+
+- `NOVA_BROWSER_RETRY_MAX_ATTEMPTS` — attempt budget for hydration retries (default `60`).
+- `NOVA_BROWSER_RETRY_DELAY_MS` — delay in milliseconds between attempts (default `250`).
+
+The same policy also drives the break-on-visible/break-on-URL loops (`OpenDrawerAsync`,
+`CloseDrawerAsync`, `WaitForMutationSettlementAsync`, and `CheckUnresolvedOnlyAsync`), so those
+windows grow with the knobs while keeping their distinct per-interaction timeouts and break-on-state
+structure. Use `CloseDrawerAsync` (Escape-until-hidden) rather than a single `Escape` + `ToBeHiddenAsync`
+when closing the participant drawer after opening it as a hydration proof.
 
 ## Fixture and bootstrap
 
@@ -65,6 +94,13 @@ them when writing any browser test:
   registration), sets distinct display names so actor-metadata assertions are meaningful, and
   seeds data through the admin EF context.
 - Add new shared seeding primitives to `SeedingHelpers` — do not copy them per file.
+- The shared AppHost fixture best-effort waits for the Azurite `storage` resource to report healthy
+  before probing the `profile-photos` container, and `IdentityHttpClientHelper` retries the
+  profile-photo upload POST on transient failures (transport errors / 5xx) with a fresh multipart
+  payload per attempt. Those Azurite/upload retry bounds are hard-coded; only the browser hydration
+  retries are environment-tunable. This is deliberate (issue #130): the env knobs are scoped to
+  hydration retries, and the seeding bounds stay fixed so the shared fixture is deterministic — tune
+  them by editing the constants in `NovaAppHostFixture` / `IdentityHttpClientHelper`, not via env vars.
 - The login helper fills `GetByLabel("Email")`/`GetByLabel("Password")` and clicks the
   **exact** "Log in" button (`GetByRole(AriaRole.Button, new() { Name = "Log in", Exact = true })`
   — a substring match also hits "Log in with a passkey").
@@ -104,6 +140,9 @@ Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium
 
 dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj
 dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --filter-class "*CampaignEvaluationBrowserTests"
+
+# slower CI host: raise the hydration-retry window
+NOVA_BROWSER_RETRY_MAX_ATTEMPTS=80 NOVA_BROWSER_RETRY_DELAY_MS=500 dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --filter-class "*CampaignEvaluationBrowserTests"
 ```
 
 Local-only: CI runs build and unit tests only, so run the suite locally before merge.
