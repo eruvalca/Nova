@@ -31,9 +31,9 @@ epic #13 product reference that links to this runbook.
 ### Resources (`Nova.AppHost/AppHost.cs`)
 
 - `postgres` — PostgreSQL 18 container (`WithImageTag("18")`) with a persistent data volume
-  (`WithDataVolume()`), plus a `novadb` database (`postgres.AddDatabase("novadb", "nova")`)
-  (`Nova.AppHost/AppHost.cs:5-10`). The `nova` project reads it as the `novadb` connection string
-  (`GetConnectionString("novadb")` at `Nova/Program.cs:139`).
+  (`WithDataVolume()`), plus a `nova` database exposed as the `novadb` connection string/resource
+  (`postgres.AddDatabase("novadb", "nova")`) (`Nova.AppHost/AppHost.cs:5-10`). The `nova` project
+  reads it as the `novadb` connection string (`GetConnectionString("novadb")` at `Nova/Program.cs:139`).
 - `storage` — Azure Storage running the Azurite blob emulator (`RunAsEmulator`) with a persistent
   data volume, exposing the `profile-photos` blob container (`AddBlobContainer("profile-photos")`)
   (`Nova.AppHost/AppHost.cs:12-16`).
