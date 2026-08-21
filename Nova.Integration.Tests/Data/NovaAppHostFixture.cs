@@ -289,9 +289,10 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
 
     /// <summary>
     /// Best-effort wait for the Azurite <c>storage</c> resource to report healthy. The wait is bounded
-    /// so a slow or non-reporting emulator cannot stall the whole suite; the bounded container probe in
-    /// <see cref="CreateProfilePhotosContainerWithRetryAsync"/> is the authoritative readiness gate and
-    /// fails fast with the last <see cref="RequestFailedException"/> if Azurite is genuinely broken.
+    /// so a slow, non-reporting, or failed-to-start emulator cannot stall the whole suite; the bounded
+    /// container probe in <see cref="CreateProfilePhotosContainerWithRetryAsync"/> is the authoritative
+    /// readiness gate and fails fast with the last <see cref="RequestFailedException"/> if Azurite is
+    /// genuinely broken.
     /// </summary>
     /// <param name="app">The running <see cref="DistributedApplication"/>.</param>
     /// <param name="cancellationToken">The overall startup cancellation token.</param>
@@ -310,6 +311,12 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             // Best-effort only: the bounded container probe below is the authoritative readiness gate.
+        }
+        catch (DistributedApplicationException)
+        {
+            // Azurite failed to start outright (e.g. a port conflict). Let the container probe below
+            // produce the descriptive failure with the last RequestFailedException instead of surfacing
+            // this as a raw DistributedApplicationException.
         }
     }
 
