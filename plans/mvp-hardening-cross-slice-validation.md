@@ -59,7 +59,8 @@ bodies; the baseline runs themselves may be delegated to a sub-agent w/ smaller 
 - [x] Run the full browser suite:
       `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj`
       (starts the AppHost + Playwright Chromium; browser capped at `MaxThreads = 4`). Record the
-      total passed + env-gated skips (`NOVA_A11Y_SCREENSHOTS`, `NOVA_BROWSER_HEADED`). The epic
+      total passed + env-gated skips (`NOVA_A11Y_SCREENSHOTS`) and the headed-mode flag
+      (`NOVA_BROWSER_HEADED`). The epic
       records the suite at 69 scenarios after #118 — verify the fresh count.
       **Result: 69 total / 6 env-gated skips (NOVA_A11Y_SCREENSHOTS) / 63 executable. See the
       Phase 1 baseline note below for the transient flakiness characterization.**
