@@ -307,7 +307,7 @@ public sealed partial class CampaignPlacementService(
     /// <param name="replacementToken">The stable token this logical request generated.</param>
     /// <param name="cancellationToken">A token that cancels the verification query.</param>
     /// <returns>Whether the commit landed, along with the reconstructed result when it did.</returns>
-    private static async Task<ExecutionResult<PlacementUpdateResult>> VerifyPlacementCommittedAsync(
+    private async Task<ExecutionResult<PlacementUpdateResult>> VerifyPlacementCommittedAsync(
         NovaDbContext db,
         long playerCampaignAssignmentId,
         Guid replacementToken,
@@ -319,11 +319,15 @@ public sealed partial class CampaignPlacementService(
             .Select(assignment => (Guid?)assignment.ConcurrencyToken)
             .SingleOrDefaultAsync(cancellationToken);
 
-        return persistedToken == replacementToken
-            ? new ExecutionResult<PlacementUpdateResult>(
-                successful: true,
-                new PlacementMutationSuccess(replacementToken))
-            : new ExecutionResult<PlacementUpdateResult>(successful: false, default!);
+        if (persistedToken != replacementToken)
+        {
+            return new ExecutionResult<PlacementUpdateResult>(successful: false, default!);
+        }
+
+        LogPlacementCommitRecovered(playerCampaignAssignmentId, replacementToken);
+        return new ExecutionResult<PlacementUpdateResult>(
+            successful: true,
+            new PlacementMutationSuccess(replacementToken));
     }
 
     /// <summary>
@@ -405,4 +409,10 @@ public sealed partial class CampaignPlacementService(
     /// <param name="userId">The acting administrator identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "Campaign placement updated for AssignmentId={AssignmentId} by UserId={UserId}.")]
     private partial void LogPlacementUpdated(long assignmentId, long userId);
+
+    /// <summary>Logs a placement result reconstructed from an ambiguous commit.</summary>
+    /// <param name="assignmentId">The campaign participation identifier.</param>
+    /// <param name="replacementToken">The stable replacement token this logical request generated.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Campaign placement AssignmentId={AssignmentId} recovered commit with replacement token {ReplacementToken} after an ambiguous commit.")]
+    private partial void LogPlacementCommitRecovered(long assignmentId, Guid replacementToken);
 }

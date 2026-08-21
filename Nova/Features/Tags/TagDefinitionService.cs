@@ -215,7 +215,7 @@ public sealed partial class TagDefinitionService(
     /// <param name="creationOperationId">The stable identifier for the logical creation operation.</param>
     /// <param name="cancellationToken">A token that cancels the verification query.</param>
     /// <returns>An execution result indicating whether the committed tag definition was found.</returns>
-    private static async Task<ExecutionResult<ServiceResult<TagDefinitionDto>>> VerifyTagDefinitionCreationAsync(
+    private async Task<ExecutionResult<ServiceResult<TagDefinitionDto>>> VerifyTagDefinitionCreationAsync(
         NovaDbContext db,
         long clubId,
         Guid creationOperationId,
@@ -228,9 +228,13 @@ public sealed partial class TagDefinitionService(
                     && candidate.CreationOperationId == creationOperationId,
                 cancellationToken);
 
-        return tagDefinition is null
-            ? new ExecutionResult<ServiceResult<TagDefinitionDto>>(successful: false, default!)
-            : new ExecutionResult<ServiceResult<TagDefinitionDto>>(successful: true, tagDefinition.ToTagDefinitionDto());
+        if (tagDefinition is null)
+        {
+            return new ExecutionResult<ServiceResult<TagDefinitionDto>>(successful: false, default!);
+        }
+
+        LogTagDefinitionCreationCommitRecovered(tagDefinition.PlayerTagId, creationOperationId, clubId);
+        return new ExecutionResult<ServiceResult<TagDefinitionDto>>(successful: true, tagDefinition.ToTagDefinitionDto());
     }
 
     /// <summary>
@@ -330,7 +334,7 @@ public sealed partial class TagDefinitionService(
     /// <param name="updateOperationId">The stable identifier for the logical update operation.</param>
     /// <param name="cancellationToken">A token that cancels the verification query.</param>
     /// <returns>Whether the update committed, along with the reconstructed result when it did.</returns>
-    private static async Task<ExecutionResult<ServiceResult<TagDefinitionDto>>> VerifyTagDefinitionUpdateCommittedAsync(
+    private async Task<ExecutionResult<ServiceResult<TagDefinitionDto>>> VerifyTagDefinitionUpdateCommittedAsync(
         NovaDbContext db,
         long clubId,
         Guid updateOperationId,
@@ -354,9 +358,13 @@ public sealed partial class TagDefinitionService(
             .AsNoTracking()
             .SingleOrDefaultAsync(candidate => candidate.PlayerTagId == receipt.PlayerTagId, cancellationToken);
 
-        return tagDefinition is null
-            ? new ExecutionResult<ServiceResult<TagDefinitionDto>>(successful: false, default!)
-            : new ExecutionResult<ServiceResult<TagDefinitionDto>>(successful: true, tagDefinition.ToTagDefinitionDto());
+        if (tagDefinition is null)
+        {
+            return new ExecutionResult<ServiceResult<TagDefinitionDto>>(successful: false, default!);
+        }
+
+        LogTagDefinitionUpdateCommitRecovered(tagDefinition.PlayerTagId, updateOperationId, clubId);
+        return new ExecutionResult<ServiceResult<TagDefinitionDto>>(successful: true, tagDefinition.ToTagDefinitionDto());
     }
 
     /// <summary>
@@ -452,4 +460,18 @@ public sealed partial class TagDefinitionService(
     /// <param name="actorUserId">The acting administrator identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "PlayerTagId={TagId} updated by UserId={ActorUserId}.")]
     private partial void LogTagDefinitionUpdated(long tagId, long actorUserId);
+
+    /// <summary>Logs a tag-definition creation result reconstructed from an ambiguous commit.</summary>
+    /// <param name="tagId">The committed tag-definition identifier.</param>
+    /// <param name="operationId">The stable identifier for the logical creation operation.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Tag-definition creation OperationId={OperationId} recovered committed PlayerTagId={TagId} in ClubId={ClubId} after an ambiguous commit.")]
+    private partial void LogTagDefinitionCreationCommitRecovered(long tagId, Guid operationId, long clubId);
+
+    /// <summary>Logs a tag-definition update result reconstructed from an ambiguous commit.</summary>
+    /// <param name="tagId">The committed tag-definition identifier.</param>
+    /// <param name="operationId">The stable identifier for the logical update operation.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Tag-definition update OperationId={OperationId} recovered committed PlayerTagId={TagId} in ClubId={ClubId} after an ambiguous commit.")]
+    private partial void LogTagDefinitionUpdateCommitRecovered(long tagId, Guid operationId, long clubId);
 }

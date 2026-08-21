@@ -245,7 +245,7 @@ public sealed partial class PlayerManagementService(
     /// <param name="creationOperationId">The stable identifier for the logical creation operation.</param>
     /// <param name="cancellationToken">A token that cancels the verification query.</param>
     /// <returns>An execution result indicating whether the committed player was found.</returns>
-    private static async Task<ExecutionResult<ServiceResult<PlayerDto>>> VerifyPlayerCreationAsync(
+    private async Task<ExecutionResult<ServiceResult<PlayerDto>>> VerifyPlayerCreationAsync(
         NovaDbContext db,
         long clubId,
         Guid creationOperationId,
@@ -258,9 +258,13 @@ public sealed partial class PlayerManagementService(
                     && candidate.CreationOperationId == creationOperationId,
                 cancellationToken);
 
-        return player is null
-            ? new ExecutionResult<ServiceResult<PlayerDto>>(successful: false, default!)
-            : new ExecutionResult<ServiceResult<PlayerDto>>(successful: true, ToDto(player));
+        if (player is null)
+        {
+            return new ExecutionResult<ServiceResult<PlayerDto>>(successful: false, default!);
+        }
+
+        LogPlayerCreationCommitRecovered(player.PlayerId, creationOperationId, clubId);
+        return new ExecutionResult<ServiceResult<PlayerDto>>(successful: true, ToDto(player));
     }
 
     /// <summary>
@@ -407,4 +411,11 @@ public sealed partial class PlayerManagementService(
     /// <summary>Logs successful player profile update.</summary>
     [LoggerMessage(Level = LogLevel.Information, Message = "PlayerId={PlayerId} updated by UserId={ActorUserId}.")]
     private partial void LogPlayerUpdated(long playerId, long actorUserId);
+
+    /// <summary>Logs a player-creation result reconstructed from an ambiguous commit.</summary>
+    /// <param name="playerId">The committed player identifier.</param>
+    /// <param name="operationId">The stable identifier for the logical creation operation.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Player creation OperationId={OperationId} recovered committed PlayerId={PlayerId} in ClubId={ClubId} after an ambiguous commit.")]
+    private partial void LogPlayerCreationCommitRecovered(long playerId, Guid operationId, long clubId);
 }
