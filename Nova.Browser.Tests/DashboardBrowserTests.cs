@@ -181,7 +181,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
             await Expect(page.Locator("section[aria-labelledby='recent-activity-heading']")).ToBeVisibleAsync();
 
             // Tab order reaches the workspace control and leaves it visibly focused.
-            await TabUntilFocusedAsync(page, workspaceLink);
+            await InteractionHelpers.TabUntilFocusedAsync(page, workspaceLink);
             await Expect(workspaceLink).ToBeFocusedAsync();
         }
 
@@ -243,31 +243,4 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await Expect(narrowPage.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
         await narrowPage.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "dashboard-admin-narrow.png") });
     }
-
-    /// <summary>
-    /// Presses Tab until the target receives keyboard focus, then returns. Fails if the target is never
-    /// reached within a bounded number of presses.
-    /// </summary>
-    /// <param name="page">The page to drive.</param>
-    /// <param name="target">The locator expected to receive focus.</param>
-    /// <returns>A task that completes once the target is focused.</returns>
-    private static async Task TabUntilFocusedAsync(IPage page, ILocator target)
-    {
-        for (var attempt = 0; attempt < 60; attempt++)
-        {
-            try
-            {
-                await Expect(target).ToBeFocusedAsync(new() { Timeout = 400 });
-                return;
-            }
-            catch (PlaywrightException)
-            {
-                // Not focused yet; advance to the next tab stop.
-                await page.Keyboard.PressAsync("Tab");
-            }
-        }
-
-        throw new TimeoutException("The target never received keyboard focus.");
-    }
-
 }

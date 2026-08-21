@@ -58,7 +58,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#inline-season-start-date").FillAsync("2026-06-01");
 
         var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
-        await ActUntilAsync(
+        await InteractionHelpers.ActUntilAsync(
             page,
             () => submit.ClickAsync(new() { Timeout = 3000 }),
             () => Task.FromResult(page.Url.Contains("/campaigns", StringComparison.OrdinalIgnoreCase) && !page.Url.Contains("/new", StringComparison.OrdinalIgnoreCase)));
@@ -108,7 +108,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await page.Locator("#campaign-name").FocusAsync();
         await page.Keyboard.TypeAsync(campaignName);
         var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
-        await TabUntilFocusedAsync(page, submit);
+        await InteractionHelpers.TabUntilFocusedAsync(page, submit);
         await page.Keyboard.PressAsync("Enter");
 
         // A valid keyboard submission creates the campaign and redirects to the campaign list.
@@ -298,49 +298,5 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         }
 
         return (club.ClubId, adminEmail, adminUserId);
-    }
-
-    /// <summary>Repeats an interaction until the settle predicate succeeds, tolerating the SSR hydration window.</summary>
-    private static async Task ActUntilAsync(IPage page, Func<Task> act, Func<Task<bool>> settled)
-    {
-        for (var attempt = 0; attempt < 40; attempt++)
-        {
-            if (await settled())
-            {
-                return;
-            }
-
-            try
-            {
-                await act();
-            }
-            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
-            {
-                // The element was replaced mid-interaction or the click was swallowed pre-hydration.
-            }
-
-            await page.WaitForTimeoutAsync(250);
-        }
-
-        throw new TimeoutException("Interaction did not settle within the retry window.");
-    }
-
-    /// <summary>Presses Tab until the target receives keyboard focus, then returns.</summary>
-    private static async Task TabUntilFocusedAsync(IPage page, ILocator target)
-    {
-        for (var attempt = 0; attempt < 60; attempt++)
-        {
-            try
-            {
-                await Expect(target).ToBeFocusedAsync(new() { Timeout = 400 });
-                return;
-            }
-            catch (PlaywrightException)
-            {
-                await page.Keyboard.PressAsync("Tab");
-            }
-        }
-
-        throw new TimeoutException("The target never received keyboard focus.");
     }
 }

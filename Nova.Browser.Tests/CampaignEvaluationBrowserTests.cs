@@ -210,8 +210,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         // Open a participant first: a successful drawer click proves the interactive circuit is
         // attached, so the filter interactions below are never swallowed pre-hydration.
         await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
-        await page.Keyboard.PressAsync("Escape");
-        await Expect(page.Locator("aside.participant-drawer")).ToBeHiddenAsync();
+        await CloseDrawerAsync(page);
 
         // Apply a search filter and a sort through the UI; both land in the URL. Blazor performs
         // these navigations client-side (no document load), so wait for URL commit only.
@@ -360,8 +359,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await Expect(firstCard).ToBeVisibleAsync();
         await OpenParticipantAsync(narrowPage, firstCard);
         await Expect(narrowPage.Locator("aside.participant-drawer")).ToBeVisibleAsync();
-        await narrowPage.Keyboard.PressAsync("Escape");
-        await Expect(narrowPage.Locator("aside.participant-drawer")).ToBeHiddenAsync();
+        await CloseDrawerAsync(narrowPage);
         await Expect(narrowPage.Locator("#roster-card-" + seed.AssignmentIds[0])).ToBeFocusedAsync();
 
         // Tablet viewport: the table is visible and the card list is not.
@@ -526,8 +524,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         await OpenWorkspaceAsync(page, seed.CampaignId);
 
         await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
-        await page.Keyboard.PressAsync("Escape");
-        await Expect(page.Locator("aside.participant-drawer")).ToBeHiddenAsync();
+        await CloseDrawerAsync(page);
 
         await page.Locator("#roster-search").FillAsync("Nobody McMissing");
 
@@ -595,8 +592,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
 
         // Prove hydration before driving the filter, so the search below is never swallowed.
         await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
-        await page.Keyboard.PressAsync("Escape");
-        await Expect(page.Locator("aside.participant-drawer")).ToBeHiddenAsync();
+        await CloseDrawerAsync(page);
 
         // Hold the roster list fetch open while the loading state is asserted, then release it.
         var release = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -633,8 +629,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
 
         // Prove hydration before driving the filter.
         await OpenParticipantAsync(page, page.Locator("tbody tr[id^='roster-row-']").First);
-        await page.Keyboard.PressAsync("Escape");
-        await Expect(page.Locator("aside.participant-drawer")).ToBeHiddenAsync();
+        await CloseDrawerAsync(page);
 
         await page.RouteAsync(IsRosterListUrl, route => route.FulfillAsync(new() { Status = 500 }));
 
@@ -713,7 +708,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
         // renders only after the Blazor server round-trip completes. Retry until the drawer is
         // actually open; never re-click once it is, or the backdrop intercepts the pointer.
         var drawer = page.Locator("aside.participant-drawer");
-        for (var attempt = 0; attempt < 20; attempt++)
+        for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
         {
             if (await drawer.IsVisibleAsync())
             {
@@ -737,11 +732,45 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
             }
             catch (TimeoutException)
             {
-                await page.WaitForTimeoutAsync(250);
+                await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
             }
         }
 
         await Expect(drawer).ToBeVisibleAsync();
+    }
+
+    /// <summary>
+    /// Closes the participant drawer by pressing Escape, retrying through the SSR hydration window until
+    /// the drawer is actually hidden. Symmetric with <see cref="OpenDrawerAsync"/>: the drawer's Escape
+    /// handler may not be attached for a moment after the drawer opens, so a single early Escape can be
+    /// swallowed; retry until the drawer closes rather than assuming one press is enough.
+    /// </summary>
+    /// <param name="page">The page whose drawer should be closed.</param>
+    /// <returns>A task that completes once the drawer is hidden.</returns>
+    private static async Task CloseDrawerAsync(IPage page)
+    {
+        var drawer = page.Locator("aside.participant-drawer");
+        for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
+        {
+            if (await drawer.IsHiddenAsync())
+            {
+                return;
+            }
+
+            await page.Keyboard.PressAsync("Escape");
+
+            try
+            {
+                await drawer.WaitForAsync(new() { State = WaitForSelectorState.Hidden, Timeout = 3000 });
+                return;
+            }
+            catch (TimeoutException)
+            {
+                await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
+            }
+        }
+
+        await Expect(drawer).ToBeHiddenAsync();
     }
 
     private static async Task<long> ReadAssignmentIdAsync(ILocator row)
@@ -756,7 +785,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
 
     private static async Task WaitForMutationSettlementAsync(IPage page)
     {
-        for (var attempt = 0; attempt < 20; attempt++)
+        for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
         {
             var success = await page.Locator("div.alert-success[role=status]").IsVisibleAsync();
             var error = await page.Locator(".participant-drawer-mutation-error").IsVisibleAsync();
@@ -765,10 +794,10 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
                 return;
             }
 
-            await page.WaitForTimeoutAsync(250);
+            await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
         }
 
         throw new TimeoutException(
-            "Tag-apply race did not settle within 5s: neither alert-success nor mutation-error appeared.");
+            "Tag-apply race did not settle within the retry window: neither alert-success nor mutation-error appeared.");
     }
 }

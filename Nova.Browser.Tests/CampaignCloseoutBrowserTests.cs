@@ -46,7 +46,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("span.text-success")).ToHaveCountAsync(3);
         var closeButton = page.GetByRole(AriaRole.Button, new() { Name = "Close campaign" });
         await Expect(closeButton).ToBeEnabledAsync();
-        await ClickUntilAsync(page, closeButton, () => page.GetByText("Campaign closed.").IsVisibleAsync());
+        await InteractionHelpers.ClickUntilAsync(page, closeButton, () => page.GetByText("Campaign closed.").IsVisibleAsync());
 
         // The panel switches to the closed read-only view and announces the close.
         await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Campaign closed.");
@@ -112,7 +112,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         // Admin A's stale close is rejected with an actionable conflict and refetches the blockers.
         var conflictAlert = adminPage.Locator("div.alert-warning[role=alert]");
-        await ClickUntilAsync(adminPage, closeButton, () => conflictAlert.IsVisibleAsync());
+        await InteractionHelpers.ClickUntilAsync(adminPage, closeButton, () => conflictAlert.IsVisibleAsync());
         await Expect(conflictAlert).ToContainTextAsync("Resolve all campaign close blockers before closing this campaign.");
         await Expect(adminPage.Locator("li.list-group-item.list-group-item-warning")).ToHaveCountAsync(1);
         await Expect(adminPage.Locator("li.list-group-item.list-group-item-warning")).ToContainTextAsync("Undecided");
@@ -136,12 +136,12 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         // Reopen requires an inline confirmation; Cancel hides it without effect.
         var reopenButton = page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" });
         var confirmGroup = page.Locator("[role=group][aria-label='Reopen confirmation']");
-        await ClickUntilAsync(page, reopenButton, () => confirmGroup.IsVisibleAsync());
+        await InteractionHelpers.ClickUntilAsync(page, reopenButton, () => confirmGroup.IsVisibleAsync());
         await Expect(confirmGroup).ToContainTextAsync("Reopening restores editing without discarding outcomes and is recorded for audit.");
-        await ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Cancel" }), () => confirmGroup.IsHiddenAsync());
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Cancel" }), () => confirmGroup.IsHiddenAsync());
 
-        await ClickUntilAsync(page, reopenButton, () => confirmGroup.IsVisibleAsync());
-        await ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Confirm reopen" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
+        await InteractionHelpers.ClickUntilAsync(page, reopenButton, () => confirmGroup.IsVisibleAsync());
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Confirm reopen" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
         await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Campaign reopened.");
 
         // The panel returns to the active checklist.
@@ -205,7 +205,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         page.Url.ShouldContain("tab=overview");
 
         // The workspace tab buttons track the tab= query parameter via client-side navigation.
-        await ClickUntilAsync(
+        await InteractionHelpers.ClickUntilAsync(
             page,
             page.GetByRole(AriaRole.Tab, new() { Name = "Placements" }),
             () => page.Locator("#placements-region-heading").IsVisibleAsync());
@@ -216,12 +216,12 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("#overview-region-heading")).ToBeVisibleAsync();
 
         // From the closeout tab, a blocker drill-down pushes a placements entry; Back returns to closeout.
-        await ClickUntilAsync(
+        await InteractionHelpers.ClickUntilAsync(
             page,
             page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }),
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
         var outcomesRow = page.Locator("li.list-group-item.list-group-item-warning").Filter(new() { HasText = "Undecided" });
-        await ClickUntilAsync(
+        await InteractionHelpers.ClickUntilAsync(
             page,
             outcomesRow.GetByRole(AriaRole.Button, new() { Name = "Review unresolved" }),
             () => page.Locator("#placements-region-heading").IsVisibleAsync());
@@ -244,7 +244,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         await OpenOverviewAsync(page, seed.ReadyCampaignId);
         var openCloseout = page.GetByRole(AriaRole.Button, new() { Name = "Open closeout" });
-        await ActUntilAsync(
+        await InteractionHelpers.ActUntilAsync(
             page,
             async () =>
             {
@@ -255,7 +255,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         var closeButton = page.GetByRole(AriaRole.Button, new() { Name = "Close campaign" });
         await Expect(closeButton).ToBeEnabledAsync();
-        await ActUntilAsync(
+        await InteractionHelpers.ActUntilAsync(
             page,
             async () =>
             {
@@ -268,7 +268,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await OpenCloseoutAsync(page, seed.ClosedCampaignId);
         var reopenButton = page.GetByRole(AriaRole.Button, new() { Name = "Reopen campaign" });
         var confirmGroup = page.Locator("[role=group][aria-label='Reopen confirmation']");
-        await ActUntilAsync(
+        await InteractionHelpers.ActUntilAsync(
             page,
             async () =>
             {
@@ -281,7 +281,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await page.GetByRole(AriaRole.Button, new() { Name = "Cancel" }).ClickAsync();
         await Expect(confirmGroup).ToBeHiddenAsync();
 
-        await ActUntilAsync(
+        await InteractionHelpers.ActUntilAsync(
             page,
             async () =>
             {
@@ -289,7 +289,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
                 await page.Keyboard.PressAsync("Enter");
             },
             () => confirmGroup.IsVisibleAsync());
-        await ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Confirm reopen" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Confirm reopen" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
         await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Campaign reopened.");
 
         // Narrow viewport: checklist renders, blocker rows are distinguishable by text, and the
@@ -356,7 +356,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
                 await route.ContinueAsync();
             });
 
-        await ActUntilAsync(
+        await InteractionHelpers.ActUntilAsync(
             page,
             () => page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }).ClickAsync(new() { Timeout = 3000 }),
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
@@ -382,7 +382,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 
         await page.RouteAsync(IsCloseoutReadinessUrl, route => route.FulfillAsync(new() { Status = 500 }));
 
-        await ActUntilAsync(
+        await InteractionHelpers.ActUntilAsync(
             page,
             () => page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }).ClickAsync(new() { Timeout = 3000 }),
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
@@ -429,7 +429,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>Follows the overview "Open closeout" link, retrying through SSR hydration.</summary>
     private static async Task OpenCloseoutFromOverviewAsync(IPage page)
     {
-        await ClickUntilAsync(
+        await InteractionHelpers.ClickUntilAsync(
             page,
             page.GetByRole(AriaRole.Button, new() { Name = "Open closeout" }),
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
@@ -442,7 +442,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     private static async Task ResolveBlockerAsync(IPage page, string rowLabel, long assignmentId)
     {
         var row = page.Locator("li.list-group-item.list-group-item-warning").Filter(new() { HasText = rowLabel });
-        await ClickUntilAsync(
+        await InteractionHelpers.ClickUntilAsync(
             page,
             row.GetByRole(AriaRole.Button, new() { Name = "Review unresolved" }),
             () => page.Locator("#placements-region-heading").IsVisibleAsync());
@@ -451,7 +451,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(placementRow).ToBeVisibleAsync();
         await SavePlacementOutcomeAsync(page, placementRow, PlacementOutcome.NotSelected);
 
-        await ClickUntilAsync(
+        await InteractionHelpers.ClickUntilAsync(
             page,
             page.GetByRole(AriaRole.Tab, new() { Name = "Closeout" }),
             () => page.Locator("#closeout-region-heading").IsVisibleAsync());
@@ -504,43 +504,9 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         }
 
         await Expect(save).ToBeVisibleAsync();
-        await ActUntilAsync(
+        await InteractionHelpers.ActUntilAsync(
             page,
             () => save.ClickAsync(new() { Timeout = 3000 }),
             () => page.GetByText("Placement saved.").IsVisibleAsync());
-    }
-
-    /// <summary>Repeatedly clicks a locator until the supplied settle predicate succeeds.</summary>
-    private static async Task ClickUntilAsync(IPage page, ILocator locator, Func<Task<bool>> settled)
-        => await ActUntilAsync(page, () => locator.ClickAsync(new() { Timeout = 3000 }), settled);
-
-    /// <summary>
-    /// Repeats an interaction until the supplied settle predicate succeeds, tolerating the SSR
-    /// hydration window during which Blazor click/key handlers are not yet attached.
-    /// </summary>
-    private static async Task ActUntilAsync(IPage page, Func<Task> act, Func<Task<bool>> settled)
-    {
-        for (var attempt = 0; attempt < 40; attempt++)
-        {
-            if (await settled())
-            {
-                return;
-            }
-
-            try
-            {
-                await act();
-            }
-            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
-            {
-                // The element was replaced mid-interaction, is not yet actionable (Playwright throws
-                // System.TimeoutException when an action cannot complete within its timeout), or the
-                // click was swallowed by the SSR hydration window; retry.
-            }
-
-            await page.WaitForTimeoutAsync(250);
-        }
-
-        throw new TimeoutException("Interaction did not settle within the retry window.");
     }
 }

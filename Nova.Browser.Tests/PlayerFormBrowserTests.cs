@@ -26,7 +26,7 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenPlayersAsync(page);
 
-        await ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
         {
             return page.Locator("#player-first-name").IsVisibleAsync();
         });
@@ -47,7 +47,7 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenPlayersAsync(page);
 
-        await ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
         {
             return page.Locator("#player-first-name").IsVisibleAsync();
         });
@@ -72,7 +72,7 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenPlayersAsync(page);
 
-        await ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
         {
             return page.Locator("#player-first-name").IsVisibleAsync();
         });
@@ -95,7 +95,7 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
         await OpenPlayersAsync(page);
 
-        await ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
+        await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Add player" }), () =>
         {
             return page.Locator("#player-first-name").IsVisibleAsync();
         });
@@ -107,7 +107,7 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         await page.Keyboard.TypeAsync($"Player {suffix}");
 
         var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create player", Exact = true });
-        await TabUntilFocusedAsync(page, submit);
+        await InteractionHelpers.TabUntilFocusedAsync(page, submit);
         await page.Keyboard.PressAsync("Enter");
 
         await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Player created successfully.");
@@ -203,53 +203,5 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
             .Where(assignment => assignment.PlayerCampaignAssignmentId == campaign.AssignmentIds[0])
             .Select(assignment => assignment.PlayerId)
             .SingleAsync(cancellationToken);
-    }
-
-    /// <summary>Repeatedly clicks a locator until the supplied settle predicate succeeds.</summary>
-    private static async Task ClickUntilAsync(IPage page, ILocator locator, Func<Task<bool>> settled)
-        => await ActUntilAsync(page, () => locator.ClickAsync(new() { Timeout = 3000 }), settled);
-
-    /// <summary>Repeats an interaction until the settle predicate succeeds, tolerating the SSR hydration window.</summary>
-    private static async Task ActUntilAsync(IPage page, Func<Task> act, Func<Task<bool>> settled)
-    {
-        for (var attempt = 0; attempt < 40; attempt++)
-        {
-            if (await settled())
-            {
-                return;
-            }
-
-            try
-            {
-                await act();
-            }
-            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
-            {
-                // The element was replaced mid-interaction or the click was swallowed pre-hydration.
-            }
-
-            await page.WaitForTimeoutAsync(250);
-        }
-
-        throw new TimeoutException("Interaction did not settle within the retry window.");
-    }
-
-    /// <summary>Presses Tab until the target receives keyboard focus, then returns.</summary>
-    private static async Task TabUntilFocusedAsync(IPage page, ILocator target)
-    {
-        for (var attempt = 0; attempt < 60; attempt++)
-        {
-            try
-            {
-                await Expect(target).ToBeFocusedAsync(new() { Timeout = 400 });
-                return;
-            }
-            catch (PlaywrightException)
-            {
-                await page.Keyboard.PressAsync("Tab");
-            }
-        }
-
-        throw new TimeoutException("The target never received keyboard focus.");
     }
 }

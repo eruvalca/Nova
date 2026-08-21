@@ -418,7 +418,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
     private static async Task CheckUnresolvedOnlyAsync(IPage page)
     {
         var checkbox = page.Locator("#placement-unresolved-only");
-        for (var attempt = 0; attempt < 20; attempt++)
+        for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
         {
             if (page.Url.Contains("unresolvedOnly=true", StringComparison.Ordinal))
             {
@@ -443,11 +443,11 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
             }
             catch (TimeoutException)
             {
-                await page.WaitForTimeoutAsync(250);
+                await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
             }
         }
 
-        throw new TimeoutException("The unresolved-only checkbox did not hydrate within 5s.");
+        throw new TimeoutException("The unresolved-only checkbox did not hydrate within the retry window.");
     }
 
     private static async Task SelectGraduationYearAsync(IPage page, string year)
