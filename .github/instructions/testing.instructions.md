@@ -89,10 +89,11 @@ Conventions:
   `/Account/Login` page.
 - New shared seeding helpers go in `Nova.Integration.Tests\Http\SeedingHelpers.cs` (internal,
   visible to the browser project); do not copy seeding helpers per file.
-- Hydration-retry windows are centralized in `Nova.Browser.Tests\BrowserRetryPolicy.cs` (env-tunable
-  via `NOVA_BROWSER_RETRY_MAX_ATTEMPTS` [default 60] and `NOVA_BROWSER_RETRY_DELAY_MS` [default 250])
-  and consumed by `Nova.Browser.Tests\InteractionHelpers.cs`; do not reintroduce per-file hard-coded
-  `ActUntilAsync`/`ClickUntilAsync`/`TabUntilFocusedAsync` copies.
+- Hydration-retry windows are centralized in `Nova.Browser.Tests\BrowserRetryPolicy.cs`
+  (env-tunable `NOVA_BROWSER_RETRY_MAX_ATTEMPTS` / `NOVA_BROWSER_RETRY_DELAY_MS`) and consumed by
+  `Nova.Browser.Tests\InteractionHelpers.cs`; do not reintroduce per-file hard-coded
+  `ActUntilAsync`/`ClickUntilAsync`/`TabUntilFocusedAsync` copies. Defaults and the Azurite/upload
+  seeding-retry bounds live in `.github/skills/nova-testing/references/browser-suite.md`.
 - The AppHost fixture (`Nova.Integration.Tests\Data\NovaAppHostFixture.cs`) best-effort waits for the
   Azurite `storage` resource to report healthy and retries the `profile-photos` container probe
   through a bounded hard-coded window before failing fast; `IdentityHttpClientHelper` retries the
