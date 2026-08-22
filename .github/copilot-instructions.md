@@ -51,3 +51,4 @@ examples) live in model-invoked Agent Skills under `.github/skills/`, loaded on 
 - `extract-functional-core` — extract deterministic business decisions from an existing service into a feature-local pure policy while preserving shell behavior; invokes `nova-testing`.
 - `nova-testing` — pick the harness (SQLite tenancy unit tests, Aspire Postgres integration tests, or the Playwright browser suite), write a test, and run it on Microsoft.Testing.Platform.
 - `aspire-playwright-validation` — one-off manual browser acceptance passes against the Aspire-hosted app; for committed browser regression coverage, add a `Nova.Browser.Tests` scenario instead.
+- `plan-issue` — turn multi-step planning into a durable GitHub issue: create an issue whose body carries a detailed `## Technical Plan` section (phases, checkboxes, verification plans, summaries) and keep it updated as work proceeds.
