@@ -12,7 +12,7 @@
 
 - Build: `dotnet build Nova.slnx`
 - Run: `dotnet run --project Nova.AppHost` (delegates through the Aspire 13.5 CLI bundle; Aspire provisions PostgreSQL 18 and the Azurite blob emulator for `profile-photos`, and exposes the dashboard plus `/health`/`/alive`). `Nova` has no usable connection string or blob client without the AppHost.
-- OpenID document: `/openapi` (Development only).
+- OpenAPI document: `/openapi` (Development only).
 - Format check (required before commit): `dotnet format Nova.slnx --verify-no-changes`; apply fixes with `dotnet format Nova.slnx`
 - Bootstrap theme: `npm ci` then `npm run build:css` (from `Nova/`) compiles the Sass theme to `Nova/wwwroot/css/bootstrap-theme.css`; `npm run check:contrast` validates WCAG contrast and asserts no Bootstrap-blue literals. Run both from `Nova/` after any `scss/` or `package.json` change.
 - Unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`

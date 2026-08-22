@@ -26,7 +26,7 @@ Sass sources under `Nova/scss/`.
 - Validate contrast: `npm run check:contrast` (from `Nova/`) — parses `_variables.scss`, computes
   WCAG ratios for the documented pairs, and asserts the compiled CSS contains none of the default
   Bootstrap-blue literals (`#0d6efd`, `#0b5ed7`, `#0a58ca`, `#86b7fe`, `rgba(13,110,253`).
-- The MSBuild `BuildBootstrapTheme` target on `Nova/Nova.csproj` runs `npm install` (only when
+- The MSBuild `BuildBootstrapTheme` target on `Nova/Nova.csproj` runs `npm ci` (only when
   `node_modules` is absent) then `npm run build:css` before `Build`, incrementally (it reruns only
   when `scss/**/*.scss` or `package.json` changes). The compiled CSS is gitignored.
 
