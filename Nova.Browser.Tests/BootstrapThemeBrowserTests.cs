@@ -42,7 +42,7 @@ public sealed class BootstrapThemeBrowserTests(BrowserSuiteFixture fixture)
         // The focused form control (the campaign-view select) shows the teal focus ring.
         var focusRing = await page.Locator("#campaigns-view-filter").EvaluateAsync<string>(
             "(el) => { el.focus(); return getComputedStyle(el).boxShadow; }");
-        focusRing.ShouldContain("rgb(14, 124, 123)");
+        focusRing.ShouldContain("rgba(14, 124, 123");
 
         // No computed style anywhere on the page resolves to the default Bootstrap blue.
         var anyBlue = await page.EvaluateAsync<bool>(
