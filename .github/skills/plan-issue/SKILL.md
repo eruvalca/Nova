@@ -1,8 +1,8 @@
 ---
 name: plan-issue
 description: >-
-  Turn multi-step planning into a durable, resumable GitHub issue: create a new issue whose body carries a detailed `## Technical Plan` section (phases with checkbox items, per-phase verification plans and summaries, final recap, deployment plan) and keep that section updated as work proceeds.
-  USE FOR: planning multi-step work, plan mode, designing a strategy, roadmap, multi-phase tasks, a durable plan artifact, plan progress tracking in an issue, "real work" planning, handing a plan to a future agent.
+  Turn multi-step planning into a durable, resumable GitHub issue: create a new issue whose body carries a detailed `## Technical Plan` section (phases with checkbox items, per-phase verification plans and summaries, final recap, deployment plan), split scope that warrants it into a parent issue with verified parent <-> sub-issue links, and keep the issue(s) updated as work proceeds.
+  USE FOR: planning multi-step work, plan mode, designing a strategy, roadmap, multi-phase tasks, a durable plan artifact, plan progress tracking in an issue, "real work" planning, handing a plan to a future agent, splitting large multi-workstream plans into a parent issue with linked sub-issues.
   DO NOT USE FOR: trivial single-session tasks, quick one-off edits, filing a bug report without a plan (create the issue directly), executing the planned work (invoke the relevant Nova skill, e.g. add-feature-slice), or only writing/running tests (use nova-testing).
 ---
 
@@ -29,31 +29,36 @@ treat an unasked question as a future bug.
 
 - Don't stop at the first round; keep going until no ambiguity, assumption, or
   open decision remains. Probe edges: scope boundaries (in/out), dependencies,
-  constraints, success criteria, data, environments, deployment, failure cases.
+  constraints, success criteria, data, environments, deployment, failure cases,
+  and whether the scope should be one issue or a parent with sub-issues.
 - Surface every assumption for the user to confirm. If an answer opens a new
   unknown, ask the follow-up — drill down recursively.
 - Use the `ask_user` tool for concrete choices. When done, summarize the full
   scope back and only proceed once the user confirms nothing is missing.
 
-## 2. Create the issue with the Technical Plan
+## 2. Create the issue(s) with the Technical Plan
 
 1. **Check for an existing issue first**: search the target repository for an
    open issue that already carries a `## Technical Plan` section covering this
    work; if one exists, adopt it — skip to "Keep the issue updated".
-2. **Title**: a concise, descriptive title in sentence case (e.g. "Member
+2. **Decide the issue structure**: one issue, or a parent issue with linked
+   sub-issues. Apply the criteria in "Split large scope into a parent issue
+   with sub-issues" and, when splitting, follow that section's creation and
+   verification steps.
+3. **Title**: a concise, descriptive title in sentence case (e.g. "Member
    suspension workflow").
-3. **Repository**: default to the current session's repository. Only file the
+4. **Repository**: default to the current session's repository. Only file the
    issue in another repository when the user explicitly asks. If that
    repository defines issue templates (`.github/ISSUE_TEMPLATE/`) or org
    issue types, follow the template structure — fold the `## Technical Plan`
    section into it — and pass `issue_type` to `create_issue` when the repo
    uses issue types.
-4. **Create the issue** with the `create_issue` tool. The body is the
+5. **Create the issue** with the `create_issue` tool. The body is the
    goal/scope summary at the top followed by a `## Technical Plan` section
    using the template below.
-5. **Labels**: apply only when the user asks or repo label conventions clearly
+6. **Labels**: apply only when the user asks or repo label conventions clearly
    apply; otherwise leave labels unset.
-6. After creation, tell the user the issue number and URL.
+7. After creation, tell the user the issue number(s) and URL(s).
 
 **Do NOT create a plan markdown file** (no `plans/*.md`). The issue *is* the
 plan artifact — the single durable source of truth. Scratch notes may go in the
@@ -119,7 +124,52 @@ _(write when all phases complete: summary of the entire piece of work)_
 _(write when all phases complete: step-by-step deployment instructions)_
 ```
 
-## 3. Keep the issue updated as work proceeds
+## 3. Split large scope into a parent issue with sub-issues
+
+Before creating anything, decide whether the scope is one issue or a hierarchy.
+
+**Split** into a parent issue with sub-issues when any of these hold:
+
+- Multiple largely independent workstreams that can proceed in parallel or be
+  delegated to different executors.
+- The scope spans distinct feature areas or deliverables with clear boundaries.
+- A single issue's `## Technical Plan` would become unwieldy — roughly 3+
+  phases with substantial items each is a smell, not a hard rule.
+- Distinct milestones that will be tracked, shipped, or resumed separately.
+
+**Do not split** for tightly coupled phases that can't meaningfully start
+without the previous one finishing, for scope that fits comfortably in one
+`## Technical Plan`, or for work too small to warrant a plan issue at all.
+
+**When splitting:**
+
+1. Create the **parent issue** first with the `create_issue` tool: goal/scope
+   summary at the top, then a `## Technical Plan` whose phases map 1:1 to the
+   planned sub-issues; each phase names the sub-issue that owns its execution
+   (e.g. `### Phase 1: Club invitations — owned by sub-issue #N`).
+2. Create each **sub-issue** with `create_issue`: its own goal/scope summary,
+   a `## Technical Plan` covering that workstream's phases, and a
+   `Parent issue: #<n>` reference line near the top.
+3. Link them with `github-sub_issue_write` (`method: add`) — add each
+   sub-issue to the parent. Note: the tool expects the sub-issue's node ID,
+   not its number; get it with `gh issue view <n> --json id` if needed.
+4. **Verify the hierarchy** (below), then report all issue numbers and URLs.
+
+**Verify parent <-> sub-issue links** — required whenever sub-issues were
+created; never report success with an unverified hierarchy:
+
+- `github-issue_read` on the **parent**, `method: get` — assert `has_children`
+  is `true`.
+- `github-issue_read` on the **parent**, `method: get_sub_issues` — the list
+  must contain exactly the sub-issues you created (match by number and title),
+  no more, no fewer.
+- `github-issue_read` on **each sub-issue**, `method: get` — assert
+  `has_parent` is `true`; then `method: get_parent` must return the parent
+  issue number.
+- If any link is missing or wrong, repair it with `github-sub_issue_write` and
+  re-verify before telling the user the work is done.
+
+## 4. Keep the issue updated as work proceeds
 
 The agent doing the work (or resuming it) updates the issue, not the chat.
 
@@ -130,6 +180,9 @@ The agent doing the work (or resuming it) updates the issue, not the chat.
   <n> --json body` or `github-issue_read` with `method: get`), then rewrite it
   preserving the goal/scope summary and completed-phase content; change only
   what changed.
+- **Parent + sub-issue plans**: record execution updates in the owning
+  sub-issue; when a sub-issue completes, mirror its outcome in the parent's
+  phase summary and mark the parent's phase checkbox.
 - **Write back** the full body via the GitHub issue update path
   (`github-issue_write` with `method: update`, or `gh issue edit <n>
   --body-file`).
@@ -138,7 +191,7 @@ The agent doing the work (or resuming it) updates the issue, not the chat.
   Recap** and **Deployment Plan** only when all phases actually complete — never
   pre-fill placeholders.
 
-## 4. Plan for the right tools and models
+## 5. Plan for the right tools and models
 
 Good plans account for *how* work will be verified and *who* (which agent/model)
 should execute each part. Apply judgement — neither of the below is required for
@@ -208,3 +261,9 @@ model** that delegates well-scoped, mechanical, or parallelizable work to
   never clobber the goal/scope summary or completed-phase content.
 - **Pre-filling summaries** — phase summaries, recap, and deployment plan stay
   as placeholders until that work actually completes.
+- **Unlinked sub-issues** — creating related issues without linking them
+  parent <-> sub-issue, or reporting success without verifying the links
+  (`has_children` on the parent, `get_parent` on each child).
+- **Over-splitting** — splitting into sub-issues that aren't independently
+  meaningful, or splitting tightly coupled work that should stay a single
+  issue.
