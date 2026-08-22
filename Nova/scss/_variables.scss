@@ -1,0 +1,36 @@
+// Nova kelp-forest Bootstrap theme — single source of truth for the palette.
+//
+// This file is imported *before* `bootstrap` so every `!default` in Bootstrap's
+// own `_variables.scss`/`_maps.scss` picks up these values, and the theme maps
+// (`$theme-colors`, `$theme-colors-rgb`, `$theme-colors-text`,
+// `$theme-colors-bg-subtle`, `$theme-colors-border-subtle`) are derived from them.
+// Edit here; never edit the compiled `wwwroot/css/bootstrap-theme.css`.
+
+// -----------------------------------------------------------------------------
+// Base palette
+// -----------------------------------------------------------------------------
+$primary:   #0E7C7B; // kelp teal
+$secondary: #A67B4C; // bark brown
+$success:   #3C8D5A; // leaf green
+$info:      #2E9E9C; // lagoon teal
+$warning:   #E8A33D; // kelp accent gold
+$danger:    #C25E4E; // rust
+$light:     #E6F2F1; // primary subtle background / light (pale kelp)
+$dark:      #1F2D2B; // deep forest / body text
+
+// Body + link
+$body-color: #1F2D2B;
+$body-bg:    #F4F9F8;
+$link-color: $primary;
+
+// Primary subtle background deliberately matches the `$light` swatch.
+$primary-bg-subtle: #E6F2F1;
+
+// WCAG AA minimum contrast for normal text; Bootstrap chooses foreground text
+// (white vs. black) per theme color using this threshold.
+$min-contrast-ratio: 4.5;
+
+// Neutralize Bootstrap's base blue scale so the compiled `:root` emits the kelp
+// teal instead of the default `#0d6efd` (the check:contrast script asserts no
+// Bootstrap-blue literals survive into the generated CSS).
+$blue: $primary;

@@ -13,6 +13,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Nova/package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+        working-directory: Nova
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -22,7 +33,17 @@ jobs:
         run: dotnet restore Nova.slnx
 
       - name: Build
+        # `dotnet build` itself triggers the BuildBootstrapTheme MSBuild target, which
+        # compiles the Sass into wwwroot/css/bootstrap-theme.css. The step above (npm ci)
+        # already installed node_modules per package-lock.json, so the target's npm ci guard
+        # is skipped and the CSS is compiled exactly once here. A separate `npm run build:css`
+        # step would compile the CSS a redundant second time, so we rely on the build and only
+        # run the contrast check next.
         run: dotnet build Nova.slnx --no-restore
+
+      - name: Check contrast
+        run: npm run check:contrast
+        working-directory: Nova
 
   unit-tests:
     name: Unit Tests
@@ -30,6 +51,17 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Nova/package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+        working-directory: Nova
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4

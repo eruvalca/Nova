@@ -25,4 +25,39 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
 
+  <!-- Sass sources for the kelp-forest Bootstrap theme (issue #132). Referenced from the
+       BuildBootstrapTheme target's Inputs so MSBuild can evaluate incrementality. -->
+  <ItemGroup>
+    <ThemeScssFiles Include="scss\**\*.scss" />
+  </ItemGroup>
+
+  <!--
+    Builds the kelp-forest Bootstrap theme from the Sass sources in scss/ into
+    wwwroot/css/bootstrap-theme.css. The compiled output is gitignored and is
+    regenerated on every build (incrementally: the target reruns only when the
+    Sass sources or the lockfile change). `npm ci` runs only once, when the
+    node_modules folder is missing; subsequent builds reuse the installed tree.
+
+    This target must run BEFORE static-web-asset discovery. The compiled CSS is
+    gitignored, so on a clean checkout it does not exist when the SDK evaluates the
+    default wwwroot/** glob into @(Content). If the target ran after discovery (e.g.
+    BeforeTargets="Build" while discovery happens in BeforeTargets="AssignTargetPaths"),
+    @Assets["css/bootstrap-theme.css"] would resolve to nothing and the <link> would 404.
+    Hooking into ResolveProjectStaticWebAssets (the target that consumes @(Content) to
+    detect wwwroot assets) ensures the file exists on disk AND is registered as a Content
+    item before discovery runs.
+  -->
+  <Target Name="BuildBootstrapTheme" BeforeTargets="ResolveProjectStaticWebAssets"
+          Inputs="@(ThemeScssFiles);$(MSBuildProjectDirectory)\package.json"
+          Outputs="$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css">
+    <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)"
+          Condition="!Exists('$(MSBuildProjectDirectory)\node_modules')" />
+    <Exec Command="npm run build:css" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <ItemGroup>
+      <Content Include="wwwroot\css\bootstrap-theme.css"
+               Condition="Exists('$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css')" />
+      <FileWrites Include="$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css" />
+    </ItemGroup>
+  </Target>
+
 </Project>

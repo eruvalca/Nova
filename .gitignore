@@ -369,3 +369,6 @@ __blobstorage__/
 # Playwright page snapshots
 .playwright-cli/page-*.yml
 .playwright-mcp/
+
+# Sass-compiled Bootstrap theme (built by the BuildBootstrapTheme MSBuild target)
+Nova/wwwroot/css/
