@@ -1,0 +1,9 @@
+// Nova kelp-forest Bootstrap theme entry point.
+//
+// Import the palette overrides BEFORE Bootstrap so its `!default` variables and
+// derived theme maps pick up the kelp-forest values, then pull in the full
+// Bootstrap framework. Output is written to `wwwroot/css/bootstrap-theme.css`
+// by the `BuildBootstrapTheme` MSBuild target.
+
+@import "variables";
+@import "bootstrap/scss/bootstrap";

@@ -27,6 +27,6 @@
 }
 
 .note-entry {
-    border-left: 0.2rem solid #dee2e6;
+    border-left: 0.2rem solid var(--bs-border-color);
     padding-left: 0.75rem;
 }

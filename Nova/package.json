@@ -1,0 +1,17 @@
+{
+  "name": "nova",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Nova Blazor web app front-end assets.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build:css": "sass --load-path=node_modules scss:wwwroot/css --no-source-map --style=compressed --quiet-deps",
+    "check:contrast": "node scripts/check-contrast.mjs"
+  },
+  "devDependencies": {
+    "bootstrap": "5.3.3",
+    "sass": "^1.77.0"
+  }
+}

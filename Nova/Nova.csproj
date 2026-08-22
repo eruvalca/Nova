@@ -25,4 +25,25 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
 
+  <!-- Sass sources for the kelp-forest Bootstrap theme (issue #132). Referenced from the
+       BuildBootstrapTheme target's Inputs so MSBuild can evaluate incrementality. -->
+  <ItemGroup>
+    <ThemeScssFiles Include="scss\**\*.scss" />
+  </ItemGroup>
+
+  <!--
+    Builds the kelp-forest Bootstrap theme from the Sass sources in scss/ into
+    wwwroot/css/bootstrap-theme.css. The compiled output is gitignored and is
+    regenerated on every build (incrementally: the target reruns only when the
+    Sass sources or the lockfile change). `npm install` runs only once, when the
+    node_modules folder is missing; subsequent builds reuse the installed tree.
+  -->
+  <Target Name="BuildBootstrapTheme" BeforeTargets="Build"
+          Inputs="@(ThemeScssFiles);$(MSBuildProjectDirectory)\package.json"
+          Outputs="$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css">
+    <Exec Command="npm install" WorkingDirectory="$(MSBuildProjectDirectory)"
+          Condition="!Exists('$(MSBuildProjectDirectory)\node_modules')" />
+    <Exec Command="npm run build:css" WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+
 </Project>
