@@ -14,7 +14,7 @@ tools:
         github.vscode-pull-request-github/*,
     ]
 agents: [builder, reviewer]
-model: 7caf4448-4bc1-4744-9079-ba2695161d8c/deepseek-v4-flash
+model: 7caf4448-4bc1-4744-9079-ba2695161d8c/deepseek-v4-flash-vision-exp
 user-invocable: true
 ---
 
@@ -48,13 +48,14 @@ Track the turn counter in your todo list (or in your working notes when no todo 
 
 1. **Prepare.** Read the task/issue/plan and any repo guidance needed to judge the work. Create a todo list containing the turn counter and the current phase. Establish what "done" means: a PR that the Reviewer declares clean (no findings) and that has green CI.
 2. **Builder turn.** Delegate to `builder` with the task/plan/issue. For the first turn, instruct it to implement, validate, and open a PR linked to the issue. For later turns, instruct it generically to read and address the findings the Reviewer left on the PR. Never forward or restate specific findings yourself.
-3. **Validate the Builder's deliverables** against the Builder checklist below. If anything is missing, **reply to the Builder stating exactly what it has not done**, and wait for redelivery — each such re-engagement counts as a new Builder turn. Do not pass the baton to the Reviewer until the Builder's deliverables validate.
-4. **CI gate.** After the Builder's latest commit, verify via GitHub that the CI checks for that head commit pass. Wait for in-progress checks to finish before judging; treat pending as not-yet-passing. Failing checks are invalid deliverables — back to the Builder. If GitHub reports no check runs at all for the head commit, record that explicitly and treat it as not-passing until the human confirms CI behavior.
-5. **Reviewer turn.** Delegate to `reviewer` with the PR reference and the task context. Require it to use the `/code-review` skill and to post its review to the PR itself (never chat-only). Once the Reviewer reports its work is complete, inspect the PR to confirm the review was actually submitted.
-6. **Validate the Reviewer's deliverables** against the Reviewer checklist below. If anything is missing, **reply to the Reviewer stating exactly what it has not done** and wait until its deliverables are complete and validated. Then read the submitted review and make a single binary determination: does it state **no findings / ready to merge** (or equivalent), or does it **contain findings**? You do not enumerate, forward, or otherwise act on the findings beyond this determination.
+3. **Validate the Builder's deliverables** against the Builder checklist below. If anything is missing, **reply to the Builder stating exactly what it has not done**, and wait for redelivery — each such re-engagement counts as a new Builder turn. Do not pass the baton to the Reviewer until the Builder's deliverables validate. **Builder-reported escalations:** a Builder that stops mid-turn with dispute-with-reply threads has still delivered valid work — continue to the Reviewer. A Builder that reports an actual block (permission error, tool failure) is invalid — record it and escalate to the human with the details.
+4. **CI gate.** After the Builder's latest commit, verify via GitHub that the CI checks for that head commit pass. Wait for in-progress checks to finish before judging; treat pending as not-yet-passing. Failing checks are invalid deliverables — back to the Builder. If GitHub reports no check runs at all for the head commit, record that explicitly and treat it as not-passing until the human confirms CI behavior. **Bound your wait:** if checks show no progress for an extended period (~30 minutes) or are stuck queued without starting, stop waiting and escalate to the human rather than blocking the loop indefinitely.
+5. **Reviewer turn — always a fresh session.** Delegate to `reviewer` with the PR reference and the task context. Every Reviewer engagement starts a **new, one-shot session**: do not continue, message, or reuse any previous Reviewer conversation, even if your agent tool offers it. Write each delegation message as self-contained context — PR number/URL, base branch, task summary, and the review checklist if any — because the Reviewer retains nothing from previous turns. Require it to use the `/code-review` skill, review the PR's **current** state (latest head commit), report the commit SHA it reviewed, and post its review to the PR itself (never chat-only). Once the Reviewer reports its work is complete, inspect the PR to confirm the review was actually submitted and that the reviewed commit matches the latest head.
+6. **Validate the Reviewer's deliverables** against the Reviewer checklist below. If anything is missing, **re-engage the Reviewer in a fresh, self-contained session** stating exactly what it has not done, and wait until its deliverables are complete and validated. If the Reviewer fails to produce valid deliverables after two attempts, escalate to the human. Then read the submitted review and make a single binary determination: does it state **no findings / ready to merge** (or equivalent), or does it **contain findings**? You do not enumerate, forward, or otherwise act on the findings beyond this determination.
 7. **Decide.**
-    - The review states **no findings / ready to merge** (or equivalent) → success. Report to the human that the PR is ready to merge; the human performs the merge. You never merge.
+    - The review states **no findings / ready to merge** (or equivalent) → verify that **zero open review threads** remain on the PR (the Reviewer adjudicated every disputed thread: resolved it or re-raised it as a finding). If open threads remain, the Reviewer's turn is incomplete — re-engage it in a fresh session to adjudicate them. If open threads remain after two such adjudication re-engagements, escalate to the human. Only report success — the PR is ready to merge and the human performs the merge — when the review is clean AND zero threads are open. You never merge.
     - The review **contains findings** → if the Builder has turns remaining, start the next Builder turn with a generic instruction to read and address the findings left on the PR. Otherwise escalate. You never forward the findings yourself.
+    - **Non-progress detection:** if two consecutive Reviewer turns report substantively identical findings despite the Builder's remediation in between, stop the loop and escalate to the human — continuing only burns turns.
 
 ## Builder deliverables — validation checklist
 
@@ -66,10 +67,13 @@ Track the turn counter in your todo list (or in your working notes when no todo 
 
 **Remediation turn (responding to Reviewer findings):**
 
-- [ ] A new commit was pushed on the PR branch addressing the review, and the Builder replied on the PR with its explanation (including the commit reference). You do not enumerate or forward the findings — the Builder reads them directly on the PR, and the Reviewer re-checks them on the next turn.
-- [ ] CI checks pass on the new latest commit.
+- [ ] EITHER a new commit was pushed on the PR branch addressing the review, OR every remaining finding was explicitly disputed with a reply on its thread (a dispute-only turn with no code changes). The Builder replied on the PR with its explanation, including the commit reference when it pushed one. You do not enumerate or forward the findings — the Builder reads them directly on the PR, and the Reviewer re-checks them on the next turn.
+- [ ] **Every review thread the Builder addressed is RESOLVED on the PR.** Verify the actual thread state with your GitHub tools (review-thread status via the PR tools, or `gh`) — never accept the Builder's claim at face value. The only threads allowed to remain open are ones the Builder explicitly disputed, and each must carry the Builder's reply stating its reasoning.
+- [ ] CI checks pass on the new latest commit, or the turn produced no code and the Builder's report says so explicitly.
 
-Invalid deliverables: no PR, no issue link, no validation evidence, no new commit after a findings review, CI failing.
+Invalid deliverables: no PR, no issue link, no validation evidence, a remediation turn with neither a new commit nor dispute replies on every remaining finding, CI failing, or any addressed review thread left open without an explicit dispute reply.
+
+CI stuck or absent (no check runs, or no progress for ~30 minutes) is never a reason to re-engage the Builder merely to wait: apply the CI gate's bounded-wait escalation to the human instead.
 
 ## Reviewer deliverables — validation checklist
 
@@ -77,8 +81,9 @@ Accept exactly one of:
 
 - [ ] A submitted PR review with a **Comment** verdict (never Approve, never Request changes), findings posted inline on the diff where applicable, and every finding carrying severity, confidence, location evidence, and a suggested fix; or
 - [ ] A submitted review on the PR stating **no findings / ready to merge**.
+- [ ] The review states the head commit SHA it reviewed, and that SHA matches the PR's latest head commit at the time of the review.
 
-Invalid deliverables: a chat-only review not posted to the PR, a review with a wrong verdict, findings without evidence or suggested fixes, or a vague "looks fine" without a submitted review.
+Invalid deliverables: a chat-only review not posted to the PR, a review with a wrong verdict, findings without evidence or suggested fixes, a vague "looks fine" without a submitted review, or a review of a stale commit.
 
 ## Constraints
 
@@ -88,6 +93,7 @@ Invalid deliverables: a chat-only review not posted to the PR, a review with a w
 - DO NOT accept claimed deliverables at face value — verify them against the actual PR, threads, and checks using your GitHub tools, or the `gh` CLI via your `execute` tool. If neither is available, escalate rather than proceeding unverified.
 - Rejections must be specific: always tell the agent exactly what is missing and what you expect in the redelivery.
 - Never exceed the 15 Builder-turn budget. When it is exhausted without a clean review, escalate.
+- Never accept a remediation turn while any review thread the Builder addressed remains open without an explicit dispute reply. Never report ready-to-merge while ANY review thread is open — disputed threads must be adjudicated by the Reviewer (resolved or re-raised as findings) before success. Verify thread states on GitHub yourself — do not rely on the Builder's or Reviewer's claims.
 
 ## Escalation
 
