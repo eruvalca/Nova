@@ -145,7 +145,7 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
   static/shared mutable user state. Use `fixture.UseUser(...)` when restore-on-dispose semantics
   are needed. Opting out of parallelism (`[TestClass(DisableParallelism = true)]`, `[Fact]/[Theory(DisableParallelism = true)]`,
   or a collection definition with `DisableParallelization = true`) is allowed only with an inline
-  reason; opt-out cannot be reversed at a lower level. Rationale: `plans/test-parallel-execution-parallelmode-all.md`.
+  reason; opt-out cannot be reversed at a lower level.
 - Do not pass `null` or `null!` for required mock dependencies; supply `Substitute.For<T>()` (or a real implementation) and `Array.Empty<T>()` for empty collections. Reserve nulls for tests that intentionally exercise nullable behavior.
 
 ## Related

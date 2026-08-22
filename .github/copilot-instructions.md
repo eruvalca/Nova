@@ -24,10 +24,6 @@
 - SDK version is pinned in `global.json` (roll-forward `latestFeature`).
 - Identity emails are no-ops (`IdentityNoOpEmailSender`, `RequireConfirmedAccount = false`) and no external login providers are registered. Do not build features that assume email delivery or third-party login.
 
-## References
-
-- Product domain documentation (MVP brief, workflows, screen designs, feature plans): `plans/`
-
 ## Targeted Instructions
 
 Detailed repo conventions live in targeted instruction files so they only load when relevant:
