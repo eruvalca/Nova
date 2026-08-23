@@ -99,14 +99,14 @@ Suggested executor: sub-agent w/ smaller model (test edits are mechanical and we
 
 ### Phase Summary
 
-- **NavbarBrowserTests** (6 tests, all pass locally against the Aspire AppHost + Postgres 18 + Azurite + cached Chromium):
+- **NavbarBrowserTests** (7 tests, all pass locally against the Aspire AppHost + Postgres 18 + Azurite + cached Chromium):
   - Class doc updated to describe the stacked md+ layout, flush indicator, and fill-glyph overlay.
   - NB1 unchanged selectors (`span.bi-house`, etc. resolve to the outline span, still count 1). `AssertIconLinkAsync`/`AssertBootstrapIconGlyphAsync` untouched.
   - NB2 extended: `AssertKelpTealTopIndicatorFlushAsync` (kelp teal RGB, 3px height, `::after` doc-space top within 2px of `nav.navbar` top, narrow width < link width), `AssertActiveFillGlyphAsync` (fill opacity 1, outline opacity 0), and after navigating Home → /campaigns `AssertInactiveOutlineGlyphAsync` asserts Home returned to outline.
   - NB6 new: `Navbar_Desktop_StacksIconAboveLabel` at a 1280×800 viewport asserts `flex-direction: column`, icon box above label box, horizontally centered (±1px) for Home, club, Campaigns, Players, Teams; and Manage stays `flex-direction: row`.
   - NB7 new (review remediation): `Navbar_Mobile_ExpandedMenu_KeepsInlineRowAndOutlineGlyph` at a 480×800 viewport expands the collapsed menu (Bootstrap data API) and asserts each authorized link keeps `flex-direction: row`, the icon box sits beside (not above) the label box at the 1.25rem slot baseline (20px ±0.5), icon/label centers stay vertically aligned (±2px), and an inactive link (Campaigns at the dashboard root) keeps the outline glyph visible with the `-fill` overlay hidden — closing the review gap that mobile (<md) had no automated coverage.
 - **NavMenuTests** bUnit: `Render_RendersClubLink_WhenUserHasClubNameClaim` now asserts the exact glyph-span markup (`bi-house nav-icon`, `bi-house-fill nav-icon-fill`, … all five pairs) plus `nav-icon-slot`.
-- Run commands: unit tests via `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-restore` (1745 passed); browser tests via the MTP runner `Nova.Browser.Tests.exe --filter-class Nova.Browser.Tests.NavbarBrowserTests` (6 passed). `dotnet test` with `--no-build`/`--nologo` reported a misleading "Zero tests ran" (exit 5) in this environment — the exe/direct runner and the exact CI command run green.
+- Run commands: unit tests via `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-restore` (1745 passed); browser tests via the MTP runner `Nova.Browser.Tests.exe --filter-class Nova.Browser.Tests.NavbarBrowserTests` (7 passed). `dotnet test` with `--no-build`/`--nologo` reported a misleading "Zero tests ran" (exit 5) in this environment — the exe/direct runner and the exact CI command run green.
 - `testing.instructions.md` left untouched (no convention changes needed).
 
 ## Final Recap
@@ -122,5 +122,5 @@ Tests: NB1–NB5 kept green; NB2 extended (flush + fill + outline-return asserti
 ## Deployment Plan
 
 1. Push this branch and open a PR against `main` (title: "Polish navbar: flush active indicator, filled active icons, stacked icon-above-label layout"; body links the work as a follow-up to #134 — **not** `Closes #134`, which is already merged/closed).
-2. CI on the PR runs `dotnet build Nova.slnx` + `npm run check:contrast` (build job) and `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-restore` (unit-tests job). Both must be green before merge. Browser tests are local-only (CI does not run them) and were run locally against the AppHost — 6/6 NavbarBrowserTests passed.
+2. CI on the PR runs `dotnet build Nova.slnx` + `npm run check:contrast` (build job) and `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-restore` (unit-tests job). Both must be green before merge. Browser tests are local-only (CI does not run them) and were run locally against the AppHost — 7/7 NavbarBrowserTests passed.
 3. No migrations, no environment changes, no new packages, no Sass/`package.json` changes — merge is a normal deploy pipeline run (same as #136), no special steps.
