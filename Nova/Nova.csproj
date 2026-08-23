@@ -35,8 +35,15 @@
     Builds the kelp-forest Bootstrap theme from the Sass sources in scss/ into
     wwwroot/css/bootstrap-theme.css. The compiled output is gitignored and is
     regenerated on every build (incrementally: the target reruns only when the
-    Sass sources or the lockfile change). `npm ci` runs only once, when the
-    node_modules folder is missing; subsequent builds reuse the installed tree.
+    Sass sources, package.json, or package-lock.json change).
+
+    BuildBootstrapTheme depends on CheckNodePrerequisite, which fails the build
+    with a friendly message when Node.js 20+ is missing or too old (dependencies
+    run even when this target is skipped as up-to-date, so the preflight always
+    executes), and on RestoreNpmPackages, which re-runs `npm ci` whenever
+    package.json / package-lock.json change or `node_modules` is deleted (tracked
+    with a stamp file in obj/ and npm's own `node_modules/.package-lock.json`,
+    whose absence also marks the target out-of-date).
 
     This target must run BEFORE static-web-asset discovery. The compiled CSS is
     gitignored, so on a clean checkout it does not exist when the SDK evaluates the
@@ -48,10 +55,9 @@
     item before discovery runs.
   -->
   <Target Name="BuildBootstrapTheme" BeforeTargets="ResolveProjectStaticWebAssets"
-          Inputs="@(ThemeScssFiles);$(MSBuildProjectDirectory)\package.json"
+          DependsOnTargets="CheckNodePrerequisite;RestoreNpmPackages"
+          Inputs="@(ThemeScssFiles);$(MSBuildProjectDirectory)\package.json;$(MSBuildProjectDirectory)\package-lock.json"
           Outputs="$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css;$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2;$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff">
-    <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)"
-          Condition="!Exists('$(MSBuildProjectDirectory)\node_modules')" />
     <Exec Command="npm run build:css" WorkingDirectory="$(MSBuildProjectDirectory)" />
     <ItemGroup>
       <Content Include="wwwroot\css\bootstrap-theme.css"
@@ -73,6 +79,48 @@
                Condition="Exists('$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2')" />
       <FileWrites Include="$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2;
                            $(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Preflight for the npm/Sass toolchain. Runs `node scripts/check-node.mjs`
+    (which reads engines.node from package.json, currently >= 20) and fails the
+    build with a friendly message when Node.js is missing or too old, instead of
+    the cryptic MSB3073 error `npm` produces on a Node-less machine. Wired as a
+    dependency of BuildBootstrapTheme so it runs on every build even when that
+    target is skipped as up-to-date — the theme is gitignored and must compile on
+    every clean clone, so a Node-less machine can never build Nova anyway.
+  -->
+  <Target Name="CheckNodePrerequisite">
+    <Exec Command="node scripts/check-node.mjs" WorkingDirectory="$(MSBuildProjectDirectory)"
+          IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="NodeCheckExitCode" />
+    </Exec>
+    <Error Condition="'$(NodeCheckExitCode)' != '0'"
+           Text="Node.js 20+ is required to build the Nova theme (npm ci / npm run build:css). Install from https://nodejs.org and rebuild." />
+  </Target>
+
+  <!--
+    Installs npm packages, incrementally: `npm ci` runs when package.json or
+    package-lock.json is newer than the obj\npm-ci.stamp output, so a manifest or
+    lockfile change re-installs even when node_modules already exists (a stale
+    node_modules tree — e.g. after adding a devDependency such as bootstrap-icons —
+    would otherwise silently keep serving outdated packages). npm's hidden
+    lockfile (node_modules/.package-lock.json, written on every install) is also
+    an input: deleting node_modules removes it, marking the target out-of-date so
+    `npm ci` re-runs — the standard remedy for a corrupted install keeps working
+    even when the stamp survives. The stamp is registered with FileWrites so Clean
+    removes it with the rest of obj/.
+  -->
+  <Target Name="RestoreNpmPackages"
+          Inputs="$(MSBuildProjectDirectory)\package.json;$(MSBuildProjectDirectory)\package-lock.json;$(MSBuildProjectDirectory)\node_modules\.package-lock.json"
+          Outputs="$(MSBuildProjectDirectory)\obj\npm-ci.stamp">
+    <MakeDir Directories="$(MSBuildProjectDirectory)\obj" />
+    <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <WriteLinesToFile File="$(MSBuildProjectDirectory)\obj\npm-ci.stamp"
+                      Lines="npm ci completed for the package.json / package-lock.json snapshot." Overwrite="true" />
+    <ItemGroup>
+      <FileWrites Include="$(MSBuildProjectDirectory)\obj\npm-ci.stamp" />
     </ItemGroup>
   </Target>
 

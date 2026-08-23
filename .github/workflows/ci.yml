@@ -21,7 +21,15 @@ jobs:
           cache-dependency-path: Nova/package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        # npm ci installs node_modules exactly per package-lock.json, then we touch
+        # Nova/obj/npm-ci.stamp — the Outputs marker of RestoreNpmPackages in Nova/Nova.csproj.
+        # Without the stamp, `dotnet build` (and `dotnet test`, which builds Nova transitively)
+        # would run a second `npm ci`: the target's inputs (package.json, package-lock.json,
+        # node_modules/.package-lock.json) are newer than an absent stamp. touch runs after
+        # npm ci, so the stamp is newer than every input and RestoreNpmPackages is skipped.
+        run: |
+          npm ci
+          mkdir -p obj && touch obj/npm-ci.stamp
         working-directory: Nova
 
       - name: Setup .NET
@@ -34,11 +42,11 @@ jobs:
 
       - name: Build
         # `dotnet build` itself triggers the BuildBootstrapTheme MSBuild target, which
-        # compiles the Sass into wwwroot/css/bootstrap-theme.css. The step above (npm ci)
-        # already installed node_modules per package-lock.json, so the target's npm ci guard
-        # is skipped and the CSS is compiled exactly once here. A separate `npm run build:css`
-        # step would compile the CSS a redundant second time, so we rely on the build and only
-        # run the contrast check next.
+        # compiles the Sass into wwwroot/css/bootstrap-theme.css. The Install npm dependencies
+        # step above already ran npm ci per package-lock.json and touched obj/npm-ci.stamp, so
+        # RestoreNpmPackages is up-to-date and skipped — the CSS is compiled exactly once here.
+        # A separate `npm run build:css` step would compile the CSS a redundant second time, so
+        # we rely on the build and only run the contrast check next.
         run: dotnet build Nova.slnx --no-restore
 
       - name: Check contrast
@@ -60,7 +68,15 @@ jobs:
           cache-dependency-path: Nova/package-lock.json
 
       - name: Install npm dependencies
-        run: npm ci
+        # npm ci installs node_modules exactly per package-lock.json, then we touch
+        # Nova/obj/npm-ci.stamp — the Outputs marker of RestoreNpmPackages in Nova/Nova.csproj.
+        # Without the stamp, `dotnet build` (and `dotnet test`, which builds Nova transitively)
+        # would run a second `npm ci`: the target's inputs (package.json, package-lock.json,
+        # node_modules/.package-lock.json) are newer than an absent stamp. touch runs after
+        # npm ci, so the stamp is newer than every input and RestoreNpmPackages is skipped.
+        run: |
+          npm ci
+          mkdir -p obj && touch obj/npm-ci.stamp
         working-directory: Nova
 
       - name: Setup .NET
