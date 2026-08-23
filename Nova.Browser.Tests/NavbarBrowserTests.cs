@@ -9,7 +9,8 @@ namespace Nova.Browser.Tests;
 /// <summary>
 /// Browser-level acceptance of the icon-first bottom navbar (issue #134 + follow-up polish):
 /// the authenticated navbar shows icon + label items (Home, Club, Campaigns, Players, Teams)
-/// with bootstrap-icons glyphs; on desktop (md+) the items stack the icon above the label; the
+/// with bootstrap-icons glyphs; on desktop (md+) the items stack the icon above the label while
+/// mobile (&lt;md) keeps the inline icon+label row inside the expanded collapsed menu; the
 /// active item carries a kelp teal indicator bar flush with the navbar's top edge and swaps its
 /// outline glyph for the matching <c>-fill</c> variant (CSS overlay, no layout shift); the
 /// Manage link navigates to /Account/Manage; Logout posts the antiforgery form and returns to
@@ -165,7 +166,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// NB6: at a desktop (md+) viewport the authorized nav items stack the icon above the label
     /// (<c>flex-direction: column</c>), so the icon box sits above the label box and the link is
     /// still horizontally centered. Mobile (&lt;md) keeps the inline icon+label row inside the
-    /// collapsed menu (covered by the collapsed-menu manual check per the plan; asserting both
+    /// expanded collapsed menu, asserted by NB7 in its own viewport context (asserting both
     /// viewports in one test is flaky because the collapse toggling also changes layout).
     /// </summary>
     [Fact]
@@ -195,6 +196,71 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var manage = nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false });
         var manageFlex = await manage.EvaluateAsync<string>("(el) => getComputedStyle(el).flexDirection");
         manageFlex.ShouldBe("row");
+    }
+
+    /// <summary>
+    /// NB7: at a mobile (&lt;md) viewport the authorized nav items keep the inline icon+label row
+    /// (<c>flex-direction: row</c>) inside the expanded collapsed menu — so the mobile branch of
+    /// the stacked-layout media query is covered (NB6 covers md+; the old collapsed-menu manual
+    /// check is superseded). The icon box sits beside (not above) the label box in a fixed-size
+    /// 1.25rem slot, and an inactive link keeps its outline glyph visible with the <c>-fill</c>
+    /// overlay hidden.
+    /// </summary>
+    [Fact]
+    public async Task Navbar_Mobile_ExpandedMenu_KeepsInlineRowAndOutlineGlyph()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(
+            seed.AdminEmail,
+            DashboardSeed.Password,
+            viewport: new ViewportSize { Width = 480, Height = 800 });
+        var page = context.Pages[0];
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        var clubName = await GetClubNameAsync(seed.ClubId, cancellationToken);
+        var nav = page.Locator("nav.navbar");
+
+        // Expand the collapsed menu behind the navbar toggler (Bootstrap's data API, no Blazor
+        // circuit needed); once the show class lands the items settle at their final positions.
+        await nav.Locator("button.navbar-toggler").ClickAsync();
+        await Expect(page.Locator("#main-nav-menu")).ToHaveClassAsync(new Regex("\\bshow\\b"));
+
+        // Each authorized item keeps the inline row at <md (Home, the club, Campaigns, Players,
+        // Teams).
+        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true }));
+        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true }));
+        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }));
+        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }));
+        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }));
+
+        // An inactive link (Campaigns at the dashboard root) keeps its outline glyph visible; the
+        // fill overlay stays hidden at mobile just as at desktop.
+        await AssertInactiveOutlineGlyphAsync(
+            nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }),
+            "bi-calendar-check-fill",
+            "bi-calendar-check");
+    }
+
+    /// <summary>
+    /// Asserts the link keeps the inline icon+label row (flex row, icon box beside — not above —
+    /// the label box, both vertically centered, and the icon slot at its 1.25rem mobile baseline)
+    /// — the reference mobile layout.
+    /// </summary>
+    private static async Task AssertInlineRowLayoutAsync(ILocator link)
+    {
+        var flexDirection = await link.EvaluateAsync<string>("(el) => getComputedStyle(el).flexDirection");
+        flexDirection.ShouldBe("row");
+        var iconBox = await link.Locator("span.nav-icon-slot").BoundingBoxAsync();
+        var labelBox = await link.Locator("span.nav-label").BoundingBoxAsync();
+        iconBox.ShouldNotBeNull();
+        labelBox.ShouldNotBeNull();
+        iconBox!.X.ShouldBeLessThan(labelBox!.X, "the icon must sit beside the label in the inline row");
+        ((double)iconBox!.Width).ShouldBeInRange(19.5, 20.5, "the mobile icon slot must keep its 1.25rem baseline width");
+        ((double)iconBox!.Height).ShouldBeInRange(19.5, 20.5, "the mobile icon slot must keep its 1.25rem baseline height");
+        var iconCenterY = (double)iconBox.Y + (iconBox.Height / 2);
+        var labelCenterY = (double)labelBox.Y + (labelBox.Height / 2);
+        Math.Abs(iconCenterY - labelCenterY).ShouldBeLessThanOrEqualTo(2.0, "the icon and label must stay vertically centered");
     }
 
     /// <summary>
