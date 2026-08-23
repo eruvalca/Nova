@@ -1,8 +1,8 @@
 # First-Run Developer Experience Hardening
 
-Harden Nova's "press F5 and go" experience so the npm/Sass build is friendly, self-healing, and visible in the Aspire dashboard, and give teammates a human-facing onboarding doc. Based on the 2026-08-23 research audit (session artifact `files/research/can-you-use-the-latest-aspire-docs-mcp-t.md`).
+Harden Nova's "press F5 and go" experience so the npm/Sass build is friendly, self-healing, and visible in the Aspire dashboard, and keep the agent-facing instructions accurate and high-signal. Based on the 2026-08-23 research audit (session artifact `files/research/can-you-use-the-latest-aspire-docs-mcp-t.md`).
 
-**Scope decision (user unavailable at planning time; recommended option chosen):** R1 (Node preflight) + R2 (lockfile-aware `npm ci`) + R3 (theme workflow as Aspire dashboard commands) + R5 (README). **Deferred:** R4 (`WithBrowserLogs`, requires the `Aspire.Hosting.Browsers` *preview* package and experimental `ASPIREBROWSERLOGS001` opt-in) and R6 (devcontainer) — both can be added later as follow-up phases if desired.
+**Scope decision (updated 2026-08-23 by the user):** R1 (Node preflight) + R2 (lockfile-aware `npm ci`) + R3 (theme workflow as Aspire dashboard commands) + an **agent instructions hygiene pass** (update/add guidance in `.github/instructions/*.md`, following [Instructions hygiene: what frontier models still need you to say](https://devblogs.microsoft.com/dotnet/instructions-hygiene-what-frontier-models-still-need-you-to-say/)). **Dropped by the user:** R5 (human-facing README — do not add one). **Deferred:** R4 (`WithBrowserLogs`, requires the `Aspire.Hosting.Browsers` *preview* package and experimental `ASPIREBROWSERLOGS001` opt-in) and R6 (devcontainer) — both can be added later as follow-up phases if desired.
 **Delivery:** commit to the session branch as phases complete; open a single PR against `main` when all phases are done.
 
 ## For Future Agents
@@ -16,6 +16,8 @@ Status: Not started <!-- Not started | In progress | Complete -->
 Suggested executor: orchestrator (MSBuild incrementality is subtle; a smaller model risked breaking the static-web-asset ordering this target depends on)
 
 <!-- Context recap: `Nova/Nova.csproj` has a `BuildBootstrapTheme` target (BeforeTargets="ResolveProjectStaticWebAssets") that runs `npm ci` only when `node_modules` does not exist, then `npm run build:css`, then copies + registers the bootstrap-icons fonts. Research findings: (1) a teammate without Node ≥ 20 gets a cryptic MSB3073 error because nothing checks Node; (2) the `!Exists(node_modules)` guard misses a stale tree when `package.json`/`package-lock.json` change (exactly what PR #136's bootstrap-icons addition would trigger for existing contributors); (3) `Nova/scripts/check-contrast.mjs` shows the repo convention for small Node helper scripts. -->
+
+<!-- Decision note (user asked 2026-08-23, answered here for future agents): what happens if a teammate has no Node installed, and does Aspire account for it? `dotnet run --project Nova.AppHost` builds Nova transitively; on a clean clone `wwwroot/css/bootstrap-theme.css` is gitignored/absent, so `BuildBootstrapTheme` executes `npm ci` and fails with MSB3073 ("exited with code 9009" on Windows) BEFORE the AppHost ever starts — no DCP, no dashboard, just a failed build. Aspire does NOT account for it: `aspire doctor` checks CLI version/OS/.NET SDK/dev certs/Docker/DCP/VS Code extension but has no Node check, and the npm step is repo-local MSBuild logic invisible to Aspire's resource model (the JavaScript hosting integration's npm install only applies to runtime Node resources, which Nova does not use). The `AspireUseCliBundle` opt-in only self-provisions Aspire's own dependencies (DCP/dashboard), not the repo's npm toolchain. Mitigation = this phase's `check-node.mjs` preflight with a friendly MSBuild Error. -->
 
 - [ ] Add `Nova/scripts/check-node.mjs`: exits 0 when `process.versions.node` major ≥ 20 (per `Nova/package.json` `engines.node`), prints a friendly one-line message (version found / too old), exits 1 otherwise. Follow the style of `Nova/scripts/check-contrast.mjs`.
 - [ ] Add a `CheckNodePrerequisite` target in `Nova/Nova.csproj` that runs `node scripts/check-node.mjs` from `$(MSBuildProjectDirectory)` with `IgnoreExitCode="true"`, captures the exit code into a property, and emits a clear `<Error>` (e.g. "Node.js 20+ is required to build the Nova theme (npm ci / npm run build:css). Install from https://nodejs.org and rebuild.") when the exit code is non-zero. Wire it as `DependsOnTargets` of `BuildBootstrapTheme` so it runs every time the theme target is evaluated (dependencies run even when the parent target is up-to-date and skipped) — a Node-less machine can never build Nova anyway because `wwwroot/css/bootstrap-theme.css` is gitignored and must compile on every clean clone.
@@ -50,7 +52,7 @@ Suggested executor: orchestrator (AppHost wiring touches the experimental proces
   - Use the `createProcessSpec` factory overload to set `WorkingDirectory = Path.Combine(builder.AppHostDirectory, "..", "Nova")` (commands must run from `Nova/`, where `package.json` lives), plus short `Description`s noting they run on the dev machine.
 - [ ] Keep `reset-db` and `clear-profile-photos` unchanged.
 - [ ] Fallback (only if the experimental API misbehaves in practice): implement the same commands with the established `WithCommand` + `AppHostCommands` pattern, adding a small `ProcessRunner` helper (start process, capture stdout/stderr, return `CommandResults.Success(output)` / `Failure(...)` on non-zero exit). Decide during implementation and record the choice in the Phase Summary.
-- [ ] Update `.github/instructions/bootstrap-theme.instructions.md` to document the three dashboard commands as the sanctioned way to install npm deps, rebuild, and contrast-check the theme locally (alongside the existing `npm run build:css` / `npm run check:contrast` wording).
+- [ ] Do not edit `.github/instructions/*.md` in this phase — instruction-file updates (including documenting these three commands as the sanctioned theme workflow) are owned by Phase 3.
 
 ### Verification Plan
 
@@ -63,29 +65,26 @@ Suggested executor: orchestrator (AppHost wiring touches the experimental proces
 
 _(write when phase completes)_
 
-## Phase 3: Human-facing README (R5)
+## Phase 3: Agent instructions hygiene pass (replaces the dropped README)
 
 Status: Not started <!-- Not started | In progress | Complete -->
 
-Suggested executor: sub-agent w/ smaller model (well-scoped documentation task; Phase 1–2 decisions are the only inputs it needs)
+Suggested executor: orchestrator (keep/remove/move/verify decisions require judgment; a smaller-model sub-agent may draft the audit findings for the orchestrator to decide on)
 
-<!-- Context recap: the repo has no root README (verified by glob). Onboarding knowledge currently lives in agent-facing `.github/instructions/*.md`. Research finding: a teammate needs .NET 10 SDK, Node ≥ 20, and Docker; `aspire doctor` verifies everything except Node; `Nova.AppHost` F5 is the single entry point; browser tests need a one-time Playwright browser download. -->
+<!-- Context recap: the user explicitly dropped the human-facing README (R5). Instead, agent guidance lives in `.github/instructions/*.md` (path-scoped, e.g. `bootstrap-theme.instructions.md`, `blazor-architecture.instructions.md`) plus the repo-wide Copilot overview. This phase applies the keep/remove/move/verify review from https://devblogs.microsoft.com/dotnet/instructions-hygiene-what-frontier-models-still-need-you-to-say/ so instructions stay high-signal and accurate after Phases 1–2. Known staleness to fix: `bootstrap-theme.instructions.md` lines ~29–31 describe `npm ci` as running "only when node_modules is absent" (Phase 1 makes it lockfile-aware), and no instruction file yet mentions the new dashboard commands or the Node preflight. `blazor-architecture.instructions.md` line ~121 (Bootstrap-native navbar markup) is still accurate post-PR #136 but should be verified. -->
 
-- [ ] Create `README.md` at the repo root with, in order:
-  1. One-paragraph project description (Blazor Web App: club management, kelp-forest theme).
-  2. **Prerequisites**: .NET 10 SDK, Node.js ≥ 20, Docker (running) — with verify commands (`dotnet --version`, `node --version`, `aspire doctor`).
-  3. **First run**: `dotnet run --project Nova.AppHost` (or F5 on `Nova.AppHost` in Visual Studio / VS Code with the Aspire extension / JetBrains Rider), what it provisions (PostgreSQL 18 + `novadb`, Azurite blob emulator with `profile-photos`), dashboard URL, `/health` + `/alive` endpoints, and the note that the Bootstrap theme compiles automatically on first build (first build takes longer due to `npm ci`).
-  4. **Development commands**: dashboard custom commands (`reset-db`, `clear-profile-photos`, plus the three new ones from Phase 2 — `install-npm-deps`, `rebuild-theme`, `check-contrast`), theme workflow (`npm ci`, `npm run build:css`, `npm run check:contrast` from `Nova/`), watch mode (`aspire config set features.defaultWatchEnabled true` then `aspire run`), and keeping the Aspire CLI current (`aspire update --self`).
-  5. **Testing**: unit tests command; integration tests (require AppHost); browser tests (local-only, one-time `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`).
-  6. Link to `.github/instructions/` for the detailed conventions (theme rules, tenancy, testing, service layer, etc.).
-- [ ] Keep the README human-facing (not agent-facing); do not duplicate the instruction files' content.
-- [ ] Write the README **after** Phase 2 so the documented dashboard commands match reality (dependency: Phase 3 runs after Phase 2).
+- [ ] Apply the keep/remove/move/verify review from the blog post to every file in `.github/instructions/`: **keep** info that is true, consequential, and hard to infer; **remove** generic coaching ("write clean code" etc.), rules already enforced by tools (`dotnet format`, analyzers), prompt folklore, and stale workarounds; **move** rules that belong at a different scope; **verify** every command, version, and file path cited.
+- [ ] Update `bootstrap-theme.instructions.md` for the Phase 1–2 changes: replace the now-wrong "`npm ci` runs only when `node_modules` is absent" description with the lockfile-aware `RestoreNpmPackages` stamp behavior; document the `check-node.mjs` preflight (build fails with a friendly error naming Node 20+ when Node is missing or too old); document the three dashboard commands (`install-npm-deps`, `rebuild-theme`, `check-contrast` on the `nova` resource) as the sanctioned theme workflow alongside the existing npm scripts.
+- [ ] Verify the other nine instruction files against recent code changes (PR #133 theme overhaul, PR #136 navbar redesign) and fix only genuine staleness or contradictions; do not expand files with generic advice.
+- [ ] Follow the blog's progressive-disclosure rules: point to sources of truth instead of duplicating (palette → `Nova/scss/_variables.scss`, versions → `Nova/package.json`/`Directory.Packages.props`, SDK → `global.json`), keep authoritative commands as the shortest reliable validation path, and reserve strong language (never/always/must) for genuinely absolute rules (e.g. never edit/commit the compiled CSS).
+- [ ] If Phase 1–2 changed anything else agent-relevant (e.g. build failure modes, working-directory requirements for npm scripts), fold that into the appropriate path-scoped file rather than adding a new file — only create a new instruction file if a clear gap exists that no existing file's scope covers.
 
 ### Verification Plan
 
-- All relative links/commands in the README reference paths that exist in the repo (`Nova/package.json`, `Nova.AppHost/`, `.github/instructions/*`, test project paths).
-- `dotnet build Nova.slnx` and `dotnet format Nova.slnx --verify-no-changes` unaffected (no code changes expected in this phase).
-- No CI changes required.
+- Every command cited in the edited files is runnable as written; run the cheap ones to prove it: `dotnet build Nova.slnx`, `dotnet format Nova.slnx --verify-no-changes`, and (from `Nova/`) `npm run check:contrast`.
+- No instruction file contradicts the implemented behavior: grep `.github/instructions/` for `npm ci`, `node_modules`, `build:css`, `dashboard`, `check-contrast` and compare against `Nova/Nova.csproj` targets and `Nova.AppHost/AppHost.cs`.
+- The dropped-README decision is honored: confirm no `README.md` was created at the repo root.
+- Docs-only phase: `dotnet build Nova.slnx` and format check unaffected.
 
 ### Phase Summary
 
