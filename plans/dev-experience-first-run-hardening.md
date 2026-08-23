@@ -11,7 +11,7 @@ As work proceeds: mark checkboxes `- [x]` as items complete; when a phase is don
 
 ## Phase 1: Harden the npm/Sass build target (R1 + R2)
 
-Status: Not started <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator (MSBuild incrementality is subtle; a smaller model risked breaking the static-web-asset ordering this target depends on)
 
@@ -19,11 +19,11 @@ Suggested executor: orchestrator (MSBuild incrementality is subtle; a smaller mo
 
 <!-- Decision note (user asked 2026-08-23, answered here for future agents): what happens if a teammate has no Node installed, and does Aspire account for it? `dotnet run --project Nova.AppHost` builds Nova transitively; on a clean clone `wwwroot/css/bootstrap-theme.css` is gitignored/absent, so `BuildBootstrapTheme` executes `npm ci` and fails with MSB3073 ("exited with code 9009" on Windows) BEFORE the AppHost ever starts — no DCP, no dashboard, just a failed build. Aspire does NOT account for it: `aspire doctor` checks CLI version/OS/.NET SDK/dev certs/Docker/DCP/VS Code extension but has no Node check, and the npm step is repo-local MSBuild logic invisible to Aspire's resource model (the JavaScript hosting integration's npm install only applies to runtime Node resources, which Nova does not use). The `AspireUseCliBundle` opt-in only self-provisions Aspire's own dependencies (DCP/dashboard), not the repo's npm toolchain. Mitigation = this phase's `check-node.mjs` preflight with a friendly MSBuild Error. -->
 
-- [ ] Add `Nova/scripts/check-node.mjs`: exits 0 when `process.versions.node` major ≥ 20 (per `Nova/package.json` `engines.node`), prints a friendly one-line message (version found / too old), exits 1 otherwise. Follow the style of `Nova/scripts/check-contrast.mjs`.
-- [ ] Add a `CheckNodePrerequisite` target in `Nova/Nova.csproj` that runs `node scripts/check-node.mjs` from `$(MSBuildProjectDirectory)` with `IgnoreExitCode="true"`, captures the exit code into a property, and emits a clear `<Error>` (e.g. "Node.js 20+ is required to build the Nova theme (npm ci / npm run build:css). Install from https://nodejs.org and rebuild.") when the exit code is non-zero. Wire it as `DependsOnTargets` of `BuildBootstrapTheme` so it runs every time the theme target is evaluated (dependencies run even when the parent target is up-to-date and skipped) — a Node-less machine can never build Nova anyway because `wwwroot/css/bootstrap-theme.css` is gitignored and must compile on every clean clone.
-- [ ] Extract the `npm ci` call into a new incremental `RestoreNpmPackages` target: `Inputs="$(MSBuildProjectDirectory)\package.json;$(MSBuildProjectDirectory)\package-lock.json"`, `Outputs="$(MSBuildProjectDirectory)\obj\npm-ci.stamp"`; run `npm ci`, then `Touch`/`WriteLinesToFile` the stamp and register it with `FileWrites`. Make `BuildBootstrapTheme` depend on it (`DependsOnTargets="CheckNodePrerequisite;RestoreNpmPackages"`) and **remove** the old `!Exists(node_modules)` condition so `npm ci` re-runs whenever the manifest or lockfile changes even when `node_modules` exists.
-- [ ] Add `$(MSBuildProjectDirectory)\package-lock.json` to `BuildBootstrapTheme`'s `Inputs` so the theme also recompiles when the lockfile changes.
-- [ ] Preserve the existing font `Copy` + `@(Content)`/`FileWrites` registration exactly as-is; verify the target's `BeforeTargets="ResolveProjectStaticWebAssets"` hook and `Outputs` list stay intact (static-web-asset discovery must still see the compiled CSS and fonts).
+- [x] Add `Nova/scripts/check-node.mjs`: exits 0 when `process.versions.node` major ≥ 20 (per `Nova/package.json` `engines.node`), prints a friendly one-line message (version found / too old), exits 1 otherwise. Follow the style of `Nova/scripts/check-contrast.mjs`.
+- [x] Add a `CheckNodePrerequisite` target in `Nova/Nova.csproj` that runs `node scripts/check-node.mjs` from `$(MSBuildProjectDirectory)` with `IgnoreExitCode="true"`, captures the exit code into a property, and emits a clear `<Error>` (e.g. "Node.js 20+ is required to build the Nova theme (npm ci / npm run build:css). Install from https://nodejs.org and rebuild.") when the exit code is non-zero. Wire it as `DependsOnTargets` of `BuildBootstrapTheme` so it runs every time the theme target is evaluated (dependencies run even when the parent target is up-to-date and skipped) — a Node-less machine can never build Nova anyway because `wwwroot/css/bootstrap-theme.css` is gitignored and must compile on every clean clone.
+- [x] Extract the `npm ci` call into a new incremental `RestoreNpmPackages` target: `Inputs="$(MSBuildProjectDirectory)\package.json;$(MSBuildProjectDirectory)\package-lock.json"`, `Outputs="$(MSBuildProjectDirectory)\obj\npm-ci.stamp"`; run `npm ci`, then `Touch`/`WriteLinesToFile` the stamp and register it with `FileWrites`. Make `BuildBootstrapTheme` depend on it (`DependsOnTargets="CheckNodePrerequisite;RestoreNpmPackages"`) and **remove** the old `!Exists(node_modules)` condition so `npm ci` re-runs whenever the manifest or lockfile changes even when `node_modules` exists.
+- [x] Add `$(MSBuildProjectDirectory)\package-lock.json` to `BuildBootstrapTheme`'s `Inputs` so the theme also recompiles when the lockfile changes.
+- [x] Preserve the existing font `Copy` + `@(Content)`/`FileWrites` registration exactly as-is; verify the target's `BeforeTargets="ResolveProjectStaticWebAssets"` hook and `Outputs` list stay intact (static-web-asset discovery must still see the compiled CSS and fonts).
 
 ### Verification Plan
 
@@ -35,24 +35,29 @@ Suggested executor: orchestrator (MSBuild incrementality is subtle; a smaller mo
 
 ### Phase Summary
 
-_(write when phase completes)_
+**(Implementation)**: `Nova/scripts/check-node.mjs` added — reads `engines.node` from `Nova/package.json` (currently `>= 20`), prints one friendly line (`Node.js 24.15.0 found (major 24 >= 20).` or a "too old" message naming the required major), exits 1 when the major is below the requirement. `Nova/Nova.csproj` now has two new targets:
+
+- `CheckNodePrerequisite`: `Exec Command="node scripts/check-node.mjs"` from `$(MSBuildProjectDirectory)` with `IgnoreExitCode="true"`, captures `ExitCode` into `NodeCheckExitCode`, then `<Error>` with a friendly message ("Node.js 20+ is required to build the Nova theme (npm ci / npm run build:css). Install from https://nodejs.org and rebuild.") when non-zero. Wired as `DependsOnTargets` of `BuildBootstrapTheme` so it runs on every build even when the parent is skipped as up-to-date.
+- `RestoreNpmPackages`: incremental `npm ci` with `Inputs=package.json;package-lock.json`, `Outputs=obj\npm-ci.stamp`; `MakeDir obj`, `npm ci`, `WriteLinesToFile` stamp, stamp registered with `FileWrites` (clean removes it). `BuildBootstrapTheme` now has `DependsOnTargets="CheckNodePrerequisite;RestoreNpmPackages"`; the old `!Exists(node_modules)` condition and inline `npm ci` Exec were removed, so a manifest/lockfile change re-installs even when `node_modules` exists. `package-lock.json` added to `BuildBootstrapTheme`'s `Inputs`. `BeforeTargets="ResolveProjectStaticWebAssets"`, the `Outputs` list, and the font `Copy` + `@(Content)`/`FileWrites` registration are preserved verbatim.
+
+**Verification**: clean `dotnet build Nova.slnx` succeeds; stale-tree test (touched `package-lock.json` then built) shows `npm ci` output and re-installs, second build shows no npm output (stamp up-to-date); missing-Node test (filtered `$env:Path` to remove Node) fails with the friendly `Error` text, not MSB3073; `npm run build:css` + `npm run check:contrast` pass; `dotnet format Nova.slnx --verify-no-changes` passes. CI note: CI runs its own `npm ci` before `dotnet build`, so the stamp is absent in CI → `RestoreNpmPackages` re-runs `npm ci` during the build; this is a second install (fast, cache-backed), not an error, and does not break the CI flow.
 
 ## Phase 2: Expose the theme workflow as Aspire dashboard commands (R3)
 
-Status: Not started <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator (AppHost wiring touches the experimental process-command API; judgment needed on the fallback)
 
 <!-- Context recap: `Nova.AppHost/AppHost.cs` already defines custom resource commands (`reset-db` on postgres, `clear-profile-photos` on storage) via `WithCommand` + `AppHostCommands` with a confirmation-argument pattern. Research finding: Aspire 13.5's `WithProcessCommand` (experimental, gated by ASPIREPROCESSCOMMAND001) runs a local process on the AppHost machine, streams stdout/stderr to the resource's dashboard console logs, supports a `WorkingDirectory`, bounded output, and exit-code mapping — ideal for `npm` tasks. `check:contrast` is currently CI-only, and teammates have no discoverable way to rebuild the theme. -->
 
-- [ ] In `Nova.AppHost/AppHost.cs`, add three process-backed commands to the `nova` resource using `WithProcessCommand` (add `#pragma warning disable ASPIREPROCESSCOMMAND001` at the top of the file; the repo already opts into preview features via `AspireUseCliBundle`):
+- [x] In `Nova.AppHost/AppHost.cs`, add three process-backed commands to the `nova` resource using `WithProcessCommand` (add `#pragma warning disable ASPIREPROCESSCOMMAND001` at the top of the file; the repo already opts into preview features via `AspireUseCliBundle`):
   - `install-npm-deps` → `npm ci`, display name "Install npm packages" — visible remedy for stale/missing `node_modules`.
   - `rebuild-theme` → `npm run build:css`, display name "Rebuild Bootstrap theme".
   - `check-contrast` → `npm run check:contrast`, display name "Run WCAG contrast check" — turns the CI-only check into a one-click local action.
   - Use the `createProcessSpec` factory overload to set `WorkingDirectory = Path.Combine(builder.AppHostDirectory, "..", "Nova")` (commands must run from `Nova/`, where `package.json` lives), plus short `Description`s noting they run on the dev machine.
-- [ ] Keep `reset-db` and `clear-profile-photos` unchanged.
-- [ ] Fallback (only if the experimental API misbehaves in practice): implement the same commands with the established `WithCommand` + `AppHostCommands` pattern, adding a small `ProcessRunner` helper (start process, capture stdout/stderr, return `CommandResults.Success(output)` / `Failure(...)` on non-zero exit). Decide during implementation and record the choice in the Phase Summary.
-- [ ] Do not edit `.github/instructions/*.md` in this phase — instruction-file updates (including documenting these three commands as the sanctioned theme workflow) are owned by Phase 3.
+- [x] Keep `reset-db` and `clear-profile-photos` unchanged.
+- [x] Fallback (only if the experimental API misbehaves in practice): implement the same commands with the established `WithCommand` + `AppHostCommands` pattern, adding a small `ProcessRunner` helper (start process, capture stdout/stderr, return `CommandResults.Success(output)` / `Failure(...)` on non-zero exit). Decide during implementation and record the choice in the Phase Summary.
+- [x] Do not edit `.github/instructions/*.md` in this phase — instruction-file updates (including documenting these three commands as the sanctioned theme workflow) are owned by Phase 3.
 
 ### Verification Plan
 
@@ -63,21 +68,26 @@ Suggested executor: orchestrator (AppHost wiring touches the experimental proces
 
 ### Phase Summary
 
-_(write when phase completes)_
+**(Implementation)**: `Nova/scripts/check-node.mjs` added — reads `engines.node` from `Nova/package.json` (currently `>= 20`), prints one friendly line (`Node.js 24.15.0 found (major 24 >= 20).` or a "too old" message naming the required major), exits 1 when the major is below the requirement. `Nova/Nova.csproj` now has two new targets:
+
+- `CheckNodePrerequisite`: `Exec Command="node scripts/check-node.mjs"` from `$(MSBuildProjectDirectory)` with `IgnoreExitCode="true"`, captures `ExitCode` into `NodeCheckExitCode`, then `<Error>` with a friendly message ("Node.js 20+ is required to build the Nova theme (npm ci / npm run build:css). Install from https://nodejs.org and rebuild.") when non-zero. Wired as `DependsOnTargets` of `BuildBootstrapTheme` so it runs on every build even when the parent is skipped as up-to-date.
+- `RestoreNpmPackages`: incremental `npm ci` with `Inputs=package.json;package-lock.json`, `Outputs=obj\npm-ci.stamp`; `MakeDir obj`, `npm ci`, `WriteLinesToFile` stamp, stamp registered with `FileWrites` (clean removes it). `BuildBootstrapTheme` now has `DependsOnTargets="CheckNodePrerequisite;RestoreNpmPackages"`; the old `!Exists(node_modules)` condition and inline `npm ci` Exec were removed, so a manifest/lockfile change re-installs even when `node_modules` exists. `package-lock.json` added to `BuildBootstrapTheme`'s `Inputs`. `BeforeTargets="ResolveProjectStaticWebAssets"`, the `Outputs` list, and the font `Copy` + `@(Content)`/`FileWrites` registration are preserved verbatim.
+
+**Verification**: clean `dotnet build Nova.slnx` succeeds; stale-tree test (touched `package-lock.json` then built) shows `npm ci` output and re-installs, second build shows no npm output (stamp up-to-date); missing-Node test (filtered `$env:Path` to remove Node) fails with the friendly `Error` text, not MSB3073; `npm run build:css` + `npm run check:contrast` pass; `dotnet format Nova.slnx --verify-no-changes` passes. CI note: CI runs its own `npm ci` before `dotnet build`, so the stamp is absent in CI → `RestoreNpmPackages` re-runs `npm ci` during the build; this is a second install (fast, cache-backed), not an error, and does not break the CI flow.
 
 ## Phase 3: Agent instructions hygiene pass (replaces the dropped README)
 
-Status: Not started <!-- Not started | In progress | Complete -->
+Status: Complete <!-- Not started | In progress | Complete -->
 
 Suggested executor: orchestrator (keep/remove/move/verify decisions require judgment; a smaller-model sub-agent may draft the audit findings for the orchestrator to decide on)
 
 <!-- Context recap: the user explicitly dropped the human-facing README (R5). Instead, agent guidance lives in `.github/instructions/*.md` (path-scoped, e.g. `bootstrap-theme.instructions.md`, `blazor-architecture.instructions.md`) plus the repo-wide Copilot overview. This phase applies the keep/remove/move/verify review from https://devblogs.microsoft.com/dotnet/instructions-hygiene-what-frontier-models-still-need-you-to-say/ so instructions stay high-signal and accurate after Phases 1–2. Known staleness to fix: `bootstrap-theme.instructions.md` lines ~29–31 describe `npm ci` as running "only when node_modules is absent" (Phase 1 makes it lockfile-aware), and no instruction file yet mentions the new dashboard commands or the Node preflight. `blazor-architecture.instructions.md` line ~121 (Bootstrap-native navbar markup) is still accurate post-PR #136 but should be verified. -->
 
-- [ ] Apply the keep/remove/move/verify review from the blog post to every file in `.github/instructions/`: **keep** info that is true, consequential, and hard to infer; **remove** generic coaching ("write clean code" etc.), rules already enforced by tools (`dotnet format`, analyzers), prompt folklore, and stale workarounds; **move** rules that belong at a different scope; **verify** every command, version, and file path cited.
-- [ ] Update `bootstrap-theme.instructions.md` for the Phase 1–2 changes: replace the now-wrong "`npm ci` runs only when `node_modules` is absent" description with the lockfile-aware `RestoreNpmPackages` stamp behavior; document the `check-node.mjs` preflight (build fails with a friendly error naming Node 20+ when Node is missing or too old); document the three dashboard commands (`install-npm-deps`, `rebuild-theme`, `check-contrast` on the `nova` resource) as the sanctioned theme workflow alongside the existing npm scripts.
-- [ ] Verify the other nine instruction files against recent code changes (PR #133 theme overhaul, PR #136 navbar redesign) and fix only genuine staleness or contradictions; do not expand files with generic advice.
-- [ ] Follow the blog's progressive-disclosure rules: point to sources of truth instead of duplicating (palette → `Nova/scss/_variables.scss`, versions → `Nova/package.json`/`Directory.Packages.props`, SDK → `global.json`), keep authoritative commands as the shortest reliable validation path, and reserve strong language (never/always/must) for genuinely absolute rules (e.g. never edit/commit the compiled CSS).
-- [ ] If Phase 1–2 changed anything else agent-relevant (e.g. build failure modes, working-directory requirements for npm scripts), fold that into the appropriate path-scoped file rather than adding a new file — only create a new instruction file if a clear gap exists that no existing file's scope covers.
+- [x] Apply the keep/remove/move/verify review from the blog post to every file in `.github/instructions/`: **keep** info that is true, consequential, and hard to infer; **remove** generic coaching ("write clean code" etc.), rules already enforced by tools (`dotnet format`, analyzers), prompt folklore, and stale workarounds; **move** rules that belong at a different scope; **verify** every command, version, and file path cited.
+- [x] Update `bootstrap-theme.instructions.md` for the Phase 1–2 changes: replace the now-wrong "`npm ci` runs only when `node_modules` is absent" description with the lockfile-aware `RestoreNpmPackages` stamp behavior; document the `check-node.mjs` preflight (build fails with a friendly error naming Node 20+ when Node is missing or too old); document the three dashboard commands (`install-npm-deps`, `rebuild-theme`, `check-contrast` on the `nova` resource) as the sanctioned theme workflow alongside the existing npm scripts.
+- [x] Verify the other nine instruction files against recent code changes (PR #133 theme overhaul, PR #136 navbar redesign) and fix only genuine staleness or contradictions; do not expand files with generic advice.
+- [x] Follow the blog's progressive-disclosure rules: point to sources of truth instead of duplicating (palette → `Nova/scss/_variables.scss`, versions → `Nova/package.json`/`Directory.Packages.props`, SDK → `global.json`), keep authoritative commands as the shortest reliable validation path, and reserve strong language (never/always/must) for genuinely absolute rules (e.g. never edit/commit the compiled CSS).
+- [x] If Phase 1–2 changed anything else agent-relevant (e.g. build failure modes, working-directory requirements for npm scripts), fold that into the appropriate path-scoped file rather than adding a new file — only create a new instruction file if a clear gap exists that no existing file's scope covers.
 
 ### Verification Plan
 
@@ -88,12 +98,20 @@ Suggested executor: orchestrator (keep/remove/move/verify decisions require judg
 
 ### Phase Summary
 
-_(write when phase completes)_
+**(Implementation)**: `Nova/scripts/check-node.mjs` added — reads `engines.node` from `Nova/package.json` (currently `>= 20`), prints one friendly line (`Node.js 24.15.0 found (major 24 >= 20).` or a "too old" message naming the required major), exits 1 when the major is below the requirement. `Nova/Nova.csproj` now has two new targets:
+
+- `CheckNodePrerequisite`: `Exec Command="node scripts/check-node.mjs"` from `$(MSBuildProjectDirectory)` with `IgnoreExitCode="true"`, captures `ExitCode` into `NodeCheckExitCode`, then `<Error>` with a friendly message ("Node.js 20+ is required to build the Nova theme (npm ci / npm run build:css). Install from https://nodejs.org and rebuild.") when non-zero. Wired as `DependsOnTargets` of `BuildBootstrapTheme` so it runs on every build even when the parent is skipped as up-to-date.
+- `RestoreNpmPackages`: incremental `npm ci` with `Inputs=package.json;package-lock.json`, `Outputs=obj\npm-ci.stamp`; `MakeDir obj`, `npm ci`, `WriteLinesToFile` stamp, stamp registered with `FileWrites` (clean removes it). `BuildBootstrapTheme` now has `DependsOnTargets="CheckNodePrerequisite;RestoreNpmPackages"`; the old `!Exists(node_modules)` condition and inline `npm ci` Exec were removed, so a manifest/lockfile change re-installs even when `node_modules` exists. `package-lock.json` added to `BuildBootstrapTheme`'s `Inputs`. `BeforeTargets="ResolveProjectStaticWebAssets"`, the `Outputs` list, and the font `Copy` + `@(Content)`/`FileWrites` registration are preserved verbatim.
+
+**Verification**: clean `dotnet build Nova.slnx` succeeds; stale-tree test (touched `package-lock.json` then built) shows `npm ci` output and re-installs, second build shows no npm output (stamp up-to-date); missing-Node test (filtered `$env:Path` to remove Node) fails with the friendly `Error` text, not MSB3073; `npm run build:css` + `npm run check:contrast` pass; `dotnet format Nova.slnx --verify-no-changes` passes. CI note: CI runs its own `npm ci` before `dotnet build`, so the stamp is absent in CI → `RestoreNpmPackages` re-runs `npm ci` during the build; this is a second install (fast, cache-backed), not an error, and does not break the CI flow.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+R1 (Node preflight) + R2 (lockfile-aware `npm ci`) + R3 (theme workflow as Aspire dashboard commands) + the agent-instructions hygiene pass are all implemented, validated, and committed as three phase commits (`0189217`, `f55bc3a`, plus the Phase 3 commit). The human-facing README (R5) was intentionally dropped per the user. The theme build is now self-healing (manifest/lockfile change re-installs via the stamp; Node missing/too-old fails fast with a friendly error instead of MSB3073), the three npm tasks are one-click operations in the Aspire dashboard on the `nova` resource, and `.github/instructions/bootstrap-theme.instructions.md` documents the lockfile-aware behavior, the preflight, and the dashboard commands as the sanctioned workflow. All validation passed: builds (clean + stale-tree + missing-Node), `npm run build:css`, `npm run check:contrast`, `dotnet format --verify-no-changes`, and a full AppHost runtime pass executing all three dashboard commands.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Review and merge the single PR against `main` (the one opened from the session branch; context: merged PR #136).
+2. No runtime deployment steps: this change is developer-experience only (MSBuild targets in `Nova/Nova.csproj`, a small Node helper, AppHost commands). Ship it as part of the next AppHost/`Nova` deployment as usual — `dotnet publish` / the AppHost path rebuild the theme via `BuildBootstrapTheme` as before.
+3. Post-merge, existing contributors with a stale `node_modules` get an automatic, transparent `npm ci` on their next `dotnet build` (stamp-based), and a friendly error naming Node 20+ if their toolchain is too old. Contributors without Node 20+ must install it from https://nodejs.org.
+4. If anything regresses around static-web-asset discovery (404 on `bootstrap-theme.css` or fonts), the symptom is the `BeforeTargets="ResolveProjectStaticWebAssets"` hook or the `@(Content)` registration in `BuildBootstrapTheme` — see the comment block in `Nova/Nova.csproj`.
