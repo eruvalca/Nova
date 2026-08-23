@@ -43,8 +43,10 @@ Sass sources under `Nova/scss/`.
   `BuildBootstrapTheme` on `Nova/Nova.csproj` before static-web-asset discovery:
   1. `CheckNodePrerequisite` runs `Nova/scripts/check-node.mjs` every build.
   2. `RestoreNpmPackages` runs `npm ci` when `package.json` or `package-lock.json` is newer than
-     `Nova/obj/npm-ci.stamp` (so a manifest/lockfile change re-installs even when `node_modules`
-     already exists — a stale tree would otherwise silently serve outdated packages).
+     `Nova/obj/npm-ci.stamp`, or when `Nova/node_modules` is missing/deleted (npm's hidden
+     `node_modules/.package-lock.json` is an input, so removing the tree marks the target
+     out-of-date). A manifest/lockfile change re-installs even when `node_modules` already exists
+     — a stale tree would otherwise silently serve outdated packages.
   3. `BuildBootstrapTheme` runs `npm run build:css` (incrementally, only when the Sass sources,
      `package.json`, or `package-lock.json` changed), then copies + registers the fonts.
   The compiled CSS is gitignored, so a clean clone must build it before the app can serve it.

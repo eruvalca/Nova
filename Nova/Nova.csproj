@@ -41,8 +41,9 @@
     with a friendly message when Node.js 20+ is missing or too old (dependencies
     run even when this target is skipped as up-to-date, so the preflight always
     executes), and on RestoreNpmPackages, which re-runs `npm ci` whenever
-    package.json / package-lock.json change (tracked with a stamp file in obj/
-    instead of checking whether node_modules exists).
+    package.json / package-lock.json change or `node_modules` is deleted (tracked
+    with a stamp file in obj/ and npm's own `node_modules/.package-lock.json`,
+    whose absence also marks the target out-of-date).
 
     This target must run BEFORE static-web-asset discovery. The compiled CSS is
     gitignored, so on a clean checkout it does not exist when the SDK evaluates the
@@ -104,11 +105,15 @@
     package-lock.json is newer than the obj\npm-ci.stamp output, so a manifest or
     lockfile change re-installs even when node_modules already exists (a stale
     node_modules tree — e.g. after adding a devDependency such as bootstrap-icons —
-    would otherwise silently keep serving outdated packages). The stamp is
-    registered with FileWrites so Clean removes it with the rest of obj/.
+    would otherwise silently keep serving outdated packages). npm's hidden
+    lockfile (node_modules/.package-lock.json, written on every install) is also
+    an input: deleting node_modules removes it, marking the target out-of-date so
+    `npm ci` re-runs — the standard remedy for a corrupted install keeps working
+    even when the stamp survives. The stamp is registered with FileWrites so Clean
+    removes it with the rest of obj/.
   -->
   <Target Name="RestoreNpmPackages"
-          Inputs="$(MSBuildProjectDirectory)\package.json;$(MSBuildProjectDirectory)\package-lock.json"
+          Inputs="$(MSBuildProjectDirectory)\package.json;$(MSBuildProjectDirectory)\package-lock.json;$(MSBuildProjectDirectory)\node_modules\.package-lock.json"
           Outputs="$(MSBuildProjectDirectory)\obj\npm-ci.stamp">
     <MakeDir Directories="$(MSBuildProjectDirectory)\obj" />
     <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)" />
