@@ -1,11 +1,11 @@
 ---
 name: builder
 description: "Builder implementation agent for the Orchestrator workflow. Executes a task or implementation plan end to end: reads the plan document and linked issue, implements the code changes following repo conventions, validates with build/test/format, opens a pull request linked to the issue, then evaluates Reviewer agent PR review findings, fixes the code, and resolves the review threads. Invoke when the Orchestrator needs actual implementation of a planned task, a PR raised for completed work, or code-review feedback remediated."
-argument-hint: "Task or plan document to implement"
 tools:
     [
         read,
         edit,
+        create,
         search,
         execute,
         agent,

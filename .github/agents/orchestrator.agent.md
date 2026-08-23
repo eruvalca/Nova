@@ -1,10 +1,10 @@
 ---
 name: orchestrator
 description: "Orchestrator agent that runs the end-to-end build-review loop by delegating to the Builder and Reviewer agents. Takes a task or issue, has the Builder implement it and open a PR, validates the Builder's deliverables (PR with issue link, commits addressing review findings, replies to and resolutions of review threads, green CI checks on the latest commit), then passes the baton to the Reviewer and validates its deliverable (a submitted PR review with actionable findings, or a no-findings ready-to-merge review). Iterates Builder-to-Reviewer for up to 15 Builder turns and escalates to the human if the work is not complete. Invoke to orchestrate a task to completion, run the build-review cycle, validate deliverables, check CI status, or decide next steps on a PR."
-argument-hint: "Task, plan, or issue to orchestrate to completion"
 tools:
     [
         read,
+        edit,
         search,
         web,
         agent,
@@ -13,7 +13,6 @@ tools:
         github/*,
         github.vscode-pull-request-github/*,
     ]
-agents: [builder, reviewer]
 model: 7caf4448-4bc1-4744-9079-ba2695161d8c/deepseek-v4-flash-vision-exp
 user-invocable: true
 ---
