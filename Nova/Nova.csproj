@@ -49,7 +49,7 @@
   -->
   <Target Name="BuildBootstrapTheme" BeforeTargets="ResolveProjectStaticWebAssets"
           Inputs="@(ThemeScssFiles);$(MSBuildProjectDirectory)\package.json"
-          Outputs="$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css;$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2">
+          Outputs="$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css;$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2;$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff">
     <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)"
           Condition="!Exists('$(MSBuildProjectDirectory)\node_modules')" />
     <Exec Command="npm run build:css" WorkingDirectory="$(MSBuildProjectDirectory)" />

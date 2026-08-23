@@ -165,8 +165,12 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// Asserts the element carries the bootstrap-icons glyph class and the glyph renders with the
-    /// bootstrap-icons font family (proving the icon font loaded and the <c>@font-face</c> resolved).
+    /// Asserts the element carries the bootstrap-icons glyph class, that the glyph resolves to the
+    /// bootstrap-icons font family (proving the Sass import compiled the <c>.bi</c> rules into the
+    /// theme), and that the <c>@font-face</c> actually loaded (proving the font Copy step and
+    /// static-web-asset registration are wired): <see cref="FontFaceSet.Check"/> returns
+    /// <see langword="false"/> when the font file failed to load, unlike the declared
+    /// <c>font-family</c>, which stays applied regardless of a missing font resource.
     /// </summary>
     private static async Task AssertBootstrapIconGlyphAsync(ILocator element, string glyphClass)
     {
@@ -175,6 +179,12 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var fontFamily = await icon.EvaluateAsync<string>(
             "(el) => getComputedStyle(el, '::before').fontFamily");
         fontFamily.ShouldContain("bootstrap-icons");
+        var fontLoaded = await icon.EvaluateAsync<bool>(
+            @"async () => {
+                await document.fonts.ready;
+                return document.fonts.check('16px ""bootstrap-icons""');
+            }");
+        fontLoaded.ShouldBeTrue();
     }
 
     /// <summary>
