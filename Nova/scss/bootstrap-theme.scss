@@ -2,8 +2,12 @@
 //
 // Import the palette overrides BEFORE Bootstrap so its `!default` variables and
 // derived theme maps pick up the kelp-forest values, then pull in the full
-// Bootstrap framework. Output is written to `wwwroot/css/bootstrap-theme.css`
-// by the `BuildBootstrapTheme` MSBuild target.
+// Bootstrap framework. Finally import the bootstrap-icons glyph stylesheet so
+// `.bi` classes compile into the same output file; the icon font is copied to
+// `wwwroot/css/fonts/` by the `BuildBootstrapTheme` MSBuild target. Output is
+// written to `wwwroot/css/bootstrap-theme.css` by the `BuildBootstrapTheme`
+// MSBuild target.
 
 @import "variables";
 @import "bootstrap/scss/bootstrap";
+@import "bootstrap-icons/font/bootstrap-icons.scss";

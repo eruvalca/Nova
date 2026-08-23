@@ -2,7 +2,6 @@
 
 <nav class="navbar navbar-expand-md navbar-light bg-light border-top fixed-bottom">
     <div class="container-fluid">
-        <NavLink class="navbar-brand" href="" Match="NavLinkMatch.All">Nova</NavLink>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#main-nav-menu"
                 aria-controls="main-nav-menu" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -11,20 +10,37 @@
             <ul class="navbar-nav me-auto mb-2 mb-md-0">
                 <AuthorizeView>
                     <Authorized>
+                        <li class="nav-item">
+                            <NavLink class="nav-link d-flex align-items-center gap-2" href="/" Match="NavLinkMatch.All">
+                                <span class="bi bi-house" aria-hidden="true"></span>
+                                <span class="nav-label">Home</span>
+                            </NavLink>
+                        </li>
                         @if (ClubDetailUrl is not null && ClubName is not null)
                         {
                             <li class="nav-item">
-                                <NavLink class="nav-link" href="@ClubDetailUrl" Match="NavLinkMatch.Prefix">@ClubName
+                                <NavLink class="nav-link d-flex align-items-center gap-2" href="@ClubDetailUrl" Match="NavLinkMatch.Prefix">
+                                    <span class="bi bi-building" aria-hidden="true"></span>
+                                    <span class="nav-label">@ClubName</span>
                                 </NavLink>
                             </li>
                             <li class="nav-item">
-                                <NavLink class="nav-link" href="campaigns" Match="NavLinkMatch.Prefix">Campaigns</NavLink>
+                                <NavLink class="nav-link d-flex align-items-center gap-2" href="campaigns" Match="NavLinkMatch.Prefix">
+                                    <span class="bi bi-calendar-check" aria-hidden="true"></span>
+                                    <span class="nav-label">Campaigns</span>
+                                </NavLink>
                             </li>
                             <li class="nav-item">
-                                <NavLink class="nav-link" href="players" Match="NavLinkMatch.Prefix">Players</NavLink>
+                                <NavLink class="nav-link d-flex align-items-center gap-2" href="players" Match="NavLinkMatch.Prefix">
+                                    <span class="bi bi-people" aria-hidden="true"></span>
+                                    <span class="nav-label">Players</span>
+                                </NavLink>
                             </li>
                             <li class="nav-item">
-                                <NavLink class="nav-link" href="teams" Match="NavLinkMatch.Prefix">Teams</NavLink>
+                                <NavLink class="nav-link d-flex align-items-center gap-2" href="teams" Match="NavLinkMatch.Prefix">
+                                    <span class="bi bi-shield" aria-hidden="true"></span>
+                                    <span class="nav-label">Teams</span>
+                                </NavLink>
                             </li>
                         }
                     </Authorized>
@@ -39,14 +55,17 @@
                                 {
                                     <img class="nav-avatar" src="@PhotoUrl" alt="Profile photo" />
                                 }
-                                Manage
+                                <span class="nav-label">Manage</span>
                             </NavLink>
                         </li>
                         <li class="nav-item">
                             <form action="Account/Logout" method="post" class="d-inline">
                                 <AntiforgeryToken />
                                 <input type="hidden" name="ReturnUrl" value="@CurrentUrl" />
-                                <button type="submit" class="btn nav-link border-0">Logout</button>
+                                <button type="submit" class="btn nav-link border-0 d-flex align-items-center gap-2">
+                                    <span class="bi bi-box-arrow-right" aria-hidden="true"></span>
+                                    <span class="nav-label">Logout</span>
+                                </button>
                             </form>
                         </li>
                     </Authorized>

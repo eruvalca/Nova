@@ -6,3 +6,34 @@
     border: 1px solid var(--bs-border-color);
     flex-shrink: 0;
 }
+
+.nav-item {
+    position: relative;
+}
+
+.nav-link .bi {
+    font-size: 1.25rem;
+    line-height: 1;
+    color: inherit;
+}
+
+/* The nav links are rendered by the NavLink child component, so the rules
+   below use ::deep to reach the generated <a> element through the scoped
+   navbar markup (CSS isolation only scopes elements the component renders
+   itself). */
+::deep .nav-link.active {
+    position: relative;
+}
+
+/* Icon-first active indicator: a kelp teal bar along the top of the active
+   nav item (reference mockup), replacing Bootstrap's default underline. */
+::deep .nav-link.active::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0.75rem;
+    left: 0.75rem;
+    height: 3px;
+    background-color: var(--bs-primary);
+    border-radius: 0 0 3px 3px;
+}
