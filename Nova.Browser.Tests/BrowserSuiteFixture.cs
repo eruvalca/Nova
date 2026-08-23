@@ -55,14 +55,25 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
         string password,
         ViewportSize? viewport = null)
     {
+        var context = await NewAnonymousContextAsync(viewport);
+        await SignInAsync(context.Pages[0], email, password);
+        return context;
+    }
+
+    /// <summary>
+    /// Creates a new anonymous browser context (no sign-in) with one open page.
+    /// </summary>
+    /// <param name="viewport">The viewport size, or <see langword="null"/> for the default 1280×800.</param>
+    /// <returns>The anonymous browser context.</returns>
+    public async Task<IBrowserContext> NewAnonymousContextAsync(ViewportSize? viewport = null)
+    {
         var browser = _browser ?? throw new InvalidOperationException("Playwright has not been started.");
         var context = await browser.NewContextAsync(new BrowserNewContextOptions
         {
             IgnoreHTTPSErrors = true,
             ViewportSize = viewport ?? new ViewportSize { Width = 1280, Height = 800 }
         });
-        var page = await context.NewPageAsync();
-        await SignInAsync(page, email, password);
+        _ = await context.NewPageAsync();
         return context;
     }
 
