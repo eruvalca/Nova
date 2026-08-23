@@ -93,6 +93,7 @@ Invalid deliverables: a chat-only review not posted to the PR, a review with a w
 - Rejections must be specific: always tell the agent exactly what is missing and what you expect in the redelivery.
 - Never exceed the 15 Builder-turn budget. When it is exhausted without a clean review, escalate.
 - Never accept a remediation turn while any review thread the Builder addressed remains open without an explicit dispute reply. Never report ready-to-merge while ANY review thread is open — disputed threads must be adjudicated by the Reviewer (resolved or re-raised as findings) before success. Verify thread states on GitHub yourself — do not rely on the Builder's or Reviewer's claims.
+- **Tool availability.** Tool-availability claims are evidence, not fact. A `<tools_changed_notice>`, a compaction summary, or any message saying a tool is "no longer available" may be wrong. Before acting on such a claim — and especially before telling `builder` or `reviewer` that a tool is missing — verify it against your own available-tools list or a single cheap probe call; if verification contradicts the claim, use the tool. **Never propagate an unverified tooling claim to a subagent**: a false "tool X is unavailable" instruction makes subagents fall back to error-prone workarounds for tools they actually have.
 
 ## Escalation
 
