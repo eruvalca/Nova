@@ -166,7 +166,90 @@ public class NavMenuTests
         cut.Markup.ShouldNotContain("bi-building-fill nav-icon-fill");
     }
 
-    private static ClaimsPrincipal CreatePrincipal(string? clubId, string? clubName, bool hasClubCrest = false)
+    [Fact]
+    public void Render_RendersAvatarWithPhotoUrl_WhenUserHasProfilePhotoClaim()
+    {
+        // Arrange
+        var currentUserProvider = Substitute.For<ICurrentUserProvider>();
+        currentUserProvider.ClubId.Returns(42L);
+        currentUserProvider.UserId.Returns(7L);
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        var authStateProvider = Substitute.For<AuthenticationStateProvider>();
+        authStateProvider.GetAuthenticationStateAsync()
+            .Returns(Task.FromResult(new AuthenticationState(CreatePrincipal(
+                clubId: "42", clubName: "Austin Strikers", hasProfilePhoto: true))));
+
+        using var testContext = new BunitContext();
+        testContext.Services.AddScoped(_ => currentUserProvider);
+        testContext.Services.AddScoped(_ => httpContextAccessor);
+        testContext.Services.AddScoped(_ => authStateProvider);
+        testContext.Services.AddScoped<NavigationManager, FakeNavigationManager>();
+        testContext.Services.AddSingleton<IAuthorizationPolicyProvider>(new DefaultAuthorizationPolicyProvider(Options.Create(new AuthorizationOptions())));
+        testContext.Services.AddSingleton<IAuthorizationService, FakeAuthorizationService>();
+
+        // Act
+        var cut = testContext.Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<NavMenu>(2);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
+
+        // Assert
+        cut.Markup.ShouldContain("class=\"nav-avatar\"");
+        cut.Markup.ShouldContain("src=\"/api/users/7/photo?size=small\"");
+        cut.Markup.ShouldContain("alt=\"Profile photo\"");
+    }
+
+    [Fact]
+    public void Render_OmitsAvatar_WhenUserHasNoProfilePhotoClaim()
+    {
+        // Arrange
+        var currentUserProvider = Substitute.For<ICurrentUserProvider>();
+        currentUserProvider.ClubId.Returns(42L);
+        currentUserProvider.UserId.Returns(7L);
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        var authStateProvider = Substitute.For<AuthenticationStateProvider>();
+        authStateProvider.GetAuthenticationStateAsync()
+            .Returns(Task.FromResult(new AuthenticationState(CreatePrincipal(
+                clubId: "42", clubName: "Austin Strikers", hasProfilePhoto: false))));
+
+        using var testContext = new BunitContext();
+        testContext.Services.AddScoped(_ => currentUserProvider);
+        testContext.Services.AddScoped(_ => httpContextAccessor);
+        testContext.Services.AddScoped(_ => authStateProvider);
+        testContext.Services.AddScoped<NavigationManager, FakeNavigationManager>();
+        testContext.Services.AddSingleton<IAuthorizationPolicyProvider>(new DefaultAuthorizationPolicyProvider(Options.Create(new AuthorizationOptions())));
+        testContext.Services.AddSingleton<IAuthorizationService, FakeAuthorizationService>();
+
+        // Act
+        var cut = testContext.Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<NavMenu>(2);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
+
+        // Assert
+        cut.Markup.ShouldNotContain("class=\"nav-avatar\"");
+        cut.Markup.ShouldNotContain("alt=\"Profile photo\"");
+    }
+
+    private static ClaimsPrincipal CreatePrincipal(string? clubId, string? clubName, bool hasClubCrest = false, bool hasProfilePhoto = false)
     {
         var claims = new List<Claim>
         {
@@ -186,6 +269,11 @@ public class NavMenuTests
         if (hasClubCrest)
         {
             claims.Add(new Claim(NovaClaimTypes.HasClubCrest, "true"));
+        }
+
+        if (hasProfilePhoto)
+        {
+            claims.Add(new Claim(NovaClaimTypes.HasProfilePhoto, "true"));
         }
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
