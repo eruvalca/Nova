@@ -224,12 +224,10 @@ public sealed class TeamLifecycleHttpTests(NovaAppHostFixture fixture)
         string name,
         CancellationToken cancellationToken)
     {
-        using var response = await client.PostAsJsonAsync(ClubEndpoints.Create, new CreateClubInput
-        {
-            Name = name,
-            City = "Austin",
-            State = "TX"
-        }, cancellationToken);
+        using var response = await client.PostAsync(
+            ClubEndpoints.Create,
+            SeedingHelpers.CreateClubMultipartContent(name, "Austin", "TX"),
+            cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);

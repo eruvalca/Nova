@@ -2,6 +2,7 @@
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
@@ -28,17 +29,12 @@ namespace Nova.Features.Photos;
 /// <param name="currentUserProvider">The provider for the current user's identity.</param>
 /// <param name="logger">The logger.</param>
 public sealed partial class ProfilePhotoService(
-    BlobContainerClient containerClient,
+    [FromKeyedServices("profile-photos")] BlobContainerClient containerClient,
     IDbContextFactory<NovaDbContext> dbContextFactory,
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<ProfilePhotoService> logger) : IProfilePhotoService
 {
-    /// <summary>
-    /// The maximum pixel dimension accepted for a source image, guarding against decompression bombs.
-    /// </summary>
-    private const int MaxSourceDimension = 8192;
-
     /// <inheritdoc />
     public async Task<ServiceResult<Success>> SaveProfilePhotoAsync(ProfilePhotoUpload upload, CancellationToken cancellationToken = default)
     {
@@ -56,18 +52,18 @@ public sealed partial class ProfilePhotoService(
 
         var contentType = ProfilePhotoValidator.SniffContentType(upload.Content)!;
 
-        ProcessedVariants variants;
+        ImageVariantProcessor.ProcessedVariants variants;
         try
         {
             // Header-only dimension check BEFORE decoding pixels, so a small file declaring
             // huge dimensions (decompression bomb) is rejected without allocating the bitmap.
             var info = Image.Identify(new DecoderOptions { MaxFrames = 1 }, upload.Content);
-            if (info.Width > MaxSourceDimension || info.Height > MaxSourceDimension)
+            if (info.Width > ImageVariantProcessor.MaxSourceDimension || info.Height > ImageVariantProcessor.MaxSourceDimension)
             {
-                return ServiceProblem.BadRequest($"The image dimensions exceed the maximum of {MaxSourceDimension}px.");
+                return ServiceProblem.BadRequest($"The image dimensions exceed the maximum of {ImageVariantProcessor.MaxSourceDimension}px.");
             }
 
-            variants = GenerateVariants(upload.Content, contentType, cancellationToken);
+            variants = ImageVariantProcessor.GenerateVariants(upload.Content, contentType, cancellationToken);
         }
         catch (Exception ex) when (ex is InvalidImageContentException or UnknownImageFormatException or NotSupportedException)
         {
@@ -77,7 +73,7 @@ public sealed partial class ProfilePhotoService(
 
         var batchId = Guid.CreateVersion7().ToString("N");
         var prefix = $"users/{userId}/{batchId}";
-        var originalExtension = GetExtension(contentType);
+        var originalExtension = ImageVariantProcessor.GetExtension(contentType);
 
         var originalBlobName = $"{prefix}-original{originalExtension}";
         var smallBlobName = $"{prefix}-small.webp";
@@ -85,6 +81,11 @@ public sealed partial class ProfilePhotoService(
         var largeBlobName = $"{prefix}-large.webp";
 
         var uploadedBlobNames = new List<string>(4);
+        // Set immediately after SaveChangesAsync succeeds; before that, no row points at
+        // the new batch, so the cleanup on cancellation may safely delete those blobs.
+        // After the commit, the row references them, so cancellation during the old-blob
+        // cleanup must NOT delete the newly committed batch.
+        var committed = false;
         try
         {
             await UploadBlobAsync(originalBlobName, variants.Original, contentType, uploadedBlobNames, cancellationToken);
@@ -123,6 +124,7 @@ public sealed partial class ProfilePhotoService(
                 }
 
                 await dbContext.SaveChangesAsync(cancellationToken);
+                committed = true;
             }
 
             LogPhotoSaved(userId);
@@ -131,7 +133,11 @@ public sealed partial class ProfilePhotoService(
         }
         catch (OperationCanceledException)
         {
-            await DeleteBlobsBestEffortAsync([.. uploadedBlobNames], userId);
+            if (!committed)
+            {
+                await DeleteBlobsBestEffortAsync([.. uploadedBlobNames], userId);
+            }
+
             throw;
         }
         catch (Exception ex) when (ex is RequestFailedException or DbUpdateException)
@@ -157,79 +163,6 @@ public sealed partial class ProfilePhotoService(
         return photo is null
             ? ServiceProblem.NotFound()
             : new ProfilePhotoInfo(userId, photo.ContentType);
-    }
-
-    /// <summary>
-    /// Decodes the source image, sanitizes it, and produces the metadata-free re-encoded
-    /// original plus the small, medium, and large WebP square variants.
-    /// </summary>
-    /// <param name="content">The validated source image bytes.</param>
-    /// <param name="contentType">The sniffed source content type, used to re-encode the original in its own format.</param>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The sanitized original and the encoded variants.</returns>
-    private static ProcessedVariants GenerateVariants(byte[] content, string contentType, CancellationToken cancellationToken)
-    {
-        var decoderOptions = new DecoderOptions { MaxFrames = 1 };
-        using var image = Image.Load(decoderOptions, content);
-
-        // Bake the EXIF orientation into the pixels, then strip metadata (EXIF/GPS, XMP)
-        // so neither the stored original nor the variants leak location or device data.
-        image.Mutate(context => context.AutoOrient());
-        image.Metadata.ExifProfile = null;
-        image.Metadata.XmpProfile = null;
-
-        return new ProcessedVariants(
-            EncodeOriginal(image, contentType, cancellationToken),
-            EncodeSquareVariant(image, ProfilePhotoConstraints.SmallSize, cancellationToken),
-            EncodeSquareVariant(image, ProfilePhotoConstraints.MediumSize, cancellationToken),
-            EncodeSquareVariant(image, ProfilePhotoConstraints.LargeSize, cancellationToken));
-    }
-
-    /// <summary>
-    /// Re-encodes the sanitized source image in its original format so the stored
-    /// "original" blob carries no EXIF/XMP metadata.
-    /// </summary>
-    /// <param name="source">The decoded, sanitized source image.</param>
-    /// <param name="contentType">The sniffed source content type selecting the encoder.</param>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The re-encoded original bytes.</returns>
-    private static byte[] EncodeOriginal(Image source, string contentType, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        ImageEncoder encoder = contentType switch
-        {
-            "image/png" => new PngEncoder(),
-            "image/webp" => new WebpEncoder(),
-            _ => new JpegEncoder()
-        };
-
-        using var stream = new MemoryStream();
-        source.Save(stream, encoder);
-        return stream.ToArray();
-    }
-
-    /// <summary>
-    /// Produces a center-cropped square variant of the source image encoded as WebP.
-    /// </summary>
-    /// <param name="source">The decoded source image.</param>
-    /// <param name="size">The target square size in pixels.</param>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The encoded WebP bytes.</returns>
-    private static byte[] EncodeSquareVariant(Image source, int size, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        using var variant = source.Clone(context => context.Resize(new ResizeOptions
-        {
-            Size = new Size(size, size),
-            Mode = ResizeMode.Crop,
-            Position = AnchorPositionMode.Center
-        }));
-
-        using var stream = new MemoryStream();
-        variant.Save(stream, new WebpEncoder());
-        return stream.ToArray();
     }
 
     /// <summary>
@@ -282,28 +215,6 @@ public sealed partial class ProfilePhotoService(
         string?[] names = [photo.OriginalBlobName, photo.SmallBlobName, photo.MediumBlobName, photo.LargeBlobName];
         return [.. names.OfType<string>()];
     }
-
-    /// <summary>
-    /// Maps an allowed content type to a file extension for blob naming.
-    /// </summary>
-    /// <param name="contentType">The sniffed content type.</param>
-    /// <returns>The file extension, including the leading dot.</returns>
-    private static string GetExtension(string contentType) => contentType switch
-    {
-        "image/jpeg" => ".jpg",
-        "image/png" => ".png",
-        "image/webp" => ".webp",
-        _ => ".bin"
-    };
-
-    /// <summary>
-    /// Holds the sanitized re-encoded original and the encoded photo variants.
-    /// </summary>
-    /// <param name="Original">The sanitized original, re-encoded in its source format without metadata.</param>
-    /// <param name="Small">The encoded small variant.</param>
-    /// <param name="Medium">The encoded medium variant.</param>
-    /// <param name="Large">The encoded large variant.</param>
-    private sealed record ProcessedVariants(byte[] Original, byte[] Small, byte[] Medium, byte[] Large);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to decode uploaded profile photo for user {UserId}.")]
     private partial void LogImageDecodeFailed(Exception exception, long userId);

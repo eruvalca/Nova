@@ -8,6 +8,18 @@
         <div class="alert alert-danger" role="alert">@_error</div>
     }
 
+    @if (_crestErrors.Count > 0)
+    {
+        <div class="alert alert-danger" role="alert">
+            <ul class="mb-0 list-unstyled">
+                @foreach (var error in _crestErrors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        </div>
+    }
+
     <div class="mb-3">
         <label for="club-name" class="form-label">Club Name</label>
         <InputText id="club-name" class="form-control" @bind-value="_input.Name" placeholder="e.g. Eastside FC" />
@@ -24,6 +36,20 @@
         <label for="club-state" class="form-label">State</label>
         <InputText id="club-state" class="form-control" @bind-value="_input.State" placeholder="e.g. TX" />
         <ValidationMessage For="() => _input.State" class="text-danger small" />
+    </div>
+
+    <div class="mb-3">
+        <label for="club-crest" class="form-label">Club Crest</label>
+        @if (_crestPreviewUrl is not null)
+        {
+            <div class="mb-2 text-center">
+                <img src="@_crestPreviewUrl" alt="Club crest preview" class="club-crest-preview" />
+                <p class="text-muted mt-2">Your club crest will appear in the navigation menu and on the club page.</p>
+            </div>
+        }
+        <InputFile id="club-crest" class="form-control" accept="@AcceptTypes" OnChange="OnCrestSelectedAsync"
+                   disabled="@_submitting" />
+        <div class="form-text">JPEG, PNG, or WebP. Maximum size 10 MB.</div>
     </div>
 
     <button type="submit" class="btn btn-primary" disabled="@_submitting">

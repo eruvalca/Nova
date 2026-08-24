@@ -75,6 +75,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     private DistributedApplication? App { get; set; }
     private string? ConnectionStringValue { get; set; }
     private BlobContainerClient? ProfilePhotosContainerValue { get; set; }
+    private BlobContainerClient? ClubCrestsContainerValue { get; set; }
 
     /// <summary>Gets the mutable current-user provider used by all contexts created by this fixture.</summary>
     public FakeCurrentUserProvider CurrentUser { get; } = new();
@@ -131,6 +132,10 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     public BlobContainerClient ProfilePhotosContainer => ProfilePhotosContainerValue
         ?? throw new InvalidOperationException("The AppHost has not been started.");
 
+    /// <summary>Gets the blob container client for the live "club-crests" container (Azurite emulator).</summary>
+    public BlobContainerClient ClubCrestsContainer => ClubCrestsContainerValue
+        ?? throw new InvalidOperationException("The AppHost has not been started.");
+
     /// <inheritdoc />
     public async ValueTask InitializeAsync()
     {
@@ -158,7 +163,12 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
         var blobConnectionString = await App.GetConnectionStringAsync("profile-photos", cancellationToken)
             ?? throw new InvalidOperationException("No connection string was resolved for 'profile-photos'.");
         ProfilePhotosContainerValue = CreateBlobContainerClient(blobConnectionString);
-        await CreateProfilePhotosContainerWithRetryAsync(ProfilePhotosContainerValue, cancellationToken);
+        await CreateContainerWithRetryAsync(ProfilePhotosContainerValue, cancellationToken);
+
+        var clubCrestsConnectionString = await App.GetConnectionStringAsync("club-crests", cancellationToken)
+            ?? throw new InvalidOperationException("No connection string was resolved for 'club-crests'.");
+        ClubCrestsContainerValue = CreateBlobContainerClient(clubCrestsConnectionString);
+        await CreateContainerWithRetryAsync(ClubCrestsContainerValue, cancellationToken);
 
         // The app only migrates at startup in the Development environment, which the testing
         // builder does not guarantee — apply the production migrations explicitly. Migrations
@@ -321,18 +331,18 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Creates the profile-photos container, retrying through the Azurite connection-refusal window.
+    /// Creates a blob container, retrying through the Azurite connection-refusal window.
     /// The retry bounds are hard-coded (see <see cref="AzuriteContainerProbeMaxAttempts"/>) rather than
     /// environment-tunable; only the browser hydration retries are environment-tunable, per issue #130.
     /// </summary>
-    /// <param name="container">The profile-photos container client.</param>
+    /// <param name="container">The container client to create.</param>
     /// <param name="cancellationToken">The startup cancellation token.</param>
     /// <returns>A task that completes once the container exists.</returns>
     /// <exception cref="InvalidOperationException">
     /// Thrown when the container remains unreachable after <see cref="AzuriteContainerProbeMaxAttempts"/>
     /// attempts; the inner exception is the last <see cref="RequestFailedException"/>.
     /// </exception>
-    private static async Task CreateProfilePhotosContainerWithRetryAsync(
+    private static async Task CreateContainerWithRetryAsync(
         BlobContainerClient container,
         CancellationToken cancellationToken)
     {
@@ -355,7 +365,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
         }
 
         throw new InvalidOperationException(
-            $"The Azurite profile-photos container '{container.Name}' was not reachable after " +
+            $"The Azurite container '{container.Name}' was not reachable after " +
             $"{AzuriteContainerProbeMaxAttempts} attempts of {AzuriteContainerProbeDelay.TotalMilliseconds:0} ms each. " +
             $"Last error: {lastException?.Message ?? "(none)"}",
             lastException);

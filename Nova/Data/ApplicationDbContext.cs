@@ -104,6 +104,10 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// Gets the Nova User Photos.
     /// </summary>
     public DbSet<NovaUserPhotoEntity> NovaUserPhotos => Set<NovaUserPhotoEntity>();
+    /// <summary>
+    /// Gets the Club Crests.
+    /// </summary>
+    public DbSet<ClubCrestEntity> ClubCrests => Set<ClubCrestEntity>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)

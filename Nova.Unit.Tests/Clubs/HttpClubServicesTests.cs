@@ -28,11 +28,16 @@ public class HttpClubServicesTests
     {
         public HttpRequestMessage? LastRequest { get; private set; }
 
+        public IReadOnlyList<string>? LastMultipartPartNames { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             LastRequest = request;
+            LastMultipartPartNames = request.Content is MultipartFormDataContent multipart
+                ? multipart.Select(part => part.Headers.ContentDisposition?.Name?.Trim('"')).ToArray()
+                : null;
             return Task.FromResult(response);
         }
     }
@@ -55,7 +60,8 @@ public class HttpClubServicesTests
         var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
-        var input = new CreateClubInput { Name = "Manchester United", City = "Manchester", State = "England" };
+        var crestBytes = TestImages.CreateJpeg();
+        var input = new CreateClubInput { Name = "Manchester United", City = "Manchester", State = "England", CrestContent = crestBytes, CrestContentType = "image/jpeg" };
 
         // Act
         var result = await service.CreateClubAsync(input, TestContext.Current.CancellationToken);
@@ -68,6 +74,8 @@ public class HttpClubServicesTests
         result.Value.State.ShouldBe("England");
         handler.LastRequest!.Method.ShouldBe(HttpMethod.Post);
         handler.LastRequest!.RequestUri!.AbsolutePath.ShouldBe("/api/clubs");
+        handler.LastRequest!.Content.ShouldBeOfType<MultipartFormDataContent>();
+        handler.LastMultipartPartNames.ShouldBe(["name", "city", "state", "crest"]);
     }
 
     /// <summary>
@@ -85,7 +93,7 @@ public class HttpClubServicesTests
         var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
-        var input = new CreateClubInput { Name = "Manchester United", City = "Manchester", State = "England" };
+        var input = new CreateClubInput { Name = "Manchester United", City = "Manchester", State = "England", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" };
 
         // Act
         var result = await service.CreateClubAsync(input, TestContext.Current.CancellationToken);
@@ -556,7 +564,7 @@ public class HttpClubServicesTests
         var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
-        var input = new CreateClubInput { Name = "Liverpool", City = "Liverpool", State = "England" };
+        var input = new CreateClubInput { Name = "Liverpool", City = "Liverpool", State = "England", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" };
 
         // Act
         var result = await service.CreateClubAsync(input, TestContext.Current.CancellationToken);
@@ -581,7 +589,7 @@ public class HttpClubServicesTests
         var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
-        var input = new CreateClubInput { Name = "Liverpool", City = "Liverpool", State = "England" };
+        var input = new CreateClubInput { Name = "Liverpool", City = "Liverpool", State = "England", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" };
 
         // Act
         var result = await service.CreateClubAsync(input, TestContext.Current.CancellationToken);

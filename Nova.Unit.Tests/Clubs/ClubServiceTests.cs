@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Azure;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -26,6 +29,7 @@ public sealed class ClubServiceTests : IDisposable
     private const long ExistingClubUserId = 201;
 
     private readonly TenancyTestHarness _harness = new();
+    private readonly BlobContainerClient _crestContainer = CreateCrestContainer();
     private UserManager<NovaUserEntity> _userManager = null!;
 
     /// <summary>
@@ -104,7 +108,7 @@ public sealed class ClubServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.CreateClubAsync(
-            new CreateClubInput { Name = "   ", City = "Austin", State = "TX" },
+            new CreateClubInput { Name = "   ", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
@@ -119,7 +123,7 @@ public sealed class ClubServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.CreateClubAsync(
-            new CreateClubInput { Name = "New Club", City = "Austin", State = "TX" },
+            new CreateClubInput { Name = "New Club", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
@@ -134,7 +138,7 @@ public sealed class ClubServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.CreateClubAsync(
-            new CreateClubInput { Name = "New Club", City = "Austin", State = "TX" },
+            new CreateClubInput { Name = "New Club", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
@@ -149,7 +153,7 @@ public sealed class ClubServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.CreateClubAsync(
-            new CreateClubInput { Name = "New Club", City = "Austin", State = "TX" },
+            new CreateClubInput { Name = "New Club", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
@@ -165,7 +169,7 @@ public sealed class ClubServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.CreateClubAsync(
-            new CreateClubInput { Name = "Created Club", City = "Austin", State = "TX" },
+            new CreateClubInput { Name = "Created Club", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" },
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -194,11 +198,148 @@ public sealed class ClubServiceTests : IDisposable
         var service = CreateService();
 
         var result = await service.CreateClubAsync(
-            new CreateClubInput { Name = "Role Club", City = "Austin", State = "TX" },
+            new CreateClubInput { Name = "Role Club", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" },
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         await _userManager.Received().AddToRoleAsync(Arg.Any<NovaUserEntity>(), Roles.ClubAdmin);
+    }
+
+    [Fact]
+    public async Task CreateClubAsync_ReturnsValidation_WhenCrestIsMissing()
+    {
+        _harness.CurrentUser.UserId = NoClubUserId;
+        _harness.CurrentUser.ClubId = null;
+        var service = CreateService();
+
+        var result = await service.CreateClubAsync(
+            new CreateClubInput { Name = "Crestless", City = "Austin", State = "TX", CrestContent = [], CrestContentType = "image/jpeg" },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.Keys.ShouldContain("crest");
+    }
+
+    [Fact]
+    public async Task CreateClubAsync_ReturnsValidation_WhenCrestIsNotAnImage()
+    {
+        _harness.CurrentUser.UserId = NoClubUserId;
+        _harness.CurrentUser.ClubId = null;
+        var service = CreateService();
+
+        var result = await service.CreateClubAsync(
+            new CreateClubInput { Name = "Stray", City = "Austin", State = "TX", CrestContent = [1, 2, 3, 4, 5, 6, 7, 8], CrestContentType = "image/jpeg" },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.Keys.ShouldContain("crest");
+    }
+
+    [Fact]
+    public async Task CreateClubAsync_PersistsCrestEntity_AndUploadsVariants()
+    {
+        _harness.CurrentUser.UserId = NoClubUserId;
+        _harness.CurrentUser.ClubId = null;
+        _userManager.FindByIdAsync(NoClubUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)null));
+        var service = CreateService();
+
+        var result = await service.CreateClubAsync(
+            new CreateClubInput { Name = "Crest Club", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(128, 96), CrestContentType = "image/jpeg" },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+
+        await using var verify = _harness.CreateAdminContext();
+        var crest = await verify.ClubCrests
+            .SingleAsync(candidate => candidate.Club!.Name == "Crest Club", TestContext.Current.CancellationToken);
+        crest.OriginalBlobName.ShouldNotBeNullOrWhiteSpace();
+        crest.SmallBlobName.ShouldNotBeNullOrWhiteSpace();
+        crest.MediumBlobName.ShouldNotBeNullOrWhiteSpace();
+        crest.LargeBlobName.ShouldNotBeNullOrWhiteSpace();
+        crest.ContentType.ShouldBe("image/jpeg");
+
+        _crestContainer.Received().GetBlobClient(crest.OriginalBlobName);
+        _crestContainer.Received().GetBlobClient(crest.SmallBlobName);
+        _crestContainer.Received().GetBlobClient(crest.MediumBlobName);
+        _crestContainer.Received().GetBlobClient(crest.LargeBlobName);
+    }
+
+    [Fact]
+    public async Task CreateClubAsync_DeletesUploadedBlobs_WhenBlobUploadFails()
+    {
+        _harness.CurrentUser.UserId = NoClubUserId;
+        _harness.CurrentUser.ClubId = null;
+        _userManager.FindByIdAsync(NoClubUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)null));
+
+        var blob = Substitute.For<BlobClient>();
+        blob.UploadAsync(Arg.Any<BinaryData>(), Arg.Any<BlobUploadOptions>(), Arg.Any<CancellationToken>())
+            .Returns(
+                _ => Substitute.For<Response<BlobContentInfo>>(),
+                _ => throw new RequestFailedException("upload failed"));
+        var container = Substitute.For<BlobContainerClient>();
+        container.GetBlobClient(Arg.Any<string>()).Returns(blob);
+        container.DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Response.FromValue(true, (Response?)null)));
+        var service = new ClubService(
+            new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),
+            new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
+            _userManager,
+            _harness.CurrentUser,
+            container,
+            NullLogger<ClubService>.Instance);
+
+        var result = await service.CreateClubAsync(
+            new CreateClubInput { Name = "Doomed Club", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        await container.Received().DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>());
+
+        await using var verify = _harness.CreateAdminContext();
+        verify.Clubs.Any(candidate => candidate.Name == "Doomed Club").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task CreateClubAsync_DeletesUploadedBlobs_WhenUploadCancelled()
+    {
+        _harness.CurrentUser.UserId = NoClubUserId;
+        _harness.CurrentUser.ClubId = null;
+        _userManager.FindByIdAsync(NoClubUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)null));
+
+        var blob = Substitute.For<BlobClient>();
+        blob.UploadAsync(Arg.Any<BinaryData>(), Arg.Any<BlobUploadOptions>(), Arg.Any<CancellationToken>())
+            .Returns(
+                _ => Substitute.For<Response<BlobContentInfo>>(),
+                _ => throw new OperationCanceledException("upload cancelled"));
+        var container = Substitute.For<BlobContainerClient>();
+        container.GetBlobClient(Arg.Any<string>()).Returns(blob);
+        container.DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Response.FromValue(true, (Response?)null)));
+        var service = new ClubService(
+            new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),
+            new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
+            _userManager,
+            _harness.CurrentUser,
+            container,
+            NullLogger<ClubService>.Instance);
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => service.CreateClubAsync(
+                new CreateClubInput { Name = "Cancelled Club", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" },
+                TestContext.Current.CancellationToken));
+
+        // Exactly one upload succeeded before the cancellation, so exactly one blob is cleaned up.
+        await container.Received(1).DeleteBlobIfExistsAsync(
+            Arg.Any<string>(),
+            Arg.Any<DeleteSnapshotsOption>(),
+            Arg.Any<BlobRequestConditions>(),
+            Arg.Any<CancellationToken>());
+
+        await using var verify = _harness.CreateAdminContext();
+        verify.Clubs.Any(candidate => candidate.Name == "Cancelled Club").ShouldBeFalse();
     }
 
     private ClubService CreateService()
@@ -207,7 +348,24 @@ public sealed class ClubServiceTests : IDisposable
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
             _userManager,
             _harness.CurrentUser,
+            _crestContainer,
             NullLogger<ClubService>.Instance);
+
+    /// <summary>
+    /// Creates a substitute blob container that records blob uploads (used for
+    /// asserting crest variant uploads) and reports a successful nullable upload.
+    /// </summary>
+    private static BlobContainerClient CreateCrestContainer()
+    {
+        var blob = Substitute.For<BlobClient>();
+        blob.UploadAsync(Arg.Any<BinaryData>(), Arg.Any<BlobUploadOptions>(), Arg.Any<CancellationToken>())
+            .Returns(Substitute.For<Response<BlobContentInfo>>());
+        var container = Substitute.For<BlobContainerClient>();
+        container.GetBlobClient(Arg.Any<string>()).Returns(blob);
+        container.DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Response.FromValue(true, (Response?)null)));
+        return container;
+    }
 
     private async Task<NovaUserEntity?> LoadUserAsync(long userId)
     {

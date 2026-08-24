@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using Nova.Shared.Security
+@using Nova.UI.Features.Clubs.Components
 @using Nova.UI.Features.Tags.Components
 
 <PageTitle>Club Administration</PageTitle>
@@ -117,6 +118,8 @@
                 }
             </div>
         </section>
+
+        <ClubCrestManager ClubId="@ClubId" HasCrest="@(_summary?.HasCrest ?? false)" @rendermode="InteractiveAuto" />
 
         <TagDefinitionManager @rendermode="InteractiveAuto" />
 

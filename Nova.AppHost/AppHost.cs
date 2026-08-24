@@ -16,6 +16,7 @@ var storage = builder
     .RunAsEmulator(emulator => emulator.WithDataVolume());
 
 var profilePhotos = storage.AddBlobContainer("profile-photos");
+var clubCrests = storage.AddBlobContainer("club-crests");
 
 // Process commands run from the Nova project folder, where package.json lives.
 var novaDirectory = Path.Combine(builder.AppHostDirectory, "..", "Nova");
@@ -26,6 +27,8 @@ var nova = builder
     .WaitFor(novaDatabase)
     .WithReference(profilePhotos)
     .WaitFor(profilePhotos)
+    .WithReference(clubCrests)
+    .WaitFor(clubCrests)
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health")
     .WithProcessCommand(
@@ -84,5 +87,14 @@ storage.WithCommand(
         profilePhotos.Resource.Parent.ConnectionStringExpression),
     commandOptions: AppHostCommands.CreateConfirmationOptions(
         "Deletes every blob from the profile-photos container."));
+
+storage.WithCommand(
+    name: "clear-club-crests",
+    displayName: "Clear club crests",
+    executeCommand: context => AppHostCommands.ClearClubCrestsAsync(
+        context,
+        clubCrests.Resource.Parent.ConnectionStringExpression),
+    commandOptions: AppHostCommands.CreateConfirmationOptions(
+        "Deletes every blob from the club-crests container."));
 
 builder.Build().Run();

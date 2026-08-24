@@ -2,6 +2,7 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Account;
@@ -316,12 +317,15 @@ public class ClubComponentsTests : BunitContext
         var nameInput = cut.Find("input#club-name");
         var cityInput = cut.Find("input#club-city");
         var stateInput = cut.Find("input#club-state");
+        var crestInput = cut.FindComponent<InputFile>();
         var submitButton = cut.Find("button[type=\"submit\"]");
 
         // Act
         nameInput.Change("Test Club");
         cityInput.Change("Austin");
         stateInput.Change("TX");
+        crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
         submitButton.Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("alert-danger"));
@@ -350,12 +354,15 @@ public class ClubComponentsTests : BunitContext
         var nameInput = cut.Find("input#club-name");
         var cityInput = cut.Find("input#club-city");
         var stateInput = cut.Find("input#club-state");
+        var crestInput = cut.FindComponent<InputFile>();
         var submitButton = cut.Find("button[type=\"submit\"]");
 
         // Act
         nameInput.Change("Test Club");
         cityInput.Change("Austin");
         stateInput.Change("TX");
+        crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
         submitButton.Click();
 
         // Assert
@@ -1218,6 +1225,7 @@ public class ClubComponentsTests : BunitContext
             "Austin",
             "TX",
             [],
+            false,
             false);
         clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
@@ -1249,6 +1257,7 @@ public class ClubComponentsTests : BunitContext
                 new ClubRosterMemberDto(100, "Alice Admin", true),
                 new ClubRosterMemberDto(101, "Bob Member", false)
             ],
+            false,
             false);
         clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
@@ -1279,7 +1288,8 @@ public class ClubComponentsTests : BunitContext
             "Austin",
             "TX",
             [],
-            true);
+            true,
+            false);
         clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
 
@@ -1308,6 +1318,7 @@ public class ClubComponentsTests : BunitContext
             "Austin",
             "TX",
             [],
+            false,
             false);
         clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
@@ -1366,6 +1377,65 @@ public class ClubComponentsTests : BunitContext
         // Assert
         cut.Markup.ShouldContain("alert-danger");
         cut.Markup.ShouldContain(errorMessage);
+    }
+
+    /// <summary>
+    /// ClubDetail shows the club crest image next to the club name when the club has a crest.
+    /// </summary>
+    [Fact]
+    public void ClubDetail_RendersClubCrest_WhenClubHasCrest()
+    {
+        // Arrange
+        var clubDetailService = Substitute.For<IClubDetailService>();
+        var detail = new ClubDetailDto(
+            42,
+            "Test Club",
+            "Austin",
+            "TX",
+            [],
+            false,
+            true);
+        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
+
+        SetupServices(clubDetailService: clubDetailService);
+
+        // Act
+        var cut = Render<ClubDetail>(parameters =>
+            parameters.Add(p => p.ClubId, 42L));
+
+        // Assert
+        cut.Markup.ShouldContain("club-detail-crest");
+        cut.Markup.ShouldContain("src=\"/api/clubs/42/crest?size=medium\"");
+    }
+
+    /// <summary>
+    /// ClubDetail does not render the club crest image when the club has no crest.
+    /// </summary>
+    [Fact]
+    public void ClubDetail_OmitsClubCrest_WhenClubHasNoCrest()
+    {
+        // Arrange
+        var clubDetailService = Substitute.For<IClubDetailService>();
+        var detail = new ClubDetailDto(
+            42,
+            "Test Club",
+            "Austin",
+            "TX",
+            [],
+            false,
+            false);
+        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
+
+        SetupServices(clubDetailService: clubDetailService);
+
+        // Act
+        var cut = Render<ClubDetail>(parameters =>
+            parameters.Add(p => p.ClubId, 42L));
+
+        // Assert
+        cut.Markup.ShouldNotContain("club-detail-crest");
     }
 
     #endregion

@@ -297,12 +297,10 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
     {
         var (email, userId) = await RegisterUserAsync(client, emailPrefix, "Club", "Admin", clubId: null, cancellationToken);
 
-        using var response = await client.PostAsJsonAsync(ClubEndpoints.Create, new CreateClubInput
-        {
-            Name = $"{clubName} {Guid.CreateVersion7():N}",
-            City = "Austin",
-            State = "TX"
-        }, cancellationToken);
+        using var response = await client.PostAsync(
+            ClubEndpoints.Create,
+            SeedingHelpers.CreateClubMultipartContent($"{clubName} {Guid.CreateVersion7():N}", "Austin", "TX"),
+            cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
         club.ShouldNotBeNull();

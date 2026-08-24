@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
 using Nova.Data.Tenancy;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Photos;
 using Nova.Shared.Security;
 
@@ -46,6 +47,13 @@ public partial class NavMenu(
     /// </summary>
     protected string? ClubName => currentUserProvider.ClubId.HasValue
         ? GetPrincipal()?.FindFirstValue(NovaClaimTypes.ClubName)
+        : null;
+
+    /// <summary>
+    /// Gets the URL for the current user's club crest (small variant), or null if the user has no club.
+    /// </summary>
+    protected string? ClubCrestUrl => currentUserProvider.ClubId.HasValue
+        ? ClubCrestEndpoints.GetCrestUrl(currentUserProvider.ClubId.Value, ProfilePhotoSize.Small)
         : null;
 
     private ClaimsPrincipal? GetPrincipal()

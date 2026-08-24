@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Json;
+﻿using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
@@ -7,6 +8,9 @@ using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Clubs;
 using Shouldly;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Nova.Integration.Tests.Http;
 
@@ -33,12 +37,46 @@ internal static class SeedingHelpers
     /// <returns>The created club.</returns>
     public static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.PostAsJsonAsync(
+        using var response = await client.PostAsync(
             ClubEndpoints.Create,
-            new CreateClubInput { Name = $"Club {Guid.NewGuid():N}", City = "X", State = "TX" },
+            CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX"),
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;
+    }
+
+    /// <summary>
+    /// Builds the multipart form content for a club creation request, including a small
+    /// valid crest JPEG. Uses the same field names as the server handler
+    /// (<c>name</c>, <c>city</c>, <c>state</c>, <c>crest</c>).
+    /// </summary>
+    /// <param name="name">The club display name.</param>
+    /// <param name="city">The club city.</param>
+    /// <param name="state">The club state.</param>
+    /// <returns>The multipart form content.</returns>
+    public static MultipartFormDataContent CreateClubMultipartContent(string name, string city, string state)
+    {
+        var form = new MultipartFormDataContent();
+        form.Add(new StringContent(name), "name");
+        form.Add(new StringContent(city), "city");
+        form.Add(new StringContent(state), "state");
+        var crestBytes = CreateJpegBytes();
+        var crestContent = new ByteArrayContent(crestBytes);
+        crestContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        form.Add(crestContent, "crest", "crest");
+        return form;
+    }
+
+    /// <summary>
+    /// Generates a small valid JPEG for crest (and general image) uploads.
+    /// </summary>
+    /// <returns>The encoded JPEG bytes.</returns>
+    public static byte[] CreateJpegBytes(int width = 64, int height = 64)
+    {
+        using var image = new Image<Rgba32>(width, height, new Rgba32(120, 180, 240));
+        using var stream = new MemoryStream();
+        image.Save(stream, new JpegEncoder());
+        return stream.ToArray();
     }
 
     /// <summary>

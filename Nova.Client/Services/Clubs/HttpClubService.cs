@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Json;
+﻿using System.Net.Http.Headers;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 
@@ -16,7 +16,15 @@ public sealed class HttpClubService(HttpClient http) : IClubService
         CreateClubInput input,
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.PostAsJsonAsync(ClubEndpoints.Create, input, cancellationToken);
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent(input.Name), "name");
+        form.Add(new StringContent(input.City), "city");
+        form.Add(new StringContent(input.State), "state");
+        using var crestContent = new ByteArrayContent(input.CrestContent);
+        crestContent.Headers.ContentType = new MediaTypeHeaderValue(input.CrestContentType);
+        form.Add(crestContent, "crest", "crest");
+
+        using var response = await http.PostAsync(ClubEndpoints.Create, form, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

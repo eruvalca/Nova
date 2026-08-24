@@ -1,9 +1,16 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Azure;
+using Azure.Storage.Blobs;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Nova.Data;
+using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Shared;
 using Nova.Shared.Features.Account;
 using Nova.Shared.Features.Clubs;
+using Nova.Shared.Features.Photos;
+using Nova.Shared.Results;
 using Nova.Shared.Security;
 
 namespace Nova.Features.Clubs;
@@ -25,12 +32,15 @@ internal static class ClubEndpointRouteBuilderExtensions
 
             var group = endpoints.MapGroup(ClubEndpoints.GroupPrefix).RequireAuthorization();
 
-            // Create a new club; the current user becomes the club admin.
+            // Create a new club with a required crest upload; the current user becomes the club admin.
+            // The WASM client posts with the Identity cookie but without a Razor antiforgery token;
+            // SameSite=Lax on the Identity cookie protects this multipart API post from CSRF.
             group.MapPost(ClubEndpoints.CreateRelative, CreateClubHandler)
                 .Produces<ClubDto>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status409Conflict)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableValidation()
                 .DisableAntiforgery()
                 .WithName("CreateClub");
 
@@ -116,6 +126,38 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .WithName("AssignClubAdmin");
 
+            // Serve a club crest by club ID and size, with ETag caching. Mapped outside
+            // the clubs group because its route lives under /api/clubs/{clubId}/crest.
+            endpoints.MapGet(ClubCrestEndpoints.GetTemplate, GetCrestHandler)
+                .RequireAuthorization()
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .WithName("GetClubCrest");
+
+            // Change a club's crest (ClubAdmin only, multipart upload).
+            group.MapPost(ClubCrestEndpoints.ManageRelative, ChangeCrestHandler)
+                .Produces(StatusCodes.Status204NoContent)
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableValidation()
+                .DisableAntiforgery()
+                .RequireAuthorization(Policies.RequireClubAdmin)
+                .WithName("ChangeClubCrest");
+
+            // Remove a club's crest (ClubAdmin only).
+            group.MapDelete(ClubCrestEndpoints.ManageRelative, RemoveCrestHandler)
+                .Produces(StatusCodes.Status204NoContent)
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery()
+                .RequireAuthorization(Policies.RequireClubAdmin)
+                .WithName("RemoveClubCrest");
+
             // Cookie refresh hop after club creation: reissues auth cookie so claims take effect.
             // Mapped at its absolute path, outside the API group.
             endpoints.MapGet(ClubEndpoints.Complete, CompleteHandler)
@@ -127,17 +169,212 @@ internal static class ClubEndpointRouteBuilderExtensions
     }
 
     /// <summary>
-    /// Handles club creation requests.
+    /// Handles club creation requests (multipart form: name, city, state, and required crest file).
     /// </summary>
     private static async Task<IResult> CreateClubHandler(
-        CreateClubInput input,
+        [FromForm] string name,
+        [FromForm] string city,
+        [FromForm] string state,
+        IFormFile crest,
         IClubService clubService,
         CancellationToken cancellationToken)
     {
+        if (crest is null || crest.Length is 0 or > ProfilePhotoConstraints.MaxBytes)
+        {
+            var message = $"The crest must be between 1 byte and {ProfilePhotoConstraints.MaxBytes / (1024 * 1024)} MB.";
+            return ServiceProblem.Validation("crest", message).ToHttpResult();
+        }
+
+        byte[] crestContent;
+        await using (var stream = crest.OpenReadStream())
+        using (var buffer = new MemoryStream((int)crest.Length))
+        {
+            await stream.CopyToAsync(buffer, cancellationToken);
+            crestContent = buffer.ToArray();
+        }
+
+        var input = new CreateClubInput
+        {
+            Name = name,
+            City = city,
+            State = state,
+            CrestContent = crestContent,
+            CrestContentType = crest.ContentType
+        };
+
         var result = await clubService.CreateClubAsync(input, cancellationToken);
         // No GET-club-by-id endpoint exists yet, so return 201 without a Location header.
         return result.ToHttpResult(club => TypedResults.Created((string?)null, club));
     }
+
+    /// <summary>
+    /// Handles retrieval of a club crest by club ID and size, with ETag caching.
+    /// </summary>
+    private static async Task<IResult> GetCrestHandler(
+        long clubId,
+        [FromQuery] string? size,
+        HttpContext context,
+        IDbContextFactory<NovaReadDbContext> readDbContextFactory,
+        [FromKeyedServices("club-crests")] BlobContainerClient containerClient,
+        CancellationToken cancellationToken)
+    {
+        // Query enum binding is case-sensitive; accept "small"/"Small" etc. explicitly.
+        // Enum.TryParse also accepts arbitrary numeric strings (e.g. "99"), which would skip
+        // the variant checks below yet still resolve to a blob — reject anything that is not
+        // a defined member.
+        if (!Enum.TryParse<ProfilePhotoSize>(size, ignoreCase: true, out var crestSize)
+            || !Enum.IsDefined(crestSize))
+        {
+            crestSize = ProfilePhotoSize.Medium;
+        }
+
+        // The original may retain more detail than the public variants; club crests are
+        // public-facing within the club, so only the square variants are ever served. Return
+        // 404 (not 403) to avoid leaking whether a crest exists.
+        if (crestSize == ProfilePhotoSize.Original)
+        {
+            return ServiceProblem.NotFound().ToHttpResult();
+        }
+
+        ClubCrestEntity? crest;
+        await using (var dbContext = await readDbContextFactory.CreateDbContextAsync(cancellationToken))
+        {
+            crest = await dbContext.ClubCrests
+                .FirstOrDefaultAsync(c => c.ClubId == clubId, cancellationToken);
+        }
+
+        var blobName = SelectBlobName(crest, crestSize);
+        if (crest is null || blobName is null)
+        {
+            return ServiceProblem.NotFound().ToHttpResult();
+        }
+
+        var blobClient = containerClient.GetBlobClient(blobName);
+        try
+        {
+            var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken);
+            var etag = $"\"{properties.Value.ETag.ToString().Trim('"')}\"";
+
+            // no-cache (not max-age) so the browser revalidates with If-None-Match on every
+            // use; the crest URL is stable per club, so a freshness lifetime would keep
+            // serving the old image after a new upload. Unchanged crests still get 304s.
+            context.Response.Headers.CacheControl = "private, no-cache";
+            context.Response.Headers.ETag = etag;
+
+            if (context.Request.Headers.IfNoneMatch.Any(value => value == etag))
+            {
+                return TypedResults.StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            var download = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
+            return TypedResults.Stream(download.Value.Content, "image/webp");
+        }
+        catch (RequestFailedException ex) when (ex.Status == StatusCodes.Status404NotFound)
+        {
+            return ServiceProblem.NotFound().ToHttpResult();
+        }
+    }
+
+    /// <summary>
+    /// Handles changing a club's crest (multipart upload, ClubAdmin only).
+    /// </summary>
+    private static async Task<IResult> ChangeCrestHandler(
+        long clubId,
+        IFormFile crest,
+        HttpContext context,
+        UserManager<NovaUserEntity> userManager,
+        SignInManager<NovaUserEntity> signInManager,
+        IClubCrestService clubCrestService,
+        CancellationToken cancellationToken)
+    {
+        if (crest is null || crest.Length is 0 or > ProfilePhotoConstraints.MaxBytes)
+        {
+            var message = $"The crest must be between 1 byte and {ProfilePhotoConstraints.MaxBytes / (1024 * 1024)} MB.";
+            return ServiceProblem.Validation("crest", message).ToHttpResult();
+        }
+
+        byte[] crestContent;
+        await using (var stream = crest.OpenReadStream())
+        using (var buffer = new MemoryStream((int)crest.Length))
+        {
+            await stream.CopyToAsync(buffer, cancellationToken);
+            crestContent = buffer.ToArray();
+        }
+
+        var result = await clubCrestService.ChangeClubCrestAsync(
+            clubId,
+            new ClubCrestUpload(crestContent, crest.ContentType),
+            cancellationToken);
+
+        if (result.IsProblem)
+        {
+            return result.ToHttpResult(_ => TypedResults.NoContent());
+        }
+
+        // The crest changed and the acting admin's security stamp was bumped when the club's
+        // members were marked stale; reissue their cookie so HasClubCrest takes effect now.
+        await RefreshAdminCookieAsync(context, userManager, signInManager, cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Handles removing a club's crest (ClubAdmin only).
+    /// </summary>
+    private static async Task<IResult> RemoveCrestHandler(
+        long clubId,
+        HttpContext context,
+        UserManager<NovaUserEntity> userManager,
+        SignInManager<NovaUserEntity> signInManager,
+        IClubCrestService clubCrestService,
+        CancellationToken cancellationToken)
+    {
+        var result = await clubCrestService.RemoveClubCrestAsync(clubId, cancellationToken);
+        if (result.IsProblem)
+        {
+            return result.ToHttpResult(_ => TypedResults.NoContent());
+        }
+
+        // The crest was removed and the acting admin's security stamp was bumped when the
+        // club's members were marked stale; reissue their cookie so HasClubCrest disappears now.
+        await RefreshAdminCookieAsync(context, userManager, signInManager, cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Reissues the acting admin's authentication cookie so their rebuilt claims (loaded from
+    /// the database, not the request principal) take effect without waiting for revalidation.
+    /// </summary>
+    private static async Task RefreshAdminCookieAsync(
+        HttpContext context,
+        UserManager<NovaUserEntity> userManager,
+        SignInManager<NovaUserEntity> signInManager,
+        CancellationToken cancellationToken)
+    {
+        var user = await userManager.GetUserAsync(context.User);
+        if (user is null)
+        {
+            return;
+        }
+
+        await signInManager.RefreshSignInAsync(user);
+    }
+
+    /// <summary>
+    /// Selects the blob name for the requested crest size, falling back to the original
+    /// when a variant has not been generated.
+    /// </summary>
+    /// <param name="crest">The crest entity, or <see langword="null"/> when the club has no crest.</param>
+    /// <param name="size">The requested size.</param>
+    /// <returns>The blob name to serve, or <see langword="null"/> when unavailable.</returns>
+    private static string? SelectBlobName(ClubCrestEntity? crest, ProfilePhotoSize size) => crest is null
+        ? null
+        : size switch
+        {
+            ProfilePhotoSize.Small => crest.SmallBlobName ?? crest.OriginalBlobName,
+            ProfilePhotoSize.Medium => crest.MediumBlobName ?? crest.OriginalBlobName,
+            ProfilePhotoSize.Large => crest.LargeBlobName ?? crest.OriginalBlobName,
+            _ => null
+        };
 
     /// <summary>
     /// Handles club search requests.

@@ -96,11 +96,15 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddScoped<ICurrentUserProvider, CurrentUserProvider>();
 
-// Azure Blob Storage container for profile photos (Azurite emulator locally via Aspire).
-builder.AddAzureBlobContainerClient("profile-photos");
+// Azure Blob Storage containers (Azurite emulator locally via Aspire). Both clients are
+// registered keyed so multiple container clients of the same type can coexist; services
+// resolve theirs via [FromKeyedServices].
+builder.AddKeyedAzureBlobContainerClient("profile-photos");
+builder.AddKeyedAzureBlobContainerClient("club-crests");
 builder.Services.AddScoped<IProfilePhotoService, ProfilePhotoService>();
 
 builder.Services.AddScoped<IClubService, ClubService>();
+builder.Services.AddScoped<IClubCrestService, ClubCrestService>();
 builder.Services.AddScoped<IClubDetailService, ClubDetailService>();
 builder.Services.AddScoped<IClubAdminService, ClubAdminService>();
 builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();

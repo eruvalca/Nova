@@ -1,1 +1,9 @@
-/* Layout handled by Bootstrap in the parent card. No component-specific overrides needed. */
+.club-crest-preview {
+    width: 8rem;
+    height: 8rem;
+    object-fit: contain;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    background-color: var(--bs-body-bg);
+}
+

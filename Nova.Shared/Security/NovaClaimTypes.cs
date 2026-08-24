@@ -19,4 +19,9 @@ public static class NovaClaimTypes
     /// The claim type indicating the user has uploaded a profile photo.
     /// </summary>
     public const string HasProfilePhoto = "nova:has_profile_photo";
+
+    /// <summary>
+    /// The claim type indicating the user's club has a crest image.
+    /// </summary>
+    public const string HasClubCrest = "nova:has_club_crest";
 }

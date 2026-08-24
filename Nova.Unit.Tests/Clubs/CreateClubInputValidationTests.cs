@@ -45,6 +45,24 @@ public class CreateClubInputValidationTests
         stateProperty!.PropertyType.ShouldBe(typeof(string));
     }
 
+    [Fact]
+    public void CreateClubInput_HasCrestContentProperty()
+    {
+        // Verify the record has the CrestContent property
+        var crestContentProperty = typeof(CreateClubInput).GetProperty("CrestContent");
+        crestContentProperty.ShouldNotBeNull();
+        crestContentProperty!.PropertyType.ShouldBe(typeof(byte[]));
+    }
+
+    [Fact]
+    public void CreateClubInput_HasCrestContentTypeProperty()
+    {
+        // Verify the record has the CrestContentType property
+        var crestContentTypeProperty = typeof(CreateClubInput).GetProperty("CrestContentType");
+        crestContentTypeProperty.ShouldNotBeNull();
+        crestContentTypeProperty!.PropertyType.ShouldBe(typeof(string));
+    }
+
     #region Validation Tests
 
     /// <summary>
@@ -58,7 +76,9 @@ public class CreateClubInputValidationTests
         {
             Name = "Valid Club",
             City = "New York",
-            State = "NY"
+            State = "NY",
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "image/jpeg"
         };
 
         // Act
@@ -80,7 +100,9 @@ public class CreateClubInputValidationTests
         {
             Name = null!,
             City = "New York",
-            State = "NY"
+            State = "NY",
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "image/jpeg"
         };
 #pragma warning restore CS8625
 
@@ -103,7 +125,9 @@ public class CreateClubInputValidationTests
         {
             Name = "   ",
             City = "New York",
-            State = "NY"
+            State = "NY",
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "image/jpeg"
         };
 
         // Act
@@ -125,7 +149,9 @@ public class CreateClubInputValidationTests
         {
             Name = new string('a', 201),
             City = "New York",
-            State = "NY"
+            State = "NY",
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "image/jpeg"
         };
 
         // Act
@@ -148,7 +174,9 @@ public class CreateClubInputValidationTests
         {
             Name = "Valid Club",
             City = null!,
-            State = "NY"
+            State = "NY",
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "image/jpeg"
         };
 #pragma warning restore CS8625
 
@@ -171,7 +199,9 @@ public class CreateClubInputValidationTests
         {
             Name = "Valid Club",
             City = "   ",
-            State = "NY"
+            State = "NY",
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "image/jpeg"
         };
 
         // Act
@@ -193,7 +223,9 @@ public class CreateClubInputValidationTests
         {
             Name = "Valid Club",
             City = new string('a', 101),
-            State = "NY"
+            State = "NY",
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "image/jpeg"
         };
 
         // Act
@@ -216,7 +248,9 @@ public class CreateClubInputValidationTests
         {
             Name = "Valid Club",
             City = "New York",
-            State = null!
+            State = null!,
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "image/jpeg"
         };
 #pragma warning restore CS8625
 
@@ -239,7 +273,9 @@ public class CreateClubInputValidationTests
         {
             Name = "Valid Club",
             City = "New York",
-            State = "   "
+            State = "   ",
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "image/jpeg"
         };
 
         // Act
@@ -261,7 +297,9 @@ public class CreateClubInputValidationTests
         {
             Name = "Valid Club",
             City = "New York",
-            State = new string('a', 101)
+            State = new string('a', 101),
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "image/jpeg"
         };
 
         // Act
@@ -270,6 +308,82 @@ public class CreateClubInputValidationTests
         // Assert
         errors.ShouldContainKey("State");
         errors["State"].ShouldNotBeEmpty();
+    }
+
+    /// <summary>
+    /// Null CrestContent violates Required attribute.
+    /// </summary>
+    [Fact]
+    public void Validate_ContainsCrestContentError_WhenCrestContentIsNull()
+    {
+        // Arrange
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
+        var input = new CreateClubInput
+        {
+            Name = "Valid Club",
+            City = "New York",
+            State = "NY",
+            CrestContent = null!,
+            CrestContentType = "image/jpeg"
+        };
+#pragma warning restore CS8625
+
+        // Act
+        var errors = InputValidator.Validate(input);
+
+        // Assert
+        errors.ShouldContainKey("CrestContent");
+        errors["CrestContent"].ShouldNotBeEmpty();
+    }
+
+    /// <summary>
+    /// Null CrestContentType violates Required attribute.
+    /// </summary>
+    [Fact]
+    public void Validate_ContainsCrestContentTypeError_WhenCrestContentTypeIsNull()
+    {
+        // Arrange
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
+        var input = new CreateClubInput
+        {
+            Name = "Valid Club",
+            City = "New York",
+            State = "NY",
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = null!
+        };
+#pragma warning restore CS8625
+
+        // Act
+        var errors = InputValidator.Validate(input);
+
+        // Assert
+        errors.ShouldContainKey("CrestContentType");
+        errors["CrestContentType"].ShouldNotBeEmpty();
+    }
+
+    /// <summary>
+    /// Whitespace-only CrestContentType violates NotWhitespace attribute.
+    /// </summary>
+    [Fact]
+    public void Validate_ContainsCrestContentTypeError_WhenCrestContentTypeIsWhitespace()
+    {
+        // Arrange
+        var input = new CreateClubInput
+        {
+            Name = "Valid Club",
+            City = "New York",
+            State = "NY",
+            CrestContent = TestImages.CreateJpeg(),
+            CrestContentType = "   "
+        };
+
+        // Act
+        var errors = InputValidator.Validate(input);
+
+        // Assert
+        errors.ShouldContainKey("CrestContentType");
+        errors["CrestContentType"].ShouldNotBeEmpty();
     }
 
     /// <summary>
@@ -283,7 +397,9 @@ public class CreateClubInputValidationTests
         {
             Name = "   ",  // Violates NotWhitespace
             City = new string('a', 101),  // Violates MaxLength
-            State = "   "   // Violates NotWhitespace
+            State = "   ",  // Violates NotWhitespace
+            CrestContent = [],
+            CrestContentType = "   "
         };
 
         // Act
@@ -293,7 +409,8 @@ public class CreateClubInputValidationTests
         errors.ShouldContainKey("Name");
         errors.ShouldContainKey("City");
         errors.ShouldContainKey("State");
-        errors.Count.ShouldBe(3);
+        errors.ShouldContainKey("CrestContentType");
+        errors.Count.ShouldBe(4);
     }
 
     #endregion

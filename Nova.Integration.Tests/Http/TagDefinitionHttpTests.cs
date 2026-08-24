@@ -498,12 +498,10 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, "Club", "Admin", cancellationToken);
 
-        using var response = await client.PostAsJsonAsync(ClubEndpoints.Create, new CreateClubInput
-        {
-            Name = $"{clubName} {Guid.CreateVersion7():N}",
-            City = "Austin",
-            State = "TX"
-        }, cancellationToken);
+        using var response = await client.PostAsync(
+            ClubEndpoints.Create,
+            SeedingHelpers.CreateClubMultipartContent($"{clubName} {Guid.CreateVersion7():N}", "Austin", "TX"),
+            cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);

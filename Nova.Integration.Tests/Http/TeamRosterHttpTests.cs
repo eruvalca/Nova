@@ -341,9 +341,9 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
 
     private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.PostAsJsonAsync(
+        using var response = await client.PostAsync(
             ClubEndpoints.Create,
-            new CreateClubInput { Name = $"Team Roster Club {Guid.CreateVersion7():N}", City = "Austin", State = "TX" },
+            SeedingHelpers.CreateClubMultipartContent($"Team Roster Club {Guid.CreateVersion7():N}", "Austin", "TX"),
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;

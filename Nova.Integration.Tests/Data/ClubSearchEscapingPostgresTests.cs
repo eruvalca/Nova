@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Azure.Storage.Blobs;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -45,6 +46,7 @@ public sealed class ClubSearchEscapingPostgresTests(NovaAppHostFixture fixture)
             new PostgresReadContextFactory(fixture),
             CreateUserManager(),
             fixture.CurrentUser,
+            Substitute.For<BlobContainerClient>(),
             NullLogger<ClubService>.Instance);
 
         var percent = await service.SearchClubsAsync("50%", cancellationToken);

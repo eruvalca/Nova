@@ -23,6 +23,12 @@ public class ClubEntity : BaseEntity
     /// Gets or sets the State.
     /// </summary>
     public required string State { get; set; }
+    /// <summary>
+    /// Gets or sets the stable identifier for the logical club-creation operation. Set once per
+    /// operation and reused across retry attempts so an ambiguous commit can be verified (and
+    /// not replayed) by looking up the club created by this operation.
+    /// </summary>
+    public Guid? CreationOperationId { get; set; }
 
     /// <summary>
     /// Gets or sets the Nova Users.
@@ -60,4 +66,8 @@ public class ClubEntity : BaseEntity
     /// Gets or sets the Join Requests.
     /// </summary>
     public ICollection<ClubJoinRequestEntity> JoinRequests { get; set; } = [];
+    /// <summary>
+    /// Gets or sets the Club Crest.
+    /// </summary>
+    public ClubCrestEntity? ClubCrest { get; set; }
 }
