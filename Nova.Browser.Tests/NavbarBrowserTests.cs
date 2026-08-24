@@ -293,7 +293,6 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
-        var clubName = await GetClubNameAsync(seed.ClubId, cancellationToken);
         var nav = page.Locator("nav.navbar");
 
         // The Manage link's top must match the first stacked item (Home) top edge.
@@ -419,8 +418,10 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
     /// <summary>
     /// Asserts the Manage link's avatar renders as a 2rem (32px) circle with a visible border —
-    /// comfortably larger than the 1.5rem (24px) desktop nav icons (the border adds ~1px per side,
-    /// so the box is ~32px + 2px). Blank-slate users without a profile photo render no avatar.
+    /// comfortably larger than the 1.5rem (24px) desktop nav icons. Bootstrap's reboot applies
+    /// <c>box-sizing: border-box</c> globally, so the 2rem width is the border-box size: the
+    /// bounding box is exactly 32px including the border. Blank-slate users without a profile
+    /// photo render no avatar.
     /// </summary>
     private static async Task AssertNavAvatarAsync(ILocator manage)
     {
@@ -428,9 +429,9 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await Expect(avatar).ToHaveCountAsync(1);
         var avatarBox = await avatar.BoundingBoxAsync();
         avatarBox.ShouldNotBeNull();
-        // 2rem = 32px; allow for sub-pixel rounding + the 1px border on each side.
-        ((double)avatarBox!.Width).ShouldBeInRange(30.0, 34.0, "the avatar must render at its 2rem (32px) target width");
-        ((double)avatarBox!.Height).ShouldBeInRange(30.0, 34.0, "the avatar must render at its 2rem (32px) target height");
+        // 2rem = 32px border-box; the range allows only for sub-pixel rounding.
+        ((double)avatarBox!.Width).ShouldBeInRange(31.5, 32.5, "the avatar must render at its 2rem (32px) target width");
+        ((double)avatarBox!.Height).ShouldBeInRange(31.5, 32.5, "the avatar must render at its 2rem (32px) target height");
         var borderRadius = await avatar.EvaluateAsync<string>("(el) => getComputedStyle(el).borderRadius");
         borderRadius.ShouldContain("50%");
     }
