@@ -17,16 +17,56 @@
     color: inherit;
 }
 
+/* Fixed-size slot that overlays the outline and fill glyphs: both spans are
+   absolutely positioned at the slot's top-left, so swapping the visible glyph
+   on the active state causes no layout shift (outline vs fill widths differ
+   slightly, but the box never moves). */
+.nav-icon-slot {
+    position: relative;
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.nav-icon,
+.nav-icon-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* The outline glyph is the default; the fill glyph is overlaid on top and only
+   becomes visible on the active link — toggled purely by CSS off NavLink's
+   `.active` class (no code-behind interactivity; the class is refreshed by
+   NavMenu's LocationChanged subscription on client-side navigation). */
+.nav-icon-fill {
+    opacity: 0;
+    visibility: hidden;
+}
+
 /* The nav links are rendered by the NavLink child component, so the rules
    below use ::deep to reach the generated <a> element through the scoped
    navbar markup (CSS isolation only scopes elements the component renders
-   itself). */
+   itself). Everything after ::deep stays unscoped, including the icon spans
+   NavMenu renders inside the link. */
 ::deep .nav-link.active {
     position: relative;
 }
 
-/* Icon-first active indicator: a kelp teal bar along the top of the active
-   nav item (reference mockup), replacing Bootstrap's default underline. */
+::deep .nav-link.active .nav-icon {
+    opacity: 0;
+    visibility: hidden;
+}
+
+::deep .nav-link.active .nav-icon-fill {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Icon-first active indicator: a kelp teal bar along the top edge of the active
+   nav item (reference mockup), replacing Bootstrap's default underline. Below
+   md the bar sits at `top: 0` (just inside the link's border box); at md+ it is
+   raised to the navbar's very top edge (see the media query). */
 ::deep .nav-link.active::after {
     content: "";
     position: absolute;
@@ -36,4 +76,45 @@
     height: 3px;
     background-color: var(--bs-primary);
     border-radius: 0 0 3px 3px;
+}
+
+/* Desktop (md+): stacked icon-above-label items with more breathing room,
+   matching the reference layout. The mobile (<md) collapsed menu keeps the
+   inline icon+label row via the base `d-flex align-items-center gap-2`. */
+@media (min-width: 768px) {
+    /* Bootstrap's own spacing variable used by `.navbar-expand-md .navbar-nav
+       .nav-link` for horizontal link padding at md+; 1rem (matches `$spacer`)
+       gives the items more separation than the default 0.5rem. The nav element
+       is rendered by NavMenu itself, so the rule is scoped directly (no
+       ::deep — there is no scoped ancestor above the nav). */
+    .navbar {
+        --bs-navbar-nav-link-padding-x: 1rem;
+    }
+
+    ::deep .nav-link {
+        padding-top: 0.75rem;
+        padding-bottom: 0.75rem;
+    }
+
+    ::deep .nav-link .bi {
+        font-size: 1.5rem;
+    }
+
+    /* Grow the fixed icon slot with the md+ icon size so the overlay stays
+       aligned with the outline glyph. */
+    .nav-icon-slot {
+        width: 1.5rem;
+        height: 1.5rem;
+    }
+
+    .nav-label {
+        font-size: 0.8125rem;
+        line-height: 1;
+    }
+
+    /* Raise the active indicator so it is flush with the navbar's very top
+       edge (0.5rem navbar padding + 1px border-top). */
+    ::deep .nav-link.active::after {
+        top: calc(-1 * (var(--bs-navbar-padding-y) + var(--bs-border-width)));
+    }
 }

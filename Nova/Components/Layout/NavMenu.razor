@@ -11,34 +11,49 @@
                 <AuthorizeView>
                     <Authorized>
                         <li class="nav-item">
-                            <NavLink class="nav-link d-flex align-items-center gap-2" href="/" Match="NavLinkMatch.All">
-                                <span class="bi bi-house" aria-hidden="true"></span>
+                            <NavLink class="nav-link d-flex align-items-center gap-2 flex-md-column text-md-center" href="/" Match="NavLinkMatch.All">
+                                <span class="nav-icon-slot">
+                                    <span class="bi bi-house nav-icon" aria-hidden="true"></span>
+                                    <span class="bi bi-house-fill nav-icon-fill" aria-hidden="true"></span>
+                                </span>
                                 <span class="nav-label">Home</span>
                             </NavLink>
                         </li>
                         @if (ClubDetailUrl is not null && ClubName is not null)
                         {
                             <li class="nav-item">
-                                <NavLink class="nav-link d-flex align-items-center gap-2" href="@ClubDetailUrl" Match="NavLinkMatch.Prefix">
-                                    <span class="bi bi-building" aria-hidden="true"></span>
+                                <NavLink class="nav-link d-flex align-items-center gap-2 flex-md-column text-md-center" href="@ClubDetailUrl" Match="NavLinkMatch.Prefix">
+                                    <span class="nav-icon-slot">
+                                        <span class="bi bi-building nav-icon" aria-hidden="true"></span>
+                                        <span class="bi bi-building-fill nav-icon-fill" aria-hidden="true"></span>
+                                    </span>
                                     <span class="nav-label">@ClubName</span>
                                 </NavLink>
                             </li>
                             <li class="nav-item">
-                                <NavLink class="nav-link d-flex align-items-center gap-2" href="campaigns" Match="NavLinkMatch.Prefix">
-                                    <span class="bi bi-calendar-check" aria-hidden="true"></span>
+                                <NavLink class="nav-link d-flex align-items-center gap-2 flex-md-column text-md-center" href="campaigns" Match="NavLinkMatch.Prefix">
+                                    <span class="nav-icon-slot">
+                                        <span class="bi bi-calendar-check nav-icon" aria-hidden="true"></span>
+                                        <span class="bi bi-calendar-check-fill nav-icon-fill" aria-hidden="true"></span>
+                                    </span>
                                     <span class="nav-label">Campaigns</span>
                                 </NavLink>
                             </li>
                             <li class="nav-item">
-                                <NavLink class="nav-link d-flex align-items-center gap-2" href="players" Match="NavLinkMatch.Prefix">
-                                    <span class="bi bi-people" aria-hidden="true"></span>
+                                <NavLink class="nav-link d-flex align-items-center gap-2 flex-md-column text-md-center" href="players" Match="NavLinkMatch.Prefix">
+                                    <span class="nav-icon-slot">
+                                        <span class="bi bi-people nav-icon" aria-hidden="true"></span>
+                                        <span class="bi bi-people-fill nav-icon-fill" aria-hidden="true"></span>
+                                    </span>
                                     <span class="nav-label">Players</span>
                                 </NavLink>
                             </li>
                             <li class="nav-item">
-                                <NavLink class="nav-link d-flex align-items-center gap-2" href="teams" Match="NavLinkMatch.Prefix">
-                                    <span class="bi bi-shield" aria-hidden="true"></span>
+                                <NavLink class="nav-link d-flex align-items-center gap-2 flex-md-column text-md-center" href="teams" Match="NavLinkMatch.Prefix">
+                                    <span class="nav-icon-slot">
+                                        <span class="bi bi-shield nav-icon" aria-hidden="true"></span>
+                                        <span class="bi bi-shield-fill nav-icon-fill" aria-hidden="true"></span>
+                                    </span>
                                     <span class="nav-label">Teams</span>
                                 </NavLink>
                             </li>

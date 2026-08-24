@@ -60,6 +60,20 @@ public class NavMenuTests
         cut.Markup.ShouldContain("href=\"campaigns\"");
         cut.Markup.ShouldContain("href=\"players\"");
         cut.Markup.ShouldContain("href=\"teams\"");
+
+        // Each authorized link renders the dual-glyph overlay: the outline span plus its
+        // -fill twin (toggled by CSS off the NavLink .active class; see NavMenu.razor.css).
+        cut.Markup.ShouldContain("bi-house nav-icon");
+        cut.Markup.ShouldContain("bi-house-fill nav-icon-fill");
+        cut.Markup.ShouldContain("bi-building nav-icon");
+        cut.Markup.ShouldContain("bi-building-fill nav-icon-fill");
+        cut.Markup.ShouldContain("bi-calendar-check nav-icon");
+        cut.Markup.ShouldContain("bi-calendar-check-fill nav-icon-fill");
+        cut.Markup.ShouldContain("bi-people nav-icon");
+        cut.Markup.ShouldContain("bi-people-fill nav-icon-fill");
+        cut.Markup.ShouldContain("bi-shield nav-icon");
+        cut.Markup.ShouldContain("bi-shield-fill nav-icon-fill");
+        cut.Markup.ShouldContain("nav-icon-slot");
     }
 
     [Fact]
