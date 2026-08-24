@@ -65,9 +65,10 @@ offset, so the Manage `::after` top = linkTop − 9px = contentTop − 0.5px ≈
 **Decision: fix A** — do not switch to `:has()` or navbar-level pseudo-elements unless
 verification shows a residual gap.
 
-**Avatar:** change `.nav-avatar` `width/height` 1.75rem → 2rem (32px) at md+ (keep 1.75rem at
-mobile or scale there too — decide in Phase 2 after confirming which looks correct; mobile stays
-consistent with the inline row). Keep `border-radius: 50%; object-fit: cover; border: 1px solid
+**Avatar:** change `.nav-avatar` `width/height` 1.75rem → 2rem (32px) in the **base** rule, so it
+applies at all breakpoints — resolved in Phase 2: scale at mobile too (mobile keeps the inline
+`d-flex align-items-center gap-2` row, and the 32px avatar reads clearly larger than the 1.25rem
+icons there as well). Keep `border-radius: 50%; object-fit: cover; border: 1px solid
 var(--bs-border-color); flex-shrink: 0`.
 
 ### Verification Plan
@@ -89,11 +90,11 @@ Suggested executor: orchestrator (small, tightly-coupled CSS + markup change; no
     at the navbar top for **every** active item.
   - Keep the `<md` behavior (`top: 0` inside the link) unchanged — the new rule is inside the md+
     media query so mobile is untouched.
-  - Enlarge `.nav-avatar` to `2rem` (32px) — put the size override in the md+ block (icons are
-    1.5rem at md+; at mobile the icons are 1.25rem so 1.75rem avatar's relative sizing is fine, but
-    the user's target is 2rem). Decide in Phase 2 verification whether mobile <md should also get
-    the 2rem (the screenshot fix is about md+); keep `border-radius: 50%; object-fit: cover;
-    border: 1px solid var(--bs-border-color); flex-shrink: 0`.
+  - Enlarge `.nav-avatar` to `2rem` (32px) — change the **base** rule, so it applies at all
+    breakpoints (decided in Phase 2: scale at mobile too — the mobile inline row uses 1.25rem icons,
+    and the 2rem avatar still reads clearly larger there; the mockup/target is 2rem, and keeping one
+    base rule avoids a md+ override that would silently revert mobile to 1.75rem). Keep
+    `border-radius: 50%; object-fit: cover; border: 1px solid var(--bs-border-color); flex-shrink: 0`.
 - [x] Verify the change in a real browser (Playwright or manual) at 1280×800: navigate to
   `/Account/Manage` (Manage active) and confirm its kelp teal indicator bar is flush with the
   navbar top; also confirm Home/Campaigns/etc. still flush and the avatar is visibly 32px round.
@@ -110,8 +111,9 @@ reach the navbar content top, so the existing fixed `top: calc(-1*(padding-y + b
 indicator is flush for every active item. (2) `.nav-avatar` enlarged from 1.75rem to 2rem (32px)
 so it reads clearly larger than the 1.5rem icons, keeping `border-radius: 50%; object-fit: cover;
 border: 1px solid var(--bs-border-color); flex-shrink: 0`. No markup or code-behind changes needed
-(no `.razor`/`.razor.cs` edits). Mobile (<md) untouched: the alignment rule lives inside the md+
-media query and mobile uses `top: 0` (inside the link) by design.
+(no `.razor`/`.razor.cs` edits). Mobile (<md) alignment untouched: the alignment rule lives inside
+the md+ media query and mobile uses `top: 0` (inside the link) by design. The avatar, however,
+follows the base rule, so it is 2rem at all breakpoints (mobile included).
 
 ### Verification Plan
 
