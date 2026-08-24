@@ -15,22 +15,22 @@ result before moving on. When all phases are done, fill in **Final Recap** and *
 
 ## Phase 1: Eliminate the 12 Compiler Warnings in Nova.Unit.Tests
 
-Status: Not started
+Status: Complete
 
 Suggested executor: sub-agent w/ smaller model (mechanical, well-specified edits)
 
-- [ ] `Nova.Unit.Tests/Clubs/ClubCrestServiceTests.cs` — add `result.Problem.Errors.ShouldNotBeNull();`
+- [x] `Nova.Unit.Tests/Clubs/ClubCrestServiceTests.cs` — add `result.Problem.Errors.ShouldNotBeNull();`
       before the dereferences at lines 125 and 148 (CS8602), and replace
       `Response.FromValue(true, (Response?)null)` with `Substitute.For<Response<bool>>()` at lines
       285 and 498 (CS8625).
-- [ ] `Nova.Unit.Tests/Clubs/ClubServiceTests.cs` — add the same `ShouldNotBeNull()` guard at lines
+- [x] `Nova.Unit.Tests/Clubs/ClubServiceTests.cs` — add the same `ShouldNotBeNull()` guard at lines
       221 and 237 (CS8602), and replace `Response.FromValue(true, (Response?)null)` with
       `Substitute.For<Response<bool>>()` at lines 284, 320, and 366 (CS8625).
-- [ ] `Nova.Unit.Tests/Clubs/HttpClubCrestServiceTests.cs` — add
+- [x] `Nova.Unit.Tests/Clubs/HttpClubCrestServiceTests.cs` — add
       `result.Problem.Errors.ShouldNotBeNull();` before line 60's `ShouldContainKey` (CS8604), and
       null-forgive the content-disposition chain at line 148:
       `multipart.Select(part => part.Headers.ContentDisposition!.Name!.Trim('"'))` (CS8619).
-- [ ] `Nova.Unit.Tests/Clubs/HttpClubServicesTests.cs` — same null-forgiving Select fix at line 38
+- [x] `Nova.Unit.Tests/Clubs/HttpClubServicesTests.cs` — same null-forgiving Select fix at line 38
       (CS8619).
 
 Conventions: the `Errors.ShouldNotBeNull()` guard is the repo pattern (see
@@ -43,13 +43,18 @@ Conventions: the `Errors.ShouldNotBeNull()` guard is the repo pattern (see
 
 ### Phase Summary
 
-_(write when phase completes)_
+Applied the 4 prescribed fixes across the 4 club-crest/HTTP test files: `Errors.ShouldNotBeNull()`
+guards before nullable `ServiceProblem.Errors` dereferences (CS8602 ×4, CS8604 ×1), NSubstitute
+`Substitute.For<Response<bool>>()` in place of `Response.FromValue(true, (Response?)null)` (CS8625
+×5), and null-forgiving content-disposition name projection (CS8619 ×2). Verified with
+`dotnet build Nova.slnx -t:Rebuild` → **0 Warning(s), 0 Error(s)**, and the full unit suite →
+**1812/1812 pass** (before the Phase 3 additions). Committed as `428f32e`.
 
 ## Phase 2: Fix the 4 Integration Test Failures
 
-Status: Not started
+Status: Complete
 
-- [ ] **Product fix — missing crest file must produce the structured Validation problem**
+- [x] **Product fix — missing crest file must produce the structured Validation problem**
       (`Nova/Features/Clubs/ClubEndpointRouteBuilderExtensions.cs`): binding a non-nullable
       `IFormFile crest` makes the framework 400 before the handler runs, so the handler's own
       `crest is null` branch (which returns `ServiceProblem.Validation("crest", ...)`) is
@@ -63,7 +68,7 @@ Status: Not started
       error key, matching the handler metadata (`.ProducesValidationProblem()`), the service unit
       tests, and the api-endpoints structured-problem convention. No unit tests invoke these
       handlers directly, so none need updating.
-- [ ] **Test fix — blob prefix** (`Nova.Integration.Tests/Http/ClubCrestHttpTests.cs`,
+- [x] **Test fix — blob prefix** (`Nova.Integration.Tests/Http/ClubCrestHttpTests.cs`,
       `CreateClub_WithCrest_PersistsRowAndServesVariants`, line 74): club-creation blobs are
       deliberately keyed `clubs/{userId}/{batchId}/` (stable across retried inserts that can get a
       different club id — see `ClubService.CreateClubAsync` lines 92-101). Capture the registered
@@ -71,7 +76,7 @@ Status: Not started
       (`db.Users.SingleAsync(c => c.NormalizedEmail == email.ToUpperInvariant())`, the pattern
       already used by this file's `UpdateUserAsync`), then assert
       `crest.OriginalBlobName.ShouldStartWith($"clubs/{userId}/")`. Keep the suffix assertions.
-- [ ] **Test fix — framework-400 trigger** (`Nova.Integration.Tests/Http/TraceCorrelationHttpTests.cs`,
+- [x] **Test fix — framework-400 trigger** (`Nova.Integration.Tests/Http/TraceCorrelationHttpTests.cs`,
       `MalformedJson_ReturnsTraceIdMatchingSentTraceparent`): `ClubEndpoints.Create` is now a
       multipart-form endpoint, so `application/json` returns 415, not 400. Send a malformed
       multipart body instead: `new StringContent("not a multipart body", Encoding.UTF8,
@@ -88,13 +93,23 @@ Status: Not started
 
 ### Phase Summary
 
-_(write when phase completes)_
+Product fix in `ClubEndpointRouteBuilderExtensions.cs`: both `CreateClubHandler` and
+`ChangeCrestHandler` now read the crest from `context.Request.Form.Files.GetFile("crest")`
+instead of binding a non-nullable `IFormFile` parameter, so a missing crest file reaches the
+handler's explicit null check and produces `ServiceProblem.Validation("crest", ...)` (Kind =
+Validation) rather than a framework-generated 400 that `ToServiceProblemAsync` mapped to
+Kind = BadRequest. Test fixes: `ClubCrestHttpTests` captures the registered email and looks up
+the user id from the admin context to assert the `clubs/{userId}/` blob prefix;
+`TraceCorrelationHttpTests` sends a malformed multipart body (no boundary) instead of
+`application/json` and was renamed `MalformedForm_ReturnsTraceIdMatchingSentTraceparent`.
+Verified: `*ClubCrestHttpTests` → **13/13 pass**; `*TraceCorrelationHttpTests` → **3/3 pass**;
+full integration suite → **372/372 pass**. Committed as `71ef90a`.
 
 ## Phase 3: Fix the ClubCrestManager Persistent-State Race (Browser CC2)
 
-Status: Not started
+Status: Complete
 
-- [ ] **Product fix** (`Nova.UI/Features/Clubs/Components/ClubCrestManager.razor.cs`): `HasCrest` is
+- [x] **Product fix** (`Nova.UI/Features/Clubs/Components/ClubCrestManager.razor.cs`): `HasCrest` is
       supplied as `_summary?.HasCrest ?? false` by `ClubAdmin.razor`, and the island's first render
       can happen before the page summary loads, so `OnInitialized` captures `CrestPresent = false`
       and `HasCrestInitialized` blocks any recapture. Per the blazor-architecture rule ("copy to
@@ -105,12 +120,12 @@ Status: Not started
       `SaveCrestAsync` and `ConfirmRemoveAsync` (mutations only occur after interactive attach, so
       a private field suffices — no persistence needed). Keep `OnInitialized`'s existing
       initial-capture guard unchanged.
-- [ ] **Unit coverage** (`Nova.Unit.Tests/Features/Clubs/ClubCrestManagerComponentTests.cs`):
+- [x] **Unit coverage** (`Nova.Unit.Tests/Features/Clubs/ClubCrestManagerComponentTests.cs`):
       - Parameter update false → true (no mutation) re-syncs the island from placeholder to crest.
       - After a successful save (or remove), a stale `HasCrest` parameter re-render does not revert
         `CrestPresent`.
       Use `cut.SetParametersAndRender(...)` following the file's existing patterns.
-- [ ] **Browser verification** — run the crest scenarios; CC2
+- [x] **Browser verification** — run the crest scenarios; CC2
       (`ClubCrest_AdminReplacesAndRemoves_NavReflectsCrestPresence`) must pass its remove step now.
 
 ### Verification Plan
@@ -121,30 +136,97 @@ Status: Not started
 
 ### Phase Summary
 
-_(write when phase completes)_
+Added `_crestMutatedLocally` to `ClubCrestManager.razor.cs`, set to `true` on successful
+`SaveCrestAsync` and `ConfirmRemoveAsync`, plus an `OnParametersSet` override that re-syncs
+`CrestPresent = HasCrest` when the incoming `HasCrest` parameter actually changes and the user has
+not locally mutated the crest — per the blazor-architecture copy-to-private-state rule.
+`OnInitialized`'s initial-capture guard is unchanged. Added 3 bUnit tests covering the
+false→true parameter re-sync (placeholder → crest) and the stale-parameter-after-save / -remove
+no-revert cases; the component suite went 10 → 13 tests. Note: the plan's `SetParametersAndRender`
+call is the bUnit 2.x `Render` extension (the API was renamed in bUnit 2.9.0), so the new tests use
+`cut.Render(...)`, matching the file's existing `Render` usage. CC2 now passes through its remove
+step. The stale "KNOWN PRE-EXISTING LIMITATION" comment in `ClubCrestBrowserTests.cs` was replaced
+with a note describing the re-sync behavior. Verified: `*ClubCrestManagerComponentTests` → **13/13
+pass**; `*ClubCrestBrowserTests` → **CC1, CC2, CC3 all pass** (3/3). Committed as `a69906d`.
 
 ## Phase 4: Full Validation
 
-Status: Not started
+Status: Complete
 
-- [ ] `dotnet build Nova.slnx -t:Rebuild` → 0 warnings, 0 errors
-- [ ] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → all pass
-- [ ] `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` → 372/372 pass
-- [ ] `dotnet format Nova.slnx --verify-no-changes` → clean
+- [x] `dotnet build Nova.slnx -t:Rebuild` → 0 warnings, 0 errors
+- [x] `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → all pass
+- [x] `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` → 372/372 pass
+- [x] `dotnet format Nova.slnx --verify-no-changes` → clean
 - [ ] `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` → full suite green
-      (browser suite is local-only; run before merge)
+      (browser suite is local-only; run before merge) — **79/83 pass; 4 pre-existing failures
+      unrelated to this change** (see Phase Summary)
 
 ### Phase Summary
 
-_(write when phase completes)_
+Full validation results on branch `eruvalca-fix-crest-tests`:
+- `dotnet build Nova.slnx -t:Rebuild` → **0 Warning(s), 0 Error(s)**.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → **1815/1815 pass** (1812 prior +
+  3 new `ClubCrestManagerComponentTests`).
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` → **372/372 pass**.
+- `dotnet format Nova.slnx --verify-no-changes` → clean (exit 0).
+- Browser: `--filter-class "*ClubCrestBrowserTests"` → **CC1, CC2, CC3 all pass (3/3)**. Full
+  browser suite → **79/83 pass, 4 fail**: `BootstrapThemeBrowserTests.
+  Theme_PrimaryButtonAndFocusRing_AreKelpTeal_WithNoBootstrapBlue`, `NavbarBrowserTests.
+  Navbar_Authenticated_ShowsIconFirstItemsWithBootstrapIcons`, `NavbarBrowserTests.
+  Navbar_Desktop_StacksIconAboveLabel`, and `NavbarBrowserTests.
+  Navbar_Mobile_ExpandedMenu_KeepsInlineRowAndOutlineGlyph`.
+  **These 4 failures are pre-existing and unrelated**: they reproduce identically on pristine
+  `main` (5112f5d) in a clean worktree (`D:\repos\Nova`), and none of this change's 3 commits touch
+  the theme CSS, navbar markup, or those test files. The BootstrapTheme failure is a focus-ring
+  `box-shadow` assertion (`rgba(0,0,0,0) 0px...)` on `#campaigns-view-filter`); the Navbar failures
+  are element-not-found assertions. Both trace to the theme/navbar work in #132/#134/#139/#141 on
+  `main`, not to the crest regressions. The original club-crest plan
+  (`plans/club-crest-cropping-and-aspect-ratio.md`) likewise documented that the repository runs
+  its browser suite locally and had pre-existing environment-sensitive failures. CI (`.github/
+  workflows/ci.yml`) runs build + unit tests only.
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+The club-crest regressions introduced by PRs #142/#143 are fixed end to end:
+
+1. **12 compiler warnings eliminated** — `Errors.ShouldNotBeNull()` guards (CS8602/CS8604),
+   `Substitute.For<Response<bool>>()` substitutes (CS8625), and null-forgiving content-disposition
+   projections (CS8619) across the 4 club-crest unit-test files. Build is now 0 warnings / 0 errors.
+2. **Product bug fixed**: `ClubEndpoints.Create` / `ClubEndpoints.ChangeCrest` now read the crest
+   file from `HttpContext.Request.Form.Files.GetFile("crest")` instead of binding a non-nullable
+   `IFormFile`, so a missing crest produces the handler's structured `ServiceProblem.Validation`
+   (Kind = Validation with a `crest` error key) rather than a framework 400 that mapped to
+   Kind = BadRequest.
+3. **2 test expectations fixed**: blob prefix `clubs/{userId}/` via an admin-context user lookup
+   (creation blobs are keyed by userId for retry stability), and the framework-400 trace-correlation
+   trigger now sends a malformed multipart body (club creation is a multipart endpoint; JSON returns
+   415).
+4. **ClubCrestManager persistent-state race fixed** (browser CC2): `OnParametersSet` re-syncs
+   `CrestPresent` from a changed `HasCrest` parameter unless the user mutated the crest locally
+   (`_crestMutatedLocally`), with 3 new bUnit tests. CC2's remove step now passes.
+
+Validation: build 0/0; unit 1815/1815; integration 372/372; format clean; browser CC1-CC3 pass.
+The full browser suite is 79/83 with 4 failures that reproduce identically on pristine `main`
+(theme/navbar, not crest-related) — flagged in Phase 4 for an owner on the theme/navbar side.
+4 commits on `eruvalca-fix-crest-tests`: `428f32e` (warnings), `71ef90a` (product + integration
+fixes), `a69906d` (ClubCrestManager race), plus the plan update commit.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+1. Merge PR against `main` (base `main`, branch `eruvalca-fix-crest-tests`) — no manual DB or
+   configuration steps are needed; the change is code-only (HTTP handler, Blazor component, tests,
+   plan doc).
+2. CI gates (build + unit tests on `ubuntu-latest`) must be green on the merged commit — they cover
+   the solution build (0 warnings/errors) and the full 1815-test unit suite.
+3. Local-only checks to re-run after merge (browser/integration suites require the Aspire AppHost,
+   Docker Postgres + Azurite, and a one-time `playwright.ps1 install chromium`):
+   - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` → 372/372.
+   - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --filter-class "*ClubCrestBrowserTests"` → CC1/CC2/CC3 pass.
+   - Full browser suite before any theme/navbar release: the 4 known pre-existing failures
+     (BootstrapTheme focus ring + 3 Navbar element-not-found) should be triaged separately
+     (pre-existing on `main`, not introduced by this change).
+4. No rollout order or data migration required; the endpoints and component behave correctly for
+   both existing clubs (with and without crests) and new creation flows.
 
 ### Root-Cause Appendix (for reference)
 
