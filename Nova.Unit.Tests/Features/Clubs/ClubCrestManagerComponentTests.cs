@@ -220,6 +220,79 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
+    public void ParameterUpdate_FlipsFromFalseToTrue_ResyncsIslandToCrest()
+    {
+        var crestService = Substitute.For<IClubCrestService>();
+        Services.AddSingleton(crestService);
+
+        // The host page can render the island before its summary loads (HasCrest == false);
+        // when the summary later arrives the parameter changes and the island must re-sync.
+        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+        cut.Markup.ShouldContain("club-crest-placeholder");
+        cut.Markup.ShouldNotContain("Remove crest");
+
+        cut.Render(parameters => parameters.Add(p => p.HasCrest, true));
+
+        cut.Markup.ShouldNotContain("club-crest-placeholder");
+        cut.Find("img.club-crest-preview").GetAttribute("src")
+            .ShouldBe($"/api/clubs/{ClubId}/crest?size=medium");
+        cut.Markup.ShouldContain("Remove crest");
+    }
+
+    [Fact]
+    public async Task ParameterUpdate_StaleAfterLocalSave_DoesNotRevertCrestPresence()
+    {
+        var crestService = Substitute.For<IClubCrestService>();
+        crestService.ChangeClubCrestAsync(ClubId, Arg.Any<ClubCrestUpload>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
+        Services.AddSingleton(crestService);
+
+        var cut = RenderClubCrestManager(crestService, hasCrest: false);
+
+        var jpeg = InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg");
+        cut.FindComponent<InputFile>().UploadFiles(jpeg);
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+
+        await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
+        cut.WaitForAssertion(() =>
+            cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
+
+        cut.Find("button[type='button'].btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Club crest updated."));
+
+        // A stale parameter re-render (HasCrest == false) must not revert the locally approved
+        // crest back to the placeholder.
+        cut.Render(parameters => parameters.Add(p => p.HasCrest, false));
+
+        cut.Markup.ShouldContain("Club crest updated.");
+        cut.Find("img.club-crest-preview").GetAttribute("src")
+            .ShouldBe($"/api/clubs/{ClubId}/crest?size=medium");
+        cut.Markup.ShouldNotContain("club-crest-placeholder");
+    }
+
+    [Fact]
+    public void ParameterUpdate_StaleAfterLocalRemove_DoesNotRevertPlaceholder()
+    {
+        var crestService = Substitute.For<IClubCrestService>();
+        crestService.RemoveClubCrestAsync(ClubId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<Success>(new Success())));
+        Services.AddSingleton(crestService);
+
+        var cut = RenderClubCrestManager(crestService, hasCrest: true);
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Remove crest").Click();
+        cut.Find("button.btn-danger").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Club crest removed."));
+
+        // A stale parameter re-render (HasCrest == true) must not resurrect the removed crest.
+        cut.Render(parameters => parameters.Add(p => p.HasCrest, true));
+
+        cut.Markup.ShouldContain("Club crest removed.");
+        cut.Markup.ShouldContain("club-crest-placeholder");
+        cut.Markup.ShouldNotContain("Remove crest");
+    }
+
+    [Fact]
     public async Task Change_RedirectsToAccessDenied_WhenServiceReturnsForbidden()
     {
         var crestService = Substitute.For<IClubCrestService>();

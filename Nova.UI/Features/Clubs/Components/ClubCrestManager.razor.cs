@@ -103,6 +103,14 @@ public partial class ClubCrestManager(
     private readonly Options _cropperOptions = CropperOptionsFactory.CreateCrestOptions();
 
     /// <summary>
+    /// Gets or sets a value indicating whether the crest was locally mutated (replaced or
+    /// removed) since the island initialized. Guards the <see cref="OnParametersSet"/> re-sync
+    /// so a stale <see cref="HasCrest"/> parameter cannot revert the locally mutated state.
+    /// Mutations only occur after the interactive circuit attaches, so a private field suffices.
+    /// </summary>
+    private bool _crestMutatedLocally;
+
+    /// <summary>
     /// Gets a value indicating whether the cropper's JS instance has finished loading the
     /// selected image. Exports before the <c>ready</c> signal would fail because the library's
     /// JS instance does not exist yet, so the save action is gated on this signal.
@@ -121,6 +129,19 @@ public partial class ClubCrestManager(
         {
             CrestPresent = HasCrest;
             HasCrestInitialized = true;
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        // The island's first render can happen before the host page summary loads, so the
+        // initial capture of HasCrest may be false even when the club has a crest. Re-sync
+        // CrestPresent when the incoming parameter actually changes — unless the user has
+        // locally mutated the crest, in which case the local state is authoritative.
+        if (HasCrest != CrestPresent && !_crestMutatedLocally)
+        {
+            CrestPresent = HasCrest;
         }
     }
 
@@ -265,6 +286,7 @@ public partial class ClubCrestManager(
             {
                 ClearSelection();
                 CrestPresent = true;
+                _crestMutatedLocally = true;
                 _statusMessage = "Club crest updated.";
             },
             problem => HandleActionProblem(problem, "Could not update the club crest."));
@@ -325,6 +347,7 @@ public partial class ClubCrestManager(
                 _confirmRemove = false;
                 ClearSelection();
                 CrestPresent = false;
+                _crestMutatedLocally = true;
                 _statusMessage = "Club crest removed.";
             },
             problem => HandleActionProblem(problem, "Could not remove the club crest."));
