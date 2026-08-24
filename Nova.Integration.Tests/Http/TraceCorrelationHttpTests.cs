@@ -55,11 +55,11 @@ public sealed class TraceCorrelationHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>
     /// Verifies a framework-generated 400 from <c>BadHttpRequestExceptionHandler</c> (a malformed
-    /// JSON body to a body-taking endpoint) carries a <c>traceId</c> equal to the client-sent
-    /// <c>traceparent</c> trace id.
+    /// multipart form body to a body-taking endpoint) carries a <c>traceId</c> equal to the
+    /// client-sent <c>traceparent</c> trace id.
     /// </summary>
     [Fact]
-    public async Task MalformedJson_ReturnsTraceIdMatchingSentTraceparent()
+    public async Task MalformedForm_ReturnsTraceIdMatchingSentTraceparent()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -72,7 +72,10 @@ public sealed class TraceCorrelationHttpTests(NovaAppHostFixture fixture)
         var (traceId, traceparent) = CreateTraceContext();
         using var request = new HttpRequestMessage(HttpMethod.Post, ClubEndpoints.Create)
         {
-            Content = new StringContent("{ not json", Encoding.UTF8, "application/json")
+            // Club creation is a multipart-form endpoint; a malformed multipart body (no
+            // boundary) makes the form reader throw BadHttpRequestException (400) instead of
+            // the 415 a JSON body would produce. Keep the 'framework 400' coverage intact.
+            Content = new StringContent("not a multipart body", Encoding.UTF8, "multipart/form-data")
         };
         request.Headers.TryAddWithoutValidation("traceparent", traceparent);
 

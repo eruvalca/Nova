@@ -175,10 +175,15 @@ internal static class ClubEndpointRouteBuilderExtensions
         [FromForm] string name,
         [FromForm] string city,
         [FromForm] string state,
-        IFormFile crest,
+        HttpContext context,
         IClubService clubService,
         CancellationToken cancellationToken)
     {
+        // Read the crest from the form instead of binding a required IFormFile parameter: a
+        // missing required file would make the framework produce a 400 before the handler runs,
+        // leaving the structured validation problem below unreachable.
+        var crest = context.Request.Form.Files.GetFile("crest");
+
         if (crest is null || crest.Length is 0 or > ProfilePhotoConstraints.MaxBytes)
         {
             var message = $"The crest must be between 1 byte and {ProfilePhotoConstraints.MaxBytes / (1024 * 1024)} MB.";
@@ -280,13 +285,17 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// </summary>
     private static async Task<IResult> ChangeCrestHandler(
         long clubId,
-        IFormFile crest,
         HttpContext context,
         UserManager<NovaUserEntity> userManager,
         SignInManager<NovaUserEntity> signInManager,
         IClubCrestService clubCrestService,
         CancellationToken cancellationToken)
     {
+        // Read the crest from the form instead of binding a required IFormFile parameter: a
+        // missing required file would make the framework produce a 400 before the handler runs,
+        // leaving the structured validation problem below unreachable.
+        var crest = context.Request.Form.Files.GetFile("crest");
+
         if (crest is null || crest.Length is 0 or > ProfilePhotoConstraints.MaxBytes)
         {
             var message = $"The crest must be between 1 byte and {ProfilePhotoConstraints.MaxBytes / (1024 * 1024)} MB.";

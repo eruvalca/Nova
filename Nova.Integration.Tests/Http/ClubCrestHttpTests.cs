@@ -60,8 +60,9 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
+        var email = SeedingHelpers.UniqueEmail("crest-owner");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
-            client, SeedingHelpers.UniqueEmail("crest-owner"), Password, cancellationToken);
+            client, email, Password, cancellationToken);
 
         var club = await SeedingHelpers.CreateClubAsync(client, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
@@ -69,9 +70,14 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         // The crest row is persisted with all four blob names and the original content type.
         await using (var db = fixture.CreateAdminContext())
         {
+            // Creation-time blob names are keyed by clubs/{userId}/{batchId} — stable across
+            // retried inserts that can get a different club id (see ClubService.CreateClubAsync) —
+            // so look the acting user up through the admin context before asserting the prefix.
+            var userId = (await db.Users.SingleAsync(
+                candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken)).Id;
             var crest = await db.ClubCrests.SingleAsync(
                 candidate => candidate.ClubId == club.ClubId, cancellationToken);
-            crest.OriginalBlobName.ShouldStartWith($"clubs/{club.ClubId}/");
+            crest.OriginalBlobName.ShouldStartWith($"clubs/{userId}/");
             crest.OriginalBlobName.ShouldEndWith("-original.jpg");
             crest.SmallBlobName.ShouldNotBeNull();
             crest.SmallBlobName.ShouldEndWith("-small.webp");
