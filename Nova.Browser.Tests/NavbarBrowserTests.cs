@@ -243,6 +243,70 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
+    /// NB8: on the Account/Manage page the Manage link is the active item and its kelp teal
+    /// indicator bar is still flush with the navbar's top edge — the right-hand inline Manage item
+    /// must top-align with the stacked left items (regression from the earlier centering behavior
+    /// that left the Manage bar below the navbar edge). The Manage avatar renders as a 2rem circle
+    /// (larger than the 1.5rem icons) with a visible border.
+    /// </summary>
+    [Fact]
+    public async Task Navbar_ManageActive_IndicatorFlushAndAvatarLarger()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(
+            seed.AdminEmail,
+            DashboardSeed.Password,
+            viewport: new ViewportSize { Width = 1280, Height = 800 });
+        var page = context.Pages[0];
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        var nav = page.Locator("nav.navbar");
+
+        // Navigate to Account/Manage; the Manage link becomes the active item.
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Manage").ToString());
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Profile", Exact = true })).ToBeVisibleAsync();
+
+        var manage = nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false });
+        await AssertKelpTealTopIndicatorFlushAsync(manage, nav);
+
+        // The avatar is a 2rem (32px) circle with a visible border, clearly larger than the 1.5rem
+        // (24px) nav icons.
+        await AssertNavAvatarAsync(manage);
+    }
+
+    /// <summary>
+    /// NB9: the avatar text-and-image Manage item and the inline Manage link stay top-aligned with
+    /// the stacked left items at desktop — the Manage link's top edge must match the left items'
+    /// top edge so the active indicator keeps a single flush baseline for every NavMenu item. This
+    /// guards the alignment rule that keeps the indicator flush regardless of the active item.
+    /// </summary>
+    [Fact]
+    public async Task Navbar_Desktop_ManageLinkTopAlignedWithStackedItems()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(
+            seed.AdminEmail,
+            DashboardSeed.Password,
+            viewport: new ViewportSize { Width = 1280, Height = 800 });
+        var page = context.Pages[0];
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        var clubName = await GetClubNameAsync(seed.ClubId, cancellationToken);
+        var nav = page.Locator("nav.navbar");
+
+        // The Manage link's top must match the first stacked item (Home) top edge.
+        var manage = nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false });
+        var home = nav.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true });
+        var manageBox = await manage.BoundingBoxAsync();
+        var homeBox = await home.BoundingBoxAsync();
+        manageBox.ShouldNotBeNull();
+        homeBox.ShouldNotBeNull();
+        Math.Abs((double)manageBox!.Y - homeBox!.Y).ShouldBeLessThanOrEqualTo(1.0, "the Manage link must top-align with the stacked items at md+");
+    }
+
+    /// <summary>
     /// Asserts the link keeps the inline icon+label row (flex row, icon box beside — not above —
     /// the label box, both vertically centered, and the icon slot at its 1.25rem mobile baseline)
     /// — the reference mobile layout.
@@ -351,6 +415,24 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var afterWidthInPx = double.Parse(afterWidth.Replace("px", string.Empty), System.Globalization.CultureInfo.InvariantCulture);
         afterWidthInPx.ShouldBeLessThan(linkBox.Width, "the indicator bar must be a narrow bar above the active item, not full-width");
         afterWidthInPx.ShouldBeGreaterThan(0.0);
+    }
+
+    /// <summary>
+    /// Asserts the Manage link's avatar renders as a 2rem (32px) circle with a visible border —
+    /// comfortably larger than the 1.5rem (24px) desktop nav icons (the border adds ~1px per side,
+    /// so the box is ~32px + 2px). Blank-slate users without a profile photo render no avatar.
+    /// </summary>
+    private static async Task AssertNavAvatarAsync(ILocator manage)
+    {
+        var avatar = manage.Locator("img.nav-avatar");
+        await Expect(avatar).ToHaveCountAsync(1);
+        var avatarBox = await avatar.BoundingBoxAsync();
+        avatarBox.ShouldNotBeNull();
+        // 2rem = 32px; allow for sub-pixel rounding + the 1px border on each side.
+        ((double)avatarBox!.Width).ShouldBeInRange(30.0, 34.0, "the avatar must render at its 2rem (32px) target width");
+        ((double)avatarBox!.Height).ShouldBeInRange(30.0, 34.0, "the avatar must render at its 2rem (32px) target height");
+        var borderRadius = await avatar.EvaluateAsync<string>("(el) => getComputedStyle(el).borderRadius");
+        borderRadius.ShouldContain("50%");
     }
 
     /// <summary>

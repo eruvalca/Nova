@@ -1,6 +1,6 @@
 .nav-avatar {
-    width: 1.75rem;
-    height: 1.75rem;
+    width: 2rem;
+    height: 2rem;
     border-radius: 50%;
     object-fit: cover;
     border: 1px solid var(--bs-border-color);
@@ -89,6 +89,18 @@
        ::deep — there is no scoped ancestor above the nav). */
     .navbar {
         --bs-navbar-nav-link-padding-x: 1rem;
+    }
+
+    /* Bootstrap vertically centers the flex line's items (`.navbar-collapse
+       { align-items: center }`), which leaves the shorter inline Manage/Logout
+       right-hand ul centered against the taller stacked left ul — pushing the
+       Manage link's top below the navbar content top so its active indicator
+       cannot stay flush. Top-align instead, so every link's top edge reaches
+       the navbar content top and the fixed indicator offset is flush for every
+       active item. The collapse element is rendered by NavMenu, so this stays
+       scoped (no ::deep). */
+    .navbar-collapse {
+        align-items: flex-start;
     }
 
     ::deep .nav-link {
