@@ -8,6 +8,7 @@ using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Photos;
 using Nova.Shared.Results;
 using Shouldly;
+using SixLabors.ImageSharp;
 
 namespace Nova.Integration.Tests.Http;
 
@@ -223,6 +224,62 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         {
             (await fixture.ClubCrestsContainer.GetBlobClient(blobName).ExistsAsync(cancellationToken))
                 .Value.ShouldBeTrue($"the new blob '{blobName}' must exist after the change");
+        }
+    }
+
+    /// <summary>
+    /// Verifies variant generation for a non-square crest source after a change:
+    /// the small variant is a 64×64 square, while the medium and large variants preserve the
+    /// source aspect ratio and never exceed their maximum bound.
+    /// </summary>
+    [Fact]
+    public async Task ChangeCrest_NonSquareSource_ServesAspectPreservingVariants()
+    {
+        const int sourceWidth = 300;
+        const int sourceHeight = 200;
+        const double sourceAspect = (double)sourceWidth / sourceHeight;
+        const double aspectTolerance = 0.02;
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+
+        var admin = await RegisterClubAdminAsync(adminClient, "crest-aspect", "Aspect Crest Club", cancellationToken);
+
+        using var content = CreateCrestContent(SeedingHelpers.CreateJpegBytes(width: sourceWidth, height: sourceHeight));
+        using (var response = await adminClient.PostAsync(
+            ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), content, cancellationToken))
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+
+        // The small variant is a 64×64 center-cropped square.
+        using (var small = await adminClient.GetAsync(
+            ClubCrestEndpoints.GetCrestUrl(admin.Club.ClubId, ProfilePhotoSize.Small), cancellationToken))
+        {
+            small.StatusCode.ShouldBe(HttpStatusCode.OK);
+            small.Content.Headers.ContentType?.MediaType.ShouldBe("image/webp");
+            using var image = Image.Load(await small.Content.ReadAsByteArrayAsync(cancellationToken));
+            image.Width.ShouldBe(ProfilePhotoConstraints.SmallSize);
+            image.Height.ShouldBe(ProfilePhotoConstraints.SmallSize);
+        }
+
+        // Medium and large variants preserve the source aspect ratio and fit their bound.
+        foreach (var (size, maxDimension) in new[]
+        {
+            (ProfilePhotoSize.Medium, ProfilePhotoConstraints.MediumSize),
+            (ProfilePhotoSize.Large, ProfilePhotoConstraints.LargeSize)
+        })
+        {
+            using var variant = await adminClient.GetAsync(
+                ClubCrestEndpoints.GetCrestUrl(admin.Club.ClubId, size), cancellationToken);
+            variant.StatusCode.ShouldBe(HttpStatusCode.OK);
+            variant.Content.Headers.ContentType?.MediaType.ShouldBe("image/webp");
+
+            using var image = Image.Load(await variant.Content.ReadAsByteArrayAsync(cancellationToken));
+            image.Width.ShouldBeLessThanOrEqualTo(maxDimension);
+            image.Height.ShouldBeLessThanOrEqualTo(maxDimension);
+            image.Width.ShouldNotBe(image.Height, "a non-square source must not produce a square variant");
+            (image.Width / (double)image.Height).ShouldBe(sourceAspect, aspectTolerance);
         }
     }
 

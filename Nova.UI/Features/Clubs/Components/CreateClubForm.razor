@@ -1,4 +1,5 @@
 @using Microsoft.AspNetCore.Components.Forms
+@using Nova.UI.Shared
 
 <EditForm Model="_input" OnValidSubmit="HandleSubmitAsync">
     <DataAnnotationsValidator />
@@ -40,19 +41,46 @@
 
     <div class="mb-3">
         <label for="club-crest" class="form-label">Club Crest</label>
-        @if (_crestPreviewUrl is not null)
+        @if (IsCropping)
+        {
+            <div class="club-crest-cropper-frame mb-2">
+                <NovaCropperComponent @ref="_cropper" Class="club-crest-cropper" Src="@_crestPreviewUrl"
+                                      Options="_cropperOptions" OnReady="OnCropperReady" />
+            </div>
+        }
+        else if (_crestPreviewUrl is not null)
         {
             <div class="mb-2 text-center">
                 <img src="@_crestPreviewUrl" alt="Club crest preview" class="club-crest-preview" />
                 <p class="text-muted mt-2">Your club crest will appear in the navigation menu and on the club page.</p>
             </div>
         }
-        <InputFile id="club-crest" class="form-control" accept="@AcceptTypes" OnChange="OnCrestSelectedAsync"
-                   disabled="@_submitting" />
-        <div class="form-text">JPEG, PNG, or WebP. Maximum size 10 MB.</div>
+
+        @if (IsCropping)
+        {
+            <div class="d-flex flex-wrap gap-2 mb-2">
+                <button type="button" class="btn btn-primary" disabled="@(_submitting || !CanSubmit)" @onclick="SaveCrestAsync">
+                    @if (_submitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    }
+                    Save crest
+                </button>
+                <button type="button" class="btn btn-outline-secondary" disabled="@_submitting" @onclick="ClearSelection">
+                    Choose a different image
+                </button>
+            </div>
+            <p class="text-muted">Adjust the crop box or keep the whole image, then click <strong>Save crest</strong>.</p>
+        }
+        else
+        {
+            <InputFile id="club-crest" class="form-control" accept="@AcceptTypes" OnChange="OnCrestSelectedAsync"
+                       disabled="@_submitting" />
+            <div class="form-text">JPEG, PNG, or WebP. Maximum size 10 MB.</div>
+        }
     </div>
 
-    <button type="submit" class="btn btn-primary" disabled="@_submitting">
+    <button type="submit" class="btn btn-primary" disabled="@(_submitting || IsCropping)">
         @if (_submitting)
         {
             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>

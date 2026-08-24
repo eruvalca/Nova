@@ -19,7 +19,8 @@ namespace Nova.Features.Clubs;
 
 /// <summary>
 /// Server-side implementation of <see cref="IClubCrestService"/>: validates crest uploads,
-/// generates resized square variants with ImageSharp, stores blobs in the club crest
+/// generates resized variants with ImageSharp (a 64px square small variant plus
+/// aspect-preserving medium and large variants), stores blobs in the club crest
 /// container, and persists <see cref="ClubCrestEntity"/> rows for a given club. Change/remove
 /// operations are restricted to the club's admins and mark every club member's claims stale
 /// so the <see cref="Nova.Shared.Security.NovaClaimTypes.HasClubCrest"/> claim propagates.
@@ -64,7 +65,7 @@ public sealed partial class ClubCrestService(
                 return ServiceProblem.BadRequest($"The crest image dimensions exceed the maximum of {ImageVariantProcessor.MaxSourceDimension}px.");
             }
 
-            variants = ImageVariantProcessor.GenerateVariants(upload.Content, contentType, cancellationToken);
+            variants = ImageVariantProcessor.GenerateCrestVariants(upload.Content, contentType, cancellationToken);
         }
         catch (Exception ex) when (ex is InvalidImageContentException or UnknownImageFormatException or NotSupportedException)
         {

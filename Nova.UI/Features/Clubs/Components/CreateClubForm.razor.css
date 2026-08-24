@@ -1,9 +1,30 @@
+/* Shared with ClubCrestManager.razor.css:
+   `.club-crest-preview` and `.club-crest-cropper-frame` (+ its ::deep .club-crest-cropper rule)
+   are intentionally duplicated there. Razor CSS isolation scopes each *.razor.css to its own
+   component, so a shared scoped stylesheet is not possible without a global stylesheet (which
+   the repo convention forbids for component rules) and `@import` is not affected by scoping
+   (it would leak the rules globally and break ::deep). Keep the two files in sync. */
 .club-crest-preview {
-    width: 8rem;
-    height: 8rem;
-    object-fit: contain;
+    max-width: 8rem;
+    max-height: 8rem;
+    width: auto;
+    height: auto;
     border: 1px solid var(--bs-border-color);
     border-radius: 0.5rem;
     background-color: var(--bs-body-bg);
+}
+
+.club-crest-cropper-frame {
+    max-height: 24rem;
+    overflow: hidden;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    background-color: var(--bs-body-bg);
+}
+
+.club-crest-cropper-frame ::deep .club-crest-cropper {
+    display: block;
+    max-width: 100%;
+    max-height: 24rem;
 }
 

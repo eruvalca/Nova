@@ -10,8 +10,9 @@ namespace Nova.Features.Photos;
 
 /// <summary>
 /// Shared ImageSharp pipeline used by both profile photos and club crests: sanitizes the
-/// source (auto-orient, strip metadata) and produces a re-encoded original plus small,
-/// medium, and large center-cropped WebP square variants.
+/// source (auto-orient, strip metadata) and produces a re-encoded original. Profile photos
+/// add small, medium, and large center-cropped WebP square variants; club crests add a
+/// 64px square small variant plus medium and large aspect-preserving WebP variants.
 /// </summary>
 public static class ImageVariantProcessor
 {
@@ -30,20 +31,51 @@ public static class ImageVariantProcessor
     /// <returns>The sanitized original and the encoded variants.</returns>
     public static ProcessedVariants GenerateVariants(byte[] content, string contentType, CancellationToken cancellationToken)
     {
-        var decoderOptions = new DecoderOptions { MaxFrames = 1 };
-        using var image = Image.Load(decoderOptions, content);
-
-        // Bake the EXIF orientation into the pixels, then strip metadata (EXIF/GPS, XMP)
-        // so neither the stored original nor the variants leak location or device data.
-        image.Mutate(context => context.AutoOrient());
-        image.Metadata.ExifProfile = null;
-        image.Metadata.XmpProfile = null;
+        using var image = DecodeSanitized(content);
 
         return new ProcessedVariants(
             EncodeOriginal(image, contentType, cancellationToken),
             EncodeSquareVariant(image, ProfilePhotoConstraints.SmallSize, cancellationToken),
             EncodeSquareVariant(image, ProfilePhotoConstraints.MediumSize, cancellationToken),
             EncodeSquareVariant(image, ProfilePhotoConstraints.LargeSize, cancellationToken));
+    }
+
+    /// <summary>
+    /// Decodes the source image, sanitizes it, and produces the metadata-free re-encoded
+    /// original plus the 64px square small variant and the medium and large
+    /// aspect-preserving WebP variants that fit within 256×256 and 1024×1024 respectively.
+    /// </summary>
+    /// <param name="content">The validated source image bytes.</param>
+    /// <param name="contentType">The sniffed source content type, used to re-encode the original in its own format.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The sanitized original and the encoded variants.</returns>
+    public static ProcessedVariants GenerateCrestVariants(byte[] content, string contentType, CancellationToken cancellationToken)
+    {
+        using var image = DecodeSanitized(content);
+
+        return new ProcessedVariants(
+            EncodeOriginal(image, contentType, cancellationToken),
+            EncodeSquareVariant(image, ProfilePhotoConstraints.SmallSize, cancellationToken),
+            EncodeFittedVariant(image, ProfilePhotoConstraints.MediumSize, cancellationToken),
+            EncodeFittedVariant(image, ProfilePhotoConstraints.LargeSize, cancellationToken));
+    }
+
+    /// <summary>
+    /// Decodes the source image and sanitizes it: bakes the EXIF orientation into the pixels
+    /// and strips metadata (EXIF/GPS, XMP) so neither the stored original nor the variants
+    /// leak location or device data.
+    /// </summary>
+    /// <param name="content">The validated source image bytes.</param>
+    /// <returns>The decoded, sanitized source image.</returns>
+    private static Image DecodeSanitized(byte[] content)
+    {
+        var decoderOptions = new DecoderOptions { MaxFrames = 1 };
+        var image = Image.Load(decoderOptions, content);
+
+        image.Mutate(context => context.AutoOrient());
+        image.Metadata.ExifProfile = null;
+        image.Metadata.XmpProfile = null;
+        return image;
     }
 
     /// <summary>
@@ -85,6 +117,31 @@ public static class ImageVariantProcessor
         {
             Size = new Size(size, size),
             Mode = ResizeMode.Crop,
+            Position = AnchorPositionMode.Center
+        }));
+
+        using var stream = new MemoryStream();
+        variant.Save(stream, new WebpEncoder());
+        return stream.ToArray();
+    }
+
+    /// <summary>
+    /// Produces an aspect-preserving variant of the source image that fits within a
+    /// <paramref name="maxDimension"/> × <paramref name="maxDimension"/> box, encoded as WebP.
+    /// The image is scaled (up or down) to fit the box while keeping its aspect ratio.
+    /// </summary>
+    /// <param name="source">The decoded source image.</param>
+    /// <param name="maxDimension">The maximum width and height in pixels.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The encoded WebP bytes.</returns>
+    private static byte[] EncodeFittedVariant(Image source, int maxDimension, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using var variant = source.Clone(context => context.Resize(new ResizeOptions
+        {
+            Size = new Size(maxDimension, maxDimension),
+            Mode = ResizeMode.Max,
             Position = AnchorPositionMode.Center
         }));
 

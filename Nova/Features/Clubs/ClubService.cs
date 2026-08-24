@@ -81,7 +81,7 @@ public sealed partial class ClubService(
                 return ServiceProblem.BadRequest($"The crest image dimensions exceed the maximum of {ImageVariantProcessor.MaxSourceDimension}px.");
             }
 
-            crestVariants = ImageVariantProcessor.GenerateVariants(input.CrestContent, crestContentType, cancellationToken);
+            crestVariants = ImageVariantProcessor.GenerateCrestVariants(input.CrestContent, crestContentType, cancellationToken);
         }
         catch (Exception ex) when (ex is InvalidImageContentException or UnknownImageFormatException or NotSupportedException)
         {

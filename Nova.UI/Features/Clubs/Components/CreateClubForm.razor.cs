@@ -1,16 +1,19 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using Cropper.Blazor.Models;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Photos;
+using Nova.UI.Shared;
 
 namespace Nova.UI.Features.Clubs.Components;
 
 /// <summary>
 /// A form component for creating a new club. Validates input (including the required crest
-/// image) and calls <see cref="IClubService.CreateClubAsync"/> on submit.
+/// image, optional crop step) and calls <see cref="IClubService.CreateClubAsync"/> on submit.
 /// </summary>
 /// <param name="clubService">The service for club operations.</param>
-public partial class CreateClubForm(IClubService clubService)
+/// <param name="canvasExporter">The cropper canvas exporter used to produce the upload bytes.</param>
+public partial class CreateClubForm(IClubService clubService, ICropperCanvasExporter canvasExporter)
 {
     /// <summary>
     /// Invoked when the club is successfully created. The created <see cref="ClubDto"/> is passed as the argument.
@@ -44,14 +47,43 @@ public partial class CreateClubForm(IClubService clubService)
     private IBrowserFile? _crestFile;
 
     /// <summary>
-    /// The selected crest content type, or <see langword="null"/> when none is selected.
-    /// </summary>
-    private string? _crestContentType;
-
-    /// <summary>
     /// The data URL preview of the selected crest image, or <see langword="null"/> when none is selected.
     /// </summary>
     private string? _crestPreviewUrl;
+
+    /// <summary>
+    /// The cropper component reference used to extract the cropped canvas.
+    /// </summary>
+    private Cropper.Blazor.Components.CropperComponent? _cropper;
+
+    /// <summary>
+    /// The cropper options: free-form crop (no fixed aspect ratio) with the full image
+    /// pre-selected as the crop area, matching the profile-photo cropper behavior.
+    /// </summary>
+    private readonly Options _cropperOptions = CropperOptionsFactory.CreateCrestOptions();
+
+    /// <summary>
+    /// Gets a value indicating whether the cropper's JS instance has finished loading the
+    /// selected image. Exports before the <c>ready</c> signal would fail because the library's
+    /// JS instance does not exist yet, so the save action is gated on this signal.
+    /// </summary>
+    private bool _cropperReady;
+
+    /// <summary>
+    /// The verified bytes of the cropped crest ready for submission, or <see langword="null"/>
+    /// when the crop step has not been completed yet.
+    /// </summary>
+    private byte[]? _croppedCrestContent;
+
+    /// <summary>
+    /// Gets a value indicating whether the crop step is active (a file is selected but not yet saved).
+    /// </summary>
+    private bool IsCropping => _crestFile is not null;
+
+    /// <summary>
+    /// Gets a value indicating whether the chosen source image passed validation and can be cropped.
+    /// </summary>
+    private bool CanSubmit => _crestFile is not null && _crestErrors.Count == 0 && _cropperReady;
 
     /// <summary>
     /// Gets the <c>accept</c> attribute value for the crest file input.
@@ -66,6 +98,8 @@ public partial class CreateClubForm(IClubService clubService)
     private async Task OnCrestSelectedAsync(InputFileChangeEventArgs args)
     {
         _crestErrors.Clear();
+        _croppedCrestContent = null;
+        _cropperReady = false;
         var file = args.File;
 
         if (file.Size is 0 or > ProfilePhotoConstraints.MaxBytes)
@@ -89,13 +123,81 @@ public partial class CreateClubForm(IClubService clubService)
             await stream.CopyToAsync(buffer, ComponentCancellationToken);
             _crestPreviewUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer.ToArray())}";
             _crestFile = file;
-            _crestContentType = file.ContentType;
         }
         catch (IOException)
         {
             _crestErrors.Add("The crest could not be read. Please try a different file.");
             _crestFile = null;
         }
+    }
+
+    /// <summary>
+    /// Clears the selected crest file, its preview, and the crop state.
+    /// </summary>
+    private void ClearSelection()
+    {
+        _crestFile = null;
+        _crestPreviewUrl = null;
+        _cropper = null;
+        _croppedCrestContent = null;
+        _cropperReady = false;
+        _crestErrors.Clear();
+    }
+
+    /// <summary>
+    /// Marks the cropper ready so the save action can be enabled. The Cropper.js instance is
+    /// only initialized after the image loads, so this runs after the <c>ready</c> event.
+    /// </summary>
+    private void OnCropperReady()
+    {
+        _cropperReady = true;
+    }
+
+    /// <summary>
+    /// Exports the cropped canvas and stores the JPEG bytes for submission.
+    /// </summary>
+    /// <returns>A task that completes when the crop has been exported.</returns>
+    private async Task SaveCrestAsync()
+    {
+        if (_crestFile is null || CanSubmit is false)
+        {
+            return;
+        }
+
+        _submitting = true;
+        _crestErrors.Clear();
+
+        byte[] crestContent;
+        try
+        {
+            crestContent = await canvasExporter.ExportAsync(_cropper!, ComponentCancellationToken);
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            _submitting = false;
+            return;
+        }
+        catch (Exception)
+        {
+            _crestErrors.Add("The cropped image could not be processed. Please try again.");
+            _submitting = false;
+            return;
+        }
+
+        if (crestContent.Length == 0)
+        {
+            _crestErrors.Add("The cropped image could not be processed. Please try again.");
+            _submitting = false;
+            return;
+        }
+
+        _croppedCrestContent = crestContent;
+        _crestFile = null;
+
+        // Keep the preview visible after the crop is saved by building a data URL from the bytes.
+        _crestPreviewUrl = $"data:image/jpeg;base64,{Convert.ToBase64String(crestContent)}";
+
+        _submitting = false;
     }
 
     /// <summary>
@@ -107,34 +209,14 @@ public partial class CreateClubForm(IClubService clubService)
         _error = null;
         _crestErrors.Clear();
 
-        if (_crestFile is null)
+        if (_croppedCrestContent is null)
         {
             _crestErrors.Add("A crest image is required.");
             _submitting = false;
             return;
         }
 
-        if (_crestFile.Size is 0 or > ProfilePhotoConstraints.MaxBytes)
-        {
-            _crestErrors.Add($"The crest must be between 1 byte and {ProfilePhotoConstraints.MaxBytes / (1024 * 1024)} MB.");
-            _submitting = false;
-            return;
-        }
-
-        byte[] crestContent;
-        try
-        {
-            await using var stream = _crestFile.OpenReadStream(ProfilePhotoConstraints.MaxBytes, ComponentCancellationToken);
-            using var buffer = new MemoryStream((int)_crestFile.Size);
-            await stream.CopyToAsync(buffer, ComponentCancellationToken);
-            crestContent = buffer.ToArray();
-        }
-        catch (IOException)
-        {
-            _crestErrors.Add("The crest could not be read. Please try a different file.");
-            _submitting = false;
-            return;
-        }
+        byte[] crestContent = _croppedCrestContent;
 
         var result = await clubService.CreateClubAsync(
             new CreateClubInput
@@ -143,7 +225,7 @@ public partial class CreateClubForm(IClubService clubService)
                 City = _input.City,
                 State = _input.State,
                 CrestContent = crestContent,
-                CrestContentType = _crestContentType ?? "application/octet-stream"
+                CrestContentType = "image/jpeg"
             },
             ComponentCancellationToken);
 
