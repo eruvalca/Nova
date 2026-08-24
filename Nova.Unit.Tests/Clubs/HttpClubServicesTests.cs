@@ -36,7 +36,7 @@ public class HttpClubServicesTests
         {
             LastRequest = request;
             LastMultipartPartNames = request.Content is MultipartFormDataContent multipart
-                ? multipart.Select(part => part.Headers.ContentDisposition?.Name?.Trim('"')).ToArray()
+                ? multipart.Select(part => part.Headers.ContentDisposition!.Name!.Trim('"')).ToArray()
                 : null;
             return Task.FromResult(response);
         }
