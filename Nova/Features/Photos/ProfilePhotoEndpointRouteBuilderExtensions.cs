@@ -3,6 +3,7 @@ using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
@@ -116,7 +117,7 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
         HttpContext context,
         ICurrentUserProvider currentUserProvider,
         IDbContextFactory<NovaReadDbContext> readDbContextFactory,
-        BlobContainerClient containerClient,
+        [FromKeyedServices("profile-photos")] BlobContainerClient containerClient,
         CancellationToken cancellationToken)
     {
         // Query enum binding is case-sensitive; accept "small"/"Small" etc. explicitly.

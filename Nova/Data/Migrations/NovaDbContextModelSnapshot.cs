@@ -378,6 +378,53 @@ namespace Nova.Data.Migrations
                     b.ToTable("CampaignTagApplicationRemovalReceipts");
                 });
 
+            modelBuilder.Entity("Nova.Entities.ClubCrestEntity", b =>
+                {
+                    b.Property<long>("ClubCrestId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("ClubCrestId"));
+
+                    b.Property<long>("ClubId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentType")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("CreatedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("LargeBlobName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MediumBlobName")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("ModifiedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("OriginalBlobName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SmallBlobName")
+                        .HasColumnType("text");
+
+                    b.HasKey("ClubCrestId");
+
+                    b.HasIndex("ClubId")
+                        .IsUnique();
+
+                    b.ToTable("ClubCrests");
+                });
+
             modelBuilder.Entity("Nova.Entities.ClubEntity", b =>
                 {
                     b.Property<long>("ClubId")
@@ -1252,6 +1299,17 @@ namespace Nova.Data.Migrations
                     b.Navigation("Club");
                 });
 
+            modelBuilder.Entity("Nova.Entities.ClubCrestEntity", b =>
+                {
+                    b.HasOne("Nova.Entities.ClubEntity", "Club")
+                        .WithOne("ClubCrest")
+                        .HasForeignKey("Nova.Entities.ClubCrestEntity", "ClubId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Club");
+                });
+
             modelBuilder.Entity("Nova.Entities.ClubJoinRequestEntity", b =>
                 {
                     b.HasOne("Nova.Entities.ClubEntity", "Club")
@@ -1444,6 +1502,8 @@ namespace Nova.Data.Migrations
                     b.Navigation("CampaignTagApplications");
 
                     b.Navigation("Campaigns");
+
+                    b.Navigation("ClubCrest");
 
                     b.Navigation("JoinRequests");
 

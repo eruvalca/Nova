@@ -1,0 +1,94 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using Nova.Shared.Features.Clubs
+@using Nova.Shared.Features.Photos
+
+<section class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2 mb-3">
+            <div>
+                <h2 class="h4 mb-1">Club Crest</h2>
+                <p class="text-muted small mb-0">Upload a shield or logo to represent your club in the navigation and on the club page.</p>
+            </div>
+        </div>
+
+        @if (_actionError is not null)
+        {
+            <div class="alert alert-danger" role="alert">@_actionError</div>
+        }
+
+        @if (_statusMessage is not null)
+        {
+            <div class="alert alert-success" role="alert">@_statusMessage</div>
+        }
+
+        <div class="d-flex flex-column flex-sm-row align-items-center gap-4">
+            <div class="flex-shrink-0">
+                @if (_crestPreviewUrl is not null)
+                {
+                    <img class="club-crest-preview" src="@_crestPreviewUrl" alt="Club crest preview" />
+                }
+                else if (CrestPresent)
+                {
+                    <img class="club-crest-preview" src="@ClubCrestEndpoints.GetCrestUrl(ClubId, ProfilePhotoSize.Medium)" alt="Current club crest" />
+                }
+                else
+                {
+                    <div class="club-crest-placeholder" aria-hidden="true">
+                        <span class="bi bi-shield"></span>
+                    </div>
+                }
+            </div>
+
+            <div class="flex-grow-1 w-100">
+                @if (!CrestPresent)
+                {
+                    <p class="text-muted mb-3">This club does not have a crest yet. Upload one to show it in the navigation bar and on the club page.</p>
+                }
+
+                <InputFile id="crest-file" accept="@ProfilePhotoConstraints.AcceptAttribute" OnChange="OnCrestSelectedAsync" disabled="@_isMutating" />
+
+                @if (_crestErrors.Count > 0)
+                {
+                    <div class="text-danger small mt-2">
+                        @foreach (var error in _crestErrors)
+                        {
+                            <div>@error</div>
+                        }
+                    </div>
+                }
+
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="button" class="btn btn-primary" disabled="@(_isMutating || !CanSubmit)" @onclick="ChangeCrestAsync">
+                        @if (_isMutating)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                        }
+                        @(CrestPresent ? "Change crest" : "Upload crest")
+                    </button>
+                    @if (_crestFile is not null)
+                    {
+                        <button type="button" class="btn btn-outline-secondary" disabled="@_isMutating" @onclick="ClearSelection">Cancel</button>
+                    }
+                    @if (CrestPresent)
+                    {
+                        <button type="button" class="btn btn-outline-danger" disabled="@_isMutating" @onclick="BeginRemove">Remove crest</button>
+                    }
+                </div>
+
+                @if (_confirmRemove)
+                {
+                    <div class="alert alert-warning d-flex flex-column flex-md-row justify-content-between align-items-start gap-2 mt-3" role="alert">
+                        <div>
+                            <strong>Remove the club crest?</strong>
+                            <p class="mb-0 small">The crest will be removed from the navigation bar and the club page. You can upload a new one at any time.</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-danger" disabled="@_isMutating" @onclick="ConfirmRemoveAsync">Remove</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelRemove">Cancel</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</section>

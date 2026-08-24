@@ -60,4 +60,8 @@ public class ClubEntity : BaseEntity
     /// Gets or sets the Join Requests.
     /// </summary>
     public ICollection<ClubJoinRequestEntity> JoinRequests { get; set; } = [];
+    /// <summary>
+    /// Gets or sets the Club Crest.
+    /// </summary>
+    public ClubCrestEntity? ClubCrest { get; set; }
 }

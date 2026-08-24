@@ -242,14 +242,9 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
             cancellationToken);
         var userId = await UpdateUserAsync(email, "Campaign", "Admin", clubId: null, cancellationToken);
 
-        using var response = await client.PostAsJsonAsync(
+        using var response = await client.PostAsync(
             ClubEndpoints.Create,
-            new CreateClubInput
-            {
-                Name = $"Campaign Club {Guid.CreateVersion7():N}",
-                City = "Austin",
-                State = "TX"
-            },
+            SeedingHelpers.CreateClubMultipartContent($"Campaign Club {Guid.CreateVersion7():N}", "Austin", "TX"),
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);

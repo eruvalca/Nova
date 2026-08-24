@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using OneOf;
 using OneOf.Types;
@@ -52,5 +53,34 @@ public sealed class ClubMembershipClaimRefresher(UserManager<NovaUserEntity> use
         return result.Succeeded
             ? new Success()
             : new Error<string[]>([.. result.Errors.Select(e => e.Description)]);
+    }
+
+    /// <summary>
+    /// Marks ALL members of the given club as stale after a club-wide change that affects
+    /// every member's claims (e.g. the club crest was changed/removed). Bumping each member's
+    /// security stamp causes <see cref="IdentityRevalidatingAuthenticationStateProvider"/>
+    /// to rebuild their principal at the next revalidation interval.
+    /// </summary>
+    /// <param name="clubId">The club whose members should be marked stale.</param>
+    /// <returns>
+    /// <see cref="Success"/> when every member's security stamp was updated;
+    /// <see cref="Error{T}"/> with the Identity error descriptions otherwise.
+    /// </returns>
+    public async Task<OneOf<Success, Error<string[]>>> MarkClubUsersClaimsStaleAsync(long clubId)
+    {
+        var clubMembers = await userManager.Users
+            .Where(u => u.ClubId == clubId)
+            .ToListAsync();
+
+        foreach (var member in clubMembers)
+        {
+            var result = await userManager.UpdateSecurityStampAsync(member);
+            if (!result.Succeeded)
+            {
+                return new Error<string[]>([.. result.Errors.Select(e => e.Description)]);
+            }
+        }
+
+        return new Success();
     }
 }

@@ -1,0 +1,21 @@
+.club-crest-preview {
+    width: 8rem;
+    height: 8rem;
+    object-fit: contain;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    background-color: var(--bs-body-bg);
+}
+
+.club-crest-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 8rem;
+    height: 8rem;
+    border: 1px dashed var(--bs-border-color);
+    border-radius: 0.5rem;
+    color: var(--bs-secondary-color);
+    font-size: 2.5rem;
+    background-color: var(--bs-body-bg);
+}

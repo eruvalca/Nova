@@ -9,9 +9,10 @@ namespace Nova.Shared.Features.Clubs;
 public interface IClubService
 {
     /// <summary>
-    /// Creates a new club and assigns the current user as its admin.
+    /// Creates a new club, assigns the current user as its admin, and persists the required
+    /// club crest image (uploaded as part of the multipart form submission).
     /// </summary>
-    /// <param name="input">The details for the new club.</param>
+    /// <param name="input">The details for the new club, including the crest image bytes.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
     /// <see cref="ServiceResult{TSuccess}"/> containing the created <see cref="ClubDto"/> on success,

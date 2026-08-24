@@ -57,13 +57,17 @@ public sealed partial class ClubDetailService(
             .Select(u => new ClubRosterMemberDto(u.Id, u.FirstName + " " + u.LastName, u.Id == currentUserId))
             .ToListAsync(cancellationToken);
 
+        var hasCrest = await db.ClubCrests
+            .AnyAsync(c => c.ClubId == clubId, cancellationToken);
+
         return new ClubDetailDto(
             club.ClubId,
             club.Name,
             club.City,
             club.State,
             members.AsReadOnly(),
-            currentUserProvider.IsClubAdmin);
+            currentUserProvider.IsClubAdmin,
+            hasCrest);
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Forbidden club detail access attempt for ClubId={ClubId} by UserId={UserId}.")]

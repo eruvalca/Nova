@@ -24,8 +24,15 @@
                             <li class="nav-item">
                                 <NavLink class="nav-link d-flex align-items-center gap-2 flex-md-column text-md-center" href="@ClubDetailUrl" Match="NavLinkMatch.Prefix">
                                     <span class="nav-icon-slot">
-                                        <span class="bi bi-building nav-icon" aria-hidden="true"></span>
-                                        <span class="bi bi-building-fill nav-icon-fill" aria-hidden="true"></span>
+                                        @if (context.User.HasClaim(c => c.Type == NovaClaimTypes.HasClubCrest))
+                                        {
+                                            <img class="nav-avatar" src="@ClubCrestUrl" alt="Club crest" />
+                                        }
+                                        else
+                                        {
+                                            <span class="bi bi-building nav-icon" aria-hidden="true"></span>
+                                            <span class="bi bi-building-fill nav-icon-fill" aria-hidden="true"></span>
+                                        }
                                     </span>
                                     <span class="nav-label">@ClubName</span>
                                 </NavLink>

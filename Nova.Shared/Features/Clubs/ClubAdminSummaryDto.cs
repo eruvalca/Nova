@@ -12,6 +12,7 @@
 /// <param name="PendingJoinRequestCount">The number of pending join requests for the club.</param>
 /// <param name="PlayerCount">The number of players associated with the club.</param>
 /// <param name="IsCurrentUserSoleAdmin"><see langword="true"/> when the signed-in user is the only club administrator.</param>
+/// <param name="HasCrest"><see langword="true"/> when the club has a crest image.</param>
 public sealed record ClubAdminSummaryDto(
     long ClubId,
     string Name,
@@ -21,4 +22,5 @@ public sealed record ClubAdminSummaryDto(
     int AdminCount,
     int PendingJoinRequestCount,
     int PlayerCount,
-    bool IsCurrentUserSoleAdmin);
+    bool IsCurrentUserSoleAdmin,
+    bool HasCrest);

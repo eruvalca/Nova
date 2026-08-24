@@ -72,7 +72,8 @@ public sealed partial class ClubAdminService(
             adminCount,
             pendingRequestCount,
             playerCount,
-            isCurrentUserSoleAdmin);
+            isCurrentUserSoleAdmin,
+            await db.ClubCrests.AnyAsync(c => c.ClubId == clubId, cancellationToken));
     }
 
     /// <inheritdoc />

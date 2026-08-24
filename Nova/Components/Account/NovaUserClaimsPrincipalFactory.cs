@@ -49,6 +49,12 @@ public sealed class NovaUserClaimsPrincipalFactory(
             {
                 identity.AddClaim(new Claim(NovaClaimTypes.ClubName, clubName));
             }
+
+            var hasCrest = await dbContext.ClubCrests.AnyAsync(c => c.ClubId == user.ClubId.Value);
+            if (hasCrest)
+            {
+                identity.AddClaim(new Claim(NovaClaimTypes.HasClubCrest, "true"));
+            }
         }
 
         var hasPhoto = await dbContext.NovaUserPhotos.AnyAsync(p => p.NovaUserId == user.Id);

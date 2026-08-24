@@ -82,6 +82,42 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
         principal.HasClaim(claim => claim.Type == NovaClaimTypes.ClubName).ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task GenerateClaims_AddsHasClubCrestClaim_WhenUsersClubHasCrest()
+    {
+        SeedClub(id: 7, name: "Crested Club");
+        SeedCrest(clubId: 7);
+        var user = SeedUser(id: 26, clubId: 7);
+        var factory = CreateFactory();
+
+        var principal = await factory.CreateAsync(user);
+
+        principal.HasClaim(claim => claim.Type == NovaClaimTypes.HasClubCrest).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GenerateClaims_OmitsHasClubCrestClaim_WhenUsersClubHasNoCrest()
+    {
+        SeedClub(id: 7, name: "Crested Club");
+        var user = SeedUser(id: 27, clubId: 7);
+        var factory = CreateFactory();
+
+        var principal = await factory.CreateAsync(user);
+
+        principal.HasClaim(claim => claim.Type == NovaClaimTypes.HasClubCrest).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task GenerateClaims_OmitsHasClubCrestClaim_WhenUserHasNoClub()
+    {
+        var user = SeedUser(id: 28, clubId: null);
+        var factory = CreateFactory();
+
+        var principal = await factory.CreateAsync(user);
+
+        principal.HasClaim(claim => claim.Type == NovaClaimTypes.HasClubCrest).ShouldBeFalse();
+    }
+
     /// <summary>
     /// Builds the factory with a minimal real <see cref="UserManager{TUser}"/> over a substituted
     /// store and a context factory bound to the harness's shared SQLite database.
@@ -152,6 +188,22 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
             OriginalBlobName = $"users/{userId}/test-original.jpg",
             NovaUserId = userId,
             CreatedById = userId
+        });
+        context.SaveChanges();
+    }
+
+    private void SeedCrest(long clubId)
+    {
+        using var context = _harness.CreateAdminContext();
+        context.ClubCrests.Add(new ClubCrestEntity
+        {
+            ClubId = clubId,
+            OriginalBlobName = $"clubs/{clubId}/test-original.jpg",
+            SmallBlobName = $"clubs/{clubId}/test-small.webp",
+            MediumBlobName = $"clubs/{clubId}/test-medium.webp",
+            LargeBlobName = $"clubs/{clubId}/test-large.webp",
+            ContentType = "image/jpeg",
+            CreatedById = 1
         });
         context.SaveChanges();
     }

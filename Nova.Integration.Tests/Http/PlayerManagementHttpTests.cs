@@ -359,12 +359,10 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         string state,
         CancellationToken cancellationToken)
     {
-        using var response = await client.PostAsJsonAsync(Nova.Shared.Features.Clubs.ClubEndpoints.Create, new Nova.Shared.Features.Clubs.CreateClubInput
-        {
-            Name = name,
-            City = city,
-            State = state
-        }, cancellationToken);
+        using var response = await client.PostAsync(
+            Nova.Shared.Features.Clubs.ClubEndpoints.Create,
+            SeedingHelpers.CreateClubMultipartContent(name, city, state),
+            cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);

@@ -11,10 +11,12 @@ namespace Nova.Shared.Features.Clubs;
 /// <param name="State">The state the club is based in.</param>
 /// <param name="Members">The current member roster, including the signed-in user.</param>
 /// <param name="IsCurrentUserClubAdmin"><see langword="true"/> when the signed-in user is the club's ClubAdmin.</param>
+/// <param name="HasCrest"><see langword="true"/> when the club has a crest image.</param>
 public sealed record ClubDetailDto(
     long ClubId,
     string Name,
     string City,
     string State,
     IReadOnlyList<ClubRosterMemberDto> Members,
-    bool IsCurrentUserClubAdmin);
+    bool IsCurrentUserClubAdmin,
+    bool HasCrest);

@@ -147,6 +147,51 @@ internal static class AppHostCommands
     }
 
     /// <summary>
+    /// Deletes all blobs from the club crest container.
+    /// </summary>
+    /// <param name="context">The Aspire command execution context.</param>
+    /// <param name="connectionStringExpression">The club crest storage connection string expression.</param>
+    /// <returns>The outcome and number of deleted blobs.</returns>
+    internal static async Task<ExecuteCommandResult> ClearClubCrestsAsync(
+        ExecuteCommandContext context,
+        ReferenceExpression connectionStringExpression)
+    {
+        if (!IsConfirmed(context))
+        {
+            return CommandResults.Failure("Club crests were not cleared because confirmation was not 'yes'.");
+        }
+
+        var connectionString = await connectionStringExpression.GetValueAsync(context.CancellationToken);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return CommandResults.Failure("The club crest storage connection string could not be resolved.");
+        }
+
+        var container = new BlobServiceClient(connectionString)
+            .GetBlobContainerClient("club-crests");
+
+        if (!await container.ExistsAsync(context.CancellationToken))
+        {
+            return CommandResults.Success("The club-crests container does not exist; 0 blobs were deleted.");
+        }
+
+        var deletedCount = 0;
+        await foreach (var blob in container.GetBlobsAsync(cancellationToken: context.CancellationToken))
+        {
+            var deleted = await container.DeleteBlobIfExistsAsync(
+                blob.Name,
+                DeleteSnapshotsOption.IncludeSnapshots,
+                cancellationToken: context.CancellationToken);
+            if (deleted.Value)
+            {
+                deletedCount++;
+            }
+        }
+
+        return CommandResults.Success($"Cleared {deletedCount} blob(s) from the club-crests container.");
+    }
+
+    /// <summary>
     /// Determines whether the destructive command received the required confirmation value.
     /// </summary>
     /// <param name="context">The Aspire command execution context.</param>
