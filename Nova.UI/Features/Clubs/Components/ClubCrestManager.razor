@@ -28,7 +28,7 @@
                 {
                     <div class="club-crest-cropper-frame">
                         <NovaCropperComponent @ref="_cropper" Class="club-crest-cropper" Src="@_crestPreviewUrl"
-                                              Options="_cropperOptions" />
+                                              Options="_cropperOptions" OnReady="OnCropperReady" />
                     </div>
                 }
                 else if (_crestPreviewUrl is not null)

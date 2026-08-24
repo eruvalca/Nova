@@ -55,6 +55,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
             await Expect(page.Locator("div.club-crest-cropper-frame")).ToBeVisibleAsync();
             var saveCrest = page.GetByRole(AriaRole.Button, new() { Name = "Save crest", Exact = true });
             await Expect(saveCrest).ToBeVisibleAsync();
+            // The save button is gated on the cropper's JS ready signal (export before ready
+            // would fail), so wait for it to become enabled before clicking.
+            await Expect(saveCrest).ToBeEnabledAsync();
             await InteractionHelpers.ClickUntilAsync(
                 page,
                 saveCrest,
@@ -119,6 +122,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
             await page.SetInputFilesAsync("#crest-file", replacementPath);
             var saveCrest = page.GetByRole(AriaRole.Button, new() { Name = "Save crest", Exact = true });
             await Expect(saveCrest).ToBeVisibleAsync();
+            // The save button is gated on the cropper's JS ready signal (export before ready
+            // would fail), so wait for it to become enabled before clicking.
+            await Expect(saveCrest).ToBeEnabledAsync();
             await InteractionHelpers.ClickUntilAsync(
                 page,
                 saveCrest,
@@ -197,6 +203,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
             await Expect(page.Locator("div.club-crest-cropper-frame")).ToBeVisibleAsync();
             var saveCrest = page.GetByRole(AriaRole.Button, new() { Name = "Save crest", Exact = true });
             await Expect(saveCrest).ToBeVisibleAsync();
+            // The save button is gated on the cropper's JS ready signal (export before ready
+            // would fail), so wait for it to become enabled before clicking.
+            await Expect(saveCrest).ToBeEnabledAsync();
             await InteractionHelpers.ClickUntilAsync(
                 page,
                 saveCrest,

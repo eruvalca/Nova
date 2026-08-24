@@ -69,7 +69,7 @@ Suggested executor: orchestrator (small, tightly-coupled change in one file plus
 
 - `dotnet build Nova.slnx` → succeeds. ✅ (run at the end of Phase 6: 0 errors)
 - Unit tests (see Phase 6 for new tests; run existing first):
-  `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → pass. ✅ (1810/1810 pass,
+  `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → pass. ✅ (1812/1812 pass,
   includes the new `ImageVariantProcessorTests`)
 - Ad-hoc check (optional, via a scratch console or test): generate variants from a
   non-square `TestImages` JPEG and assert medium/large decode to the same aspect ratio as
@@ -120,7 +120,7 @@ Suggested executor: orchestrator (cross-feature move; must update all usages ato
 
 - `dotnet build Nova.slnx` → succeeds. ✅ (0 errors)
 - `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → pass (includes existing
-  `ProfilePhotoEditorTests` — must stay green after the refactor). ✅ (1810/1810 pass;
+  `ProfilePhotoEditorTests` — must stay green after the refactor). ✅ (1812/1812 pass;
   `ProfilePhotoEditorTests` unittestified at Phase 6 run, still green)
 
 ### Phase Summary
@@ -216,7 +216,7 @@ Suggested executor: orchestrator (same cropper integration as Phase 3, second su
   running only if the Aspire AppHost is available)
 - Existing unit tests for create-club validation (`CreateClubInputValidationTests`,
   `ClubComponentsTests`) stay green; browser test CC1 may need the Phase 6 update. ✅
-  (`ClubComponentsTests` updated for the crop step; 1810/1810 pass, includes
+  (`ClubComponentsTests` updated for the crop step; 1812/1812 pass, includes
   `CreateClubForm_SendsCroppedJpegBytes_AfterCropStep`)
 
 ### Phase Summary
@@ -314,8 +314,8 @@ run in one agent)
     crop step; nav avatar natural size is 64×64; club detail crest natural aspect is
     1.5 ± 0.02 with width != height)
 - [x] Keep the full unit + integration + browser suites green (browser suites run
-  locally against the Aspire AppHost). ⚠️ Unit suite green (1810/1810). Integration ran
-  against the AppHost: 10/13 pass with 3 pre-existing failures (proven identical on the
+  locally against the Aspire AppHost). ⚠️ Unit suite green (1812/1812). Integration ran
+  against the AppHost: 368/372 pass with 4 pre-existing failures (proven identical on the
   clean baseline at `696088d` before these changes) — see Final Recap. Browser: CC1/CC3
   pass; **CC2 fails** at the remove step on a pre-existing `[PersistentState]` island bug
   (verified identical on the clean baseline at `696088d`; not caused by these changes) —
@@ -326,13 +326,16 @@ run in one agent)
 - `dotnet build Nova.slnx` → 0 errors. ✅ (Build succeeded; 0 errors. Warnings are
   pre-existing in unit test files.)
 - `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → pass. ✅ (Passed:
-  1810 total, 0 failed)
+  1812 total, 0 failed)
 - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` against the
-  running Aspire AppHost → pass. ⚠️ (Ran locally with the AppHost up: 10/13 pass. The 3
-  failures are pre-existing — `CreateClub_WithoutCrest_ReturnsValidationProblem`,
+  running Aspire AppHost → pass. ⚠️ (Ran locally with the AppHost up: 368/372 pass. The 4
+  failures are pre-existing —
+  `CreateClub_WithoutCrest_ReturnsValidationProblem`,
   `CreateClub_WithCrest_PersistsRowAndServesVariants`,
-  `ChangeCrest_WithoutFile_ReturnsValidationProblem` — each of which is a stale-data /
-  `ToServiceProblemAsync` kind-mapping issue proven identical on the clean baseline at
+  `ChangeCrest_WithoutFile_ReturnsValidationProblem`, and
+  `TraceCorrelationHttpTests.MalformedJson_ReturnsTraceIdMatchingSentTraceparent` —
+  each of which is a stale-data / `ToServiceProblemAsync` kind-mapping / multipart-vs-JSON
+  issue proven identical on the clean baseline at
   `696088d` (main, without these changes). See Final Recap.)
 - Browser: `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` against
   the Aspire AppHost → CC1–CC3 (and full suite) pass. Requires
@@ -372,11 +375,12 @@ Final Recap.
 ### Verification result
 
 Build: ✅ `dotnet build Nova.slnx` → 0 errors.
-Unit: ✅ `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → 1810/1810 pass.
+Unit: ✅ `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → 1812/1812 pass.
 Format: ✅ `dotnet format Nova.slnx --verify-no-changes` → clean.
-Integration: ✅ ran locally against the Aspire AppHost — 10/13 pass; the 3 failures are
-pre-existing on the clean baseline at `696088d` (stale seeding data + `ToServiceProblemAsync`
-kind-mapping), not caused by these changes; the new aspect-preserving test passes.
+Integration: ✅ ran locally against the Aspire AppHost — 368/372 pass; the 4 failures are
+pre-existing on the clean baseline at `696088d` (stale seeding data, `ToServiceProblemAsync`
+kind-mapping, and a stale JSON-body trace test), not caused by these changes; the new
+aspect-preserving test passes.
 Browser: ⚠️ ran locally against the Aspire AppHost — **CC1 and CC3 pass**; **CC2 fails** at
 the remove step on a pre-existing `[PersistentState]` island bug (see Final Recap). The full
 browser suite was not run; the CC tests were run individually (each starts its own AppHost
@@ -424,12 +428,12 @@ All 6 phases are implemented.
    test and here rather than hidden.
 
 **Validation:** `dotnet build Nova.slnx` → 0 errors; `dotnet test
---project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → 1810/1810 pass; `dotnet format
+--project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → 1812/1812 pass; `dotnet format
 Nova.slnx --verify-no-changes` → clean. Integration (`Nova.Integration.Tests`) and
 browser (`Nova.Browser.Tests`) suites require the Aspire AppHost (Postgres + Azurite)
 and were **executed locally** against it:
 
-- **Integration**: 10/13 pass. The 3 failures are **pre-existing** on the clean baseline
+- **Integration**: 368/372 pass. The 4 failures are **pre-existing** on the clean baseline
   at `696088d` (main, without these changes) and are unrelated to crest cropping:
   - `CreateClub_WithoutCrest_ReturnsValidationProblem` and
     `ChangeCrest_WithoutFile_ReturnsValidationProblem` — assert a `Validation`-kind
@@ -439,6 +443,10 @@ and were **executed locally** against it:
   - `CreateClub_WithCrest_PersistsRowAndServesVariants` — asserts blob prefixes
     `clubs/{clubId}/...`, but blobs are stored under `clubs/{userId}/{batchId}/...`, so
     the prefix check fails (stale-data/ID-sequence dependent).
+  - `TraceCorrelationHttpTests.MalformedJson_ReturnsTraceIdMatchingSentTraceparent` —
+    sends `application/json` to `ClubEndpoints.Create`, which (since `696088d`) is a
+    multipart-form `[FromForm]` endpoint, so the server returns 415 instead of the
+    expected 400 problem+json. Pre-existing; unrelated to this change.
   - The new `ChangeCrest_NonSquareSource_ServesAspectPreservingVariants` passes.
 - **Browser**: The CC tests were run individually (each starts its own AppHost fixture;
   the full suite was not run as one batch). **CC1 and CC3 pass.** **CC2 fails** at the
@@ -465,6 +473,24 @@ squares until re-uploaded (no backfill/reprocess); existing crest blobs are neve
 rewritten by a GET. Clients that upload now always send cropped JPEG (white background)
 from the shared exporter; crests uploaded via the raw HTTP API still go through the same
 server-side `GenerateCrestVariants`.
+
+**Review remediation (PR #143, after review):** two review findings were addressed:
+- *Low (Possible)* — "Save crest" could be clicked before the Cropper.js instance was
+  ready (async JS boot), causing the export to fail with a misleading error. Fixed by
+  adding an `OnReady` ready-signal to the shared `NovaCropperComponent` (wired from
+  Cropper.Blazor's `OnReadyEvent` JS-invokable) and gating `CanSubmit` on `_cropperReady`
+  in both `ClubCrestManager` and `CreateClubForm`; unit tests use the internal
+  `SimulateReady()` escape hatch and new gating tests were added for both components.
+- *Nit (Verified)* — `_cropperOptions` duplicated byte-for-byte across the two club
+  components. Fixed by extracting a shared `CropperOptionsFactory.CreateCrestOptions()`
+  in `Nova.UI/Shared/`. The `.club-crest-preview`/`.club-crest-cropper-frame` CSS remains
+  knowingly duplicated: Razor CSS isolation scopes each `*.razor.css` to its component and
+  `@import` is not affected by scoping, so sharing the rules would leak them globally or
+  break the `::deep` selector; both files carry cross-reference comments. The reviewer
+  sanctioned "accept the duplication knowingly". `ProfilePhotoEditor` was left untouched
+  (pre-existing pattern, out of scope).
+- The browser tests now also wait for the Save crest button to be enabled (ready gate)
+  before clicking; CC2's documented pre-existing limitation is unchanged.
 
 ## Deployment Plan
 

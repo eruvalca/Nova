@@ -310,10 +310,37 @@ public class ClubComponentsTests : BunitContext
     }
 
     /// <summary>
+    /// CreateClubForm disables the Save crest button until the cropper's JS instance reports
+    /// ready, so a quick click cannot export against a not-yet-initialized cropper.
+    /// </summary>
+    [Fact]
+    public async Task CreateClubForm_SaveCrest_IsDisabled_UntilCropperReady()
+    {
+        // Arrange
+        SetupServices();
+
+        var cut = Render<CreateClubForm>();
+
+        var crestInput = cut.FindComponent<InputFile>();
+        crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+
+        // Act/Assert: the save button is disabled before the cropper is ready, and enabled after.
+        var saveButton = cut.Find("button[type='button'].btn-primary");
+        saveButton.HasAttribute("disabled").ShouldBeTrue("Save crest must wait for the cropper to be ready");
+
+        await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
+
+        cut.WaitForAssertion(() =>
+            cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse(
+                "Save crest must be enabled once the cropper reports ready"));
+    }
+
+    /// <summary>
     /// CreateClubForm shows error message when club creation fails.
     /// </summary>
     [Fact]
-    public void CreateClubForm_ShowsErrorMessage_OnCreateFailure()
+    public async Task CreateClubForm_ShowsErrorMessage_OnCreateFailure()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -337,6 +364,9 @@ public class ClubComponentsTests : BunitContext
         stateInput.Change("TX");
         crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
+        cut.WaitForAssertion(() =>
+            cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
         cut.FindAll("button").Single(button => button.TextContent.Trim() == "Save crest").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
         submitButton.Click();
@@ -352,7 +382,7 @@ public class ClubComponentsTests : BunitContext
     /// CreateClubForm disables submit button while submission is in progress.
     /// </summary>
     [Fact]
-    public void CreateClubForm_DisablesSubmitButton_DuringSubmission()
+    public async Task CreateClubForm_DisablesSubmitButton_DuringSubmission()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -376,6 +406,9 @@ public class ClubComponentsTests : BunitContext
         stateInput.Change("TX");
         crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
+        cut.WaitForAssertion(() =>
+            cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
         cut.FindAll("button").Single(button => button.TextContent.Trim() == "Save crest").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
         submitButton.Click();
@@ -389,7 +422,7 @@ public class ClubComponentsTests : BunitContext
     /// completed before the form can be submitted.
     /// </summary>
     [Fact]
-    public void CreateClubForm_SendsCroppedJpegBytes_AfterCropStep()
+    public async Task CreateClubForm_SendsCroppedJpegBytes_AfterCropStep()
     {
         // Arrange
         var clubService = Substitute.For<IClubService>();
@@ -412,6 +445,9 @@ public class ClubComponentsTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
         submitButton.HasAttribute("disabled").ShouldBeTrue("submit must be gated while cropping");
 
+        await cut.InvokeAsync(() => cut.FindComponent<NovaCropperComponent>().Instance.SimulateReady());
+        cut.WaitForAssertion(() =>
+            cut.Find("button[type='button'].btn-primary").HasAttribute("disabled").ShouldBeFalse());
         cut.FindAll("button").Single(button => button.TextContent.Trim() == "Save crest").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
 

@@ -60,12 +60,14 @@ public partial class CreateClubForm(IClubService clubService, ICropperCanvasExpo
     /// The cropper options: free-form crop (no fixed aspect ratio) with the full image
     /// pre-selected as the crop area, matching the profile-photo cropper behavior.
     /// </summary>
-    private readonly Options _cropperOptions = new()
-    {
-        ViewMode = ViewMode.Vm1,
-        AutoCrop = true,
-        AutoCropArea = 1m,
-    };
+    private readonly Options _cropperOptions = CropperOptionsFactory.CreateCrestOptions();
+
+    /// <summary>
+    /// Gets a value indicating whether the cropper's JS instance has finished loading the
+    /// selected image. Exports before the <c>ready</c> signal would fail because the library's
+    /// JS instance does not exist yet, so the save action is gated on this signal.
+    /// </summary>
+    private bool _cropperReady;
 
     /// <summary>
     /// The verified bytes of the cropped crest ready for submission, or <see langword="null"/>
@@ -81,7 +83,7 @@ public partial class CreateClubForm(IClubService clubService, ICropperCanvasExpo
     /// <summary>
     /// Gets a value indicating whether the chosen source image passed validation and can be cropped.
     /// </summary>
-    private bool CanSubmit => _crestFile is not null && _crestErrors.Count == 0;
+    private bool CanSubmit => _crestFile is not null && _crestErrors.Count == 0 && _cropperReady;
 
     /// <summary>
     /// Gets the <c>accept</c> attribute value for the crest file input.
@@ -97,6 +99,7 @@ public partial class CreateClubForm(IClubService clubService, ICropperCanvasExpo
     {
         _crestErrors.Clear();
         _croppedCrestContent = null;
+        _cropperReady = false;
         var file = args.File;
 
         if (file.Size is 0 or > ProfilePhotoConstraints.MaxBytes)
@@ -137,7 +140,17 @@ public partial class CreateClubForm(IClubService clubService, ICropperCanvasExpo
         _crestPreviewUrl = null;
         _cropper = null;
         _croppedCrestContent = null;
+        _cropperReady = false;
         _crestErrors.Clear();
+    }
+
+    /// <summary>
+    /// Marks the cropper ready so the save action can be enabled. The Cropper.js instance is
+    /// only initialized after the image loads, so this runs after the <c>ready</c> event.
+    /// </summary>
+    private void OnCropperReady()
+    {
+        _cropperReady = true;
     }
 
     /// <summary>
