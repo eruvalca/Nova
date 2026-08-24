@@ -153,7 +153,7 @@ Suggested executor: orchestrator (tests are highly-coupled to the CSS/geometry; 
 
 - `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → pass (note: use plain `dotnet test`; `--no-build --nologo` reported "Zero tests ran" in this environment).
 - Browser suite: start `dotnet run --project Nova.AppHost`, then
-  `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` → all NB1–NB8 pass.
+  `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` → all NB1–NB9 pass.
 - MTP runner note: prefer the direct exe runner (`Nova.Browser.Tests.exe --filter-class ...`) if
   `dotnet test` hangs on the generator; browser tests require
   `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium` once per machine.
@@ -164,11 +164,11 @@ Added browser coverage in `Nova.Browser.Tests/NavbarBrowserTests.cs`:
 - **NB8** `Navbar_ManageActive_IndicatorFlushAndAvatarLarger` (1280×800): navigates to
   `/Account/Manage`, asserts the Manage link is active with a kelp teal 3px indicator flush with
   the navbar top (reusing `AssertKelpTealTopIndicatorFlushAsync`) and the avatar renders as a 2rem
-  (32px, 30–34px asserted) circle.
+  (32px, 31.5–32.5px asserted) circle.
 - **NB9** `Navbar_Desktop_ManageLinkTopAlignedWithStackedItems` (1280×800): asserts the Manage
   link's bounding-box top matches the Home link's top (±1px) — the alignment rule guard.
-- New helper `AssertNavAvatarAsync`: asserts one `img.nav-avatar`, its bounding box is 30–34px
-  square, and `border-radius` contains `50%`.
+- New helper `AssertNavAvatarAsync`: asserts one `img.nav-avatar`, its bounding box is 31.5–32.5px
+  square (2rem = 32px border-box; sub-pixel rounding only), and `border-radius` contains `50%`.
 
 Added unit coverage in `Nova.Unit.Tests/Components/NavMenuTests.cs`:
 - `Render_RendersAvatarWithPhotoUrl_WhenUserHasProfilePhotoClaim`: asserts `class="nav-avatar"`,
@@ -186,7 +186,7 @@ stay green — no regression.
 
 - `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → pass (note: use plain `dotnet test`; `--no-build --nologo` reported "Zero tests ran" in this environment).
 - Browser suite: start `dotnet run --project Nova.AppHost`, then
-  `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` → all NB1–NB8 pass.
+  `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` → all NB1–NB9 pass.
 - MTP runner note: prefer the direct exe runner (`Nova.Browser.Tests.exe --filter-class ...`) if
   `dotnet test` hangs on the generator; browser tests require
   `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium` once per machine.
