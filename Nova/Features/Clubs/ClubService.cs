@@ -121,6 +121,13 @@ public sealed partial class ClubService(
             await DeleteBlobsBestEffortAsync([.. uploadedBlobNames], userId);
             return ServiceProblem.ServerError("The club crest could not be uploaded. Please try again.");
         }
+        catch (OperationCanceledException)
+        {
+            // The DB work has not started, so no row can reference these blobs yet: delete the
+            // blobs uploaded so far instead of leaving permanent orphans in the container.
+            await DeleteBlobsBestEffortAsync([.. uploadedBlobNames], userId);
+            throw;
+        }
 
         ServiceResult<ClubDto> result;
         // Tracks whether the current execution-strategy attempt reached its commit, so the

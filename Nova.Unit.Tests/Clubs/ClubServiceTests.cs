@@ -302,6 +302,46 @@ public sealed class ClubServiceTests : IDisposable
         verify.Clubs.Any(candidate => candidate.Name == "Doomed Club").ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task CreateClubAsync_DeletesUploadedBlobs_WhenUploadCancelled()
+    {
+        _harness.CurrentUser.UserId = NoClubUserId;
+        _harness.CurrentUser.ClubId = null;
+        _userManager.FindByIdAsync(NoClubUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)null));
+
+        var blob = Substitute.For<BlobClient>();
+        blob.UploadAsync(Arg.Any<BinaryData>(), Arg.Any<BlobUploadOptions>(), Arg.Any<CancellationToken>())
+            .Returns(
+                _ => Substitute.For<Response<BlobContentInfo>>(),
+                _ => throw new OperationCanceledException("upload cancelled"));
+        var container = Substitute.For<BlobContainerClient>();
+        container.GetBlobClient(Arg.Any<string>()).Returns(blob);
+        container.DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Response.FromValue(true, (Response?)null)));
+        var service = new ClubService(
+            new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),
+            new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
+            _userManager,
+            _harness.CurrentUser,
+            container,
+            NullLogger<ClubService>.Instance);
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => service.CreateClubAsync(
+                new CreateClubInput { Name = "Cancelled Club", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" },
+                TestContext.Current.CancellationToken));
+
+        // Exactly one upload succeeded before the cancellation, so exactly one blob is cleaned up.
+        await container.Received(1).DeleteBlobIfExistsAsync(
+            Arg.Any<string>(),
+            Arg.Any<DeleteSnapshotsOption>(),
+            Arg.Any<BlobRequestConditions>(),
+            Arg.Any<CancellationToken>());
+
+        await using var verify = _harness.CreateAdminContext();
+        verify.Clubs.Any(candidate => candidate.Name == "Cancelled Club").ShouldBeFalse();
+    }
+
     private ClubService CreateService()
         => new(
             new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),

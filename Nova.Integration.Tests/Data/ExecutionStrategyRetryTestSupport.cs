@@ -57,6 +57,54 @@ internal sealed class RetryingTenantDbContextFactory(
 }
 
 /// <summary>
+/// Creates retry-enabled admin contexts while tracking how many execution attempts requested a
+/// context from the service under test. Admin contexts bypass the tenant query filter and are used
+/// by services that write club data (for example <see cref="Nova.Features.Clubs.ClubService"/>).
+/// </summary>
+internal sealed class RetryingAdminDbContextFactory(
+    string connectionString,
+    ICurrentUserProvider currentUser,
+    params IInterceptor[] transientFailureInterceptors) : IDbContextFactory<NovaAdminDbContext>
+{
+    private int _createdContextCount;
+
+    /// <summary>
+    /// Gets the number of contexts created for execution-strategy setup and mutation attempts.
+    /// </summary>
+    public int CreatedContextCount => Volatile.Read(ref _createdContextCount);
+
+    /// <inheritdoc />
+    public NovaAdminDbContext CreateDbContext() => CreateContext();
+
+    /// <inheritdoc />
+    public ValueTask<NovaAdminDbContext> CreateDbContextAsync(CancellationToken _ = default)
+        => ValueTask.FromResult(CreateContext());
+
+    /// <summary>
+    /// Creates one retry-enabled admin context with the transient-failure interceptors attached.
+    /// </summary>
+    /// <returns>A new admin context owned by the caller.</returns>
+    private NovaAdminDbContext CreateContext()
+    {
+        Interlocked.Increment(ref _createdContextCount);
+
+        var options = new DbContextOptionsBuilder<NovaAdminDbContext>()
+            .UseNpgsql(
+                connectionString,
+                providerOptions => providerOptions.EnableRetryOnFailure(
+                    maxRetryCount: 1,
+                    maxRetryDelay: TimeSpan.Zero,
+                    errorCodesToAdd: null))
+            .UseApplicationServiceProvider(IdentityStoreServiceProvider.Instance)
+            .AddInterceptors(new TenantSaveChangesInterceptor())
+            .AddInterceptors(transientFailureInterceptors)
+            .Options;
+
+        return new NovaAdminDbContext(options, currentUser);
+    }
+}
+
+/// <summary>
 /// A no-op interceptor used when a test exercises the mutation path without injecting failures.
 /// </summary>
 internal sealed class NoOpInterceptor : DbCommandInterceptor
