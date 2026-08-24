@@ -1,7 +1,7 @@
 ﻿using Cropper.Blazor.Components;
 using Microsoft.JSInterop;
 
-namespace Nova.UI.Features.Account.Components;
+namespace Nova.UI.Shared;
 
 /// <summary>
 /// A <see cref="CropperComponent"/> that tolerates disposal after the circuit has disconnected.

@@ -33,6 +33,7 @@ using Nova.Shared.Features.Photos;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Features.Teams;
+using Nova.UI.Shared;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -105,6 +106,7 @@ builder.Services.AddScoped<IProfilePhotoService, ProfilePhotoService>();
 
 builder.Services.AddScoped<IClubService, ClubService>();
 builder.Services.AddScoped<IClubCrestService, ClubCrestService>();
+builder.Services.AddScoped<ICropperCanvasExporter, CropperCanvasExporter>();
 builder.Services.AddScoped<IClubDetailService, ClubDetailService>();
 builder.Services.AddScoped<IClubAdminService, ClubAdminService>();
 builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();

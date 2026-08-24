@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Nova.Shared.Features.Photos;
 using Nova.UI.Components;
+using Nova.UI.Shared;
 
 namespace Nova.UI.Features.Account.Components;
 
@@ -149,27 +150,7 @@ public partial class ProfilePhotoEditor(IProfilePhotoService photoService, Navig
         IsBusy = true;
         try
         {
-            // Export as JPEG (universally supported by canvas) on a white background so
-            // transparent source regions don't turn black. The background transfer streams
-            // the image in chunks, which keeps SignalR messages small on server circuits.
-            var imageReceiver = await _cropper.GetCroppedCanvasDataInBackgroundAsync(
-                new GetCroppedCanvasOptions
-                {
-                    MaxWidth = ProfilePhotoConstraints.LargeSize,
-                    MaxHeight = ProfilePhotoConstraints.LargeSize,
-                    FillColor = "#ffffff",
-                    ImageSmoothingQuality = "high"
-                },
-                "image/jpeg",
-                0.9f,
-                maximumReceiveChunkSize: null,
-                ComponentCancellationToken);
-
-            byte[] content;
-            using (var imageStream = await imageReceiver.GetImageChunkStreamAsync(ComponentCancellationToken))
-            {
-                content = imageStream.ToArray();
-            }
+            var content = await CropperCanvasExport.ExportAsync(_cropper, ComponentCancellationToken);
 
             if (content.Length == 0)
             {

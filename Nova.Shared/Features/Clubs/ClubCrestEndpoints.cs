@@ -10,7 +10,8 @@ public static class ClubCrestEndpoints
     /// <summary>
     /// The route template for retrieving a club's crest (GET), with a <c>size</c> query
     /// parameter. Mapped outside the clubs group at its absolute path and requires
-    /// authorization; only the small, medium, and large square variants are served.
+    /// authorization; the small variant is a 64px square while the medium and large
+    /// variants preserve the source aspect ratio.
     /// </summary>
     public const string GetTemplate = "/api/clubs/{clubId:long}/crest";
 

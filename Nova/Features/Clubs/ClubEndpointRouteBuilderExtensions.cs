@@ -229,7 +229,7 @@ internal static class ClubEndpointRouteBuilderExtensions
         }
 
         // The original may retain more detail than the public variants; club crests are
-        // public-facing within the club, so only the square variants are ever served. Return
+        // public-facing within the club, so only the generated variants are ever served. Return
         // 404 (not 403) to avoid leaking whether a crest exists.
         if (crestSize == ProfilePhotoSize.Original)
         {
@@ -361,7 +361,8 @@ internal static class ClubEndpointRouteBuilderExtensions
 
     /// <summary>
     /// Selects the blob name for the requested crest size, falling back to the original
-    /// when a variant has not been generated.
+    /// when a variant has not been generated. The small variant is a 64px square; the
+    /// medium and large variants preserve the source aspect ratio.
     /// </summary>
     /// <param name="crest">The crest entity, or <see langword="null"/> when the club has no crest.</param>
     /// <param name="size">The requested size.</param>

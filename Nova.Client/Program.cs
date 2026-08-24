@@ -18,6 +18,7 @@ using Nova.Shared.Features.Photos;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Features.Teams;
+using Nova.UI.Shared;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
@@ -39,6 +40,7 @@ builder.Services.AddCropper();
 builder.Services.AddScoped<IProfilePhotoService, HttpProfilePhotoService>();
 builder.Services.AddScoped<IClubService, HttpClubService>();
 builder.Services.AddScoped<IClubCrestService, HttpClubCrestService>();
+builder.Services.AddScoped<ICropperCanvasExporter, CropperCanvasExporter>();
 builder.Services.AddScoped<IClubJoinRequestService, HttpClubJoinRequestService>();
 builder.Services.AddScoped<IClubMemberService, HttpClubMemberService>();
 builder.Services.AddScoped<IPlayerService, HttpPlayerService>();

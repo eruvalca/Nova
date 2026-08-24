@@ -1,5 +1,7 @@
 ﻿using System.Security.Claims;
 using Bunit;
+using Cropper.Blazor.Components;
+using Cropper.Blazor.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
@@ -10,6 +12,7 @@ using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 using Nova.UI.Features.Clubs.Components;
 using Nova.UI.Features.Clubs.Pages;
+using Nova.UI.Shared;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -60,6 +63,14 @@ public class ClubComponentsTests : BunitContext
         var fakeAuthProvider = Substitute.For<AuthenticationStateProvider>();
         fakeAuthProvider.GetAuthenticationStateAsync().Returns(Task.FromResult(authState));
         Services.AddSingleton(fakeAuthProvider);
+
+        // CreateClubForm's crop step needs the cropper interop (injected by CropperComponent)
+        // and the canvas exporter (injected into the form); both are substituted for tests.
+        Services.AddSingleton(Substitute.For<ICropperJsInterop>());
+        var canvasExporter = Substitute.For<ICropperCanvasExporter>();
+        canvasExporter.ExportAsync(Arg.Any<CropperComponent>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(TestImages.CreateJpeg()));
+        Services.AddSingleton(canvasExporter);
     }
 
     #endregion
@@ -325,6 +336,8 @@ public class ClubComponentsTests : BunitContext
         cityInput.Change("Austin");
         stateInput.Change("TX");
         crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Save crest").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
         submitButton.Click();
 
@@ -362,11 +375,58 @@ public class ClubComponentsTests : BunitContext
         cityInput.Change("Austin");
         stateInput.Change("TX");
         crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Save crest").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
         submitButton.Click();
 
         // Assert
         cut.WaitForAssertion(() => submitButton.HasAttribute("disabled"));
+    }
+
+    /// <summary>
+    /// CreateClubForm sends the cropped JPEG bytes on submit and requires the crop step to be
+    /// completed before the form can be submitted.
+    /// </summary>
+    [Fact]
+    public void CreateClubForm_SendsCroppedJpegBytes_AfterCropStep()
+    {
+        // Arrange
+        var clubService = Substitute.For<IClubService>();
+        clubService.CreateClubAsync(Arg.Any<CreateClubInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<ClubDto>(
+                new ClubDto(ClubId: 1, Name: "Cropped Club", City: "Austin", State: "TX"))));
+        SetupServices(clubService: clubService);
+
+        var cut = Render<CreateClubForm>();
+
+        var nameInput = cut.Find("input#club-name");
+        var cityInput = cut.Find("input#club-city");
+        var stateInput = cut.Find("input#club-state");
+        var crestInput = cut.FindComponent<InputFile>();
+        var submitButton = cut.Find("button[type=\"submit\"]");
+
+        // Act: the submit button is disabled while the crop step is active, so the crop must be
+        // saved first (the exporter returns fixed JPEG bytes) before the form can be submitted.
+        crestInput.UploadFiles(InputFileContent.CreateFromBinary(TestImages.CreateJpeg(), "crest.jpg", null, "image/jpeg"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Save crest"));
+        submitButton.HasAttribute("disabled").ShouldBeTrue("submit must be gated while cropping");
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Save crest").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("club-crest-preview"));
+
+        nameInput.Change("Cropped Club");
+        cityInput.Change("Austin");
+        stateInput.Change("TX");
+        submitButton.Click();
+
+        // Assert
+        cut.WaitForAssertion(() =>
+            clubService.Received(1).CreateClubAsync(
+                Arg.Is<CreateClubInput>(input =>
+                    input.CrestContentType == "image/jpeg" &&
+                    input.CrestContent.Length > 0),
+                Arg.Any<CancellationToken>()));
     }
 
     #endregion
