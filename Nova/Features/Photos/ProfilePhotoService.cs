@@ -81,6 +81,11 @@ public sealed partial class ProfilePhotoService(
         var largeBlobName = $"{prefix}-large.webp";
 
         var uploadedBlobNames = new List<string>(4);
+        // Set immediately after SaveChangesAsync succeeds; before that, no row points at
+        // the new batch, so the cleanup on cancellation may safely delete those blobs.
+        // After the commit, the row references them, so cancellation during the old-blob
+        // cleanup must NOT delete the newly committed batch.
+        var committed = false;
         try
         {
             await UploadBlobAsync(originalBlobName, variants.Original, contentType, uploadedBlobNames, cancellationToken);
@@ -119,6 +124,7 @@ public sealed partial class ProfilePhotoService(
                 }
 
                 await dbContext.SaveChangesAsync(cancellationToken);
+                committed = true;
             }
 
             LogPhotoSaved(userId);
@@ -127,7 +133,11 @@ public sealed partial class ProfilePhotoService(
         }
         catch (OperationCanceledException)
         {
-            await DeleteBlobsBestEffortAsync([.. uploadedBlobNames], userId);
+            if (!committed)
+            {
+                await DeleteBlobsBestEffortAsync([.. uploadedBlobNames], userId);
+            }
+
             throw;
         }
         catch (Exception ex) when (ex is RequestFailedException or DbUpdateException)

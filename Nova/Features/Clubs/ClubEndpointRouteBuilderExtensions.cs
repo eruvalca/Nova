@@ -137,7 +137,7 @@ internal static class ClubEndpointRouteBuilderExtensions
             // Change a club's crest (ClubAdmin only, multipart upload).
             group.MapPost(ClubCrestEndpoints.ManageRelative, ChangeCrestHandler)
                 .Produces(StatusCodes.Status204NoContent)
-                .ProducesProblem(StatusCodes.Status400BadRequest)
+                .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)
