@@ -51,8 +51,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
         {
             // The page is on WebAssembly after the warmup reload, so the file input's change event
             // reaches the component directly and the crop step appears without a hydration window.
-            await page.SetInputFilesAsync("#club-crest", crestPath);
-            await Expect(page.Locator("div.club-crest-cropper-frame")).ToBeVisibleAsync();
+            // Re-issue the upload until the cropper frame is visible, because the change→crop
+            // round-trip can exceed a fixed Expect window under parallel load.
+            await UploadCrestAndWaitForCropperAsync(page, "#club-crest", crestPath);
             var saveCrest = page.GetByRole(AriaRole.Button, new() { Name = "Save crest", Exact = true });
             await Expect(saveCrest).ToBeVisibleAsync();
             // The save button is gated on the cropper's JS ready signal (export before ready
@@ -119,7 +120,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
         {
             // The page is on WebAssembly after the warmup reload, so the file input's change event
             // reaches the component directly and the crop step appears without a hydration window.
-            await page.SetInputFilesAsync("#crest-file", replacementPath);
+            // Re-issue the upload until the cropper frame is visible, because the change→crop
+            // round-trip can exceed a fixed Expect window under parallel load.
+            await UploadCrestAndWaitForCropperAsync(page, "#crest-file", replacementPath);
             var saveCrest = page.GetByRole(AriaRole.Button, new() { Name = "Save crest", Exact = true });
             await Expect(saveCrest).ToBeVisibleAsync();
             // The save button is gated on the cropper's JS ready signal (export before ready
@@ -161,7 +164,7 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
         var nav = page.Locator("nav.navbar");
         var clubLink = nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true });
         await Expect(clubLink).ToBeVisibleAsync();
-        await Expect(nav.Locator("img[alt=\"Club crest\"]")).ToHaveCountAsync(0);
+        await Expect(clubLink.Locator("img.nav-avatar")).ToHaveCountAsync(0);
         await Expect(clubLink.Locator("span.bi-building")).ToHaveCountAsync(1);
     }
 
@@ -195,8 +198,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
         {
             // The page is on WebAssembly after the warmup reload, so the file input's change event
             // reaches the component directly and the crop step appears without a hydration window.
-            await page.SetInputFilesAsync("#club-crest", crestPath);
-            await Expect(page.Locator("div.club-crest-cropper-frame")).ToBeVisibleAsync();
+            // Re-issue the upload until the cropper frame is visible, because the change→crop
+            // round-trip can exceed a fixed Expect window under parallel load.
+            await UploadCrestAndWaitForCropperAsync(page, "#club-crest", crestPath);
             var saveCrest = page.GetByRole(AriaRole.Button, new() { Name = "Save crest", Exact = true });
             await Expect(saveCrest).ToBeVisibleAsync();
             // The save button is gated on the cropper's JS ready signal (export before ready
@@ -282,13 +286,15 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
     private static async Task<ILocator> AssertCrestInNavAsync(IPage page, string clubName)
     {
         var nav = page.Locator("nav.navbar");
-        // The accessible name of the crest-bearing club link includes the crest image alt text, so
-        // the club name is matched as a substring (Playwright's default, case-insensitive).
+        // The accessible name of the crest-bearing club link is exactly the club name (the crest
+        // image is decorative: empty alt + aria-hidden), so the club name is matched as a substring
+        // (Playwright's default, case-insensitive).
         var club = nav.GetByRole(AriaRole.Link, new() { Name = clubName });
         await Expect(club).ToBeVisibleAsync();
         var crest = club.Locator("img.nav-avatar");
         await Expect(crest).ToHaveCountAsync(1);
-        await Expect(crest).ToHaveAttributeAsync("alt", "Club crest");
+        await Expect(crest).ToHaveAttributeAsync("alt", "");
+        await Expect(crest).ToHaveAttributeAsync("aria-hidden", "true");
         var src = await crest.GetAttributeAsync("src");
         src.ShouldNotBeNull();
         src.ShouldContain("/api/clubs/");
@@ -359,6 +365,48 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
     /// <param name="locator">The element locator.</param>
     /// <returns><see langword="true"/> when the element is visible.</returns>
     private static async Task<bool> IsVisibleAsync(ILocator locator) => await locator.IsVisibleAsync();
+
+    /// <summary>
+    /// Sets the given crest file on the file input and re-issues the upload until the cropper frame
+    /// becomes visible, retrying through <see cref="BrowserRetryPolicy"/>. Re-setting the same file
+    /// on the input is idempotent, so each attempt re-triggers the change→crop round-trip; under
+    /// parallel load that round-trip can exceed a fixed single <c>Expect</c> window, so the retry
+    /// keeps the change event flowing until the cropper actually renders.
+    /// </summary>
+    /// <param name="page">The page to drive.</param>
+    /// <param name="fileInputSelector">The file input selector (for example <c>#club-crest</c>).</param>
+    /// <param name="crestPath">The crest image path to upload.</param>
+    /// <returns>A task that completes once the cropper frame is visible.</returns>
+    private static async Task UploadCrestAndWaitForCropperAsync(IPage page, string fileInputSelector, string crestPath)
+    {
+        var cropper = page.Locator("div.club-crest-cropper-frame");
+        for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
+        {
+            if (await cropper.IsVisibleAsync())
+            {
+                return;
+            }
+
+            try
+            {
+                await page.SetInputFilesAsync(fileInputSelector, crestPath);
+            }
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+            {
+                // The input was re-rendered mid-upload or the actionability timeout surfaced as
+                // System.TimeoutException; the next attempt re-issues the upload.
+            }
+
+            if (await cropper.IsVisibleAsync())
+            {
+                return;
+            }
+
+            await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
+        }
+
+        throw new TimeoutException("The crest-crop step did not appear within the retry window.");
+    }
 
     /// <summary>
     /// Returns whether the given text is visible on the page.

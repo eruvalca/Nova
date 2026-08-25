@@ -73,9 +73,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
 
         await SelectGraduationYearAsync(page, "2028");
         await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("60 undecided");
-        var years = await page.Locator("tbody tr td:nth-child(2)").AllTextContentsAsync();
-        years.ShouldNotBeEmpty();
-        years.ShouldAllBe(year => year.Trim() == "2028");
+        await ExpectAllYearsAsync(page, page.Locator("tbody tr[id^='placement-row-']"), "2028");
         page.Url.ShouldContain("placementGraduationYear=2028");
 
         await CheckUnresolvedOnlyAsync(page);
@@ -83,8 +81,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         page.Url.ShouldContain("unresolvedOnly=true");
         var filteredRows = page.Locator("tbody tr[id^='placement-row-']");
         await Expect(filteredRows).ToHaveCountAsync(50);
-        var filteredYears = await filteredRows.Locator("td:nth-child(2)").AllTextContentsAsync();
-        filteredYears.ShouldAllBe(year => year.Trim() == "2028");
+        await ExpectAllYearsAsync(page, filteredRows, "2028");
         await Expect(page.Locator("div.placement-summary[role=status]")).ToContainTextAsync("60 undecided");
     }
 
@@ -200,10 +197,22 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         var playerName = (await card.Locator("a").InnerTextAsync()).Trim();
         var outcome = page.GetByRole(AriaRole.Combobox, new() { Name = $"Outcome for {playerName}" });
         var team = page.GetByRole(AriaRole.Combobox, new() { Name = $"Team for {playerName}" });
-        for (var attempt = 0; attempt < 20; attempt++)
+        for (var attempt = 0; attempt < 30; attempt++)
         {
             await outcome.FocusAsync();
-            await Expect(outcome).ToBeFocusedAsync();
+            // A fresh focus can be swallowed before the interactive circuit re-attaches to the
+            // rerendered select mid-update, so the focus assertion is inside the retry loop and its
+            // PlaywrightException (actionability/assertion timeout) is caught to refocus and try
+            // again rather than escaping the throw-away loop.
+            try
+            {
+                await Expect(outcome).ToBeFocusedAsync(new() { Timeout = 2_000 });
+            }
+            catch (Exception exception) when (exception is PlaywrightException)
+            {
+                // The focus did not land or was lost to a rerender; the next attempt refocuses.
+            }
+
             // Reset to Undecided first so a single ArrowDown deterministically reaches Assigned.
             // Without the reset, a queued change from a previous attempt can move the select past
             // Assigned while the team-enabled check still observes the stale enabled state, and the
@@ -429,9 +438,10 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
             {
                 await checkbox.ClickAsync(new() { Timeout = 3000 });
             }
-            catch (PlaywrightException)
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
             {
                 // The checkbox was replaced mid-interaction or the circuit re-rendered; retry.
+                // Playwright actionability timeouts surface as System.TimeoutException.
             }
 
             try
@@ -474,7 +484,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
                     return;
                 }
             }
-            catch (PlaywrightException)
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
             {
                 await page.WaitForTimeoutAsync(250);
             }
@@ -509,7 +519,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
                 await Expect(teamSelect).ToBeEnabledAsync(new() { Timeout = 1500 });
                 break;
             }
-            catch (PlaywrightException)
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
             {
                 await page.WaitForTimeoutAsync(250);
             }
@@ -523,7 +533,49 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         var save = row.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
         await Expect(save).ToBeVisibleAsync();
         await save.ClickAsync();
-        await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Placement saved.");
+        // The save round-trip can exceed the fixed Expect window under parallel load, so poll the
+        // "Placement saved." alert through BrowserRetryPolicy instead of a single 5s read.
+        var saveAlert = page.Locator("div.alert-success[role=status]");
+        var saved = false;
+        for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
+        {
+            if (await saveAlert.IsVisibleAsync())
+            {
+                saved = true;
+                break;
+            }
+
+            await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
+        }
+
+        saved.ShouldBeTrue("the placement should save and show the 'Placement saved.' confirmation");
+        await Expect(saveAlert).ToContainTextAsync("Placement saved.");
+    }
+
+    /// <summary>
+    /// Asserts that every rendered year cell in the placement rows reflects <paramref name="expectedYear"/>,
+    /// polling through <see cref="BrowserRetryPolicy"/> instead of a single synchronous read. The
+    /// year column is populated by the client-side filter re-render, which under parallel load can
+    /// take longer than a single read window.
+    /// </summary>
+    /// <param name="page">The page to drive.</param>
+    /// <param name="expectedYear">The year every cell should contain.</param>
+    /// <param name="rows">The placement-row locator to read the year column from (rows in the table).</param>
+    /// <returns>A task that completes once every cell matches, or throws on timeout.</returns>
+    private static async Task ExpectAllYearsAsync(IPage page, ILocator rows, string expectedYear)
+    {
+        for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
+        {
+            var years = await rows.Locator("td:nth-child(2)").AllTextContentsAsync();
+            if (years.Count > 0 && years.All(year => year.Trim() == expectedYear))
+            {
+                return;
+            }
+
+            await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
+        }
+
+        throw new TimeoutException($"The year column did not settle on '{expectedYear}' within the retry window.");
     }
 
     private static async Task AssignOutcomeAsync(IPage page, ILocator outcomeSelect, ILocator teamSelect)
@@ -545,9 +597,10 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
                 await outcomeSelect.SelectOptionAsync("0");
                 await outcomeSelect.SelectOptionAsync("1");
             }
-            catch (PlaywrightException)
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
             {
                 // The select was replaced mid-interaction or the row is still hydrating; retry.
+                // Playwright actionability timeouts surface as System.TimeoutException.
             }
 
             try

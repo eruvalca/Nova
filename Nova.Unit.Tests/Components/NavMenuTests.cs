@@ -160,7 +160,12 @@ public class NavMenuTests
         // Assert
         cut.Markup.ShouldContain("nav-avatar");
         cut.Markup.ShouldContain("src=\"/api/clubs/42/crest?size=small\"");
-        cut.Markup.ShouldContain("Alt=\"Club crest\"");
+        // The crest image is decorative (the club name already labels the link), so it carries an
+        // empty alt (bUnit serializes an empty attribute as a bare `alt`) and is hidden from
+        // assistive technology with aria-hidden — never an `alt="Club crest"` that would be
+        // announced redundantly and overload the link's accessible name.
+        cut.Markup.ShouldContain("alt aria-hidden=\"true\"");
+        cut.Markup.ShouldNotContain("Alt=\"Club crest\"");
         // The crest image replaces the building glyphs in the club nav item.
         cut.Markup.ShouldNotContain("bi-building nav-icon");
         cut.Markup.ShouldNotContain("bi-building-fill nav-icon-fill");

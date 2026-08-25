@@ -262,9 +262,11 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
             {
                 await radio.CheckAsync(new() { Timeout = 2000 });
             }
-            catch (PlaywrightException)
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
             {
                 // The radio was replaced mid-interaction or the change was swallowed pre-hydration.
+                // Playwright actionability timeouts surface as System.TimeoutException (not
+                // PlaywrightException), so catch both.
             }
 
             try
