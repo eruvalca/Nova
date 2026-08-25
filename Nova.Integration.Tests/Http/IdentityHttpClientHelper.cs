@@ -44,7 +44,7 @@ internal static partial class IdentityHttpClientHelper
         await RegisterUserAsync(client, email, password, cancellationToken);
         await UploadProfilePhotoWithRetryAsync(client, email, cancellationToken);
 
-        using var complete = await client.GetAsync($"{PhotoEndpoints.Complete}?returnUrl=/", cancellationToken);
+        using var complete = await client.GetAsync($"{PhotoEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
         if (complete.StatusCode is not (System.Net.HttpStatusCode.Redirect or System.Net.HttpStatusCode.Found))
         {
             var body = await complete.Content.ReadAsStringAsync(cancellationToken);

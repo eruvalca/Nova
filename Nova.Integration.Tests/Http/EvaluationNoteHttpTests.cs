@@ -710,7 +710,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     /// <returns>A task that completes when the cookie has been refreshed.</returns>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 

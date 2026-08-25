@@ -1,0 +1,36 @@
+/* Public landing shell — header identity and anchored navigation spacing only.
+   Colors come from semantic --bs-* variables; lengths are rem (hairline borders excepted). */
+
+.public-header {
+    /* The kelp-forest light surface behind the header; Bootstrap utilities supply the rest. */
+    background-color: var(--bs-light);
+    box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 0.06);
+}
+
+.brand-mark {
+    color: var(--bs-primary);
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.brand-name {
+    color: var(--bs-body-color);
+    font-weight: 600;
+    font-size: 1.25rem;
+    letter-spacing: 0.02em;
+}
+
+.public-main {
+    /* Keep the sticky header from covering anchored sections that scroll beneath it. */
+    scroll-margin-top: 4rem;
+}
+
+.public-main :is(section[id]) {
+    scroll-margin-top: 4rem;
+}
+
+/* Touch-friendly header actions regardless of breakpoint. */
+.public-header .btn {
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+}

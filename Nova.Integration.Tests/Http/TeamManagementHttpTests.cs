@@ -241,7 +241,7 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
         club.ShouldNotBeNull();
 
-        using var refresh = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        using var refresh = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
         refresh.StatusCode.ShouldBe(HttpStatusCode.Found);
 
         return club;

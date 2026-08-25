@@ -147,7 +147,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password);
         var page = context.Pages[0];
 
-        await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/dashboard").ToString());
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
         await Expect(page.Locator("tbody tr")).ToHaveCountAsync(2);
 

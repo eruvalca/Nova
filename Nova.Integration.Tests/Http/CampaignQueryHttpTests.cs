@@ -286,7 +286,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
     /// <returns>A task representing the refresh operation.</returns>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 

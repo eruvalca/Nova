@@ -148,9 +148,10 @@ public partial class PendingJoinRequestCard(
     }
 
     /// <summary>
-    /// Navigates (full document) to the onboarding completion endpoint so the new ClubId claim takes effect.
+    /// Navigates (full document) to the onboarding completion endpoint so the new ClubId claim
+    /// takes effect, then lands the user on the dashboard.
     /// </summary>
-    private void HandleCompleteOnboarding() => navigationManager.NavigateTo(ClubEndpoints.Complete + "?returnUrl=/", forceLoad: true);
+    private void HandleCompleteOnboarding() => navigationManager.NavigateTo(ClubEndpoints.Complete + "?returnUrl=/dashboard", forceLoad: true);
 
     /// <summary>
     /// Raises <see cref="OnSearchAgainRequested"/> so the parent returns to the search/create view.

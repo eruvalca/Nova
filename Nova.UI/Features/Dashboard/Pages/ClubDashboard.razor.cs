@@ -10,7 +10,7 @@ using Nova.UI.Components;
 namespace Nova.UI.Features.Dashboard.Pages;
 
 /// <summary>
-/// Renders the role-aware club dashboard at <c>/</c>: active campaign cards with workspace links,
+/// Renders the role-aware club dashboard at <c>/dashboard</c>: active campaign cards with workspace links,
 /// roster/team count cards, the administrator attention card, and the bounded recent-activity feed.
 /// </summary>
 /// <param name="dashboardQueryService">The dashboard read query service.</param>

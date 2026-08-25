@@ -110,7 +110,7 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
         }
 
         // The cookie-refresh hop is reachable and redirects to the return URL.
-        using (var complete = await client.GetAsync($"{PhotoEndpoints.Complete}?returnUrl=/", cancellationToken))
+        using (var complete = await client.GetAsync($"{PhotoEndpoints.Complete}?returnUrl=/dashboard", cancellationToken))
         {
             complete.StatusCode.ShouldBe(HttpStatusCode.Found,
                 "the complete endpoint must be reachable at /Account/ProfilePhoto/Complete");

@@ -1,0 +1,19 @@
+/* Compact footer. Colors from semantic --bs-* variables; lengths in rem. */
+
+.landing-footer {
+    background-color: var(--bs-light);
+}
+
+.landing-footer-brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.625rem;
+    height: 1.625rem;
+    border-radius: 0.5rem;
+    background-color: var(--bs-primary);
+    color: var(--bs-white);
+    font-weight: 700;
+    font-size: 0.875rem;
+    line-height: 1;
+}

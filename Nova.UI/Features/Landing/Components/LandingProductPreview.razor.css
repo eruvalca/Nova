@@ -1,0 +1,13 @@
+/* Product preview cards. Colors come from semantic --bs-* variables; lengths are rem.
+   Each card's tinted background and accent top border come from the matching theme
+   utility classes (bg-{color}-subtle / border-{color}-subtle) in the markup, so no
+   component background is needed here. */
+
+.preview-step .card-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.preview-step ul {
+    margin-top: auto;
+}

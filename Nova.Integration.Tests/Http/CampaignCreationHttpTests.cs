@@ -300,7 +300,7 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync(
-            $"{ClubEndpoints.Complete}?returnUrl=/",
+            $"{ClubEndpoints.Complete}?returnUrl=/dashboard",
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }

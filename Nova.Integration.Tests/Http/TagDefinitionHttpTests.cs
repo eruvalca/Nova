@@ -507,7 +507,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
         club.ShouldNotBeNull();
 
-        using var refresh = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        using var refresh = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
         refresh.StatusCode.ShouldBe(HttpStatusCode.Found);
 
         return club;
@@ -553,7 +553,7 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     /// </summary>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
