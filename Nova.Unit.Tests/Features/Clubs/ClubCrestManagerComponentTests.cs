@@ -293,6 +293,21 @@ public sealed class ClubCrestManagerComponentTests : BunitContext
     }
 
     [Fact]
+    public void CrestMutatedLocally_IsPersistentState_ToSurviveCircuitReattach()
+    {
+        // The guard must survive circuit re-attach like HasCrestInitialized/CrestPresent:
+        // a re-attach after a local save with a still-loading host summary (stale
+        // HasCrest == false) must not revert CrestPresent back to the placeholder.
+        var property = typeof(ClubCrestManager).GetProperty(nameof(ClubCrestManager.CrestMutatedLocally));
+
+        var isPersistentState = property?.GetCustomAttributes(
+            typeof(PersistentStateAttribute), inherit: false).Any() ?? false;
+
+        isPersistentState.ShouldBeTrue(
+            "CrestMutatedLocally must be [PersistentState] so the mutated guard survives circuit re-attach");
+    }
+
+    [Fact]
     public async Task Change_RedirectsToAccessDenied_WhenServiceReturnsForbidden()
     {
         var crestService = Substitute.For<IClubCrestService>();

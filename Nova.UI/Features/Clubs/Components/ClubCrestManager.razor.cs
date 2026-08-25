@@ -106,9 +106,12 @@ public partial class ClubCrestManager(
     /// Gets or sets a value indicating whether the crest was locally mutated (replaced or
     /// removed) since the island initialized. Guards the <see cref="OnParametersSet"/> re-sync
     /// so a stale <see cref="HasCrest"/> parameter cannot revert the locally mutated state.
-    /// Mutations only occur after the interactive circuit attaches, so a private field suffices.
+    /// Persisted across circuit re-attach (like <see cref="HasCrestInitialized"/> and
+    /// <see cref="CrestPresent"/>) so a re-attach after a local save with a host summary still
+    /// loading (a stale <c>HasCrest == false</c>) cannot revert the local state either.
     /// </summary>
-    private bool _crestMutatedLocally;
+    [PersistentState]
+    public bool CrestMutatedLocally { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether the cropper's JS instance has finished loading the
@@ -139,7 +142,7 @@ public partial class ClubCrestManager(
         // initial capture of HasCrest may be false even when the club has a crest. Re-sync
         // CrestPresent when the incoming parameter actually changes — unless the user has
         // locally mutated the crest, in which case the local state is authoritative.
-        if (HasCrest != CrestPresent && !_crestMutatedLocally)
+        if (HasCrest != CrestPresent && !CrestMutatedLocally)
         {
             CrestPresent = HasCrest;
         }
@@ -286,7 +289,7 @@ public partial class ClubCrestManager(
             {
                 ClearSelection();
                 CrestPresent = true;
-                _crestMutatedLocally = true;
+                CrestMutatedLocally = true;
                 _statusMessage = "Club crest updated.";
             },
             problem => HandleActionProblem(problem, "Could not update the club crest."));
@@ -347,7 +350,7 @@ public partial class ClubCrestManager(
                 _confirmRemove = false;
                 ClearSelection();
                 CrestPresent = false;
-                _crestMutatedLocally = true;
+                CrestMutatedLocally = true;
                 _statusMessage = "Club crest removed.";
             },
             problem => HandleActionProblem(problem, "Could not remove the club crest."));
