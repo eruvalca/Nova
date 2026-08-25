@@ -142,14 +142,10 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
 
         // Remove the crest through the confirmation panel.
         //
-        // KNOWN PRE-EXISTING LIMITATION (not introduced by this change, verified against the
-        // clean baseline at 696088d): the club-crest island's `[PersistentState]` crest presence
-        // can be captured on the server's first prerender pass — when the host page summary has
-        // not loaded yet and `HasCrest` is `false` — and never recaptured once the summary
-        // arrives. After this reload the island can therefore render the "no crest" state even
-        // though the nav (claim-driven) shows the crest and the crest blob returns 200. When
-        // that happens the "Remove crest" button below is missing and this step fails with a
-        // "Locator expected to be visible" error at this line.
+        // The island re-syncs its `[PersistentState]` crest presence from the incoming `HasCrest`
+        // parameter in `OnParametersSet` (unless the user mutated the crest locally), so the
+        // "Remove crest" button renders correctly even when the island's first pass captured
+        // `HasCrest == false` before the page summary loaded.
         var remove = page.GetByRole(AriaRole.Button, new() { Name = "Remove crest", Exact = true });
         await Expect(remove).ToBeVisibleAsync();
         await InteractionHelpers.ClickUntilAsync(page, remove, () => IsVisibleAsync(page.GetByText("Remove the club crest?")));

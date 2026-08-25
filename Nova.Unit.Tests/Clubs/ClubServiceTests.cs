@@ -218,6 +218,7 @@ public sealed class ClubServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
         result.Problem.Errors.Keys.ShouldContain("crest");
     }
 
@@ -234,6 +235,7 @@ public sealed class ClubServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
         result.Problem.Errors.Keys.ShouldContain("crest");
     }
 
@@ -281,7 +283,7 @@ public sealed class ClubServiceTests : IDisposable
         var container = Substitute.For<BlobContainerClient>();
         container.GetBlobClient(Arg.Any<string>()).Returns(blob);
         container.DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Response.FromValue(true, (Response?)null)));
+            .Returns(Task.FromResult(Substitute.For<Response<bool>>()));
         var service = new ClubService(
             new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
@@ -317,7 +319,7 @@ public sealed class ClubServiceTests : IDisposable
         var container = Substitute.For<BlobContainerClient>();
         container.GetBlobClient(Arg.Any<string>()).Returns(blob);
         container.DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Response.FromValue(true, (Response?)null)));
+            .Returns(Task.FromResult(Substitute.For<Response<bool>>()));
         var service = new ClubService(
             new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
@@ -363,7 +365,7 @@ public sealed class ClubServiceTests : IDisposable
         var container = Substitute.For<BlobContainerClient>();
         container.GetBlobClient(Arg.Any<string>()).Returns(blob);
         container.DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Response.FromValue(true, (Response?)null)));
+            .Returns(Task.FromResult(Substitute.For<Response<bool>>()));
         return container;
     }
 

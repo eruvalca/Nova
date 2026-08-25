@@ -122,6 +122,7 @@ public sealed class ClubCrestServiceTests : IDisposable
         // Assert
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
         result.Problem.Errors.Keys.ShouldContain("crest");
         result.Problem.Errors["crest"].ShouldContain("A club crest is required.");
     }
@@ -145,6 +146,7 @@ public sealed class ClubCrestServiceTests : IDisposable
         // Assert
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
         result.Problem.Errors["crest"].ShouldContain("Only JPEG, PNG, and WebP images are allowed.");
     }
 
@@ -282,7 +284,7 @@ public sealed class ClubCrestServiceTests : IDisposable
         var container = Substitute.For<BlobContainerClient>();
         container.GetBlobClient(Arg.Any<string>()).Returns(blob);
         container.DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Response.FromValue(true, (Response?)null)));
+            .Returns(Task.FromResult(Substitute.For<Response<bool>>()));
         var service = CreateService(container);
 
         // Act
@@ -495,7 +497,7 @@ public sealed class ClubCrestServiceTests : IDisposable
             return blob;
         });
         container.DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(Response.FromValue(true, (Response?)null)));
+            .Returns(Task.FromResult(Substitute.For<Response<bool>>()));
         return container;
     }
 

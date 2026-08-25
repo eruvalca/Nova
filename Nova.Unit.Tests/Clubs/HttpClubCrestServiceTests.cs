@@ -57,6 +57,7 @@ public class HttpClubCrestServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
         result.Problem.Errors.ShouldContainKey("crest");
     }
 
@@ -146,7 +147,7 @@ public class HttpClubCrestServiceTests
         {
             LastRequest = request;
             LastMultipartPartNames = request.Content is MultipartFormDataContent multipart
-                ? multipart.Select(part => part.Headers.ContentDisposition?.Name?.Trim('"')).ToArray()
+                ? multipart.Select(part => part.Headers.ContentDisposition!.Name!.Trim('"')).ToArray()
                 : null;
             return Task.FromResult(response);
         }
