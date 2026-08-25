@@ -289,12 +289,13 @@ bump in browser parallelism must revisit this window.
 
 ## Phase 6: Testing guidance hygiene (per instructions-hygiene devblog)
 
-Status: Not started
+Status: Complete
 
-- [ ] `testing.instructions.md` keep/remove/move/verify pass:
-      - Update the **Parallel execution** bullet: browser = Aggressive + MaxThreads 8; unit +
-        integration = Aggressive at CPU-thread default (with the contention note if Phase 4 capped
-        integration).
+- [x] `testing.instructions.md` keep/remove/move/verify pass:
+      - Update the **Parallel execution** bullet: browser = **Conservative + MaxThreads 4**; unit =
+        **Aggressive at the CPU-thread default**; integration = **Conservative** at the CPU-thread
+        default (matching the evidence-driven Phase 3/4 deviations; the contention note is already
+        reflected in the "Do NOT switch integration or browser to Aggressive" bullet).
       - Add hard-won fact #4 to the browser-suite list: Playwright action methods throw
         `System.TimeoutException` (not `PlaywrightException`) on actionability timeouts — retry
         loops must catch both; the pattern lives in `InteractionHelpers`.
@@ -302,9 +303,9 @@ Status: Not started
         through `BrowserRetryPolicy`).
       - Remove/refresh stale wording (e.g. the "Phase 4 load validation" comment that referred to
         a since-merged plan).
-- [ ] Update `.github/skills/nova-testing/references/browser-suite.md` with the new parallelism
+- [x] Update `.github/skills/nova-testing/references/browser-suite.md` with the new parallelism
       knobs and both lessons above.
-- [ ] Verify the repo-root instructions overview needs no change (run commands are unchanged).
+- [x] Verify the repo-root instructions overview needs no change (run commands are unchanged).
 
 ### Verification Plan
 
@@ -312,7 +313,10 @@ Status: Not started
 
 ### Phase Summary
 
-_(write when phase completes)_
+`testing.instructions.md` and `.github/skills/nova-testing/references/browser-suite.md` were updated
+with the applied parallelism settings and both hard-won lessons (the `System.TimeoutException` catch
+requirement and the computed-style polling note). `dotnet format Nova.slnx --verify-no-changes` is
+green; the repo-root instructions overview needed no change (run commands are unchanged).
 
 ## Final Recap
 
