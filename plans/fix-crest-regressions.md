@@ -98,8 +98,11 @@ Product fix in `ClubEndpointRouteBuilderExtensions.cs`: both `CreateClubHandler`
 instead of binding a non-nullable `IFormFile` parameter, so a missing crest file reaches the
 handler's explicit null check and produces `ServiceProblem.Validation("crest", ...)` (Kind =
 Validation) rather than a framework-generated 400 that `ToServiceProblemAsync` mapped to
-Kind = BadRequest. Test fixes: `ClubCrestHttpTests` captures the registered email and looks up
-the user id from the admin context to assert the `clubs/{userId}/` blob prefix;
+Kind = BadRequest. (Review-remediation follow-up: `ChangeCrestHandler` was later refined to bind
+a *nullable* `[FromForm] IFormFile? crest` — see the Review Remediation section — so the framework
+pre-binds the form again, restoring the 415 for non-form content types, while a missing part still
+reaches structured validation.) Test fixes: `ClubCrestHttpTests` captures the registered email
+and looks up the user id from the admin context to assert the `clubs/{userId}/` blob prefix;
 `TraceCorrelationHttpTests` sends a malformed multipart body (no boundary) instead of
 `application/json` and was renamed `MalformedForm_ReturnsTraceIdMatchingSentTraceparent`.
 Verified: `*ClubCrestHttpTests` → **13/13 pass**; `*TraceCorrelationHttpTests` → **3/3 pass**;
@@ -116,9 +119,10 @@ Status: Complete
       private component state only on first load **or when the incoming parameter value actually
       changes**"), add an `OnParametersSet` re-sync: when `HasCrest != CrestPresent` and the user
       has not locally mutated the crest since initialization, set `CrestPresent = HasCrest`. Track
-      local mutation with a private `bool _crestMutatedLocally` field set to `true` on successful
-      `SaveCrestAsync` and `ConfirmRemoveAsync` (mutations only occur after interactive attach, so
-      a private field suffices — no persistence needed). Keep `OnInitialized`'s existing
+      local mutation with a `[PersistentState] CrestMutatedLocally` property set to `true` on
+      successful `SaveCrestAsync` and `ConfirmRemoveAsync` — persisted across circuit re-attach
+      (like `HasCrestInitialized`/`CrestPresent`) so a re-attach after a local save with a
+      still-loading host summary cannot revert local state. Keep `OnInitialized`'s existing
       initial-capture guard unchanged.
 - [x] **Unit coverage** (`Nova.Unit.Tests/Features/Clubs/ClubCrestManagerComponentTests.cs`):
       - Parameter update false → true (no mutation) re-syncs the island from placeholder to crest.
@@ -136,18 +140,21 @@ Status: Complete
 
 ### Phase Summary
 
-Added `_crestMutatedLocally` to `ClubCrestManager.razor.cs`, set to `true` on successful
-`SaveCrestAsync` and `ConfirmRemoveAsync`, plus an `OnParametersSet` override that re-syncs
-`CrestPresent = HasCrest` when the incoming `HasCrest` parameter actually changes and the user has
-not locally mutated the crest — per the blazor-architecture copy-to-private-state rule.
+Added `CrestMutatedLocally` (`[PersistentState]`) to `ClubCrestManager.razor.cs`, set to `true` on
+successful `SaveCrestAsync` and `ConfirmRemoveAsync`, plus an `OnParametersSet` override that
+re-syncs `CrestPresent = HasCrest` when the incoming `HasCrest` parameter actually changes and the
+user has not locally mutated the crest — per the blazor-architecture copy-to-private-state rule.
 `OnInitialized`'s initial-capture guard is unchanged. Added 3 bUnit tests covering the
 false→true parameter re-sync (placeholder → crest) and the stale-parameter-after-save / -remove
-no-revert cases; the component suite went 10 → 13 tests. Note: the plan's `SetParametersAndRender`
-call is the bUnit 2.x `Render` extension (the API was renamed in bUnit 2.9.0), so the new tests use
+no-revert cases, plus (in the review-remediation follow-up) a 4th test asserting
+`CrestMutatedLocally` carries `[PersistentState]` so the guard survives circuit re-attach. The
+component suite went 10 → 14 tests. Note: the plan's `SetParametersAndRender` call is the bUnit
+2.x `Render` extension (the API was renamed in bUnit 2.9.0), so the new tests use
 `cut.Render(...)`, matching the file's existing `Render` usage. CC2 now passes through its remove
 step. The stale "KNOWN PRE-EXISTING LIMITATION" comment in `ClubCrestBrowserTests.cs` was replaced
-with a note describing the re-sync behavior. Verified: `*ClubCrestManagerComponentTests` → **13/13
-pass**; `*ClubCrestBrowserTests` → **CC1, CC2, CC3 all pass** (3/3). Committed as `a69906d`.
+with a note describing the re-sync behavior. Verified: `*ClubCrestManagerComponentTests` →
+**14/14 pass**; `*ClubCrestBrowserTests` → **CC1, CC2, CC3 all pass** (3/3). Committed as `a69906d`
+with the review-remediation `[PersistentState]` upgrade in a later commit.
 
 ## Phase 4: Full Validation
 
@@ -203,13 +210,77 @@ The club-crest regressions introduced by PRs #142/#143 are fixed end to end:
    415).
 4. **ClubCrestManager persistent-state race fixed** (browser CC2): `OnParametersSet` re-syncs
    `CrestPresent` from a changed `HasCrest` parameter unless the user mutated the crest locally
-   (`_crestMutatedLocally`), with 3 new bUnit tests. CC2's remove step now passes.
+   (`CrestMutatedLocally`, now `[PersistentState]` so it survives circuit re-attach), with 3 new
+   bUnit tests. CC2's remove step now passes.
 
-Validation: build 0/0; unit 1815/1815; integration 372/372; format clean; browser CC1-CC3 pass.
+Validation: build 0/0; unit 1816/1816; integration 373/373; format clean; browser CC1-CC3 pass.
 The full browser suite is 79/83 with 4 failures that reproduce identically on pristine `main`
 (theme/navbar, not crest-related) — flagged in Phase 4 for an owner on the theme/navbar side.
-4 commits on `eruvalca-fix-crest-tests`: `428f32e` (warnings), `71ef90a` (product + integration
-fixes), `a69906d` (ClubCrestManager race), plus the plan update commit.
+5 commits on `eruvalca-fix-crest-tests`: `428f32e` (warnings), `71ef90a` (product + integration
+fixes), `a69906d` (ClubCrestManager race), plus the plan update commit and the review-remediation
+commits.
+
+## Review Remediation (PR #144, Review ID 5013800548)
+
+Two findings were raised on the PR; both were addressed with the fixes below (see the threaded
+replies on the PR for the per-finding commit references).
+
+### Finding 1 (High/Possible): `ChangeCrestHandler` no-form-params regression — non-form content type now yields 500 instead of 415
+
+The original fix removed the `[FromForm] IFormFile crest` parameter entirely, so the framework
+stopped pre-binding the form (`RequestDelegateFactory.TryReadFormAsync`) for this endpoint; a
+non-form content type (e.g. `application/json` POST) then threw `InvalidOperationException`
+(`FormFeature`: "Incorrect Content-Type") at the direct `context.Request.Form` read, which
+bypassed `BadHttpRequestExceptionHandler` and became a 500 via the generic exception handler.
+
+**Fix** (`Nova/Features/Clubs/ClubEndpointRouteBuilderExtensions.cs`): bind the file as a
+*nullable* form parameter and drop the `HttpContext` read:
+
+```csharp
+private static async Task<IResult> ChangeCrestHandler(
+    long clubId,
+    [FromForm] IFormFile? crest,
+    HttpContext context,   // still needed for RefreshAdminCookieAsync
+    ...)
+{
+    if (crest is null || crest.Length is 0 or > ProfilePhotoConstraints.MaxBytes)
+    { ... ServiceProblem.Validation("crest", message).ToHttpResult(); }
+    ...
+}
+```
+
+This restores framework pre-binding (415 for non-form content types, 400 for bodyless requests)
+while a missing `crest` part binds `null` and still reaches the structured validation problem.
+`CreateClubHandler` is unaffected: its `name`/`city`/`state` `[FromForm]` parameters keep the
+framework pre-binding there (per the review).
+
+**Regression coverage**: added `ChangeCrest_WithJsonContentType_ReturnsUnsupportedMediaType`
+(`Nova.Integration.Tests/Http/ClubCrestHttpTests.cs`) — asserts `415
+UnsupportedMediaType` for a JSON POST to the change-crest endpoint (would have been 500 before).
+
+### Finding 2 (Low/Possible): `_crestMutatedLocally` is not `[PersistentState]`
+
+The private `bool _crestMutatedLocally` field reset to `false` when the circuit re-attached after
+a local save/remove, so a re-attach with a still-loading host summary (stale `HasCrest == false`)
+could revert `CrestPresent` back to `false` via `OnParametersSet`.
+
+**Fix** (`Nova.UI/Features/Clubs/Components/ClubCrestManager.razor.cs`): promote the field to a
+`[PersistentState]` public property (`CrestMutatedLocally`), matching the existing
+`HasCrestInitialized`/`CrestPresent` pattern in the same file. Note: `PersistentStateAttribute`
+targets properties only (`[AttributeUsage(AttributeTargets.Property)]`), so the correct
+equivalent of the review's field-level suggestion is a property.
+
+**Regression coverage**: added `CrestMutatedLocally_IsPersistentState_ToSurviveCircuitReattach`
+(`Nova.Unit.Tests/Features/Clubs/ClubCrestManagerComponentTests.cs`) — reflection-based assertion
+that the property carries `[PersistentState]`.
+
+### Verification (after remediation)
+
+- `dotnet build Nova.slnx -t:Rebuild` → **0 Warning(s), 0 Error(s)**.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → **1816/1816 pass**.
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` → **373/373 pass**.
+- `dotnet format Nova.slnx --verify-no-changes` → clean (exit 0).
+- Browser: `--filter-class "*ClubCrestBrowserTests"` → **CC1, CC2, CC3 all pass (3/3)**.
 
 ## Deployment Plan
 
