@@ -320,8 +320,55 @@ green; the repo-root instructions overview needed no change (run commands are un
 
 ## Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+All six phases are complete; the browser suite went from **9 failing** to **0 failing** while getting
+~50% faster (8m54s → ~4m28s).
+
+- **Phase 1 — Deterministic failures.** Two app/test regressions fixed: the nav club crest was made
+  decorative (`alt=""` + `aria-hidden="true"` in `NavMenu.razor`, since #142 every club has a crest
+  the crest no longer belongs in the club link's accessible name), and the Bootstrap focus-ring
+  (plus primary-button background) `boxShadow`/`backgroundColor` reads now poll through
+  `BrowserRetryPolicy` instead of reading the pre-transition value synchronously.
+- **Phase 2 — Retry hardening.** All action-method retry loops (radio/click/select/fill) now catch
+  `PlaywrightException or TimeoutException` (the `InteractionHelpers.ActUntilAsync` pattern), the
+  fixed-5s "Placement saved." alert `Expect` became a `BrowserRetryPolicy`-driven poll, and the
+  crest crop-step entry re-issues `SetInputFilesAsync` until the cropper frame is visible. This is
+  what removes the parallel-load failures — not more concurrency.
+- **Phase 3 — Browser parallelism.** The plan target (Aggressive + MaxThreads 8) was **replaced by
+  an evidence-driven deviation**: the suite stays **Conservative + MaxThreads 4**. Aggressive
+  *provably* exhausts the shared PostgreSQL pool (22 failures at MaxThreads 8, 12 at 6, all
+  `Npgsql.PostgresException 53300` from seeding); Conservative bounds how many tests *start*, keeping
+  concurrent seeding within the pool. Verified: 3 consecutive green full runs (4m31s / 4m44s /
+  4m26s), a post-hardening run (4m28s), and a `NOVA_A11Y_SCREENSHOTS=1` run with **0 skipped**.
+- **Phase 4 — Unit + integration.** Unit goes **Aggressive** at the CPU-thread default (1816 passed,
+  ~25s). Integration stays **Conservative** for the same shared-PostgreSQL reason (373 passed,
+  ~2m48s); Aggressive fails it 63 tests with `53300` and capping MaxThreads cannot help because
+  Aggressive starts every test case up front.
+- **Phase 5 (optional).** WASM warmup **dropped** — the login/account pages are server-rendered with
+  no `InteractiveAuto` island, so warming at login would require an invasive app change with no
+  user-facing benefit; not provably faster and equally stable.
+- **Phase 6 — Guidance hygiene.** `testing.instructions.md` and
+  `.github/skills/nova-testing/references/browser-suite.md` updated with the applied parallelism
+  settings and both hard-won lessons (`PlaywrightException or TimeoutException` retry requirement;
+  don't assert computed styles synchronously after a CSS transition). `dotnet format Nova.slnx
+  --verify-no-changes` is green.
+
+**Cross-cutting note for future work:** the shared PostgreSQL pool (and not raw CPU concurrency) is
+the binding constraint for this solution — any future bump in browser or integration parallelism must
+re-evaluate that boundary and is documented in the `TestAssemblyParallelization.cs` comments.
 
 ## Deployment Plan
 
-_(write when all phases complete: step-by-step deployment instructions)_
+This is a test-hardening and documentation change to the **Nova** solution; there is no migration, no
+schema change, and no runtime service to deploy. "Deployment" here means merging the PR and running
+the suites on a clean CI/locally. No manual steps are required.
+
+1. Merge PR #152 into `main` (base branch change).
+2. Run the three suites on a clean environment (no manually-started AppHost holding the shared ports):
+   - `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` → **1816 passed, 0 failed**.
+   - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` (requires the Aspire
+     AppHost/PostgreSQL) → **373 passed, 0 failed**.
+   - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` → **83 total, 0 failed,
+     6 skipped**; optionally with `NOVA_A11Y_SCREENSHOTS=1` for **0 skipped**.
+3. Confirm `dotnet format Nova.slnx --verify-no-changes` is green (documentation/formatting gate).
+4. No database migrations, no environment variables, and no startup configuration changes ship with
+   this change.
