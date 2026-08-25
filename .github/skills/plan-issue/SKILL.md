@@ -79,6 +79,14 @@ the issue body with the GitHub issue tools (see "Keep the issue updated") and
 preserve everything outside this section. When all phases are done, fill in
 **Final Recap** and **Deployment Plan**.
 
+**Required deliverable — full test suite passes.** Before the issue (or any
+sub-issue) is marked complete, the entire test suite must be green: unit,
+integration, and browser. The integration and browser suites do **not** run in
+CI and require the Aspire AppHost locally, so run and pass them locally and
+record the results — CI green alone is insufficient. Tests intentionally skipped
+for a valid, documented reason are the only acceptable exception — record them explicitly rather
+than silently dropping them.
+
 ### Phase 1: <Title>
 
 Status: Not started <!-- Not started | In progress | Complete -->
@@ -117,7 +125,9 @@ _(write when phase completes)_
 
 ### Final Recap
 
-_(write when all phases complete: summary of the entire piece of work)_
+_(write when all phases complete: summary of the entire piece of work, including
+confirmation that the full test suite — unit, integration, and browser — passes,
+or that any non-green tests were intentionally skipped for a documented reason)_
 
 ### Deployment Plan
 
@@ -177,7 +187,7 @@ The agent doing the work (or resuming it) updates the issue, not the chat.
   issue in step 1; if a matching issue turns up later, resume it instead of
   creating a new one.
 - **Read before writing**: fetch the current issue body first (`gh issue view
-  <n> --json body` or `github-issue_read` with `method: get`), then rewrite it
+  <n> --json body`or`github-issue\_read`with`method: get\`), then rewrite it
   preserving the goal/scope summary and completed-phase content; change only
   what changed.
 - **Parent + sub-issue plans**: record execution updates in the owning
@@ -213,8 +223,14 @@ dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj
 dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj
 ```
 
-Integration and browser suites require the Aspire AppHost locally and do not run
-in CI; say so in the phase when they apply.
+**Full-suite pass is a required deliverable.** Every issue and sub-issue must
+leave the entire test suite green before it is considered complete — unit,
+integration, and browser. Integration and browser suites require the Aspire
+AppHost locally and do **not** run in CI, so CI green is not sufficient; they
+must be run and passed locally. Tests intentionally skipped for a valid,
+documented reason are the only acceptable
+exception — record them explicitly. Name the suites in the phase that applies
+and record their results before marking the issue done.
 
 ### Browser / Playwright testing
 
