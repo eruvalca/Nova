@@ -152,14 +152,19 @@ Status: Complete (with evidence-driven deviation)
 > anticipate that Aggressive is fundamentally incompatible with this suite for the same
 > shared-PostgreSQL reason that rules it out for the integration suite.
 
-- [ ] Change `Nova.Browser.Tests/TestAssemblyParallelization.cs` to
-      `Algorithm = ParallelAlgorithm.Aggressive, MaxThreads = 8`; update its comment (Aggressive =
-      SynchronizationContext-based cap; chosen because browser tests are await-bound).
-- [ ] Full browser suite: `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj`
-      — record wall time (baseline 8m54s) and result. **Zero failures required.**
-- [ ] Repeat the full suite 2 more times (3 consecutive green runs) for flake confidence.
-- [ ] One run with `NOVA_A11Y_SCREENSHOTS=1` to prove the 6 env-gated tests pass when enabled
-      (they skip by default with a documented reason).
+- [x] `Nova.Browser.Tests/TestAssemblyParallelization.cs` was set to the best empirically verified
+      setting: `Algorithm = ParallelAlgorithm.Conservative, MaxThreads = 4` (see the deviation note and
+      Phase Summary). The original plan target (`Aggressive + MaxThreads 8`) was substituted by this
+      evidence-driven deviation — Aggressive *provably* exhausts the shared PostgreSQL pool
+      (22 failures at 8, 12 at 6), and the comment documents why `Aggressive` was rejected.
+- [x] Full browser suite: `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj`
+      — record wall time (baseline 8m54s) and result. **Zero failures required.** → green
+      (83 total, 0 failed, 6 skipped).
+- [x] Repeat the full suite 2 more times (3 consecutive green runs) for flake confidence. → 3
+      consecutive green runs (4m31s / 4m44s / 4m26s), plus a post-hardening run (4m28s).
+- [x] One run with `NOVA_A11Y_SCREENSHOTS=1` to prove the 6 env-gated tests pass when enabled
+      (they skip by default with a documented reason). → green, **0 skipped**
+      (83 total, 0 failed, 0 skipped, 4m29s).
 - [x] If flakiness appears at 8, evaluate MaxThreads 6 or a targeted
       `DisableParallelism` (only with an inline reason per `testing.instructions.md`).
 
