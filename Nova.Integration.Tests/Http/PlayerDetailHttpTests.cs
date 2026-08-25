@@ -281,7 +281,7 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
     /// <param name="cancellationToken">The test cancellation token.</param>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 

@@ -55,11 +55,11 @@ public partial class ClubOnboarding(
             return;
         }
 
-        // Club members must not access the onboarding page — redirect them to the home page.
+        // Club members must not access the onboarding page — redirect them to the dashboard.
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
         if (authState.User.HasClaim(c => c.Type == NovaClaimTypes.ClubId))
         {
-            navigationManager.NavigateTo("/", replace: true);
+            navigationManager.NavigateTo("/dashboard", replace: true);
             return;
         }
 
@@ -82,10 +82,11 @@ public partial class ClubOnboarding(
 
     /// <summary>
     /// Handles a successful club creation. Performs a full-document navigation to the
-    /// cookie-refresh endpoint so the new <c>nova:club_id</c> claim takes effect.
+    /// cookie-refresh endpoint so the new <c>nova:club_id</c> claim takes effect, then
+    /// lands the user on the dashboard.
     /// </summary>
     /// <param name="club">The newly created club.</param>
-    private void HandleClubCreated(ClubDto club) => navigationManager.NavigateTo(ClubEndpoints.Complete + "?returnUrl=/", forceLoad: true);
+    private void HandleClubCreated(ClubDto club) => navigationManager.NavigateTo(ClubEndpoints.Complete + "?returnUrl=/dashboard", forceLoad: true);
 
     /// <summary>
     /// Handles a successfully submitted join request. Updates page state to show the

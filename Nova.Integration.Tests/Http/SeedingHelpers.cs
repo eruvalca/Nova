@@ -87,7 +87,7 @@ internal static class SeedingHelpers
     /// <returns>A task that completes when the cookie has been refreshed.</returns>
     public static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 

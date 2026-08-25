@@ -372,7 +372,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
 
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{Nova.Shared.Features.Clubs.ClubEndpoints.Complete}?returnUrl=/", cancellationToken);
+        using var response = await client.GetAsync($"{Nova.Shared.Features.Clubs.ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 

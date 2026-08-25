@@ -37,14 +37,14 @@ public sealed class ClubDashboardComponentTests : BunitContext
         attribute.Mode.ShouldBeOfType<InteractiveAutoRenderMode>();
     }
 
-    /// <summary>Verifies the dashboard page is routed at the application root.</summary>
+    /// <summary>Verifies the dashboard page is routed at the authenticated dashboard path.</summary>
     [Fact]
-    public void ClubDashboard_DeclaresRootRoute()
+    public void ClubDashboard_DeclaresDashboardRoute()
     {
         var attribute = typeof(ClubDashboardPage)
             .GetCustomAttributes(inherit: false)
             .OfType<RouteAttribute>()
-            .SingleOrDefault(route => route.Template == "/");
+            .SingleOrDefault(route => route.Template == "/dashboard");
 
         attribute.ShouldNotBeNull();
     }
@@ -55,6 +55,14 @@ public sealed class ClubDashboardComponentTests : BunitContext
     {
         var razorPath = Path.Join(FindRepoRoot(), "Nova.UI", "Features", "Dashboard", "Pages", "ClubDashboard.razor");
         File.ReadAllText(razorPath).ShouldContain("@rendermode InteractiveAuto");
+    }
+
+    /// <summary>Verifies the dashboard razor source is routed at the dashboard path.</summary>
+    [Fact]
+    public void ClubDashboardRazor_DeclaresDashboardRoute()
+    {
+        var razorPath = Path.Join(FindRepoRoot(), "Nova.UI", "Features", "Dashboard", "Pages", "ClubDashboard.razor");
+        File.ReadAllText(razorPath).ShouldContain("@page \"/dashboard\"");
     }
 
     /// <summary>Verifies a populated summary renders all regions: campaigns, counts, and activity.</summary>

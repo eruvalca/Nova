@@ -14,7 +14,8 @@ namespace Nova.Browser.Tests;
 /// active item carries a kelp teal indicator bar flush with the navbar's top edge and swaps its
 /// outline glyph for the matching <c>-fill</c> variant (CSS overlay, no layout shift); the
 /// Manage link navigates to /Account/Manage; Logout posts the antiforgery form and returns to
-/// the login page; and the unauthenticated navbar shows only the Login link with no icon links.
+/// the login page; and the unauthenticated root renders the public landing page with no
+/// authenticated icon links.
 /// </summary>
 /// <param name="fixture">The Aspire-hosted browser suite fixture.</param>
 [Collection(BrowserSuiteCollection.Name)]
@@ -40,10 +41,10 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
         var nav = page.Locator("nav.navbar");
 
-        // Home is the first item and points at the dashboard root.
+        // Home is the first item and points at the dashboard path.
         var home = nav.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true });
         await Expect(home).ToBeVisibleAsync();
-        await Expect(home).ToHaveAttributeAsync("href", "/");
+        await Expect(home).ToHaveAttributeAsync("href", "/dashboard");
         await AssertBootstrapIconGlyphAsync(home, "bi-house");
 
         // The club item keeps the actual club name as its label. Every club now has a required
@@ -142,21 +143,23 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// NB5: an anonymous visit to / redirects to the login page, whose navbar shows only the
-    /// Login link — no icon-first items leak to unauthenticated users.
+    /// NB5: an anonymous visit to / renders the public landing page — not the authenticated bottom
+    /// nav — so no icon-first items leak to unauthenticated users.
     /// </summary>
     [Fact]
-    public async Task Navbar_Unauthenticated_ShowsOnlyLogin_WithNoIconLinks()
+    public async Task Navbar_Unauthenticated_ShowsPublicLanding_WithNoIconLinks()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
-        await page.WaitForURLAsync(url => url.Contains("/Account/Login", StringComparison.OrdinalIgnoreCase));
 
-        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Login", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.Locator("nav.navbar .bi")).ToHaveCountAsync(0);
+        // The public landing page (not the login screen) renders for anonymous users.
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Run better tryouts. Build stronger teams.", Exact = true })).ToBeVisibleAsync();
+
+        // No authenticated bottom navbar leaks to unauthenticated users.
+        await Expect(page.Locator("nav.navbar.fixed-bottom")).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true })).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true })).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true })).ToHaveCountAsync(0);

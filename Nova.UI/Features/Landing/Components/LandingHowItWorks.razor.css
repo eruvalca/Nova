@@ -1,0 +1,21 @@
+/* How-it-works step numbering. Colors from semantic --bs-* variables; lengths in rem. */
+
+.landing-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background-color: var(--bs-primary);
+    color: var(--bs-white);
+    font-weight: 600;
+    font-size: 0.875rem;
+    line-height: 1;
+}
+
+/* Ensure the ordering list does not introduce visible bullets. */
+ol.list-unstyled {
+    list-style: none;
+    padding-left: 0;
+}
