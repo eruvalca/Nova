@@ -1,9 +1,7 @@
-/* Product preview cards. Colors come from semantic --bs-* variables; lengths are rem. */
-
-.preview-step {
-    /* A soft kelp-forest tint that keeps the illustrative card distinct from the page surface. */
-    background-color: var(--bs-light);
-}
+/* Product preview cards. Colors come from semantic --bs-* variables; lengths are rem.
+   Each card's tinted background and accent top border come from the matching theme
+   utility classes (bg-{color}-subtle / border-{color}-subtle) in the markup, so no
+   component background is needed here. */
 
 .preview-step .card-body {
     display: flex;
