@@ -46,10 +46,12 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await Expect(home).ToHaveAttributeAsync("href", "/");
         await AssertBootstrapIconGlyphAsync(home, "bi-house");
 
-        // The club item keeps the actual club name as its label.
+        // The club item keeps the actual club name as its label. Every club now has a required
+        // crest (#142), so the club item renders the crest avatar image instead of the building
+        // glyph fallback.
         var club = nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true });
         await Expect(club).ToBeVisibleAsync();
-        await AssertBootstrapIconGlyphAsync(club, "bi-building");
+        await Expect(club.Locator("img.nav-avatar")).ToHaveCountAsync(1);
 
         // Campaigns / Players / Teams icon + label items.
         await AssertIconLinkAsync(nav, "Campaigns", "campaigns", "bi-calendar-check");

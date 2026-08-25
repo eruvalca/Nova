@@ -74,6 +74,17 @@ Hard-won facts that are not discoverable from the code — follow them or you wi
   click-through with a retry helper that stops once the drawer actually opens (see
   `OpenParticipantAsync` in `CampaignEvaluationBrowserTests`), and open+close a participant
   before driving filters in URL-state tests to prove hydration.
+- **Playwright action methods throw `System.TimeoutException`, not `PlaywrightException`,** on
+  actionability timeouts (Click/Check/Select/Fill/Focus). Hydration-retry loops that catch only
+  `PlaywrightException` let these escapes turn latency into hard failures. Catch both:
+  `catch (Exception e) when (e is PlaywrightException or TimeoutException)` — the pattern
+  `InteractionHelpers.ActUntilAsync` already applies. `Expect`-only assertion catches should stay
+  `PlaywrightException` (assertion failures use that type).
+- **Never assert computed styles synchronously after triggering a CSS transition.** Bootstrap
+  transitions (e.g. `box-shadow` ~0.15s, or an async-loading stylesheet) mean a single
+  `getComputedStyle().backgroundColor`/`.boxShadow` read right after `focus()` observes the start
+  value. Poll through `BrowserRetryPolicy` (read, break when it matches, else
+  `WaitForTimeoutAsync(BrowserRetryPolicy.Delay)`).
 
 Conventions:
 
@@ -138,14 +149,22 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 - xUnit v4 additions available for future tests: `Assert.All`/`Assert.AllAsync(strict: true)` (fail on
   empty collections), per-test `Assert.OverrideMax*` message-formatting overrides, and fixture
   lifecycle notification interfaces (`INotifyTestCollectionLifecycle` and friends).
-- **Parallel execution**: all three test projects run `ParallelMode.All` (`ParallelAlgorithm.Conservative`;
-  unit + integration at CPU-thread default, browser capped at `MaxThreads = 4`) via per-project
-  `TestAssemblyParallelization.cs`. The simulated current user is AsyncLocal-backed, so direct
-  `fixture.CurrentUser.X = ...` assignment is flow-local and parallel-safe — never introduce
-  static/shared mutable user state. Use `fixture.UseUser(...)` when restore-on-dispose semantics
-  are needed. Opting out of parallelism (`[TestClass(DisableParallelism = true)]`, `[Fact]/[Theory(DisableParallelism = true)]`,
-  or a collection definition with `DisableParallelization = true`) is allowed only with an inline
-  reason; opt-out cannot be reversed at a lower level.
+- **Parallel execution**: all three test projects run `ParallelMode.All` via per-project
+  `TestAssemblyParallelization.cs`. Unit uses `ParallelAlgorithm.Aggressive` at the CPU-thread
+  default; integration and browser use `ParallelAlgorithm.Conservative` (integration at the
+  CPU-thread default, browser capped at `MaxThreads = 4`). The simulated current user is
+  AsyncLocal-backed, so direct `fixture.CurrentUser.X = ...` assignment is flow-local and
+  parallel-safe — never introduce static/shared mutable user state. Use `fixture.UseUser(...)`
+  when restore-on-dispose semantics are needed. Opting out of parallelism
+  (`[TestClass(DisableParallelism = true)]`, `[Fact]/[Theory(DisableParallelism = true)]`, or a
+  collection definition with `DisableParallelization = true`) is allowed only with an inline reason;
+  opt-out cannot be reversed at a lower level.
+  - **Do NOT switch integration or browser to Aggressive.** Every test in those suites seeds the
+    shared PostgreSQL via a DbContext before its first await, and Aggressive *starts* every test
+    case up front, so the shared connection pool is exhausted regardless of the `MaxThreads` cap
+    (`Npgsql.PostgresException 53300 "sorry, too many clients already"`; ~63 integration / ~12-22
+    browser failures). Conservative bounds how many tests START, keeping concurrent seeding within
+    the pool. Unit has no database and is safe under Aggressive (in-memory SQLite).
 - Do not pass `null` or `null!` for required mock dependencies; supply `Substitute.For<T>()` (or a real implementation) and `Array.Empty<T>()` for empty collections. Reserve nulls for tests that intentionally exercise nullable behavior.
 
 ## Related

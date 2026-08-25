@@ -32,16 +32,45 @@ public sealed class BootstrapThemeBrowserTests(BrowserSuiteFixture fixture)
         await page.GotoAsync(new Uri(fixture.BaseUri, "/campaigns").ToString());
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns" })).ToBeVisibleAsync();
 
-        // The "Create campaign" control is the page's `.btn-primary`.
+        // The "Create campaign" control is the page's `.btn-primary`. The compiled theme stylesheet
+        // and the Bootstrap transition settle asynchronously, so a single synchronous computed-style
+        // read under parallel load observes the transparent/empty start value. Poll through
+        // BrowserRetryPolicy until the kelp-teal background appears.
         var primaryButton = page.GetByRole(AriaRole.Link, new() { Name = "Create campaign" });
         await Expect(primaryButton).ToBeVisibleAsync();
-        var backgroundColor = await primaryButton.EvaluateAsync<string>(
-            "(el) => getComputedStyle(el).backgroundColor");
+        var backgroundColor = string.Empty;
+        for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
+        {
+            backgroundColor = await primaryButton.EvaluateAsync<string>(
+                "(el) => getComputedStyle(el).backgroundColor");
+            if (backgroundColor == ExpectedPrimaryRgb)
+            {
+                break;
+            }
+
+            await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
+        }
+
         backgroundColor.ShouldBe(ExpectedPrimaryRgb);
 
-        // The focused form control (the campaign-view select) shows the teal focus ring.
-        var focusRing = await page.Locator("#campaigns-view-filter").EvaluateAsync<string>(
-            "(el) => { el.focus(); return getComputedStyle(el).boxShadow; }");
+        // The focused form control (the campaign-view select) shows the teal focus ring. Bootstrap
+        // transitions box-shadow over ~0.15s, so a single synchronous read right after focus()
+        // always sees the transparent start value; poll through the transition window via
+        // BrowserRetryPolicy until the teal value appears.
+        var select = page.Locator("#campaigns-view-filter");
+        var focusRing = string.Empty;
+        for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
+        {
+            focusRing = await select.EvaluateAsync<string>(
+                "(el) => { el.focus(); return getComputedStyle(el).boxShadow; }");
+            if (focusRing.Contains("rgba(14, 124, 123"))
+            {
+                break;
+            }
+
+            await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
+        }
+
         focusRing.ShouldContain("rgba(14, 124, 123");
 
         // No computed style anywhere on the page resolves to the default Bootstrap blue.

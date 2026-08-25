@@ -49,6 +49,31 @@ them when writing any browser test:
    re-clicks. Use a retry helper that clicks until the drawer is actually visible and never
    re-clicks once it is (`OpenParticipantAsync`). For URL-state tests, open and close a
    participant first — a successful drawer open proves hydration before filters are driven.
+4. **Playwright action methods throw `System.TimeoutException`, not `PlaywrightException`.** On
+   actionability timeouts (`Click`/`Check`/`Select`/`Fill`/`Focus`), Playwright .NET surfaces
+   `System.TimeoutException`, so a hydration-retry loop that catches only `PlaywrightException`
+   lets the escape turn latency into a hard failure. Catch both — `catch (Exception e) when (e is
+   PlaywrightException or TimeoutException)` — the `InteractionHelpers.ActUntilAsync` pattern.
+   Keep `Expect`-only catches as `PlaywrightException` (assertion failures use that type).
+5. **Never read computed styles synchronously after triggering a CSS transition.** Bootstrap
+   transitions (e.g. `box-shadow` ~0.15s) and an async-loading stylesheet mean a single
+   `getComputedStyle().backgroundColor`/`.boxShadow` read right after `focus()` observes the
+   transparent/empty start value under load. Poll through `BrowserRetryPolicy` (read, break when
+   it matches, else `WaitForTimeoutAsync(BrowserRetryPolicy.Delay)`).
+
+## Parallelization
+
+The browser suite runs `ParallelMode.All`, `ParallelAlgorithm.Conservative`, `MaxThreads = 4`
+(`Nova.Browser.Tests\TestAssemblyParallelization.cs`). Do **not** switch it to Aggressive: even at
+MaxThreads 8 and 6, Aggressive failed 22 / 12 tests with `Npgsql.PostgresException 53300 "sorry,
+too many clients already"` because it *starts* every test case up front and each browser test seeds
+the shared PostgreSQL via a DbContext before its first await — before the SynchronizationContext
+continuation gate (MaxThreads) applies, so the cap cannot bound concurrently checked-out
+connections. Conservative bounds how many tests START. MaxThreads 4 (not 6 or 8) also keeps the
+many load-sensitive interactive tests deterministic; raising it above 4 shared the CPU too thinly
+and produced intermittent timing flakes. The hardening in this file (wider catch clauses,
+`BrowserRetryPolicy`-driven mutation/crop/focus polls) is what removes the failures, not more
+concurrency.
 
 ## Hydration retry policy
 

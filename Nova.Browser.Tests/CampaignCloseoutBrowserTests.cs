@@ -487,9 +487,10 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
                     await teamSelect.SelectOptionAsync(teamId!.Value.ToString());
                 }
             }
-            catch (PlaywrightException)
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
             {
                 // The select was replaced mid-interaction or the team select is not yet enabled.
+                // Playwright actionability timeouts surface as System.TimeoutException.
             }
 
             try

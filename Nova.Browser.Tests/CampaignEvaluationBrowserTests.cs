@@ -719,10 +719,11 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
             {
                 await row.ClickAsync(new() { Timeout = 5000 });
             }
-            catch (PlaywrightException)
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
             {
-                // A re-render replaced the element mid-click or the backdrop appeared because a
-                // previous click already opened the drawer; both settle below.
+                // A re-render replaced the element mid-click, the backdrop appeared because a
+                // previous click already opened the drawer, or the click actionability timeout
+                // surfaced as System.TimeoutException; both settle below.
             }
 
             try
