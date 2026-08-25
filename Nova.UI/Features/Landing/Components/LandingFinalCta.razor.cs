@@ -14,7 +14,5 @@ public partial class LandingFinalCta(NavigationManager navigationManager) : Nova
     /// Gets the registration URL that carries the safe local <c>/dashboard</c> continuation so a
     /// visitor who registers from the landing page continues to the authenticated dashboard.
     /// </summary>
-    protected string CreateClubUrl => navigationManager.GetUriWithQueryParameters(
-        "Account/Register",
-        new Dictionary<string, object?> { ["returnUrl"] = "/dashboard" });
+    protected string CreateClubUrl => LandingUrlHelper.CreateClubUrl(navigationManager);
 }
