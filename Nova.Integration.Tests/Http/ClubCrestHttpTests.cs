@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
@@ -310,6 +311,26 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
         problem.Kind.ShouldBe(ServiceProblemKind.Validation);
         problem.Errors.ShouldNotBeNull();
         problem.Errors.ShouldContainKey("crest");
+    }
+
+    /// <summary>
+    /// Verifies the change endpoint rejects a non-form content type with 415 (not a 500):
+    /// the nullable <c>[FromForm] IFormFile?</c> parameter keeps the framework's pre-bind
+    /// which 415s JSON requests before the handler runs.
+    /// </summary>
+    [Fact]
+    public async Task ChangeCrest_WithJsonContentType_ReturnsUnsupportedMediaType()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+
+        var admin = await RegisterClubAdminAsync(adminClient, "crest-change-json", "Json Change Club", cancellationToken);
+
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        using var response = await adminClient.PostAsync(
+            ClubCrestEndpoints.ChangeCrestUrl(admin.Club.ClubId), content, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.UnsupportedMediaType);
     }
 
     /// <summary>
