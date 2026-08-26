@@ -4,3 +4,11 @@
     font-size: 0.75rem;
     margin-top: 0.25rem;
 }
+
+/* Static SSR renders a hidden placeholder div for fields without errors so the
+   (unused here) client-validation engine can populate it. Without this rule the
+   author-origin display: block above would override the UA [hidden] { display: none }. */
+.account-validation-wrap ::deep .account-validation-message[hidden] {
+    display: none;
+    margin-top: 0;
+}
