@@ -118,7 +118,13 @@ Nova.UI/
 ## Bootstrap-First Styling
 
 - Prefer stock Bootstrap components, classes, and utilities before writing custom CSS.
-- For navigation and layout behavior (for example navbar collapse, alignment, spacing, borders, positioning), use Bootstrap-native markup and utility classes first.
+- For ordinary layout, use Bootstrap-native markup and utility classes first. For the application
+  identity chrome (the authenticated nav rail/bottom strip in `NavMenu`, the public header and brand
+  in `PublicLayout`, and layout shells), follow the design system: scoped `.razor.css` that uses
+  semantic `--bs-*` CSS variables and the navigation semantics in
+  `.github/instructions/ui-design.instructions.md` (left rail ≥768px, fixed bottom route strip below
+  768px, active edge rail/top marker). Bootstrap utilities still handle the standard layout around
+  that chrome.
 - Add custom CSS only when a specific requirement cannot be met with Bootstrap alone; keep those rules minimal and scoped in the component's `.razor.css`.
 - Avoid global stylesheet overrides for feature-specific UI when Bootstrap utilities or component-scoped styles can satisfy the requirement.
 - Use `rem` units for all custom CSS length values; `px` is acceptable only for hairline borders (e.g., `border: 1px solid`) or pixel-exact requirements.

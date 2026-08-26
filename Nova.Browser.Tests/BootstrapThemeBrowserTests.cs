@@ -109,7 +109,7 @@ public sealed class BootstrapThemeBrowserTests(BrowserSuiteFixture fixture)
         await Expect(badge).ToHaveTextAsync("Active");
         await A11yMeasurementHelpers.AssertContrastRatioAsync(badge, 4.5, "campaign status badge");
 
-        // The "Campaigns" navigation link sits on the `.navbar.bg-light` surface.
+        // The "Campaigns" navigation link sits on the `.nova-navigation` (sea-glass) surface.
         await A11yMeasurementHelpers.AssertContrastRatioAsync(
             page.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }), 4.5, "navigation link");
     }

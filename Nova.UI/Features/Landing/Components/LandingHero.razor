@@ -1,15 +1,50 @@
-@* Hero — the approved headline with administrator-first supporting copy and the primary/secondary actions. *@
-<section class="hero py-5 bg-success-subtle border-bottom border-success-subtle" aria-labelledby="hero-heading">
-    <div class="container text-center">
-        <h1 class="display-4 fw-bold mb-3" id="hero-heading">Run better tryouts. Build stronger teams.</h1>
-        <p class="lead text-muted mx-auto mb-4" style="max-width: 40rem;">
-            Nova gives club administrators one place to run tryouts from roster to result: enroll
-            players, invite coaches and evaluators, record evaluations, and place players onto teams —
-            with every club's data kept isolated and role-based access enforced.
-        </p>
-        <div class="d-flex flex-column flex-sm-row justify-content-center gap-3">
-            <a class="btn btn-primary btn-lg" href="@CreateClubUrl">Create your club</a>
-            <a class="btn btn-outline-dark btn-lg" href="#how-it-works">See how it works</a>
+<section class="hero" aria-labelledby="hero-heading">
+    <div class="container">
+        <div class="hero-grid">
+            <div class="hero-copy">
+                <div class="hero-route" aria-hidden="true">
+                    <span class="active"></span><span></span><span></span><span></span>
+                </div>
+                <h1 id="hero-heading">Run better tryouts.<br /><em>Build stronger teams.</em></h1>
+                <p>
+                    One place to enroll players, coordinate evaluators, record observations, and resolve
+                    team placements — with club data isolated and role-based access enforced.
+                </p>
+                <div class="hero-actions">
+                    <a class="btn btn-primary btn-lg" href="@CreateClubUrl">Create your club <span aria-hidden="true">→</span></a>
+                    <a class="hero-text-link" href="#how-it-works">Follow the campaign route</a>
+                </div>
+            </div>
+
+            <div class="campaign-preview" aria-label="Illustrative Nova campaign workspace">
+                <div class="campaign-preview-header">
+                    <div>
+                        <span>Spring season</span>
+                        <strong>U14 club tryouts</strong>
+                    </div>
+                    <span class="campaign-preview-status"><i></i> Active</span>
+                </div>
+                <ol class="campaign-preview-route">
+                    <li class="active">Roster</li>
+                    <li class="active">Evaluate</li>
+                    <li>Place</li>
+                    <li>Close</li>
+                </ol>
+                <div class="campaign-preview-summary">
+                    <span><strong>42</strong> players</span>
+                    <span><strong>31</strong> evaluated</span>
+                    <span class="needs-attention"><strong>11</strong> need review</span>
+                </div>
+                <div class="campaign-preview-list">
+                    <div><span class="player-marker">AC</span><strong>Avery Chen</strong><small>Forward</small><b>Evaluated</b></div>
+                    <div><span class="player-marker">JR</span><strong>Jordan Rivera</strong><small>Midfielder</small><b class="pending">Review</b></div>
+                    <div><span class="player-marker">SB</span><strong>Skyler Brooks</strong><small>Defender</small><b>Evaluated</b></div>
+                </div>
+                <div class="campaign-preview-footer">
+                    <span>Showing 3 of 42 players</span>
+                    <span aria-hidden="true">Open roster →</span>
+                </div>
+            </div>
         </div>
     </div>
 </section>

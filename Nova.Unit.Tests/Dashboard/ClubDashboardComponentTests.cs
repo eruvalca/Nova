@@ -112,13 +112,18 @@ public sealed class ClubDashboardComponentTests : BunitContext
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Admin attention"));
 
-        cut.Markup.ShouldContain("3 pending join requests");
-        cut.Markup.ShouldContain("5 unresolved placements");
+        var attentionItems = cut.FindAll(".attention-panel p")
+            .Select(item => item.TextContent.Trim())
+            .ToArray();
+        attentionItems.ShouldContain("3 pending join requests");
+        attentionItems.ShouldContain("5 unresolved placements");
 
-        var reviewRequestsLink = cut.FindAll("a").Single(a => a.TextContent.Trim() == "Review requests");
+        var reviewRequestsLink = cut.FindAll("a")
+            .Single(a => a.TextContent.Contains("Review requests", StringComparison.Ordinal));
         reviewRequestsLink.GetAttribute("href").ShouldBe("/Clubs/42/admin");
 
-        var reviewPlacementsLink = cut.FindAll("a").Single(a => a.TextContent.Trim() == "Review placements");
+        var reviewPlacementsLink = cut.FindAll("a")
+            .Single(a => a.TextContent.Contains("Review placements", StringComparison.Ordinal));
         reviewPlacementsLink.GetAttribute("href").ShouldBe("/campaigns/77");
     }
 
@@ -163,7 +168,8 @@ public sealed class ClubDashboardComponentTests : BunitContext
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Review placements"));
 
-        var reviewPlacementsLink = cut.FindAll("a").Single(a => a.TextContent.Trim() == "Review placements");
+        var reviewPlacementsLink = cut.FindAll("a")
+            .Single(a => a.TextContent.Contains("Review placements", StringComparison.Ordinal));
         reviewPlacementsLink.GetAttribute("href").ShouldBe("/campaigns");
     }
 

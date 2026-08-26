@@ -1,0 +1,258 @@
+.collaboration {
+    padding: clamp(5rem, 10vw, 9rem) 0;
+    background-color: color-mix(in srgb, var(--bs-secondary-bg-subtle) 58%, var(--bs-light));
+}
+
+.collaboration-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(28rem, 1.15fr);
+    gap: clamp(3rem, 8vw, 8rem);
+    align-items: center;
+}
+
+.section-label {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    color: var(--bs-secondary-text-emphasis);
+    font-size: 0.75rem;
+    font-weight: 750;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.section-label p {
+    margin: 0;
+}
+
+.collaboration-copy h2 {
+    margin-bottom: 1.5rem;
+    color: var(--bs-dark);
+    font-size: clamp(2.5rem, 5vw, 4.75rem);
+    line-height: 0.98;
+    letter-spacing: -0.05em;
+}
+
+.collaboration-copy > p {
+    max-width: 36rem;
+    margin-bottom: 2.5rem;
+    color: color-mix(in srgb, var(--bs-secondary-text-emphasis) 38%, var(--bs-dark));
+    line-height: 1.7;
+}
+
+.collaboration-copy dl {
+    margin: 0;
+}
+
+.collaboration-copy dl div {
+    display: grid;
+    grid-template-columns: 9rem 1fr;
+    gap: 1.5rem;
+    padding: 1.25rem 0;
+    border-top: 1px solid var(--bs-secondary-border-subtle);
+}
+
+.collaboration-copy dt {
+    color: var(--bs-secondary-text-emphasis);
+    font-size: 0.8125rem;
+}
+
+.collaboration-copy dd {
+    margin: 0;
+    color: color-mix(in srgb, var(--bs-secondary-text-emphasis) 38%, var(--bs-dark));
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.access-map {
+    padding: clamp(1.5rem, 4vw, 3rem);
+    background-color: var(--bs-white);
+    border: 1px solid var(--bs-secondary-border-subtle);
+    border-radius: 0.375rem;
+    box-shadow: 1rem 1rem 0 var(--bs-secondary-bg-subtle);
+}
+
+.access-map-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--bs-secondary-border-subtle);
+}
+
+.access-map-title span {
+    color: var(--bs-secondary-text-emphasis);
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.access-map-title strong {
+    font-size: 0.8125rem;
+}
+
+.access-map-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    justify-items: center;
+}
+
+.role,
+.workspace-node {
+    display: grid;
+    justify-items: center;
+    min-width: 10rem;
+    padding: 1rem 1.25rem;
+    background-color: var(--bs-white);
+    border: 1px solid var(--bs-secondary-border-subtle);
+    border-radius: 0.25rem;
+    text-align: center;
+}
+
+.role > span,
+.workspace-node > span {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin-bottom: 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    border-radius: 50%;
+}
+
+.role strong,
+.workspace-node strong {
+    font-size: 0.8125rem;
+}
+
+.role small,
+.workspace-node small {
+    margin-top: 0.25rem;
+    color: color-mix(in srgb, var(--bs-secondary-text-emphasis) 42%, var(--bs-dark));
+    font-size: 0.6875rem;
+}
+
+.admin-role,
+.workspace-node,
+.vertical,
+.split {
+    grid-column: 1 / -1;
+}
+
+.admin-role > span {
+    color: var(--bs-primary-text-emphasis);
+    background-color: var(--bs-primary-bg-subtle);
+}
+
+.workspace-node {
+    min-width: min(100%, 17rem);
+    background-color: var(--bs-dark);
+    border-color: var(--bs-dark);
+}
+
+.workspace-node > span {
+    color: var(--bs-dark);
+    background-color: var(--bs-light);
+}
+
+.workspace-node strong {
+    color: var(--bs-light);
+}
+
+.workspace-node small {
+    color: color-mix(in srgb, var(--bs-light) 65%, transparent);
+}
+
+.coach-role > span,
+.evaluator-role > span {
+    color: var(--bs-secondary-text-emphasis);
+    background-color: var(--bs-secondary-bg-subtle);
+}
+
+.access-line {
+    background-color: var(--bs-secondary-border-subtle);
+}
+
+.access-line.vertical {
+    width: 1px;
+    height: 2rem;
+}
+
+.access-line.split {
+    position: relative;
+    width: 50%;
+    height: 2rem;
+    background: linear-gradient(var(--bs-secondary-border-subtle), var(--bs-secondary-border-subtle)) center / 1px 100% no-repeat,
+                linear-gradient(var(--bs-secondary-border-subtle), var(--bs-secondary-border-subtle)) center / 100% 1px no-repeat;
+}
+
+.access-line.split::before,
+.access-line.split::after {
+    position: absolute;
+    bottom: 0;
+    width: 1px;
+    height: 50%;
+    content: "";
+    background-color: var(--bs-secondary-border-subtle);
+}
+
+.access-line.split::before {
+    left: 0;
+}
+
+.access-line.split::after {
+    right: 0;
+}
+
+.access-map-key {
+    display: flex;
+    justify-content: center;
+    gap: 1.25rem;
+    padding-top: 2rem;
+    color: color-mix(in srgb, var(--bs-secondary-text-emphasis) 48%, var(--bs-dark));
+    font-size: 0.625rem;
+}
+
+.access-map-key i {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-right: 0.25rem;
+    border-radius: 50%;
+}
+
+.access-map-key .primary { background-color: var(--bs-primary); }
+.access-map-key .info { background-color: var(--bs-secondary); }
+.access-map-key .neutral { background-color: var(--bs-dark); }
+
+@media (max-width: 991.98px) {
+    .collaboration-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .access-map {
+        max-width: 45rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .collaboration-copy dl div {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .role,
+    .workspace-node {
+        min-width: 7.75rem;
+        padding-right: 0.625rem;
+        padding-left: 0.625rem;
+    }
+
+    .access-map-key {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

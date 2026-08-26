@@ -7,6 +7,64 @@
     flex-shrink: 0;
 }
 
+.nova-navigation {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    padding-block: 0.375rem;
+    background: var(--bs-light);
+    border-top: 1px solid var(--bs-border-color);
+}
+
+.nova-navigation-inner {
+    display: flex;
+    flex-wrap: nowrap;
+}
+
+.nova-navigation .navbar-toggler {
+    display: none;
+}
+
+.nova-navigation .navbar-collapse {
+    display: flex !important;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+.nova-navigation .navbar-nav {
+    flex-direction: row;
+}
+
+.nova-navigation .nav-label {
+    font-size: 0.6875rem;
+    white-space: nowrap;
+}
+
+.nova-navigation ::deep(.nav-link) {
+    min-width: 4.25rem;
+    min-height: 2.75rem;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.125rem !important;
+    padding: 0.375rem;
+}
+
+.nova-navigation .nova-account-routes {
+    display: flex;
+    margin-left: auto;
+    padding-left: 0.5rem;
+    border-left: 1px solid var(--bs-border-color);
+}
+
+.nova-brand {
+    display: none;
+    color: var(--bs-body-color);
+    text-decoration: none;
+}
+
 .nav-item {
     position: relative;
 }
@@ -17,10 +75,6 @@
     color: inherit;
 }
 
-/* Fixed-size slot that overlays the outline and fill glyphs: both spans are
-   absolutely positioned at the slot's top-left, so swapping the visible glyph
-   on the active state causes no layout shift (outline vs fill widths differ
-   slightly, but the box never moves). */
 .nav-icon-slot {
     position: relative;
     display: inline-block;
@@ -35,22 +89,16 @@
     left: 0;
 }
 
-/* The outline glyph is the default; the fill glyph is overlaid on top and only
-   becomes visible on the active link — toggled purely by CSS off NavLink's
-   `.active` class (no code-behind interactivity; the class is refreshed by
-   NavMenu's LocationChanged subscription on client-side navigation). */
 .nav-icon-fill {
     opacity: 0;
     visibility: hidden;
 }
 
-/* The nav links are rendered by the NavLink child component, so the rules
-   below use ::deep to reach the generated <a> element through the scoped
-   navbar markup (CSS isolation only scopes elements the component renders
-   itself). Everything after ::deep stays unscoped, including the icon spans
-   NavMenu renders inside the link. */
 ::deep .nav-link.active {
     position: relative;
+    color: var(--bs-primary-text-emphasis);
+    font-weight: 650;
+    background-color: var(--bs-primary-bg-subtle);
 }
 
 ::deep .nav-link.active .nav-icon {
@@ -63,10 +111,6 @@
     visibility: visible;
 }
 
-/* Icon-first active indicator: a kelp teal bar along the top edge of the active
-   nav item (reference mockup), replacing Bootstrap's default underline. Below
-   md the bar sits at `top: 0` (just inside the link's border box); at md+ it is
-   raised to the navbar's very top edge (see the media query). */
 ::deep .nav-link.active::after {
     content: "";
     position: absolute;
@@ -75,58 +119,153 @@
     left: 0.75rem;
     height: 3px;
     background-color: var(--bs-primary);
-    border-radius: 0 0 3px 3px;
+    border-radius: 0 0 0.25rem 0.25rem;
 }
 
-/* Desktop (md+): stacked icon-above-label items with more breathing room,
-   matching the reference layout. The mobile (<md) collapsed menu keeps the
-   inline icon+label row via the base `d-flex align-items-center gap-2`. */
 @media (min-width: 768px) {
-    /* Bootstrap's own spacing variable used by `.navbar-expand-md .navbar-nav
-       .nav-link` for horizontal link padding at md+; 1rem (matches `$spacer`)
-       gives the items more separation than the default 0.5rem. The nav element
-       is rendered by NavMenu itself, so the rule is scoped directly (no
-       ::deep — there is no scoped ancestor above the nav). */
-    .navbar {
-        --bs-navbar-nav-link-padding-x: 1rem;
+    .nova-navigation {
+        position: fixed;
+        top: 0;
+        right: auto;
+        bottom: 0;
+        width: 15rem;
+        padding: 1.25rem 1rem;
+        background-color: var(--bs-light);
+        border-top: 0;
+        border-right: 1px solid var(--bs-border-color);
     }
 
-    /* Bootstrap vertically centers the flex line's items (`.navbar-collapse
-       { align-items: center }`), which leaves the shorter inline Manage/Logout
-       right-hand ul centered against the taller stacked left ul — pushing the
-       Manage link's top below the navbar content top so its active indicator
-       cannot stay flush. Top-align instead, so every link's top edge reaches
-       the navbar content top and the fixed indicator offset is flush for every
-       active item. The collapse element is rendered by NavMenu, so this stays
-       scoped (no ::deep). */
+    .nova-navigation-inner {
+        height: 100%;
+        padding: 0;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .nova-navigation .navbar-collapse {
+        overflow-x: visible;
+    }
+
+    .nova-navigation .navbar-nav {
+        flex-direction: column;
+    }
+
+    .nova-navigation .nova-account-routes {
+        display: flex;
+        margin-left: 0;
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .nova-navigation ::deep(.nav-link) {
+        min-width: 0;
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 0.5rem !important;
+    }
+
+    .nova-navigation .nav-label {
+        font-size: 0.875rem;
+    }
+
+    .nova-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.25rem 0.5rem 1.5rem;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+
+    .nova-brand-mark {
+        display: grid;
+        place-items: center;
+        width: 2.25rem;
+        height: 2.25rem;
+        background-color: var(--bs-primary);
+        border-radius: 0.25rem;
+        transform: rotate(45deg);
+    }
+
+    .nova-brand-mark span {
+        width: 0.75rem;
+        height: 0.75rem;
+        background-color: var(--bs-light);
+        border-radius: 50%;
+    }
+
+    .nova-brand-copy {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.1;
+    }
+
+    .nova-brand-copy strong {
+        font-size: 1.25rem;
+        letter-spacing: 0.02em;
+    }
+
+    .nova-brand-copy span {
+        margin-top: 0.25rem;
+        color: var(--bs-secondary-color);
+        font-size: 0.75rem;
+    }
+
     .navbar-collapse {
-        align-items: flex-start;
+        display: flex !important;
+        min-height: 0;
+        flex: 1;
+        flex-direction: column;
+        align-items: stretch;
     }
 
-    ::deep .nav-link {
-        padding-top: 0.75rem;
-        padding-bottom: 0.75rem;
+    .navbar-nav {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .nova-primary-routes {
+        gap: 0.25rem;
+    }
+
+    .nova-account-routes {
+        margin-top: auto;
+        padding-top: 1rem;
+        border-top: 1px solid var(--bs-border-color);
+    }
+
+    ::deep .nav-link,
+    .nav-item > form .nav-link {
+        width: 100%;
+        min-height: 2.75rem;
+        padding: 0.625rem 0.75rem;
+        border-radius: 0.25rem;
+        text-align: left;
     }
 
     ::deep .nav-link .bi {
-        font-size: 1.5rem;
+        font-size: 1.25rem;
     }
 
-    /* Grow the fixed icon slot with the md+ icon size so the overlay stays
-       aligned with the outline glyph. */
     .nav-icon-slot {
-        width: 1.5rem;
-        height: 1.5rem;
+        width: 1.25rem;
+        height: 1.25rem;
     }
 
     .nav-label {
-        font-size: 0.8125rem;
-        line-height: 1;
+        overflow: hidden;
+        font-size: 0.875rem;
+        line-height: 1.25;
+        text-overflow: ellipsis;
     }
 
-    /* Raise the active indicator so it is flush with the navbar's very top
-       edge (0.5rem navbar padding + 1px border-top). */
     ::deep .nav-link.active::after {
-        top: calc(-1 * (var(--bs-navbar-padding-y) + var(--bs-border-width)));
+        top: 0.625rem;
+        right: auto;
+        bottom: 0.625rem;
+        left: -1rem;
+        width: 0.25rem;
+        height: auto;
+        border-radius: 0 0.25rem 0.25rem 0;
     }
 }

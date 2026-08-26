@@ -1,0 +1,4 @@
+.landing-container {
+    overflow: hidden;
+    background-color: var(--bs-body-bg);
+}

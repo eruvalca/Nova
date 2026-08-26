@@ -1,87 +1,49 @@
-@* Product preview — an illustrative, non-interactive view of a real Nova tryout campaign
-   progressing from roster management through evaluation to team placement. Illustrative only. *@
-<section class="product-preview py-5" id="product" aria-labelledby="product-heading">
+@* Illustrative sample content only. *@
+<section class="workflow-preview" id="product" aria-labelledby="product-heading">
     <div class="container">
-        <div class="text-center mb-4">
-            <h2 class="h1 fw-bold mb-2" id="product-heading">One campaign, from roster to team placement</h2>
-            <p class="text-muted mx-auto" style="max-width: 42rem;">
-                A preview of a real Nova tryout campaign. Sample content is illustrative — your club's
-                players, evaluations, and placements live in your own isolated workspace.
+        <header class="workflow-heading">
+            <span class="section-number">01</span>
+            <div>
+                <p class="eyebrow">One continuous campaign</p>
+                <h2 id="product-heading">Registration to roster,<br />without losing the thread.</h2>
+            </div>
+            <p>
+                Operational details stay connected so administrators, coaches, and evaluators can move a
+                campaign forward without rebuilding context in separate spreadsheets or message threads.
             </p>
-        </div>
+        </header>
 
-        <div class="row g-4 align-items-stretch">
-            <div class="col-md-4">
-                <div class="card h-100 shadow-sm border-0 border-top border-primary-subtle bg-primary-subtle preview-step" aria-labelledby="preview-roster-heading">
-                    <div class="card-body">
-                        <span class="badge text-bg-primary mb-3">Step 1</span>
-                        <h3 class="h5 fw-semibold mb-2" id="preview-roster-heading">Build the roster</h3>
-                        <p class="text-muted small mb-3">
-                            Enroll the players invited to your club's tryout and organize them for evaluation.
-                        </p>
-                        <ul class="list-unstyled small mb-0">
-                            <li class="d-flex justify-content-between py-1 border-bottom">
-                                <span>Avery Chen</span><span class="text-muted">Forward</span>
-                            </li>
-                            <li class="d-flex justify-content-between py-1 border-bottom">
-                                <span>Jordan Rivera</span><span class="text-muted">Midfielder</span>
-                            </li>
-                            <li class="d-flex justify-content-between py-1 border-bottom">
-                                <span>Skyler Brooks</span><span class="text-muted">Defender</span>
-                            </li>
-                        </ul>
-                    </div>
+        <ol class="workflow-route" aria-label="Nova workflow">
+            <li>
+                <span class="route-index">01</span>
+                <div class="route-marker" aria-hidden="true"></div>
+                <div class="route-content">
+                    <p>Enrollment desk</p>
+                    <h3>Build the player pool</h3>
+                    <p>Add players and give families a self-service registration path when one is needed.</p>
+                    <span>Player records enter the campaign</span>
                 </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card h-100 shadow-sm border-0 border-top border-info-subtle bg-info-subtle preview-step" aria-labelledby="preview-evaluation-heading">
-                    <div class="card-body">
-                        <span class="badge text-bg-info mb-3">Step 2</span>
-                        <h3 class="h5 fw-semibold mb-2" id="preview-evaluation-heading">Collaborate on evaluations</h3>
-                        <p class="text-muted small mb-3">
-                            Coaches and evaluators record notes and apply tags within their own role-based
-                            permissions.
-                        </p>
-                        <div class="small">
-                            <div class="d-flex justify-content-between border-bottom py-1">
-                                <span>Avery Chen</span><span class="text-success-emphasis">Tagged</span>
-                            </div>
-                            <div class="border-bottom py-1">
-                                <span class="text-muted d-block">Coach note</span>
-                                <span>Strong first touch; quick to read space.</span>
-                            </div>
-                            <div class="d-flex justify-content-between py-1">
-                                <span>Jordan Rivera</span><span class="text-warning-emphasis">Unresolved</span>
-                            </div>
-                        </div>
-                    </div>
+            </li>
+            <li>
+                <span class="route-index">02</span>
+                <div class="route-marker" aria-hidden="true"></div>
+                <div class="route-content">
+                    <p>Evaluation field</p>
+                    <h3>Capture observations</h3>
+                    <p>Authorized evaluators record feedback against the same campaign roster.</p>
+                    <span>Shared context, role-based access</span>
                 </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card h-100 shadow-sm border-0 border-top border-success-subtle bg-success-subtle preview-step" aria-labelledby="preview-placement-heading">
-                    <div class="card-body">
-                        <span class="badge text-bg-success mb-3">Step 3</span>
-                        <h3 class="h5 fw-semibold mb-2" id="preview-placement-heading">Place players onto teams</h3>
-                        <p class="text-muted small mb-3">
-                            Resolve placements and close out the campaign so your club can act on the
-                            results.
-                        </p>
-                        <ul class="list-unstyled small mb-0">
-                            <li class="d-flex justify-content-between py-1 border-bottom">
-                                <span>Avery Chen</span><span class="text-muted">U14 Blue</span>
-                            </li>
-                            <li class="d-flex justify-content-between py-1 border-bottom">
-                                <span>Skyler Brooks</span><span class="text-muted">U14 White</span>
-                            </li>
-                            <li class="d-flex justify-content-between py-1">
-                                <span>Jordan Rivera</span><span class="text-muted">Pending</span>
-                            </li>
-                        </ul>
-                    </div>
+            </li>
+            <li>
+                <span class="route-index">03</span>
+                <div class="route-marker" aria-hidden="true"></div>
+                <div class="route-content">
+                    <p>Placement board</p>
+                    <h3>Resolve team assignments</h3>
+                    <p>Review the field and place players onto teams without losing campaign context.</p>
+                    <span>Decisions stay tied to the source</span>
                 </div>
-            </div>
-        </div>
+            </li>
+        </ol>
     </div>
 </section>

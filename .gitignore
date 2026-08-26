@@ -372,3 +372,11 @@ __blobstorage__/
 
 # Sass-compiled Bootstrap theme (built by the BuildBootstrapTheme MSBuild target)
 Nova/wwwroot/css/
+
+# Local design-system source of truth (product/design briefs, Impeccable surface briefs
+# and sidecar, agent-local hooks). Never committed to the repository.
+.impeccable/
+.codex/
+.github/hooks/
+PRODUCT.md
+DESIGN.md
