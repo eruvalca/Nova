@@ -30,17 +30,19 @@
                         {
                             <li class="nav-item">
                                 <NavLink class="nav-link d-flex align-items-center gap-2" href="@ClubDetailUrl" Match="NavLinkMatch.Prefix">
-                                    <span class="nav-icon-slot">
-                                        @if (context.User.HasClaim(c => c.Type == NovaClaimTypes.HasClubCrest))
-                                        {
+                                    @if (context.User.HasClaim(c => c.Type == NovaClaimTypes.HasClubCrest))
+                                    {
+                                        <span class="nav-avatar-slot">
                                             <img class="nav-avatar" src="@ClubCrestUrl" alt="" aria-hidden="true" />
-                                        }
-                                        else
-                                        {
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="nav-icon-slot">
                                             <span class="bi bi-building nav-icon" aria-hidden="true"></span>
                                             <span class="bi bi-building-fill nav-icon-fill" aria-hidden="true"></span>
-                                        }
-                                    </span>
+                                        </span>
+                                    }
                                     <span class="nav-label">@ClubName</span>
                                 </NavLink>
                             </li>
@@ -82,7 +84,9 @@
                             <NavLink class="nav-link d-flex align-items-center gap-2" href="Account/Manage">
                                 @if (context.User.HasClaim(c => c.Type == NovaClaimTypes.HasProfilePhoto))
                                 {
-                                    <img class="nav-avatar" src="@PhotoUrl" alt="Profile photo" />
+                                    <span class="nav-avatar-slot">
+                                        <img class="nav-avatar" src="@PhotoUrl" alt="Profile photo" />
+                                    </span>
                                 }
                                 <span class="nav-label">Manage</span>
                             </NavLink>

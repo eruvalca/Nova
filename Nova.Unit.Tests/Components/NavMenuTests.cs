@@ -216,6 +216,7 @@ public class NavMenuTests
 
         // Assert
         cut.Markup.ShouldContain("nav-avatar");
+        cut.Markup.ShouldContain("nav-avatar-slot");
         cut.Markup.ShouldContain("src=\"/api/clubs/42/crest?size=small\"");
         // The crest image is decorative (the club name already labels the link), so it carries an
         // empty alt (bUnit serializes an empty attribute as a bare `alt`) and is hidden from
@@ -267,6 +268,7 @@ public class NavMenuTests
 
         // Assert
         cut.Markup.ShouldContain("class=\"nav-avatar\"");
+        cut.Markup.ShouldContain("nav-avatar-slot");
         cut.Markup.ShouldContain("src=\"/api/users/7/photo?size=small\"");
         cut.Markup.ShouldContain("alt=\"Profile photo\"");
     }
@@ -310,6 +312,7 @@ public class NavMenuTests
 
         // Assert
         cut.Markup.ShouldNotContain("class=\"nav-avatar\"");
+        cut.Markup.ShouldNotContain("nav-avatar-slot");
         cut.Markup.ShouldNotContain("alt=\"Profile photo\"");
     }
 

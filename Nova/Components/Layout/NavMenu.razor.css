@@ -78,6 +78,17 @@
     height: 1.25rem;
 }
 
+/* The avatar (2rem) never shares the 1.25rem glyph slot: it gets its own sized slot so the
+   larger circle cannot overflow onto the adjacent label. */
+.nav-avatar-slot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 auto;
+}
+
 .nav-icon,
 .nav-icon-fill {
     position: absolute;
@@ -118,13 +129,13 @@
     border-radius: 0 0 0.25rem 0.25rem;
 }
 
-/* ---- Mobile bottom strip (<md): the five primary routes stay as stacked icon-above-label
-   tabs; the account routes collapse behind the hamburger into a paper sheet that rises over
-   the strip. The Bootstrap .show class (JS) reveals the sheet. The collapse contract is gated
-   on html.js — the JS marker added by App.razor before any stylesheet is applied — so with
-   scripting disabled (or before JS runs, including browsers that cannot evaluate the
-   `scripting` media feature) the account routes fall back to inline strip items instead of an
-   unopenable hamburger. ---- */
+/* ---- Mobile (<md): the whole nav (primary + account routes) collapses behind the hamburger
+   into one paper sheet that rises over the bottom bar. At rest the bar shows the brand lockup
+   and the toggler only — never five shrinking truncated tabs. The Bootstrap .show class (JS)
+   reveals the sheet. The collapse contract is gated on html.js — the JS marker added by
+   App.razor before any stylesheet is applied — so with scripting disabled (or before JS runs,
+   including browsers that cannot evaluate the `scripting` media feature) the nav falls back to
+   the previous always-inline scrollable strip instead of an unopenable hamburger. ---- */
 @media (max-width: 767.98px) {
     .nova-navigation .navbar-toggler {
         display: inline-flex;
@@ -150,75 +161,79 @@
     .nova-navigation .navbar-collapse {
         order: 1;
         flex: 1 1 auto;
-        flex-wrap: wrap;
     }
 
-    /* The primary routes fill the strip, and each tab shares the width equally so the
-       five primary tabs fit without horizontal scroll (long labels ellipsize). The me-auto
-       utility (!important) must be cleared here or it absorbs all free space. */
-    .nova-navigation .nova-primary-routes {
+    /* ---- JS-confirmed mobile contract: brand bar + hamburger at rest, one full menu sheet
+       for every route when opened. ---- */
+
+    html.js .nova-navigation .nova-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        order: 1;
         flex: 1 1 auto;
         min-width: 0;
-        margin-right: 0 !important;
+        padding: 0.375rem 0.5rem;
+        color: var(--bs-body-color);
+        text-decoration: none;
     }
 
-    .nova-navigation .nova-primary-routes .nav-item {
-        flex: 1 1 0;
+    html.js .nova-navigation .nova-brand-mark {
+        display: grid;
+        place-items: center;
+        width: 2rem;
+        height: 2rem;
+        flex: 0 0 auto;
+        background-color: var(--bs-primary);
+        border-radius: 0.25rem;
+        transform: rotate(45deg);
+    }
+
+    html.js .nova-navigation .nova-brand-mark span {
+        width: 0.625rem;
+        height: 0.625rem;
+        background-color: var(--bs-light);
+        border-radius: 50%;
+    }
+
+    html.js .nova-navigation .nova-brand-copy {
+        display: flex;
+        flex-direction: column;
         min-width: 0;
+        line-height: 1.1;
     }
 
-    .nova-navigation .nova-primary-routes ::deep .nav-link {
-        min-width: 0;
-        padding: 0.375rem 0.375rem;
+    html.js .nova-navigation .nova-brand-copy strong {
+        font-size: 1rem;
+        letter-spacing: 0.02em;
     }
 
-    /* The strip itself never collapses; only the account sheet toggles, so neutralize the
-       Bootstrap height animation on the always-visible container. */
-    .nova-navigation .navbar-collapse.collapsing {
-        height: auto;
-        overflow: visible;
-        transition: none;
-    }
-
-    .nova-navigation .nav-label {
-        max-width: 100%;
+    html.js .nova-navigation .nova-brand-copy span {
+        margin-top: 0.125rem;
+        color: var(--bs-secondary-color);
+        font-size: 0.6875rem;
+        white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
-    /* ---- JS-confirmed mobile contract: the account sheet. Everything in this block applies
-       only once the inline JS marker (html.js) confirms scripting, so a JS-disabled browser
-       keeps the previous always-inline strip below (the default) instead of landing on a
-       non-functional hamburger. Older browsers that do not support the `scripting` media
-       feature are covered by the same default (html:not(.js)). ---- */
-    html.js .nova-navigation .nova-account-routes {
-        display: none;
+    /* At rest the whole nav hides behind the toggler: the bar never renders a shrink-to-fit
+       strip of truncated tabs. The higher-specificity !important overrides the base
+       always-flex rule; the no-JS branch (html:not(.js)) keeps the base flex behavior. */
+    html.js .nova-navigation .navbar-collapse {
+        display: none !important;
     }
 
-    /* Anonymous single-Login case: with only the Login tab there is nothing to open a menu
-       for, so keep the Login tab inline and hide the hamburger. The anonymous state is
-       computed server-side (NavMenu.razor.cs) and carried as the account-routes-single
-       marker class on the nav, so the contract does not depend on :has() support
-       (Chrome <105, Safari <15.4, Firefox <121). */
-    html.js .nova-navigation.account-routes-single .nova-account-routes {
-        display: flex;
-        padding-left: 0;
-        border-left: 0;
-    }
-
-    html.js .nova-navigation.account-routes-single .navbar-toggler {
-        display: none;
-    }
-
-    html.js .nova-navigation .navbar-collapse.show .nova-account-routes {
+    /* Opened: the collapse becomes the paper sheet that rises over the bar. */
+    html.js .nova-navigation .navbar-collapse.show {
         position: absolute;
         right: 0;
         /* bottom: 100% pins the sheet to the inner container's top edge; +0.375rem overlaps
-           the nav's top padding so the sheet rests flush on the strip's top border. */
+           the nav's top padding so the sheet rests flush on the bar's top border. */
         bottom: calc(100% + 0.375rem);
         left: 0;
         z-index: 1;
-        display: flex;
+        display: flex !important;
         flex-direction: column;
         gap: 0.25rem;
         margin: 0;
@@ -231,21 +246,89 @@
         overflow-y: auto;
     }
 
-    html.js .nova-navigation .navbar-collapse.show .nova-account-routes ::deep .nav-link,
-    html.js .nova-navigation .navbar-collapse.show .nova-account-routes form {
+    /* Both route lists stack as full-width menu sections inside the sheet. Active rows keep
+       the base .nav-link.active treatment (Sea Glass field + Abyss Forest emphasis + the teal
+       top-edge marker). */
+    html.js .nova-navigation .navbar-collapse.show .navbar-nav {
+        flex-direction: column;
+        gap: 0.25rem;
         width: 100%;
+    }
+
+    html.js .nova-navigation .navbar-collapse.show .nova-primary-routes {
+        margin-bottom: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    html.js .nova-navigation .navbar-collapse.show .nova-primary-routes .nav-item {
+        flex: none;
         min-width: 0;
     }
 
-    html.js .nova-navigation .navbar-collapse.show .nova-account-routes ::deep .nav-link {
-        flex-direction: row;
-        justify-content: flex-start;
+    html.js .nova-navigation .navbar-collapse.show .nova-account-routes {
+        display: flex;
+        margin-bottom: 0 !important;
+        margin-left: 0;
+        padding-top: 0.625rem;
+        padding-left: 0;
+        border-left: 0;
+        border-top: 1px solid var(--bs-border-color);
     }
 
-    /* ---- No-JS default (html:not(.js)): the previous contract — account routes render
-       inline in the strip again and the strip becomes gently scrollable rather than hiding
-       them behind an unopenable hamburger. flex-wrap: nowrap is required for the strip to
-       actually scroll: with wrap, items would wrap onto a second line before overflow-x: auto
+    /* Every sheet row is a full-width, left-aligned row with a ≥2.75rem touch target. */
+    html.js .nova-navigation .navbar-collapse.show ::deep .nav-link,
+    html.js .nova-navigation .navbar-collapse.show .nova-account-routes form {
+        width: 100%;
+        min-width: 0;
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 0.5rem !important;
+        padding: 0.625rem 0.75rem;
+        border-radius: 0.25rem;
+        text-align: left;
+    }
+
+    /* Full-size, legible labels: rows are full-width so the natural text fits; wrapping is
+       allowed rather than clipping (ellipsis remains only in the no-JS strip fallback). */
+    html.js .nova-navigation .navbar-collapse.show .nav-label {
+        max-width: none;
+        overflow: visible;
+        font-size: 0.875rem;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    /* The strip itself never animates; neutralize the Bootstrap height animation on the
+       toggled container so it snaps open/closed like the paper sheet it is. */
+    .nova-navigation .navbar-collapse.collapsing {
+        height: auto;
+        overflow: visible;
+        transition: none;
+    }
+
+    /* Anonymous single-Login case: with only the Login tab there is nothing to open a menu
+       for, so keep the whole collapse inline (the Login tab) and hide the hamburger. The
+       anonymous state is computed server-side (NavMenu.razor.cs) and carried as the
+       account-routes-single marker class on the nav, so the contract does not depend on :has()
+       support (Chrome <105, Safari <15.4, Firefox <121). */
+    html.js .nova-navigation.account-routes-single .navbar-collapse {
+        display: flex !important;
+    }
+
+    html.js .nova-navigation.account-routes-single .nova-account-routes {
+        display: flex;
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    html.js .nova-navigation.account-routes-single .navbar-toggler {
+        display: none;
+    }
+
+    /* ---- No-JS default (html:not(.js)): the previous contract — every route renders inline
+       in the strip again and the strip becomes gently scrollable rather than hiding them
+       behind an unopenable hamburger. flex-wrap: nowrap is required for the strip to actually
+       scroll: with wrap, items would wrap onto a second line before overflow-x: auto
        ever engages and the fixed strip would grow taller instead of scrolling. The hamburger
        serves no purpose without JS and is hidden. Mobile-scoped: the desktop rail keeps
        overflow-x: visible. ---- */

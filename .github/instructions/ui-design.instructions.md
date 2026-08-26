@@ -41,16 +41,20 @@ description: "UI design rules for the Fieldhouse Wayfinding design system: PRODU
 ## Navigation semantics
 
 - Authenticated app nav (`Nova/Components/Layout/NavMenu`): **left rail at ≥768px** (15rem, fixed)
-  and a **fixed bottom route strip below 768px** whose five primary tabs flex-fill and stay visible
-  at all times; account routes (Manage/Logout or Login) collapse behind a hamburger into a paper
-  sheet that rises over the strip (Bootstrap `.show`) — functionality stays reachable, never
-  hidden. The collapse contract is gated on `html.js` (an inline JS marker added by `App.razor`
-  before stylesheets), so with scripting disabled the account routes fall back to inline strip
-  items in a horizontally scrollable strip and the hamburger hides (it could never open without
-  JS); with only a single Login tab (anonymous) the tab stays inline and the hamburger hides.
+  and a **fixed bottom bar below 768px** that shows the brand lockup and a hamburger only. The
+  hamburger opens one paper sheet listing **every** route — primary (Dashboard, club, Campaigns,
+  Players, Teams) and account (Manage/Logout or Login) — as full-width, left-aligned rows with
+  legible full-size (0.875rem) labels (Bootstrap `.show`) — functionality stays reachable, never
+  hidden, and labels never shrink or truncate into "Dash…". The collapse contract is gated on
+  `html.js` (an inline JS marker added by `App.razor` before stylesheets), so with scripting
+  disabled all routes fall back to inline items in a horizontally scrollable strip and the
+  hamburger hides (it could never open without JS); with only a single Login tab (anonymous) the
+  tab stays inline and the hamburger hides.
 - Active item = sea-glass field (`--bs-primary-bg-subtle`) + teal indicator: top marker (3px) on the
-  mobile bottom strip, left edge rail (`0.25rem` inset) on the rail. Icons swap outline→fill via the
-  active class (`nav-icon`/`nav-icon-fill`).
+  mobile menu rows, left edge rail (`0.25rem` inset) on the rail. Icons swap outline→fill via the
+  active class (`nav-icon`/`nav-icon-fill`). Club crest and profile avatars render inside their
+  own 2rem slot (`nav-avatar-slot`) beside the label — never inside the 1.25rem glyph slot, so
+  the larger circle cannot overlap the label.
 - Route-marker tab pattern (campaign workspace tabs): 4 stop buttons in a grid with a
   `min-width: 36rem` scroll container (`overflow-x: auto`), markers connected by a line, active stop
   teal + sea glass. Horizontally scrollable at ≤36rem viewport widths.
