@@ -43,7 +43,7 @@
     white-space: nowrap;
 }
 
-.nova-navigation ::deep(.nav-link) {
+.nova-navigation ::deep .nav-link {
     min-width: 4.25rem;
     min-height: 2.75rem;
     flex-direction: column;
@@ -157,7 +157,7 @@
         border-left: 0;
     }
 
-    .nova-navigation ::deep(.nav-link) {
+    .nova-navigation ::deep .nav-link {
         min-width: 0;
         flex-direction: row;
         justify-content: flex-start;

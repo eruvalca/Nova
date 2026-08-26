@@ -34,7 +34,8 @@ description: "UI design rules for the Fieldhouse Wayfinding design system: PRODU
 - Controls and inputs use the `0.25rem` radius; badge/status chips are labeled pills only where
   semantics require (never decorative pills; circles only for people/status/route markers/brand dot).
 - Secondary text on colored surfaces must derive from the surface hue (e.g. `color-mix(in srgb,
-  var(--bs-white) 78%, transparent)` on teal) and keep ≥3:1 contrast.
+  var(--bs-white) 93%, transparent)` on teal) and keep ≥4.5:1 contrast for normal-size text
+  (3:1 applies only to non-text UI components).
 - No thick decorative side borders; edge rails (≤0.25rem) are reserved for the active navigation item.
 
 ## Navigation semantics

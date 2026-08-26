@@ -166,6 +166,7 @@
 
 .attention-panel a {
     display: block;
+    color: var(--bs-primary-text-emphasis);
 }
 
 .activity-board {

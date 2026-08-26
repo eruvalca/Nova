@@ -9,9 +9,10 @@ namespace Nova.Browser.Tests;
 /// <summary>
 /// Browser-level acceptance of the Fieldhouse Wayfinding navigation (issue #134 + follow-up
 /// polish): the authenticated navigation renders as a fixed left rail at md+ (768px+) and a fixed
-/// bottom strip below md that is horizontally scrollable; items show icon + label rows (Dashboard,
-/// Club, Campaigns, Players, Teams) with bootstrap-icons glyphs; account items (Manage, Logout)
-/// stay present in both layouts; the active item carries a kelp teal edge rail at desktop
+/// bottom strip below md that is horizontally scrollable; items show icon + label items (inline
+/// rows at md+, stacked icon-above-label tabs below md) with bootstrap-icons glyphs; account
+/// items (Manage, Logout) stay present in both layouts; the active item carries a kelp teal edge
+/// rail at desktop
 /// (left-edge bar) and a top marker on the mobile bottom strip, swapping its outline glyph for the
 /// matching <c>-fill</c> variant (CSS overlay, no layout shift); the Manage link navigates to
 /// /Account/Manage; Logout posts the antiforgery form and returns to the login page; and the
@@ -207,11 +208,12 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
     /// <summary>
     /// NB7: at a mobile (&lt;md) viewport the authorized nav renders as a fixed bottom strip whose
-    /// links keep the inline icon+label row and are reachable by horizontal scrolling (the
-    /// account items — Manage/Logout — are part of the same scrollable row, so nothing is hidden).
+    /// links stack icon above label (the DESIGN.md tab-strip layout) and are reachable by
+    /// horizontal scrolling (the account items — Manage/Logout — are part of the same scrollable
+    /// row, so nothing is hidden).
     /// </summary>
     [Fact]
-    public async Task Navbar_Mobile_BottomStrip_KeepsInlineRowAndAccountItems()
+    public async Task Navbar_Mobile_BottomStrip_StackedTabsAndAccountItems()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -237,13 +239,13 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var overflowX = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).overflowX");
         overflowX.ShouldBe("auto");
 
-        // Each authorized item keeps the inline row at <md (Dashboard, the club, Campaigns,
-        // Players, Teams).
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true }));
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true }));
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }));
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }));
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }));
+        // Each authorized item keeps the stacked icon-above-label tab layout at <md (Dashboard,
+        // the club, Campaigns, Players, Teams).
+        await AssertStackedTabLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true }));
+        await AssertStackedTabLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true }));
+        await AssertStackedTabLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }));
+        await AssertStackedTabLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }));
+        await AssertStackedTabLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }));
 
         // The account items stay part of the mobile strip (Manage + Logout).
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false })).ToBeVisibleAsync();
@@ -332,6 +334,27 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var iconCenterY = (double)iconBox.Y + (iconBox.Height / 2);
         var labelCenterY = (double)labelBox.Y + (labelBox.Height / 2);
         Math.Abs(iconCenterY - labelCenterY).ShouldBeLessThanOrEqualTo(2.0, "the icon and label must stay vertically centered");
+    }
+
+    /// <summary>
+    /// Asserts the link keeps the stacked icon-above-label tab layout (flex column, icon box above
+    /// — not beside — the label box, both horizontally centered on the tab's center axis) — the
+    /// DESIGN.md route-strip tab layout used by the mobile bottom strip at &lt;md.
+    /// </summary>
+    private static async Task AssertStackedTabLayoutAsync(ILocator link)
+    {
+        var flexDirection = await link.EvaluateAsync<string>("(el) => getComputedStyle(el).flexDirection");
+        flexDirection.ShouldBe("column");
+        var iconBox = await link.Locator("span.nav-icon-slot").BoundingBoxAsync();
+        var labelBox = await link.Locator("span.nav-label").BoundingBoxAsync();
+        iconBox.ShouldNotBeNull();
+        labelBox.ShouldNotBeNull();
+        iconBox!.Y.ShouldBeLessThan(labelBox!.Y, "the icon must sit above the label in the stacked tab");
+        ((double)iconBox!.Width).ShouldBeInRange(19.5, 20.5, "the icon slot must keep its 1.25rem baseline width");
+        ((double)iconBox!.Height).ShouldBeInRange(19.5, 20.5, "the icon slot must keep its 1.25rem baseline height");
+        var iconCenterX = (double)iconBox.X + (iconBox.Width / 2);
+        var labelCenterX = (double)labelBox.X + (labelBox.Width / 2);
+        Math.Abs(iconCenterX - labelCenterX).ShouldBeLessThanOrEqualTo(2.0, "the icon and label must stay horizontally centered");
     }
 
     /// <summary>
