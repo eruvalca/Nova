@@ -228,7 +228,7 @@ The kelp-forest palette is grounded, legible, and functional. It follows the sou
 
 ## Layout
 
-Authenticated screens use a fixed 15rem navigation rail from the medium breakpoint upward and a horizontally scrollable bottom route strip below it. Main content is centered in fields up to 90-100rem wide, with 1rem mobile gutters, 2rem desktop gutters, and 3rem wide-screen gutters.
+Authenticated screens use a fixed 15rem navigation rail from the medium breakpoint upward and, below it, a fixed bottom route strip whose five primary tabs divide the strip width equally and stay visible at all times. Account routes (Manage, Logout — or Login when anonymous) sit behind a hamburger that opens a paper sheet rising over the strip; the sheet opens only when scripting is confirmed, so with scripting disabled the account routes fall back to inline strip items inside a gently scrollable strip instead of an unopenable menu. Main content is centered in fields up to 90-100rem wide, with 1rem mobile gutters, 2rem desktop gutters, and 3rem wide-screen gutters.
 
 Operational pages favor asymmetric grids: a flexible primary board beside a bounded 15-22rem status rail. Public sections can be more expressive, pairing an editorial content column with an illustrative working surface. Grids collapse to one column before content becomes cramped; actions become full-width on narrow phones; lifecycle routes scroll horizontally rather than wrapping into ambiguity.
 
@@ -290,7 +290,7 @@ Borders are fine and quiet. Strong silhouettes come from the 45-degree brand til
 
 ### Navigation
 - **Style:** Compact semibold labels with line icons at rest and filled icons when active. The active state uses Sea Glass, Abyss Forest emphasis, and a teal edge rail.
-- **Responsive behavior:** The desktop rail becomes a fixed bottom route strip with horizontally scrollable destinations and a top active marker on small screens.
+- **Responsive behavior:** The desktop rail becomes a fixed bottom route strip below the medium breakpoint: five primary tabs flex-fill the strip with stacked icon-above-label glyphs and an active marker at the top edge. Account routes collapse behind the hamburger into a paper sheet that rises over the strip; with only a Login tab (anonymous) the tab stays inline and the hamburger hides. When scripting is disabled the hamburger cannot open, so account routes fall back to inline strip items in a horizontally scrollable strip.
 
 ### Campaign Route
 

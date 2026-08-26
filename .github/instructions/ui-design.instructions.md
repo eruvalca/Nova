@@ -41,8 +41,13 @@ description: "UI design rules for the Fieldhouse Wayfinding design system: PRODU
 ## Navigation semantics
 
 - Authenticated app nav (`Nova/Components/Layout/NavMenu`): **left rail at ≥768px** (15rem, fixed)
-  and a **fixed bottom route strip below 768px** that is **horizontally scrollable** and includes
-  account routes (Manage/Logout or Login) — never hide functionality on mobile.
+  and a **fixed bottom route strip below 768px** whose five primary tabs flex-fill and stay visible
+  at all times; account routes (Manage/Logout or Login) collapse behind a hamburger into a paper
+  sheet that rises over the strip (Bootstrap `.show`) — functionality stays reachable, never
+  hidden. The collapse contract is gated on `html.js` (an inline JS marker added by `App.razor`
+  before stylesheets), so with scripting disabled the account routes fall back to inline strip
+  items in a horizontally scrollable strip and the hamburger hides (it could never open without
+  JS); with only a single Login tab (anonymous) the tab stays inline and the hamburger hides.
 - Active item = sea-glass field (`--bs-primary-bg-subtle`) + teal indicator: top marker (3px) on the
   mobile bottom strip, left edge rail (`0.25rem` inset) on the rail. Icons swap outline→fill via the
   active class (`nav-icon`/`nav-icon-fill`).

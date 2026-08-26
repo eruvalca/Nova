@@ -120,8 +120,11 @@
 
 /* ---- Mobile bottom strip (<md): the five primary routes stay as stacked icon-above-label
    tabs; the account routes collapse behind the hamburger into a paper sheet that rises over
-   the strip. The Bootstrap .show class (JS) reveals the sheet; with scripting disabled the
-   account routes fall back to inline strip items. ---- */
+   the strip. The Bootstrap .show class (JS) reveals the sheet. The collapse contract is gated
+   on html.js — the JS marker added by App.razor before any stylesheet is applied — so with
+   scripting disabled (or before JS runs, including browsers that cannot evaluate the
+   `scripting` media feature) the account routes fall back to inline strip items instead of an
+   unopenable hamburger. ---- */
 @media (max-width: 767.98px) {
     .nova-navigation .navbar-toggler {
         display: inline-flex;
@@ -183,24 +186,28 @@
         text-overflow: ellipsis;
     }
 
-    /* Account routes (Manage/Logout) live in the hamburger menu; the sheet rises above
-       the strip. The unauthenticated Login tab is the single visible tab. */
-    .nova-navigation .nova-account-routes {
+    /* ---- JS-confirmed mobile contract: the account sheet. Everything in this block applies
+       only once the inline JS marker (html.js) confirms scripting, so a JS-disabled browser
+       keeps the previous always-inline strip below (the default) instead of landing on a
+       non-functional hamburger. Older browsers that do not support the `scripting` media
+       feature are covered by the same default (html:not(.js)). ---- */
+    html.js .nova-navigation .nova-account-routes {
         display: none;
     }
 
-    .nova-navigation .nova-account-routes:has(.nav-item:only-child) {
+    /* Anonymous single-Login case: with only the Login tab there is nothing to open a menu
+       for, so keep the Login tab inline and hide the hamburger. */
+    html.js .nova-navigation .nova-account-routes:has(.nav-item:only-child) {
         display: flex;
         padding-left: 0;
         border-left: 0;
     }
 
-    /* With only the Login tab there is nothing to open a menu for. */
-    .nova-navigation:has(.nova-account-routes .nav-item:only-child) .navbar-toggler {
+    html.js .nova-navigation:has(.nova-account-routes .nav-item:only-child) .navbar-toggler {
         display: none;
     }
 
-    .nova-navigation .navbar-collapse.show .nova-account-routes {
+    html.js .nova-navigation .navbar-collapse.show .nova-account-routes {
         position: absolute;
         right: 0;
         /* bottom: 100% pins the sheet to the inner container's top edge; +0.375rem overlaps
@@ -221,15 +228,33 @@
         overflow-y: auto;
     }
 
-    .nova-navigation .navbar-collapse.show .nova-account-routes ::deep .nav-link,
-    .nova-navigation .navbar-collapse.show .nova-account-routes form {
+    html.js .nova-navigation .navbar-collapse.show .nova-account-routes ::deep .nav-link,
+    html.js .nova-navigation .navbar-collapse.show .nova-account-routes form {
         width: 100%;
         min-width: 0;
     }
 
-    .nova-navigation .navbar-collapse.show .nova-account-routes ::deep .nav-link {
+    html.js .nova-navigation .navbar-collapse.show .nova-account-routes ::deep .nav-link {
         flex-direction: row;
         justify-content: flex-start;
+    }
+
+    /* ---- No-JS default (html:not(.js)): the previous contract — account routes render
+       inline in the strip again and the strip becomes gently scrollable rather than hiding
+       them behind an unopenable hamburger. The hamburger serves no purpose without JS and
+       is hidden. Mobile-scoped: the desktop rail keeps overflow-x: visible. ---- */
+    html:not(.js) .nova-navigation .navbar-toggler {
+        display: none;
+    }
+
+    html:not(.js) .nova-navigation .navbar-collapse {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    html:not(.js) .nova-navigation .nova-account-routes {
+        display: flex;
     }
 }
 
@@ -378,25 +403,5 @@
         width: 0.25rem;
         height: auto;
         border-radius: 0 0.25rem 0.25rem 0;
-    }
-}
-
-/* No-JS degradation: without the Bootstrap bundle the .show class never toggles, so render the
-   account routes inline again (the strip becomes gently scrollable, exactly the previous
-   behavior) rather than hiding them behind an unopenable hamburger. Mobile-scoped: the desktop
-   rail must keep overflow-x: visible. */
-@media (max-width: 767.98px) and (scripting: none) {
-    .nova-navigation .navbar-toggler {
-        display: none;
-    }
-
-    .nova-navigation .navbar-collapse {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: thin;
-    }
-
-    .nova-navigation .nova-account-routes {
-        display: flex;
     }
 }

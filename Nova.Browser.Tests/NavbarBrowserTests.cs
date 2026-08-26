@@ -17,8 +17,11 @@ namespace Nova.Browser.Tests;
 /// rail at desktop
 /// (left-edge bar) and a top marker on the mobile bottom strip, swapping its outline glyph for the
 /// matching <c>-fill</c> variant (CSS overlay, no layout shift); the Manage link navigates to
-/// /Account/Manage; Logout posts the antiforgery form and returns to the login page; and the
-/// unauthenticated root renders the public landing page with no authenticated icon links.
+/// /Account/Manage; Logout posts the antiforgery form and returns to the login page; the
+/// unauthenticated root renders the public landing page with no authenticated icon links; and the
+/// new mobile branches are covered — the anonymous single-Login tab stays inline with the
+/// hamburger hidden, and with scripting disabled the account items fall back to the inline
+/// scrollable strip (no-JS contract).
 /// </summary>
 /// <param name="fixture">The Aspire-hosted browser suite fixture.</param>
 [Collection(BrowserSuiteCollection.Name)]
@@ -332,6 +335,107 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
             box.ShouldNotBeNull();
             ((double)box!.Height).ShouldBeGreaterThanOrEqualTo(43.5, $"the {label} link must keep its 2.75rem touch target");
         }
+    }
+
+    /// <summary>
+    /// NB10: at a mobile (&lt;md) viewport the anonymous nav keeps the single Login tab inline in
+    /// the strip (the <c>:has(.nav-item:only-child)</c> branch) and hides the hamburger — with
+    /// only one account route there is nothing for the sheet to reveal, so Login must never be
+    /// pushed behind a toggle. The test asserts the JS-confirmed branch is active (html.js), the
+    /// Login link is visible, the account-routes list is not collapsed, and the toggler computes
+    /// to <c>display: none</c>.
+    /// </summary>
+    [Fact]
+    public async Task Navbar_Mobile_Anonymous_SingleLoginStaysInline_AndHamburgerHidden()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var context = await fixture.NewAnonymousContextAsync(
+            viewport: new ViewportSize { Width = 480, Height = 800 });
+        var page = context.Pages[0];
+
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Login").ToString());
+
+        // The inline JS marker runs in a JS-enabled context, so the collapse contract is active.
+        var htmlClass = await page.EvaluateAsync<string>("() => document.documentElement.className");
+        htmlClass.ShouldContain("js");
+
+        var nav = page.Locator("nav[aria-label='Primary']");
+        var login = nav.GetByRole(AriaRole.Link, new() { Name = "Login", Exact = true });
+        await Expect(login).ToBeVisibleAsync();
+        await Expect(login).ToHaveAttributeAsync("href", "Account/Login");
+
+        // The only-child exception keeps the account-routes list rendered inline (display: flex),
+        // not collapsed into the sheet (display: none).
+        var accountRoutes = nav.Locator(".nova-account-routes");
+        await Expect(accountRoutes).ToHaveCountAsync(1);
+        var display = await accountRoutes.EvaluateAsync<string>("(el) => getComputedStyle(el).display");
+        display.ShouldBe("flex", "the single Login tab must stay inline in the strip");
+
+        // The hamburger is pointless with a single account route and must be display:none. It is
+        // removed from the accessibility tree (display:none), so assert presence at the DOM level
+        // and then the computed style.
+        var toggler = nav.Locator(".navbar-toggler");
+        await Expect(toggler).ToHaveCountAsync(1);
+        var togglerDisplay = await toggler.EvaluateAsync<string>("(el) => getComputedStyle(el).display");
+        togglerDisplay.ShouldBe("none", "the hamburger must be hidden when only the Login tab exists");
+    }
+
+    /// <summary>
+    /// NB11: with scripting disabled (<c>javaScriptEnabled: false</c>) at a mobile (&lt;md)
+    /// viewport the nav falls back to the no-JS contract — the inline JS marker never runs so
+    /// <c>&lt;html&gt;</c> stays without the <c>js</c> class: the account items (Manage, Logout)
+    /// render inline in the strip and stay reachable, and the hamburger that could never open
+    /// without JS is hidden. Also asserts the strip becomes gently scrollable
+    /// (<c>overflow-x: auto</c>) so many inline items never overflow unreadably.
+    /// </summary>
+    [Fact]
+    public async Task Navbar_Mobile_NoJavaScript_AccountItemsStayInlineAndReachable()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewAnonymousContextAsync(
+            viewport: new ViewportSize { Width = 480, Height = 800 },
+            javaScriptEnabled: false);
+        var page = context.Pages[0];
+
+        // Signs in through the real login form. The SSR EditForm posts natively (no enhanced
+        // navigation, no page JS required), so the no-JS session reaches the authenticated nav.
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Login").ToString());
+        await page.GetByLabel("Email").FillAsync(seed.AdminEmail);
+        await page.GetByLabel("Password").FillAsync(DashboardSeed.Password);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Log in", Exact = true }).ClickAsync();
+        await page.WaitForURLAsync(url => !url.Contains("/Account/Login", StringComparison.OrdinalIgnoreCase));
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
+
+        // The inline JS marker never ran: html.js is not set, so the no-JS default applies.
+        var htmlClass = await page.EvaluateAsync<string>("() => document.documentElement.className");
+        htmlClass.ShouldNotContain("js");
+
+        var nav = page.Locator("nav[aria-label='Primary']");
+
+        // The account items are present and inline (not hidden behind a sheet).
+        var manage = nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false });
+        var logout = nav.GetByRole(AriaRole.Button, new() { Name = "Logout", Exact = true });
+        await Expect(manage).ToBeVisibleAsync();
+        await Expect(logout).ToBeVisibleAsync();
+
+        var accountRoutes = nav.Locator(".nova-account-routes");
+        var accountRoutesDisplay = await accountRoutes.EvaluateAsync<string>("(el) => getComputedStyle(el).display");
+        accountRoutesDisplay.ShouldBe("flex", "the account routes must stay inline without JS");
+
+        // The hamburger is hidden without JS (it can never open the sheet). It is display:none,
+        // so assert DOM presence and the computed style.
+        var toggler = nav.Locator(".navbar-toggler");
+        await Expect(toggler).ToHaveCountAsync(1);
+        var togglerDisplay = await toggler.EvaluateAsync<string>("(el) => getComputedStyle(el).display");
+        togglerDisplay.ShouldBe("none", "the hamburger must be hidden without JS");
+
+        // The strip is the no-JS scroll container: overflow-x: auto keeps every inline item
+        // reachable when they exceed the viewport width.
+        var collapse = nav.Locator(".navbar-collapse");
+        var overflowX = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).overflowX");
+        overflowX.ShouldBe("auto", "the no-JS strip must be horizontally scrollable");
     }
 
     /// <summary>
