@@ -1,0 +1,6 @@
+/* Validation message: quiet, small, aligned under the control it validates. */
+.account-validation-message {
+    display: block;
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+}

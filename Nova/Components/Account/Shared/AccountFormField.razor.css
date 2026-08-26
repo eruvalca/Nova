@@ -1,0 +1,5 @@
+/* Account form field: quiet label rhythm and a clear control/validation column. */
+.account-form-field .form-text {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+}

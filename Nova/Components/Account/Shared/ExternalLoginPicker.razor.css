@@ -1,0 +1,11 @@
+/* External login picker: quiet secondary actions stack full width and never
+   outrank the local sign-in (which stays the lead primary action). */
+.account-external-picker .d-grid > .btn {
+    min-height: 2.75rem;
+    justify-content: center;
+}
+
+.account-external-empty {
+    color: var(--bs-secondary-color);
+    font-size: 0.875rem;
+}

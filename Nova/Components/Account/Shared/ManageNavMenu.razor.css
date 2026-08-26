@@ -1,0 +1,67 @@
+/* Directory wall panels: quiet matte signs; the punched (active) panel gets Sea Glass,
+   Abyss Forest emphasis, and a teal edge rail. Mobile collapses to a horizontal strip. */
+.account-panels {
+    --account-panel-pad: 0.625rem 0.75rem;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    min-width: max-content;
+}
+
+.account-panels .nav-item {
+    flex: 0 0 auto;
+    position: relative;
+}
+
+.account-panels ::deep .nav-link {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: var(--account-panel-pad);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.25rem;
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.account-panels ::deep .nav-link:hover,
+.account-panels ::deep .nav-link:focus-visible {
+    background-color: var(--bs-primary-bg-subtle);
+    color: var(--bs-body-color);
+}
+
+.account-panels ::deep .nav-link.active {
+    position: relative;
+    background-color: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    font-weight: 650;
+}
+
+.account-panels ::deep .nav-link.active::before {
+    content: "";
+    position: absolute;
+    top: 0.375rem;
+    bottom: 0.375rem;
+    left: -0.0625rem;
+    width: 0.25rem;
+    border-radius: 0.25rem 0 0 0.25rem;
+    background-color: var(--bs-primary);
+}
+
+@media (min-width: 768px) {
+    .account-panels {
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+
+    .account-panels ::deep .nav-link.active::before {
+        top: 0.375rem;
+        bottom: 0.375rem;
+        left: -0.0625rem;
+        width: 0.25rem;
+    }
+}

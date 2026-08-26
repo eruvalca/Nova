@@ -1,0 +1,21 @@
+/* Bounded status strip: a quiet matte band at the top of the working hall.
+   Success = Kelp Olive, Error = Copper Rust; no shadow, precise hairline. */
+.account-status-strip {
+    margin: 0 0 1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.25rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+.account-status-strip.alert-success {
+    background-color: var(--bs-success-bg-subtle);
+    border-color: var(--bs-success-border-subtle);
+    color: var(--bs-success-text-emphasis);
+}
+
+.account-status-strip.alert-danger {
+    background-color: var(--bs-danger-bg-subtle);
+    border-color: var(--bs-danger-border-subtle);
+    color: var(--bs-danger-text-emphasis);
+}

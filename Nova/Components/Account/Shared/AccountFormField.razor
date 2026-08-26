@@ -1,0 +1,14 @@
+@typeparam TValue
+@* Shared account form field: label, control slot, validation message, and optional help text. *@
+<div class="account-form-field mb-3">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <AccountFormLabel For="@(FieldId ?? string.Empty)" Text="@Label" Optional="@Optional" />
+    }
+    @ChildContent
+    <AccountValidationMessage For="@For" />
+    @if (!string.IsNullOrEmpty(HelpText))
+    {
+        <div class="form-text">@HelpText</div>
+    }
+</div>

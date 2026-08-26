@@ -1,0 +1,4 @@
+/* Submit button: minimum touch target, quiet flat control. */
+.account-submit {
+    min-height: 2.75rem;
+}

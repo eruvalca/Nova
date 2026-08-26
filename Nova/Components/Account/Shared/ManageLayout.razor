@@ -1,17 +1,24 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @layout Nova.Components.Layout.MainLayout
 
-<h1>Manage your account</h1>
+<!--
+THESIS: Account management is a hall of quiet sign panels, not a stack of settings cards.
+OWN-WORLD: Kelp enamel signs, pale field sheets, ink-dark type, gold attention marks, precise hairlines.
+STORY: Members land in their account and work one area: profile, email, password, security, or data.
+FIRST VIEWPORT: A bounded directory wall names each account area; the punched panel marks the area on screen; the working hall holds the task.
+FORM: Directory wall ranked 1; account surface brief locked; static SSR preserved.
+-->
+<div class="account-hall">
+    <header class="account-hall-heading">
+        <h1>Manage your account</h1>
+        <p class="account-hall-lead">Change your account settings</p>
+    </header>
 
-<div>
-    <h2>Change your account settings</h2>
-    <hr />
-    <div class="row">
-        <div class="col-lg-3">
-            <ManageNavMenu />
-        </div>
-        <div class="col-lg-9">
-            @Body
-        </div>
-    </div>
+    <nav class="account-panel-wall" aria-label="Account areas">
+        <ManageNavMenu />
+    </nav>
+
+    <section class="account-working-hall">
+        @Body
+    </section>
 </div>
