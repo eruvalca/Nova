@@ -37,6 +37,17 @@ The defining usage moment is a live tryout campaign:
 
 The interface must support quick scanning and confident action during active tryouts as well as deliberate review between sessions.
 
+## Account Experience
+
+The account experience is the utility layer that admits club staff into Nova's tryout operating system. Its real task is narrow and operational: get the right person into the club workflow quickly and keep their access correct.
+
+1. **Register** — create a Nova club-staff account from the registration page and confirm the email before entering.
+2. **Sign in** — authenticate with a local account (or an external identity provider where configured) and land in the user's active work.
+3. **Recover access** — request a password reset, resend the email confirmation, and recover authentication with two-factor codes, recovery codes, or passkeys.
+4. **Manage profile** — maintain email, password, external logins, two-factor authentication, passkeys, profile photo, and personal data from one manage center.
+
+Because Nova's users are club administrators, coaches, and evaluators rather than end consumers, these surfaces favor fast, familiar identity flows over marketing-grade sign-in pages.
+
 ## Capabilities and Constraints
 
 - Club-based multi-tenancy keeps each club's data isolated.
@@ -45,6 +56,14 @@ The interface must support quick scanning and confident action during active try
 - The product is an SSR-first .NET Blazor web application with interactive behavior added only where the workflow requires it.
 - "Campaign," "roster," "evaluation," "placement," "club administrator," "coach," and "evaluator" are established product terms.
 - Email delivery and external identity providers are not current product capabilities.
+
+## Commitments for the Account Experience Redesign
+
+- **Zero functional change.** The account experience redesign restyles and re-chromes only; every endpoint, form, cookie, redirect, validation rule, and security behavior stays exactly as implemented. No account behavior changes.
+- **Identity pages stay static SSR in `Nova`.** The authentication and account-management pages remain server-rendered static SSR inside the `Nova` host, with no interactive render mode added and no client-side state introduced.
+- **Kelp-forest world fixed.** The kelp-forest color world remains the binding identity constraint. The account redesign deals with composition and structure only, not visual identity.
+- **Vestigial screens restyled, not removed.** Screens that no longer serve a mainstream path (personal data, reset authenticator, recovery-code warnings, and similar) keep their behaviors and get styled to match; nothing is deleted or repurposed.
+- **Onboarding gates untouched.** Registration and email-confirmation gates keep their current sequence and enforcement; the redesign does not change when users are admitted or what they must do first.
 
 ## Brand Commitments
 
