@@ -41,7 +41,7 @@ The interface must support quick scanning and confident action during active try
 
 The account experience is the utility layer that admits club staff into Nova's tryout operating system. Its real task is narrow and operational: get the right person into the club workflow quickly and keep their access correct.
 
-1. **Register** — create a Nova club-staff account from the registration page and confirm the email before entering.
+1. **Register** — create a Nova club-staff account from the registration page. Email confirmation is not required (the sender is a no-op); the member is signed in directly and proceeds to the profile-photo and club-onboarding steps.
 2. **Sign in** — authenticate with a local account (or an external identity provider where configured) and land in the user's active work.
 3. **Recover access** — request a password reset, resend the email confirmation, and recover authentication with two-factor codes, recovery codes, or passkeys.
 4. **Manage profile** — maintain email, password, external logins, two-factor authentication, passkeys, profile photo, and personal data from one manage center.

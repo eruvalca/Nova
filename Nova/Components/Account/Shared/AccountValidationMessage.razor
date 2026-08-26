@@ -1,3 +1,7 @@
 @typeparam TValue
-@* Shared validation message: forwards to the EditContext via the standard validation pipeline. *@
-<ValidationMessage For="@For" class="account-validation-message text-danger" />
+@* Shared validation message: forwards to the EditContext via the standard validation pipeline.
+   The wrapper div renders this component's scope attribute so ::deep can style the
+   ValidationMessage child component's output. *@
+<div class="account-validation-wrap">
+    <ValidationMessage For="@For" class="account-validation-message text-danger" />
+</div>

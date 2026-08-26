@@ -1,9 +1,11 @@
 @typeparam TValue
-@* Shared account form field: label, control slot, validation message, and optional help text. *@
+@* Shared account form field: label, control slot, validation message, and optional help text.
+   The label is rendered only when both Label and FieldId are present, so the label is always
+   programmatically associated with a control (an empty for="" would break the association). *@
 <div class="account-form-field mb-3">
-    @if (!string.IsNullOrEmpty(Label))
+    @if (!string.IsNullOrEmpty(Label) && !string.IsNullOrEmpty(FieldId))
     {
-        <AccountFormLabel For="@(FieldId ?? string.Empty)" Text="@Label" Optional="@Optional" />
+        <AccountFormLabel For="@FieldId" Text="@Label" Optional="@Optional" />
     }
     @ChildContent
     <AccountValidationMessage For="@For" />

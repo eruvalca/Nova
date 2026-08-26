@@ -303,6 +303,31 @@ public class AccountSharedComponentsTests
     }
 
     [Fact]
+    public void AccountFormField_OmitsLabel_WhenFieldIdMissing()
+    {
+        using var testContext = new BunitContext();
+
+        var model = new TestModel();
+        var editContext = new EditContext(model);
+
+        // Label alone must not render <label for=""> — an empty for never associates with a control.
+        var cut = testContext.Render<AccountFormField<string>>(parameters => parameters
+            .Add(p => p.For, () => model.Name)
+            .Add(p => p.Label, "Display name")
+            .AddCascadingValue(editContext)
+            .Add(p => p.ChildContent, builder =>
+            {
+                builder.OpenElement(0, "input");
+                builder.AddAttribute(1, "id", "DisplayName");
+                builder.AddAttribute(2, "class", "form-control");
+                builder.AddAttribute(3, "value", "");
+                builder.CloseElement();
+            }));
+
+        cut.Markup.ShouldNotContain("<label");
+    }
+
+    [Fact]
     public async Task AccountValidationMessage_ShowsError_WhenEditContextFieldIsInvalid()
     {
         using var testContext = new BunitContext();
