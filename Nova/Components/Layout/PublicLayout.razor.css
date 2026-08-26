@@ -1,15 +1,28 @@
-/* Public landing shell — header identity and anchored navigation spacing only.
-   Colors come from semantic --bs-* variables; lengths are rem (hairline borders excepted). */
-
 .public-header {
-    /* The kelp-forest light surface behind the header; Bootstrap utilities supply the rest. */
-    background-color: var(--bs-light);
-    box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 0.06);
+    background-color: var(--bs-body-bg);
+    border-bottom: 1px solid var(--bs-border-color);
 }
 
 .brand-mark {
-    color: var(--bs-primary);
-    font-size: 1.25rem;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    background-color: var(--bs-primary);
+    border-radius: 0.25rem;
+    transform: rotate(45deg);
+}
+
+.brand-mark span {
+    width: 0.625rem;
+    height: 0.625rem;
+    background-color: var(--bs-light);
+    border-radius: 50%;
+}
+
+.brand-lockup {
+    display: flex;
+    flex-direction: column;
     line-height: 1;
 }
 
@@ -20,8 +33,14 @@
     letter-spacing: 0.02em;
 }
 
+.brand-descriptor {
+    margin-top: 0.25rem;
+    color: var(--bs-secondary-color);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+}
+
 .public-main {
-    /* Keep the sticky header from covering anchored sections that scroll beneath it. */
     scroll-margin-top: 4rem;
 }
 
@@ -29,8 +48,35 @@
     scroll-margin-top: 4rem;
 }
 
-/* Touch-friendly header actions regardless of breakpoint. */
 .public-header .btn {
-    min-width: 1.5rem;
-    min-height: 1.5rem;
+    min-height: 2.75rem;
+    border-radius: 0.25rem;
+}
+
+.public-header ::deep .nav-link {
+    color: var(--bs-body-color);
+    font-size: 0.875rem;
+    font-weight: 550;
+}
+
+.public-header .navbar-toggler {
+    border-radius: 0.25rem;
+}
+
+@media (max-width: 767.98px) {
+    .public-header .navbar-collapse {
+        padding: 1rem 0 0.5rem;
+    }
+
+    .public-header .navbar-nav {
+        row-gap: 0.125rem;
+    }
+
+    .public-header ::deep .nav-link {
+        min-height: 2.75rem;
+        display: flex;
+        align-items: center;
+        border-radius: 0.25rem;
+        padding-inline: 0.75rem;
+    }
 }

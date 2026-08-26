@@ -66,6 +66,9 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
    See [forms-and-validation.md](references/forms-and-validation.md).
 7. **Style with Bootstrap first**; component-specific rules go in `{Name}.razor.css` using `rem`
    units. No global stylesheet edits for feature UI, no user-controlled strings in inline `style`.
+   New UI follows the design system in `DESIGN.md` / `.github/instructions/ui-design.instructions.md`
+   (semantic palette roles, flat boards, responsive collapse) rather than default Bootstrap
+   card+shadow patterns.
 8. **Add JavaScript only if needed**: collocated `{Component}.razor.js` ES module, lazy
    `Lazy<Task<IJSObjectReference>>` import, `ElementReference` arguments, listener detach in
    `DisposeAsyncCore()`. See [js-interop.md](references/js-interop.md).

@@ -37,8 +37,8 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Create your club", Exact = true })).ToHaveCountAsync(3);
 
         // No authenticated bottom navbar leaks to anonymous users.
-        await Expect(page.Locator("nav.navbar.fixed-bottom")).ToHaveCountAsync(0);
-        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Home", Exact = true })).ToHaveCountAsync(0);
+        await Expect(page.Locator("nav[aria-label='Primary']")).ToHaveCountAsync(0);
+        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true })).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true })).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true })).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true })).ToHaveCountAsync(0);
@@ -60,34 +60,34 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
         await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
 
         // Product preview: illustrative content is explicitly labelled.
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "One campaign, from roster to team placement", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByText("Sample content is illustrative", new() { Exact = false })).ToBeVisibleAsync();
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Build the roster", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Collaborate on evaluations", Exact = true }).First).ToBeVisibleAsync();
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Place players onto teams", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Registration to roster, without losing the thread.", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.Locator("[aria-label='Illustrative Nova campaign workspace']")).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Build the player pool", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Capture observations", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Resolve team assignments", Exact = true })).ToBeVisibleAsync();
 
         // How it works: Nova's own workflow terminology.
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "How it works", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Three stops. One source of truth.", Exact = true })).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Establish the context", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Collaborate on evaluations", Exact = true })).ToHaveCountAsync(2);
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Resolve placements & close out", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Collaborate on evaluations", Exact = true })).ToHaveCountAsync(1);
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Place and close", Exact = true })).ToBeVisibleAsync();
 
         // Admin/coach role fit.
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Built for the whole coaching staff", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByText("Club administrators organize and govern", new() { Exact = false })).ToBeVisibleAsync();
-        await Expect(page.GetByText("Coaches and evaluators contribute", new() { Exact = false })).ToBeVisibleAsync();
-        await Expect(page.GetByText("Access stays role-based", new() { Exact = false })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "The whole staff. The right access.", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByText("Nova brings administrators, coaches, and evaluators", new() { Exact = false })).ToBeVisibleAsync();
+        await Expect(page.GetByText("Record evaluations, apply tags, and collaborate", new() { Exact = false })).ToBeVisibleAsync();
+        await Expect(page.GetByText("permissions enforced by their role", new() { Exact = false })).ToBeVisibleAsync();
 
         // Trust: limited to verifiable behavior, no fabricated claims.
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Trusted by design", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Trust is enforced, not advertised.", Exact = true })).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Role-based access", Exact = true })).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club data isolation", Exact = true })).ToBeVisibleAsync();
     }
 
     /// <summary>
     /// LP3: the primary <c>Create your club</c> action targets the registration page with the safe
-    /// /dashboard continuation, and the secondary <c>See how it works</c> action targets the anchored
-    /// how-it-works section.
+    /// /dashboard continuation, and the secondary <c>Follow the campaign route</c> action targets the
+    /// anchored how-it-works section.
     /// </summary>
     [Fact]
     public async Task Landing_CtaDestinations_ResolveToRegisterAndSection()
@@ -101,7 +101,7 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
         var createClub = page.GetByRole(AriaRole.Link, new() { Name = "Create your club", Exact = true }).First;
         await Expect(createClub).ToHaveAttributeAsync("href", RegisterHrefPattern);
 
-        var seeHow = page.GetByRole(AriaRole.Link, new() { Name = "See how it works", Exact = true });
+        var seeHow = page.GetByRole(AriaRole.Link, new() { Name = "Follow the campaign route", Exact = true });
         await Expect(seeHow).ToHaveAttributeAsync("href", "#how-it-works");
     }
 
@@ -122,7 +122,7 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
 
         await page.GetByRole(AriaRole.Link, new() { Name = "How it works", Exact = true }).First.ClickAsync();
         await page.WaitForURLAsync(url => url.EndsWith("/#how-it-works", StringComparison.OrdinalIgnoreCase));
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "How it works", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Three stops. One source of truth.", Exact = true })).ToBeVisibleAsync();
 
         await page.GetByRole(AriaRole.Link, new() { Name = "For clubs", Exact = true }).ClickAsync();
         await page.WaitForURLAsync(url => url.EndsWith("/#collaboration", StringComparison.OrdinalIgnoreCase));
@@ -143,7 +143,7 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
         await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
         await page.WaitForURLAsync(url => url.Contains("/dashboard", StringComparison.OrdinalIgnoreCase));
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Run better tryouts. Build stronger teams.", Exact = true })).ToHaveCountAsync(0);
     }
 
@@ -227,12 +227,12 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
 
-        var seeHow = page.GetByRole(AriaRole.Link, new() { Name = "See how it works", Exact = true });
+        var seeHow = page.GetByRole(AriaRole.Link, new() { Name = "Follow the campaign route", Exact = true });
         await InteractionHelpers.TabUntilFocusedAsync(page, seeHow);
         await Expect(seeHow).ToBeFocusedAsync();
 
         var createClub = page.GetByRole(AriaRole.Link, new() { Name = "Create your club", Exact = true }).First;
-        await A11yMeasurementHelpers.AssertTouchTargetAsync(page, seeHow, "See how it works");
+        await A11yMeasurementHelpers.AssertTouchTargetAsync(page, seeHow, "Follow the campaign route");
         await A11yMeasurementHelpers.AssertTouchTargetAsync(page, createClub, "Create your club");
     }
 
@@ -253,7 +253,7 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
         await A11yMeasurementHelpers.AssertContrastRatioAsync(
             page.GetByRole(AriaRole.Link, new() { Name = "Create your club", Exact = true }).First, 4.5, "Create your club");
         await A11yMeasurementHelpers.AssertContrastRatioAsync(
-            page.GetByRole(AriaRole.Link, new() { Name = "See how it works", Exact = true }), 4.5, "See how it works");
+            page.GetByRole(AriaRole.Link, new() { Name = "Follow the campaign route", Exact = true }), 4.5, "Follow the campaign route");
     }
 
     /// <summary>

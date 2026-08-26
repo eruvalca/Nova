@@ -1,20 +1,162 @@
-/* How-it-works step numbering. The step-circle surface and foreground come from the
-   theme's text-bg-{color} utility classes in the markup; lengths here are rem. */
-
-.landing-step-number {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 50%;
-    font-weight: 600;
-    font-size: 0.875rem;
-    line-height: 1;
+.how-it-works {
+    padding: clamp(5rem, 10vw, 9rem) 0;
+    color: var(--bs-light);
+    background-color: var(--bs-dark);
 }
 
-/* Ensure the ordering list does not introduce visible bullets. */
-ol.list-unstyled {
+.how-heading {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+    gap: 2rem;
+    align-items: end;
+    padding-bottom: 3rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--bs-light) 18%, transparent);
+}
+
+.section-number,
+.how-heading div > p {
+    color: var(--bs-info);
+    font-size: 0.75rem;
+    font-weight: 750;
+}
+
+.section-number {
+    align-self: start;
+}
+
+.how-heading div > p {
+    margin-bottom: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.how-heading h2 {
+    margin: 0;
+    color: var(--bs-light);
+    font-size: clamp(2.25rem, 4.5vw, 4.25rem);
+    line-height: 1.02;
+    letter-spacing: -0.045em;
+}
+
+.how-heading > p {
+    margin: 0;
+    color: color-mix(in srgb, var(--bs-light) 68%, transparent);
+    line-height: 1.7;
+}
+
+.how-sequence {
+    padding: 2rem 0 0;
+    margin: 0;
     list-style: none;
-    padding-left: 0;
+}
+
+.how-sequence li {
+    --sequence-accent: var(--bs-info);
+    display: grid;
+    grid-template-columns: 6rem 1fr;
+    gap: 2rem;
+    padding: 2rem 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--bs-light) 14%, transparent);
+}
+
+.how-sequence li:nth-child(2) {
+    --sequence-accent: color-mix(in srgb, var(--bs-secondary) 58%, var(--bs-light));
+}
+
+.how-sequence li:nth-child(3) {
+    --sequence-accent: color-mix(in srgb, var(--bs-success) 58%, var(--bs-light));
+}
+
+.how-sequence li > span {
+    color: var(--sequence-accent);
+    font-size: 0.75rem;
+    font-weight: 750;
+}
+
+.how-sequence li > div {
+    display: grid;
+    grid-template-columns: minmax(8rem, 0.45fr) minmax(13rem, 0.75fr) minmax(18rem, 1fr);
+    gap: 2rem;
+    align-items: baseline;
+}
+
+.how-sequence small {
+    color: var(--sequence-accent);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.how-sequence h3,
+.how-sequence p {
+    margin: 0;
+}
+
+.how-sequence h3 {
+    color: var(--bs-light);
+    font-size: 1.35rem;
+}
+
+.how-sequence p {
+    color: color-mix(in srgb, var(--bs-light) 68%, transparent);
+    line-height: 1.65;
+}
+
+.sequence-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding-top: 3rem;
+    color: color-mix(in srgb, var(--bs-light) 55%, transparent);
+    font-size: 0.6875rem;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.sequence-note i {
+    width: 1.5rem;
+    height: 1px;
+    background-color: color-mix(in srgb, var(--bs-light) 25%, transparent);
+}
+
+.sequence-note strong {
+    color: color-mix(in srgb, var(--bs-success) 58%, var(--bs-light));
+}
+
+@media (max-width: 767.98px) {
+    .how-heading {
+        grid-template-columns: auto 1fr;
+    }
+
+    .how-heading > p {
+        grid-column: 2;
+    }
+
+    .how-sequence li {
+        grid-template-columns: 2rem 1fr;
+        gap: 1rem;
+    }
+
+    .how-sequence li > div {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .how-sequence h3 {
+        margin-bottom: 0.5rem;
+    }
+
+    .sequence-note {
+        align-items: flex-start;
+        flex-direction: column;
+        padding-left: 3rem;
+    }
+
+    .sequence-note i {
+        width: 1px;
+        height: 1rem;
+    }
 }

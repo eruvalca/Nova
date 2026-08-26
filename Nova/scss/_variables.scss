@@ -9,22 +9,22 @@
 // -----------------------------------------------------------------------------
 // Base palette
 // -----------------------------------------------------------------------------
-$primary:   #0E7C7B; // kelp teal
-$secondary: #A67B4C; // bark brown
-$success:   #3C8D5A; // leaf green
-$info:      #2E9E9C; // lagoon teal
-$warning:   #E8A33D; // kelp accent gold
-$danger:    #C25E4E; // rust
-$light:     #E6F2F1; // primary subtle background / light (pale kelp)
-$dark:      #1F2D2B; // deep forest / body text
+$primary:   #0E7C7B; // wayfinding teal
+$secondary: #95651A; // kelp ochre
+$success:   #65762A; // kelp olive
+$info:      #16AAA2; // sunlit aqua
+$warning:   #D58B22; // signal amber
+$danger:    #B44E32; // copper rust
+$light:     #DDF2EC; // sea glass
+$dark:      #142F2E; // abyss forest
 
 // Body + link
-$body-color: #1F2D2B;
-$body-bg:    #F4F9F8;
+$body-color: #142F2E;
+$body-bg:    #F4F8F3;
 $link-color: $primary;
 
 // Primary subtle background deliberately matches the `$light` swatch.
-$primary-bg-subtle: #E6F2F1;
+$primary-bg-subtle: #DDF2EC;
 
 // WCAG AA minimum contrast for normal text; Bootstrap chooses foreground text
 // (white vs. black) per theme color using this threshold.

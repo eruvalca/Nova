@@ -12,9 +12,13 @@ Sass sources under `Nova/scss/`.
 ## Single source of truth
 
 - `Nova/scss/_variables.scss` is the **only** place the palette is defined. It sets the kelp-forest
-  theme colors (primary `#0E7C7B`, secondary `#A67B4C`, success `#3C8D5A`, info `#2E9E9C`, warning
-  `#E8A33D`, danger `#C25E4E`, light `#E6F2F1`, dark `#1F2D2B`), the body text/background, the link
-  color, the `$min-contrast-ratio` (4.5), and the neutralized Bootstrap blue (`$blue: $primary`).
+  theme colors (primary `#0E7C7B`, secondary `#95651A`, success `#65762A`, info `#16AAA2`, warning
+  `#D58B22`, danger `#B44E32`, light `#DDF2EC`, dark `#142F2E`), the body text/background
+  (`#142F2E` on `#F4F8F3`), `$primary-bg-subtle` (`#DDF2EC`), the link color, the
+  `$min-contrast-ratio` (4.5), and the neutralized Bootstrap blue (`$blue: $primary`).
+- `DESIGN.md` and `PRODUCT.md` are the design-system source of truth for **color semantics**
+  (what each palette role means and when to use it); `_variables.scss` is the token source for the
+  compiled theme and component CSS must reference `--bs-*` variables, never raw hex.
 - `Nova/scss/bootstrap-theme.scss` imports `variables` then `bootstrap` (via
   `@import "bootstrap/scss/bootstrap"`) and the bootstrap-icons fonts.
 - Bootstrap 5.3.3 has the import resolver that requires `--load-path=node_modules`; use the npm

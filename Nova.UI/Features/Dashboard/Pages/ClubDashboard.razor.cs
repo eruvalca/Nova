@@ -76,15 +76,6 @@ public partial class ClubDashboard(
     public bool Initialized { get; set; }
 
     /// <summary>
-    /// Gets the Bootstrap grid classes for the summary stat-card row, switching between three
-    /// administrator columns and two member columns when the attention card is absent.
-    /// </summary>
-    protected string StatRowClass =>
-        _summary?.AdminAttention is not null
-            ? "row row-cols-1 row-cols-md-3 g-3 mb-4"
-            : "row row-cols-1 row-cols-md-2 g-3 mb-4";
-
-    /// <summary>
     /// Gets the administrator join-request review link target for the current club.
     /// </summary>
     protected string ReviewRequestsUrl => $"/Clubs/{_clubId}/admin";

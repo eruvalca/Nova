@@ -1,13 +1,192 @@
-/* Product preview cards. Colors come from semantic --bs-* variables; lengths are rem.
-   Each card's tinted background and accent top border come from the matching theme
-   utility classes (bg-{color}-subtle / border-{color}-subtle) in the markup, so no
-   component background is needed here. */
-
-.preview-step .card-body {
-    display: flex;
-    flex-direction: column;
+.workflow-preview {
+    padding: clamp(5rem, 10vw, 9rem) 0;
 }
 
-.preview-step ul {
-    margin-top: auto;
+.workflow-heading {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+    gap: 2rem;
+    align-items: end;
+    padding-bottom: 3rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.section-number {
+    align-self: start;
+    color: var(--bs-primary);
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.eyebrow {
+    margin-bottom: 0.75rem;
+    color: var(--bs-primary);
+    font-size: 0.75rem;
+    font-weight: 750;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.workflow-heading h2 {
+    margin: 0;
+    color: var(--bs-dark);
+    font-size: clamp(2.25rem, 4.5vw, 4.25rem);
+    font-weight: 750;
+    line-height: 1.02;
+    letter-spacing: -0.045em;
+}
+
+.workflow-heading > p {
+    margin: 0;
+    color: var(--bs-secondary-color);
+    line-height: 1.7;
+}
+
+.workflow-route {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 4rem 0 0;
+    margin: 0;
+    list-style: none;
+}
+
+.workflow-route::before {
+    position: absolute;
+    top: 5.625rem;
+    right: 16%;
+    left: 16%;
+    height: 2px;
+    content: "";
+    background: linear-gradient(
+        90deg,
+        var(--bs-primary) 0 33.333%,
+        var(--bs-secondary) 33.333% 66.666%,
+        var(--bs-info) 66.666% 100%);
+}
+
+.workflow-route li {
+    --route-accent: var(--bs-primary);
+    --route-field: var(--bs-primary-bg-subtle);
+    --route-ink: var(--bs-primary-text-emphasis);
+    position: relative;
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    justify-items: center;
+    min-width: 0;
+    padding: 0 clamp(1rem, 3vw, 3rem);
+    text-align: center;
+}
+
+.workflow-route li:nth-child(2) {
+    --route-accent: var(--bs-secondary);
+    --route-field: var(--bs-secondary-bg-subtle);
+    --route-ink: var(--bs-secondary-text-emphasis);
+}
+
+.workflow-route li:nth-child(3) {
+    --route-accent: var(--bs-info);
+    --route-field: var(--bs-info-bg-subtle);
+    --route-ink: var(--bs-info-text-emphasis);
+}
+
+.route-index {
+    color: var(--route-ink);
+    font-size: 0.6875rem;
+    font-weight: 750;
+}
+
+.route-marker {
+    z-index: 1;
+    width: 1.25rem;
+    height: 1.25rem;
+    margin: 1rem 0 2.25rem;
+    background-color: var(--route-field);
+    border: 0.25rem solid var(--route-accent);
+    border-radius: 50%;
+}
+
+.route-content > p:first-child {
+    margin-bottom: 0.75rem;
+    color: var(--route-ink);
+    font-size: 0.6875rem;
+    font-weight: 750;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.route-content h3 {
+    margin-bottom: 0.75rem;
+    font-size: clamp(1.35rem, 2vw, 1.75rem);
+}
+
+.route-content > p:not(:first-child) {
+    max-width: 20rem;
+    margin: 0 auto 1.75rem;
+    color: var(--bs-secondary-color);
+    line-height: 1.65;
+}
+
+.route-content > span {
+    display: inline-block;
+    padding-top: 0.75rem;
+    color: var(--route-ink);
+    font-size: 0.75rem;
+    font-weight: 650;
+    border-top: 1px solid var(--route-accent);
+}
+
+@media (max-width: 767.98px) {
+    .workflow-heading {
+        grid-template-columns: auto 1fr;
+    }
+
+    .workflow-heading > p {
+        grid-column: 2;
+    }
+
+    .workflow-route {
+        grid-template-columns: 1fr;
+        padding-top: 3rem;
+    }
+
+    .workflow-route::before {
+        top: 3rem;
+        bottom: 3rem;
+        left: 0.5625rem;
+        width: 2px;
+        height: auto;
+        background: linear-gradient(
+            var(--bs-primary) 0 33.333%,
+            var(--bs-secondary) 33.333% 66.666%,
+            var(--bs-info) 66.666% 100%);
+    }
+
+    .workflow-route li {
+        grid-template-columns: auto auto 1fr;
+        grid-template-rows: auto;
+        gap: 1rem;
+        align-items: start;
+        justify-items: start;
+        padding: 0 0 3.5rem;
+        text-align: left;
+    }
+
+    .route-index {
+        order: 2;
+    }
+
+    .route-marker {
+        order: 1;
+        margin: 0;
+    }
+
+    .route-content {
+        order: 3;
+    }
+
+    .route-content > p:not(:first-child) {
+        margin-right: 0;
+        margin-left: 0;
+    }
 }

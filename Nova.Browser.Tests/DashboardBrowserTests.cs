@@ -22,7 +22,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password);
         var page = context.Pages[0];
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
 
         // Two campaign rows with the seeded participant/unresolved counts.
         var rows = page.Locator("tbody tr");
@@ -38,10 +38,10 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await page.GetByRole(AriaRole.Link, new() { Name = $"Open workspace for {seed.UndecidedCampaignName}" }).ClickAsync();
         await page.WaitForURLAsync(url => url.Contains($"/campaigns/{seed.UndecidedCampaignId}", StringComparison.OrdinalIgnoreCase));
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
 
         // Roster and team cards show the seeded counts.
-        var summary = page.Locator("section[aria-label='Club summary']");
+        var summary = page.Locator("[aria-label='Club summary']");
         await Expect(summary).ToContainTextAsync($"{seed.ActivePlayerCount} active");
         await Expect(summary).ToContainTextAsync($"{seed.ArchivedPlayerCount} archived");
         await Expect(summary).ToContainTextAsync($"{seed.ActiveTeamCount} active");
@@ -69,7 +69,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, DashboardSeed.Password);
         var page = context.Pages[0];
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         await Expect(page.Locator("tbody tr")).ToHaveCountAsync(2);
 
         // Recent activity includes the seeded note and resolves the evaluator actor's display name.
@@ -120,7 +120,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await using (var adminContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password))
         {
             var page = adminContext.Pages[0];
-            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
             var createLink = page.GetByRole(AriaRole.Link, new() { Name = "Create campaign" });
             await Expect(createLink).ToBeVisibleAsync();
             await Expect(createLink).ToHaveAttributeAsync("href", "campaigns/new");
@@ -129,7 +129,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await using (var evaluatorContext = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, DashboardSeed.Password))
         {
             var page = evaluatorContext.Pages[0];
-            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
             await Expect(page.GetByText("No active campaigns right now. Check back once an administrator creates one.")).ToBeVisibleAsync();
             await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Create campaign" })).ToHaveCountAsync(0);
         }
@@ -148,14 +148,14 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/dashboard").ToString());
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         await Expect(page.Locator("tbody tr")).ToHaveCountAsync(2);
 
         await page.GetByRole(AriaRole.Link, new() { Name = $"Open workspace for {seed.UndecidedCampaignName}" }).ClickAsync();
         await page.WaitForURLAsync(url => url.Contains($"/campaigns/{seed.UndecidedCampaignId}", StringComparison.OrdinalIgnoreCase));
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         await Expect(page.Locator("tbody tr")).ToHaveCountAsync(2);
     }
 
@@ -173,7 +173,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await using (var wideContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password, new ViewportSize { Width = 1280, Height = 800 }))
         {
             var page = wideContext.Pages[0];
-            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
 
             var workspaceLink = page.GetByRole(AriaRole.Link, new() { Name = $"Open workspace for {seed.UndecidedCampaignName}" });
             await Expect(workspaceLink).ToHaveAttributeAsync("aria-label", $"Open workspace for {seed.UndecidedCampaignName}");
@@ -188,7 +188,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await using (var narrowContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password, new ViewportSize { Width = 480, Height = 800 }))
         {
             var page = narrowContext.Pages[0];
-            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
 
             var workspaceLink = page.GetByRole(AriaRole.Link, new() { Name = $"Open workspace for {seed.UndecidedCampaignName}" });
             await Expect(workspaceLink).ToBeVisibleAsync();
@@ -235,12 +235,12 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         var outputDirectory = Path.Combine(Path.GetTempPath(), "nova-a11y-screenshots");
         Directory.CreateDirectory(outputDirectory);
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "dashboard-admin-wide.png") });
 
         await using var narrowContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password, new ViewportSize { Width = 480, Height = 800 });
         var narrowPage = narrowContext.Pages[0];
-        await Expect(narrowPage.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(narrowPage.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         await narrowPage.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "dashboard-admin-narrow.png") });
     }
 }

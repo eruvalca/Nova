@@ -1,19 +1,83 @@
-/* Compact footer. Colors from semantic --bs-* variables; lengths in rem. */
-
 .landing-footer {
-    background-color: var(--bs-light);
+    padding: 2.5rem 0;
+    background-color: var(--bs-dark);
 }
 
-.landing-footer-brand {
-    display: inline-flex;
+.footer-grid {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 3rem;
     align-items: center;
-    justify-content: center;
-    width: 1.625rem;
-    height: 1.625rem;
-    border-radius: 0.5rem;
-    background-color: var(--bs-primary);
-    color: var(--bs-white);
-    font-weight: 700;
+}
+
+.footer-brand {
+    display: flex;
+    gap: 0.875rem;
+    align-items: center;
+}
+
+.footer-brand > span {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    color: var(--bs-dark);
     font-size: 0.875rem;
-    line-height: 1;
+    font-weight: 800;
+    background-color: var(--bs-light);
+    border-radius: 0.25rem;
+}
+
+.footer-brand div {
+    display: flex;
+    flex-direction: column;
+}
+
+.footer-brand strong {
+    color: var(--bs-light);
+}
+
+.footer-brand small {
+    color: color-mix(in srgb, var(--bs-light) 52%, transparent);
+    font-size: 0.625rem;
+}
+
+.footer-grid nav {
+    display: flex;
+    gap: 2rem;
+}
+
+.footer-grid nav a {
+    color: color-mix(in srgb, var(--bs-light) 70%, transparent);
+    font-size: 0.75rem;
+    text-decoration: none;
+}
+
+.footer-grid nav a:hover {
+    color: var(--bs-light);
+    text-decoration: underline;
+    text-underline-offset: 0.25rem;
+}
+
+.footer-grid > p {
+    margin: 0;
+    color: color-mix(in srgb, var(--bs-light) 62%, transparent);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    text-align: right;
+}
+
+@media (max-width: 767.98px) {
+    .footer-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    .footer-grid nav {
+        flex-wrap: wrap;
+    }
+
+    .footer-grid > p {
+        text-align: left;
+    }
 }

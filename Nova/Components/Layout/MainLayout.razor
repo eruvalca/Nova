@@ -1,9 +1,19 @@
 @inherits LayoutComponentBase
 
-<main class="nova-main-content px-4">
-    <article class="content">
-        @Body
-    </article>
-</main>
-
-<NavMenu />
+<!--
+THESIS: Nova is a shared campaign map, not a generic stack of dashboard cards.
+OWN-WORLD: Kelp enamel signs, pale field sheets, ink-dark type, gold attention marks, and precise hairlines.
+STORY: Staff locate their club, enter a campaign, work the roster, and move decisions toward placement.
+FIRST VIEWPORT: A stable navigation rail frames a broad operational field; the current route and task lead.
+FORM: Campaign map, ranked 1; operational field-directory staging; seed key assigned.
+-->
+<div class="nova-shell">
+    <aside class="nova-shell-nav">
+        <NavMenu />
+    </aside>
+    <main class="nova-main-content">
+        <article class="nova-content">
+            @Body
+        </article>
+    </main>
+</div>

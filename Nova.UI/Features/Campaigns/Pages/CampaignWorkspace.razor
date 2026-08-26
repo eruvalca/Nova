@@ -8,13 +8,20 @@
 
 <PageTitle>@(_detail is null ? "Campaign workspace" : _detail.Name)</PageTitle>
 
-<div class="container py-4">
-    <a class="btn btn-outline-secondary btn-sm mb-3" href="/campaigns">← Back to campaigns</a>
+<!--
+THESIS: The campaign is a live field directory, not a tabbed card stack with ornamental sport styling.
+OWN-WORLD: Matte kelp enamel, pale roster paper, ink rules, punched stops, and gold only for unresolved attention.
+STORY: Staff confirm campaign state, choose a real work phase, scan players, and act without losing context.
+FIRST VIEWPORT: Campaign identity and status lead; the four-stop route sits immediately above the active roster field.
+FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
+-->
+<div class="campaign-field py-4">
+    <a class="campaign-back-link" href="/campaigns"><span aria-hidden="true">←</span> Back to campaigns</a>
 
     @if (_isLoading)
     {
-        <div class="card shadow-sm border-0">
-            <div class="card-body d-flex align-items-center gap-2">
+        <div class="campaign-status-board">
+            <div class="campaign-status-board-body d-flex align-items-center gap-2">
                 <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
                 <span>Loading campaign...</span>
             </div>
@@ -22,8 +29,8 @@
     }
     else if (_notFound)
     {
-        <div class="card shadow-sm border-0">
-            <div class="card-body text-center py-5">
+        <div class="campaign-status-board">
+            <div class="campaign-status-board-body text-center py-5">
                 <h1 class="h4 mb-2">Campaign not found</h1>
                 <p class="text-muted mb-3">This campaign does not exist or is not visible to your club.</p>
                 <a class="btn btn-outline-secondary btn-sm" href="/campaigns">Return to campaigns</a>
@@ -39,14 +46,22 @@
     }
     else if (_detail is not null)
     {
-        <section class="card shadow-sm border-0 mb-3">
-            <div class="card-body">
+        <section class="campaign-sign mb-3">
+            <div class="campaign-sign-body">
                 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
                     <div>
-                        <h1 class="h3 mb-1">@_detail.Name</h1>
-                        <p class="text-muted mb-0">
-                            @FormatCampaignDates(_detail) · @_detail.SeasonName · @_detail.ParticipantCount participants
-                        </p>
+                        <div class="campaign-season">@_detail.SeasonName</div>
+                        <h1>@_detail.Name</h1>
+                        <dl class="campaign-facts">
+                            <div>
+                                <dt>Dates</dt>
+                                <dd>@FormatCampaignDates(_detail)</dd>
+                            </div>
+                            <div>
+                                <dt>Participants</dt>
+                                <dd>@_detail.ParticipantCount</dd>
+                            </div>
+                        </dl>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <span class="badge @CampaignStatusBadgeClass(_detail.Status)">@_detail.Status</span>
@@ -95,6 +110,7 @@
             </div>
         }
 
+        <div class="campaign-route">
         <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Campaign workspace sections">
             <li class="nav-item" role="presentation">
                 <button type="button" class="nav-link @(_activeTab == EvaluateTabName ? "active" : null)" role="tab" aria-selected="@(_activeTab == EvaluateTabName ? "true" : "false")" @onclick="SelectEvaluateTabAsync">
@@ -117,12 +133,18 @@
                 </button>
             </li>
         </ul>
+        </div>
 
         @if (_activeTab == EvaluateTabName)
         {
-            <section class="card shadow-sm border-0" aria-labelledby="roster-region-heading">
-                <div class="card-body">
-                    <h2 class="h5 mb-3" id="roster-region-heading">Evaluate roster</h2>
+            <section class="workspace-board" aria-labelledby="roster-region-heading">
+                <div class="workspace-board-heading">
+                    <div>
+                        <h2 id="roster-region-heading">Evaluate roster</h2>
+                        <p>Filter the player field, then open a participant to record observations.</p>
+                    </div>
+                </div>
+                <div class="workspace-board-body">
 
                 @if (_choicesLoadFailed)
                 {

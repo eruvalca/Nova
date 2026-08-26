@@ -77,7 +77,7 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
         }
 
         // Post-create cookie-refresh hop lands on the dashboard with the fresh membership claims.
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
 
         await AssertCrestInNavAsync(page, clubName);
         var clubId = await GetClubIdFromNavAsync(page, clubName);
@@ -105,7 +105,7 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
         await using var context = await fixture.NewSignedInContextAsync(seed.Email, Password);
         var page = context.Pages[0];
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         var clubName = await GetClubNameAsync(seed.ClubId, cancellationToken);
         await AssertCrestInNavAsync(page, clubName);
 
@@ -223,7 +223,7 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
             File.Delete(crestPath);
         }
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Dashboard" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
 
         // The navigation avatar is the small 64px square variant (rendered as a circle). Scope
         // to the club item's avatar; the page also renders the Manage link's profile-photo

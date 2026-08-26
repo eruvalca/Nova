@@ -1,5 +1,213 @@
+.campaign-field {
+    max-width: 100rem;
+    margin-inline: auto;
+}
+
+.campaign-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    margin-bottom: 0.75rem;
+    color: var(--bs-secondary-color);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.campaign-back-link:hover {
+    color: var(--bs-primary);
+}
+
+.campaign-sign,
+.workspace-board,
+.campaign-status-board {
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.375rem;
+}
+
+.campaign-status-board-body {
+    padding: 1.25rem;
+}
+
+.campaign-sign {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: var(--bs-white);
+}
+
+.campaign-sign::after {
+    position: absolute;
+    right: -2rem;
+    bottom: -5rem;
+    width: 13rem;
+    height: 13rem;
+    content: "";
+    border: 2rem solid rgb(255 255 255 / 0.08);
+    border-radius: 50%;
+}
+
+.campaign-sign-body {
+    position: relative;
+    z-index: 1;
+    padding: 1.5rem;
+}
+
+.campaign-season {
+    margin-bottom: 0.25rem;
+    color: color-mix(in srgb, var(--bs-white) 93%, transparent);
+    font-size: 0.8125rem;
+    font-weight: 650;
+}
+
+.campaign-sign h1 {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 3.25rem);
+    font-weight: 700;
+    letter-spacing: -0.04em;
+}
+
+.campaign-facts {
+    display: flex;
+    gap: 2rem;
+    margin: 1.25rem 0 0;
+}
+
+.campaign-facts div {
+    display: grid;
+    gap: 0.125rem;
+}
+
+.campaign-facts dt {
+    color: color-mix(in srgb, var(--bs-white) 93%, transparent);
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.campaign-facts dd {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 650;
+}
+
+.campaign-route {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+}
+
+.campaign-route ::deep .nav-tabs {
+    position: relative;
+    display: grid;
+    min-width: 36rem;
+    grid-template-columns: repeat(4, 1fr);
+    padding: 0;
+    border: 0;
+}
+
+.campaign-route ::deep .nav-tabs::before {
+    position: absolute;
+    top: 1.375rem;
+    right: 12.5%;
+    left: 12.5%;
+    height: 1px;
+    content: "";
+    background-color: var(--bs-border-color);
+}
+
+.campaign-route ::deep .nav-item {
+    position: relative;
+}
+
+.campaign-route ::deep .nav-link {
+    position: relative;
+    width: 100%;
+    min-height: 4.5rem;
+    padding: 2.75rem 0.75rem 0.75rem;
+    color: var(--bs-secondary-color);
+    font-size: 0.8125rem;
+    font-weight: 650;
+    background: transparent;
+    border: 0;
+}
+
+.campaign-route ::deep .nav-link::before {
+    position: absolute;
+    top: 0.875rem;
+    left: calc(50% - 0.5rem);
+    z-index: 1;
+    width: 1rem;
+    height: 1rem;
+    content: "";
+    background-color: var(--bs-body-bg);
+    border: 2px solid var(--bs-border-color);
+    border-radius: 50%;
+}
+
+.campaign-route ::deep .nav-link.active {
+    color: var(--bs-primary-text-emphasis);
+    background-color: var(--bs-primary-bg-subtle);
+    box-shadow: inset 0 -0.25rem var(--bs-primary);
+}
+
+.campaign-route ::deep .nav-link.active::before {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.25rem var(--bs-primary-bg-subtle);
+}
+
+.workspace-board-heading {
+    padding: 1rem 1.25rem;
+    background-color: var(--bs-light);
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.workspace-board-heading h2 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.workspace-board-heading p {
+    margin: 0.25rem 0 0;
+    color: var(--bs-secondary-color);
+    font-size: 0.8125rem;
+}
+
+.workspace-board-body {
+    padding: 1.25rem;
+}
+
 .roster-scroll-region {
     max-height: 60vh;
     overflow-y: auto;
     scrollbar-gutter: stable;
+}
+
+@media (max-width: 575.98px) {
+    .campaign-sign-body {
+        padding: 1.25rem;
+    }
+
+    .campaign-facts {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .campaign-sign-body > .d-flex {
+        flex-direction: column;
+    }
+
+    .campaign-sign-body > .d-flex .d-flex {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .workspace-board-body {
+        padding: 1rem;
+    }
 }

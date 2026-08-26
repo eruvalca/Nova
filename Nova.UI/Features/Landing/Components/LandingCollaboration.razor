@@ -1,56 +1,36 @@
-@* Admin/coach collaboration — role fit without implying separate products. *@
-<section class="collaboration py-5" id="collaboration" aria-labelledby="collaboration-heading">
+<section class="collaboration" id="collaboration" aria-labelledby="collaboration-heading">
     <div class="container">
-        <div class="row g-4 align-items-center">
-            <div class="col-lg-6">
-                <h2 class="h1 fw-bold mb-3" id="collaboration-heading">Built for the whole coaching staff</h2>
-                <p class="text-muted mb-4">
-                    Nova brings administrators and coaches together in one club workspace, with every
-                    role seeing just what it needs.
+        <div class="collaboration-grid">
+            <div class="collaboration-copy">
+                <div class="section-label"><span>03</span><p>Role clarity</p></div>
+                <h2 id="collaboration-heading">The whole staff.<br />The right access.</h2>
+                <p>
+                    Nova brings administrators, coaches, and evaluators into one club workspace while
+                    keeping each role focused on the work it is permitted to do.
                 </p>
-                <ul class="list-unstyled mb-0">
-                    <li class="d-flex gap-3 mb-3">
-                        <span class="bi bi-gear text-primary flex-shrink-0" aria-hidden="true"></span>
-                        <div>
-                            <span class="fw-semibold d-block">Club administrators organize and govern</span>
-                            <span class="text-muted small">Set up the club and campaigns, manage the roster, and decide final team placements.</span>
-                        </div>
-                    </li>
-                    <li class="d-flex gap-3 mb-3">
-                        <span class="bi bi-clipboard-check text-info flex-shrink-0" aria-hidden="true"></span>
-                        <div>
-                            <span class="fw-semibold d-block">Coaches and evaluators contribute</span>
-                            <span class="text-muted small">Record evaluations, apply tags, and collaborate within their role-based permissions.</span>
-                        </div>
-                    </li>
-                    <li class="d-flex gap-3">
-                        <span class="bi bi-shield-lock text-success flex-shrink-0" aria-hidden="true"></span>
-                        <div>
-                            <span class="fw-semibold d-block">Access stays role-based</span>
-                            <span class="text-muted small">Permissions are enforced per role, so each person stays focused on their own work.</span>
-                        </div>
-                    </li>
-                </ul>
+                <dl>
+                    <div><dt>Administrators</dt><dd>Set up the club and campaigns, manage the roster, and decide final team placements.</dd></div>
+                    <div><dt>Coaches &amp; evaluators</dt><dd>Record evaluations, apply tags, and collaborate within their role-based permissions.</dd></div>
+                </dl>
             </div>
-            <div class="col-lg-6">
-                <div class="card shadow-sm border-0">
-                    <div class="card-body">
-                        <h3 class="h6 text-muted text-uppercase mb-3">One workspace, two roles</h3>
-                        <div class="row g-3 mb-0">
-                            <div class="col-6">
-                                <div class="border border-primary-subtle bg-primary-subtle rounded p-3 h-100">
-                                    <span class="badge text-bg-primary mb-2">Admin</span>
-                                    <p class="small text-muted mb-0">Organizes the club, governs the campaign, and approves the final roster.</p>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="border border-info-subtle bg-info-subtle rounded p-3 h-100">
-                                    <span class="badge text-bg-info mb-2">Coach</span>
-                                    <p class="small text-muted mb-0">Evaluates players and contributes notes and tags within their permissions.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+
+            <div class="access-map" aria-label="Nova role access map">
+                <div class="access-map-title">
+                    <span>Club workspace</span>
+                    <strong>Campaign access map</strong>
+                </div>
+                <div class="access-map-grid">
+                    <div class="role admin-role"><span>A</span><strong>Administrator</strong><small>Organize &amp; govern</small></div>
+                    <div class="access-line vertical" aria-hidden="true"></div>
+                    <div class="workspace-node"><span>N</span><strong>Shared campaign</strong><small>One roster · isolated club data</small></div>
+                    <div class="access-line split" aria-hidden="true"></div>
+                    <div class="role coach-role"><span>C</span><strong>Coach</strong><small>Evaluate players</small></div>
+                    <div class="role evaluator-role"><span>E</span><strong>Evaluator</strong><small>Notes &amp; tags</small></div>
+                </div>
+                <div class="access-map-key">
+                    <span><i class="primary"></i> Governance</span>
+                    <span><i class="info"></i> Contribution</span>
+                    <span><i class="neutral"></i> Shared context</span>
                 </div>
             </div>
         </div>
