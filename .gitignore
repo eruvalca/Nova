@@ -373,10 +373,24 @@ __blobstorage__/
 # Sass-compiled Bootstrap theme (built by the BuildBootstrapTheme MSBuild target)
 Nova/wwwroot/css/
 
-# Local design-system source of truth (product/design briefs, Impeccable surface briefs
-# and sidecar, agent-local hooks). Never committed to the repository.
-.impeccable/
+# Impeccable design-system runtime artifacts (kept out of git; design spec, surface
+# briefs, and shared hook manifest ARE tracked).
+# impeccable-ignore-start
+.impeccable/config.local.json
+.impeccable/hook.cache.json
+.impeccable/hook.pending.json
+.impeccable/*.png
+.impeccable/live/server.json
+.impeccable/live/sessions/
+.impeccable/live/previews/
+.impeccable/live/annotations/
+.impeccable/live/cache/
+.impeccable/live/manual-edit-apply-transaction.json
+.impeccable/live/manual-edit-events.jsonl
+.impeccable/live/manual-edit-evidence/
+.impeccable/live/pending-manual-edits.json
+.impeccable/live/deferred-svelte-component-accepts.json
+.impeccable/live/*.png
+# impeccable-ignore-end
+.impeccable/questions/
 .codex/
-.github/hooks/
-PRODUCT.md
-DESIGN.md
