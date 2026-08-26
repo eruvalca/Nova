@@ -300,6 +300,33 @@ A connected sequence of circular markers and labels represents the campaign life
 
 Tables, rosters, status rows, and activity feeds share a bordered Paper White board. Use a compact heading band, full-width interactive rows, restrained hover tint, and bounded scrolling for long working sets.
 
+### Account Experience (Hall of Panels)
+
+**Chosen direction:** The Hall of Panels. The account experience is a venue wall of quiet matte sign panels: every account area is a sign, and the area that owns the current screen is the punched one.
+
+**Composition**
+- A bounded directory wall of sign panels sits between the site header and the working hall. Each panel names a real account area (sign in, register, recover access, manage profile). The active panel is punched: Sea Glass field, Abyss Forest emphasis, and a teal edge rail, matching the navigation active state.
+- The wall is a locator, never a stepper: panels carry destination names only, with no invented progress or posed steps. Screens with a real step sequence (authenticator setup, recovery code generation) keep their own factual order inside the working hall.
+- The working hall is the area's board: a Paper White surface with a compact heading band, and the form or management content in the flexible column. Status and validation messages ride as a bounded strip at the top of the hall.
+- On narrow screens the directory wall becomes a horizontally scrollable panel strip, ordered and labeled exactly as on desktop; the working hall collapses to one column and actions become full width.
+
+**Hierarchy**
+1. Site identity and the account route.
+2. The directory wall of panels; the punched panel identifies the current area.
+3. The working hall: area heading, status strip, then the task's form or content.
+4. In-hall actions, ordered by function (primary action leads, quiet actions follow).
+5. Footer.
+
+**Interaction and accessibility**
+- Preserve static SSR forms, antiforgery tokens, cookie-based status messages, and passkey custom-element behavior unchanged.
+- Panels are real links with the existing navigation semantics; active state is unambiguous and not color-only (visible focus, edge rail plus text emphasis).
+- Keep native controls, visible focus, minimum 2.75rem touch targets, semantic regions, and reduced-motion-safe behavior.
+
+**Visual constraints**
+- With the kelp palette: Wayfinding Teal for the punched panel and primary actions, Copper Rust for errors and destructive actions, Kelp Olive for confirmed success, Signal Amber only for bounded attention notices.
+- Paper White boards with a one-pixel quiet border, flat (no ambient shadow), control radius 0.25rem and board radius 0.375rem.
+- No gradients, glass, scoreboard styling, thick decorative side borders, or equal-weight card grids that obscure working hierarchy.
+
 ## Do's and Don'ts
 
 ### Do:
