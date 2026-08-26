@@ -1,8 +1,10 @@
 /* External login picker: quiet secondary actions stack full width and never
-   outrank the local sign-in (which stays the lead primary action). */
+   outrank the local sign-in (which stays the lead primary action). Flat
+   btn-outline-secondary controls at the design-system control radius. */
 .account-external-picker .d-grid > .btn {
     min-height: 2.75rem;
     justify-content: center;
+    border-radius: 0.25rem;
 }
 
 .account-external-empty {

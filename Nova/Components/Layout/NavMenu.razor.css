@@ -20,18 +20,14 @@
 .nova-navigation-inner {
     display: flex;
     flex-wrap: nowrap;
+    position: relative;
 }
 
-.nova-navigation .navbar-toggler {
-    display: none;
-}
-
+/* At <md the collapse container never hides: it is the fixed bottom strip itself. The
+   Bootstrap .collapse/.show class pair only toggles the account-routes menu sheet. */
 .nova-navigation .navbar-collapse {
     display: flex !important;
     min-width: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
 }
 
 .nova-navigation .navbar-nav {
@@ -120,6 +116,121 @@
     height: 3px;
     background-color: var(--bs-primary);
     border-radius: 0 0 0.25rem 0.25rem;
+}
+
+/* ---- Mobile bottom strip (<md): the five primary routes stay as stacked icon-above-label
+   tabs; the account routes collapse behind the hamburger into a paper sheet that rises over
+   the strip. The Bootstrap .show class (JS) reveals the sheet; with scripting disabled the
+   account routes fall back to inline strip items. ---- */
+@media (max-width: 767.98px) {
+    .nova-navigation .navbar-toggler {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        order: 2;
+        flex: 0 0 auto;
+        min-width: 2.75rem;
+        min-height: 2.75rem;
+        margin-left: 0.375rem;
+        padding: 0.375rem;
+        color: var(--bs-body-color);
+        background-color: var(--bs-body-bg);
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.25rem;
+    }
+
+    .nova-navigation .navbar-toggler:focus-visible {
+        outline: var(--bs-focus-ring-width) solid var(--bs-focus-ring-color);
+        outline-offset: 0.125rem;
+    }
+
+    .nova-navigation .navbar-collapse {
+        order: 1;
+        flex: 1 1 auto;
+        flex-wrap: wrap;
+    }
+
+    /* The primary routes fill the strip, and each tab shares the width equally so the
+       five primary tabs fit without horizontal scroll (long labels ellipsize). The me-auto
+       utility (!important) must be cleared here or it absorbs all free space. */
+    .nova-navigation .nova-primary-routes {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin-right: 0 !important;
+    }
+
+    .nova-navigation .nova-primary-routes .nav-item {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .nova-navigation .nova-primary-routes ::deep .nav-link {
+        min-width: 0;
+        padding: 0.375rem 0.375rem;
+    }
+
+    /* The strip itself never collapses; only the account sheet toggles, so neutralize the
+       Bootstrap height animation on the always-visible container. */
+    .nova-navigation .navbar-collapse.collapsing {
+        height: auto;
+        overflow: visible;
+        transition: none;
+    }
+
+    .nova-navigation .nav-label {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Account routes (Manage/Logout) live in the hamburger menu; the sheet rises above
+       the strip. The unauthenticated Login tab is the single visible tab. */
+    .nova-navigation .nova-account-routes {
+        display: none;
+    }
+
+    .nova-navigation .nova-account-routes:has(.nav-item:only-child) {
+        display: flex;
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    /* With only the Login tab there is nothing to open a menu for. */
+    .nova-navigation:has(.nova-account-routes .nav-item:only-child) .navbar-toggler {
+        display: none;
+    }
+
+    .nova-navigation .navbar-collapse.show .nova-account-routes {
+        position: absolute;
+        right: 0;
+        /* bottom: 100% pins the sheet to the inner container's top edge; +0.375rem overlaps
+           the nav's top padding so the sheet rests flush on the strip's top border. */
+        bottom: calc(100% + 0.375rem);
+        left: 0;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        margin: 0;
+        padding: 0.625rem;
+        background-color: var(--bs-body-bg);
+        border: 1px solid var(--bs-border-color);
+        border-bottom: 0;
+        border-radius: 0.375rem 0.375rem 0 0;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    .nova-navigation .navbar-collapse.show .nova-account-routes ::deep .nav-link,
+    .nova-navigation .navbar-collapse.show .nova-account-routes form {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .nova-navigation .navbar-collapse.show .nova-account-routes ::deep .nav-link {
+        flex-direction: row;
+        justify-content: flex-start;
+    }
 }
 
 @media (min-width: 768px) {
@@ -267,5 +378,25 @@
         width: 0.25rem;
         height: auto;
         border-radius: 0 0.25rem 0.25rem 0;
+    }
+}
+
+/* No-JS degradation: without the Bootstrap bundle the .show class never toggles, so render the
+   account routes inline again (the strip becomes gently scrollable, exactly the previous
+   behavior) rather than hiding them behind an unopenable hamburger. Mobile-scoped: the desktop
+   rail must keep overflow-x: visible. */
+@media (max-width: 767.98px) and (scripting: none) {
+    .nova-navigation .navbar-toggler {
+        display: none;
+    }
+
+    .nova-navigation .navbar-collapse {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    .nova-navigation .nova-account-routes {
+        display: flex;
     }
 }

@@ -1,5 +1,12 @@
-/* Account form field: quiet label rhythm and a clear control/validation column. */
+/* Account form field: quiet label rhythm and a clear control/validation column.
+   The control is consumer-supplied ChildContent, so ::deep reaches it. Focus gets a confident
+   in-system treatment: Wayfinding Teal border + the theme's focus ring (no shadow redesign). */
 .account-form-field .form-text {
     font-size: 0.75rem;
     margin-top: 0.25rem;
+}
+
+.account-form-field ::deep .form-control:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 var(--bs-focus-ring-width) var(--bs-focus-ring-color);
 }

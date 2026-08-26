@@ -1,0 +1,8 @@
+/* Account form label: the design-system Label token (0.8125rem / 650 / 0.01em tracking);
+   the quiet optional hint stays at body weight so it never outranks the field name. */
+.form-label {
+    font-size: 0.8125rem;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    color: var(--bs-body-color);
+}

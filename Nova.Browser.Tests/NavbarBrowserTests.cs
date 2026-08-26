@@ -9,8 +9,10 @@ namespace Nova.Browser.Tests;
 /// <summary>
 /// Browser-level acceptance of the Fieldhouse Wayfinding navigation (issue #134 + follow-up
 /// polish): the authenticated navigation renders as a fixed left rail at md+ (768px+) and a fixed
-/// bottom strip below md that is horizontally scrollable; items show icon + label items (inline
-/// rows at md+, stacked icon-above-label tabs below md) with bootstrap-icons glyphs; account
+/// bottom strip below md whose five primary items stack as icon-above-label tabs and whose
+/// account items (Manage, Logout) collapse behind a hamburger into a rising paper sheet (no
+/// forced horizontal scroll at &lt;md); items show icon + label items (inline rows at md+,
+/// stacked icon-above-label tabs below md) with bootstrap-icons glyphs; account
 /// items (Manage, Logout) stay present in both layouts; the active item carries a kelp teal edge
 /// rail at desktop
 /// (left-edge bar) and a top marker on the mobile bottom strip, swapping its outline glyph for the
@@ -208,9 +210,10 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
     /// <summary>
     /// NB7: at a mobile (&lt;md) viewport the authorized nav renders as a fixed bottom strip whose
-    /// links stack icon above label (the DESIGN.md tab-strip layout) and are reachable by
-    /// horizontal scrolling (the account items — Manage/Logout — are part of the same scrollable
-    /// row, so nothing is hidden).
+    /// five primary links (Dashboard, club, Campaigns, Players, Teams) stack icon above label
+    /// (the DESIGN.md tab-strip layout) with no forced horizontal auto-scroll on the collapse
+    /// container; the account items (Manage/Logout) collapse behind the visible hamburger
+    /// toggler and are reachable by opening the menu (a paper sheet that rises over the strip).
     /// </summary>
     [Fact]
     public async Task Navbar_Mobile_BottomStrip_StackedTabsAndAccountItems()
@@ -233,21 +236,37 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var viewportHeight = await page.EvaluateAsync<int>("() => window.innerHeight");
         Math.Abs((double)navBox!.Y + (double)navBox.Height - viewportHeight).ShouldBeLessThanOrEqualTo(1.0, "the strip must be fixed to the bottom edge at <md");
 
-        // The collapse is force-flexed and horizontally scrollable (no toggler needed).
+        // The collapse container is always-visible (it is the strip itself) and no longer forces
+        // horizontal auto-scroll — the new contract is overflowX != "auto".
         var collapse = nav.Locator(".navbar-collapse");
         await Expect(collapse).ToHaveCountAsync(1);
         var overflowX = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).overflowX");
-        overflowX.ShouldBe("auto");
+        overflowX.ShouldNotBe("auto", "the collapse must not force horizontal auto-scroll at <md");
 
-        // Each authorized item keeps the stacked icon-above-label tab layout at <md (Dashboard,
-        // the club, Campaigns, Players, Teams).
+        // Each authorized primary item keeps the stacked icon-above-label tab layout at <md
+        // (Dashboard, the club, Campaigns, Players, Teams).
         await AssertStackedTabLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true }));
         await AssertStackedTabLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true }));
         await AssertStackedTabLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }));
         await AssertStackedTabLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }));
         await AssertStackedTabLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }));
 
-        // The account items stay part of the mobile strip (Manage + Logout).
+        // The hamburger toggler is visible at <md with a ≥2.75rem touch target.
+        var toggler = nav.GetByRole(AriaRole.Button, new() { Name = "Toggle navigation" });
+        await Expect(toggler).ToBeVisibleAsync();
+        var togglerBox = await toggler.BoundingBoxAsync();
+        togglerBox.ShouldNotBeNull();
+        ((double)togglerBox!.Height).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
+
+        // The account items are collapsed behind the menu: display:none removes them from
+        // the accessibility tree until the sheet opens (Bootstrap collapse toggles .show).
+        await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false })).ToHaveCountAsync(0);
+        await Expect(nav.GetByRole(AriaRole.Button, new() { Name = "Logout", Exact = true })).ToHaveCountAsync(0);
+
+        // Opening the menu (Bootstrap collapse) reveals the account items in the rising sheet.
+        await toggler.ClickAsync();
+        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await Expect(toggler).ToHaveAttributeAsync("aria-expanded", "true");
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false })).ToBeVisibleAsync();
         await Expect(nav.GetByRole(AriaRole.Button, new() { Name = "Logout", Exact = true })).ToBeVisibleAsync();
 

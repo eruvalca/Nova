@@ -1,5 +1,7 @@
 /* Directory wall panels: quiet matte signs; the punched (active) panel gets Sea Glass,
-   Abyss Forest emphasis, and a teal edge rail. Mobile collapses to a horizontal strip. */
+   Abyss Forest emphasis, and a teal edge rail. Hover lifts the panel toward the punched
+   state (Sea Glass field + teal hairline) so the working hall reads as a real directory.
+   Mobile collapses to a horizontal strip. */
 .account-panels {
     --account-panel-pad: 0.625rem 0.75rem;
     flex-direction: row;
@@ -25,17 +27,25 @@
     font-size: 0.875rem;
     font-weight: 500;
     white-space: nowrap;
+    transition: background-color 150ms ease-in-out, border-color 150ms ease-in-out;
 }
 
 .account-panels ::deep .nav-link:hover,
 .account-panels ::deep .nav-link:focus-visible {
     background-color: var(--bs-primary-bg-subtle);
+    border-color: var(--bs-primary-border-subtle);
     color: var(--bs-body-color);
+}
+
+.account-panels ::deep .nav-link:focus-visible {
+    outline: var(--bs-focus-ring-width) solid var(--bs-focus-ring-color);
+    outline-offset: 0.125rem;
 }
 
 .account-panels ::deep .nav-link.active {
     position: relative;
     background-color: var(--bs-primary-bg-subtle);
+    border-color: var(--bs-primary-border-subtle);
     color: var(--bs-primary-text-emphasis);
     font-weight: 650;
 }

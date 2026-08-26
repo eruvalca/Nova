@@ -1,4 +1,12 @@
-/* Submit button: minimum touch target, quiet flat control. */
+/* Submit button: primary action leads; flat control at the design-system control radius,
+   label weight, and minimum touch target. Focus-visible gets the in-system ring only. */
 .account-submit {
     min-height: 2.75rem;
+    border-radius: 0.25rem;
+    font-weight: 650;
+}
+
+.account-submit:focus-visible {
+    outline: var(--bs-focus-ring-width) solid var(--bs-focus-ring-color);
+    outline-offset: 0.125rem;
 }
