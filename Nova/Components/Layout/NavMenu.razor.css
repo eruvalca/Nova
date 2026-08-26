@@ -23,8 +23,9 @@
     position: relative;
 }
 
-/* At <md the collapse container never hides: it is the fixed bottom strip itself. The
-   Bootstrap .collapse/.show class pair only toggles the account-routes menu sheet. */
+/* At <md with JS the collapse container is the menu sheet: hidden at rest behind the
+   toggler and revealed by .show; the base display: flex rule serves the desktop rail
+   and the html:not(.js) fallback. */
 .nova-navigation .navbar-collapse {
     display: flex !important;
     min-width: 0;
@@ -289,7 +290,8 @@
     }
 
     /* Full-size, legible labels: rows are full-width so the natural text fits; wrapping is
-       allowed rather than clipping (ellipsis remains only in the no-JS strip fallback). */
+       allowed rather than clipping. The no-JS fallback keeps labels at natural width and
+       scrolls instead of truncating. */
     html.js .nova-navigation .navbar-collapse.show .nav-label {
         max-width: none;
         overflow: visible;
