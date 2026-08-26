@@ -19,6 +19,15 @@ public partial class NavMenu(
     IServiceProvider serviceProvider)
 {
     /// <summary>
+    /// Gets a value indicating whether the account routes list carries exactly one item —
+    /// the anonymous single-Login case. The anonymous branch is known server-side (there is
+    /// exactly one account route: Login), so instead of a client-side <c>:has()</c> selector
+    /// (which JS-on browsers without <c>:has()</c> support would drop) the state is computed
+    /// here and emitted as the <c>account-routes-single</c> marker class on the nav element.
+    /// </summary>
+    protected bool IsAccountRoutesSingle => currentUserProvider.GetCurrentUserState().Value is Anonymous;
+
+    /// <summary>
     /// Stores the current base-relative URL used as the post-logout return URL.
     /// </summary>
     private string? currentUrl;

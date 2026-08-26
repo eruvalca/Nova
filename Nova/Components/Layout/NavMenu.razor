@@ -1,6 +1,6 @@
 ﻿@using Nova.Shared.Security
 
-<nav class="navbar navbar-expand-md navbar-light nova-navigation" aria-label="Primary">
+<nav class="navbar navbar-expand-md navbar-light nova-navigation @(IsAccountRoutesSingle ? "account-routes-single" : null)" aria-label="Primary">
     <div class="container-fluid nova-navigation-inner">
         <a class="nova-brand" href="/dashboard" aria-label="Nova dashboard">
             <span class="nova-brand-mark" aria-hidden="true"><span></span></span>

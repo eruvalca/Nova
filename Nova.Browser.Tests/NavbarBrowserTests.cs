@@ -339,11 +339,11 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
     /// <summary>
     /// NB10: at a mobile (&lt;md) viewport the anonymous nav keeps the single Login tab inline in
-    /// the strip (the <c>:has(.nav-item:only-child)</c> branch) and hides the hamburger — with
-    /// only one account route there is nothing for the sheet to reveal, so Login must never be
-    /// pushed behind a toggle. The test asserts the JS-confirmed branch is active (html.js), the
-    /// Login link is visible, the account-routes list is not collapsed, and the toggler computes
-    /// to <c>display: none</c>.
+    /// the strip (the server-computed <c>account-routes-single</c> marker branch) and hides the
+    /// hamburger — with only one account route there is nothing for the sheet to reveal, so Login
+    /// must never be pushed behind a toggle. The test asserts the JS-confirmed branch is active
+    /// (html.js), the Login link is visible, the account-routes list is not collapsed, and the
+    /// toggler computes to <c>display: none</c>.
     /// </summary>
     [Fact]
     public async Task Navbar_Mobile_Anonymous_SingleLoginStaysInline_AndHamburgerHidden()
@@ -364,7 +364,11 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await Expect(login).ToBeVisibleAsync();
         await Expect(login).ToHaveAttributeAsync("href", "Account/Login");
 
-        // The only-child exception keeps the account-routes list rendered inline (display: flex),
+        // The anonymous state is computed server-side and emitted as the account-routes-single
+        // marker class on the nav, so the contract does not depend on :has() support.
+        await Expect(nav).ToHaveClassAsync(new Regex("\\baccount-routes-single\\b"));
+
+        // The single-item exception keeps the account-routes list rendered inline (display: flex),
         // not collapsed into the sheet (display: none).
         var accountRoutes = nav.Locator(".nova-account-routes");
         await Expect(accountRoutes).ToHaveCountAsync(1);
@@ -432,10 +436,14 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         togglerDisplay.ShouldBe("none", "the hamburger must be hidden without JS");
 
         // The strip is the no-JS scroll container: overflow-x: auto keeps every inline item
-        // reachable when they exceed the viewport width.
+        // reachable when they exceed the viewport width. flex-wrap: nowrap is asserted too —
+        // with wrap, items would wrap onto a second line before overflow ever engaged and the
+        // fixed strip would grow taller instead of scrolling (overflow-x would be a no-op).
         var collapse = nav.Locator(".navbar-collapse");
         var overflowX = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).overflowX");
         overflowX.ShouldBe("auto", "the no-JS strip must be horizontally scrollable");
+        var flexWrap = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).flexWrap");
+        flexWrap.ShouldBe("nowrap", "the no-JS strip must not wrap, or horizontal scroll never engages");
     }
 
     /// <summary>

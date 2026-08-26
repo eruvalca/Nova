@@ -196,14 +196,17 @@
     }
 
     /* Anonymous single-Login case: with only the Login tab there is nothing to open a menu
-       for, so keep the Login tab inline and hide the hamburger. */
-    html.js .nova-navigation .nova-account-routes:has(.nav-item:only-child) {
+       for, so keep the Login tab inline and hide the hamburger. The anonymous state is
+       computed server-side (NavMenu.razor.cs) and carried as the account-routes-single
+       marker class on the nav, so the contract does not depend on :has() support
+       (Chrome <105, Safari <15.4, Firefox <121). */
+    html.js .nova-navigation.account-routes-single .nova-account-routes {
         display: flex;
         padding-left: 0;
         border-left: 0;
     }
 
-    html.js .nova-navigation:has(.nova-account-routes .nav-item:only-child) .navbar-toggler {
+    html.js .nova-navigation.account-routes-single .navbar-toggler {
         display: none;
     }
 
@@ -241,13 +244,17 @@
 
     /* ---- No-JS default (html:not(.js)): the previous contract — account routes render
        inline in the strip again and the strip becomes gently scrollable rather than hiding
-       them behind an unopenable hamburger. The hamburger serves no purpose without JS and
-       is hidden. Mobile-scoped: the desktop rail keeps overflow-x: visible. ---- */
+       them behind an unopenable hamburger. flex-wrap: nowrap is required for the strip to
+       actually scroll: with wrap, items would wrap onto a second line before overflow-x: auto
+       ever engages and the fixed strip would grow taller instead of scrolling. The hamburger
+       serves no purpose without JS and is hidden. Mobile-scoped: the desktop rail keeps
+       overflow-x: visible. ---- */
     html:not(.js) .nova-navigation .navbar-toggler {
         display: none;
     }
 
     html:not(.js) .nova-navigation .navbar-collapse {
+        flex-wrap: nowrap;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: thin;

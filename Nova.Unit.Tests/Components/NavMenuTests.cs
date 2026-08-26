@@ -26,6 +26,7 @@ public class NavMenuTests
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
         currentUserProvider.ClubId.Returns(42L);
         currentUserProvider.UserId.Returns(7L);
+        currentUserProvider.GetCurrentUserState().Returns(new CurrentUserState(new ClubMember(7L, 42L, false)));
 
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         httpContextAccessor.HttpContext.Returns((HttpContext?)null);
@@ -74,6 +75,60 @@ public class NavMenuTests
         cut.Markup.ShouldContain("bi-shield nav-icon");
         cut.Markup.ShouldContain("bi-shield-fill nav-icon-fill");
         cut.Markup.ShouldContain("nav-icon-slot");
+
+        // An authenticated (multi-route) nav must NOT carry the single-Login marker class.
+        cut.Markup.ShouldNotContain("account-routes-single");
+    }
+
+    /// <summary>
+    /// The anonymous single-Login state is computed server-side from
+    /// <see cref="ICurrentUserProvider.GetCurrentUserState"/> and emitted as the
+    /// <c>account-routes-single</c> marker class on the nav element, so the CSS contract
+    /// ("Login stays inline, hamburger hides") can be class-based instead of relying on the
+    /// client-side <c>:has()</c> selector, which JS-on browsers without <c>:has()</c> support
+    /// would silently drop.
+    /// </summary>
+    [Fact]
+    public void Render_AddsAccountRoutesSingleMarker_WhenAnonymous()
+    {
+        // Arrange
+        var currentUserProvider = Substitute.For<ICurrentUserProvider>();
+        currentUserProvider.UserId.Returns((long?)null);
+        currentUserProvider.GetCurrentUserState().Returns(new CurrentUserState(new Anonymous()));
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        var authStateProvider = Substitute.For<AuthenticationStateProvider>();
+        authStateProvider.GetAuthenticationStateAsync()
+            .Returns(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()))));
+
+        using var testContext = new BunitContext();
+        testContext.Services.AddScoped(_ => currentUserProvider);
+        testContext.Services.AddScoped(_ => httpContextAccessor);
+        testContext.Services.AddScoped(_ => authStateProvider);
+        testContext.Services.AddScoped<NavigationManager, FakeNavigationManager>();
+        testContext.Services.AddSingleton<IAuthorizationPolicyProvider>(new DefaultAuthorizationPolicyProvider(Options.Create(new AuthorizationOptions())));
+        // The anonymous principal fails the default "authenticated user" policy, so the
+        // account-routes AuthorizeView renders its NotAuthorized branch (the single Login tab).
+        testContext.Services.AddSingleton<IAuthorizationService, DenyAuthorizationService>();
+
+        // Act
+        var cut = testContext.Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<NavMenu>(2);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
+
+        // Assert
+        cut.Markup.ShouldContain("account-routes-single");
+        cut.Markup.ShouldContain("Account/Login");
+        cut.Markup.ShouldNotContain("Account/Manage");
     }
 
     [Fact]
@@ -83,6 +138,7 @@ public class NavMenuTests
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
         currentUserProvider.ClubId.Returns((long?)null);
         currentUserProvider.UserId.Returns(8L);
+        currentUserProvider.GetCurrentUserState().Returns(new CurrentUserState(new AuthenticatedUser(8L)));
 
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         httpContextAccessor.HttpContext.Returns((HttpContext?)null);
@@ -129,6 +185,7 @@ public class NavMenuTests
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
         currentUserProvider.ClubId.Returns(42L);
         currentUserProvider.UserId.Returns(7L);
+        currentUserProvider.GetCurrentUserState().Returns(new CurrentUserState(new ClubMember(7L, 42L, false)));
 
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         httpContextAccessor.HttpContext.Returns((HttpContext?)null);
@@ -178,6 +235,7 @@ public class NavMenuTests
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
         currentUserProvider.ClubId.Returns(42L);
         currentUserProvider.UserId.Returns(7L);
+        currentUserProvider.GetCurrentUserState().Returns(new CurrentUserState(new ClubMember(7L, 42L, false)));
 
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         httpContextAccessor.HttpContext.Returns((HttpContext?)null);
@@ -220,6 +278,7 @@ public class NavMenuTests
         var currentUserProvider = Substitute.For<ICurrentUserProvider>();
         currentUserProvider.ClubId.Returns(42L);
         currentUserProvider.UserId.Returns(7L);
+        currentUserProvider.GetCurrentUserState().Returns(new CurrentUserState(new ClubMember(7L, 42L, false)));
 
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         httpContextAccessor.HttpContext.Returns((HttpContext?)null);
@@ -290,6 +349,19 @@ public class NavMenuTests
         {
             Initialize("https://localhost/", "https://localhost/");
         }
+    }
+
+    /// <summary>
+    /// Denies every authorization request — models the real anonymous state, where the
+    /// account-routes <c>AuthorizeView</c> renders the <c>NotAuthorized</c> branch (Login).
+    /// </summary>
+    private sealed class DenyAuthorizationService : IAuthorizationService
+    {
+        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, IEnumerable<IAuthorizationRequirement> requirements)
+            => Task.FromResult(AuthorizationResult.Failed());
+
+        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, string policyName)
+            => Task.FromResult(AuthorizationResult.Failed());
     }
 
     private sealed class FakeAuthorizationService : IAuthorizationService
