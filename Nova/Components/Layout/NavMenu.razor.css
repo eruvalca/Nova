@@ -25,10 +25,10 @@
 
 /* At <md the collapse container is the menu sheet: hidden at rest behind the
    toggler and revealed by .show; the base display: flex rule serves the desktop rail
-   (and the scripting-disabled fallback re-declares the inline strip inside the mobile
-   block, which wins at <md by same-specificity later-in-source order). No !important
-   here: bootstrap's desktop .navbar-expand-md .navbar-collapse rule (level with
-   !important) plus the md+ block cover the rail, and keeping these non-important lets
+   (the <noscript> fallback in App.razor re-declares the inline strip inside the mobile
+   block, which wins at <md by same-specificity later-in-source order with !important).
+   No !important here: bootstrap's desktop .navbar-expand-md .navbar-collapse rule (level
+   with !important) plus the md+ block cover the rail, and keeping these non-important lets
    the <noscript> fallback in App.razor override the mobile display: none below. */
 .nova-navigation .navbar-collapse {
     display: flex;
@@ -139,10 +139,9 @@
    into one paper sheet that rises over the bottom bar. At rest the bar shows the brand lockup
    and the toggler only — never five shrinking truncated tabs. The Bootstrap .show class (JS)
    reveals the sheet. The sheet contract is the DEFAULT for every scripting-capable browser:
-   the only fallback is the previous always-inline scrollable strip, applied only when the
-   browser reports it cannot run scripts — see the @media (scripting: none) block at the end
-   of this section (plus the matching <noscript><style> in App.razor for engines that cannot
-   evaluate the `scripting` media feature). ---- */
+   the only fallback is the previous always-inline scrollable strip, applied only when
+   scripting is truly unavailable via the <noscript><style> fallback in App.razor (see the
+   block comment above the <noscript> there). ---- */
 @media (max-width: 767.98px) {
     .nova-navigation .navbar-toggler {
         display: inline-flex;
@@ -226,14 +225,16 @@
 
     /* At rest the whole nav hides behind the toggler: the bar never renders a shrink-to-fit
        strip of truncated tabs. This later scoped rule overrides the base always-flex rule at
-       <md by source order (both non-important): the scripting-disabled fallback at the end of
-       this block re-declares the inline strip, and the <noscript> fallback in App.razor can
-       also win here because no !important is involved. */
+       <md by source order (both non-important): the <noscript> fallback in App.razor can also
+       win here because no !important is involved on this side. */
     .nova-navigation .navbar-collapse {
         display: none;
     }
 
-    /* Opened: the collapse becomes the paper sheet that rises over the bar. */
+    /* Opened: the collapse becomes the paper sheet that rises over the bar. The sheet reuses
+       the bar's --bs-light surface so the sheet and bar read as one continuous surface (the
+       hairline border and the rounded top edge still separate the sheet's content from the
+       bar; only the background must match). */
     .nova-navigation .navbar-collapse.show {
         position: absolute;
         right: 0;
@@ -247,7 +248,7 @@
         gap: 0.25rem;
         margin: 0;
         padding: 0.625rem;
-        background-color: var(--bs-body-bg);
+        background-color: var(--bs-light);
         border: 1px solid var(--bs-border-color);
         border-bottom: 0;
         border-radius: 0.375rem 0.375rem 0 0;
@@ -313,8 +314,8 @@
     }
 
     /* Full-size, legible labels: rows are full-width so the natural text fits; wrapping is
-       allowed rather than clipping. The scripting-disabled fallback keeps labels at natural
-       width and scrolls instead of truncating. */
+       allowed rather than clipping. The <noscript> fallback keeps labels at natural width
+       and scrolls instead of truncating. */
     .nova-navigation .navbar-collapse.show .nav-label {
         max-width: none;
         overflow: visible;
@@ -353,36 +354,13 @@
 
 /* ---- Scripting-disabled default: with scripting unavailable at <md the nav reverts to the
    previous contract — every route renders inline in the strip again and the strip becomes
-   gently scrollable rather than hiding them behind an unopenable hamburger. flex-wrap:
-   nowrap is required for the strip to actually scroll: with wrap, items would wrap onto a
-   second line before overflow-x: auto ever engages and the fixed strip would grow taller
-   instead of scrolling. The hamburger serves no purpose without scripting and is hidden; the
-   brand lockup is hidden again (it defaults to flex at mobile). Mobile-scoped: the desktop
-   rail keeps overflow-x: visible. Engines that cannot evaluate the `scripting` media feature
-   get the same declarations from the <noscript><style> block in App.razor, which also uses
-   !important to beat the scoped at-rest rule. ---- */
-@media (max-width: 767.98px) and (scripting: none) {
-    .nova-navigation .navbar-toggler {
-        display: none;
-    }
-
-    .nova-navigation .nova-brand {
-        display: none;
-    }
-
-    .nova-navigation .navbar-collapse {
-        display: flex;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: thin;
-    }
-
-    .nova-navigation .nova-account-routes {
-        display: flex;
-    }
-}
-
+   gently scrollable rather than hiding them behind an unopenable hamburger. This fallback
+   lives ONLY in the <noscript><style> block in App.razor (deterministic: the <noscript>
+   content applies only when scripting is truly off, so with JS enabled the sheet contract
+   above is the unconditional default). The old @media (scripting: none) block was removed:
+   the `scripting` media feature is unreliable/flaky (it can eagerly evaluate as TRUE in
+   Chromium under DevTools device emulation or in embeds even while JS runs), which
+   sporadically re-showed the inline strip on real users' devices. ---- */
 @media (min-width: 768px) {
     .nova-navigation {
         position: fixed;
