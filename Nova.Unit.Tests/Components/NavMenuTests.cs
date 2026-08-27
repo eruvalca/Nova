@@ -89,8 +89,11 @@ public class NavMenuTests
     /// would vanish (issue #159 review finding). This source assertion reads the whole
     /// <c>NavMenu.razor.css</c> file and fails if the scoped deeper-blend rule is removed or
     /// changed, matching the <c>ManageProfilePhotoPageTests</c>/
-    /// <c>CampaignComponentsTests</c> CSS-content convention. The computed value is proven
-    /// end to end by browser test NB7.
+    /// <c>CampaignComponentsTests</c> CSS-content convention. The token-derived fallback is
+    /// asserted too: browsers without <c>color-mix()</c> (Chrome &lt;111, Safari &lt;16.2,
+    /// Firefox &lt;113) must still get a visible field in the gap window — the translucent
+    /// primary alpha composites over the sheet's sea glass to the same 10% Wayfinding Teal
+    /// blend. The computed value is proven end to end by browser test NB7.
     /// </summary>
     [Fact]
     public void SheetActiveRow_DeclaresTokenDerivedField_WhenCollapseShown()
@@ -100,6 +103,7 @@ public class NavMenuTests
 
         css.ShouldContain(".nova-navigation .navbar-collapse.show ::deep .nav-link.active");
         css.ShouldContain("color-mix(in srgb, var(--bs-primary) 10%, var(--bs-light))");
+        css.ShouldContain("rgba(var(--bs-primary-rgb), 0.1)");
         css.ShouldNotContain("background-color: #");
     }
 

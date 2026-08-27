@@ -265,6 +265,10 @@
        also identical to the --bs-light rail surface, so the active state reads via the teal
        edge rail + fill glyph + label emphasis; consistent with pre-existing rail behavior). */
     .nova-navigation .navbar-collapse.show ::deep .nav-link.active {
+        /* Fallback for browsers without color-mix() (Chrome <111, Safari <16.2, Firefox <113):
+           the translucent primary alpha composites over the sheet's sea glass to the same
+           10% Wayfinding Teal blend, so the active field cannot vanish in the gap window. */
+        background-color: rgba(var(--bs-primary-rgb), 0.1);
         background-color: color-mix(in srgb, var(--bs-primary) 10%, var(--bs-light));
     }
 
