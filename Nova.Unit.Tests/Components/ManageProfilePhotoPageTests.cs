@@ -133,21 +133,22 @@ public class ManageProfilePhotoPageTests : BunitContext
     /// choose/crop/save event handlers (see <c>ProfilePhotoEditor.razor</c>), so the host page
     /// must apply <c>@rendermode="InteractiveAuto"</c> to the editor element. bUnit invokes
     /// callbacks regardless of the deployed render mode, so the static markup assertions in this
-    /// class cannot prove the island is interactive — this source assertion fails if the
-    /// attribute is removed from the editor element or changed, matching the
+    /// class cannot prove the island is interactive — this source assertion reads the whole
+    /// <c>ProfilePhoto.razor</c> file and fails if the attribute is removed from the editor
+    /// element or changed, matching the
     /// <c>TagDefinitionManagerComponentTests.ClubAdminRoute_DeclaresInteractiveAutoRenderMode</c>
-    /// convention for interactive islands hosted by static SSR pages. The end-to-end
-    /// interactivity of the island is additionally proven by browser test NB13.
+    /// and <c>CampaignComponentsTests</c> conventions for interactive islands hosted by static
+    /// SSR pages. The end-to-end interactivity of the island is additionally proven by browser
+    /// test NB13.
     /// </summary>
     [Fact]
     public void ProfilePhoto_EditorIsland_DeclaresInteractiveAutoRenderMode()
     {
         var razorPath = Path.Join(FindRepoRoot(), "Nova", "Components", "Account", "Pages", "Manage", "ProfilePhoto.razor");
-        var islandLine = File.ReadAllLines(razorPath)
-            .FirstOrDefault(line => line.Contains("<ProfilePhotoEditor", StringComparison.Ordinal));
+        var razorMarkup = File.ReadAllText(razorPath);
 
-        islandLine.ShouldNotBeNull();
-        islandLine.ShouldContain("@rendermode=\"InteractiveAuto\"");
+        razorMarkup.ShouldContain("<ProfilePhotoEditor");
+        razorMarkup.ShouldContain("@rendermode=\"InteractiveAuto\"");
     }
 
     /// <summary>
