@@ -256,9 +256,21 @@
         overflow-y: auto;
     }
 
+    /* On the unified sheet the active row's field cannot reuse the base --bs-primary-bg-subtle:
+       the theme defines it byte-identical to --bs-light (the sheet surface), so the sea-glass
+       field would vanish into the sheet (issue #159 review). The opened sheet's active row
+       instead carries a token-derived deeper sea-glass blend — 10% Wayfinding Teal over the
+       --bs-light surface — so the field still reads, matching the approved comp. The md+ rail
+       keeps the base .nav-link.active treatment unchanged (there --bs-primary-bg-subtle is
+       also identical to the --bs-light rail surface, so the active state reads via the teal
+       edge rail + fill glyph + label emphasis; consistent with pre-existing rail behavior). */
+    .nova-navigation .navbar-collapse.show ::deep .nav-link.active {
+        background-color: color-mix(in srgb, var(--bs-primary) 10%, var(--bs-light));
+    }
+
     /* Both route lists stack as full-width menu sections inside the sheet. Active rows keep
-       the base .nav-link.active treatment (Sea Glass field + Abyss Forest emphasis + the teal
-       top-edge marker). */
+       the teal top-edge marker and the Abyss Forest emphasis; the field is the deeper
+       sea-glass blend above. */
     .nova-navigation .navbar-collapse.show .navbar-nav {
         flex-direction: column;
         gap: 0.25rem;

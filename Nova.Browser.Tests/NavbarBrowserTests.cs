@@ -33,6 +33,13 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     // --bs-light (sea glass) in the theme: the nav-bar surface. The mobile sheet must share it
     // so the sheet and the bar read as one continuous surface (issue #159 report A).
     private const string ExpectedSeaGlassRgb = "rgb(221, 242, 236)";
+    // The opened sheet's active-row field: color-mix(in srgb, var(--bs-primary) 10%,
+    // var(--bs-light)) — a token-derived deeper sea-glass blend over the unified sheet, so the
+    // field still reads (issue #159 review: --bs-primary-bg-subtle is --bs-light byte-identical).
+    // Computed color-mix values serialize as `color(srgb r g b)` in modern Chromium while
+    // legacy declarations serialize as `rgb(r, g, b)`; both formats are normalized before
+    // comparison in AssertColorEqualsAsync.
+    private const string ExpectedActiveFieldColor = "rgb(200, 230, 225)";
 
     /// <summary>
     /// NB1: after signing in, the navbar shows the icon-first items — Dashboard, the club name,
@@ -294,6 +301,18 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var barBackground = await nav.EvaluateAsync<string>("(el) => getComputedStyle(el).backgroundColor");
         barBackground.ShouldBe(ExpectedSeaGlassRgb, "the bottom bar must keep its --bs-light surface");
         barBackground.ShouldBe(sheetBackground, "the sheet and the bar must share one background so they read as one continuous surface");
+
+        // Issue #159 review B regression guard: with the sheet surface unified on --bs-light,
+        // the active row's field must still read. The base .nav-link.active rule paints
+        // --bs-primary-bg-subtle, which the theme defines byte-identical to --bs-light, so the
+        // sheet overrides it with the token-derived deeper sea-glass blend (color-mix 10%
+        // primary over light). An inactive row keeps the transparent sheet surface.
+        var dashboardLink = nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true });
+        await AssertColorEqualsAsync(dashboardLink, ExpectedActiveFieldColor, "the active sheet row must carry the token-derived deeper sea-glass field");
+        await AssertColorNotEqualsAsync(dashboardLink, sheetBackground, "the active field must not blend into the unified sheet surface");
+        var inactiveField = await nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true })
+            .EvaluateAsync<string>("(el) => getComputedStyle(el).backgroundColor");
+        inactiveField.ShouldBe("rgba(0, 0, 0, 0)", "inactive sheet rows must stay transparent on the unified sheet");
 
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true })).ToBeVisibleAsync();
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true })).ToBeVisibleAsync();
@@ -774,7 +793,12 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>
     /// Asserts the JS-enabled mobile sheet contract at rest: toggler visible with a ≥2.75rem
     /// touch target, collapse hidden (display: none), no inline horizontal scroll strip
-    /// (scrollWidth must not exceed clientWidth). Used by NB14 after viewport resizes.
+    /// (the computed overflow-x must not be auto/scroll). Used by NB14 after viewport
+    /// resizes. The overflow-x assertion reads the computed style instead of
+    /// scrollWidth/clientWidth: at rest the collapse is display: none, so both measure 0 and
+    /// a scrollWidth &gt; clientWidth check would be inert. getComputedStyle still returns
+    /// the specified overflow-x for display:none elements, so a re-added
+    /// overflow-x: auto strip (e.g. from the scripting-disabled fallback) would be caught.
     /// </summary>
     private static async Task AssertSheetContractAtRestAsync(ILocator nav, ILocator toggler, ILocator collapse)
     {
@@ -789,9 +813,9 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var collapseDisplay = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).display");
         collapseDisplay.ShouldBe("none", "the collapse must be hidden at rest at <md with JS enabled");
 
-        var horizontalOverflow = await collapse.EvaluateAsync<string>(
-            "(el) => el.scrollWidth > el.clientWidth ? 'scrolls' : 'fits'");
-        horizontalOverflow.ShouldBe("fits", "the JS-enabled collapse must never become an inline scroll strip");
+        var overflowX = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).overflowX");
+        overflowX.ShouldNotBe("auto", "the JS-enabled collapse must never become an inline horizontal scroll strip");
+        overflowX.ShouldNotBe("scroll", "the JS-enabled collapse must never become an inline horizontal scroll strip");
 
         // The routes are not in the accessibility tree while the sheet is closed — proving the
         // strip is not implicitly showing inline tabs.
@@ -886,6 +910,60 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
             Math.Abs(box.Height - first.Height).ShouldBeLessThanOrEqualTo(1.0, $"the leading slot of row '{box.Name}' must match the uniform lane height");
             Math.Abs(box.X - first.X).ShouldBeLessThanOrEqualTo(1.0, $"the leading slot of row '{box.Name}' must share the lane x-offset");
         }
+    }
+
+    /// <summary>
+    /// Asserts the element's computed background color equals the expected value, comparing
+    /// normalized RGB so that both serialization formats Chromium produces for the same color
+    /// — legacy <c>rgb(r, g, b)</c> and modern <c>color(srgb r g b)</c> (returned for
+    /// <c>color-mix()</c> results) — compare equal.
+    /// </summary>
+    private static async Task AssertColorEqualsAsync(ILocator element, string expectedColor, string customMessage)
+    {
+        var actualColor = await element.EvaluateAsync<string>("(el) => getComputedStyle(el).backgroundColor");
+        NormalizeRgbColor(actualColor).ShouldBe(NormalizeRgbColor(expectedColor), customMessage);
+    }
+
+    /// <summary>
+    /// Asserts the element's computed background color differs from the specified color
+    /// (which may be a parsed <c>rgb(...)</c> string), comparing normalized RGB.
+    /// </summary>
+    private static async Task AssertColorNotEqualsAsync(ILocator element, string otherColor, string customMessage)
+    {
+        var actualColor = await element.EvaluateAsync<string>("(el) => getComputedStyle(el).backgroundColor");
+        NormalizeRgbColor(actualColor).ShouldNotBe(NormalizeRgbColor(otherColor), customMessage);
+    }
+
+    /// <summary>
+    /// Normalizes a CSS color string to a canonical <c>rgb(r, g, b)</c> shape. Chromium
+    /// serializes <c>color-mix()</c> results as <c>color(srgb r g b)</c> (floats) while legacy
+    /// declarations serialize as <c>rgb(r, g, b)</c> (integers); both represent the same color
+    /// and must compare as equal. Colors with an alpha channel of 0 normalize to a fixed
+    /// transparent marker so they can never falsely equal a fully opaque color.
+    /// </summary>
+    private static string NormalizeRgbColor(string color)
+    {
+        color = color.Trim();
+
+        // Transparent / fully transparent colors: any alpha of 0 is the same visual color.
+        var alphaMatch = Regex.Match(color, @"(?:^|,)\s*(?:0(?:\.0+)?|\.0+)\s*\)$");
+        if (alphaMatch.Success || color.Equals("transparent", StringComparison.OrdinalIgnoreCase))
+        {
+            return "rgba(0, 0, 0, 0)";
+        }
+
+        // color(srgb r g b) — modern serialization of color-mix() results.
+        var srgbMatch = Regex.Match(color, @"^color\(\s*srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$", RegexOptions.IgnoreCase);
+        if (srgbMatch.Success)
+        {
+            var r = Math.Round(double.Parse(srgbMatch.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) * 255.0);
+            var g = Math.Round(double.Parse(srgbMatch.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture) * 255.0);
+            var b = Math.Round(double.Parse(srgbMatch.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture) * 255.0);
+            return $"rgb({r:0}, {g:0}, {b:0})";
+        }
+
+        // Legacy rgb(r, g, b) — leave as-is but canonicalize whitespace.
+        return Regex.Replace(color, @"\s*,\s*", ", ");
     }
 
     /// <summary>

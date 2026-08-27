@@ -50,9 +50,13 @@ description: "UI design rules for the Fieldhouse Wayfinding design system: PRODU
   routes fall back to inline items in a horizontally scrollable strip and the hamburger hides (it
   could never open without JS) via the deterministic `<noscript><style>` block in `App.razor`;
   with only a single Login tab (anonymous) the tab stays inline and the hamburger hides.
-- Active item = sea-glass field (`--bs-primary-bg-subtle`) + teal indicator: top marker (3px) on the
-  mobile menu rows, left edge rail (`0.25rem` inset) on the rail. Icons swap outline→fill via the
-  active class (`nav-icon`/`nav-icon-fill`). Every leading slot shares one uniform 2rem icon lane
+- Active item = sea-glass field + teal indicator: top marker (3px) on the mobile menu rows, left edge rail
+  (`0.25rem` inset) on the rail. The field is `--bs-primary-bg-subtle` on the md+ rail; in the opened
+  mobile sheet the field must be the token-derived deeper sea-glass blend
+  (`color-mix(in srgb, var(--bs-primary) 10%, var(--bs-light))`), never `--bs-primary-bg-subtle` —
+  the theme defines it byte-identical to `--bs-light`, so on the unified sheet surface the field
+  would vanish (issue #159 review). Icons swap outline→fill via the active class
+  (`nav-icon`/`nav-icon-fill`). Every leading slot shares one uniform 2rem icon lane
   (`nav-icon-slot` and `nav-avatar-slot` are both 2rem, glyphs render 1.25rem centered inside
   the lane) at md+ AND in the opened mobile sheet, so the club crest and profile avatars render
   inside their own 2rem slot (`nav-avatar-slot`) beside the label — never inside the 1.25rem

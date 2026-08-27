@@ -81,6 +81,29 @@ public class NavMenuTests
     }
 
     /// <summary>
+    /// The opened mobile sheet's active row must keep a visible field on the unified
+    /// sea-glass sheet surface. The base <c>::deep .nav-link.active</c> rule uses
+    /// <c>--bs-primary-bg-subtle</c>, which the theme defines byte-identical to
+    /// <c>--bs-light</c>, so on the sheet (which now paints <c>--bs-light</c> for the #159
+    /// background unification) the field would read as plain sheet — the sea-glass field
+    /// would vanish (issue #159 review finding). This source assertion reads the whole
+    /// <c>NavMenu.razor.css</c> file and fails if the scoped deeper-blend rule is removed or
+    /// changed, matching the <c>ManageProfilePhotoPageTests</c>/
+    /// <c>CampaignComponentsTests</c> CSS-content convention. The computed value is proven
+    /// end to end by browser test NB7.
+    /// </summary>
+    [Fact]
+    public void SheetActiveRow_DeclaresTokenDerivedField_WhenCollapseShown()
+    {
+        var cssPath = Path.Join(FindRepoRoot(), "Nova", "Components", "Layout", "NavMenu.razor.css");
+        var css = File.ReadAllText(cssPath);
+
+        css.ShouldContain(".nova-navigation .navbar-collapse.show ::deep .nav-link.active");
+        css.ShouldContain("color-mix(in srgb, var(--bs-primary) 10%, var(--bs-light))");
+        css.ShouldNotContain("background-color: #");
+    }
+
+    /// <summary>
     /// The anonymous single-Login state is computed server-side from
     /// <see cref="ICurrentUserProvider.GetCurrentUserState"/> and emitted as the
     /// <c>account-routes-single</c> marker class on the nav element, so the CSS contract
@@ -374,5 +397,22 @@ public class NavMenuTests
 
         public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, string policyName)
             => Task.FromResult(AuthorizationResult.Success());
+    }
+
+    private static string FindRepoRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var gitDirectoryPath = Path.Join(directory.FullName, ".git");
+            if (Directory.Exists(gitDirectoryPath) || File.Exists(gitDirectoryPath))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate repository root for the NavMenu CSS-content assertion.");
     }
 }
