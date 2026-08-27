@@ -45,16 +45,21 @@ description: "UI design rules for the Fieldhouse Wayfinding design system: PRODU
   hamburger opens one paper sheet listing **every** route — primary (Dashboard, club, Campaigns,
   Players, Teams) and account (Manage/Logout or Login) — as full-width, left-aligned rows with
   legible full-size (0.875rem) labels (Bootstrap `.show`) — functionality stays reachable, never
-  hidden, and labels never shrink or truncate into "Dash…". The collapse contract is gated on
-  `html.js` (an inline JS marker added by `App.razor` before stylesheets), so with scripting
-  disabled all routes fall back to inline items in a horizontally scrollable strip and the
-  hamburger hides (it could never open without JS); with only a single Login tab (anonymous) the
-  tab stays inline and the hamburger hides.
+  hidden, and labels never shrink or truncate into "Dash…". The sheet/hamburger contract is the
+  **default** below 768px, so it does not depend on a script marker: with scripting disabled all
+  routes fall back to inline items in a horizontally scrollable strip and the hamburger hides (it
+  could never open without JS) via the `@media (scripting: none)` block in the scoped CSS plus the
+  matching `<noscript><style>` in `App.razor` for engines that cannot evaluate the `scripting`
+  media feature; with only a single Login tab (anonymous) the tab stays inline and the hamburger
+  hides.
 - Active item = sea-glass field (`--bs-primary-bg-subtle`) + teal indicator: top marker (3px) on the
   mobile menu rows, left edge rail (`0.25rem` inset) on the rail. Icons swap outline→fill via the
-  active class (`nav-icon`/`nav-icon-fill`). Club crest and profile avatars render inside their
-  own 2rem slot (`nav-avatar-slot`) beside the label — never inside the 1.25rem glyph slot, so
-  the larger circle cannot overlap the label.
+  active class (`nav-icon`/`nav-icon-fill`). At md+ every leading slot shares one uniform 2rem icon
+  lane (`nav-icon-slot` and `nav-avatar-slot` are both 2rem, glyphs render 1.25rem centered inside
+  the lane), so the club crest and profile avatars render inside their own 2rem slot
+  (`nav-avatar-slot`) beside the label — never inside the 1.25rem glyph slot — and every row
+  (including Logout) has the same leading box, so no row reads larger or off-lane; below md the
+  leading slot returns to 1.25rem (the sheet rows use the compact slot).
 - Route-marker tab pattern (campaign workspace tabs): 4 stop buttons in a grid with a
   `min-width: 36rem` scroll container (`overflow-x: auto`), markers connected by a line, active stop
   teal + sea glass. Horizontally scrollable at ≤36rem viewport widths.

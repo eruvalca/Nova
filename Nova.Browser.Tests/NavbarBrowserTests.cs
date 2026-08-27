@@ -203,12 +203,18 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Nova dashboard" })).ToBeVisibleAsync();
 
         // Each authorized item renders an inline row at md+ (Dashboard, the club, Campaigns,
-        // Players, Teams).
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true }));
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true }));
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }));
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }));
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }));
+        // Players, Teams). At md+ every glyph slot is the 2rem uniform icon lane (issue #156
+        // alignment: the club crest avatar must not look larger than the other icons).
+        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true }), 32.0);
+        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true }), 32.0);
+        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }), 32.0);
+        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }), 32.0);
+        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }), 32.0);
+
+        // All seven rows (Dashboard, club crest, Campaigns, Players, Teams, Manage, Logout)
+        // share one uniform leading lane at md+ — identical box, identical x-offset — so the
+        // labels align and the crest reads visually equal to the glyph icons.
+        await AssertUniformIconLaneAsync(nav, clubName);
     }
 
     /// <summary>
@@ -335,6 +341,54 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
+    /// NB13: the /Account/Manage/ProfilePhoto page renders inside the shared account hall frame —
+    /// the "Manage your account" heading + lead, the directory wall with its panel list, the
+    /// working hall hosting the profile photo editor — and the "Profile photo" panel in the
+    /// directory wall carries the active (punched) state while on that page. Regression guard for
+    /// issue #156: previously the manage profile photo page was served by a Nova.UI page with no
+    /// ManageLayout, so it rendered under the bare MainLayout with no account-hall frame.
+    /// </summary>
+    [Fact]
+    public async Task Account_ManageProfilePhoto_RendersInsideAccountHallFrame()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(
+            seed.AdminEmail,
+            DashboardSeed.Password,
+            viewport: new ViewportSize { Width = 1280, Height = 800 });
+        var page = context.Pages[0];
+
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Manage/ProfilePhoto").ToString());
+
+        // The shared manage frame: heading, lead, directory wall, and the working hall.
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Manage your account" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Change your account settings" })).ToBeVisibleAsync();
+
+        var wall = page.Locator("nav.account-panel-wall");
+        await Expect(wall).ToHaveCountAsync(1);
+
+        var hall = page.Locator("section.account-working-hall");
+        await Expect(hall).ToHaveCountAsync(1);
+
+        // The page content: the Profile photo heading and the photo editor inside the hall.
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Profile photo", Exact = true })).ToBeVisibleAsync();
+        await Expect(hall.Locator(".profile-photo-editor")).ToHaveCountAsync(1);
+        await Expect(hall.GetByLabel("Choose a photo")).ToBeVisibleAsync();
+
+        // The Profile photo panel in the directory wall is the active (punched) one.
+        var profilePhotoPanel = wall.GetByRole(AriaRole.Link, new() { Name = "Profile photo" });
+        await Expect(profilePhotoPanel).ToHaveCountAsync(1);
+        await Expect(profilePhotoPanel).ToHaveClassAsync(new Regex("\\bactive\\b"));
+
+        // The other panels are not active.
+        await Expect(wall.GetByRole(AriaRole.Link, new() { Name = "Profile", Exact = true }))
+            .Not.ToHaveClassAsync(new Regex("\\bactive\\b"));
+        await Expect(wall.GetByRole(AriaRole.Link, new() { Name = "Email", Exact = true }))
+            .Not.ToHaveClassAsync(new Regex("\\bactive\\b"));
+    }
+
+    /// <summary>
     /// NB9: the touch targets in the nav meet the minimum 2.75rem (44px) height at desktop so the
     /// rail items remain comfortably tappable.
     /// </summary>
@@ -364,9 +418,9 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// NB10: at a mobile (&lt;md) viewport the anonymous nav keeps the single Login tab inline in
     /// the strip (the server-computed <c>account-routes-single</c> marker branch) and hides the
     /// hamburger — with only one account route there is nothing for the sheet to reveal, so Login
-    /// must never be pushed behind a toggle. The test asserts the JS-confirmed branch is active
-    /// (html.js), the Login link is visible, the account-routes list is not collapsed, and the
-    /// toggler computes to <c>display: none</c>.
+    /// must never be pushed behind a toggle. The test asserts the scripting-capable branch is
+    /// active (browser reports scripting as available), the Login link is visible, the
+    /// account-routes list is not collapsed, and the toggler computes to <c>display: none</c>.
     /// </summary>
     [Fact]
     public async Task Navbar_Mobile_Anonymous_SingleLoginStaysInline_AndHamburgerHidden()
@@ -378,11 +432,13 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Login").ToString());
 
-        // The inline JS marker runs in a JS-enabled context, so the collapse contract is active.
-        var htmlClass = await page.EvaluateAsync<string>("() => document.documentElement.className");
-        htmlClass.ShouldContain("js");
-
         var nav = page.Locator("nav[aria-label='Primary']");
+
+        // The sheet contract is active in this JS-enabled context: the brand lockup is visible
+        // at <md only under the sheet contract, and hidden by the scripting-disabled fallback
+        // (both the @media (scripting: none) block and the <noscript><style> in App.razor hide
+        // it), so its visibility proves the fallback is not applying.
+        await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Nova dashboard" })).ToBeVisibleAsync();
         var login = nav.GetByRole(AriaRole.Link, new() { Name = "Login", Exact = true });
         await Expect(login).ToBeVisibleAsync();
         await Expect(login).ToHaveAttributeAsync("href", "Account/Login");
@@ -409,11 +465,12 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
     /// <summary>
     /// NB11: with scripting disabled (<c>javaScriptEnabled: false</c>) at a mobile (&lt;md)
-    /// viewport the nav falls back to the no-JS contract — the inline JS marker never runs so
-    /// <c>&lt;html&gt;</c> stays without the <c>js</c> class: the account items (Manage, Logout)
-    /// render inline in the strip and stay reachable, and the hamburger that could never open
-    /// without JS is hidden. Also asserts the strip becomes gently scrollable
-    /// (<c>overflow-x: auto</c>) so many inline items never overflow unreadably.
+    /// viewport the nav falls back to the no-scripting contract — the sheet contract cannot
+    /// open without scripting, so the account items (Manage, Logout) render inline in the strip
+    /// and stay reachable, and the hamburger that could never open the menu is hidden. The
+    /// fallback is applied by the <c>@media (scripting: none)</c> block and the matching
+    /// <c>&lt;noscript&gt;&lt;style&gt;</c> in App.razor. Also asserts the strip becomes gently
+    /// scrollable (<c>overflow-x: auto</c>) so many inline items never overflow unreadably.
     /// </summary>
     [Fact]
     public async Task Navbar_Mobile_NoJavaScript_AccountItemsStayInlineAndReachable()
@@ -434,10 +491,6 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await page.WaitForURLAsync(url => !url.Contains("/Account/Login", StringComparison.OrdinalIgnoreCase));
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
-
-        // The inline JS marker never ran: html.js is not set, so the no-JS default applies.
-        var htmlClass = await page.EvaluateAsync<string>("() => document.documentElement.className");
-        htmlClass.ShouldNotContain("js");
 
         var nav = page.Locator("nav[aria-label='Primary']");
 
@@ -567,15 +620,15 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
     /// <summary>
     /// Asserts the link keeps the inline icon+label row (flex row, icon box beside — not above —
-    /// the label box, both vertically centered). The leading box may be the 1.25rem glyph slot
+    /// the label box, both vertically centered). The leading box may be the glyph slot
     /// (bootstrap-icons) or the 2rem avatar slot (club crest / profile photo); each keeps its
     /// committed baseline size and neither can overlap the label because the slot owns its width.
     /// </summary>
-    private static async Task AssertInlineRowLayoutAsync(ILocator link)
+    private static async Task AssertInlineRowLayoutAsync(ILocator link, double expectedIconSlotSize = 20.0)
     {
         var flexDirection = await link.EvaluateAsync<string>("(el) => getComputedStyle(el).flexDirection");
         flexDirection.ShouldBe("row");
-        var leadingBox = await GetLeadingSlotBoxAsync(link);
+        var leadingBox = await GetLeadingSlotBoxAsync(link, expectedIconSlotSize);
         var labelBox = await link.Locator("span.nav-label").BoundingBoxAsync();
         labelBox.ShouldNotBeNull();
         leadingBox!.X.ShouldBeLessThan(labelBox!.X, "the icon must sit beside the label in the inline row");
@@ -585,10 +638,13 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// Resolves the link's leading box: a 1.25rem glyph slot for bootstrap-icons items, or a
-    /// 2rem avatar slot for the club crest / profile-photo items, each at its committed size.
+    /// Resolves the link's leading box: a glyph slot for bootstrap-icons items, or a 2rem avatar
+    /// slot for the club crest / profile-photo items, each at its committed size. The expected
+    /// glyph-slot size is passed by the caller because the slot is 1.25rem in the mobile sheet /
+    /// no-JS strip but 2rem in the md+ lane (all leading slots share one uniform icon lane at
+    /// desktop; the avatar slot is always 2rem).
     /// </summary>
-    private static async Task<LocatorBoundingBoxResult?> GetLeadingSlotBoxAsync(ILocator link)
+    private static async Task<LocatorBoundingBoxResult?> GetLeadingSlotBoxAsync(ILocator link, double expectedIconSlotSize = 20.0)
     {
         var avatarSlot = link.Locator("span.nav-avatar-slot");
         if (await avatarSlot.CountAsync() == 1)
@@ -602,9 +658,47 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
         var iconBox = await link.Locator("span.nav-icon-slot").BoundingBoxAsync();
         iconBox.ShouldNotBeNull();
-        ((double)iconBox!.Width).ShouldBeInRange(19.5, 20.5, "the icon slot must keep its 1.25rem baseline width");
-        ((double)iconBox!.Height).ShouldBeInRange(19.5, 20.5, "the icon slot must keep its 1.25rem baseline height");
+        ((double)iconBox!.Width).ShouldBeInRange(expectedIconSlotSize - 0.5, expectedIconSlotSize + 0.5, "the icon slot must keep its committed lane width");
+        ((double)iconBox!.Height).ShouldBeInRange(expectedIconSlotSize - 0.5, expectedIconSlotSize + 0.5, "the icon slot must keep its committed lane height");
         return iconBox;
+    }
+
+    /// <summary>
+    /// Asserts the uniform icon lane at md+: every authorized row's leading slot (glyph slot or
+    /// avatar slot) has the same width/height and the same x-offset, and every row's label starts
+    /// at the same x-offset. This is the #156 alignment guard — the club crest avatar (2rem
+    /// circle) shares one lane box with the glyph icons so no row reads larger or misaligned.
+    /// Rows: Dashboard, the club crest, Campaigns, Players, Teams, Manage (avatar), Logout
+    /// (glyph).
+    /// </summary>
+    private static async Task AssertUniformIconLaneAsync(ILocator nav, string clubName)
+    {
+        var rows = new (ILocator Link, string Name)[]
+        {
+            (nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true }), "Dashboard"),
+            (nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true }), "club crest"),
+            (nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }), "Campaigns"),
+            (nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }), "Players"),
+            (nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }), "Teams"),
+            (nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false }), "Manage"),
+            (nav.GetByRole(AriaRole.Button, new() { Name = "Logout", Exact = true }), "Logout"),
+        };
+
+        var leadingBoxes = new List<(double X, double Width, double Height, string Name)>();
+        foreach (var row in rows)
+        {
+            var box = await GetLeadingSlotBoxAsync(row.Link, 32.0);
+            box.ShouldNotBeNull();
+            leadingBoxes.Add((box!.X, box.Width, box.Height, row.Name));
+        }
+
+        var first = leadingBoxes[0];
+        foreach (var box in leadingBoxes.Skip(1))
+        {
+            Math.Abs(box.Width - first.Width).ShouldBeLessThanOrEqualTo(1.0, $"the leading slot of row '{box.Name}' must match the uniform lane width");
+            Math.Abs(box.Height - first.Height).ShouldBeLessThanOrEqualTo(1.0, $"the leading slot of row '{box.Name}' must match the uniform lane height");
+            Math.Abs(box.X - first.X).ShouldBeLessThanOrEqualTo(1.0, $"the leading slot of row '{box.Name}' must share the lane x-offset");
+        }
     }
 
     /// <summary>

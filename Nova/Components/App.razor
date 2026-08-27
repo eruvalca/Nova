@@ -5,15 +5,34 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
-    <!-- JS marker: runs before any stylesheet, so the NavMenu mobile contract (account routes
-         hidden behind the hamburger sheet) applies only once scripting is confirmed; with JS
-         disabled the marker never lands and CSS falls back to the inline strip default. -->
-    <script>document.documentElement.classList.add('js');</script>
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["css/bootstrap-theme.css"]" />
     <link rel="stylesheet" href="_content/Cropper.Blazor/cropper.min.css" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Nova.styles.css"]" />
+    <!-- Mobile nav default: the NavMenu sheet contract (hamburger + collapsible menu) is the
+         default below md for every scripting-capable browser. Only when scripting is truly
+         unavailable does the nav fall back to the always-inline scrollable strip. Browsers
+         that cannot evaluate the `scripting` media feature get that fallback from this
+         <noscript> block (the scoped stylesheet's @media (scripting: none) block covers the
+         rest). !important is required: the scoped .nova-navigation rules carry the
+         component's generated attribute and therefore a higher specificity. -->
+    <noscript>
+        <style>
+            @@media (max-width: 767.98px) {
+                .nova-navigation .navbar-toggler { display: none !important; }
+                .nova-navigation .nova-brand { display: none !important; }
+                .nova-navigation .navbar-collapse {
+                    display: flex !important;
+                    flex-wrap: nowrap;
+                    overflow-x: auto;
+                    -webkit-overflow-scrolling: touch;
+                    scrollbar-width: thin;
+                }
+                .nova-navigation .nova-account-routes { display: flex !important; }
+            }
+        </style>
+    </noscript>
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
     <HeadOutlet />
