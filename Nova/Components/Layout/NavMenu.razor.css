@@ -297,6 +297,21 @@
         text-align: left;
     }
 
+    /* In the opened sheet the glyph slot joins the same uniform 2rem leading lane the md+ rail
+       uses, so every sheet row — glyph rows (Dashboard, Campaigns, Players, Teams, Logout) and
+       avatar rows (club crest, Manage) — owns an identical 2rem lane box and every label starts
+       at the same x-offset. The 1.25rem glyph stays centered inside the lane (.nav-icon /
+       .nav-icon-fill absolute top:50%/left:50%/-translate(-50%,-50%)); the slot is the
+       committed box, so the glyph can never overflow onto its label. This matches the md+
+       .nav-icon-slot treatment. */
+    .nova-navigation .navbar-collapse.show .nav-icon-slot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+    }
+
     /* Full-size, legible labels: rows are full-width so the natural text fits; wrapping is
        allowed rather than clipping. The scripting-disabled fallback keeps labels at natural
        width and scrolls instead of truncating. */

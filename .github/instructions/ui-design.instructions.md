@@ -54,12 +54,14 @@ description: "UI design rules for the Fieldhouse Wayfinding design system: PRODU
   hides.
 - Active item = sea-glass field (`--bs-primary-bg-subtle`) + teal indicator: top marker (3px) on the
   mobile menu rows, left edge rail (`0.25rem` inset) on the rail. Icons swap outline→fill via the
-  active class (`nav-icon`/`nav-icon-fill`). At md+ every leading slot shares one uniform 2rem icon
-  lane (`nav-icon-slot` and `nav-avatar-slot` are both 2rem, glyphs render 1.25rem centered inside
-  the lane), so the club crest and profile avatars render inside their own 2rem slot
-  (`nav-avatar-slot`) beside the label — never inside the 1.25rem glyph slot — and every row
-  (including Logout) has the same leading box, so no row reads larger or off-lane; below md the
-  leading slot returns to 1.25rem (the sheet rows use the compact slot).
+  active class (`nav-icon`/`nav-icon-fill`). Every leading slot shares one uniform 2rem icon lane
+  (`nav-icon-slot` and `nav-avatar-slot` are both 2rem, glyphs render 1.25rem centered inside
+  the lane) at md+ AND in the opened mobile sheet, so the club crest and profile avatars render
+  inside their own 2rem slot (`nav-avatar-slot`) beside the label — never inside the 1.25rem
+  glyph slot — and every row (including Logout) has the same leading box, so no row reads larger
+  or off-lane and every label starts at the same x-offset at every breakpoint. The only
+  exception: the scripting-disabled inline strip keeps the compact 1.25rem glyph slot by design
+  (it is the stacked-tab fallback, not the menu sheet).
 - Route-marker tab pattern (campaign workspace tabs): 4 stop buttons in a grid with a
   `min-width: 36rem` scroll container (`overflow-x: auto`), markers connected by a line, active stop
   teal + sea glass. Horizontally scrollable at ≤36rem viewport widths.

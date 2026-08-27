@@ -308,6 +308,13 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
             nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }),
             "bi-calendar-check-fill",
             "bi-calendar-check");
+
+        // All seven rows (Dashboard, club crest, Campaigns, Players, Teams, Manage, Logout) share
+        // one uniform leading lane in the opened sheet — identical box, identical x-offset — so
+        // the glyph rows no longer read off-lane next to the avatar rows (issue #156 alignment
+        // gap: the glyph slot used to drop back to 1.25rem in the sheet while the avatars kept
+        // their 2rem slot).
+        await AssertUniformIconLaneAsync(nav, clubName);
     }
 
     /// <summary>
@@ -616,6 +623,14 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await AssertMenuSheetRowAsync(manage);
         await AssertMenuSheetRowAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true }));
         await AssertMenuSheetRowAsync(nav.GetByRole(AriaRole.Button, new() { Name = "Logout", Exact = true }));
+
+        // The opened sheet's leading lane is uniform across ALL rows — glyph rows (Dashboard,
+        // Campaigns, Players, Teams, Logout) and avatar rows (club crest, Manage) measure the
+        // same 2rem box and start at the same x-offset, so every label shares one x-offset. This
+        // is the mobile half of the #156 alignment regression guard: previously the glyph slot
+        // was 1.25rem in the sheet while the avatar slots stayed 2rem, so each label started at
+        // a different x-offset depending on its row's leading content.
+        await AssertUniformIconLaneAsync(nav, clubName);
     }
 
     /// <summary>
@@ -640,9 +655,10 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>
     /// Resolves the link's leading box: a glyph slot for bootstrap-icons items, or a 2rem avatar
     /// slot for the club crest / profile-photo items, each at its committed size. The expected
-    /// glyph-slot size is passed by the caller because the slot is 1.25rem in the mobile sheet /
-    /// no-JS strip but 2rem in the md+ lane (all leading slots share one uniform icon lane at
-    /// desktop; the avatar slot is always 2rem).
+    /// glyph-slot size is passed by the caller because the slot is 2rem in the md+ lane and in
+    /// the opened mobile sheet (uniform leading lane everywhere the full-width menu rows render)
+    /// but stays the compact 1.25rem in the no-JS inline stacked-tab strip (the avatar slot is
+    /// always 2rem).
     /// </summary>
     private static async Task<LocatorBoundingBoxResult?> GetLeadingSlotBoxAsync(ILocator link, double expectedIconSlotSize = 20.0)
     {
@@ -664,10 +680,13 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// Asserts the uniform icon lane at md+: every authorized row's leading slot (glyph slot or
-    /// avatar slot) has the same width/height and the same x-offset, and every row's label starts
-    /// at the same x-offset. This is the #156 alignment guard — the club crest avatar (2rem
-    /// circle) shares one lane box with the glyph icons so no row reads larger or misaligned.
+    /// Asserts the uniform leading lane at md+ and in the opened mobile sheet: every authorized
+    /// row's leading slot (glyph slot or avatar slot) has the same width/height and the same
+    /// x-offset, and every row's label therefore starts at the same x-offset. This is the #156
+    /// alignment guard — the club crest avatar (2rem circle) shares one lane box with the glyph
+    /// icons so no row reads larger or misaligned. In the sheet (NB7/NB12) the glyph slot is
+    /// 2rem too (same uniform lane), so the same guard applies; only the no-JS inline strip
+    /// keeps the compact 1.25rem glyph slot (asserted separately in NB11).
     /// Rows: Dashboard, the club crest, Campaigns, Players, Teams, Manage (avatar), Logout
     /// (glyph).
     /// </summary>
@@ -729,8 +748,8 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// — not beside — the label box, both horizontally centered on the tab's center axis). This is
     /// the no-JS (html:not(.js)) strip-fallback layout at &lt;md; the JS menu renders full-width
     /// rows instead (see <see cref="AssertMenuSheetRowAsync"/>). The leading box may be the
-    /// 1.25rem glyph slot or the 2rem avatar slot (club crest / profile photo); either way the
-    /// avatar slot keeps its 2rem box and the label stays fully readable below it — never
+    /// compact 1.25rem glyph slot or the 2rem avatar slot (club crest / profile photo); either
+    /// way the avatar slot keeps its 2rem box and the label stays fully readable below it — never
     /// overlapped.
     /// </summary>
     private static async Task AssertStackedTabLayoutAsync(ILocator link)
