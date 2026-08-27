@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Entities;
+using Nova.Integration.Tests.Http;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -351,9 +352,13 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// NB13: the /Account/Manage/ProfilePhoto page renders inside the shared account hall frame —
     /// the "Manage your account" heading + lead, the directory wall with its panel list, the
     /// working hall hosting the profile photo editor — and the "Profile photo" panel in the
-    /// directory wall carries the active (punched) state while on that page. Regression guard for
-    /// issue #156: previously the manage profile photo page was served by a Nova.UI page with no
-    /// ManageLayout, so it rendered under the bare MainLayout with no account-hall frame.
+    /// directory wall carries the active (punched) state while on that page. Also proves the
+    /// <c>ProfilePhotoEditor</c> island is interactive (not static SSR): after moving the page to
+    /// WebAssembly (InteractiveAuto's eventual render mode), uploading a JPEG through the real
+    /// file input fires the choose handler and renders the cropper frame, which would never happen
+    /// if the island lost its <c>@rendermode</c> annotation. Regression guard for issue #156:
+    /// previously the manage profile photo page was served by a Nova.UI page with no ManageLayout,
+    /// so it rendered under the bare MainLayout with no account-hall frame.
     /// </summary>
     [Fact]
     public async Task Account_ManageProfilePhoto_RendersInsideAccountHallFrame()
@@ -393,6 +398,62 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
             .Not.ToHaveClassAsync(new Regex("\\bactive\\b"));
         await Expect(wall.GetByRole(AriaRole.Link, new() { Name = "Email", Exact = true }))
             .Not.ToHaveClassAsync(new Regex("\\bactive\\b"));
+
+        // Move the island to WebAssembly before driving the file input: InteractiveAuto attaches on
+        // WASM once the runtime has booted, and the file-upload round trip over the InteractiveServer
+        // circuit stalls under the suite's 4-way parallel Chromium load (same approach and rationale
+        // as ClubCrestBrowserTests). The interactivity proof is unchanged: a static island has no
+        // WASM component to receive the change event, so the cropper frame never appears.
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+        await Expect(hall.Locator(".profile-photo-editor")).ToBeVisibleAsync(new() { Timeout = 30_000 });
+
+        // The editor island is truly interactive, not static SSR: uploading a JPEG through the
+        // real file input fires the choose handler (OnFileSelectedAsync), which renders the
+        // cropper frame. A page that lost its @rendermode annotation would serve the same static
+        // markup — the input and labels would be visible — but the change event would never reach
+        // the component, so the cropper frame would never appear; the upload retry through
+        // BrowserRetryPolicy therefore fails without the render mode. This is the end-to-end
+        // interactivity proof for the InteractiveAuto island (review finding, issue #156).
+        var input = hall.GetByLabel("Choose a photo");
+        await Expect(input).ToBeVisibleAsync();
+        var photoPath = await WriteTempProfilePhotoAsync();
+        try
+        {
+            var cropper = hall.Locator("div.profile-photo-cropper-frame");
+            for (var attempt = 0; attempt < BrowserRetryPolicy.MaxAttempts; attempt++)
+            {
+                if (await cropper.IsVisibleAsync())
+                {
+                    break;
+                }
+
+                try
+                {
+                    // Uploading the same file twice is idempotent; each attempt re-triggers the
+                    // change→crop round-trip, which can exceed a fixed Expect window under the
+                    // suite's parallel Chromium load.
+                    await input.SetInputFilesAsync(photoPath);
+                }
+                catch (Exception exception) when (exception is PlaywrightException or TimeoutException)
+                {
+                    // The input was re-rendered mid-upload, or the actionability timeout surfaced
+                    // as System.TimeoutException; the next attempt re-issues the upload.
+                }
+
+                if (await cropper.IsVisibleAsync())
+                {
+                    break;
+                }
+
+                await page.WaitForTimeoutAsync(BrowserRetryPolicy.Delay);
+            }
+
+            await Expect(cropper).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        }
+        finally
+        {
+            File.Delete(photoPath);
+        }
     }
 
     /// <summary>
@@ -874,6 +935,17 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
                 return document.fonts.check('16px ""bootstrap-icons""');
             }");
         fontLoaded.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Writes a small valid JPEG to a temporary file for the profile photo file input.
+    /// </summary>
+    /// <returns>The temporary file path.</returns>
+    private static async Task<string> WriteTempProfilePhotoAsync()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"nova-profile-photo-{Guid.NewGuid():N}.jpg");
+        await File.WriteAllBytesAsync(path, SeedingHelpers.CreateJpegBytes());
+        return path;
     }
 
     /// <summary>
