@@ -1,5 +1,4 @@
 @page "/Account/Manage/ProfilePhoto"
-@rendermode InteractiveAuto
 
 <PageTitle>Profile photo</PageTitle>
 
@@ -10,6 +9,6 @@
             Update your profile photo. Choose a new image and crop it to your liking —
             it will be shown as a circular avatar.
         </p>
-        <ProfilePhotoEditor ReturnUrl="/Account/Manage" CancelUrl="/Account/Manage" />
+        <ProfilePhotoEditor ReturnUrl="/Account/Manage" CancelUrl="/Account/Manage" @rendermode="InteractiveAuto" />
     </div>
 </div>

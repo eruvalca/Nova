@@ -746,7 +746,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>
     /// Asserts the link keeps the stacked icon-above-label tab layout (flex column, icon box above
     /// — not beside — the label box, both horizontally centered on the tab's center axis). This is
-    /// the no-JS (html:not(.js)) strip-fallback layout at &lt;md; the JS menu renders full-width
+    /// the no-JS (@media (scripting: none) / &lt;noscript&gt;) strip-fallback layout at &lt;md; the JS menu renders full-width
     /// rows instead (see <see cref="AssertMenuSheetRowAsync"/>). The leading box may be the
     /// compact 1.25rem glyph slot or the 2rem avatar slot (club crest / profile photo); either
     /// way the avatar slot keeps its 2rem box and the label stays fully readable below it — never
