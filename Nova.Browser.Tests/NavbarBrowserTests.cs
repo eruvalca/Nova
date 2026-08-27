@@ -22,13 +22,17 @@ namespace Nova.Browser.Tests;
 /// login page; the unauthenticated root renders the public landing page with no
 /// authenticated icon links; and the fallback branches are covered — the anonymous
 /// single-Login tab stays inline with the hamburger hidden, and with scripting disabled all
-/// routes fall back to the inline scrollable strip (no-JS contract).
+/// routes fall back to the inline scrollable strip (the deterministic &lt;noscript&gt; no-JS
+/// contract; the old <c>@media (scripting: none)</c> block was removed as unreliable).
 /// </summary>
 /// <param name="fixture">The Aspire-hosted browser suite fixture.</param>
 [Collection(BrowserSuiteCollection.Name)]
 public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 {
     private const string ExpectedKelpTealRgb = "rgb(14, 124, 123)";
+    // --bs-light (sea glass) in the theme: the nav-bar surface. The mobile sheet must share it
+    // so the sheet and the bar read as one continuous surface (issue #159 report A).
+    private const string ExpectedSeaGlassRgb = "rgb(221, 242, 236)";
 
     /// <summary>
     /// NB1: after signing in, the navbar shows the icon-first items — Dashboard, the club name,
@@ -225,7 +229,10 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// every route from the accessibility tree), and clicking the hamburger opens one paper
     /// sheet that lists EVERY route — primary (Dashboard, club, Campaigns, Players, Teams)
     /// and account (Manage, Logout) — as full-width, left-aligned rows; the sheet is the only
-    /// place the routes surface at &lt;md, so no horizontal scroll is forced anywhere.
+    /// place the routes surface at &lt;md, so no horizontal scroll is forced anywhere. The
+    /// sheet reuses the bar's --bs-light sea-glass surface so the two read as one continuous
+    /// surface (issue #159 report A: the sheet used to fall back to --bs-body-bg paper white),
+    /// asserted via computed background-color equality.
     /// </summary>
     [Fact]
     public async Task Navbar_Mobile_RestShowsBrandAndToggle_MenuSheetListsEveryRoute()
@@ -277,6 +284,16 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await toggler.ClickAsync();
         await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b"));
         await Expect(toggler).ToHaveAttributeAsync("aria-expanded", "true");
+
+        // Issue #159 report A regression guard: the opened sheet must read as one continuous
+        // surface with the bar — the sheet's computed background equals the bar's, both the
+        // --bs-light sea-glass token (#DDF2EC). The sheet used to fall back to --bs-body-bg
+        // (paper white), so the bar looked green-tinted and the sheet white — a visible seam.
+        var sheetBackground = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).backgroundColor");
+        sheetBackground.ShouldBe(ExpectedSeaGlassRgb, "the opened sheet must use the bar's --bs-light surface");
+        var barBackground = await nav.EvaluateAsync<string>("(el) => getComputedStyle(el).backgroundColor");
+        barBackground.ShouldBe(ExpectedSeaGlassRgb, "the bottom bar must keep its --bs-light surface");
+        barBackground.ShouldBe(sheetBackground, "the sheet and the bar must share one background so they read as one continuous surface");
 
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true })).ToBeVisibleAsync();
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true })).ToBeVisibleAsync();
@@ -504,8 +521,8 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
         // The sheet contract is active in this JS-enabled context: the brand lockup is visible
         // at <md only under the sheet contract, and hidden by the scripting-disabled fallback
-        // (both the @media (scripting: none) block and the <noscript><style> in App.razor hide
-        // it), so its visibility proves the fallback is not applying.
+        // (the <noscript><style> in App.razor hides it; the old @media (scripting: none) block
+        // was removed as unreliable), so its visibility proves the fallback is not applying.
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Nova dashboard" })).ToBeVisibleAsync();
         var login = nav.GetByRole(AriaRole.Link, new() { Name = "Login", Exact = true });
         await Expect(login).ToBeVisibleAsync();
@@ -536,9 +553,10 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// viewport the nav falls back to the no-scripting contract — the sheet contract cannot
     /// open without scripting, so the account items (Manage, Logout) render inline in the strip
     /// and stay reachable, and the hamburger that could never open the menu is hidden. The
-    /// fallback is applied by the <c>@media (scripting: none)</c> block and the matching
-    /// <c>&lt;noscript&gt;&lt;style&gt;</c> in App.razor. Also asserts the strip becomes gently
-    /// scrollable (<c>overflow-x: auto</c>) so many inline items never overflow unreadably.
+    /// fallback is applied by the deterministic <c>&lt;noscript&gt;&lt;style&gt;</c> block in
+    /// App.razor (the old <c>@media (scripting: none)</c> block was removed as unreliable).
+    /// Also asserts the strip becomes gently scrollable (<c>overflow-x: auto</c>) so many inline
+    /// items never overflow unreadably.
     /// </summary>
     [Fact]
     public async Task Navbar_Mobile_NoJavaScript_AccountItemsStayInlineAndReachable()
@@ -695,6 +713,95 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
+    /// NB14: the issue #159 report B regression guard — with JavaScript ENABLED at a mobile
+    /// (&lt;md) viewport, the collapse default is the sheet contract (hamburger visible, collapse
+    /// hidden at rest, no horizontal scroll), and it HOLDS across a viewport resize: resizing to
+    /// desktop (md+) and back to mobile must leave the toggler visible and the collapse hidden at
+    /// rest with no inline scroll strip. This guards the sporadic reversion to the horizontal
+    /// scrolling non-collapsed strip that a flaky <c>@media (scripting: none)</c> evaluation
+    /// could cause (that block is deleted; the only fallback is the deterministic
+    /// <c>&lt;noscript&gt;&lt;style&gt;</c> in App.razor, which never applies with JS enabled).
+    /// </summary>
+    [Fact]
+    public async Task Navbar_Mobile_JavaScriptEnabled_HoldsSheetContractAcrossResize()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(
+            seed.AdminEmail,
+            DashboardSeed.Password,
+            viewport: new ViewportSize { Width = 1280, Height = 800 },
+            javaScriptEnabled: true);
+        var page = context.Pages[0];
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
+
+        var nav = page.Locator("nav[aria-label='Primary']");
+        // DOM-level locator: at md+ the toggler is display:none and therefore absent from the
+        // accessibility tree, so role-based lookup finds nothing there — the computed display
+        // (via the DOM element) is the contract, exactly as NB10/NB11 assert it.
+        var toggler = nav.Locator(".navbar-toggler");
+        var collapse = nav.Locator(".navbar-collapse");
+        await Expect(toggler).ToHaveCountAsync(1);
+
+        // 1. Start at desktop (md+): the rail contract — toggler hidden, collapse flexed inline.
+        var togglerDisplay = await toggler.EvaluateAsync<string>("(el) => getComputedStyle(el).display");
+        togglerDisplay.ShouldBe("none", "the toggler must be hidden at md+ (rail contract)");
+
+        // 2. Shrink to a real mobile viewport (480x800) with JS ON: the sheet contract is the
+        //    unconditional default — toggler visible, collapse display:none at rest, no scroll.
+        await page.SetViewportSizeAsync(480, 800);
+        await AssertSheetContractAtRestAsync(nav, toggler, collapse);
+
+        // 3. Grow back to desktop and re-assert the rail contract, then back to mobile again:
+        //    the sheet contract must hold every time (no sporadic reversion to the scroll strip).
+        await page.SetViewportSizeAsync(1280, 800);
+        var railCollapseDisplay = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).display");
+        railCollapseDisplay.ShouldBe("flex", "the rail must flex inline at md+");
+        var railTogglerDisplay = await toggler.EvaluateAsync<string>("(el) => getComputedStyle(el).display");
+        railTogglerDisplay.ShouldBe("none", "the toggler must be hidden again at md+");
+
+        await page.SetViewportSizeAsync(480, 800);
+        await AssertSheetContractAtRestAsync(nav, toggler, collapse);
+
+        // 4. The menu still opens and lists routes after the resizes (the collapse is functional,
+        //    not merely styled into hiding).
+        await toggler.ClickAsync();
+        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true })).ToBeVisibleAsync();
+    }
+
+    /// <summary>
+    /// Asserts the JS-enabled mobile sheet contract at rest: toggler visible with a ≥2.75rem
+    /// touch target, collapse hidden (display: none), no inline horizontal scroll strip
+    /// (scrollWidth must not exceed clientWidth). Used by NB14 after viewport resizes.
+    /// </summary>
+    private static async Task AssertSheetContractAtRestAsync(ILocator nav, ILocator toggler, ILocator collapse)
+    {
+        await Expect(toggler).ToBeVisibleAsync();
+        await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Nova dashboard" })).ToBeVisibleAsync();
+
+        var togglerBox = await toggler.BoundingBoxAsync();
+        togglerBox.ShouldNotBeNull();
+        ((double)togglerBox!.Height).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
+        ((double)togglerBox!.Width).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
+
+        var collapseDisplay = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).display");
+        collapseDisplay.ShouldBe("none", "the collapse must be hidden at rest at <md with JS enabled");
+
+        var horizontalOverflow = await collapse.EvaluateAsync<string>(
+            "(el) => el.scrollWidth > el.clientWidth ? 'scrolls' : 'fits'");
+        horizontalOverflow.ShouldBe("fits", "the JS-enabled collapse must never become an inline scroll strip");
+
+        // The routes are not in the accessibility tree while the sheet is closed — proving the
+        // strip is not implicitly showing inline tabs.
+        foreach (var label in new[] { "Dashboard", "Campaigns", "Players", "Teams" })
+        {
+            await Expect(nav.GetByRole(AriaRole.Link, new() { Name = label, Exact = true })).ToHaveCountAsync(0);
+        }
+    }
+
+    /// <summary>
     /// Asserts the link keeps the inline icon+label row (flex row, icon box beside — not above —
     /// the label box, both vertically centered). The leading box may be the glyph slot
     /// (bootstrap-icons) or the 2rem avatar slot (club crest / profile photo); each keeps its
@@ -807,7 +914,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>
     /// Asserts the link keeps the stacked icon-above-label tab layout (flex column, icon box above
     /// — not beside — the label box, both horizontally centered on the tab's center axis). This is
-    /// the no-JS (@media (scripting: none) / &lt;noscript&gt;) strip-fallback layout at &lt;md; the JS menu renders full-width
+    /// the no-JS (&lt;noscript&gt;) strip-fallback layout at &lt;md; the JS menu renders full-width
     /// rows instead (see <see cref="AssertMenuSheetRowAsync"/>). The leading box may be the
     /// compact 1.25rem glyph slot or the 2rem avatar slot (club crest / profile photo); either
     /// way the avatar slot keeps its 2rem box and the label stays fully readable below it — never
