@@ -237,7 +237,42 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// LP9: the hero copy and primary actions meet the WCAG AA 4.5:1 contrast threshold.
+    /// LP9: the public-header action labels are vertically centered within their 44px touch
+    /// targets instead of leaving visibly more space below the text than above it.
+    /// </summary>
+    [Fact]
+    public async Task Landing_HeaderActions_CenterLabelsVertically()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var context = await fixture.NewAnonymousContextAsync();
+        var page = context.Pages[0];
+
+        await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
+
+        var header = page.Locator(".public-header");
+        foreach (var actionName in new[] { "Sign in", "Create your club" })
+        {
+            var action = header.GetByRole(AriaRole.Link, new() { Name = actionName, Exact = true });
+            var verticalInsetDifference = await action.EvaluateAsync<double>(
+                """
+                (element) => {
+                    const elementBounds = element.getBoundingClientRect();
+                    const textRange = document.createRange();
+                    textRange.selectNodeContents(element);
+                    const textBounds = textRange.getBoundingClientRect();
+                    const topInset = textBounds.top - elementBounds.top;
+                    const bottomInset = elementBounds.bottom - textBounds.bottom;
+                    return Math.abs(topInset - bottomInset);
+                }
+                """);
+            verticalInsetDifference.ShouldBeLessThanOrEqualTo(
+                1.0,
+                $"the {actionName} label must be vertically centered in its button");
+        }
+    }
+
+    /// <summary>
+    /// LP10: the hero copy and primary actions meet the WCAG AA 4.5:1 contrast threshold.
     /// </summary>
     [Fact]
     public async Task Landing_HeroCopyAndActions_MeetContrastThreshold()
@@ -257,7 +292,7 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// LP10: at wide and narrow viewports the landing page has no horizontal overflow and keeps its
+    /// LP11: at wide and narrow viewports the landing page has no horizontal overflow and keeps its
     /// substantive content accessible.
     /// </summary>
     [Fact]

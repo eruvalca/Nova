@@ -392,6 +392,98 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
+    /// Verifies that Bootstrap's intermediate collapsing state keeps the opened sheet's fixed
+    /// geometry and surface instead of flashing as an unstyled in-flow navigation strip.
+    /// </summary>
+    [Fact]
+    public async Task Navbar_Mobile_ToggleKeepsSheetGeometryDuringCollapseTransition()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(
+            seed.AdminEmail,
+            DashboardSeed.Password,
+            viewport: new ViewportSize { Width = 480, Height = 800 });
+        var page = context.Pages[0];
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
+
+        var nav = page.Locator("nav[aria-label='Primary']");
+        var toggler = nav.Locator(".navbar-toggler");
+        var collapse = nav.Locator(".navbar-collapse");
+        await collapse.EvaluateAsync(
+            """
+            (element) => {
+                window.__novaCollapseTransitionStates = [];
+                new MutationObserver(() => {
+                    if (!element.classList.contains("collapsing")) {
+                        return;
+                    }
+
+                    const style = getComputedStyle(element);
+                    window.__novaCollapseTransitionStates.push(
+                        `${style.position}|${style.backgroundColor}|${style.bottom}`);
+                }).observe(element, { attributes: true, attributeFilter: ["class"] });
+            }
+            """);
+
+        await toggler.ClickAsync();
+        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await toggler.ClickAsync();
+        await Expect(collapse).Not.ToHaveClassAsync(new Regex(@"\bshow\b"));
+
+        var transitionStates = await page.EvaluateAsync<string[]>(
+            "() => window.__novaCollapseTransitionStates");
+        transitionStates.ShouldNotBeEmpty("the Bootstrap collapse lifecycle must exercise its intermediate state");
+        foreach (var state in transitionStates)
+        {
+            state.StartsWith(
+                $"absolute|{ExpectedSeaGlassRgb}|",
+                StringComparison.Ordinal).ShouldBeTrue(
+                    "the intermediate collapse state must retain the sheet geometry and surface");
+            state.ShouldNotEndWith("|auto", "the intermediate sheet must remain anchored above the mobile bar");
+        }
+    }
+
+    /// <summary>
+    /// Verifies that the separated account routes retain the same compact row rhythm as the
+    /// primary routes in the opened mobile sheet.
+    /// </summary>
+    [Fact]
+    public async Task Navbar_Mobile_AccountRoutesMatchPrimaryRowRhythm()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(
+            seed.AdminEmail,
+            DashboardSeed.Password,
+            viewport: new ViewportSize { Width = 480, Height = 800 });
+        var page = context.Pages[0];
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
+
+        var nav = page.Locator("nav[aria-label='Primary']");
+        await nav.Locator(".navbar-toggler").ClickAsync();
+        await Expect(nav.Locator(".navbar-collapse")).ToHaveClassAsync(new Regex(@"\bshow\b"));
+
+        var teamsBox = await nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }).BoundingBoxAsync();
+        var manageBox = await nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false }).BoundingBoxAsync();
+        var logoutBox = await nav.GetByRole(AriaRole.Button, new() { Name = "Logout", Exact = true }).BoundingBoxAsync();
+        teamsBox.ShouldNotBeNull();
+        manageBox.ShouldNotBeNull();
+        logoutBox.ShouldNotBeNull();
+
+        var sectionGap = manageBox!.Y - (teamsBox!.Y + teamsBox.Height);
+        sectionGap.ShouldBeInRange(3.5f, 9.5f, "the account separator must not create an oversized gap");
+
+        var accountRowGap = logoutBox!.Y - (manageBox.Y + manageBox.Height);
+        accountRowGap.ShouldBeInRange(3.5f, 4.5f, "Manage and Logout must use the same compact row gap as primary routes");
+        Math.Abs(manageBox.Height - logoutBox.Height).ShouldBeLessThanOrEqualTo(
+            1.0f,
+            "Manage and Logout must have matching row heights");
+    }
+
+    /// <summary>
     /// NB8: on the Account/Manage page the Manage link is the active item and its kelp teal edge
     /// rail is still flush with the rail's left edge.
     /// </summary>

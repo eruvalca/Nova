@@ -213,7 +213,7 @@
        the bar's --bs-light surface so the sheet and bar read as one continuous surface (the
        hairline border and the rounded top edge still separate the sheet's content from the
        bar; only the background must match). */
-    .nova-navigation .navbar-collapse.show {
+    .nova-navigation .navbar-collapse:is(.show, .collapsing) {
         position: absolute;
         right: 0;
         /* bottom: 100% pins the sheet to the inner container's top edge; +0.375rem overlaps
@@ -242,7 +242,7 @@
        keeps the base .nav-link.active treatment unchanged (there --bs-primary-bg-subtle is
        also identical to the --bs-light rail surface, so the active state reads via the teal
        edge rail + fill glyph + label emphasis; consistent with pre-existing rail behavior). */
-    .nova-navigation .navbar-collapse.show ::deep .nav-link.active {
+    .nova-navigation .navbar-collapse:is(.show, .collapsing) ::deep .nav-link.active {
         /* Fallback for browsers without color-mix() (Chrome <111, Safari <16.2, Firefox <113):
            the translucent primary alpha composites over the sheet's sea glass to the same
            10% Wayfinding Teal blend, so the active field cannot vanish in the gap window. */
@@ -253,35 +253,34 @@
     /* Both route lists stack as full-width menu sections inside the sheet. Active rows keep
        the teal top-edge marker and the Abyss Forest emphasis; the field is the deeper
        sea-glass blend above. */
-    .nova-navigation .navbar-collapse.show .navbar-nav {
+    .nova-navigation .navbar-collapse:is(.show, .collapsing) .navbar-nav {
         flex-direction: column;
         gap: 0.25rem;
         width: 100%;
     }
 
-    .nova-navigation .navbar-collapse.show .nova-primary-routes {
+    .nova-navigation .navbar-collapse:is(.show, .collapsing) .nova-primary-routes {
         margin-bottom: 0 !important;
         margin-right: 0 !important;
     }
 
-    .nova-navigation .navbar-collapse.show .nova-primary-routes .nav-item {
+    .nova-navigation .navbar-collapse:is(.show, .collapsing) .nova-primary-routes .nav-item {
         flex: none;
         min-width: 0;
     }
 
-    .nova-navigation .navbar-collapse.show .nova-account-routes {
+    .nova-navigation .navbar-collapse:is(.show, .collapsing) .nova-account-routes {
         display: flex;
         margin-bottom: 0 !important;
         margin-left: 0;
-        padding-top: 0.625rem;
+        padding-top: 0.25rem;
         padding-left: 0;
         border-left: 0;
         border-top: 1px solid var(--bs-border-color);
     }
 
     /* Every sheet row is a full-width, left-aligned row with a ≥2.75rem touch target. */
-    .nova-navigation .navbar-collapse.show ::deep .nav-link,
-    .nova-navigation .navbar-collapse.show .nova-account-routes form {
+    .nova-navigation .navbar-collapse:is(.show, .collapsing) ::deep .nav-link {
         width: 100%;
         min-width: 0;
         flex-direction: row;
@@ -292,6 +291,11 @@
         text-align: left;
     }
 
+    .nova-navigation .navbar-collapse:is(.show, .collapsing) .nova-account-routes form {
+        display: block !important;
+        width: 100%;
+    }
+
     /* In the opened sheet the glyph slot joins the same uniform 2rem leading lane the md+ rail
        uses, so every sheet row — glyph rows (Dashboard, Campaigns, Players, Teams, Logout) and
        avatar rows (club crest, Manage) — owns an identical 2rem lane box and every label starts
@@ -299,7 +303,7 @@
        .nav-icon-fill absolute top:50%/left:50%/-translate(-50%,-50%)); the slot is the
        committed box, so the glyph can never overflow onto its label. This matches the md+
        .nav-icon-slot treatment. */
-    .nova-navigation .navbar-collapse.show .nav-icon-slot {
+    .nova-navigation .navbar-collapse:is(.show, .collapsing) .nav-icon-slot {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -308,7 +312,7 @@
     }
 
     /* Full-size labels wrap rather than clip inside the opened sheet. */
-    .nova-navigation .navbar-collapse.show .nav-label {
+    .nova-navigation .navbar-collapse:is(.show, .collapsing) .nav-label {
         max-width: none;
         overflow: visible;
         font-size: 0.875rem;
@@ -316,11 +320,11 @@
         white-space: normal;
     }
 
-    /* The strip itself never animates; neutralize the Bootstrap height animation on the
-       toggled container so it snaps open/closed like the paper sheet it is. */
+    /* Preserve the complete sheet through Bootstrap's intermediate class while neutralizing
+       its height animation, so toggling never exposes an unstyled in-flow route strip. */
     .nova-navigation .navbar-collapse.collapsing {
-        height: auto;
-        overflow: visible;
+        height: auto !important;
+        overflow-y: auto;
         transition: none;
     }
 
