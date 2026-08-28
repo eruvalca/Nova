@@ -23,15 +23,7 @@
     position: relative;
 }
 
-/* At <md the collapse container is the menu sheet: hidden at rest behind the
-   toggler and revealed by .show; the base display: flex rule serves the desktop rail
-   (the <noscript> fallback in App.razor re-declares the inline strip inside the mobile
-   block, which wins at <md by same-specificity later-in-source order with !important).
-   No !important here: bootstrap's desktop .navbar-expand-md .navbar-collapse rule (level
-   with !important) plus the md+ block cover the rail, and keeping these non-important lets
-   the <noscript> fallback in App.razor override the mobile display: none below. */
 .nova-navigation .navbar-collapse {
-    display: flex;
     min-width: 0;
 }
 
@@ -135,13 +127,7 @@
     border-radius: 0 0 0.25rem 0.25rem;
 }
 
-/* ---- Mobile (<md): the whole nav (primary + account routes) collapses behind the hamburger
-   into one paper sheet that rises over the bottom bar. At rest the bar shows the brand lockup
-   and the toggler only — never five shrinking truncated tabs. The Bootstrap .show class (JS)
-   reveals the sheet. The sheet contract is the DEFAULT for every scripting-capable browser:
-   the only fallback is the previous always-inline scrollable strip, applied only when
-   scripting is truly unavailable via the <noscript><style> fallback in App.razor (see the
-   block comment above the <noscript> there). ---- */
+/* ---- Mobile (<md): Bootstrap's collapse class controls the menu sheet. ---- */
 @media (max-width: 767.98px) {
     .nova-navigation .navbar-toggler {
         display: inline-flex;
@@ -169,7 +155,7 @@
         flex: 1 1 auto;
     }
 
-    /* ---- JS-confirmed mobile contract: brand bar + hamburger at rest, one full menu sheet
+    /* ---- Mobile contract: brand bar + hamburger at rest, one full menu sheet
        for every route when opened. ---- */
 
     .nova-navigation .nova-brand {
@@ -221,14 +207,6 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }
-
-    /* At rest the whole nav hides behind the toggler: the bar never renders a shrink-to-fit
-       strip of truncated tabs. This later scoped rule overrides the base always-flex rule at
-       <md by source order (both non-important): the <noscript> fallback in App.razor can also
-       win here because no !important is involved on this side. */
-    .nova-navigation .navbar-collapse {
-        display: none;
     }
 
     /* Opened: the collapse becomes the paper sheet that rises over the bar. The sheet reuses
@@ -329,9 +307,7 @@
         height: 2rem;
     }
 
-    /* Full-size, legible labels: rows are full-width so the natural text fits; wrapping is
-       allowed rather than clipping. The <noscript> fallback keeps labels at natural width
-       and scrolls instead of truncating. */
+    /* Full-size labels wrap rather than clip inside the opened sheet. */
     .nova-navigation .navbar-collapse.show .nav-label {
         max-width: none;
         overflow: visible;
@@ -368,15 +344,28 @@
     }
 }
 
-/* ---- Scripting-disabled default: with scripting unavailable at <md the nav reverts to the
-   previous contract — every route renders inline in the strip again and the strip becomes
-   gently scrollable rather than hiding them behind an unopenable hamburger. This fallback
-   lives ONLY in the <noscript><style> block in App.razor (deterministic: the <noscript>
-   content applies only when scripting is truly off, so with JS enabled the sheet contract
-   above is the unconditional default). The old @media (scripting: none) block was removed:
-   the `scripting` media feature is unreliable/flaky (it can eagerly evaluate as TRUE in
-   Chromium under DevTools device emulation or in embeds even while JS runs), which
-   sporadically re-showed the inline strip on real users' devices. ---- */
+/* Without scripting, expose every route in a scrollable strip instead of leaving them
+   behind a Bootstrap control that cannot open. Keeping this fallback in the component
+   stylesheet avoids injecting head content during Blazor enhanced navigation. */
+@media (max-width: 767.98px) and (scripting: none) {
+    .nova-navigation .navbar-toggler,
+    .nova-navigation .nova-brand {
+        display: none;
+    }
+
+    .nova-navigation .navbar-collapse {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    .nova-navigation .nova-account-routes {
+        display: flex;
+    }
+}
+
 @media (min-width: 768px) {
     .nova-navigation {
         position: fixed;

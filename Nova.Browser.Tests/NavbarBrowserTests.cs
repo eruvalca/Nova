@@ -22,8 +22,8 @@ namespace Nova.Browser.Tests;
 /// login page; the unauthenticated root renders the public landing page with no
 /// authenticated icon links; and the fallback branches are covered — the anonymous
 /// single-Login tab stays inline with the hamburger hidden, and with scripting disabled all
-/// routes fall back to the inline scrollable strip (the deterministic &lt;noscript&gt; no-JS
-/// contract; the old <c>@media (scripting: none)</c> block was removed as unreliable).
+/// routes fall back to the inline scrollable strip through a component-local scripting media
+/// query.
 /// </summary>
 /// <param name="fixture">The Aspire-hosted browser suite fixture.</param>
 [Collection(BrowserSuiteCollection.Name)]
@@ -355,6 +355,43 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
+    /// Verifies that enhanced navigation from an open mobile menu restores the collapsed
+    /// hamburger state instead of leaving the route list visible as a horizontal strip.
+    /// </summary>
+    [Fact]
+    public async Task Navbar_Mobile_CollapsesAfterEnhancedNavigation()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(
+            seed.AdminEmail,
+            DashboardSeed.Password,
+            viewport: new ViewportSize { Width = 480, Height = 800 });
+        var page = context.Pages[0];
+
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
+
+        var nav = page.Locator("nav[aria-label='Primary']");
+        var toggler = nav.Locator(".navbar-toggler");
+        var collapse = nav.Locator(".navbar-collapse");
+
+        await toggler.ClickAsync();
+        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await page.EvaluateAsync("() => window.__novaEnhancedNavigationProbe = true");
+
+        await nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }).ClickAsync();
+        await page.WaitForURLAsync(
+            url => new Uri(url).AbsolutePath.Equals("/campaigns", StringComparison.OrdinalIgnoreCase),
+            new() { WaitUntil = WaitUntilState.Commit });
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns", Exact = true })).ToBeVisibleAsync();
+
+        var usedEnhancedNavigation = await page.EvaluateAsync<bool>(
+            "() => window.__novaEnhancedNavigationProbe === true");
+        usedEnhancedNavigation.ShouldBeTrue("the route change must exercise Blazor enhanced navigation");
+        await AssertSheetContractAtRestAsync(nav, toggler, collapse);
+    }
+
+    /// <summary>
     /// NB8: on the Account/Manage page the Manage link is the active item and its kelp teal edge
     /// rail is still flush with the rail's left edge.
     /// </summary>
@@ -539,9 +576,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var nav = page.Locator("nav[aria-label='Primary']");
 
         // The sheet contract is active in this JS-enabled context: the brand lockup is visible
-        // at <md only under the sheet contract, and hidden by the scripting-disabled fallback
-        // (the <noscript><style> in App.razor hides it; the old @media (scripting: none) block
-        // was removed as unreliable), so its visibility proves the fallback is not applying.
+        // at <md only when the component-local scripting-disabled fallback is inactive.
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Nova dashboard" })).ToBeVisibleAsync();
         var login = nav.GetByRole(AriaRole.Link, new() { Name = "Login", Exact = true });
         await Expect(login).ToBeVisibleAsync();
@@ -572,8 +607,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// viewport the nav falls back to the no-scripting contract — the sheet contract cannot
     /// open without scripting, so the account items (Manage, Logout) render inline in the strip
     /// and stay reachable, and the hamburger that could never open the menu is hidden. The
-    /// fallback is applied by the deterministic <c>&lt;noscript&gt;&lt;style&gt;</c> block in
-    /// App.razor (the old <c>@media (scripting: none)</c> block was removed as unreliable).
+    /// fallback is applied by the component stylesheet's <c>scripting: none</c> media query.
     /// Also asserts the strip becomes gently scrollable (<c>overflow-x: auto</c>) so many inline
     /// items never overflow unreadably.
     /// </summary>
@@ -736,10 +770,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// (&lt;md) viewport, the collapse default is the sheet contract (hamburger visible, collapse
     /// hidden at rest, no horizontal scroll), and it HOLDS across a viewport resize: resizing to
     /// desktop (md+) and back to mobile must leave the toggler visible and the collapse hidden at
-    /// rest with no inline scroll strip. This guards the sporadic reversion to the horizontal
-    /// scrolling non-collapsed strip that a flaky <c>@media (scripting: none)</c> evaluation
-    /// could cause (that block is deleted; the only fallback is the deterministic
-    /// <c>&lt;noscript&gt;&lt;style&gt;</c> in App.razor, which never applies with JS enabled).
+    /// rest with no inline scroll strip.
     /// </summary>
     [Fact]
     public async Task Navbar_Mobile_JavaScriptEnabled_HoldsSheetContractAcrossResize()
@@ -913,13 +944,20 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// Asserts the element's computed background color equals the expected value, comparing
+    /// Asserts the element's settled background color equals the expected value, comparing
     /// normalized RGB so that both serialization formats Chromium produces for the same color
     /// — legacy <c>rgb(r, g, b)</c> and modern <c>color(srgb r g b)</c> (returned for
     /// <c>color-mix()</c> results) — compare equal.
     /// </summary>
     private static async Task AssertColorEqualsAsync(ILocator element, string expectedColor, string customMessage)
     {
+        await element.EvaluateAsync<object?>(
+            """
+            (el) => Promise.all(
+                el.getAnimations()
+                    .filter(animation => animation.transitionProperty === "background-color")
+                    .map(animation => animation.finished.catch(() => undefined)))
+            """);
         var actualColor = await element.EvaluateAsync<string>("(el) => getComputedStyle(el).backgroundColor");
         NormalizeRgbColor(actualColor).ShouldBe(NormalizeRgbColor(expectedColor), customMessage);
     }
@@ -992,7 +1030,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>
     /// Asserts the link keeps the stacked icon-above-label tab layout (flex column, icon box above
     /// — not beside — the label box, both horizontally centered on the tab's center axis). This is
-    /// the no-JS (&lt;noscript&gt;) strip-fallback layout at &lt;md; the JS menu renders full-width
+    /// the no-JS strip-fallback layout at &lt;md; the JS menu renders full-width
     /// rows instead (see <see cref="AssertMenuSheetRowAsync"/>). The leading box may be the
     /// compact 1.25rem glyph slot or the 2rem avatar slot (club crest / profile photo); either
     /// way the avatar slot keeps its 2rem box and the label stays fully readable below it — never

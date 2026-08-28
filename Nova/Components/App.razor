@@ -10,29 +10,6 @@
     <link rel="stylesheet" href="_content/Cropper.Blazor/cropper.min.css" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Nova.styles.css"]" />
-    <!-- Mobile nav default: the NavMenu sheet contract (hamburger + collapsible menu) is the
-         default below md for every scripting-capable browser. Only when scripting is truly
-         unavailable does the nav fall back to the always-inline scrollable strip. This
-         <noscript><style> block is the single, deterministic fallback: <noscript> content
-         applies only when scripting is truly off, so with JS enabled the sheet contract is
-         the unconditional default. !important is required: the scoped .nova-navigation rules
-         carry the component's generated attribute and therefore a higher specificity. -->
-    <noscript>
-        <style>
-            @@media (max-width: 767.98px) {
-                .nova-navigation .navbar-toggler { display: none !important; }
-                .nova-navigation .nova-brand { display: none !important; }
-                .nova-navigation .navbar-collapse {
-                    display: flex !important;
-                    flex-wrap: nowrap;
-                    overflow-x: auto;
-                    -webkit-overflow-scrolling: touch;
-                    scrollbar-width: thin;
-                }
-                .nova-navigation .nova-account-routes { display: flex !important; }
-            }
-        </style>
-    </noscript>
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
     <HeadOutlet />

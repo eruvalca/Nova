@@ -48,7 +48,7 @@ description: "UI design rules for the Fieldhouse Wayfinding design system: PRODU
   hidden, and labels never shrink or truncate into "Dash…". The sheet/hamburger contract is the
   **default** below 768px, so it does not depend on a script marker: with scripting disabled all
   routes fall back to inline items in a horizontally scrollable strip and the hamburger hides (it
-  could never open without JS) via the deterministic `<noscript><style>` block in `App.razor`;
+  could never open without JS) via a component-local `scripting: none` media query;
   with only a single Login tab (anonymous) the tab stays inline and the hamburger hides.
 - Active item = sea-glass field + teal indicator: top marker (3px) on the mobile menu rows, left edge rail
   (`0.25rem` inset) on the rail. The field is `--bs-primary-bg-subtle` on the md+ rail; in the opened
