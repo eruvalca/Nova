@@ -101,7 +101,7 @@ public class NavMenuTests
         var cssPath = Path.Join(FindRepoRoot(), "Nova", "Components", "Layout", "NavMenu.razor.css");
         var css = File.ReadAllText(cssPath);
 
-        css.ShouldContain(".nova-navigation .navbar-collapse.show ::deep .nav-link.active");
+        css.ShouldContain(".nova-navigation .navbar-collapse:is(.show, .collapsing) ::deep .nav-link.active");
         css.ShouldContain("color-mix(in srgb, var(--bs-primary) 10%, var(--bs-light))");
         css.ShouldContain("rgba(var(--bs-primary-rgb), 0.1)");
         css.ShouldNotContain("background-color: #");
