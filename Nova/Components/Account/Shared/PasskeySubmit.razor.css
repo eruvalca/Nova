@@ -1,0 +1,5 @@
+/* Passkey submit: the consumer supplies the button classes via AdditionalAttributes.
+   This scoped file only guarantees minimum touch size. */
+button[name="__passkeySubmit"] {
+    min-height: 2.75rem;
+}

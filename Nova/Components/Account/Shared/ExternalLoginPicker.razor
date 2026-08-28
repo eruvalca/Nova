@@ -1,6 +1,6 @@
 @if (externalLogins.Length == 0)
 {
-    <div>
+    <div class="account-external-empty">
         <p>
             There are no external authentication services configured. See this <a
             href="https://go.microsoft.com/fwlink/?LinkID=532715">article
@@ -10,17 +10,17 @@
 }
 else
 {
-    <form class="form-horizontal" action="Account/PerformExternalLogin" method="post">
+    <form class="account-external-picker" action="Account/PerformExternalLogin" method="post">
         <div>
             <AntiforgeryToken />
             <input type="hidden" name="ReturnUrl" value="@ReturnUrl" />
-            <p>
+            <div class="d-grid gap-2">
                 @foreach (var provider in externalLogins)
                 {
-                    <button type="submit" class="btn btn-primary" name="provider" value="@provider.Name"
+                    <button type="submit" class="btn btn-outline-secondary" name="provider" value="@provider.Name"
                             title="Log in using your @provider.DisplayName account">@provider.DisplayName</button>
                 }
-            </p>
+            </div>
         </div>
     </form>
 }

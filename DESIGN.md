@@ -228,7 +228,7 @@ The kelp-forest palette is grounded, legible, and functional. It follows the sou
 
 ## Layout
 
-Authenticated screens use a fixed 15rem navigation rail from the medium breakpoint upward and a horizontally scrollable bottom route strip below it. Main content is centered in fields up to 90-100rem wide, with 1rem mobile gutters, 2rem desktop gutters, and 3rem wide-screen gutters.
+Authenticated screens use a fixed 15rem navigation rail from the medium breakpoint upward and, below it, a fixed bottom bar bearing the brand lockup and a hamburger only. The hamburger opens one paper sheet that lists every route — primary (Dashboard, club, Campaigns, Players, Teams) and account (Manage, Logout, or Login when anonymous) — as full-width, left-aligned rows with legible full-size labels; the sheet is the default contract below the medium breakpoint, so with scripting disabled a component-local media query exposes all routes as inline items inside a gently scrollable strip instead of leaving them behind an unopenable menu, and with only a single Login tab (anonymous) it stays inline with the hamburger hidden. Main content is centered in fields up to 90-100rem wide, with 1rem mobile gutters, 2rem desktop gutters, and 3rem wide-screen gutters.
 
 Operational pages favor asymmetric grids: a flexible primary board beside a bounded 15-22rem status rail. Public sections can be more expressive, pairing an editorial content column with an illustrative working surface. Grids collapse to one column before content becomes cramped; actions become full-width on narrow phones; lifecycle routes scroll horizontally rather than wrapping into ambiguity.
 
@@ -289,8 +289,8 @@ Borders are fine and quiet. Strong silhouettes come from the 45-degree brand til
 - **Error / Disabled:** Copper semantic treatment for errors; disabled controls lower contrast but remain readable and retain their boundary.
 
 ### Navigation
-- **Style:** Compact semibold labels with line icons at rest and filled icons when active. The active state uses Sea Glass, Abyss Forest emphasis, and a teal edge rail.
-- **Responsive behavior:** The desktop rail becomes a fixed bottom route strip with horizontally scrollable destinations and a top active marker on small screens.
+- **Style:** Compact semibold labels with line icons at rest and filled icons when active. The active state uses Sea Glass, Abyss Forest emphasis, and a teal edge rail. On the rail the field is `--bs-primary-bg-subtle`; in the opened mobile sheet the field is the token-derived deeper sea-glass blend (`color-mix(in srgb, var(--bs-primary) 10%, var(--bs-light))`) so the active row still reads on the unified sea-glass sheet (the theme defines `--bs-primary-bg-subtle` byte-identical to the sheet's `--bs-light`).
+- **Responsive behavior:** The desktop rail becomes a fixed bottom bar below the medium breakpoint: at rest it shows the brand lockup and a hamburger only (never shrinking truncated tabs). The hamburger opens one paper sheet that lists every route — primary and account — as full-width, left-aligned rows with full-size labels and an active marker at the top edge; the sheet shares the bar's sea-glass surface and never scrolls horizontally at rest; it is the default contract below the medium breakpoint, so with scripting disabled a component-local media query exposes the routes as inline items in a horizontally scrollable strip. Every leading slot shares one uniform 2rem lane both in the md+ rail and in the opened mobile sheet: the glyph icons render at 1.25rem centered inside the 2rem slot, and the club crest and profile avatars fill their own 2rem circle in the same lane box, so every row's label starts at the same offset and no icon reads larger than the crest — at every breakpoint. The only exception is the scripting-disabled inline strip (the compact stacked-tab fallback), which keeps its own smaller 1.25rem glyph slot by design. With only a Login tab (anonymous) the tab stays inline and the hamburger hides.
 
 ### Campaign Route
 
@@ -299,6 +299,33 @@ A connected sequence of circular markers and labels represents the campaign life
 ### Working Board
 
 Tables, rosters, status rows, and activity feeds share a bordered Paper White board. Use a compact heading band, full-width interactive rows, restrained hover tint, and bounded scrolling for long working sets.
+
+### Account Experience (Hall of Panels)
+
+**Chosen direction:** The Hall of Panels. The account experience is a venue wall of quiet matte sign panels: every account area is a sign, and the area that owns the current screen is the punched one.
+
+**Composition**
+- A bounded directory wall of sign panels sits between the site header and the working hall. Each panel names a real account area (sign in, register, recover access, manage profile). The active panel is punched: Sea Glass field, Abyss Forest emphasis, and a teal edge rail, matching the navigation active state.
+- The wall is a locator, never a stepper: panels carry destination names only, with no invented progress or posed steps. Screens with a real step sequence (authenticator setup, recovery code generation) keep their own factual order inside the working hall.
+- The working hall is the area's board: a Paper White surface with a compact heading band, and the form or management content in the flexible column. Status and validation messages ride as a bounded strip at the top of the hall.
+- On narrow screens the directory wall becomes a horizontally scrollable panel strip, ordered and labeled exactly as on desktop; the working hall collapses to one column and actions become full width.
+
+**Hierarchy**
+1. Site identity and the account route.
+2. The directory wall of panels; the punched panel identifies the current area.
+3. The working hall: area heading, status strip, then the task's form or content.
+4. In-hall actions, ordered by function (primary action leads, quiet actions follow).
+5. Footer.
+
+**Interaction and accessibility**
+- Preserve static SSR forms, antiforgery tokens, cookie-based status messages, and passkey custom-element behavior unchanged.
+- Panels are real links with the existing navigation semantics; active state is unambiguous and not color-only (visible focus, edge rail plus text emphasis).
+- Keep native controls, visible focus, minimum 2.75rem touch targets, semantic regions, and reduced-motion-safe behavior.
+
+**Visual constraints**
+- With the kelp palette: Wayfinding Teal for the punched panel and primary actions, Copper Rust for errors and destructive actions, Kelp Olive for confirmed success, Signal Amber only for bounded attention notices.
+- Paper White boards with a one-pixel quiet border, flat (no ambient shadow), control radius 0.25rem and board radius 0.375rem.
+- No gradients, glass, scoreboard styling, thick decorative side borders, or equal-weight card grids that obscure working hierarchy.
 
 ## Do's and Don'ts
 

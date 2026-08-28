@@ -1,0 +1,8 @@
+@* Shared label for account forms: links a control by id and renders the design-system label. *@
+<label for="@For" class="form-label">
+    @Text
+    @if (Optional)
+    {
+        <span class="text-secondary fw-normal">(optional)</span>
+    }
+</label>

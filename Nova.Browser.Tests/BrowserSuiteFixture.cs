@@ -49,13 +49,20 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
     /// <param name="email">The registered user's e-mail address.</param>
     /// <param name="password">The user's password.</param>
     /// <param name="viewport">The viewport size, or <see langword="null"/> for the default 1280×800.</param>
+    /// <param name="javaScriptEnabled">
+    /// Whether JavaScript is enabled in the context. When <see langword="false"/>, the sign-in
+    /// still works because the SSR <c>EditForm</c> posts natively (no enhanced navigation, no
+    /// page JS required); Blazor renders the form fields (antiforgery token + <c>_handler</c>)
+    /// into static HTML.
+    /// </param>
     /// <returns>The signed-in browser context.</returns>
     public async Task<IBrowserContext> NewSignedInContextAsync(
         string email,
         string password,
-        ViewportSize? viewport = null)
+        ViewportSize? viewport = null,
+        bool javaScriptEnabled = true)
     {
-        var context = await NewAnonymousContextAsync(viewport);
+        var context = await NewAnonymousContextAsync(viewport, javaScriptEnabled);
         await SignInAsync(context.Pages[0], email, password);
         return context;
     }
@@ -64,13 +71,17 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
     /// Creates a new anonymous browser context (no sign-in) with one open page.
     /// </summary>
     /// <param name="viewport">The viewport size, or <see langword="null"/> for the default 1280×800.</param>
+    /// <param name="javaScriptEnabled">Whether JavaScript is enabled in the context.</param>
     /// <returns>The anonymous browser context.</returns>
-    public async Task<IBrowserContext> NewAnonymousContextAsync(ViewportSize? viewport = null)
+    public async Task<IBrowserContext> NewAnonymousContextAsync(
+        ViewportSize? viewport = null,
+        bool javaScriptEnabled = true)
     {
         var browser = _browser ?? throw new InvalidOperationException("Playwright has not been started.");
         var context = await browser.NewContextAsync(new BrowserNewContextOptions
         {
             IgnoreHTTPSErrors = true,
+            JavaScriptEnabled = javaScriptEnabled,
             ViewportSize = viewport ?? new ViewportSize { Width = 1280, Height = 800 }
         });
         _ = await context.NewPageAsync();
