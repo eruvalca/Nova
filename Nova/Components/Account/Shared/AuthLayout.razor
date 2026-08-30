@@ -1,0 +1,35 @@
+﻿@inherits LayoutComponentBase
+@layout Nova.Components.Layout.MainLayout
+
+<!--
+THESIS: Account access is a hall of quiet sign panels with one clear working task.
+OWN-WORLD: Matte enamel directory signs, paper-white boards, precise hairlines, and a punched route marker.
+STORY: Members locate sign in, registration, recovery, or profile management before completing the task in the working hall.
+FIRST VIEWPORT: The account directory establishes location; the active panel and working heading lead.
+FORM: Hall of Panels, ranked 1; surface seed a3b942a9; a route-aware directory precedes one static-SSR working board.
+-->
+<div class="auth-hall">
+    <header class="auth-hall-heading">
+        <p class="auth-hall-title">Account access</p>
+        <p class="auth-hall-lead">Choose an account area, then complete the task below.</p>
+    </header>
+
+    <nav class="auth-directory" aria-label="Account areas">
+        <ul class="nav auth-panels">
+            @foreach (var panel in Panels)
+            {
+                <li class="nav-item">
+                    <a class="@GetPanelClass(panel.Area)"
+                       href="@panel.Href"
+                       aria-current="@(IsActive(panel.Area) ? "page" : null)">
+                        @panel.Label
+                    </a>
+                </li>
+            }
+        </ul>
+    </nav>
+
+    <section class="auth-working-hall" aria-label="Account task">
+        @Body
+    </section>
+</div>

@@ -1,4 +1,14 @@
-@page "/Account/Register"
+﻿@page "/Account/Register"
+
+@layout AuthLayout
+
+<!--
+THESIS: This account task belongs to the shared Hall of Panels access experience.
+OWN-WORLD: Matte directory signs lead to one paper-white working board with precise hairlines.
+STORY: The member confirms their account area, reads the task heading, then completes or acknowledges the operation.
+FIRST VIEWPORT: The active directory panel and the page task heading establish location and purpose.
+FORM: Hall of Panels, ranked 1; surface seed a3b942a9; the shared static-SSR shell owns the directory and board.
+-->
 
 <PageTitle>Register</PageTitle>
 
@@ -7,42 +17,32 @@
 <div class="row">
     <div class="col-lg-6">
         <StatusMessage Message="@Message" />
-        <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+        <EditForm class="auth-form" Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
             <DataAnnotationsValidator />
             <h2>Create a new account.</h2>
             <hr />
-            <ValidationSummary class="text-danger" role="alert" />
-            <div class="form-floating mb-3">
+            <ValidationSummary class="alert alert-danger" role="alert" />
+            <AccountFormField For="() => Input.FirstName" FieldId="Input.FirstName" Label="First name">
                 <InputText @bind-Value="Input.FirstName" id="Input.FirstName" class="form-control" autocomplete="given-name"
                            aria-required="true" placeholder="First name" />
-                <label for="Input.FirstName">First name</label>
-                <ValidationMessage For="() => Input.FirstName" class="text-danger" />
-            </div>
-            <div class="form-floating mb-3">
+            </AccountFormField>
+            <AccountFormField For="() => Input.LastName" FieldId="Input.LastName" Label="Last name">
                 <InputText @bind-Value="Input.LastName" id="Input.LastName" class="form-control" autocomplete="family-name"
                            aria-required="true" placeholder="Last name" />
-                <label for="Input.LastName">Last name</label>
-                <ValidationMessage For="() => Input.LastName" class="text-danger" />
-            </div>
-            <div class="form-floating mb-3">
+            </AccountFormField>
+            <AccountFormField For="() => Input.Email" FieldId="Input.Email" Label="Email">
                 <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username"
                            aria-required="true" placeholder="name@example.com" />
-                <label for="Input.Email">Email</label>
-                <ValidationMessage For="() => Input.Email" class="text-danger" />
-            </div>
-            <div class="form-floating mb-3">
+            </AccountFormField>
+            <AccountFormField For="() => Input.Password" FieldId="Input.Password" Label="Password">
                 <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control"
                            autocomplete="new-password" aria-required="true" placeholder="password" />
-                <label for="Input.Password">Password</label>
-                <ValidationMessage For="() => Input.Password" class="text-danger" />
-            </div>
-            <div class="form-floating mb-3">
+            </AccountFormField>
+            <AccountFormField For="() => Input.ConfirmPassword" FieldId="Input.ConfirmPassword" Label="Confirm Password">
                 <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword"
                            class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
-                <label for="Input.ConfirmPassword">Confirm Password</label>
-                <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
-            </div>
-            <button type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
+            </AccountFormField>
+            <AccountSubmitButton Text="Register" />
         </EditForm>
     </div>
     <div class="col-lg-4 col-lg-offset-2">

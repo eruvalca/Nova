@@ -1,4 +1,14 @@
-@page "/Account/Login"
+﻿@page "/Account/Login"
+
+@layout AuthLayout
+
+<!--
+THESIS: This account task belongs to the shared Hall of Panels access experience.
+OWN-WORLD: Matte directory signs lead to one paper-white working board with precise hairlines.
+STORY: The member confirms their account area, reads the task heading, then completes or acknowledges the operation.
+FIRST VIEWPORT: The active directory panel and the page task heading establish location and purpose.
+FORM: Hall of Panels, ranked 1; surface seed a3b942a9; the shared static-SSR shell owns the directory and board.
+-->
 
 <PageTitle>Log in</PageTitle>
 
@@ -7,23 +17,19 @@
     <div class="col-lg-6">
         <section>
             <StatusMessage Message="@errorMessage" />
-            <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
+            <EditForm class="auth-form" EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
                 <DataAnnotationsValidator />
                 <h2>Use a local account to log in.</h2>
                 <hr />
-                <ValidationSummary class="text-danger" role="alert" />
-                <div class="form-floating mb-3">
+                <ValidationSummary class="alert alert-danger" role="alert" />
+                <AccountFormField For="() => Input.Email" FieldId="Input.Email" Label="Email">
                     <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control"
                                autocomplete="username webauthn" aria-required="true" placeholder="name@example.com" />
-                    <label for="Input.Email" class="form-label">Email</label>
-                    <ValidationMessage For="() => Input.Email" class="text-danger" />
-                </div>
-                <div class="form-floating mb-3">
+                </AccountFormField>
+                <AccountFormField For="() => Input.Password" FieldId="Input.Password" Label="Password">
                     <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control"
                                autocomplete="current-password" aria-required="true" placeholder="password" />
-                    <label for="Input.Password" class="form-label">Password</label>
-                    <ValidationMessage For="() => Input.Password" class="text-danger" />
-                </div>
+                </AccountFormField>
                 <div class="checkbox mb-3">
                     <label class="form-label">
                         <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input" />
@@ -31,7 +37,7 @@
                     </label>
                 </div>
                 <div>
-                    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+                    <AccountSubmitButton Text="Log in" />
                 </div>
                 <hr />
                 <div class="d-flex flex-column">
@@ -40,18 +46,12 @@
                                    class="btn btn-link mx-auto">Log in with a passkey</PasskeySubmit>
                 </div>
                 <hr />
-                <div>
-                    <p>
-                        <a href="Account/ForgotPassword">Forgot your password?</a>
-                    </p>
-                    <p>
-                        <a href="@RegisterUrl">Register as a new user</a>
-                     </p>
-                        <p>
-                            <a href="Account/ResendEmailConfirmation">Resend email confirmation</a>
-                        </p>
-                    </div>
-                </EditForm>
+                <div class="auth-actions">
+                    <a href="Account/ForgotPassword">Forgot your password?</a>
+                    <a href="@RegisterUrl">Register as a new user</a>
+                    <a href="Account/ResendEmailConfirmation">Resend email confirmation</a>
+                </div>
+            </EditForm>
             </section>
         </div>
         <div class="col-lg-4 col-lg-offset-2">
