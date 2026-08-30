@@ -55,6 +55,11 @@ public partial class AuthLayout(NavigationManager navigationManager)
             return AuthArea.Manage;
         }
 
+        if (path.EndsWith("ExternalLogin", StringComparison.OrdinalIgnoreCase))
+        {
+            return AuthArea.Register;
+        }
+
         if (path.EndsWith("Login", StringComparison.OrdinalIgnoreCase)
             || path.Contains("LoginWith", StringComparison.OrdinalIgnoreCase)
             || path.EndsWith("Lockout", StringComparison.OrdinalIgnoreCase))
@@ -70,8 +75,7 @@ public partial class AuthLayout(NavigationManager navigationManager)
 
         if (path.Contains("Register", StringComparison.OrdinalIgnoreCase)
             || path.Contains("ConfirmEmail", StringComparison.OrdinalIgnoreCase)
-            || path.Contains("ResendEmail", StringComparison.OrdinalIgnoreCase)
-            || path.EndsWith("ExternalLogin", StringComparison.OrdinalIgnoreCase))
+            || path.Contains("ResendEmail", StringComparison.OrdinalIgnoreCase))
         {
             return AuthArea.Register;
         }

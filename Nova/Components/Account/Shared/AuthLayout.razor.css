@@ -137,7 +137,7 @@
     border-radius: 0.25rem;
 }
 
-@media (max-width: 575.98px) {
+@media (max-width: 635.98px) {
     .auth-directory {
         overflow-x: visible;
     }

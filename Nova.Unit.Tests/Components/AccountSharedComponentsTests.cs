@@ -81,6 +81,7 @@ public class AccountSharedComponentsTests
     [InlineData("Account/LoginWith2fa?returnUrl=%2Fdashboard", "Sign in")]
     [InlineData("Account/Register", "Register")]
     [InlineData("Account/ConfirmEmail", "Register")]
+    [InlineData("Account/ExternalLogin", "Register")]
     [InlineData("Account/ConfirmEmailChange?userId=42", "Manage profile")]
     [InlineData("Account/ForgotPassword", "Recover access")]
     [InlineData("Account/ResetPassword", "Recover access")]
