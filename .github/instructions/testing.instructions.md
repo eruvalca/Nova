@@ -7,7 +7,7 @@ description: "Testing rules: project and harness selection, HTTP/UI boundary cov
 
 > Declarative rules only. For the **harness internals and step-by-step workflow** (SQLite
 > `TenancyTestHarness`, Aspire `NovaAppHostFixture`, HTTP e2e bootstrap), use the **`nova-testing`**
-> skill (`.github/skills/nova-testing/`).
+> skill (`.agents/skills/nova-testing/`).
 
 ## Which project
 
@@ -104,13 +104,13 @@ Conventions:
   (env-tunable `NOVA_BROWSER_RETRY_MAX_ATTEMPTS` / `NOVA_BROWSER_RETRY_DELAY_MS`) and consumed by
   `Nova.Browser.Tests\InteractionHelpers.cs`; do not reintroduce per-file hard-coded
   `ActUntilAsync`/`ClickUntilAsync`/`TabUntilFocusedAsync` copies. Defaults and the Azurite/upload
-  seeding-retry bounds live in `.github/skills/nova-testing/references/browser-suite.md`.
+  seeding-retry bounds live in `.agents/skills/nova-testing/references/browser-suite.md`.
 - The AppHost fixture (`Nova.Integration.Tests\Data\NovaAppHostFixture.cs`) best-effort waits for the
   Azurite `storage` resource to report healthy and retries the `profile-photos` container probe
   through a bounded hard-coded window before failing fast; `IdentityHttpClientHelper` retries the
   profile-photo upload on transient failures (transport errors / 5xx) with a fresh multipart payload
   per attempt.
-- The full step-by-step recipe lives in `.github/skills/nova-testing/references/browser-suite.md`.
+- The full step-by-step recipe lives in `.agents/skills/nova-testing/references/browser-suite.md`.
 
 ## Aspire + Playwright validation (manual browser pass)
 
@@ -169,6 +169,6 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 
 ## Related
 
-- `.github/skills/nova-testing/` — harness internals, the write/run workflow, `references/blazor-component-tests.md` for bUnit and render-mode assertions, and `references/browser-suite.md` for the browser workflow suite.
+- `.agents/skills/nova-testing/` — harness internals, the write/run workflow, `references/blazor-component-tests.md` for bUnit and render-mode assertions, and `references/browser-suite.md` for the browser workflow suite.
 - `.github/instructions/functional-core.instructions.md` — policy boundary and layered test coverage.
 - `Nova.Unit.Tests/Data/TenancyTests.cs`, `Nova.Integration.Tests/Data/NovaAppHostFixture.cs`, `Nova.Browser.Tests/CampaignEvaluationBrowserTests.cs`.

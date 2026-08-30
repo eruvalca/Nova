@@ -7,7 +7,7 @@ description: "Validation rules: DataAnnotations on input records as single sourc
 
 > Declarative rules only. For the **step-by-step recipe and full code examples** (annotated record,
 > `InputValidator` usage, adding a new input record), use the **`add-feature-slice`** skill
-> (`.github/skills/add-feature-slice/`).
+> (`.agents/skills/add-feature-slice/`).
 
 ## Annotated input records are the single source of truth
 
@@ -63,7 +63,7 @@ content sniffing, streaming) follows the same manual-validator approach — see
 
 ## Related
 
-- `.github/skills/add-feature-slice/` — full input + validation recipe and examples.
+- `.agents/skills/add-feature-slice/` — full input + validation recipe and examples.
 - `Nova.Shared/Validation/InputValidator.cs`, `Nova.Shared/Validation/NotWhitespaceAttribute.cs`.
 - `Nova.Shared/Results/ServiceProblem.cs`.
 - `Nova/Features/Photos/ProfilePhotoValidator.cs`.

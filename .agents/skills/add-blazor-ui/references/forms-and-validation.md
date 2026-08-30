@@ -7,7 +7,7 @@
 them through `InputValidator` so the client and server can never disagree.
 
 See `.github/instructions/validation.instructions.md` for the rule set and
-`.github/skills/add-feature-slice/references/input-and-validation.md` for authoring the input record.
+`.agents/skills/add-feature-slice/references/input-and-validation.md` for authoring the input record.
 
 ## Bridging a form model to the shared input record
 

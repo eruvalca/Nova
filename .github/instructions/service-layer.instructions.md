@@ -7,7 +7,7 @@ description: "Service-layer rules: validation, ServiceResult, retry-safe transac
 
 > Declarative rules only. For the **step-by-step recipe and full code examples** (ServiceProblem
 > factories, service implementation, validation wiring), use the **`add-feature-slice`** skill
-> (`.github/skills/add-feature-slice/`).
+> (`.agents/skills/add-feature-slice/`).
 
 ## Dual-Layer Validation
 
@@ -83,7 +83,7 @@ Follow source-generated `[LoggerMessage]` conventions from `.github/instructions
 
 ## Related
 
-- `.github/skills/add-feature-slice/` — full service + input recipe and examples.
+- `.agents/skills/add-feature-slice/` — full service + input recipe and examples.
 - `Nova.Shared/Results/` — `ServiceProblem`, `ServiceResult`, `ServiceProblemKind`, `HttpResponseMessageExtensions`.
 - `Nova/Features/Shared/ServiceResultExtensions.cs`.
 - `.github/instructions/api-endpoints.instructions.md`, `.github/instructions/validation.instructions.md`.

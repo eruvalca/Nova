@@ -303,7 +303,7 @@ Status: Complete
         through `BrowserRetryPolicy`).
       - Remove/refresh stale wording (e.g. the "Phase 4 load validation" comment that referred to
         a since-merged plan).
-- [x] Update `.github/skills/nova-testing/references/browser-suite.md` with the new parallelism
+- [x] Update `.agents/skills/nova-testing/references/browser-suite.md` with the new parallelism
       knobs and both lessons above.
 - [x] Verify the repo-root instructions overview needs no change (run commands are unchanged).
 
@@ -313,7 +313,7 @@ Status: Complete
 
 ### Phase Summary
 
-`testing.instructions.md` and `.github/skills/nova-testing/references/browser-suite.md` were updated
+`testing.instructions.md` and `.agents/skills/nova-testing/references/browser-suite.md` were updated
 with the applied parallelism settings and both hard-won lessons (the `System.TimeoutException` catch
 requirement and the computed-style polling note). `dotnet format Nova.slnx --verify-no-changes` is
 green; the repo-root instructions overview needed no change (run commands are unchanged).
@@ -347,7 +347,7 @@ All six phases are complete; the browser suite went from **9 failing** to **0 fa
   no `InteractiveAuto` island, so warming at login would require an invasive app change with no
   user-facing benefit; not provably faster and equally stable.
 - **Phase 6 — Guidance hygiene.** `testing.instructions.md` and
-  `.github/skills/nova-testing/references/browser-suite.md` updated with the applied parallelism
+  `.agents/skills/nova-testing/references/browser-suite.md` updated with the applied parallelism
   settings and both hard-won lessons (`PlaywrightException or TimeoutException` retry requirement;
   don't assert computed styles synchronously after a CSS transition). `dotnet format Nova.slnx
   --verify-no-changes` is green.

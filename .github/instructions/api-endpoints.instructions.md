@@ -6,7 +6,7 @@ description: "HTTP endpoint and WASM client rules: routes, handlers, contract fi
 # API Endpoint Rules
 
 > Declarative rules only. For the **step-by-step recipe and full code examples**, use the
-> **`add-api-endpoint`** skill (`.github/skills/add-api-endpoint/`).
+> **`add-api-endpoint`** skill (`.agents/skills/add-api-endpoint/`).
 
 ## Routes
 
@@ -99,7 +99,7 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 
 ## Related
 
-- `.github/skills/add-api-endpoint/` — full endpoint recipe and examples.
+- `.agents/skills/add-api-endpoint/` — full endpoint recipe and examples.
 - `Nova/Features/Shared/ServiceResultExtensions.cs` — `ToHttpResult` conversions.
 - `.github/instructions/service-layer.instructions.md`, `.github/instructions/validation.instructions.md`.
 - `Nova.Shared/Results/` — `ServiceProblem`, `ServiceResult`, `HttpResponseMessageExtensions`.

@@ -72,5 +72,5 @@ and pass them explicitly.
 - `.github/instructions/service-layer.instructions.md`
 - `.github/instructions/testing.instructions.md`
 - `.github/instructions/validation.instructions.md`
-- `.github/skills/extract-functional-core/`
-- `.github/skills/add-domain-persistence/references/functional-core-imperative-shell.md`
+- `.agents/skills/extract-functional-core/`
+- `.agents/skills/add-domain-persistence/references/functional-core-imperative-shell.md`

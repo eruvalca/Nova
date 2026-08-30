@@ -36,7 +36,7 @@ multi-case service contract is reused or benefits from a domain name.
 
 Do not return `ServiceResult` from an internal policy. Do not move authorization, tenant-safe EF
 queries, transactions, lifecycle locks, concurrency, persistence, or logging out of the service.
-Follow `.github/skills/add-domain-persistence/references/functional-core-imperative-shell.md`.
+Follow `.agents/skills/add-domain-persistence/references/functional-core-imperative-shell.md`.
 
 ## ServiceProblem Construction
 

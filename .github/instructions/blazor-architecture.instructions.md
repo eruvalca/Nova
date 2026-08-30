@@ -8,7 +8,7 @@ description: "Blazor architecture: placement, SSR-first render modes, persisted 
 > Declarative rules only. For the **step-by-step recipe** (placement and page-vs-component decision,
 > the render-mode decision tree, lifecycle selection, prerender/persisted state, parameters and
 > `EventCallback`s, binding, and `EditForm` validation), use the **`add-blazor-ui`** skill
-> (`.github/skills/add-blazor-ui/`).
+> (`.agents/skills/add-blazor-ui/`).
 
 ## Project Roles
 
@@ -28,7 +28,7 @@ Build SSR-first; opt into interactivity only when functionality or UX requires i
 3. Use **`InteractiveServer`** only when the component must be interactive _and_ cannot run in WASM (depends on server-only services that have no client abstraction). Prefer fixing the abstraction over falling back to server interactivity.
 4. Apply render modes at the component or page level, not globally. Do not make the whole app interactive.
 
-Run the ordered decision tree in `.github/skills/add-blazor-ui/references/render-mode-decision.md`
+Run the ordered decision tree in `.agents/skills/add-blazor-ui/references/render-mode-decision.md`
 before writing markup; it also covers per-instance `@rendermode` islands on static SSR pages.
 
 Interactive (Auto/WebAssembly) components must live in a project referenced by `Nova.Client` — i.e. `Nova.UI` or `Nova.Client` — never in `Nova`.
@@ -40,7 +40,7 @@ Interactive render modes (`InteractiveAuto`, `InteractiveWebAssembly`, `Interact
 
 - `OnInitializedAsync` runs during prerender and runs again after interactive attach unless state is restored.
 - Use `[PersistentState]` only on **public component properties** so state can be serialized/restored across prerender and attach.
-- Prevent duplicate startup fetches by persisting an `Initialized` flag and returning early when it is already set. When restoring persisted source data, also rebuild any derived collections, filter options, or computed view state before returning. Recipe: `.github/skills/add-blazor-ui/references/lifecycle-and-state.md`.
+- Prevent duplicate startup fetches by persisting an `Initialized` flag and returning early when it is already set. When restoring persisted source data, also rebuild any derived collections, filter options, or computed view state before returning. Recipe: `.agents/skills/add-blazor-ui/references/lifecycle-and-state.md`.
 - Keep explicit reload/refetch helper methods for user-triggered refresh actions; the `Initialized` guard is only for startup duplication.
 
 ## Onboarding Gates (claim-gated routes)
@@ -113,7 +113,7 @@ Nova.UI/
 - Consume modules with a lazily imported `IJSObjectReference` (`Lazy<Task<IJSObjectReference>>` wrapping `"import"`), dispose the module reference in `DisposeAsyncCore()`, and invoke module functions only from `OnAfterRenderAsync(firstRender)` or event handlers — never `OnInitializedAsync`.
 - Pass `ElementReference` (via `@ref`), not hard-coded element `id` strings.
 - Any listener that outlives a single event must attach scoped to the component's subtree and detach in `DisposeAsyncCore()`.
-- Step-by-step recipe with code examples: `.github/skills/add-blazor-ui/references/js-interop.md`.
+- Step-by-step recipe with code examples: `.agents/skills/add-blazor-ui/references/js-interop.md`.
 
 ## Bootstrap-First Styling
 
@@ -149,7 +149,7 @@ Nova.UI/
 
 ## Related
 
-- `.github/skills/add-blazor-ui/` — build recipe: placement, render-mode decision, lifecycle and prerender state, parameters/`EventCallback`/binding, and `EditForm` validation.
+- `.agents/skills/add-blazor-ui/` — build recipe: placement, render-mode decision, lifecycle and prerender state, parameters/`EventCallback`/binding, and `EditForm` validation.
 - `.github/instructions/csharp-conventions.instructions.md` — XML docs, naming, OneOf, and logging in code-behind files.
 - `.github/instructions/validation.instructions.md` — DataAnnotations on shared input records and `InputValidator`.
 - `.github/instructions/testing.instructions.md` — bUnit coverage and render-mode assertion requirement for interactive pages.
