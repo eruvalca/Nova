@@ -37,6 +37,28 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
+    /// Verifies that narrow account pages keep the active recovery and manage destinations visible
+    /// without requiring an initial horizontal scroll.
+    /// </summary>
+    /// <param name="path">The account route to render.</param>
+    /// <param name="expectedPanel">The directory panel expected to be active.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("/Account/ForgotPassword", "Recover access")]
+    [InlineData("/Account/ConfirmEmailChange?userId=9223372036854775807&email=test%40example.com&code=unused", "Manage profile")]
+    public async Task AccountDirectory_NarrowViewport_ShowsActivePanel(string path, string expectedPanel)
+    {
+        await using var context = await fixture.NewAnonymousContextAsync(
+            new ViewportSize { Width = 320, Height = 800 });
+        var page = context.Pages[0];
+
+        await page.GotoAsync(new Uri(fixture.BaseUri, path).ToString());
+
+        var activePanel = page.GetByRole(AriaRole.Link, new() { Name = expectedPanel, Exact = true });
+        await Expect(activePanel).ToHaveAttributeAsync("aria-current", "page");
+        await Expect(activePanel).ToBeInViewportAsync();
+    }
+
+    /// <summary>
     /// Verifies that a valid local login keeps the real Identity redirect into profile-photo onboarding.
     /// </summary>
     [Fact]

@@ -137,11 +137,37 @@
     border-radius: 0.25rem;
 }
 
+@media (max-width: 575.98px) {
+    .auth-directory {
+        overflow-x: visible;
+    }
+
+    .auth-panels {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        min-width: 0;
+    }
+
+    .auth-panels .nav-item {
+        min-width: 0;
+    }
+
+    .auth-panels .nav-link {
+        white-space: normal;
+    }
+}
+
 @media (min-width: 768px) {
     .auth-hall {
         gap: 1.5rem;
     }
 
+    .auth-working-hall {
+        padding: 1.5rem 1.5rem 1.75rem;
+    }
+}
+
+@media (min-width: 992px) {
     .auth-directory {
         overflow-x: visible;
     }
@@ -150,7 +176,4 @@
         min-width: 0;
     }
 
-    .auth-working-hall {
-        padding: 1.5rem 1.5rem 1.75rem;
-    }
 }
