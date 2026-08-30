@@ -1,4 +1,14 @@
-@page "/Account/LoginWithRecoveryCode"
+﻿@page "/Account/LoginWithRecoveryCode"
+
+@layout AuthLayout
+
+<!--
+THESIS: This account task belongs to the shared Hall of Panels access experience.
+OWN-WORLD: Matte directory signs lead to one paper-white working board with precise hairlines.
+STORY: The member confirms their account area, reads the task heading, then completes or acknowledges the operation.
+FIRST VIEWPORT: The active directory panel and the page task heading establish location and purpose.
+FORM: Hall of Panels, ranked 1; surface seed a3b942a9; the shared static-SSR shell owns the directory and board.
+-->
 
 <PageTitle>Recovery code verification</PageTitle>
 
@@ -11,16 +21,14 @@
 </p>
 <div class="row">
     <div class="col-md-4">
-        <EditForm Model="Input" FormName="login-with-recovery-code" OnValidSubmit="OnValidSubmitAsync" method="post">
+        <EditForm class="auth-form" Model="Input" FormName="login-with-recovery-code" OnValidSubmit="OnValidSubmitAsync" method="post">
             <DataAnnotationsValidator />
-            <ValidationSummary class="text-danger" role="alert" />
-            <div class="form-floating mb-3">
+            <ValidationSummary class="alert alert-danger" role="alert" />
+            <AccountFormField For="() => Input.RecoveryCode" FieldId="Input.RecoveryCode" Label="Recovery Code">
                 <InputText @bind-Value="Input.RecoveryCode" id="Input.RecoveryCode" class="form-control"
                            autocomplete="off" placeholder="RecoveryCode" />
-                <label for="Input.RecoveryCode" class="form-label">Recovery Code</label>
-                <ValidationMessage For="() => Input.RecoveryCode" class="text-danger" />
-            </div>
-            <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+            </AccountFormField>
+            <AccountSubmitButton Text="Log in" />
         </EditForm>
     </div>
 </div>

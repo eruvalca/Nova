@@ -18,8 +18,8 @@ using Shouldly;
 namespace Nova.Unit.Tests.Components;
 
 /// <summary>
-/// Tests for the shared account components: status strip, panel wall, external picker, passkey submit,
-/// recovery codes board, and the reusable form primitives.
+/// Tests for the shared account components: auth and manage panel walls, status strip, external picker,
+/// passkey submit, recovery codes board, and the reusable form primitives.
 /// </summary>
 public class AccountSharedComponentsTests
 {
@@ -72,6 +72,81 @@ public class AccountSharedComponentsTests
         signInManager.GetExternalAuthenticationSchemesAsync()
             .Returns(Task.FromResult(schemes ?? []));
         return signInManager;
+    }
+
+    // ---- AuthLayout ----
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("Account/Login", "Sign in")]
+    [InlineData("Account/LoginWith2fa?returnUrl=%2Fdashboard", "Sign in")]
+    [InlineData("Account/Register", "Register")]
+    [InlineData("Account/ConfirmEmail", "Register")]
+    [InlineData("Account/ExternalLogin", "Register")]
+    [InlineData("Account/ConfirmEmailChange?userId=42", "Manage profile")]
+    [InlineData("Account/ForgotPassword", "Recover access")]
+    [InlineData("Account/ResetPassword", "Recover access")]
+    public void AuthLayout_ActivatesExpectedPanel_ForAccountRoute(string route, string expectedPanel)
+    {
+        using var testContext = new BunitContext();
+        var navigationManager = testContext.Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo(route);
+
+        var cut = testContext.Render<AuthLayout>(parameters => parameters
+            .Add(p => p.Body, builder => builder.AddMarkupContent(0, "<h1>Account task</h1>")));
+
+        var activePanel = cut.Find("nav[aria-label='Account areas'] a[aria-current='page']");
+        activePanel.TextContent.Trim().ShouldBe(expectedPanel);
+        cut.FindAll("nav[aria-label='Account areas'] a").Count.ShouldBe(4);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("Account/AccessDenied")]
+    [InlineData("Account/InvalidUser")]
+    public void AuthLayout_DoesNotActivatePanel_ForUnownedRoute(string route)
+    {
+        using var testContext = new BunitContext();
+        var navigationManager = testContext.Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo(route);
+
+        var cut = testContext.Render<AuthLayout>(parameters => parameters
+            .Add(p => p.Body, builder => builder.AddMarkupContent(0, "<h1>Account task</h1>")));
+
+        cut.FindAll("nav[aria-label='Account areas'] a[aria-current='page']").ShouldBeEmpty();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("/Account/Manage", "%2FAccount%2FManage")]
+    [InlineData("dashboard", "%2Fdashboard")]
+    public void AuthLayout_PreservesSafeReturnUrl_OnEntryPanels(string returnUrl, string encodedReturnUrl)
+    {
+        using var testContext = new BunitContext();
+        var navigationManager = testContext.Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"Account/Login?ReturnUrl={Uri.EscapeDataString(returnUrl)}");
+
+        var cut = testContext.Render<AuthLayout>(parameters => parameters
+            .Add(p => p.Body, builder => builder.AddMarkupContent(0, "<h1>Account task</h1>")));
+
+        cut.Find("a[href*='Account/Login']").GetAttribute("href").ShouldNotBeNull()
+            .ShouldContain($"ReturnUrl={encodedReturnUrl}");
+        cut.Find("a[href*='Account/Register']").GetAttribute("href").ShouldNotBeNull()
+            .ShouldContain($"ReturnUrl={encodedReturnUrl}");
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("https://example.com/steal")]
+    [InlineData("//example.com/steal")]
+    [InlineData(@"\\example.com\steal")]
+    public void AuthLayout_DropsUnsafeReturnUrl_OnEntryPanels(string returnUrl)
+    {
+        using var testContext = new BunitContext();
+        var navigationManager = testContext.Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo($"Account/Login?ReturnUrl={Uri.EscapeDataString(returnUrl)}");
+
+        var cut = testContext.Render<AuthLayout>(parameters => parameters
+            .Add(p => p.Body, builder => builder.AddMarkupContent(0, "<h1>Account task</h1>")));
+
+        cut.Find("a[href*='Account/Login']").GetAttribute("href").ShouldBe("Account/Login");
+        cut.Find("a[href*='Account/Register']").GetAttribute("href").ShouldBe("Account/Register");
     }
 
     // ---- StatusMessage ----
