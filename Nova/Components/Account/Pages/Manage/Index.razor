@@ -1,27 +1,42 @@
 @page "/Account/Manage"
 
+<!--
+THESIS: The profile page is the account hall's identity desk, where stable sign-in details frame one editable contact field.
+OWN-WORLD: A paper-white working sheet, ink-dark labels, precise hairlines, and one teal save action.
+STORY: The member confirms their username, updates an optional phone number, and saves without leaving the profile panel.
+FIRST VIEWPORT: The Profile heading and short purpose statement lead directly into the compact account form.
+FORM: One bounded working column inside the shared Hall of Panels; shared static-SSR form primitives preserve the Identity post contract.
+-->
+
 <PageTitle>Profile</PageTitle>
 
-<h3>Profile</h3>
-<StatusMessage />
+<div class="manage-profile">
+    <header class="manage-profile-heading">
+        <h1>Profile</h1>
+        <p>Review your sign-in name and keep your contact number current.</p>
+    </header>
 
-<div class="row">
-    <div class="col-xl-6">
-        <EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
-            <DataAnnotationsValidator />
-            <ValidationSummary class="text-danger" role="alert" />
-            <div class="form-floating mb-3">
-                <input type="text" value="@username" id="username" class="form-control"
-                       placeholder="Choose your username." disabled />
-                <label for="username" class="form-label">Username</label>
-            </div>
-            <div class="form-floating mb-3">
+    <StatusMessage />
+
+    <EditForm class="manage-profile-form" Model="Input" FormName="profile"
+              OnValidSubmit="OnValidSubmitAsync" method="post">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="alert alert-danger" role="alert" />
+
+        <div class="account-identity-field mb-3">
+            <AccountFormLabel For="username" Text="Username" />
+            <input type="text" value="@username" id="username" class="form-control"
+                   aria-describedby="username-help" disabled />
+            <div id="username-help" class="form-text">Username changes aren't available from this page.</div>
+        </div>
+
+        <AccountFormField For="() => Input.PhoneNumber" FieldId="Input.PhoneNumber"
+                          Label="Phone number" Optional="true"
+                          HelpText="Add a number where your club can reach you.">
                 <InputText @bind-Value="Input.PhoneNumber" id="Input.PhoneNumber" class="form-control"
-                           placeholder="Enter your phone number" />
-                <label for="Input.PhoneNumber" class="form-label">Phone number</label>
-                <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
-            </div>
-            <button type="submit" class="w-100 btn btn-lg btn-primary">Save</button>
-        </EditForm>
-    </div>
+                           autocomplete="tel" inputmode="tel" placeholder="Enter your phone number" />
+        </AccountFormField>
+
+        <AccountSubmitButton Text="Save" />
+    </EditForm>
 </div>

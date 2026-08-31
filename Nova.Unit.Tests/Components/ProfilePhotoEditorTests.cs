@@ -88,7 +88,9 @@ public class ProfilePhotoEditorTests : BunitContext
         {
             photoService.Received(1).GetCurrentUserPhotoAsync(Arg.Any<CancellationToken>());
             cut.FindAll("img.profile-photo-current").Count.ShouldBe(0);
+            cut.Markup.ShouldContain("photo-route");
             cut.Markup.ShouldContain("Choose a photo");
+            cut.Markup.ShouldContain("Frame and save");
         });
     }
 }

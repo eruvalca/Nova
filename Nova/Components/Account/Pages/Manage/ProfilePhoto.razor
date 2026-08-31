@@ -1,14 +1,23 @@
 @page "/Account/Manage/ProfilePhoto"
 
+<!--
+THESIS: Profile-photo management is the account hall's portrait station for reviewing and replacing the member avatar.
+OWN-WORLD: A flat working sheet, a two-stop route, a circular portrait field, and one teal save action.
+STORY: The member sees the purpose of the avatar, chooses a replacement, frames it, and returns to account management.
+FIRST VIEWPORT: The Profile photo heading and current-photo context lead directly into the shared editor.
+FORM: One focused portrait workspace inside the static-SSR ManageLayout; only the editor remains an InteractiveAuto island.
+-->
+
 <PageTitle>Profile photo</PageTitle>
 
-<div class="row">
-    <div class="col-lg-8">
-        <h3>Profile photo</h3>
+<div class="manage-photo">
+    <header class="manage-photo-heading">
+        <h1>Profile photo</h1>
         <p>
-            Update your profile photo. Choose a new image and crop it to your liking —
-            it will be shown as a circular avatar.
+            Update the photo used for your Nova avatar. Choose a new image, frame it,
+            and save when it looks right.
         </p>
-        <ProfilePhotoEditor ReturnUrl="/Account/Manage" CancelUrl="/Account/Manage" @rendermode="InteractiveAuto" />
-    </div>
+    </header>
+
+    <ProfilePhotoEditor ReturnUrl="/Account/Manage" CancelUrl="/Account/Manage" @rendermode="InteractiveAuto" />
 </div>
