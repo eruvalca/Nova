@@ -66,7 +66,7 @@ Counts represent current work, not unseen events. They come from authoritative, 
 
 - Show an attention row only when its count is greater than zero. Signal Amber marks the written count and unresolved state without recoloring the whole rail.
 - When both counts are zero, keep the rail in place with a quiet **No admin work waiting** state. Do not use amber, celebration, or a permanent “0” badge.
-- A successful approval, rejection, placement, reassignment, outcome change, or unassign refreshes the relevant count in the surface where it happened. Normal enhanced navigation refreshes dashboard and shell counts; no live push channel or background polling is required.
+- A successful approval, rejection, placement, reassignment, outcome change, or administrator-owned later-campaign supersession of a prior `Withdrawn` outcome refreshes the relevant count in the surface where it happened. Normal enhanced navigation refreshes dashboard and shell counts; no live push channel or background polling is required.
 - If one attention query fails, label only that row as temporarily unavailable and keep the other result. Never translate an unavailable count into zero. Offer a local retry without discarding the dashboard's campaign or activity context.
 - Attention is a pointer, not an alternate workflow. No join-request decision or placement mutation occurs inside the rail.
 
@@ -91,7 +91,7 @@ The feed is role-shaped on the server. An ordinary member must never receive an 
 | Campaign lifecycle | Draft created; Draft deleted | Administrators | Name the Draft and actor. Link a surviving Draft to preparation; a deleted Draft remains readable without a dead link. |
 | Campaign lifecycle | Opened; Closed; Reopened | All approved members | Name the campaign, season when useful, actor, and resulting written state. Link to the campaign's current authorized destination. |
 | Placement | Assigned to a team; changed to `Not selected`; changed to `Withdrawn` | All approved members | Name the player, actor, campaign, and new outcome or team. Link to the player's campaign placement record when available. |
-| Placement | Reassigned; outcome replaced; unassigned | All approved members | Preserve and render meaningful old and new state, such as “moved Avery Chen from U14 Gold to U14 Teal.” Never reduce these to a generic “updated placement.” |
+| Placement | Reassigned; outcome replaced; administrator superseded a prior-campaign `Withdrawn` outcome | All approved members | Preserve and render meaningful old and new state, such as “moved Avery Chen from U14 Gold to U14 Teal.” Every event belongs to the later Active campaign and leaves the Closed source record unchanged; never render or imply a post-close unassign. |
 | Join request | Submitted; cancelled; rejected | Administrators | Name the requester, actor where applicable, club context, and outcome. Link only a still-actionable request to Club → Requests. |
 | Join request | Approved | Administrators and members, role-shaped | Administrators may see the approval action; members see the resulting club event, “Jordan Lee joined the club,” without pending-request details. Emit or present one semantic event, not two duplicate feed rows. |
 | Member role | Promoted to ClubAdmin; demoted from ClubAdmin | All approved members | Name the affected member, actor, and resulting role in words. |
@@ -126,6 +126,8 @@ Event sentences must remain specific and attributable. Representative grammar in
 - “Jordan Lee left the club.”
 
 Avoid vague verbs such as “updated,” internal enum names, duplicated campaign names, and sentences that expose inaccessible Draft or request context.
+
+Placement activity records only transitions authorized while a campaign is Active. A later-campaign reassignment or administrator supersession may name the earlier effective state for context, but the event is owned by the later Active campaign and never suggests that Nova edited or unassigned a Closed outcome.
 
 ## States and realistic ranges
 
@@ -170,6 +172,7 @@ Explicit anti-goals:
 - Navigation counts need a bounded shell-level projection available during SSR and interactive rendering. Count retrieval must not delay or remove the route labels themselves. A failed badge query omits the badge while preserving navigation.
 - The current provisional `ClubDashboard.razor` thesis, card cap, Bootstrap composition, and shell without badges are implementation evidence only. The dashboard build issue [#169](https://github.com/eruvalca/Nova/issues/169), club surfaces [#171](https://github.com/eruvalca/Nova/issues/171), campaign loop [#170](https://github.com/eruvalca/Nova/issues/170), and member-management foundation [#179](https://github.com/eruvalca/Nova/issues/179) must consume this brief rather than independently inventing attention behavior.
 - Campaign lifecycle foundations [#178](https://github.com/eruvalca/Nova/issues/178) own one-Active enforcement and Draft visibility. Closeout is normative for Closed immutability; an activity event records an authorized mutation but never grants or implies mutation authority.
+- Placement activity has no `Unassigned` event in the final product taxonomy. Ordinary members may supersede eligible `Assigned` and `NotSelected` decisions in a later Active campaign; only administrators may supersede a prior-campaign `Withdrawn` decision. In every case the event describes the new Active-campaign decision and preserves the Closed source.
 
 ## Decision record
 
@@ -182,5 +185,6 @@ Explicit anti-goals:
 - Put pending-request badges on Club and unresolved-placement badges on Campaigns; hide zero, cap at `99+`, and add no aggregate Dashboard badge or notification bell.
 - Keep the administrator rail stable and show **No admin work waiting** when both categories are clear.
 - Show all members lifecycle, placement, approved-membership, and role/removal/departure activity; keep Draft and unresolved join-request events administrator-only.
+- Record placement activity only for authorized Active-campaign decisions; introduce no post-close unassign event or wording.
 - Exclude evaluation notes and tags from the club feed.
 - Show 20 events initially, group by day, page older history with an explicit action, and introduce no read/unread or dismissal state.

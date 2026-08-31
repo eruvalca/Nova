@@ -39,15 +39,15 @@ The Campaign Route Markers are navigation with lifecycle awareness, not a visite
 ### Active
 
 - A Draft becomes Active only through the explicit opening checkpoint. It cannot return to Draft.
-- Opening enrolls every active club player onto the campaign roster with an Undecided placement outcome. Players created while the campaign remains Active join automatically through the player-intake lifecycle.
+- Opening enrolls every active club player as a campaign participant. Players created while the campaign remains Active participate automatically through the player-intake lifecycle. Participation does not save an `Undecided` placement or create a placement history/activity event; a participant with no applicable saved decision appears in the unresolved working state until staff record an explicit outcome.
 - Dates are descriptive planning boundaries; they never open or close a campaign automatically.
 - The Active workspace exposes the complete Route Markers sequence to every club member. The detailed Roster, Evaluate, Place, and Close experiences remain governed by their respective briefs and role rules.
 
 ### Closed
 
-- Closing moves Active to Closed through the administrator-only closeout flow. Closed campaigns remain visible to all club members as season history and do not disappear from the directory.
-- Reopening returns Closed directly to Active; it never creates a new Draft or bypasses the one-Active-campaign rule.
-- Active and Closed campaigns cannot be deleted. Closed detail, soft-close readiness, unresolved outcomes, reopening, and roster export are owned by the closeout brief and supporting export work.
+- Closing moves Active to Closed through the administrator-only closeout flow. Closed campaigns remain visible to all club members as immutable season history and do not disappear from the directory. Evaluation and placement mutations, including post-close unassign, are unavailable for every role.
+- Reopening returns Closed directly to Active; it never creates a new Draft or bypasses the one-Active-campaign rule. Only the most recently opened campaign in the current season may reopen, as defined by the closeout brief.
+- Active and Closed campaigns cannot be deleted. Complete-close readiness, unresolved outcomes, immutable Closed detail, constrained reopening, and roster export are owned by the closeout brief and supporting export work.
 
 ## Draft preparation workspace
 
@@ -143,3 +143,5 @@ Explicit anti-goals:
 - Group the directory by season with current work first; show Active, then Draft, then Closed within the current season, and expose Drafts only to administrators.
 - Allow administrators to delete only unopened Drafts through inline confirmation; durable teams survive that deletion.
 - Treat opening as irreversible to Draft. Reopening moves Closed directly to Active and remains governed by the closeout flow.
+- Keep automatic participation separate from saved placement decisions: opening or later intake creates no fabricated `Undecided` history/activity event.
+- Keep Closed evaluation and outcomes immutable. Allow only the most recently opened campaign in the current season to reopen, subject to the one-Active-campaign rule.
