@@ -27,6 +27,12 @@ typography:
     fontWeight: 750
     lineHeight: 1.02
     letterSpacing: "-0.045em"
+  page-title:
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+    fontSize: "2rem"
+    fontWeight: 700
+    lineHeight: 1.2
+    letterSpacing: "-0.025em"
   title:
     fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
     fontSize: "1.25rem"
@@ -161,6 +167,7 @@ The kelp-forest palette combines cool fieldhouse surfaces with earthy collaborat
 
 - **Display** (750, `clamp(3.25rem, 6.5vw, 6.5rem)`, 0.94): public hero statements and rare campaign-scale declarations.
 - **Headline** (750, `clamp(2.25rem, 4.5vw, 4.25rem)`, 1.02): major landing sections and large route moments.
+- **Page Title** (700, `2rem`, 1.2): stable operational screen identity in account, dashboard, and other working surfaces.
 - **Title** (650, `1.25rem`, 1.2): directory headings, brand names, and compact operational section titles.
 - **Body** (400, `1rem`, 1.7): explanatory and instructional copy; keep sustained text near 65–70 characters per line.
 - **Label** (650, `0.875rem`, 0.01em): controls, navigation, form labels, and working metadata.

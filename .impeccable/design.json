@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-30T21:47:35.209Z",
+  "generatedAt": "2026-08-31T00:59:39.044Z",
   "title": "Design System: Nova",
   "extensions": {
     "colorMeta": {
@@ -74,6 +74,7 @@
     "typographyMeta": {
       "display": { "displayName": "Display", "purpose": "Rare public hero and campaign-scale declarations." },
       "headline": { "displayName": "Headline", "purpose": "Major public sections and large route moments." },
+      "page-title": { "displayName": "Page Title", "purpose": "Stable operational screen identity in account, dashboard, and other working surfaces." },
       "title": { "displayName": "Title", "purpose": "Directory headings, brand lockups, and compact operational section titles." },
       "body": { "displayName": "Body", "purpose": "Explanatory and instructional copy." },
       "label": { "displayName": "Label", "purpose": "Controls, navigation, form labels, and working metadata." },
