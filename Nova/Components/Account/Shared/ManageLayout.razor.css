@@ -40,6 +40,98 @@
     padding: 1.25rem 1rem;
 }
 
+.account-working-hall ::deep .manage-page {
+    max-width: 52rem;
+}
+
+.account-working-hall ::deep .manage-page-heading {
+    margin-bottom: 1.5rem;
+}
+
+.account-working-hall ::deep .manage-page-heading h1 {
+    margin: 0 0 0.375rem;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+}
+
+.account-working-hall ::deep .manage-page-heading p {
+    max-width: 65ch;
+    margin: 0;
+    color: var(--bs-secondary-color);
+}
+
+.account-working-hall ::deep .manage-page-form {
+    max-width: 32rem;
+}
+
+.account-working-hall ::deep .manage-page-form .form-control,
+.account-working-hall ::deep .manage-page-form .form-select {
+    min-height: 2.75rem;
+    border-radius: 0.25rem;
+}
+
+.account-working-hall ::deep .manage-page-form .form-control:focus,
+.account-working-hall ::deep .manage-page-form .form-select:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 var(--bs-focus-ring-width) var(--bs-focus-ring-color);
+}
+
+.account-working-hall ::deep .manage-page-form .form-label {
+    font-size: 0.875rem;
+    font-weight: 650;
+}
+
+.account-working-hall ::deep .manage-page-form .form-text {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+}
+
+.account-working-hall ::deep .manage-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.account-working-hall ::deep .manage-actions .btn {
+    min-height: 2.75rem;
+}
+
+.account-working-hall ::deep .manage-board {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.375rem;
+    background-color: var(--bs-white);
+    padding: 1rem;
+}
+
+.account-working-hall ::deep .manage-page > .manage-board + .manage-board {
+    margin-top: 1rem;
+}
+
+.account-working-hall ::deep .manage-email .manage-inline-action {
+    margin-top: 0.5rem;
+}
+
+.account-working-hall ::deep .manage-board h2,
+.account-working-hall ::deep .manage-section h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 650;
+}
+
+.account-working-hall ::deep .manage-board h3,
+.account-working-hall ::deep .manage-section h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 650;
+}
+
+.account-working-hall ::deep .manage-board > :last-child,
+.account-working-hall ::deep .manage-section > :last-child {
+    margin-bottom: 0;
+}
+
 @media (min-width: 768px) {
     .account-hall {
         gap: 1.5rem;
@@ -55,5 +147,19 @@
 
     .account-working-hall {
         padding: 1.5rem 1.5rem 1.75rem;
+    }
+
+    .account-working-hall ::deep .manage-board {
+        padding: 1.25rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .account-working-hall ::deep .manage-actions {
+        flex-direction: column;
+    }
+
+    .account-working-hall ::deep .manage-actions .btn {
+        width: 100%;
     }
 }

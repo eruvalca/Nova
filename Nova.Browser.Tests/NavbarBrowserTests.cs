@@ -614,6 +614,21 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
             }
 
             await Expect(cropper).ToBeVisibleAsync(new() { Timeout = 30_000 });
+
+            // Complete the replacement flow as well as proving the island can render its cropper:
+            // the save endpoint must refresh the profile-photo claim and return to the manage page.
+            var savePhoto = hall.GetByRole(AriaRole.Button, new() { Name = "Save photo", Exact = true });
+            await Expect(savePhoto).ToBeEnabledAsync(new() { Timeout = 30_000 });
+            await InteractionHelpers.ClickUntilAsync(
+                page,
+                savePhoto,
+                () => Task.FromResult(new Uri(page.Url).AbsolutePath.Equals(
+                    "/Account/Manage",
+                    StringComparison.OrdinalIgnoreCase)));
+            await page.WaitForURLAsync(
+                url => new Uri(url).AbsolutePath.Equals("/Account/Manage", StringComparison.OrdinalIgnoreCase),
+                new() { WaitUntil = WaitUntilState.Commit });
+            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Profile", Exact = true })).ToBeVisibleAsync();
         }
         finally
         {

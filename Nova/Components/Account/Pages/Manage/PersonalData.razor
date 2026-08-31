@@ -1,23 +1,32 @@
 @page "/Account/Manage/PersonalData"
 
-<PageTitle>Personal Data</PageTitle>
+<!--
+THESIS: Personal data is an account archive desk, separating a recoverable download from an irreversible deletion request.
+OWN-WORLD: Flat information board, plain-language warning, hairline layout, and clearly separated primary/danger actions.
+STORY: The member learns what is available, downloads a copy, or follows the existing route to deletion.
+FIRST VIEWPORT: The heading and permanence warning appear before either action.
+FORM: The download post preserves its action URL, method, antiforgery token, and file response contract; deletion keeps its route.
+-->
 
-<StatusMessage />
-<h3>Personal Data</h3>
+<PageTitle>Personal data</PageTitle>
 
-<div class="row">
-    <div class="col-md-6">
-        <p>Your account contains personal data that you have given us. This page allows you to download or delete that
-            data.</p>
-            <p>
-                <strong>Deleting this data will permanently remove your account, and this cannot be recovered.</strong>
-            </p>
+<div class="manage-page manage-personal-data">
+    <header class="manage-page-heading">
+        <h1>Personal data</h1>
+        <p>Review, download, or permanently delete the personal data associated with your account.</p>
+    </header>
+
+    <StatusMessage />
+    <section class="manage-board" aria-labelledby="personal-data-heading">
+        <h2 id="personal-data-heading">Your account data</h2>
+        <p>Your account contains personal data that you have given us. You can download a copy before deciding whether to delete it.</p>
+        <div class="manage-actions">
             <form action="Account/Manage/DownloadPersonalData" method="post">
                 <AntiforgeryToken />
-                <button class="btn btn-primary" type="submit">Download</button>
+                <button class="btn btn-primary" type="submit">Download personal data</button>
             </form>
-            <p>
-                <a href="Account/Manage/DeletePersonalData" class="btn btn-danger">Delete</a>
-            </p>
+            <a href="Account/Manage/DeletePersonalData" class="btn btn-outline-danger">Delete personal data</a>
         </div>
-    </div>
+        <p class="form-text mt-3 mb-0"><strong>Deleting this data will permanently remove your account, and this cannot be recovered.</strong></p>
+    </section>
+</div>

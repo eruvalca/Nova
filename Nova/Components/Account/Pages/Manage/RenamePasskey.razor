@@ -1,24 +1,34 @@
 @page "/Account/Manage/RenamePasskey/{Id}"
 
-<EditForm Model="Input" OnValidSubmit="Rename" FormName="rename-passkey" method="post">
-    <DataAnnotationsValidator />
-    @if (passkey?.Name is { } name)
-    {
-        <h4>Enter a new name for your "@name" passkey</h4>
-    }
-    else
-    {
-        <h4>Enter a name for your passkey</h4>
-    }
-    <hr />
-    <ValidationSummary class="text-danger" role="alert" />
-    <div class="form-floating mb-3">
-        <InputText @bind-Value="Input.Name" id="Input.Name" class="form-control" aria-required="true"
-                   placeholder="My passkey" />
-        <label for="Input.Name" class="form-label">Passkey name</label>
-        <ValidationMessage For="() => Input.Name" class="text-danger" />
-    </div>
-    <div>
-        <button type="submit" class="w-100 btn btn-lg btn-primary">Continue</button>
-    </div>
-</EditForm>
+<!--
+THESIS: Renaming a passkey is a small organizing task that should stay focused on identifying one device credential.
+OWN-WORLD: A flat working sheet, direct prompt, hairline field, and one clear continuation action.
+STORY: The member sees the existing passkey name when available, enters a replacement, and continues through the same handler.
+FIRST VIEWPORT: The contextual heading names the credential before the first field.
+FORM: The rename-passkey EditForm preserves its route parameter, form name, Input.Name binding, validation, method, and Rename handler.
+-->
+
+<PageTitle>Rename passkey</PageTitle>
+
+<div class="manage-page manage-rename-passkey">
+    <header class="manage-page-heading">
+        @if (passkey?.Name is { } name)
+        {
+            <h1>Rename your “@name” passkey</h1>
+        }
+        else
+        {
+            <h1>Name your passkey</h1>
+        }
+        <p>Choose a name that helps you recognize this device later.</p>
+    </header>
+
+    <EditForm class="manage-page-form" Model="Input" OnValidSubmit="Rename" FormName="rename-passkey" method="post">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="alert alert-danger" role="alert" />
+        <AccountFormField For="() => Input.Name" FieldId="Input.Name" Label="Passkey name">
+            <InputText @bind-Value="Input.Name" id="Input.Name" class="form-control" aria-required="true" placeholder="My passkey" />
+        </AccountFormField>
+        <AccountSubmitButton Text="Continue" />
+    </EditForm>
+</div>

@@ -1,0 +1,21 @@
+.manage-photo {
+    max-width: 48rem;
+}
+
+.manage-photo-heading {
+    margin-bottom: 1.5rem;
+}
+
+.manage-photo-heading h1 {
+    margin: 0 0 0.375rem;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+}
+
+.manage-photo-heading p {
+    max-width: 65ch;
+    margin: 0;
+    color: var(--bs-secondary-color);
+}
+

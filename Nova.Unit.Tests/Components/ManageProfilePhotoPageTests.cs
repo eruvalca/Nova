@@ -83,7 +83,7 @@ public class ManageProfilePhotoPageTests : BunitContext
 
         // Assert: the page renders its own heading/lead and the photo editor (no stored photo →
         // the "Choose a photo" input is shown).
-        var heading = cut.FindAll("h3").FirstOrDefault(h => h.TextContent.Trim() == "Profile photo");
+        var heading = cut.FindAll("h1").FirstOrDefault(h => h.TextContent.Trim() == "Profile photo");
         heading.ShouldNotBeNull("the page must render its Profile photo heading");
         cut.Markup.ShouldContain("Choose a photo");
         cut.Markup.ShouldContain("profile-photo-editor");
@@ -123,7 +123,7 @@ public class ManageProfilePhotoPageTests : BunitContext
         // The directory wall includes the Profile photo panel linking to the manage route.
         cut.Markup.ShouldContain("Account/Manage/ProfilePhoto");
         // The working hall hosts the page: its heading and the photo editor.
-        cut.Markup.ShouldContain("<h3>Profile photo</h3>");
+        cut.FindAll("h1").ShouldContain(heading => heading.TextContent.Trim() == "Profile photo");
         cut.Markup.ShouldContain("profile-photo-editor");
         cut.Markup.ShouldContain("Choose a photo");
     }

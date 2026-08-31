@@ -4,15 +4,26 @@
 @using Microsoft.AspNetCore.Authorization
 @using Nova.UI.Features.Account.Components
 
+<!--
+THESIS: The required profile-photo gate is a focused account setup station, not a detached upload utility.
+OWN-WORLD: One paper-white field sheet, a two-stop route, a circular portrait field, and teal wayfinding action.
+STORY: The member learns why the photo is required, chooses an image, frames it, and saves to continue into Nova.
+FIRST VIEWPORT: The Profile photo heading and account-setup requirement lead immediately into the shared editor.
+FORM: A single centered working board outside the manage directory; the entire page stays InteractiveAuto for cropping.
+-->
+
 <PageTitle>Profile photo</PageTitle>
 
-<div class="row">
-    <div class="col-lg-8">
-        <h1>Profile photo</h1>
+<section class="profile-photo-gate" aria-labelledby="profile-photo-heading">
+    <header class="profile-photo-gate-heading">
+        <h1 id="profile-photo-heading">Profile photo</h1>
         <p>
-            A profile photo is required to use Nova. Choose an image and crop it to your liking —
-            it will be shown as a circular avatar.
+            Add a profile photo to finish account setup. Choose an image and frame it for
+            the circular avatar used throughout Nova.
         </p>
+    </header>
+
+    <div class="profile-photo-gate-workspace">
         <ProfilePhotoEditor ReturnUrl="@ReturnUrl" />
     </div>
-</div>
+</section>
