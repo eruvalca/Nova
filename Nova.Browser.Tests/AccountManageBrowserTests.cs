@@ -108,7 +108,7 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
             (Path: "/Account/Manage/ProfilePhoto", Panel: "Profile photo", Heading: "Profile photo")
         };
 
-        foreach (var viewportWidth in new[] { 1280, 576 })
+        foreach (var viewportWidth in new[] { 1280, 575 })
         {
             await page.SetViewportSizeAsync(viewportWidth, 800);
             foreach (var route in routes)
@@ -151,6 +151,21 @@ public sealed class AccountManageBrowserTests(BrowserSuiteFixture fixture)
                         - ((double)registeredBounds!.Y + registeredBounds.Height);
                     boardGap.ShouldBeGreaterThanOrEqualTo(15.5,
                         "stacked passkey boards need a clear section break");
+                }
+
+                if (viewportWidth <= 575)
+                {
+                    var buttonHeights = await page.Locator(".account-working-hall .btn")
+                        .EvaluateAllAsync<double[]>("elements => elements"
+                            + ".map(element => element.getBoundingClientRect().height)"
+                            + ".filter(height => height > 0)");
+                    // Interactive islands can replace their action markup after the static
+                    // snapshot; assert every button that is present and laid out in this pass.
+                    foreach (var buttonHeight in buttonHeights)
+                    {
+                        buttonHeight.ShouldBeGreaterThanOrEqualTo(43.5,
+                            "account actions must keep a 2.75rem touch target on phones");
+                    }
                 }
             }
         }

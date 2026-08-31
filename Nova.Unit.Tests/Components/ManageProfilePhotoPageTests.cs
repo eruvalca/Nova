@@ -21,7 +21,7 @@ namespace Nova.Unit.Tests.Components;
 /// Tests for the account-management profile photo page
 /// (<see cref="ProfilePhoto"/> at <c>/Account/Manage/ProfilePhoto</c>): the page hosts the
 /// <c>ProfilePhotoEditor</c> and, via the folder <c>_Imports.razor</c>, is laid out inside the
-/// shared manage frame (<c>ManageLayout</c>), so it renders the account hall — heading, lead,
+/// shared manage frame (<c>ManageLayout</c>), so it renders the account hall — title, lead,
 /// directory wall, and working hall — exactly like the other manage pages. Regression guard for
 /// issue #156: previously the route was served by a Nova.UI page with no ManageLayout and
 /// rendered under the bare MainLayout.
@@ -113,16 +113,19 @@ public class ManageProfilePhotoPageTests : BunitContext
             })));
 
         // Assert: the page content sits inside the shared manage frame — the account hall with the
-        // "Manage your account" heading + lead, the panel-wall directory, and the working hall
+        // "Manage your account" title + lead, the panel-wall directory, and the working hall
         // hosting the editor — exactly like the Email/Password pages (issue #156 regression guard).
         cut.Markup.ShouldContain("account-hall");
         cut.Markup.ShouldContain("Manage your account");
         cut.Markup.ShouldContain("Change your account settings");
+        cut.Find(".account-hall-title").TextContent.Trim().ShouldBe("Manage your account");
+        cut.Find(".account-hall-lead").TextContent.Trim().ShouldBe("Change your account settings");
         cut.Markup.ShouldContain("account-panel-wall");
         cut.Markup.ShouldContain("account-working-hall");
         // The directory wall includes the Profile photo panel linking to the manage route.
         cut.Markup.ShouldContain("Account/Manage/ProfilePhoto");
         // The working hall hosts the page: its heading and the photo editor.
+        cut.FindAll("h1").Count.ShouldBe(1);
         cut.FindAll("h1").ShouldContain(heading => heading.TextContent.Trim() == "Profile photo");
         cut.Markup.ShouldContain("profile-photo-editor");
         cut.Markup.ShouldContain("Choose a photo");

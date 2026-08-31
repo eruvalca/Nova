@@ -515,7 +515,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
     /// <summary>
     /// NB13: the /Account/Manage/ProfilePhoto page renders inside the shared account hall frame —
-    /// the "Manage your account" heading + lead, the directory wall with its panel list, the
+    /// the "Manage your account" title + lead, the directory wall with its panel list, the
     /// working hall hosting the profile photo editor — and the "Profile photo" panel in the
     /// directory wall carries the active (punched) state while on that page. Also proves the
     /// <c>ProfilePhotoEditor</c> island is interactive (not static SSR): after moving the page to
@@ -538,9 +538,10 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Manage/ProfilePhoto").ToString());
 
-        // The shared manage frame: heading, lead, directory wall, and the working hall.
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Manage your account" })).ToBeVisibleAsync();
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Change your account settings" })).ToBeVisibleAsync();
+        // The shared manage frame: title, lead, directory wall, and the working hall. The routed
+        // page owns the document's single h1; the shell text is contextual chrome.
+        await Expect(page.GetByText("Manage your account", new() { Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByText("Change your account settings", new() { Exact = true })).ToBeVisibleAsync();
 
         var wall = page.Locator("nav.account-panel-wall");
         await Expect(wall).ToHaveCountAsync(1);
