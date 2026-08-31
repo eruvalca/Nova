@@ -15,7 +15,7 @@ Manual intake serves the staff member handling a walk-up addition or correcting 
 ## Outcome and proof
 
 - The Players area offers two truthful entry paths: a focused manual workflow for every approved club member and an administrator-only CSV workflow for bulk intake. Import never moves into the Club area.
-- Manual creation and bulk commit produce the same durable player record and the same lifecycle consequence. A player created while a campaign is Active is enrolled in that campaign with an Undecided placement outcome; a player created when no campaign is Active remains an active club player and joins the roster when the next campaign opens.
+- Manual creation and bulk commit produce the same durable player record and the same lifecycle consequence. A player created while a campaign is Active participates in that campaign automatically; a player created when no campaign is Active remains an active club player and joins the roster when the next campaign opens. Participation does not save an `Undecided` placement or create a placement history/activity event; a participating player with no applicable saved decision appears as needing placement until staff record an explicit outcome.
 - The CSV workflow is a complete route: **Template → Upload → Review → Finish**. Review distinguishes valid, invalid, and duplicate rows before any commitment and supports committing valid rows without hiding the skipped work.
 - Success is proved with concrete counts and destinations: players created, rows skipped, duplicates blocked, players enrolled in the Active campaign, and players left ready for a future campaign.
 - Intake remains fast and comprehensible from one row through the 1,000-row limit. Upload, validation, review, and commit must not freeze the interface, render an unbounded table, or slow unrelated application work through per-row request or query patterns.
@@ -183,4 +183,4 @@ Explicit anti-goals:
 - Block normalized first-name + last-name + date-of-birth duplicates within the club or upload; never merge or overwrite automatically.
 - Limit each upload to 1,000 data rows, page or window large previews, and require set-based preview and commit pipelines with no per-row client/server loop or N+1 data access.
 - Treat the finish state as an exact reconciliation and make partial success durable, explicit, and idempotently retryable.
-- Apply auto-enrollment from authoritative campaign state at commitment: Active campaign players join immediately; otherwise they wait for the next campaign opening.
+- Apply automatic participation from authoritative campaign state at commitment: players join the Active campaign immediately or wait for the next campaign opening. Keep participation separate from saved placement decisions and create no fabricated `Undecided` history/activity event.

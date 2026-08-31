@@ -10,7 +10,7 @@ Visitor mode: Operate
 
 Nova must let any approved club member turn shared evaluation evidence into an authoritative team decision without losing season history or forcing the club back into a spreadsheet. The primary job in an Active campaign is to place eligible players who do not currently have a team. A supplemental campaign also supports deliberate reshuffling: staff may find a player already assigned earlier in the same season and record a new placement that supersedes, but never rewrites, the earlier campaign's decision.
 
-Placement commonly happens at a desk while staff compare players and team rosters, but the flow must remain usable on a phone beside the field. Members need a fast player-first queue, written eligibility and outcome states, compact evaluation evidence, and confidence that a save immediately becomes the club's shared truth. Administrators additionally need one narrow correction capability on Closed campaigns: unassign the player's effective placement with a visible audit trail.
+Placement commonly happens at a desk while staff compare players and team rosters, but the flow must remain usable on a phone beside the field. Members need a fast player-first queue, written eligibility and outcome states, compact evaluation evidence, and confidence that a save immediately becomes the club's shared truth. Administrators additionally own the narrow authority to supersede a prior `Withdrawn` outcome from a later Active campaign; Closed campaigns themselves remain immutable.
 
 The activation moment is resolving the next teamless player—or keeping a returning player on a compatible prior-season team—with one clear, attributable decision. Success is a season roster whose effective team assignments, unresolved count, and history remain consistent across primary and supplemental campaigns.
 
@@ -51,7 +51,7 @@ This brief intentionally revises the eligibility rule recorded in epic #163 and 
 
 - `Assigned` is eligible for optional reassignment in a later same-season campaign. It is not unresolved while the existing team remains effective.
 - `NotSelected` resolves the current campaign without a team and remains eligible for a later same-season campaign.
-- `Withdrawn` resolves the current campaign and blocks the player from every later campaign in the same season until an administrator unassigns that outcome.
+- `Withdrawn` resolves the current campaign and blocks the player from every later campaign in the same season until an administrator records a superseding decision in a later Active campaign. The prior campaign and its `Withdrawn` outcome remain immutable.
 - A new season resets placement eligibility for every active player. Prior-season assignments remain historical evidence and may produce a same-team suggestion, but they are not current-season placements.
 - Player graduation year remains the hard team-eligibility rule. Only active, compatible teams appear as choices for the selected player. Incompatible teams are not shown in that player's choice set and can never be overridden.
 
@@ -95,11 +95,11 @@ The prior-team fast path appears only when the most recent prior-season team rem
 
 ### Reassignment and outcome replacement
 
-Any approved member may replace another member's saved placement while the campaign is Active. Replacing a resolved decision requires a local confirmation that names the player and exact consequence:
+Any approved member may replace another member's saved `Assigned` or `NotSelected` decision while that decision's campaign is Active. A saved `Withdrawn` decision is terminal for its owning campaign and blocks the player from later same-season work until an administrator records a superseding decision in a later Active campaign. In that later campaign, any member may supersede a prior `Assigned` or `NotSelected` decision, while superseding a prior-campaign `Withdrawn` decision is administrator-only. Replacing a resolved decision requires a local confirmation that names the player and exact consequence:
 
 - **Move Avery Chen from U14 Gold to U14 Teal?**
 - **Change Avery Chen from Assigned to Not selected for this campaign?**
-- **Change Avery Chen from Withdrawn for this season to Assigned on U14 Teal?**
+- **Make Avery Chen available again and assign them to U14 Teal?** — administrator-only in a later Active campaign; the prior `Withdrawn` record remains unchanged.
 
 The confirmation actions are **Confirm change** and **Keep current placement**. Leaving `Assigned` automatically clears the team. Moving between teams supersedes the prior effective placement rather than producing two roster memberships. No mandatory written reason is required.
 
@@ -108,9 +108,9 @@ The confirmation actions are **Confirm change** and **Keep current placement**. 
 The outcome controls define their scope at selection time:
 
 - **Not selected for this campaign** — no team now; eligible for a later supplemental campaign.
-- **Withdrawn for this season** — unavailable for every later campaign in the season until an administrator unassigns the outcome.
+- **Withdrawn for this season** — unavailable for every later campaign in the season unless an administrator records a superseding decision in a later Active campaign.
 
-`Withdrawn` requires confirmation even when selected from an undecided state because its consequence extends beyond the current campaign. `NotSelected` requires confirmation only when it replaces a resolved decision. Both immediately become shared, attributable truth after save.
+`Withdrawn` requires confirmation even when selected from an undecided state because its consequence extends beyond the current campaign. `NotSelected` requires confirmation only when it replaces a resolved decision. Both immediately become shared, attributable truth after save. Once saved, `Withdrawn` cannot be edited or cleared in its owning campaign; the only same-season recovery is an administrator-owned superseding decision in a later Active campaign.
 
 ## Teams and the zero-team state
 
@@ -121,25 +121,23 @@ When no active teams exist, Place still shows the participant queue, player evid
 ## Collaboration, saving, and conflicts
 
 - Each player decision has one explicit commitment. A successful save is authoritative immediately; there is no private draft, proposal, vote, approval queue, or campaign-wide publish step.
-- Every placement, reassignment, outcome replacement, and admin unassign writes a player-history entry and an activity-feed event with actor, time, campaign, old state, and new state.
+- Every placement, reassignment, outcome replacement, and administrator-owned supersession of a prior `Withdrawn` decision writes a player-history entry and an activity-feed event with actor, time, owning Active campaign, old state, and new state.
 - Optimistic concurrency protects every mutation. If another member saved first, Nova does not overwrite them or silently merge choices.
 - A stale save shows the newly authoritative outcome/team and changer, explains that the placement changed, and offers **Review latest placement**. Retrying requires a new deliberate save against the refreshed version.
 - The local form preserves non-conflicting navigation context, but an obsolete team or outcome selection is never applied automatically after refresh.
 - Nova does not claim live presence, show “currently editing,” or promise real-time roster updates. Opening a player, returning from Evaluate or Teams, and completing a mutation refresh authoritative counts, history, and choices.
 
-## Closed campaigns and admin unassign
+## Closed campaigns
 
-A Closed campaign preserves the same player-first board, effective season roster, counts, evidence, and history as read-only information for every approved member. Ordinary placement, reassignment, and outcome controls are absent; the surface states **Read-only — campaign is closed** in words.
+A Closed campaign preserves its player-first board, campaign-specific outcomes, counts, evidence, and history as read-only information for every approved member. Placement, reassignment, outcome-replacement, and unassign controls are absent for every role; the surface states **Read-only — campaign is closed** in words.
 
-An administrator may use **Unassign** only on the player's effective placement. Confirmation names the player, effective team or outcome, source campaign, and consequence: the outcome becomes `Undecided`, the team is cleared, and the player has no effective team. An older superseded placement remains history and never silently reactivates. The action records the administrator, time, cleared state, and campaign in player history and the activity feed. It does not require a written reason.
-
-Superseded historical placements have no Unassign affordance. A member sees the same history without administrative controls. If authority, lifecycle, or effective placement changes before confirmation, the server result wins and the surface refreshes without applying the stale unassign.
+Later same-season changes happen only as new decisions in a later Active campaign. Those decisions may change the effective season roster while preserving the Closed source campaign unchanged. A prior `Assigned` or `NotSelected` remains eligible under the normal member placement rules; a prior `Withdrawn` remains unavailable until an administrator records the superseding later-campaign decision. No superseded historical placement exposes a mutation affordance, and no earlier record silently reactivates.
 
 ## States and ranges
 
 The design covers no participants, one player, a typical 20–200-player campaign, and larger bounded/paged rosters. It also covers no active teams, one team, many teams, no unresolved players, only unresolved players, mixed graduation years, duplicate names, missing tryout numbers, players with and without evaluations, first-season players, returning players, unavailable historical teams, primary campaigns, multiple supplemental campaigns, and many prior seasons.
 
-Material interaction states include initial loading, incremental page loading, empty search, filtered-empty, selected player, saving, saved, confirmation open, validation failure, stale concurrency conflict, team eligibility changed, team archived, player archived, role changed, campaign closed, campaign reopened, admin unassign pending/saved/conflicted, connectivity loss, timeout, and safe retry. Aggregate counts and the selected player's effective placement must never disagree silently; when independent reads fail, the affected region names its stale or unavailable state rather than presenting an apparently exact total.
+Material interaction states include initial loading, incremental page loading, empty search, filtered-empty, selected player, saving, saved, confirmation open, validation failure, stale concurrency conflict, team eligibility changed, team archived, player archived, role changed, campaign closed, campaign reopened, administrator `Withdrawn` supersession pending/saved/conflicted, connectivity loss, timeout, and safe retry. Aggregate counts and the selected player's effective placement must never disagree silently; when independent reads fail, the affected region names its stale or unavailable state rather than presenting an apparently exact total.
 
 ## Interaction and layout
 
@@ -153,7 +151,7 @@ Material interaction states include initial loading, incremental page loading, e
 
 ## Scope and boundaries
 
-This brief covers the Active and Closed campaign Place destination: player-first discovery, unresolved progress, selected-player evidence, initial placement, prior-team fast path, same-season reassignment, outcome replacement, eligibility visibility, team counts, conflict recovery, attribution/history, and administrator unassign. It defines production-ready responsive behavior but no visual comp, direction contract, or production code.
+This brief covers the Active and Closed campaign Place destination: player-first discovery, unresolved progress, selected-player evidence, initial placement, prior-team fast path, same-season reassignment, outcome replacement, eligibility visibility, team counts, conflict recovery, attribution/history, and administrator-owned supersession of a prior `Withdrawn` decision from a later Active campaign. It defines production-ready responsive behavior but no visual comp, direction contract, or production code.
 
 Explicit anti-goals:
 
@@ -161,7 +159,7 @@ Explicit anti-goals:
 - No team-first drag board, bulk placement, multi-select, batch approval, vote, proposal, or private placement draft.
 - No incompatible or archived team in a selected player's choice set and no eligibility override.
 - No inline team creation, team editing, player creation, roster picker, evaluation mutation, tag mutation, profile editing, or close/reopen action inside Place.
-- No rewriting a Closed campaign's placement to represent a supplemental reassignment and no silent fallback to superseded history after unassign.
+- No post-close unassign or rewriting of a Closed campaign's placement to represent a supplemental reassignment, and no silent fallback to superseded history.
 - No ratings, recommendation algorithm, automatic team assignment, or substituted team when the historical team is unavailable.
 - No live-presence claim, decorative cards, ambient shadows, color-only status, hidden route labels, or CSS-level visual specification.
 - No decision about whether unresolved players block campaign close; the closeout brief owns that lifecycle policy while Place supplies the authoritative count.
@@ -170,21 +168,21 @@ Explicit anti-goals:
 
 - Preserve Fieldhouse Wayfinding, SSR-first Blazor architecture, club-scoped authorization, tenant-safe identifiers, written state, keyboard and touch access, bounded data, and authoritative server validation.
 - Existing `CampaignPlacementsPanel` tables, mobile list items, administrator-only copy, team dropdown, and per-row save behavior are evidence only. They do not govern the new composition or role model.
-- Foundation issue [#175](https://github.com/eruvalca/Nova/issues/175) must open Active-campaign placement mutations to every approved member while preserving administrator-only unassign and lifecycle authority. Hiding controls is insufficient.
-- Foundation issue [#178](https://github.com/eruvalca/Nova/issues/178) currently says same-season `Assigned` blocks later placement. Its eligibility scope must be corrected before implementation: `Assigned` permits optional reassignment, `NotSelected` permits a later attempt, and only `Withdrawn` blocks the remainder of the season.
+- Foundation issue [#175](https://github.com/eruvalca/Nova/issues/175) must open ordinary Active-campaign placement mutations to every approved member while preserving administrator-only lifecycle authority and administrator-only supersession of a prior-campaign `Withdrawn` decision. Hiding controls is insufficient.
+- Foundation issue [#178](https://github.com/eruvalca/Nova/issues/178) must implement the final same-season eligibility rule: `Assigned` permits optional reassignment, `NotSelected` permits a later attempt, and `Withdrawn` blocks the remainder of the season unless an administrator records a superseding decision in a later Active campaign.
 - The current `PlayerCampaignAssignmentEntity` combines enrollment, outcome, team, and concurrency. The build must represent automatic participation separately from saved placement semantics in the contract and effective-season projection, whether or not persistence remains in one table. A technical enrollment row cannot become a fabricated `Undecided` history event.
-- Effective-team queries and counts must resolve supersession deterministically, count each player once, preserve Closed history, prevent prior-placement fallback after admin unassign, and remain safe under concurrent saves. Builders must not approximate this by counting every historical `Assigned` row.
+- Effective-team queries and counts must resolve supersession deterministically, count each player once, preserve Closed history, prevent fallback to an older placement after any superseding decision, and remain safe under concurrent saves. Builders must not approximate this by counting every historical `Assigned` row.
 - Placement query contracts must supply the unresolved total, written section state, effective season placement and source campaign, latest prior-season assignment, compatible active team choices, season/current-campaign team counts, compact evaluation evidence, actor/time attribution, history, and concurrency version without unbounded or tenant-unsafe reads.
 - The existing graduation-year policy remains authoritative at mutation time even though incompatible teams are omitted from choices. Archived players and teams cannot receive new decisions.
 - Evaluation owns note/tag mutation and the selected-player handoff. Campaign spine owns route topology. Closeout owns close/reopen consequences. Club → Teams owns durable team management. Place composes those contracts without duplicating their controls.
-- Activity-feed support must distinguish initial placement, reassignment, outcome replacement, and unassign with enough structured old/new state to render useful written events.
+- Activity-feed support must distinguish initial placement, reassignment, outcome replacement, and administrator supersession of a prior `Withdrawn` decision with enough structured old/new state to render useful written events. Every event belongs to an authorized Active-campaign transition and must not imply post-close mutation.
 
 ## Decision record
 
 - Use a player-first queue and selected-player working sheet; do not use team columns or drag-and-drop.
 - Prioritize **Needs placement** while keeping assigned players searchable for optional supplemental reassignment.
 - Separate automatic campaign participation from saved placement decisions; do not manufacture supplemental `Undecided` history for already assigned players.
-- Revise same-season eligibility so `Assigned` may be reassigned, `NotSelected` may try again, and `Withdrawn` alone blocks later campaigns until admin unassign.
+- Apply same-season eligibility so `Assigned` may be reassigned, `NotSelected` may try again, and `Withdrawn` blocks later campaigns unless an administrator records a superseding decision in a later Active campaign.
 - Make every member's successful Active-campaign save immediately authoritative and attributable.
 - Preserve Closed campaign history; record supplemental moves as new superseding decisions in the Active campaign.
 - Define unresolved as eligible, teamless, and undecided. Previously assigned players available for optional reshuffling are not unresolved.
@@ -195,4 +193,4 @@ Explicit anti-goals:
 - Keep evaluation evidence compact and read-only, with a context-preserving link to the full Evaluate surface.
 - Audit every change and reject stale saves without overwriting the newer placement.
 - Keep team creation in Club → Teams with a context-preserving return to Place.
-- On Closed campaigns, allow administrators to unassign only the effective placement; leave the player teamless and never reactivate superseded history.
+- Keep Closed campaigns immutable for every role. Later effective-season changes are new decisions in a later Active campaign; only administrators may supersede a prior-campaign `Withdrawn` outcome, and superseded history never reactivates.

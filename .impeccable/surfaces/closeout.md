@@ -23,7 +23,7 @@ The activation moment is an administrator seeing a complete, credible roster and
 - Only the most recently opened campaign in the club's current season may reopen. A later Draft does not matter; any campaign opened later permanently makes the earlier campaign ineligible to reopen.
 - Every approved club member can print or download the Closed campaign's final roster. Exports are campaign-specific records and never drift when a later supplemental campaign changes the effective season roster.
 
-These rules intentionally supersede the soft-close and post-close admin-unassign decisions currently recorded in epic #163, issue #172, and the placement brief. Builders must follow this closeout contract for lifecycle and Closed-campaign mutation behavior.
+This brief is normative for lifecycle and Closed-campaign mutation behavior. The reconciled journey map and placement brief preserve the same complete-close rule: Closed evaluation and outcomes are immutable, and there is no post-close administrator unassign.
 
 ## Selected direction
 
@@ -154,7 +154,7 @@ Explicit anti-goals:
 - Closed record and export queries must project campaign-specific final outcomes, not recalculate historical campaigns from the current effective season roster.
 - Roster export implementation belongs to [#182](https://github.com/eruvalca/Nova/issues/182). The campaign-loop build may own the Close surface and handoff, but it must not simulate CSV or print data from a partially loaded client page.
 - Preserve lifecycle mutation locks, optimistic concurrency, retry verification, append-only lifecycle events, actor/time attribution, tenant-safe identifiers, and explicit paging or truncation. The server owns every close/reopen invariant.
-- The confirmed placement brief and epic #163 still contain superseded soft-close and post-close-unassign language. They must be reconciled before the related build is considered ready; this brief is normative for the closeout boundary.
+- The journey map and reconciled placement brief are normative for same-season eligibility and supersession. They may change effective season truth only through a new decision in a later Active campaign; they never authorize mutation of this Closed campaign record.
 
 ## Decision record
 
