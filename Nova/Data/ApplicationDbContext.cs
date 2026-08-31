@@ -108,6 +108,8 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// Gets the Club Crests.
     /// </summary>
     public DbSet<ClubCrestEntity> ClubCrests => Set<ClubCrestEntity>();
+    /// <summary>Gets the append-only club activity events.</summary>
+    public DbSet<ClubActivityEventEntity> ClubActivityEvents => Set<ClubActivityEventEntity>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)

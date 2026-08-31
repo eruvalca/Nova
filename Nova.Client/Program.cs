@@ -57,6 +57,7 @@ builder.Services.AddScoped<ICampaignParticipantQueryService, HttpCampaignPartici
 builder.Services.AddScoped<ICampaignPlacementQueryService, HttpCampaignPlacementQueryService>();
 builder.Services.AddScoped<ICampaignCloseoutQueryService, HttpCampaignCloseoutQueryService>();
 builder.Services.AddScoped<IDashboardQueryService, HttpDashboardQueryService>();
+builder.Services.AddScoped<IAdminAttentionQueryService, HttpAdminAttentionQueryService>();
 builder.Services.AddScoped<ICampaignMetadataService, HttpCampaignMetadataService>();
 builder.Services.AddScoped<ISeasonMetadataService, HttpSeasonMetadataService>();
 builder.Services.AddScoped<ICampaignTagApplicationService, HttpCampaignTagApplicationService>();

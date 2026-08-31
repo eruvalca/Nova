@@ -44,6 +44,12 @@ public sealed class TenantSaveChangesInterceptor : SaveChangesInterceptor
                 continue;
             }
 
+            if (entry.Entity is IAppendOnlyEntity && entry.State is (EntityState.Modified or EntityState.Deleted))
+            {
+                throw new InvalidOperationException(
+                    $"Append-only entity '{entry.Metadata.ClrType.Name}' cannot be modified or deleted.");
+            }
+
             if (enforceTenant && entry.Entity is ITenantOwnedEntity tenantOwned)
             {
                 GuardTenant(entry, tenantOwned, currentUser.ClubId);

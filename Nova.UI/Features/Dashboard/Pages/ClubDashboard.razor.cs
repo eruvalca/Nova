@@ -134,7 +134,7 @@ public partial class ClubDashboard(
 
         var summaryTask = dashboardQueryService.GetDashboardAsync(ComponentCancellationToken);
         var activityTask = dashboardQueryService.GetActivityAsync(
-            new GetDashboardActivityInput { Limit = GetDashboardActivityInput.DefaultLimit },
+            new GetDashboardActivityInput(),
             ComponentCancellationToken);
 
         await Task.WhenAll(summaryTask, activityTask);

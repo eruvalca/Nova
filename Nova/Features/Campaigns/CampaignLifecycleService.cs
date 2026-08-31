@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.ClubActivity;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
@@ -34,7 +35,8 @@ public partial class CampaignCloseResult : OneOfBase<
 public sealed partial class CampaignLifecycleService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<CampaignLifecycleService> logger) : ICampaignLifecycleService
+    ILogger<CampaignLifecycleService> logger,
+    IClubActivityEventWriter? activityEventWriter = null) : ICampaignLifecycleService
 {
     /// <inheritdoc />
     async Task<ServiceResult<Success>> ICampaignLifecycleService.CloseAsync(
@@ -178,6 +180,9 @@ public sealed partial class CampaignLifecycleService(
             campaign.Status = CampaignStatus.Closed;
             campaign.ClosedAt = DateTimeOffset.UtcNow;
             campaign.ClosedById = actorUserId;
+
+            var actorName = await db.Users.Where(user => user.Id == actorUserId).Select(user => user.FirstName + " " + user.LastName).SingleOrDefaultAsync(cancellationToken) ?? "Club administrator";
+            activityEventWriter?.AppendCampaign(db, new CampaignActivityEvidence(ClubActivityEventKind.CampaignClosed, clubId, new ActivityActorEvidence(actorUserId, actorName), campaign.CampaignId, campaign.Name, null));
 
             db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
             {
@@ -342,6 +347,9 @@ public sealed partial class CampaignLifecycleService(
         campaign.Status = CampaignStatus.Active;
         campaign.ClosedAt = null;
         campaign.ClosedById = null;
+
+        var actorName = await db.Users.Where(user => user.Id == actorUserId).Select(user => user.FirstName + " " + user.LastName).SingleOrDefaultAsync(cancellationToken) ?? "Club administrator";
+        activityEventWriter?.AppendCampaign(db, new CampaignActivityEvidence(ClubActivityEventKind.CampaignReopened, clubId, new ActivityActorEvidence(actorUserId, actorName), campaign.CampaignId, campaign.Name, null));
 
         db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
         {

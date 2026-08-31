@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.ClubActivity;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
@@ -20,7 +21,8 @@ namespace Nova.Features.Campaigns;
 public sealed partial class CampaignCreationService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<CampaignCreationService> logger) : ICampaignCreationService
+    ILogger<CampaignCreationService> logger,
+    IClubActivityEventWriter? activityEventWriter = null) : ICampaignCreationService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<CreateCampaignResult>> CreateAsync(
@@ -157,6 +159,13 @@ public sealed partial class CampaignCreationService(
             campaign.InitialEnrolledPlayerCount = activePlayerIds.Count;
 
             await db.SaveChangesAsync(cancellationToken);
+
+            var actorName = await db.Users.Where(user => user.Id == actorUserId)
+                .Select(user => user.FirstName + " " + user.LastName)
+                .SingleOrDefaultAsync(cancellationToken) ?? "Club administrator";
+            activityEventWriter?.AppendCampaign(db, new CampaignActivityEvidence(
+                ClubActivityEventKind.CampaignOpened, clubId, new ActivityActorEvidence(actorUserId, actorName),
+                campaign.CampaignId, campaign.Name, season.Value.Name));
 
             foreach (var playerId in activePlayerIds)
             {

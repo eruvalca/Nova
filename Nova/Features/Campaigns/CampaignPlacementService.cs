@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.ClubActivity;
 using Nova.Features.Shared;
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
@@ -46,7 +48,8 @@ public partial class PlacementUpdateResult : OneOfBase<
 public sealed partial class CampaignPlacementService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ILogger<CampaignPlacementService> logger) : ICampaignPlacementService
+    ILogger<CampaignPlacementService> logger,
+    IClubActivityEventWriter? activityEventWriter = null) : ICampaignPlacementService
 {
     /// <inheritdoc />
     async Task<ServiceResult<PlacementMutationSuccess>> ICampaignPlacementService.UpdatePlacementAsync(
@@ -174,6 +177,7 @@ public sealed partial class CampaignPlacementService(
         var participation = await db.PlayerCampaignAssignments
             .Include(assignment => assignment.Player)
             .Include(assignment => assignment.Campaign)
+            .Include(assignment => assignment.Team)
             .SingleOrDefaultAsync(
                 assignment => assignment.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId,
                 cancellationToken);
@@ -221,6 +225,7 @@ public sealed partial class CampaignPlacementService(
 
         async Task<PlacementUpdateResult> ApplyPlacementAsync(PlacementMayApply _)
         {
+            var previous = new PlacementActivityState(participation.PlacementOutcome, participation.TeamId, participation.Team?.Name, null);
             db.Entry(participation)
                 .Property(assignment => assignment.ConcurrencyToken)
                 .OriginalValue = input.ExpectedConcurrencyToken;
@@ -228,6 +233,13 @@ public sealed partial class CampaignPlacementService(
             participation.PlacementOutcome = input.Outcome;
             participation.TeamId = input.TeamId;
             participation.ConcurrencyToken = replacementToken;
+
+            var actorName = await db.Users.Where(candidate => candidate.Id == userId).Select(candidate => candidate.FirstName + " " + candidate.LastName).SingleOrDefaultAsync(cancellationToken) ?? "Club administrator";
+            activityEventWriter?.AppendPlacement(db, new PlacementActivityEvidence(
+                clubId, new ActivityActorEvidence(userId, actorName), participation.CampaignId,
+                participation.Campaign.Name, participation.PlayerCampaignAssignmentId, participation.PlayerId,
+                participation.Player.FirstName + " " + participation.Player.LastName, previous,
+                new PlacementActivityState(input.Outcome, input.TeamId, team?.Name, null)));
 
             try
             {

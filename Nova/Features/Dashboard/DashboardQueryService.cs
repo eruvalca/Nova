@@ -1,6 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Globalization;
+using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Entities;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Clubs;
@@ -109,40 +112,116 @@ public sealed partial class DashboardQueryService(
             return ServiceProblem.Forbidden("You must be an approved club member to view club dashboard activity.");
         }
 
-        var limit = input.Limit ?? GetDashboardActivityInput.DefaultLimit;
-
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-
-        var rows = new List<DashboardActivityEventRow>(limit * 4);
-        rows.AddRange(await ReadNoteRowsAsync(db, clubId, limit, cancellationToken));
-        rows.AddRange(await ReadTagRowsAsync(db, clubId, limit, cancellationToken));
-        rows.AddRange(await ReadPlacementRowsAsync(db, clubId, limit, cancellationToken));
-        rows.AddRange(await ReadLifecycleRowsAsync(db, clubId, limit, cancellationToken));
-
-        var merged = DashboardActivityFeedPolicy.OrderAndBound(rows, limit);
-
-        var actorDisplayNames = await ResolveActorDisplayNamesAsync(db, clubId, merged, cancellationToken);
-
-        var events = merged
-            .Select(row => new DashboardActivityItemDto
+        var cursor = ActivityCursor.TryDecode(input.ContinuationToken);
+        if (input.ContinuationToken is not null && cursor is null)
+        {
+            return ServiceProblem.Validation(new Dictionary<string, string[]>
             {
-                Kind = row.Kind,
-                EventId = row.EventId,
-                EventAt = row.EventAt,
-                ActorUserId = row.ActorUserId,
-                ActorDisplayName = ResolveActorDisplayName(actorDisplayNames, row.ActorUserId),
-                CampaignId = row.CampaignId,
-                CampaignName = row.CampaignName,
-                PlayerCampaignAssignmentId = row.PlayerCampaignAssignmentId,
-                PlayerDisplayName = row.PlayerDisplayName,
-                TagName = row.TagName,
-                PlacementOutcome = row.PlacementOutcome,
-                LifecycleEventType = row.LifecycleEventType
-            })
-            .ToList()
-            .AsReadOnly();
+                [nameof(GetDashboardActivityInput.ContinuationToken)] = ["The continuation token is invalid."]
+            });
+        }
 
-        return new DashboardActivityResult(events);
+        var limit = input.ContinuationToken is null && input.Limit is int legacyLimit ? legacyLimit : DashboardActivityResult.PageSize;
+        var query = db.ClubActivityEvents.AsNoTracking().Where(activity => activity.ClubId == clubId && (activity.Audience == ClubActivityAudience.AllMembers || currentUserProvider.IsClubAdmin));
+        if (cursor is { } seek)
+        {
+            query = query.Where(activity => activity.CreatedAt < seek.CreatedAt || (activity.CreatedAt == seek.CreatedAt && activity.ClubActivityEventId < seek.EventId));
+        }
+        List<ClubActivityEventEntity> rows;
+        if (db.Database.IsNpgsql())
+        {
+            rows = await query.OrderByDescending(activity => activity.CreatedAt).ThenByDescending(activity => activity.ClubActivityEventId).Take(limit + 1).ToListAsync(cancellationToken);
+        }
+        else
+        {
+            rows = (await query.ToListAsync(cancellationToken)).OrderByDescending(activity => activity.CreatedAt).ThenByDescending(activity => activity.ClubActivityEventId).Take(limit + 1).ToList();
+        }
+        if (rows.Count == 0 && cursor is null)
+        {
+            var legacy = new List<DashboardActivityEventRow>(limit * 4);
+            legacy.AddRange(await ReadNoteRowsAsync(db, clubId, limit, cancellationToken));
+            legacy.AddRange(await ReadTagRowsAsync(db, clubId, limit, cancellationToken));
+            legacy.AddRange(await ReadPlacementRowsAsync(db, clubId, limit, cancellationToken));
+            legacy.AddRange(await ReadLifecycleRowsAsync(db, clubId, limit, cancellationToken));
+            var merged = DashboardActivityFeedPolicy.OrderAndBound(legacy, limit);
+            var names = await ResolveActorDisplayNamesAsync(db, clubId, merged, cancellationToken);
+            return new DashboardActivityResult(merged.Select(row => new DashboardActivityItemDto { Kind = row.Kind, EventId = row.EventId, EventAt = row.EventAt, ActorUserId = row.ActorUserId, ActorDisplayName = ResolveActorDisplayName(names, row.ActorUserId), CampaignId = row.CampaignId, CampaignName = row.CampaignName, PlayerCampaignAssignmentId = row.PlayerCampaignAssignmentId, PlayerDisplayName = row.PlayerDisplayName, TagName = row.TagName, PlacementOutcome = row.PlacementOutcome, LifecycleEventType = row.LifecycleEventType }).ToList().AsReadOnly());
+        }
+        var hasNext = rows.Count > limit;
+        if (hasNext)
+        {
+            rows.RemoveAt(rows.Count - 1);
+        }
+
+        var campaignIds = rows.Where(row => row.CampaignId is not null).Select(row => row.CampaignId!.Value).Distinct().ToArray();
+        var assignmentIds = rows.Where(row => row.PlayerCampaignAssignmentId is not null).Select(row => row.PlayerCampaignAssignmentId!.Value).Distinct().ToArray();
+        var memberIds = rows.Where(row => row.SubjectUserId is not null).Select(row => row.SubjectUserId!.Value).Distinct().ToArray();
+        var requestIds = rows.Where(row => row.JoinRequestId is not null).Select(row => row.JoinRequestId!.Value).Distinct().ToArray();
+        var existingCampaignIds = (await db.Campaigns.Where(campaign => campaignIds.Contains(campaign.CampaignId)).Select(campaign => campaign.CampaignId).ToListAsync(cancellationToken)).ToHashSet();
+        var existingAssignmentIds = (await db.PlayerCampaignAssignments.Where(assignment => assignmentIds.Contains(assignment.PlayerCampaignAssignmentId)).Select(assignment => assignment.PlayerCampaignAssignmentId).ToListAsync(cancellationToken)).ToHashSet();
+        var existingMemberIds = (await db.Users.Where(user => memberIds.Contains(user.Id)).Select(user => user.Id).ToListAsync(cancellationToken)).ToHashSet();
+        var existingRequestIds = (await db.ClubJoinRequests.Where(request => requestIds.Contains(request.ClubJoinRequestId) && request.Status == RequestStatus.Pending).Select(request => request.ClubJoinRequestId).ToListAsync(cancellationToken)).ToHashSet();
+        var events = rows.Select(row => MapActivity(row, existingCampaignIds, existingAssignmentIds, existingMemberIds, existingRequestIds)).ToList().AsReadOnly();
+        var next = hasNext && rows.Count > 0 ? ActivityCursor.Encode(rows[^1].CreatedAt, rows[^1].ClubActivityEventId) : null;
+        return new DashboardActivityResult(events) { NextContinuationToken = next };
+    }
+
+    private DashboardActivityItemDto MapActivity(ClubActivityEventEntity activity, IReadOnlySet<long> existingCampaignIds, IReadOnlySet<long> existingAssignmentIds, IReadOnlySet<long> existingMemberIds, IReadOnlySet<long> existingRequestIds)
+    {
+        var kind = activity.EventKind switch
+        {
+            ClubActivityEventKind.CampaignDraftCreated => DashboardActivityEventKind.CampaignOpened,
+            ClubActivityEventKind.CampaignDraftDeleted => DashboardActivityEventKind.CampaignClosed,
+            ClubActivityEventKind.CampaignOpened => DashboardActivityEventKind.CampaignOpened,
+            ClubActivityEventKind.CampaignClosed => DashboardActivityEventKind.CampaignClosed,
+            ClubActivityEventKind.CampaignReopened => DashboardActivityEventKind.CampaignReopened,
+            ClubActivityEventKind.PlacementAssigned => DashboardActivityEventKind.PlacementAssigned,
+            ClubActivityEventKind.PlacementReassigned => DashboardActivityEventKind.PlacementReassigned,
+            ClubActivityEventKind.PlacementOutcomeChanged => DashboardActivityEventKind.PlacementOutcomeChanged,
+            ClubActivityEventKind.JoinRequestSubmitted => DashboardActivityEventKind.JoinRequestSubmitted,
+            ClubActivityEventKind.JoinRequestCancelled => DashboardActivityEventKind.JoinRequestCancelled,
+            ClubActivityEventKind.JoinRequestRejected => DashboardActivityEventKind.JoinRequestRejected,
+            ClubActivityEventKind.JoinRequestApproved => currentUserProvider.IsClubAdmin ? DashboardActivityEventKind.JoinRequestApproved : DashboardActivityEventKind.MemberJoined,
+            ClubActivityEventKind.MemberJoined => DashboardActivityEventKind.MemberJoined,
+            ClubActivityEventKind.MemberPromoted => DashboardActivityEventKind.MemberPromoted,
+            ClubActivityEventKind.MemberDemoted => DashboardActivityEventKind.MemberDemoted,
+            ClubActivityEventKind.MemberRemoved => DashboardActivityEventKind.MemberRemoved,
+            ClubActivityEventKind.MemberLeft => DashboardActivityEventKind.MemberLeft,
+            _ => throw new ArgumentOutOfRangeException()
+        };
+        DashboardActivityContextDto context = activity.EventKind switch
+        {
+            ClubActivityEventKind.PlacementAssigned or ClubActivityEventKind.PlacementReassigned or ClubActivityEventKind.PlacementOutcomeChanged => new PlacementActivityContextDto { ActorDisplayName = activity.ActorDisplayName, PlayerId = activity.PlayerId is long playerId && existingMemberIds.Contains(playerId) ? playerId : null, PlayerDisplayName = activity.PlayerDisplayName ?? "Former member", PlayerCampaignAssignmentId = activity.PlayerCampaignAssignmentId is long assignmentId && existingAssignmentIds.Contains(assignmentId) ? assignmentId : null, CampaignId = activity.CampaignId is long campaignId && existingCampaignIds.Contains(campaignId) ? campaignId : null, CampaignName = activity.CampaignName ?? "Former campaign", Previous = new PlacementSnapshotDto { Outcome = activity.PreviousPlacementOutcome ?? PlacementOutcome.Undecided, TeamId = activity.PreviousTeamId, TeamName = activity.PreviousTeamName, SourceCampaignName = activity.PreviousSourceCampaignName }, Current = new PlacementSnapshotDto { Outcome = activity.CurrentPlacementOutcome ?? PlacementOutcome.Undecided, TeamId = activity.CurrentTeamId, TeamName = activity.CurrentTeamName, SourceCampaignName = activity.CurrentSourceCampaignName } },
+            ClubActivityEventKind.JoinRequestSubmitted or ClubActivityEventKind.JoinRequestCancelled or ClubActivityEventKind.JoinRequestRejected or ClubActivityEventKind.JoinRequestApproved => new JoinRequestActivityContextDto { ActorDisplayName = activity.ActorDisplayName, RequesterUserId = activity.SubjectUserId is long requesterId && existingMemberIds.Contains(requesterId) ? requesterId : null, RequesterDisplayName = activity.SubjectDisplayName ?? "Former member", ActionableRequestId = activity.JoinRequestId is long requestId && existingRequestIds.Contains(requestId) ? requestId : null },
+            ClubActivityEventKind.MemberJoined or ClubActivityEventKind.MemberPromoted or ClubActivityEventKind.MemberDemoted or ClubActivityEventKind.MemberRemoved or ClubActivityEventKind.MemberLeft => new MembershipActivityContextDto { ActorDisplayName = activity.ActorDisplayName, MemberUserId = activity.SubjectUserId is long memberId && existingMemberIds.Contains(memberId) ? memberId : null, MemberDisplayName = activity.SubjectDisplayName ?? "Former member" },
+            _ => new CampaignActivityContextDto { ActorDisplayName = activity.ActorDisplayName, CampaignId = activity.CampaignId is long campaignId && existingCampaignIds.Contains(campaignId) ? campaignId : null, CampaignName = activity.CampaignName ?? "Former campaign", SeasonName = activity.SeasonName }
+        };
+        return new DashboardActivityItemDto { Kind = kind, EventId = activity.ClubActivityEventId, EventAt = activity.CreatedAt, Context = context };
+    }
+
+    private readonly record struct ActivityCursor(DateTimeOffset CreatedAt, long EventId)
+    {
+        public static string Encode(DateTimeOffset createdAt, long eventId) => Convert.ToBase64String(Encoding.UTF8.GetBytes($"1:{createdAt.UtcTicks}:{eventId}"));
+        public static ActivityCursor? TryDecode(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            try
+            {
+                var parts = Encoding.UTF8.GetString(Convert.FromBase64String(value)).Split(':');
+                if (parts.Length != 3 || parts[0] != "1" || !long.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks) || !long.TryParse(parts[2], out var id) || id <= 0)
+                {
+                    return null;
+                }
+
+                return new ActivityCursor(new DateTimeOffset(ticks, TimeSpan.Zero), id);
+            }
+            catch { return null; }
+        }
     }
 
     /// <summary>

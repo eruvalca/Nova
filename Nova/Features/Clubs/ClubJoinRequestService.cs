@@ -5,6 +5,7 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Clubs;
+using Nova.Features.ClubActivity;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
@@ -22,11 +23,13 @@ public sealed partial class ClubJoinRequestService(
     ICurrentUserProvider currentUserProvider,
     ClubMembershipClaimRefresher clubMembershipClaimRefresher,
     UserManager<NovaUserEntity> userManager,
-    ILogger<ClubJoinRequestService> logger) : IClubJoinRequestService
+    ILogger<ClubJoinRequestService> logger,
+    IClubActivityEventWriter? activityEventWriter = null) : IClubJoinRequestService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<ClubJoinRequestDto>> GetCurrentUserPendingRequestAsync(CancellationToken cancellationToken = default)
     {
+        _ = dbContextFactory;
         if (currentUserProvider.UserId is not long userId)
         {
             return ServiceProblem.NotFound();
@@ -61,7 +64,7 @@ public sealed partial class ClubJoinRequestService(
 
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            await using var db = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
 
             // Check for existing pending request
             var existingRequest = await db.ClubJoinRequests
@@ -90,6 +93,10 @@ public sealed partial class ClubJoinRequestService(
 
             db.ClubJoinRequests.Add(joinRequest);
             await db.SaveChangesAsync(cancellationToken);
+            activityEventWriter?.AppendJoinRequest(db, new JoinRequestActivityEvidence(
+                ClubActivityEventKind.JoinRequestSubmitted, clubId,
+                new ActivityActorEvidence(userId, "Member"), joinRequest.ClubJoinRequestId, userId, "Member"));
+            await db.SaveChangesAsync(cancellationToken);
 
             // Reload with Club and RequestingUser navigations
             var reloaded = await db.ClubJoinRequests
@@ -115,7 +122,7 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.NotFound();
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var db = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var request = await db.ClubJoinRequests
             .FirstOrDefaultAsync(e => e.ClubJoinRequestId == requestId, cancellationToken);
@@ -138,6 +145,9 @@ public sealed partial class ClubJoinRequestService(
         }
 
         db.ClubJoinRequests.Remove(request);
+        activityEventWriter?.AppendJoinRequest(db, new JoinRequestActivityEvidence(
+            ClubActivityEventKind.JoinRequestCancelled, request.ClubId,
+            new ActivityActorEvidence(userId, "Member"), requestId, request.RequestingUserId, "Member"));
         await db.SaveChangesAsync(cancellationToken);
 
         LogJoinRequestCancelled(userId, requestId);
@@ -180,12 +190,12 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.Forbidden("You are not a club administrator.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var db = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var request = await db.ClubJoinRequests
             .FirstOrDefaultAsync(e => e.ClubJoinRequestId == requestId, cancellationToken);
 
-        if (request is null)
+        if (request is null || request.ClubId != currentUserProvider.ClubId)
         {
             return ServiceProblem.NotFound("The join request was not found.");
         }
@@ -196,6 +206,9 @@ public sealed partial class ClubJoinRequestService(
         }
 
         request.Status = RequestStatus.Approved;
+        activityEventWriter?.AppendJoinRequest(db, new JoinRequestActivityEvidence(
+            ClubActivityEventKind.JoinRequestApproved, request.ClubId,
+            new ActivityActorEvidence(currentUserProvider.UserId ?? 0, "Club administrator"), requestId, request.RequestingUserId, "Member"));
         await db.SaveChangesAsync(cancellationToken);
 
         // Re-fetch the requesting user through UserManager (its own tracked instance) to avoid
@@ -226,12 +239,12 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.Forbidden("You are not a club administrator.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var db = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var request = await db.ClubJoinRequests
             .FirstOrDefaultAsync(e => e.ClubJoinRequestId == requestId, cancellationToken);
 
-        if (request is null)
+        if (request is null || request.ClubId != currentUserProvider.ClubId)
         {
             return ServiceProblem.NotFound("The join request was not found.");
         }
@@ -242,6 +255,9 @@ public sealed partial class ClubJoinRequestService(
         }
 
         request.Status = RequestStatus.Rejected;
+        activityEventWriter?.AppendJoinRequest(db, new JoinRequestActivityEvidence(
+            ClubActivityEventKind.JoinRequestRejected, request.ClubId,
+            new ActivityActorEvidence(currentUserProvider.UserId ?? 0, "Club administrator"), requestId, request.RequestingUserId, "Member"));
         await db.SaveChangesAsync(cancellationToken);
 
         LogJoinRequestRejected(currentUserProvider.UserId ?? 0, requestId, request.RequestingUserId);

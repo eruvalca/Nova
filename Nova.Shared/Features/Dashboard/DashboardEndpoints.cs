@@ -42,6 +42,15 @@ public static class DashboardEndpoints
     /// </summary>
     public const string GetActivityRouteName = "GetClubDashboardActivity";
 
+    /// <summary>The administrator-only attention projection route.</summary>
+    public const string GetAttention = $"{GroupPrefix}/attention";
+
+    /// <summary>The attention route relative to the dashboard group.</summary>
+    public const string GetAttentionRelative = "attention";
+
+    /// <summary>The route name assigned to the administrator attention projection.</summary>
+    public const string GetAttentionRouteName = "GetClubDashboardAttention";
+
     /// <summary>
     /// The route prefix of the campaign workspace page (the #10 read surface), used to build the
     /// prebuilt workspace link carried by each active campaign card.
@@ -58,12 +67,16 @@ public static class DashboardEndpoints
     /// Builds the bounded recent-activity URL, omitting the optional limit when it is not supplied
     /// or would not be accepted by the input contract.
     /// </summary>
-    /// <param name="limit">The optional bound on returned activity events.</param>
+    /// <param name="continuationToken">The opaque token for the next older page.</param>
     /// <returns>The recent-activity URL.</returns>
+    public static string GetActivityUrl(string? continuationToken)
+        => string.IsNullOrWhiteSpace(continuationToken)
+            ? GetActivity
+            : $"{GetActivity}?continuationToken={Uri.EscapeDataString(continuationToken)}";
+
+    [Obsolete("Use cursor-based activity paging.")]
     public static string GetActivityUrl(int? limit)
-        => limit is int value and >= 1 and <= GetDashboardActivityInput.MaxEventCount
-            ? $"{GetActivity}?limit={value}"
-            : GetActivity;
+        => limit is int value and > 0 ? $"{GetActivity}?limit={value}" : GetActivity;
 
     /// <summary>
     /// Builds the prebuilt workspace URL for an active campaign card, pointing at the campaign

@@ -17,6 +17,7 @@ using Nova.Entities;
 using Nova.Extensions.Security;
 using Nova.Features.Account;
 using Nova.Features.Campaigns;
+using Nova.Features.ClubActivity;
 using Nova.Features.Clubs;
 using Nova.Features.Dashboard;
 using Nova.Features.Photos;
@@ -128,6 +129,8 @@ builder.Services.AddScoped<ICampaignParticipantQueryService, CampaignParticipant
 builder.Services.AddScoped<ICampaignPlacementQueryService, CampaignPlacementQueryService>();
 builder.Services.AddScoped<ICampaignCloseoutQueryService, CampaignCloseoutQueryService>();
 builder.Services.AddScoped<IDashboardQueryService, DashboardQueryService>();
+builder.Services.AddScoped<IClubActivityEventWriter, ClubActivityEventWriter>();
+builder.Services.AddScoped<IAdminAttentionQueryService, DashboardAttentionQueryService>();
 builder.Services.AddScoped<ICampaignMetadataService, CampaignMetadataService>();
 builder.Services.AddScoped<ISeasonMetadataService, SeasonMetadataService>();
 builder.Services.AddScoped<IPlayerLifecycleService, PlayerLifecycleService>();

@@ -38,19 +38,20 @@ public sealed class HttpDashboardQueryService(HttpClient http) : IDashboardQuery
             return ServiceProblem.Validation(errors);
         }
 
-        var limit = input.Limit ?? GetDashboardActivityInput.DefaultLimit;
-
         using var response = await http.GetAsync(
-            DashboardEndpoints.GetActivityUrl(input.Limit),
+            input.ContinuationToken is null && input.Limit is not null
+                ? $"{DashboardEndpoints.GetActivity}?limit={input.Limit.Value}"
+                : DashboardEndpoints.GetActivityUrl(input.ContinuationToken),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
+        var requestedLimit = input.Limit ?? DashboardActivityResult.PageSize;
         return await response.Content.ReadRequiredJsonAsync<DashboardActivityResult>(
             "The server returned an invalid club dashboard activity response.",
-            result => IsValidActivity(result, limit),
+            result => IsValidActivity(result, requestedLimit),
             cancellationToken);
     }
 
@@ -144,33 +145,33 @@ public sealed class HttpDashboardQueryService(HttpClient http) : IDashboardQuery
     /// <returns><see langword="true"/> when the row is structurally valid for its kind.</returns>
     private static bool IsValidActivityItem(DashboardActivityItemDto item)
     {
-        if (item is null
-            || item.EventId <= 0
-            || item.EventAt == default
-            || item.ActorUserId <= 0
-            || string.IsNullOrWhiteSpace(item.ActorDisplayName)
-            || item.CampaignId <= 0
-            || string.IsNullOrWhiteSpace(item.CampaignName))
+        if (item is null || item.EventId <= 0 || item.EventAt == default)
         {
             return false;
         }
-
-        return item.Kind switch
+        if (item.Context is null)
         {
-            DashboardActivityEventKind.NoteAdded
-                => item.PlayerCampaignAssignmentId is > 0 && !string.IsNullOrWhiteSpace(item.PlayerDisplayName),
-            DashboardActivityEventKind.TagApplied
-                => item.PlayerCampaignAssignmentId is > 0
-                    && !string.IsNullOrWhiteSpace(item.PlayerDisplayName)
-                    && !string.IsNullOrWhiteSpace(item.TagName),
-            DashboardActivityEventKind.PlacementSet
-                => item.PlayerCampaignAssignmentId is > 0
-                    && !string.IsNullOrWhiteSpace(item.PlayerDisplayName)
-                    && item.PlacementOutcome is not null,
-            DashboardActivityEventKind.CampaignClosed
-                => item.LifecycleEventType == CampaignLifecycleEventType.Closed,
-            DashboardActivityEventKind.CampaignReopened
-                => item.LifecycleEventType == CampaignLifecycleEventType.Reopened,
+            if (!Enum.IsDefined(item.Kind) || item.ActorUserId <= 0 || string.IsNullOrWhiteSpace(item.ActorDisplayName) || item.CampaignId <= 0 || string.IsNullOrWhiteSpace(item.CampaignName))
+            {
+                return false;
+            }
+
+            return item.Kind switch
+            {
+                DashboardActivityEventKind.NoteAdded => item.PlayerCampaignAssignmentId is > 0 && !string.IsNullOrWhiteSpace(item.PlayerDisplayName),
+                DashboardActivityEventKind.TagApplied => item.PlayerCampaignAssignmentId is > 0 && !string.IsNullOrWhiteSpace(item.PlayerDisplayName) && !string.IsNullOrWhiteSpace(item.TagName),
+                DashboardActivityEventKind.PlacementSet => item.PlayerCampaignAssignmentId is > 0 && !string.IsNullOrWhiteSpace(item.PlayerDisplayName) && item.PlacementOutcome is not null,
+                DashboardActivityEventKind.CampaignClosed => item.LifecycleEventType == CampaignLifecycleEventType.Closed,
+                DashboardActivityEventKind.CampaignReopened => item.LifecycleEventType == CampaignLifecycleEventType.Reopened,
+                _ => false
+            };
+        }
+        return item.Context switch
+        {
+            CampaignActivityContextDto c => !string.IsNullOrWhiteSpace(c.ActorDisplayName) && !string.IsNullOrWhiteSpace(c.CampaignName),
+            PlacementActivityContextDto p => !string.IsNullOrWhiteSpace(p.ActorDisplayName) && !string.IsNullOrWhiteSpace(p.PlayerDisplayName),
+            JoinRequestActivityContextDto j => !string.IsNullOrWhiteSpace(j.ActorDisplayName) && !string.IsNullOrWhiteSpace(j.RequesterDisplayName),
+            MembershipActivityContextDto m => !string.IsNullOrWhiteSpace(m.MemberDisplayName),
             _ => false
         };
     }

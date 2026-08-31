@@ -38,6 +38,14 @@ internal static class DashboardEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName(DashboardEndpoints.GetActivityRouteName);
 
+            group.MapGet(DashboardEndpoints.GetAttentionRelative, GetAttentionHandler)
+                .RequireAuthorization(Policies.RequireClubAdmin)
+                .Produces<AdminAttentionResult>()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .WithName(DashboardEndpoints.GetAttentionRouteName);
+
             return endpoints;
         }
     }
@@ -71,4 +79,9 @@ internal static class DashboardEndpointRouteBuilderExtensions
         var result = await dashboardQueryService.GetActivityAsync(input, cancellationToken);
         return result.ToHttpResult();
     }
+
+    private static async Task<IResult> GetAttentionHandler(
+        IAdminAttentionQueryService attentionQueryService,
+        CancellationToken cancellationToken)
+        => (await attentionQueryService.GetAsync(cancellationToken)).ToHttpResult();
 }

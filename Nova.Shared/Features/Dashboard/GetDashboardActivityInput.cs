@@ -7,20 +7,20 @@ namespace Nova.Shared.Features.Dashboard;
 /// </summary>
 public sealed record GetDashboardActivityInput
 {
-    /// <summary>
-    /// The maximum number of activity events the server will return.
-    /// </summary>
+    /// <summary>The fixed number of events returned per page.</summary>
+    public const int PageSize = 20;
+
+    // Retained for source compatibility with older callers. New callers should omit this and
+    // receive the fixed page size above.
     public const int MaxEventCount = 50;
+    public const int DefaultLimit = MaxEventCount;
 
-    /// <summary>
-    /// The default number of activity events returned when no limit is supplied.
-    /// </summary>
-    public const int DefaultLimit = 50;
-
-    /// <summary>
-    /// The optional bound on returned activity events. Omission applies <see cref="DefaultLimit"/>,
-    /// and validation rejects values above <see cref="MaxEventCount"/>.
-    /// </summary>
     [Range(1, MaxEventCount)]
     public int? Limit { get; init; }
+
+    /// <summary>
+    /// The opaque token identifying the last event from which the next older page should continue.
+    /// </summary>
+    [MaxLength(512)]
+    public string? ContinuationToken { get; init; }
 }
