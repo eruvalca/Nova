@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Campaigns;
 using Shouldly;
 using static Nova.Integration.Tests.Http.SeedingHelpers;
@@ -120,12 +121,12 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         campaign.ClosedAt.ShouldNotBeNull();
         campaign.ClosedById.ShouldBe(seeded.AdminUserId);
 
-        var events = await context.CampaignLifecycleEvents
+        var events = await context.ActivityEvents
             .Where(candidate => candidate.CampaignId == seeded.CampaignId)
-            .OrderBy(candidate => candidate.CampaignLifecycleEventId)
+            .OrderBy(candidate => candidate.ActivityEventId)
             .ToListAsync(cancellationToken);
         events.Count.ShouldBe(1);
-        events[0].EventType.ShouldBe(CampaignLifecycleEventType.Closed);
+        events[0].EventKind.ShouldBe(ActivityEventKind.CampaignClosed);
         events[0].ClubId.ShouldBe(club.ClubId);
         events[0].CreatedById.ShouldBe(seeded.AdminUserId);
     }
@@ -186,7 +187,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         campaign.Status.ShouldBe(CampaignStatus.Active);
         campaign.ClosedAt.ShouldBeNull();
         campaign.ClosedById.ShouldBeNull();
-        (await context.CampaignLifecycleEvents
+        (await context.ActivityEvents
             .AnyAsync(candidate => candidate.CampaignId == seeded.CampaignId, cancellationToken))
             .ShouldBeFalse();
     }
@@ -312,15 +313,15 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         campaign.ClosedAt.ShouldBeNull();
         campaign.ClosedById.ShouldBeNull();
 
-        var events = await context.CampaignLifecycleEvents
+        var events = await context.ActivityEvents
             .Where(candidate => candidate.CampaignId == seeded.CampaignId)
-            .OrderBy(candidate => candidate.CampaignLifecycleEventId)
-            .Select(candidate => candidate.EventType)
+            .OrderBy(candidate => candidate.ActivityEventId)
+            .Select(candidate => candidate.EventKind)
             .ToListAsync(cancellationToken);
         events.ShouldBe(
         [
-            CampaignLifecycleEventType.Closed,
-            CampaignLifecycleEventType.Reopened
+            ActivityEventKind.CampaignClosed,
+            ActivityEventKind.CampaignReopened
         ]);
     }
 
@@ -398,13 +399,15 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         untouched.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
         untouched.TeamId.ShouldBe(eligibleTeamId);
 
-        var reopenEvents = await verify.CampaignLifecycleEvents
+        var reopenEvents = await verify.ActivityEvents
             .Where(candidate => candidate.CampaignId == seeded.CampaignId)
-            .OrderBy(candidate => candidate.CampaignLifecycleEventId)
-            .Select(candidate => new { candidate.EventType, candidate.CreatedById })
+            .OrderBy(candidate => candidate.ActivityEventId)
+            .Select(candidate => new { candidate.EventKind, candidate.CreatedById })
             .ToListAsync(cancellationToken);
-        reopenEvents.Last().EventType.ShouldBe(CampaignLifecycleEventType.Reopened);
+        reopenEvents.Last().EventKind.ShouldBe(ActivityEventKind.PlacementOutcomeReplaced);
         reopenEvents.Last().CreatedById.ShouldBe(seeded.AdminUserId);
+        reopenEvents.ShouldContain(activityEvent => activityEvent.EventKind == ActivityEventKind.CampaignReopened
+            && activityEvent.CreatedById == seeded.AdminUserId);
     }
 
     /// <summary>
@@ -600,11 +603,20 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
 
         if (closed)
         {
-            context.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
+            context.ActivityEvents.Add(new ActivityEventEntity
             {
                 CampaignId = campaign.CampaignId,
-                EventType = CampaignLifecycleEventType.Closed,
                 ClubId = clubId,
+                EventKind = ActivityEventKind.CampaignClosed,
+                ActorUserId = user.Id,
+                ActorDisplayName = $"{user.FirstName} {user.LastName}",
+                PayloadJson = JsonSerializer.Serialize(
+                    new CampaignLifecycleContext
+                    {
+                        CampaignId = campaign.CampaignId,
+                        CampaignName = campaign.Name
+                    },
+                    typeof(ClubActivityContext)),
                 CreatedById = user.Id
             });
             await context.SaveChangesAsync(cancellationToken);

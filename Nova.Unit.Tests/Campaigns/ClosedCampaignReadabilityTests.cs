@@ -242,11 +242,15 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
         });
         admin.SaveChanges();
 
-        admin.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
+        admin.ActivityEvents.Add(new ActivityEventEntity
         {
             CampaignId = closedCampaign.CampaignId,
             ClubId = ClubAId,
-            EventType = CampaignLifecycleEventType.Closed,
+            EventKind = ActivityEventKind.CampaignClosed,
+            IsAdminOnly = false,
+            ActorUserId = ClubAAdminId,
+            ActorDisplayName = "Admin A",
+            PayloadJson = $$"""{"type":"campaignLifecycle","campaignId":{{closedCampaign.CampaignId}},"campaignName":"Closed Campaign"}""",
             CreatedById = ClubAAdminId
         });
         admin.SaveChanges();

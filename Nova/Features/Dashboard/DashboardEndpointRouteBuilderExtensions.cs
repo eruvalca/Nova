@@ -5,14 +5,14 @@ using Nova.Shared.Security;
 namespace Nova.Features.Dashboard;
 
 /// <summary>
-/// Maps the authorized club dashboard summary and recent-activity read endpoints.
+/// Maps the authorized club dashboard summary read endpoint.
 /// </summary>
 internal static class DashboardEndpointRouteBuilderExtensions
 {
     extension(IEndpointRouteBuilder endpoints)
     {
         /// <summary>
-        /// Maps the club dashboard summary and recent-activity GET endpoints under the shared dashboard group.
+        /// Maps the club dashboard summary GET endpoint under the shared dashboard group.
         /// </summary>
         /// <returns>The endpoint route builder for chaining.</returns>
         public IEndpointRouteBuilder MapDashboardEndpoints()
@@ -30,14 +30,6 @@ internal static class DashboardEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName(DashboardEndpoints.GetSummaryRouteName);
 
-            group.MapGet(DashboardEndpoints.GetActivityRelative, GetActivityHandler)
-                .Produces<DashboardActivityResult>()
-                .ProducesValidationProblem()
-                .ProducesProblem(StatusCodes.Status401Unauthorized)
-                .ProducesProblem(StatusCodes.Status403Forbidden)
-                .ProducesProblem(StatusCodes.Status500InternalServerError)
-                .WithName(DashboardEndpoints.GetActivityRouteName);
-
             return endpoints;
         }
     }
@@ -53,22 +45,6 @@ internal static class DashboardEndpointRouteBuilderExtensions
         CancellationToken cancellationToken)
     {
         var result = await dashboardQueryService.GetDashboardAsync(cancellationToken);
-        return result.ToHttpResult();
-    }
-
-    /// <summary>
-    /// Handles the club dashboard recent-activity GET request and converts the service result to an HTTP response.
-    /// </summary>
-    /// <param name="input">The activity query parameters.</param>
-    /// <param name="dashboardQueryService">The service that resolves the activity query.</param>
-    /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
-    /// <returns>The HTTP result for the recent-activity feed.</returns>
-    private static async Task<IResult> GetActivityHandler(
-        [AsParameters] GetDashboardActivityInput input,
-        IDashboardQueryService dashboardQueryService,
-        CancellationToken cancellationToken)
-    {
-        var result = await dashboardQueryService.GetActivityAsync(input, cancellationToken);
         return result.ToHttpResult();
     }
 }

@@ -97,9 +97,9 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// </summary>
     public DbSet<CampaignTagApplicationRemovalReceiptEntity> CampaignTagApplicationRemovalReceipts => Set<CampaignTagApplicationRemovalReceiptEntity>();
     /// <summary>
-    /// Gets the Campaign Lifecycle Events.
+    /// Gets the Activity Events.
     /// </summary>
-    public DbSet<CampaignLifecycleEventEntity> CampaignLifecycleEvents => Set<CampaignLifecycleEventEntity>();
+    public DbSet<ActivityEventEntity> ActivityEvents => Set<ActivityEventEntity>();
     /// <summary>
     /// Gets the Nova User Photos.
     /// </summary>
@@ -134,6 +134,14 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
             _bypassTenantFilter
             || e.RequestingUserId == _currentUser.UserId
             || (_currentUser.IsClubAdmin && e.ClubId == _currentUser.ClubId));
+
+        // Activity events: visible to the current tenant, and to admins of the target club. The
+        // entity deliberately does not implement ITenantOwnedEntity so a club-less user can write
+        // a JoinRequestSubmitted event without tripping the interceptor's cross-tenant guard; this
+        // filter mirrors ClubJoinRequestEntity but checks only the current tenant membership.
+        modelBuilder.Entity<ActivityEventEntity>().HasQueryFilter(e =>
+            _bypassTenantFilter
+            || e.ClubId == _currentUser.ClubId);
 
         // Users: visible to fellow club members; a user can always see themselves.
         modelBuilder.Entity<NovaUserEntity>().HasQueryFilter(e =>

@@ -3,7 +3,10 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Activity;
 using Nova.Features.Shared;
+using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
@@ -174,6 +177,7 @@ public sealed partial class CampaignPlacementService(
         var participation = await db.PlayerCampaignAssignments
             .Include(assignment => assignment.Player)
             .Include(assignment => assignment.Campaign)
+            .Include(assignment => assignment.Team)
             .SingleOrDefaultAsync(
                 assignment => assignment.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId,
                 cancellationToken);
@@ -225,9 +229,49 @@ public sealed partial class CampaignPlacementService(
                 .Property(assignment => assignment.ConcurrencyToken)
                 .OriginalValue = input.ExpectedConcurrencyToken;
 
+            // Capture the prior placement state and the old team-name snapshot before mutation so
+            // the durable event can describe the transition; a no-op save emits nothing.
+            var previousOutcome = participation.PlacementOutcome;
+            var previousTeamId = participation.TeamId;
+            var previousTeamName = participation.Team?.Name;
+            var placementKind = ActivityEventPolicy.ClassifyPlacementTransition(
+                previousOutcome,
+                previousTeamId,
+                input.Outcome,
+                input.TeamId);
+
             participation.PlacementOutcome = input.Outcome;
             participation.TeamId = input.TeamId;
             participation.ConcurrencyToken = replacementToken;
+
+            // The actor is a club member (tenant-visible), so the write context resolves the
+            // snapshot deterministically.
+            var actorName = await db.Users
+                .Where(user => user.Id == userId)
+                .Select(user => user.FirstName + " " + user.LastName)
+                .FirstOrDefaultAsync(cancellationToken) ?? "Unknown user";
+
+            if (placementKind is ActivityEventKind kind)
+            {
+                ActivityEventWriter.AppendPlacement(
+                    db,
+                    participation.ClubId,
+                    participation.CampaignId,
+                    kind,
+                    userId,
+                    actorName,
+                    new PlacementContext
+                    {
+                        CampaignId = participation.CampaignId,
+                        CampaignName = participation.Campaign.Name,
+                        PlayerCampaignAssignmentId = participation.PlayerCampaignAssignmentId,
+                        PlayerDisplayName = participation.Player.FullName,
+                        PreviousOutcome = previousOutcome == PlacementOutcome.Undecided ? null : previousOutcome,
+                        Outcome = input.Outcome,
+                        PreviousTeamName = previousTeamName,
+                        TeamName = team?.Name,
+                    });
+            }
 
             try
             {

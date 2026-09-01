@@ -46,7 +46,7 @@ public partial class TraceParentPropagatingHandlerTests
         var capture = new CapturingHandler();
         using var invoker = CreateInvoker(capture);
         using var request = new HttpRequestMessage(HttpMethod.Get, "https://example.test");
-        using var ambientParent = new Activity("ambient-parent");
+        using var ambientParent = new System.Diagnostics.Activity("ambient-parent");
         ambientParent.SetIdFormat(ActivityIdFormat.W3C);
         ambientParent.Start();
 

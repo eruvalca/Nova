@@ -2,6 +2,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Nova.Shared.Features.Activity;
+using Nova.Shared.Features.Attention;
 using Nova.Shared.Features.Dashboard;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
@@ -14,10 +16,14 @@ namespace Nova.UI.Features.Dashboard.Pages;
 /// roster/team count cards, the administrator attention card, and the bounded recent-activity feed.
 /// </summary>
 /// <param name="dashboardQueryService">The dashboard read query service.</param>
+/// <param name="activityQueryService">The club activity feed read query service.</param>
+/// <param name="attentionQueryService">The club attention read query service.</param>
 /// <param name="authenticationStateProvider">The authentication state provider.</param>
 /// <param name="navigationManager">The navigation manager used for access-denied redirects.</param>
 public partial class ClubDashboard(
     IDashboardQueryService dashboardQueryService,
+    IClubActivityQueryService activityQueryService,
+    IClubAttentionQueryService attentionQueryService,
     AuthenticationStateProvider authenticationStateProvider,
     NavigationManager navigationManager) : NovaComponentBase
 {
@@ -27,9 +33,15 @@ public partial class ClubDashboard(
     private ClubDashboardResult? _summary;
 
     /// <summary>
-    /// The loaded recent-activity feed, or <see langword="null"/> when unavailable.
+    /// The loaded recent-activity feed page, or <see langword="null"/> when unavailable.
     /// </summary>
-    private DashboardActivityResult? _activity;
+    private ClubActivityResult? _activity;
+
+    /// <summary>
+    /// The loaded administrator attention projection, or <see langword="null"/> for members or
+    /// when unavailable.
+    /// </summary>
+    private ClubAttentionResult? _attention;
 
     /// <summary>
     /// The current page-level error message.
@@ -61,7 +73,13 @@ public partial class ClubDashboard(
     /// Gets or sets the persisted startup activity snapshot used across prerender and interactive attach.
     /// </summary>
     [PersistentState]
-    public DashboardActivityResult? PersistedActivity { get; set; }
+    public ClubActivityResult? PersistedActivity { get; set; }
+
+    /// <summary>
+    /// Gets or sets the persisted startup attention snapshot used across prerender and interactive attach.
+    /// </summary>
+    [PersistentState]
+    public ClubAttentionResult? PersistedAttention { get; set; }
 
     /// <summary>
     /// Gets or sets the persisted startup page error used across prerender and interactive attach.
@@ -85,9 +103,9 @@ public partial class ClubDashboard(
     /// active campaign has an unresolved placement.
     /// </summary>
     protected string ReviewPlacementsUrl =>
-        _summary?.AdminAttention?.FirstUnresolvedCampaignId is long campaignId
+        _attention?.NeedsPlacement.CampaignId is long campaignId
             ? DashboardEndpoints.CampaignWorkspaceUrl(campaignId)
-            : DashboardEndpoints.CampaignListRoute;
+            : "/campaigns";
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -102,6 +120,7 @@ public partial class ClubDashboard(
         {
             _summary = PersistedSummary;
             _activity = PersistedActivity;
+            _attention = PersistedAttention;
             _pageError = PersistedPageError;
             _isLoading = false;
             return;
@@ -124,18 +143,22 @@ public partial class ClubDashboard(
     }
 
     /// <summary>
-    /// Loads the dashboard summary and recent activity in parallel, surfacing the first failure as a
-    /// page-level error and redirecting forbidden callers to the access-denied page.
+    /// Loads the dashboard summary, recent activity, and (for administrators) the attention
+    /// projection in parallel, surfacing the first failure as a page-level error and redirecting
+    /// forbidden callers to the access-denied page.
     /// </summary>
-    /// <returns>A task that completes when both loads finish and state is updated.</returns>
+    /// <returns>A task that completes when the loads finish and state is updated.</returns>
     private async Task LoadDashboardAsync()
     {
         _pageError = null;
 
         var summaryTask = dashboardQueryService.GetDashboardAsync(ComponentCancellationToken);
-        var activityTask = dashboardQueryService.GetActivityAsync(
-            new GetDashboardActivityInput { Limit = GetDashboardActivityInput.DefaultLimit },
+        var activityTask = activityQueryService.GetClubActivityAsync(
+            new GetClubActivityInput(),
             ComponentCancellationToken);
+        var attentionTask = _isClubAdmin
+            ? attentionQueryService.GetClubAttentionAsync(ComponentCancellationToken)
+            : null;
 
         await Task.WhenAll(summaryTask, activityTask);
 
@@ -169,6 +192,23 @@ public partial class ClubDashboard(
                 error ??= ProblemMessage(problem, "Failed to load recent activity. Please retry.");
             });
 
+        if (attentionTask is not null)
+        {
+            var attentionResult = await attentionTask;
+            attentionResult.Switch(
+                attention => _attention = attention,
+                problem =>
+                {
+                    if (problem.Kind == ServiceProblemKind.Forbidden)
+                    {
+                        navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
+                        return;
+                    }
+
+                    error ??= ProblemMessage(problem, "Failed to load club attention. Please retry.");
+                });
+        }
+
         _pageError = error;
     }
 
@@ -185,12 +225,13 @@ public partial class ClubDashboard(
     }
 
     /// <summary>
-    /// Persists the startup summary/activity/error state for prerender-to-interactive restoration.
+    /// Persists the startup summary/activity/attention/error state for prerender-to-interactive restoration.
     /// </summary>
     private void PersistStartupState()
     {
         PersistedSummary = _summary;
         PersistedActivity = _activity;
+        PersistedAttention = _attention;
         PersistedPageError = _pageError;
     }
 

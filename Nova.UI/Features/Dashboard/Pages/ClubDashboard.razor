@@ -2,6 +2,7 @@
 @rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Enums
 @using Nova.Shared.Security
 @using Nova.UI.Features.Dashboard
 
@@ -126,16 +127,30 @@ FORM: Campaign map, ranked 1; two-zone operations-board staging; seed key assign
                     </a>
                 </section>
 
-                @if (_summary.AdminAttention is not null)
+                @if (_attention is not null)
                 {
                     <section class="attention-panel">
                         <div class="section-heading">
                             <h2>Admin attention</h2>
                         </div>
-                        <p><strong>@_summary.AdminAttention.PendingJoinRequestCount</strong> pending join requests</p>
-                        <a href="@ReviewRequestsUrl">Review requests <span aria-hidden="true">→</span></a>
-                        <p><strong>@_summary.AdminAttention.UnresolvedPlacementCount</strong> unresolved placements</p>
-                        <a href="@ReviewPlacementsUrl">Review placements <span aria-hidden="true">→</span></a>
+                        @if (_attention.PendingJoinRequests.Status == AttentionRegionStatus.Loaded)
+                        {
+                            <p><strong>@_attention.PendingJoinRequests.Count</strong> pending join requests</p>
+                            <a href="@ReviewRequestsUrl">Review requests <span aria-hidden="true">→</span></a>
+                        }
+                        else
+                        {
+                            <p class="text-muted">Pending join requests unavailable.</p>
+                        }
+                        @if (_attention.NeedsPlacement.Status == AttentionRegionStatus.Loaded)
+                        {
+                            <p><strong>@_attention.NeedsPlacement.Count</strong> unresolved placements</p>
+                            <a href="@ReviewPlacementsUrl">Review placements <span aria-hidden="true">→</span></a>
+                        }
+                        else
+                        {
+                            <p class="text-muted">Unresolved placements unavailable.</p>
+                        }
                     </section>
                 }
             </aside>
@@ -158,8 +173,8 @@ FORM: Campaign map, ranked 1; two-zone operations-board staging; seed key assign
                     @foreach (var item in _activity.Events)
                     {
                         <li>
-                            <time>@DashboardDisplay.FormatActivityDate(item.EventAt)</time>
-                            <span>@item.ActorDisplayName @DashboardDisplay.ActivityVerb(item) <strong>@item.CampaignName</strong></span>
+                            <time>@DashboardDisplay.FormatActivityDate(item.OccurredAt)</time>
+                            <span>@item.ActorDisplayName @DashboardDisplay.ActivityVerb(item)</span>
                         </li>
                     }
                 </ul>

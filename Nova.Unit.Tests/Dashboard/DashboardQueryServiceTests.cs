@@ -15,9 +15,8 @@ using Shouldly;
 namespace Nova.Unit.Tests.Dashboard;
 
 /// <summary>
-/// Verifies the role-shaped, tenant-safe club dashboard summary service: active-only cards with
-/// workspace links, active/archived roster and team counts, administrator-only attention counts,
-/// and composed problem propagation.
+/// Verifies the tenant-safe club dashboard summary service: active-only cards with workspace
+/// links and active/archived roster and team counts.
 /// </summary>
 public sealed class DashboardQueryServiceTests : IDisposable
 {
@@ -51,11 +50,10 @@ public sealed class DashboardQueryServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies active-only cards, workspace links, roster/team counts, and omitted admin attention
-    /// for a non-administrator.
+    /// Verifies active-only cards, workspace links, and roster/team counts for an evaluator.
     /// </summary>
     [Fact]
-    public async Task GetDashboard_ReturnsActiveCardsCounts_AndOmitsAttention_ForEvaluator()
+    public async Task GetDashboard_ReturnsActiveCardsCounts_ForEvaluator()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -79,108 +77,6 @@ public sealed class DashboardQueryServiceTests : IDisposable
         dashboard.Roster.ArchivedPlayers.ShouldBe(1);
         dashboard.Teams.ActiveTeams.ShouldBe(1);
         dashboard.Teams.ArchivedTeams.ShouldBe(1);
-
-        dashboard.AdminAttention.ShouldBeNull();
-    }
-
-    /// <summary>
-    /// Verifies an administrator receives attention counts composed from the join-request and
-    /// placement-summary surfaces.
-    /// </summary>
-    [Fact]
-    public async Task GetDashboard_ReturnsAttention_ForAdmin()
-    {
-        _harness.CurrentUser.UserId = ClubAAdminId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-
-        List<ClubJoinRequestDto> pending =
-        [
-            new ClubJoinRequestDto(1, ClubAId, "Club A", 900, "Requester 1", RequestStatus.Pending, DateTimeOffset.UtcNow),
-            new ClubJoinRequestDto(2, ClubAId, "Club A", 901, "Requester 2", RequestStatus.Pending, DateTimeOffset.UtcNow),
-            new ClubJoinRequestDto(3, ClubAId, "Club A", 902, "Requester 3", RequestStatus.Pending, DateTimeOffset.UtcNow)
-        ];
-        var joinRequests = Substitute.For<IClubJoinRequestService>();
-        ServiceResult<IReadOnlyList<ClubJoinRequestDto>> pendingResult = pending;
-        joinRequests.GetClubJoinRequestsAsync(ClubAId, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(pendingResult));
-
-        var result = await CreateService(joinRequests).GetDashboardAsync(TestContext.Current.CancellationToken);
-
-        result.IsSuccess.ShouldBeTrue();
-        var attention = result.Value.AdminAttention;
-        attention.ShouldNotBeNull();
-        attention!.PendingJoinRequestCount.ShouldBe(3);
-        attention.UnresolvedPlacementCount.ShouldBe(2);
-        attention.FirstUnresolvedCampaignId.ShouldBe(_campaignAId);
-    }
-
-    /// <summary>
-    /// Verifies the administrator unresolved placement count is authoritative across all active
-    /// campaigns, not bounded by the 20-card cap: the only campaign with undecided placements is
-    /// pushed beyond the visible cards by newer empty campaigns.
-    /// </summary>
-    [Fact]
-    public async Task GetDashboard_AdminUnresolvedCount_IsAuthoritativeBeyondCardCap()
-    {
-        using (var admin = _harness.CreateAdminContext())
-        {
-            var season = admin.Seasons.Single(season => season.ClubId == ClubAId);
-            for (var index = 0; index < ClubDashboardResult.ActiveCampaignMaxCount; index++)
-            {
-                admin.Campaigns.Add(new CampaignEntity
-                {
-                    CreationOperationId = Guid.NewGuid(),
-                    Name = $"Cap {index:D2}",
-                    StartDate = new DateOnly(2026, 7, 1),
-                    Status = CampaignStatus.Active,
-                    SeasonId = season.SeasonId,
-                    ClubId = ClubAId,
-                    CreatedById = ClubAMemberId
-                });
-            }
-
-            admin.SaveChanges();
-        }
-
-        _harness.CurrentUser.UserId = ClubAAdminId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-
-        List<ClubJoinRequestDto> pending = [];
-        var joinRequests = Substitute.For<IClubJoinRequestService>();
-        ServiceResult<IReadOnlyList<ClubJoinRequestDto>> pendingResult = pending;
-        joinRequests.GetClubJoinRequestsAsync(ClubAId, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(pendingResult));
-
-        var result = await CreateService(joinRequests).GetDashboardAsync(TestContext.Current.CancellationToken);
-
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.ActiveCampaigns.Count.ShouldBe(ClubDashboardResult.ActiveCampaignMaxCount);
-        var attention = result.Value.AdminAttention;
-        attention.ShouldNotBeNull();
-        attention!.UnresolvedPlacementCount.ShouldBe(2);
-        attention.FirstUnresolvedCampaignId.ShouldBe(_campaignAId);
-    }
-
-    /// <summary>Verifies a problem from a composed service is propagated rather than masked.</summary>
-    [Fact]
-    public async Task GetDashboard_PropagatesComposedJoinRequestProblem()
-    {
-        _harness.CurrentUser.UserId = ClubAAdminId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-
-        var joinRequests = Substitute.For<IClubJoinRequestService>();
-        ServiceResult<IReadOnlyList<ClubJoinRequestDto>> problemResult =
-            ServiceProblem.Forbidden("You are not an administrator of this club.");
-        joinRequests.GetClubJoinRequestsAsync(ClubAId, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(problemResult));
-
-        var result = await CreateService(joinRequests).GetDashboardAsync(TestContext.Current.CancellationToken);
-
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
     /// <summary>Verifies tenant isolation: a different club sees only its own campaigns and counts.</summary>
@@ -286,19 +182,16 @@ public sealed class DashboardQueryServiceTests : IDisposable
 
     /// <summary>
     /// Creates the dashboard query service over the shared SQLite tenancy harness, composing the real
-    /// campaign list and placement summary services.
+    /// campaign list service.
     /// </summary>
-    /// <param name="joinRequestService">The optional mocked join-request service.</param>
     /// <returns>A service instance.</returns>
-    private DashboardQueryService CreateService(IClubJoinRequestService? joinRequestService = null)
+    private DashboardQueryService CreateService()
     {
         var readFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
         var campaignQueryService = new CampaignQueryService(readFactory, _harness.CurrentUser, NullLogger<CampaignQueryService>.Instance);
-        var joinRequests = joinRequestService ?? Substitute.For<IClubJoinRequestService>();
 
         return new DashboardQueryService(
             campaignQueryService,
-            joinRequests,
             readFactory,
             _harness.CurrentUser,
             NullLogger<DashboardQueryService>.Instance);

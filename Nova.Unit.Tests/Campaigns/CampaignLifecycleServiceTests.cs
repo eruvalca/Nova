@@ -61,14 +61,15 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         campaign.ClosedById.ShouldBe(ClubAAdminId);
         campaign.ClosedAt.ShouldNotBeNull();
 
-        var events = await verify.CampaignLifecycleEvents
+        var events = await verify.ActivityEvents
             .Where(candidate => candidate.CampaignId == ReadyCampaignId)
-            .OrderBy(candidate => candidate.CampaignLifecycleEventId)
+            .OrderBy(candidate => candidate.ActivityEventId)
             .ToListAsync(TestContext.Current.CancellationToken);
         events.Count.ShouldBe(1);
-        events[0].EventType.ShouldBe(CampaignLifecycleEventType.Closed);
+        events[0].EventKind.ShouldBe(ActivityEventKind.CampaignClosed);
         events[0].ClubId.ShouldBe(ClubAId);
         events[0].CreatedById.ShouldBe(ClubAAdminId);
+        events[0].PayloadJson.ShouldContain("\"campaignName\":\"Ready Campaign\"");
     }
 
     /// <summary>
@@ -93,7 +94,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         campaign.Status.ShouldBe(CampaignStatus.Active);
         campaign.ClosedAt.ShouldBeNull();
         campaign.ClosedById.ShouldBeNull();
-        (await verify.CampaignLifecycleEvents
+        (await verify.ActivityEvents
             .AnyAsync(candidate => candidate.CampaignId == BlockedCampaignId, TestContext.Current.CancellationToken))
             .ShouldBeFalse();
     }
@@ -118,13 +119,13 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         campaign.ClosedAt.ShouldBeNull();
         campaign.ClosedById.ShouldBeNull();
 
-        var events = await verify.CampaignLifecycleEvents
+        var events = await verify.ActivityEvents
             .Where(candidate => candidate.CampaignId == ClosedCampaignId)
-            .OrderBy(candidate => candidate.CampaignLifecycleEventId)
+            .OrderBy(candidate => candidate.ActivityEventId)
             .ToListAsync(TestContext.Current.CancellationToken);
         events.Count.ShouldBe(2);
-        events[0].EventType.ShouldBe(CampaignLifecycleEventType.Closed);
-        events[1].EventType.ShouldBe(CampaignLifecycleEventType.Reopened);
+        events[0].EventKind.ShouldBe(ActivityEventKind.CampaignClosed);
+        events[1].EventKind.ShouldBe(ActivityEventKind.CampaignReopened);
 
         var outcomes = await verify.PlayerCampaignAssignments
             .Where(candidate => candidate.CampaignId == ClosedCampaignId)
@@ -160,17 +161,17 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         campaign.ClosedAt.ShouldBeNull();
         campaign.ClosedById.ShouldBeNull();
 
-        var eventTypes = await verify.CampaignLifecycleEvents
+        var eventTypes = await verify.ActivityEvents
             .Where(candidate => candidate.CampaignId == ClosedCampaignId)
-            .OrderBy(candidate => candidate.CampaignLifecycleEventId)
-            .Select(candidate => candidate.EventType)
+            .OrderBy(candidate => candidate.ActivityEventId)
+            .Select(candidate => candidate.EventKind)
             .ToListAsync(TestContext.Current.CancellationToken);
         eventTypes.ShouldBe(
         [
-            CampaignLifecycleEventType.Closed,
-            CampaignLifecycleEventType.Reopened,
-            CampaignLifecycleEventType.Closed,
-            CampaignLifecycleEventType.Reopened
+            ActivityEventKind.CampaignClosed,
+            ActivityEventKind.CampaignReopened,
+            ActivityEventKind.CampaignClosed,
+            ActivityEventKind.CampaignReopened
         ]);
     }
 
@@ -625,12 +626,17 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
                 CreatedById = ClubBAdminId
             });
 
-        db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
+        db.ActivityEvents.Add(new ActivityEventEntity
         {
-            CampaignLifecycleEventId = 1000,
+            ActivityEventId = 1000,
             CampaignId = ClosedCampaignId,
-            EventType = CampaignLifecycleEventType.Closed,
+            EventKind = ActivityEventKind.CampaignClosed,
+            IsAdminOnly = false,
             ClubId = ClubAId,
+            ActorUserId = ClubAAdminId,
+            ActorDisplayName = "Club Admin",
+            PayloadJson = """{"campaignId":602,"campaignName":"Closed Campaign"}""",
+            CreatedAt = DateTimeOffset.UtcNow.AddDays(-2),
             CreatedById = ClubAAdminId
         });
 

@@ -5,7 +5,9 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Clubs;
+using Nova.Features.Activity;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 using OneOf.Types;
@@ -79,26 +81,64 @@ public sealed partial class ClubJoinRequestService(
                 return ServiceProblem.NotFound("The specified club does not exist.");
             }
 
-            // Create join request
-            var joinRequest = new ClubJoinRequestEntity
-            {
-                ClubId = clubId,
-                RequestingUserId = userId,
-                Status = RequestStatus.Pending,
-                CreatedById = userId
-            };
+            // Resolve the requester's display name for the event snapshot. The requester is
+            // club-less, so the tenant-filtered write context cannot see them; UserManager is
+            // the established route for club-less users.
+            var requesterName = (await userManager.FindByIdAsync(userId.ToString()))?.FullName ?? "Unknown user";
 
-            db.ClubJoinRequests.Add(joinRequest);
-            await db.SaveChangesAsync(cancellationToken);
+            // Create join request. The request id is identity-generated, so the durable event is
+            // appended after the first save but inside the same transaction: the request and its
+            // activity row commit atomically. With the Npgsql retrying execution strategy the
+            // user-initiated transaction must run inside CreateExecutionStrategy().ExecuteAsync()
+            // so the whole unit is retried as one on transient failures. A fresh write context is
+            // created per attempt so tracked Added state from a failed attempt is never replayed.
+            var strategy = db.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(
+                (ClubId: clubId, UserId: userId, RequesterName: requesterName),
+                async (state, token) =>
+                {
+                    await using var writeDb = await dbContextFactory.CreateDbContextAsync(token);
 
-            // Reload with Club and RequestingUser navigations
-            var reloaded = await db.ClubJoinRequests
-                .Include(e => e.Club)
-                .Include(e => e.RequestingUser)
-                .FirstAsync(e => e.ClubJoinRequestId == joinRequest.ClubJoinRequestId, cancellationToken);
+                    var joinRequest = new ClubJoinRequestEntity
+                    {
+                        ClubId = state.ClubId,
+                        RequestingUserId = state.UserId,
+                        Status = RequestStatus.Pending,
+                        CreatedById = state.UserId
+                    };
 
-            LogJoinRequestCreated(userId, clubId, joinRequest.ClubJoinRequestId);
-            return reloaded.ToClubJoinRequestDto();
+                    writeDb.ClubJoinRequests.Add(joinRequest);
+
+                    await using var transaction = await writeDb.Database.BeginTransactionAsync(token);
+                    await writeDb.SaveChangesAsync(token);
+
+                    // JoinRequestSubmitted is administrator-only (unresolved join-request events
+                    // are admin-only per the attention brief).
+                    ActivityEventWriter.AppendJoinRequest(
+                        writeDb,
+                        state.ClubId,
+                        ActivityEventKind.JoinRequestSubmitted,
+                        state.UserId,
+                        state.RequesterName,
+                        new JoinRequestContext
+                        {
+                            JoinRequestId = joinRequest.ClubJoinRequestId,
+                            RequesterDisplayName = state.RequesterName,
+                        });
+
+                    await writeDb.SaveChangesAsync(token);
+                    await transaction.CommitAsync(token);
+
+                    // Reload with Club and RequestingUser navigations
+                    var reloaded = await writeDb.ClubJoinRequests
+                        .Include(e => e.Club)
+                        .Include(e => e.RequestingUser)
+                        .FirstAsync(e => e.ClubJoinRequestId == joinRequest.ClubJoinRequestId, token);
+
+                    LogJoinRequestCreated(state.UserId, state.ClubId, joinRequest.ClubJoinRequestId);
+                    return reloaded.ToClubJoinRequestDto();
+                },
+                cancellationToken);
         }
         catch (DbUpdateException ex)
         {
@@ -137,7 +177,26 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.Conflict("Only pending join requests can be cancelled.");
         }
 
+        // Resolve the requester display name for the event snapshot. The requester is club-less
+        // at cancel time, so UserManager is required (tenant filter excludes club-less users).
+        var requesterName = (await userManager.FindByIdAsync(request.RequestingUserId.ToString()))?.FullName ?? "Unknown user";
+
         db.ClubJoinRequests.Remove(request);
+
+        // JoinRequestCancelled is administrator-only (unresolved join-request events are
+        // admin-only per the attention brief).
+        ActivityEventWriter.AppendJoinRequest(
+            db,
+            request.ClubId,
+            ActivityEventKind.JoinRequestCancelled,
+            userId,
+            requesterName,
+            new JoinRequestContext
+            {
+                JoinRequestId = request.ClubJoinRequestId,
+                RequesterDisplayName = requesterName,
+            });
+
         await db.SaveChangesAsync(cancellationToken);
 
         LogJoinRequestCancelled(userId, requestId);
@@ -196,11 +255,35 @@ public sealed partial class ClubJoinRequestService(
         }
 
         request.Status = RequestStatus.Approved;
+
+        // The member joined event is visible to all members (only the approval actor snapshot is
+        // admin-shaped, and only while the requesting user remains a tenant-visible club member).
+        // The requester is club-less, so UserManager resolves the member snapshot; the approving
+        // admin is tenant-visible, so the write context resolves the actor snapshot.
+        var adminUserId = currentUserProvider.UserId ?? 0;
+        var requestingUser = await userManager.FindByIdAsync(request.RequestingUserId.ToString());
+        var memberName = requestingUser?.FullName ?? "Unknown user";
+        var adminName = (await db.Users
+            .Where(user => user.Id == adminUserId)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstOrDefaultAsync(cancellationToken)) ?? "Unknown user";
+
+        ActivityEventWriter.AppendMembership(
+            db,
+            request.ClubId,
+            ActivityEventKind.MemberJoined,
+            adminUserId,
+            adminName,
+            new MembershipContext
+            {
+                MemberDisplayName = memberName,
+                ApprovedByActorName = adminName,
+            });
+
         await db.SaveChangesAsync(cancellationToken);
 
         // Re-fetch the requesting user through UserManager (its own tracked instance) to avoid
         // an identity-map conflict, then assign them to the club and bump their security stamp.
-        var requestingUser = await userManager.FindByIdAsync(request.RequestingUserId.ToString());
         if (requestingUser is not null)
         {
             requestingUser.ClubId = request.ClubId;
@@ -242,6 +325,29 @@ public sealed partial class ClubJoinRequestService(
         }
 
         request.Status = RequestStatus.Rejected;
+
+        // JoinRequestRejected is administrator-only (unresolved join-request events are admin-only
+        // per the attention brief). The requester is club-less, so UserManager resolves the
+        // snapshot; the rejecting admin is tenant-visible via the write context.
+        var rejectAdminUserId = currentUserProvider.UserId ?? 0;
+        var rejectRequesterName = (await userManager.FindByIdAsync(request.RequestingUserId.ToString()))?.FullName ?? "Unknown user";
+        var rejectAdminName = (await db.Users
+            .Where(user => user.Id == rejectAdminUserId)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstOrDefaultAsync(cancellationToken)) ?? "Unknown user";
+
+        ActivityEventWriter.AppendJoinRequest(
+            db,
+            request.ClubId,
+            ActivityEventKind.JoinRequestRejected,
+            rejectAdminUserId,
+            rejectAdminName,
+            new JoinRequestContext
+            {
+                JoinRequestId = request.ClubJoinRequestId,
+                RequesterDisplayName = rejectRequesterName,
+            });
+
         await db.SaveChangesAsync(cancellationToken);
 
         LogJoinRequestRejected(currentUserProvider.UserId ?? 0, requestId, request.RequestingUserId);

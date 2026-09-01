@@ -70,4 +70,8 @@ public class ClubEntity : BaseEntity
     /// Gets or sets the Club Crest.
     /// </summary>
     public ClubCrestEntity? ClubCrest { get; set; }
+    /// <summary>
+    /// Gets or sets the Activity Events.
+    /// </summary>
+    public ICollection<ActivityEventEntity> ActivityEvents { get; set; } = [];
 }

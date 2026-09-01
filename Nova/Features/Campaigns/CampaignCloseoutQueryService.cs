@@ -22,8 +22,6 @@ public sealed partial class CampaignCloseoutQueryService(
     ICampaignPlacementQueryService placementQueryService,
     ILogger<CampaignCloseoutQueryService> logger) : ICampaignCloseoutQueryService
 {
-    private const string UnresolvedActorFallback = "Former member";
-
     /// <inheritdoc />
     public async Task<ServiceResult<CampaignCloseoutReadinessDto>> GetCloseoutReadinessAsync(
         GetCampaignCloseoutReadinessInput input,
@@ -122,22 +120,26 @@ public sealed partial class CampaignCloseoutQueryService(
         }
 
         var limit = input.Limit ?? GetCampaignActivityInput.DefaultLimit;
-        var eventsQuery = db.CampaignLifecycleEvents
+        var eventsQuery = db.ActivityEvents
             .AsNoTracking()
-            .Where(activityEvent => activityEvent.ClubId == currentClubId && activityEvent.CampaignId == input.CampaignId);
+            .Where(activityEvent => activityEvent.ClubId == currentClubId
+                && activityEvent.CampaignId == input.CampaignId
+                && (activityEvent.EventKind == ActivityEventKind.CampaignClosed
+                    || activityEvent.EventKind == ActivityEventKind.CampaignReopened));
 
         List<ActivityEventRow> eventRows;
         if (db.Database.IsNpgsql())
         {
             eventRows = await eventsQuery
                 .OrderByDescending(activityEvent => activityEvent.CreatedAt)
-                .ThenByDescending(activityEvent => activityEvent.CampaignLifecycleEventId)
+                .ThenByDescending(activityEvent => activityEvent.ActivityEventId)
                 .Take(limit)
                 .Select(activityEvent => new ActivityEventRow(
-                    activityEvent.CampaignLifecycleEventId,
-                    activityEvent.EventType,
+                    activityEvent.ActivityEventId,
+                    activityEvent.EventKind,
                     activityEvent.CreatedAt,
-                    activityEvent.CreatedById))
+                    activityEvent.ActorUserId,
+                    activityEvent.ActorDisplayName))
                 .ToListAsync(cancellationToken);
         }
         else
@@ -147,44 +149,28 @@ public sealed partial class CampaignCloseoutQueryService(
             // ordering and bound in memory; PostgreSQL keeps the SQL-side ordering and bound above.
             var allRows = await eventsQuery
                 .Select(activityEvent => new ActivityEventRow(
-                    activityEvent.CampaignLifecycleEventId,
-                    activityEvent.EventType,
+                    activityEvent.ActivityEventId,
+                    activityEvent.EventKind,
                     activityEvent.CreatedAt,
-                    activityEvent.CreatedById))
+                    activityEvent.ActorUserId,
+                    activityEvent.ActorDisplayName))
                 .ToListAsync(cancellationToken);
             eventRows = allRows
                 .OrderByDescending(row => row.CreatedAt)
-                .ThenByDescending(row => row.CampaignLifecycleEventId)
+                .ThenByDescending(row => row.ActivityEventId)
                 .Take(limit)
                 .ToList();
         }
 
-        var actorUserIds = eventRows
-            .Select(row => row.ActorUserId)
-            .Distinct()
-            .ToArray();
-        var actorDisplayNames = actorUserIds.Length == 0
-            ? new Dictionary<long, string>()
-            : await db.Users
-                .Where(user => user.ClubId == currentClubId && actorUserIds.Contains(user.Id))
-                .Select(user => new
-                {
-                    user.Id,
-                    user.FirstName,
-                    user.LastName
-                })
-                .ToDictionaryAsync(
-                    row => row.Id,
-                    row => $"{row.FirstName} {row.LastName}",
-                    cancellationToken);
-
         var events = eventRows
             .Select(row => new CampaignActivityItemDto(
-                row.CampaignLifecycleEventId,
-                row.EventType,
+                row.ActivityEventId,
+                row.EventKind == ActivityEventKind.CampaignClosed
+                    ? CampaignLifecycleEventType.Closed
+                    : CampaignLifecycleEventType.Reopened,
                 row.CreatedAt,
                 row.ActorUserId,
-                ResolveActorDisplayName(actorDisplayNames, row.ActorUserId)))
+                row.ActorDisplayName))
             .ToList()
             .AsReadOnly();
 
@@ -233,18 +219,6 @@ public sealed partial class CampaignCloseoutQueryService(
     }
 
     /// <summary>
-    /// Resolves an actor display name from the club-scoped lookup, falling back to the stable
-    /// "Former member" text when the actor user row is unavailable.
-    /// </summary>
-    /// <param name="actorDisplayNames">The actor display-name lookup dictionary.</param>
-    /// <param name="actorUserId">The actor user identifier.</param>
-    /// <returns>The resolved display name, or <see cref="UnresolvedActorFallback"/> when unavailable.</returns>
-    private static string ResolveActorDisplayName(IReadOnlyDictionary<long, string> actorDisplayNames, long actorUserId)
-        => actorDisplayNames.TryGetValue(actorUserId, out var displayName)
-            ? displayName
-            : UnresolvedActorFallback;
-
-    /// <summary>
     /// Logs a closeout-readiness read rejected because the caller is not scoped to a club.
     /// </summary>
     /// <param name="userId">The current user identifier, or zero when unavailable.</param>
@@ -261,15 +235,17 @@ public sealed partial class CampaignCloseoutQueryService(
     private partial void LogForbiddenActivityAccess(long userId, long campaignId);
 
     /// <summary>
-    /// Projection of one bounded activity event row before actor display-name resolution.
+    /// Projection of one bounded activity event row.
     /// </summary>
-    /// <param name="CampaignLifecycleEventId">The lifecycle event identifier.</param>
-    /// <param name="EventType">The lifecycle transition type.</param>
+    /// <param name="ActivityEventId">The activity event identifier.</param>
+    /// <param name="EventKind">The stored activity kind.</param>
     /// <param name="CreatedAt">When the transition was recorded.</param>
     /// <param name="ActorUserId">The actor user identifier.</param>
+    /// <param name="ActorDisplayName">The actor display-name snapshot.</param>
     private sealed record ActivityEventRow(
-        long CampaignLifecycleEventId,
-        CampaignLifecycleEventType EventType,
+        long ActivityEventId,
+        ActivityEventKind EventKind,
         DateTimeOffset CreatedAt,
-        long ActorUserId);
+        long ActorUserId,
+        string ActorDisplayName);
 }

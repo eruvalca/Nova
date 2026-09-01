@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Players;
@@ -268,12 +269,14 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
             campaign.ClosedAt.ShouldNotBeNull();
             campaign.ClosedById.ShouldBe(admin.UserId);
 
-            var events = await context.CampaignLifecycleEvents
+            var events = await context.ActivityEvents
                 .Where(candidate => candidate.CampaignId == created.CampaignId)
-                .OrderBy(candidate => candidate.CampaignLifecycleEventId)
+                .OrderBy(candidate => candidate.ActivityEventId)
                 .ToListAsync(cancellationToken);
-            events.Count.ShouldBe(1);
-            events[0].EventType.ShouldBe(CampaignLifecycleEventType.Closed);
+            events.Count.ShouldBe(2);
+            events.ShouldAllBe(activityEvent => activityEvent.ClubId == admin.Club.ClubId);
+            events[0].EventKind.ShouldBe(ActivityEventKind.PlacementNotSelected);
+            events[1].EventKind.ShouldBe(ActivityEventKind.CampaignClosed);
         }
 
         using (var detailResponse = await evaluatorClient.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(created.CampaignId), cancellationToken))
@@ -352,12 +355,17 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
             campaign.ClosedAt.ShouldBeNull();
             campaign.ClosedById.ShouldBeNull();
 
-            var events = await context.CampaignLifecycleEvents
+            var events = await context.ActivityEvents
                 .Where(candidate => candidate.CampaignId == created.CampaignId)
-                .OrderBy(candidate => candidate.CampaignLifecycleEventId)
-                .Select(candidate => candidate.EventType)
+                .OrderBy(candidate => candidate.ActivityEventId)
+                .Select(candidate => candidate.EventKind)
                 .ToListAsync(cancellationToken);
-            events.ShouldBe([CampaignLifecycleEventType.Closed, CampaignLifecycleEventType.Reopened]);
+            events.ShouldBe(
+            [
+                ActivityEventKind.PlacementNotSelected,
+                ActivityEventKind.CampaignClosed,
+                ActivityEventKind.CampaignReopened
+            ]);
 
             var assignment = await context.PlayerCampaignAssignments
                 .SingleAsync(candidate => candidate.PlayerCampaignAssignmentId == assignmentId, cancellationToken);

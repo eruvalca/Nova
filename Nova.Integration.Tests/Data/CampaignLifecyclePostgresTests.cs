@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
@@ -82,47 +83,6 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
             .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, TestContext.Current.CancellationToken);
         campaign.Status = (CampaignStatus)99;
         db.Update(campaign);
-
-        await Should.ThrowAsync<DbUpdateException>(
-            () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
-    }
-
-    /// <summary>
-    /// Verifies lifecycle event constraints reject undefined event type values.
-    /// </summary>
-    [Fact]
-    public async Task LifecycleEventConstraint_RejectsUndefinedEventType()
-    {
-        var seed = await SeedCampaignAsync();
-        await using var db = fixture.CreateAdminContext();
-        db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
-        {
-            CampaignId = seed.CampaignId,
-            EventType = (CampaignLifecycleEventType)99,
-            ClubId = seed.ClubId,
-            CreatedById = seed.ActorUserId
-        });
-
-        await Should.ThrowAsync<DbUpdateException>(
-            () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
-    }
-
-    /// <summary>
-    /// Verifies the composite campaign foreign key rejects lifecycle events whose club differs from the campaign owner.
-    /// </summary>
-    [Fact]
-    public async Task LifecycleEventCampaignForeignKey_RejectsCrossTenantCampaignReference()
-    {
-        var first = await SeedCampaignAsync();
-        var second = await SeedCampaignAsync();
-        await using var db = fixture.CreateAdminContext();
-        db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
-        {
-            CampaignId = second.CampaignId,
-            EventType = CampaignLifecycleEventType.Closed,
-            ClubId = first.ClubId,
-            CreatedById = first.ActorUserId
-        });
 
         await Should.ThrowAsync<DbUpdateException>(
             () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
@@ -246,11 +206,14 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         campaign.Status = CampaignStatus.Closed;
         campaign.ClosedAt = DateTimeOffset.UtcNow;
         campaign.ClosedById = seed.ActorUserId;
-        closeContext.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
+        closeContext.ActivityEvents.Add(new ActivityEventEntity
         {
             CampaignId = seed.CampaignId,
             ClubId = seed.ClubId,
-            EventType = CampaignLifecycleEventType.Closed,
+            EventKind = ActivityEventKind.CampaignClosed,
+            ActorUserId = seed.ActorUserId,
+            ActorDisplayName = "Club Admin",
+            PayloadJson = JsonSerializer.Serialize(new { campaignId = seed.CampaignId, campaignName = "Excluded" }),
             CreatedById = seed.ActorUserId
         });
         await closeContext.SaveChangesAsync(cancellationToken);
@@ -267,9 +230,9 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         persisted.Status.ShouldBe(CampaignStatus.Closed);
         persisted.ClosedById.ShouldBe(seed.ActorUserId);
 
-        var closedEvents = await verify.CampaignLifecycleEvents
+        var closedEvents = await verify.ActivityEvents
             .Where(candidate => candidate.CampaignId == seed.CampaignId
-                && candidate.EventType == CampaignLifecycleEventType.Closed)
+                && candidate.EventKind == ActivityEventKind.CampaignClosed)
             .ToListAsync(cancellationToken);
         closedEvents.Count.ShouldBe(1);
     }
@@ -310,11 +273,14 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         campaign.Status = CampaignStatus.Active;
         campaign.ClosedAt = null;
         campaign.ClosedById = null;
-        reopenContext.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
+        reopenContext.ActivityEvents.Add(new ActivityEventEntity
         {
             CampaignId = seed.CampaignId,
             ClubId = seed.ClubId,
-            EventType = CampaignLifecycleEventType.Reopened,
+            EventKind = ActivityEventKind.CampaignReopened,
+            ActorUserId = seed.ActorUserId,
+            ActorDisplayName = "Club Admin",
+            PayloadJson = JsonSerializer.Serialize(new { campaignId = seed.CampaignId, campaignName = "Excluded" }),
             CreatedById = seed.ActorUserId
         });
         await reopenContext.SaveChangesAsync(cancellationToken);
@@ -332,9 +298,9 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         persisted.ClosedAt.ShouldBeNull();
         persisted.ClosedById.ShouldBeNull();
 
-        var reopenedEvents = await verify.CampaignLifecycleEvents
+        var reopenedEvents = await verify.ActivityEvents
             .Where(candidate => candidate.CampaignId == seed.CampaignId
-                && candidate.EventType == CampaignLifecycleEventType.Reopened)
+                && candidate.EventKind == ActivityEventKind.CampaignReopened)
             .ToListAsync(cancellationToken);
         reopenedEvents.Count.ShouldBe(1);
     }

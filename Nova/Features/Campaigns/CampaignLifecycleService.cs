@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Activity;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
@@ -179,13 +180,21 @@ public sealed partial class CampaignLifecycleService(
             campaign.ClosedAt = DateTimeOffset.UtcNow;
             campaign.ClosedById = actorUserId;
 
-            db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
-            {
-                CampaignId = campaign.CampaignId,
-                ClubId = campaign.ClubId,
-                EventType = CampaignLifecycleEventType.Closed,
-                CreatedById = default
-            });
+            // The actor is a club member (tenant-visible), so the write context resolves the
+            // snapshot deterministically.
+            var actorName = await db.Users
+                .Where(user => user.Id == actorUserId)
+                .Select(user => user.FirstName + " " + user.LastName)
+                .FirstOrDefaultAsync(cancellationToken) ?? "Unknown user";
+
+            ActivityEventWriter.AppendCampaignLifecycle(
+                db,
+                campaign.ClubId,
+                campaign.CampaignId,
+                ActivityEventKind.CampaignClosed,
+                actorUserId,
+                actorName,
+                campaign.Name);
 
             try
             {
@@ -343,13 +352,21 @@ public sealed partial class CampaignLifecycleService(
         campaign.ClosedAt = null;
         campaign.ClosedById = null;
 
-        db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
-        {
-            CampaignId = campaign.CampaignId,
-            ClubId = campaign.ClubId,
-            EventType = CampaignLifecycleEventType.Reopened,
-            CreatedById = default
-        });
+        // The actor is a club member (tenant-visible), so the write context resolves the
+        // snapshot deterministically.
+        var actorName = await db.Users
+            .Where(user => user.Id == actorUserId)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Unknown user";
+
+        ActivityEventWriter.AppendCampaignLifecycle(
+            db,
+            campaign.ClubId,
+            campaign.CampaignId,
+            ActivityEventKind.CampaignReopened,
+            actorUserId,
+            actorName,
+            campaign.Name);
 
         try
         {

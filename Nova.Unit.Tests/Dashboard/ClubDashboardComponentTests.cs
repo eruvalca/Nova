@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
+using Nova.Shared.Features.Attention;
 using Nova.Shared.Features.Dashboard;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
@@ -72,10 +74,11 @@ public sealed class ClubDashboardComponentTests : BunitContext
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessDashboard(CreatePopulatedSummary())));
-        dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
+        var activityService = Substitute.For<IClubActivityQueryService>();
+        activityService.GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessActivity([BuildNoteEvent()])));
 
-        RegisterServices(isClubAdmin: false, dashboardService);
+        RegisterServices(isClubAdmin: false, dashboardService, activityService);
 
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Active campaigns"));
@@ -88,26 +91,40 @@ public sealed class ClubDashboardComponentTests : BunitContext
         cut.Markup.ShouldContain("1 archived");
         cut.Markup.ShouldContain("href=\"players\"");
         cut.Markup.ShouldContain("href=\"teams\"");
-        cut.Markup.ShouldContain("added a note to Noter");
+        cut.Markup.ShouldContain("requested to join the club: Noter");
     }
 
     /// <summary>Verifies an administrator sees the attention card with both counts and links.</summary>
     [Fact]
     public void ClubDashboard_ShowsAdminAttention_ForClubAdmin()
     {
-        var attention = new AdminAttentionDto
+        var attention = new ClubAttentionResult
         {
-            PendingJoinRequestCount = 3,
-            UnresolvedPlacementCount = 5,
-            FirstUnresolvedCampaignId = 77
+            PendingJoinRequests = new PendingJoinRequestsRegion
+            {
+                Status = AttentionRegionStatus.Loaded,
+                Count = 3,
+                OldestRequestAt = null
+            },
+            NeedsPlacement = new NeedsPlacementRegion
+            {
+                Status = AttentionRegionStatus.Loaded,
+                Count = 5,
+                CampaignId = 77,
+                CampaignName = "Campaign 77"
+            }
         };
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(SuccessDashboard(CreatePopulatedSummary(attention))));
-        dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessDashboard(CreatePopulatedSummary())));
+        var activityService = Substitute.For<IClubActivityQueryService>();
+        activityService.GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessActivity([])));
+        var attentionService = Substitute.For<IClubAttentionQueryService>();
+        attentionService.GetClubAttentionAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessAttention(attention)));
 
-        RegisterServices(isClubAdmin: true, dashboardService);
+        RegisterServices(isClubAdmin: true, dashboardService, activityService, attentionService);
 
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Admin attention"));
@@ -133,11 +150,12 @@ public sealed class ClubDashboardComponentTests : BunitContext
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(SuccessDashboard(CreatePopulatedSummary(attention: null))));
-        dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessDashboard(CreatePopulatedSummary())));
+        var activityService = Substitute.For<IClubActivityQueryService>();
+        activityService.GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessActivity([])));
 
-        RegisterServices(isClubAdmin: false, dashboardService);
+        RegisterServices(isClubAdmin: false, dashboardService, activityService);
 
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Active campaigns"));
@@ -151,19 +169,33 @@ public sealed class ClubDashboardComponentTests : BunitContext
     [Fact]
     public void ClubDashboard_FallsBackToCampaignList_WhenNoUnresolvedCampaign()
     {
-        var attention = new AdminAttentionDto
+        var attention = new ClubAttentionResult
         {
-            PendingJoinRequestCount = 1,
-            UnresolvedPlacementCount = 0,
-            FirstUnresolvedCampaignId = null
+            PendingJoinRequests = new PendingJoinRequestsRegion
+            {
+                Status = AttentionRegionStatus.Loaded,
+                Count = 1,
+                OldestRequestAt = null
+            },
+            NeedsPlacement = new NeedsPlacementRegion
+            {
+                Status = AttentionRegionStatus.Loaded,
+                Count = 0,
+                CampaignId = null,
+                CampaignName = null
+            }
         };
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(SuccessDashboard(CreatePopulatedSummary(attention))));
-        dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessDashboard(CreatePopulatedSummary())));
+        var activityService = Substitute.For<IClubActivityQueryService>();
+        activityService.GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessActivity([])));
+        var attentionService = Substitute.For<IClubAttentionQueryService>();
+        attentionService.GetClubAttentionAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessAttention(attention)));
 
-        RegisterServices(isClubAdmin: true, dashboardService);
+        RegisterServices(isClubAdmin: true, dashboardService, activityService, attentionService);
 
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Review placements"));
@@ -180,10 +212,11 @@ public sealed class ClubDashboardComponentTests : BunitContext
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessDashboard(CreateEmptySummary())));
-        dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
+        var activityService = Substitute.For<IClubActivityQueryService>();
+        activityService.GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessActivity([])));
 
-        RegisterServices(isClubAdmin: true, dashboardService);
+        RegisterServices(isClubAdmin: true, dashboardService, activityService);
 
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Create campaign"));
@@ -200,10 +233,11 @@ public sealed class ClubDashboardComponentTests : BunitContext
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessDashboard(CreateEmptySummary())));
-        dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
+        var activityService = Substitute.For<IClubActivityQueryService>();
+        activityService.GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessActivity([])));
 
-        RegisterServices(isClubAdmin: false, dashboardService);
+        RegisterServices(isClubAdmin: false, dashboardService, activityService);
 
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("No active campaigns right now"));
@@ -218,10 +252,11 @@ public sealed class ClubDashboardComponentTests : BunitContext
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessDashboard(CreatePopulatedSummary())));
-        dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
+        var activityService = Substitute.For<IClubActivityQueryService>();
+        activityService.GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessActivity([])));
 
-        RegisterServices(isClubAdmin: false, dashboardService);
+        RegisterServices(isClubAdmin: false, dashboardService, activityService);
 
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Recent activity"));
@@ -233,36 +268,33 @@ public sealed class ClubDashboardComponentTests : BunitContext
     [Fact]
     public void ClubDashboard_RendersEachActivityKind_WithVerb()
     {
-        var events = new List<DashboardActivityItemDto>
+        var events = new List<ClubActivityItemDto>
         {
-            BuildNoteEvent(),
-            BuildTagEvent(),
-            BuildPlacementEvent(),
-            BuildLifecycleEvent(DashboardActivityEventKind.CampaignClosed, CampaignLifecycleEventType.Closed, eventId: 4),
-            BuildLifecycleEvent(DashboardActivityEventKind.CampaignReopened, CampaignLifecycleEventType.Reopened, eventId: 5)
+            BuildCampaignLifecycleEvent(ActivityEventKind.CampaignClosed, "Campaign A", eventId: 1),
+            BuildCampaignLifecycleEvent(ActivityEventKind.CampaignReopened, "Campaign A", eventId: 2),
+            BuildJoinRequestEvent(eventId: 3),
+            BuildMembershipEvent(eventId: 4),
+            BuildMemberRoleEvent(eventId: 5)
         };
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessDashboard(CreateEmptySummary())));
-        dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
+        var activityService = Substitute.For<IClubActivityQueryService>();
+        activityService.GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessActivity(events)));
 
-        RegisterServices(isClubAdmin: false, dashboardService);
+        RegisterServices(isClubAdmin: false, dashboardService, activityService);
 
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Recent activity"));
 
         cut.FindAll("ul li").Count.ShouldBe(5);
         cut.Markup.ShouldContain(ActivityAt.ToString("MMM d, yyyy"));
-        cut.Markup.ShouldContain("added a note to Noter");
-        cut.Markup.ShouldContain("applied tag");
-        cut.Markup.ShouldContain("Leader");
-        cut.Markup.ShouldContain("Tagger");
-        cut.Markup.ShouldContain("placement to");
-        cut.Markup.ShouldContain("Assigned");
-        cut.Markup.ShouldContain("Placer");
-        cut.Markup.ShouldContain("closed the campaign");
-        cut.Markup.ShouldContain("reopened the campaign");
+        cut.Markup.ShouldContain("closed Campaign A");
+        cut.Markup.ShouldContain("reopened Campaign A");
+        cut.Markup.ShouldContain("requested to join the club");
+        cut.Markup.ShouldContain("joined the club");
+        cut.Markup.ShouldContain("promoted");
     }
 
     /// <summary>Verifies the dashboard shows an accessible loading state while the request is pending.</summary>
@@ -272,10 +304,11 @@ public sealed class ClubDashboardComponentTests : BunitContext
         var pending = new TaskCompletionSource<ServiceResult<ClubDashboardResult>>();
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>()).Returns(pending.Task);
-        dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
+        var activityService = Substitute.For<IClubActivityQueryService>();
+        activityService.GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessActivity([])));
 
-        RegisterServices(isClubAdmin: true, dashboardService);
+        RegisterServices(isClubAdmin: true, dashboardService, activityService);
 
         var cut = Render<ClubDashboardPage>();
         cut.Markup.ShouldContain("Loading dashboard...");
@@ -295,10 +328,11 @@ public sealed class ClubDashboardComponentTests : BunitContext
             .Returns(
                 Task.FromResult(new ServiceResult<ClubDashboardResult>(ServiceProblem.ServerError("Dashboard transport failed."))),
                 Task.FromResult(SuccessDashboard(CreatePopulatedSummary())));
-        dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
+        var activityService = Substitute.For<IClubActivityQueryService>();
+        activityService.GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessActivity([])));
 
-        RegisterServices(isClubAdmin: true, dashboardService);
+        RegisterServices(isClubAdmin: true, dashboardService, activityService);
 
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Dashboard transport failed."));
@@ -313,8 +347,9 @@ public sealed class ClubDashboardComponentTests : BunitContext
     public void ClubDashboard_ShowsFriendlyError_WhenClubIdClaimMissing()
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
+        var activityService = Substitute.For<IClubActivityQueryService>();
 
-        RegisterServices(isClubAdmin: false, dashboardService, clubId: null);
+        RegisterServices(isClubAdmin: false, dashboardService, activityService, clubId: null);
 
         var cut = Render<ClubDashboardPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("You must join a club before viewing the dashboard."));
@@ -323,7 +358,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
         cut.Markup.ShouldNotContain("Active campaigns");
         cut.Markup.ShouldNotContain("Admin attention");
         dashboardService.DidNotReceive().GetDashboardAsync(Arg.Any<CancellationToken>());
-        dashboardService.DidNotReceive().GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>());
+        activityService.DidNotReceive().GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Verifies seeded persisted state is restored without re-fetching either dashboard payload.</summary>
@@ -331,10 +366,10 @@ public sealed class ClubDashboardComponentTests : BunitContext
     public void ClubDashboard_RestoresPersistedState_WithoutRefetching()
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
+        var activityService = Substitute.For<IClubActivityQueryService>();
         var persistedSummary = CreatePopulatedSummary();
-        var persistedActivity = new DashboardActivityResult([BuildNoteEvent()]);
-
-        RegisterServices(isClubAdmin: true, dashboardService);
+        var persistedActivity = new ClubActivityResult([BuildNoteEvent()], HasMore: false, NextCursor: null);
+        RegisterServices(isClubAdmin: true, dashboardService, activityService);
 
         var cut = Render<PersistedStateClubDashboard>(parameters => parameters
             .Add(p => p.StartInitialized, true)
@@ -342,19 +377,52 @@ public sealed class ClubDashboardComponentTests : BunitContext
             .Add(p => p.PersistedActivityValue, persistedActivity));
 
         cut.Markup.ShouldContain("Campaign A");
-        cut.Markup.ShouldContain("added a note to Noter");
+        cut.Markup.ShouldContain("requested to join the club: Noter");
 
         dashboardService.DidNotReceive().GetDashboardAsync(Arg.Any<CancellationToken>());
-        dashboardService.DidNotReceive().GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>());
+        activityService.DidNotReceive().GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>());
     }
 
-    private void RegisterServices(bool isClubAdmin, IDashboardQueryService dashboardService, string? clubId = "42")
+    private void RegisterServices(
+        bool isClubAdmin,
+        IDashboardQueryService dashboardService,
+        IClubActivityQueryService activityService,
+        IClubAttentionQueryService? attentionService = null,
+        string? clubId = "42")
     {
         Services.AddSingleton(dashboardService);
+        Services.AddSingleton(activityService);
+        Services.AddSingleton(attentionService ?? EmptyAttentionService());
+
         Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin, clubId)));
     }
 
-    private static ClubDashboardResult CreatePopulatedSummary(AdminAttentionDto? attention = null) => new()
+    private static IClubAttentionQueryService EmptyAttentionService()
+    {
+        var service = Substitute.For<IClubAttentionQueryService>();
+        service.GetClubAttentionAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessAttention(EmptyAttention())));
+        return service;
+    }
+
+    private static ClubAttentionResult EmptyAttention() => new()
+    {
+        PendingJoinRequests = new PendingJoinRequestsRegion
+        {
+            Status = AttentionRegionStatus.Loaded,
+            Count = 0,
+            OldestRequestAt = null
+        },
+        NeedsPlacement = new NeedsPlacementRegion
+        {
+            Status = AttentionRegionStatus.Loaded,
+            Count = 0,
+            CampaignId = null,
+            CampaignName = null
+        }
+    };
+
+    private static ClubDashboardResult CreatePopulatedSummary() => new()
     {
         ActiveCampaigns =
         [
@@ -372,60 +440,70 @@ public sealed class ClubDashboardComponentTests : BunitContext
             }
         ],
         Roster = new RosterCountsDto { ActivePlayers = 5, ArchivedPlayers = 2 },
-        Teams = new TeamCountsDto { ActiveTeams = 8, ArchivedTeams = 1 },
-        AdminAttention = attention
+        Teams = new TeamCountsDto { ActiveTeams = 8, ArchivedTeams = 1 }
     };
 
     private static ClubDashboardResult CreateEmptySummary() => new()
     {
         ActiveCampaigns = [],
         Roster = new RosterCountsDto { ActivePlayers = 0, ArchivedPlayers = 0 },
-        Teams = new TeamCountsDto { ActiveTeams = 0, ArchivedTeams = 0 },
-        AdminAttention = null
+        Teams = new TeamCountsDto { ActiveTeams = 0, ArchivedTeams = 0 }
     };
 
     private static ServiceResult<ClubDashboardResult> SuccessDashboard(ClubDashboardResult summary)
         => new(summary);
 
-    private static ServiceResult<DashboardActivityResult> SuccessActivity(IReadOnlyList<DashboardActivityItemDto> events)
-        => new(new DashboardActivityResult(events));
+    private static ServiceResult<ClubActivityResult> SuccessActivity(IReadOnlyList<ClubActivityItemDto> events)
+        => new(new ClubActivityResult(events, HasMore: false, NextCursor: null));
 
-    private static DashboardActivityItemDto BuildNoteEvent()
-        => BuildEvent(DashboardActivityEventKind.NoteAdded, eventId: 1, player: "Noter");
+    private static ServiceResult<ClubAttentionResult> SuccessAttention(ClubAttentionResult attention)
+        => new(attention);
 
-    private static DashboardActivityItemDto BuildTagEvent()
-        => BuildEvent(DashboardActivityEventKind.TagApplied, eventId: 2, player: "Tagger", tag: "Leader");
+    private static ClubActivityItemDto BuildNoteEvent()
+        => BuildJoinRequestEvent(eventId: 1);
 
-    private static DashboardActivityItemDto BuildPlacementEvent()
-        => BuildEvent(DashboardActivityEventKind.PlacementSet, eventId: 3, player: "Placer", outcome: PlacementOutcome.Assigned);
-
-    private static DashboardActivityItemDto BuildLifecycleEvent(
-        DashboardActivityEventKind kind,
-        CampaignLifecycleEventType lifecycle,
-        long eventId)
-        => BuildEvent(kind, eventId, lifecycle: lifecycle);
-
-    private static DashboardActivityItemDto BuildEvent(
-        DashboardActivityEventKind kind,
-        long eventId,
-        string? player = null,
-        string? tag = null,
-        PlacementOutcome? outcome = null,
-        CampaignLifecycleEventType? lifecycle = null)
+    private static ClubActivityItemDto BuildCampaignLifecycleEvent(ActivityEventKind kind, string campaignName, long eventId)
         => new()
         {
             Kind = kind,
-            EventId = eventId,
-            EventAt = ActivityAt,
+            ActivityEventId = eventId,
+            OccurredAt = ActivityAt,
             ActorUserId = 300,
             ActorDisplayName = "Admin A",
-            CampaignId = 42,
-            CampaignName = "Campaign A",
-            PlayerCampaignAssignmentId = player is null ? null : 7,
-            PlayerDisplayName = player,
-            TagName = tag,
-            PlacementOutcome = outcome,
-            LifecycleEventType = lifecycle
+            Context = new CampaignLifecycleContext { CampaignId = 42, CampaignName = campaignName }
+        };
+
+    private static ClubActivityItemDto BuildJoinRequestEvent(long eventId)
+        => new()
+        {
+            Kind = ActivityEventKind.JoinRequestSubmitted,
+            ActivityEventId = eventId,
+            OccurredAt = ActivityAt,
+            ActorUserId = 300,
+            ActorDisplayName = "Admin A",
+            Context = new JoinRequestContext { JoinRequestId = 7, RequesterDisplayName = "Noter" }
+        };
+
+    private static ClubActivityItemDto BuildMembershipEvent(long eventId)
+        => new()
+        {
+            Kind = ActivityEventKind.MemberJoined,
+            ActivityEventId = eventId,
+            OccurredAt = ActivityAt,
+            ActorUserId = 300,
+            ActorDisplayName = "Admin A",
+            Context = new MembershipContext { MemberDisplayName = "Noter", ApprovedByActorName = null }
+        };
+
+    private static ClubActivityItemDto BuildMemberRoleEvent(long eventId)
+        => new()
+        {
+            Kind = ActivityEventKind.MemberPromoted,
+            ActivityEventId = eventId,
+            OccurredAt = ActivityAt,
+            ActorUserId = 300,
+            ActorDisplayName = "Admin A",
+            Context = new MemberRoleContext { MemberDisplayName = "Noter", Role = "Team Lead" }
         };
 
     private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, string? clubId = "42")
@@ -481,9 +559,11 @@ public sealed class ClubDashboardComponentTests : BunitContext
     /// </summary>
     private sealed class PersistedStateClubDashboard(
         IDashboardQueryService dashboardQueryService,
+        IClubActivityQueryService activityQueryService,
+        IClubAttentionQueryService attentionQueryService,
         AuthenticationStateProvider authenticationStateProvider,
         NavigationManager navigationManager)
-        : ClubDashboardPage(dashboardQueryService, authenticationStateProvider, navigationManager)
+        : ClubDashboardPage(dashboardQueryService, activityQueryService, attentionQueryService, authenticationStateProvider, navigationManager)
     {
         /// <summary>Gets or sets whether the persisted-state initialization path should be seeded.</summary>
         [Parameter]
@@ -495,7 +575,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
         /// <summary>Gets or sets the persisted activity payload.</summary>
         [Parameter]
-        public DashboardActivityResult? PersistedActivityValue { get; set; }
+        public ClubActivityResult? PersistedActivityValue { get; set; }
 
         /// <inheritdoc />
         protected override Task OnInitializedAsync()
