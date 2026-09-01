@@ -252,22 +252,30 @@ public sealed partial class ClubJoinRequestService(
 
         // The probe resolves the request identity, validates ownership/status up front, and
         // snapshots the names used by the durable event; the execution-strategy delegate re-runs
-        // the delete + JoinRequestCancelled append on a fresh write context per attempt and
-        // verifies an ambiguous commit instead of replaying the delete.
+        // the delete + JoinRequestCancelled append on a fresh write context per attempt, acquires
+        // the request lock to serialize concurrent terminal transitions, and verifies an ambiguous
+        // commit (gated on this attempt reaching commit) instead of replaying the delete.
         var state = new CancellationState(requestId, userId, requesterName);
         var strategy = probeDb.Database.CreateExecutionStrategy();
+        var commitAttempted = new CommitAttemptTracker();
 
         return await strategy.ExecuteAsync(
-            state,
+            (State: state, CommitAttempted: commitAttempted),
             async (operationState, token) =>
             {
+                operationState.CommitAttempted.Reset();
                 await using var writeDb = await dbContextFactory.CreateDbContextAsync(token);
-                return await PersistCancellationAsync(writeDb, operationState, token);
+                return await PersistCancellationAsync(writeDb, operationState.State, operationState.CommitAttempted, token);
             },
             async (operationState, token) =>
             {
+                if (!operationState.CommitAttempted.Attempted)
+                {
+                    return new ExecutionResult<ServiceResult<Success>>(successful: false, default!);
+                }
+
                 await using var verifyDb = await dbContextFactory.CreateDbContextAsync(token);
-                return await VerifyCancellationCommittedAsync(verifyDb, operationState, token);
+                return await VerifyCancellationCommittedAsync(verifyDb, operationState.State, token);
             },
             cancellationToken);
     }
@@ -315,7 +323,9 @@ public sealed partial class ClubJoinRequestService(
         // evidence and vice versa); the club constraint is applied explicitly because the admin
         // context has no tenant filter. The probe resolves the request identity and validates it up
         // front; the execution-strategy delegate re-runs the whole mutation on a fresh admin context
-        // per attempt and verifies an ambiguous commit instead of replaying the event insert.
+        // per attempt, acquires the request lock to serialize concurrent terminal transitions, and
+        // verifies an ambiguous commit (gated on this attempt reaching commit) instead of replaying
+        // the event insert.
         await using var probeDb = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var request = await probeDb.ClubJoinRequests
@@ -339,18 +349,25 @@ public sealed partial class ClubJoinRequestService(
             currentUserProvider.UserId ?? 0,
             request.RequestingUserId);
         var strategy = probeDb.Database.CreateExecutionStrategy();
+        var commitAttempted = new CommitAttemptTracker();
 
         var result = await strategy.ExecuteAsync(
-            state,
+            (State: state, CommitAttempted: commitAttempted),
             async (operationState, token) =>
             {
+                operationState.CommitAttempted.Reset();
                 await using var writeDb = await adminDbContextFactory.CreateDbContextAsync(token);
-                return await PersistApprovalAsync(writeDb, operationState, token);
+                return await PersistApprovalAsync(writeDb, operationState.State, operationState.CommitAttempted, token);
             },
             async (operationState, token) =>
             {
+                if (!operationState.CommitAttempted.Attempted)
+                {
+                    return new ExecutionResult<ServiceResult<Success>>(successful: false, default!);
+                }
+
                 await using var verifyDb = await adminDbContextFactory.CreateDbContextAsync(token);
-                return await VerifyApprovalCommittedAsync(verifyDb, operationState, token);
+                return await VerifyApprovalCommittedAsync(verifyDb, operationState.State, token);
             },
             cancellationToken);
 
@@ -382,8 +399,9 @@ public sealed partial class ClubJoinRequestService(
 
         // The probe resolves the request identity, validates it up front, and snapshots the names
         // used by the durable event; the execution-strategy delegate re-runs the mutation on a
-        // fresh write context per attempt and verifies an ambiguous commit instead of replaying the
-        // rejection event.
+        // fresh write context per attempt, acquires the request lock to serialize concurrent
+        // terminal transitions, and verifies an ambiguous commit (gated on this attempt reaching
+        // commit) instead of replaying the rejection event.
         await using var probeDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var request = await probeDb.ClubJoinRequests
@@ -413,36 +431,47 @@ public sealed partial class ClubJoinRequestService(
 
         var state = new RejectionState(requestId, request.ClubId, adminUserId, adminName, requesterName);
         var strategy = probeDb.Database.CreateExecutionStrategy();
+        var commitAttempted = new CommitAttemptTracker();
 
         return await strategy.ExecuteAsync(
-            state,
+            (State: state, CommitAttempted: commitAttempted),
             async (operationState, token) =>
             {
+                operationState.CommitAttempted.Reset();
                 await using var writeDb = await dbContextFactory.CreateDbContextAsync(token);
-                return await PersistRejectionAsync(writeDb, operationState, token);
+                return await PersistRejectionAsync(writeDb, operationState.State, operationState.CommitAttempted, token);
             },
             async (operationState, token) =>
             {
+                if (!operationState.CommitAttempted.Attempted)
+                {
+                    return new ExecutionResult<ServiceResult<Success>>(successful: false, default!);
+                }
+
                 await using var verifyDb = await dbContextFactory.CreateDbContextAsync(token);
-                return await VerifyRejectionCommittedAsync(verifyDb, operationState, token);
+                return await VerifyRejectionCommittedAsync(verifyDb, operationState.State, token);
             },
             cancellationToken);
     }
 
     /// <summary>
     /// Persists an approval (request status, requester membership, and the member-joined event) in
-    /// one transaction on the provided fresh admin context.
+    /// one transaction on the provided fresh admin context, after acquiring the request lock so
+    /// concurrent terminal transitions serialize and the loser observes the winner's status.
     /// </summary>
     /// <param name="db">The fresh admin context for this execution attempt.</param>
     /// <param name="state">The logical approval state captured before the strategy started.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database work.</param>
     /// <returns>The approval outcome.</returns>
     private async Task<ServiceResult<Success>> PersistApprovalAsync(
         NovaAdminDbContext db,
         ApprovalState state,
+        CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireJoinRequestLockAsync(state.RequestId, cancellationToken);
 
         var request = await db.ClubJoinRequests
             .FirstOrDefaultAsync(
@@ -490,6 +519,7 @@ public sealed partial class ClubJoinRequestService(
             });
 
         await db.SaveChangesAsync(cancellationToken);
+        commitAttempted.MarkAttempted();
         await transaction.CommitAsync(cancellationToken);
 
         LogJoinRequestApproved(state.AdminUserId, request.ClubJoinRequestId, request.RequestingUserId, request.ClubId);
@@ -532,18 +562,22 @@ public sealed partial class ClubJoinRequestService(
 
     /// <summary>
     /// Persists a rejection (request status and the join-request-rejected event) in one transaction
-    /// on the provided fresh write context.
+    /// on the provided fresh write context, after acquiring the request lock so concurrent terminal
+    /// transitions serialize and the loser observes the winner's status.
     /// </summary>
     /// <param name="db">The fresh write context for this execution attempt.</param>
     /// <param name="state">The logical rejection state captured before the strategy started.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database work.</param>
     /// <returns>The rejection outcome.</returns>
     private async Task<ServiceResult<Success>> PersistRejectionAsync(
         NovaDbContext db,
         RejectionState state,
+        CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireJoinRequestLockAsync(state.RequestId, cancellationToken);
 
         var request = await db.ClubJoinRequests
             .FirstOrDefaultAsync(
@@ -575,6 +609,7 @@ public sealed partial class ClubJoinRequestService(
             });
 
         await db.SaveChangesAsync(cancellationToken);
+        commitAttempted.MarkAttempted();
         await transaction.CommitAsync(cancellationToken);
 
         LogJoinRequestRejected(state.AdminUserId, state.RequestId, request.RequestingUserId);
@@ -609,18 +644,22 @@ public sealed partial class ClubJoinRequestService(
 
     /// <summary>
     /// Persists a cancellation (request deletion and the join-request-cancelled event) in one
-    /// transaction on the provided fresh write context.
+    /// transaction on the provided fresh write context, after acquiring the request lock so
+    /// concurrent terminal transitions serialize and the loser observes the winner's status.
     /// </summary>
     /// <param name="db">The fresh write context for this execution attempt.</param>
     /// <param name="state">The logical cancellation state captured before the strategy started.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database work.</param>
     /// <returns>The cancellation outcome.</returns>
     private async Task<ServiceResult<Success>> PersistCancellationAsync(
         NovaDbContext db,
         CancellationState state,
+        CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireJoinRequestLockAsync(state.RequestId, cancellationToken);
 
         var request = await db.ClubJoinRequests
             .FirstOrDefaultAsync(e => e.ClubJoinRequestId == state.RequestId, cancellationToken);
@@ -657,6 +696,7 @@ public sealed partial class ClubJoinRequestService(
             });
 
         await db.SaveChangesAsync(cancellationToken);
+        commitAttempted.MarkAttempted();
         await transaction.CommitAsync(cancellationToken);
 
         LogJoinRequestCancelled(state.UserId, state.RequestId);

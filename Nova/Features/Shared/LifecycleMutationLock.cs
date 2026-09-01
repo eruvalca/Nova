@@ -46,6 +46,17 @@ internal static class LifecycleMutationLock
             => AcquirePostgresLockAsync(db, (long.MinValue / 2) + tagDefinitionId, cancellationToken);
 
         /// <summary>
+        /// Acquires a transaction-scoped lock for terminal mutations of one join request (approve,
+        /// reject, or cancel), serializing concurrent transitions so the loser observes the winner's
+        /// committed status and returns a conflict instead of appending contradictory evidence.
+        /// </summary>
+        /// <param name="joinRequestId">The join-request identifier whose terminal transition must be serialized.</param>
+        /// <param name="cancellationToken">A token that cancels lock acquisition.</param>
+        /// <returns>A task representing lock acquisition.</returns>
+        public Task AcquireJoinRequestLockAsync(long joinRequestId, CancellationToken cancellationToken)
+            => AcquirePostgresLockAsync(db, (long.MinValue / 8) + joinRequestId, cancellationToken);
+
+        /// <summary>
         /// Acquires a transaction-scoped club-roster lock that serializes concurrent player creation
         /// within the same club, preventing gaps in campaign enrollment. Campaign creation is also
         /// intended to acquire this lock when it is implemented.

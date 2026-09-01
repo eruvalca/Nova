@@ -52,8 +52,11 @@ public sealed partial class ClubActivityQueryService(
         }
 
         var isAdmin = currentUserProvider.IsClubAdmin;
+        // Normalize the cursor timestamp to UTC: Npgsql only binds offset-zero DateTimeOffset
+        // values to PostgreSQL timestamptz, and the client may supply a valid instant with a
+        // non-zero offset. The comparison instant is unchanged by the offset conversion.
         var cursor = input.BeforeActivityEventId is long beforeId && input.BeforeOccurredAt is DateTimeOffset beforeAt
-            ? new ClubActivityCursor(beforeId, beforeAt)
+            ? new ClubActivityCursor(beforeId, beforeAt.ToUniversalTime())
             : null;
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);

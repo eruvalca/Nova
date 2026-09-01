@@ -64,6 +64,41 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a cursor whose occurrence time carries a non-zero UTC offset is normalized to UTC
+    /// and served, rather than rejected by Npgsql's offset-zero-only timestamptz binding.
+    /// </summary>
+    [Fact]
+    public async Task GetActivity_AcceptsNonZeroOffsetCursor_OverHttp()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        var (club, adminUserId) = await CreateClubWithAdminAsync(adminClient, cancellationToken);
+        using var memberClient = await CreateMemberClientAsync(club.ClubId, cancellationToken);
+
+        await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 21, cancellationToken);
+
+        using var firstResponse = await memberClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
+        firstResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var first = await firstResponse.Content.ReadFromJsonAsync<ClubActivityResult>(WebJsonOptions, cancellationToken);
+        first.ShouldNotBeNull();
+        var cursor = first.NextCursor.ShouldNotBeNull();
+
+        // Replay the same instant with a non-zero offset: the comparison instant is unchanged, but
+        // the textual offset is not accepted by Npgsql's timestamptz binding unless the service
+        // normalizes it to UTC.
+        var offsetOccurredAt = cursor.OccurredAt.ToOffset(TimeSpan.FromHours(2));
+        var url = $"{ActivityEndpoints.GetClubActivity}?beforeActivityEventId={cursor.ActivityEventId}&beforeOccurredAt={Uri.EscapeDataString(offsetOccurredAt.ToString("O"))}";
+
+        using var offsetResponse = await memberClient.GetAsync(url, cancellationToken);
+        offsetResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var second = await offsetResponse.Content.ReadFromJsonAsync<ClubActivityResult>(WebJsonOptions, cancellationToken);
+        second.ShouldNotBeNull();
+        second.Events.Count.ShouldBe(1);
+        second.HasMore.ShouldBeFalse();
+    }
+
+    /// <summary>
     /// Verifies the feed shapes a MemberJoined payload by role over HTTP: a non-admin member sees
     /// no approving actor name while an administrator sees the stored approving actor name.
     /// </summary>
