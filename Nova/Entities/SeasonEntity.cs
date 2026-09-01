@@ -13,7 +13,8 @@ public class SeasonEntity : BaseEntity, ITenantOwnedEntity
     public long SeasonId { get; set; } = default;
 
     /// <summary>
-    /// Gets or sets the caller-generated identifier when the season was created inline with a campaign.
+    /// Gets or sets the stable identifier for the logical season-creation operation, used to verify
+    /// an idempotent creation transaction.
     /// </summary>
     public required Guid CreationOperationId { get; set; }
 
