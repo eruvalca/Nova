@@ -727,6 +727,66 @@ public class ClubJoinRequestServiceTests : IDisposable
         await _userManager.Received().UpdateSecurityStampAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == RequestingUserId));
     }
 
+    /// <summary>
+    /// Verifies a committed approval still reports success when the post-commit claim refresh
+    /// fails: the membership and event are durable, and the stamp failure is logged rather than
+    /// turning the approval into a server error.
+    /// </summary>
+    [Fact]
+    public async Task ApproveJoinRequestAsync_StillSucceeds_WhenClaimsStaleMarkFails()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = AdminUserId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+
+        long requestId = 0;
+        using (var context = _harness.CreateAdminContext())
+        {
+            var request = new ClubJoinRequestEntity
+            {
+                ClubId = ClubAId,
+                RequestingUserId = RequestingUserId,
+                Status = RequestStatus.Pending,
+                CreatedById = RequestingUserId
+            };
+            context.ClubJoinRequests.Add(request);
+            context.SaveChanges();
+            requestId = request.ClubJoinRequestId;
+        }
+
+        _userManager.FindByIdAsync(RequestingUserId.ToString())
+            .Returns(Task.FromResult<NovaUserEntity?>(new NovaUserEntity
+            {
+                Id = RequestingUserId,
+                FirstName = "Requester",
+                LastName = "R",
+                ClubId = ClubAId
+            }));
+
+        var service = CreateService();
+
+        // Override the harness's success stub so the security-stamp refresh fails.
+        _userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
+            .Returns(Task.FromResult(IdentityResult.Failed(
+                new IdentityError { Code = "StampFailed", Description = "Security stamp update failed." })));
+
+        // Act
+        var result = await service.ApproveJoinRequestAsync(requestId, TestContext.Current.CancellationToken);
+
+        // Assert: the approval is durable and successful despite the refresh failure.
+        result.IsSuccess.ShouldBeTrue();
+
+        using (var context = _harness.CreateAdminContext())
+        {
+            var updatedRequest = await context.ClubJoinRequests.FirstAsync(r => r.ClubJoinRequestId == requestId, TestContext.Current.CancellationToken);
+            updatedRequest.Status.ShouldBe(RequestStatus.Approved);
+
+            var updatedUser = await context.Users.FirstAsync(u => u.Id == RequestingUserId, TestContext.Current.CancellationToken);
+            updatedUser.ClubId.ShouldBe(ClubAId);
+        }
+    }
+
     #endregion
 
     #region RejectJoinRequestAsync Tests

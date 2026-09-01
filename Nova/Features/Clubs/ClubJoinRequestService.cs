@@ -374,13 +374,24 @@ public sealed partial class ClubJoinRequestService(
         // Best-effort security-stamp refresh so the newly assigned member's claims are regenerated
         // after the committed approval; a refresh failure must not fail an already-committed
         // approval. Reload the requester through UserManager so the instance belongs to the
-        // Identity store's context.
+        // Identity store's context, then Match the refresh result so a stale-mark failure is
+        // diagnosed instead of silently leaving the member stuck behind the onboarding gate.
         if (result.IsSuccess)
         {
             var identityUser = await userManager.FindByIdAsync(state.RequestingUserId.ToString());
-            if (identityUser is not null)
+            if (identityUser is null)
             {
-                await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(identityUser);
+                LogApproveRequestingUserMissing(state.RequestingUserId, state.RequestId);
+            }
+            else
+            {
+                var refreshResult = await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(identityUser);
+                refreshResult.Switch(
+                    _ => { },
+                    error => LogApproveClaimsStaleFailed(
+                        state.RequestingUserId,
+                        state.RequestId,
+                        string.Join(", ", error.Value)));
             }
         }
 
@@ -747,6 +758,9 @@ public sealed partial class ClubJoinRequestService(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but requesting user not found: RequestingUserId={RequestingUserId}, RequestId={RequestId}.")]
     private partial void LogApproveRequestingUserMissing(long requestingUserId, long requestId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but failed to mark the member's claims stale: RequestingUserId={RequestingUserId}, RequestId={RequestId}, Errors={Errors}.")]
+    private partial void LogApproveClaimsStaleFailed(long requestingUserId, long requestId, string errors);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Join request created: RequestId={RequestId} for UserId={UserId} to ClubId={ClubId}.")]
     private partial void LogJoinRequestCreated(long userId, long clubId, long requestId);
