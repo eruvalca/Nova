@@ -239,6 +239,53 @@ public sealed class HttpClubActivityQueryServiceTests
         result.Value.NextCursor.ShouldNotBeNull();
     }
 
+    /// <summary>Verifies a valid placement row with a consistent outcome and team snapshot is accepted.</summary>
+    [Fact]
+    public async Task GetClubActivityAsync_AcceptsValidPlacementRow()
+    {
+        var body = """{"events":[{"kind":5,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"Campaign A","playerCampaignAssignmentId":10,"playerDisplayName":"Sam Doe","outcome":1,"teamName":"Team A"}}],"hasMore":false,"nextCursor":null}""";
+        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpClubActivityQueryService(http);
+
+        var result = await service.GetClubActivityAsync(
+            new GetClubActivityInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies a placement row whose resulting outcome or team snapshot contradicts its kind is
+    /// rejected as a malformed successful payload.
+    /// </summary>
+    /// <param name="body">The invalid successful response body.</param>
+    [Theory]
+    [InlineData("""{"events":[{"kind":5,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"Campaign A","playerCampaignAssignmentId":10,"playerDisplayName":"Sam Doe","outcome":2}}],"hasMore":false,"nextCursor":null}""")]
+    [InlineData("""{"events":[{"kind":5,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"Campaign A","playerCampaignAssignmentId":10,"playerDisplayName":"Sam Doe","outcome":1}}],"hasMore":false,"nextCursor":null}""")]
+    [InlineData("""{"events":[{"kind":6,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"Campaign A","playerCampaignAssignmentId":10,"playerDisplayName":"Sam Doe","outcome":1,"teamName":"Team A"}}],"hasMore":false,"nextCursor":null}""")]
+    [InlineData("""{"events":[{"kind":7,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"Campaign A","playerCampaignAssignmentId":10,"playerDisplayName":"Sam Doe","outcome":3,"teamName":"Team A"}}],"hasMore":false,"nextCursor":null}""")]
+    [InlineData("""{"events":[{"kind":8,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"Campaign A","playerCampaignAssignmentId":10,"playerDisplayName":"Sam Doe","outcome":1,"teamName":"Team B"}}],"hasMore":false,"nextCursor":null}""")]
+    public async Task GetClubActivityAsync_ReturnsServerError_ForContradictoryPlacementRow(string body)
+    {
+        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpClubActivityQueryService(http);
+
+        var result = await service.GetClubActivityAsync(
+            new GetClubActivityInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>Verifies the member-shaped MemberJoined payload (no actor or approval fields) is accepted.</summary>
     [Fact]
     public async Task GetClubActivityAsync_AcceptsMemberJoined_MemberShape()

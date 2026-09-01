@@ -16,6 +16,10 @@ namespace Nova.Features.Activity;
 /// </summary>
 internal static class ActivityEventWriter
 {
+    /// <summary>
+    /// The JSON options used to serialize family-shaped payloads, matching the camel-case contract
+    /// the feed projection reads back.
+    /// </summary>
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -155,6 +159,17 @@ internal static class ActivityEventWriter
         Append(db, clubId, campaignId: null, kind, actorUserId, actorDisplayName, context);
     }
 
+    /// <summary>
+    /// Serializes a family-shaped context through the polymorphic base type and stages the
+    /// resulting durable activity row on the caller's open context.
+    /// </summary>
+    /// <param name="db">The caller's open context the event is added to.</param>
+    /// <param name="clubId">The club that owns the event.</param>
+    /// <param name="campaignId">The optional owning campaign identifier.</param>
+    /// <param name="kind">The event kind.</param>
+    /// <param name="actorUserId">The acting user identifier.</param>
+    /// <param name="actorDisplayName">The acting user display-name snapshot.</param>
+    /// <param name="context">The family-shaped structured payload.</param>
     private static void Append(
         ApplicationDbContext db,
         long clubId,

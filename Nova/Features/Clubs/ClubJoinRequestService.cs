@@ -224,9 +224,9 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.NotFound();
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var probeDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        var request = await db.ClubJoinRequests
+        var request = await probeDb.ClubJoinRequests
             .FirstOrDefaultAsync(e => e.ClubJoinRequestId == requestId, cancellationToken);
 
         if (request is null)
@@ -250,26 +250,26 @@ public sealed partial class ClubJoinRequestService(
         // at cancel time, so UserManager is required (tenant filter excludes club-less users).
         var requesterName = (await userManager.FindByIdAsync(request.RequestingUserId.ToString()))?.FullName ?? "Unknown user";
 
-        db.ClubJoinRequests.Remove(request);
+        // The probe resolves the request identity, validates ownership/status up front, and
+        // snapshots the names used by the durable event; the execution-strategy delegate re-runs
+        // the delete + JoinRequestCancelled append on a fresh write context per attempt and
+        // verifies an ambiguous commit instead of replaying the delete.
+        var state = new CancellationState(requestId, userId, requesterName);
+        var strategy = probeDb.Database.CreateExecutionStrategy();
 
-        // JoinRequestCancelled is administrator-only (unresolved join-request events are
-        // admin-only per the attention brief).
-        ActivityEventWriter.AppendJoinRequest(
-            db,
-            request.ClubId,
-            ActivityEventKind.JoinRequestCancelled,
-            userId,
-            requesterName,
-            new JoinRequestContext
+        return await strategy.ExecuteAsync(
+            state,
+            async (operationState, token) =>
             {
-                JoinRequestId = request.ClubJoinRequestId,
-                RequesterDisplayName = requesterName,
-            });
-
-        await db.SaveChangesAsync(cancellationToken);
-
-        LogJoinRequestCancelled(userId, requestId);
-        return new Success();
+                await using var writeDb = await dbContextFactory.CreateDbContextAsync(token);
+                return await PersistCancellationAsync(writeDb, operationState, token);
+            },
+            async (operationState, token) =>
+            {
+                await using var verifyDb = await dbContextFactory.CreateDbContextAsync(token);
+                return await VerifyCancellationCommittedAsync(verifyDb, operationState, token);
+            },
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -606,6 +606,92 @@ public sealed partial class ClubJoinRequestService(
 
         return new ExecutionResult<ServiceResult<Success>>(successful: false, default!);
     }
+
+    /// <summary>
+    /// Persists a cancellation (request deletion and the join-request-cancelled event) in one
+    /// transaction on the provided fresh write context.
+    /// </summary>
+    /// <param name="db">The fresh write context for this execution attempt.</param>
+    /// <param name="state">The logical cancellation state captured before the strategy started.</param>
+    /// <param name="cancellationToken">A token that cancels the database work.</param>
+    /// <returns>The cancellation outcome.</returns>
+    private async Task<ServiceResult<Success>> PersistCancellationAsync(
+        NovaDbContext db,
+        CancellationState state,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        var request = await db.ClubJoinRequests
+            .FirstOrDefaultAsync(e => e.ClubJoinRequestId == state.RequestId, cancellationToken);
+
+        if (request is null)
+        {
+            return ServiceProblem.NotFound("The join request was not found.");
+        }
+
+        if (request.RequestingUserId != state.UserId)
+        {
+            return ServiceProblem.Forbidden("You do not own this join request.");
+        }
+
+        if (request.Status != RequestStatus.Pending)
+        {
+            return ServiceProblem.Conflict("Only pending join requests can be cancelled.");
+        }
+
+        db.ClubJoinRequests.Remove(request);
+
+        // JoinRequestCancelled is administrator-only (unresolved join-request events are
+        // admin-only per the attention brief).
+        ActivityEventWriter.AppendJoinRequest(
+            db,
+            request.ClubId,
+            ActivityEventKind.JoinRequestCancelled,
+            state.UserId,
+            state.RequesterName,
+            new JoinRequestContext
+            {
+                JoinRequestId = request.ClubJoinRequestId,
+                RequesterDisplayName = state.RequesterName,
+            });
+
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        LogJoinRequestCancelled(state.UserId, state.RequestId);
+        return new Success();
+    }
+
+    /// <summary>
+    /// Verifies whether a cancellation with an uncertain commit outcome actually committed by
+    /// re-reading the request row (the committed cancellation deletes it) without replaying the
+    /// delete.
+    /// </summary>
+    /// <param name="db">The fresh write context used for commit verification.</param>
+    /// <param name="state">The logical cancellation state captured before the strategy started.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>An execution result indicating whether the committed cancellation was found.</returns>
+    private async Task<ExecutionResult<ServiceResult<Success>>> VerifyCancellationCommittedAsync(
+        NovaDbContext db,
+        CancellationState state,
+        CancellationToken cancellationToken)
+    {
+        var request = await db.ClubJoinRequests
+            .AsNoTracking()
+            .SingleOrDefaultAsync(e => e.ClubJoinRequestId == state.RequestId, cancellationToken);
+
+        if (request is null)
+        {
+            LogJoinRequestCancelled(state.UserId, state.RequestId);
+            return new ExecutionResult<ServiceResult<Success>>(successful: true, new Success());
+        }
+
+        return new ExecutionResult<ServiceResult<Success>>(successful: false, default!);
+    }
+
+    /// <summary>Captured, immutable state for one cancellation attempt.</summary>
+    private readonly record struct CancellationState(long RequestId, long UserId, string RequesterName);
 
     /// <summary>Captured, immutable state for one approval attempt.</summary>
     private readonly record struct ApprovalState(long RequestId, long ClubId, long AdminUserId, long RequestingUserId);

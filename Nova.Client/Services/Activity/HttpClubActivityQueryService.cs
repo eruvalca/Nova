@@ -112,10 +112,7 @@ public sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivit
             or ActivityEventKind.PlacementOutcomeReplaced
             or ActivityEventKind.PlacementSuperseded
                 => item.Context is PlacementContext placement
-                    && placement.CampaignId > 0
-                    && !string.IsNullOrWhiteSpace(placement.CampaignName)
-                    && placement.PlayerCampaignAssignmentId > 0
-                    && !string.IsNullOrWhiteSpace(placement.PlayerDisplayName),
+                    && IsValidPlacement(item.Kind, placement),
             ActivityEventKind.JoinRequestSubmitted
             or ActivityEventKind.JoinRequestCancelled
             or ActivityEventKind.JoinRequestRejected
@@ -133,6 +130,51 @@ public sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivit
                     && !string.IsNullOrWhiteSpace(role.MemberDisplayName)
                     && !string.IsNullOrWhiteSpace(role.Role),
             _ => false
+        };
+    }
+
+    /// <summary>
+    /// Validates the placement-family base fields plus the kind-specific resulting outcome and team
+    /// snapshot consistency, so contradictory rows (for example, an assignment with a non-assigned
+    /// outcome) surface as protocol failures instead of rendering misleading copy.
+    /// </summary>
+    /// <param name="kind">The placement event kind.</param>
+    /// <param name="placement">The deserialized placement context.</param>
+    /// <returns><see langword="true"/> when the placement context is consistent with its kind.</returns>
+    private static bool IsValidPlacement(ActivityEventKind kind, PlacementContext placement)
+    {
+        if (placement.CampaignId <= 0
+            || string.IsNullOrWhiteSpace(placement.CampaignName)
+            || placement.PlayerCampaignAssignmentId <= 0
+            || string.IsNullOrWhiteSpace(placement.PlayerDisplayName))
+        {
+            return false;
+        }
+
+        return kind switch
+        {
+            ActivityEventKind.PlacementAssigned
+                => placement.Outcome == PlacementOutcome.Assigned
+                    && !string.IsNullOrWhiteSpace(placement.TeamName),
+            ActivityEventKind.PlacementReassigned
+                => placement.Outcome == PlacementOutcome.Assigned
+                    && !string.IsNullOrWhiteSpace(placement.PreviousTeamName)
+                    && !string.IsNullOrWhiteSpace(placement.TeamName),
+            ActivityEventKind.PlacementNotSelected
+                => placement.Outcome == PlacementOutcome.NotSelected
+                    && placement.TeamName is null,
+            ActivityEventKind.PlacementWithdrawn
+                => placement.Outcome == PlacementOutcome.Withdrawn
+                    && placement.TeamName is null,
+            ActivityEventKind.PlacementOutcomeReplaced
+                => placement.Outcome is PlacementOutcome.Assigned or PlacementOutcome.Undecided
+                    && (placement.Outcome == PlacementOutcome.Assigned
+                        ? !string.IsNullOrWhiteSpace(placement.TeamName)
+                        : placement.TeamName is null),
+            // PlacementSuperseded is not yet emitted (future #178): the superseding assignment's
+            // outcome/team shape is not fully specified, so only the base fields are validated.
+            ActivityEventKind.PlacementSuperseded => true,
+            _ => false,
         };
     }
 

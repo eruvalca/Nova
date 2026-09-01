@@ -31,6 +31,8 @@ public static class ActivityEndpoints
     /// it is invalid (a non-positive event identifier), so this builder only emits URLs the input
     /// contract (<c>[Range(1, long.MaxValue)]</c>) accepts.
     /// </summary>
+    /// <param name="cursor">The optional continuation cursor, or <see langword="null"/> for the newest page.</param>
+    /// <returns>The cursor-less route when the cursor is null or invalid, otherwise the route with the cursor query parameters.</returns>
     public static string GetClubActivityUrl(ClubActivityCursor? cursor)
         => cursor is not { ActivityEventId: > 0 }
             ? GetClubActivity

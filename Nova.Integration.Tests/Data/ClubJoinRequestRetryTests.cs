@@ -186,6 +186,43 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a cancellation whose commit reached the database but surfaced a transient failure
+    /// is verified as committed rather than replayed into a duplicate join-request-cancelled event.
+    /// </summary>
+    [Fact]
+    public async Task CancelJoinRequest_VerifiesCommittedCancellation_AfterAmbiguousCommitFailure()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedApprovalDataAsync(cancellationToken);
+        ActAs(seed.RequesterUserId, clubId: null);
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var writeFactory = new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            failureInterceptor);
+        var service = CreateService(writeFactory, seed.RequesterUserId);
+
+        var result = await service.CancelJoinRequestAsync(seed.RequestId, cancellationToken);
+
+        result.IsSuccess.ShouldBeTrue(
+            "an ambiguous cancellation commit must be verified rather than replayed into a duplicate event");
+        failureInterceptor.FailureCount.ShouldBe(1);
+
+        await using var verify = fixture.CreateAdminContext();
+        var request = await verify.ClubJoinRequests
+            .SingleOrDefaultAsync(r => r.ClubJoinRequestId == seed.RequestId, cancellationToken);
+        request.ShouldBeNull("the committed cancellation deletes the request row");
+
+        var events = await verify.ActivityEvents
+            .Where(activity => activity.ClubId == seed.ClubId
+                && activity.EventKind == ActivityEventKind.JoinRequestCancelled)
+            .ToListAsync(cancellationToken);
+        events.Count.ShouldBe(1);
+        events[0].ActorUserId.ShouldBe(seed.RequesterUserId);
+    }
+
+    /// <summary>
     /// Seeds one club and one identity user with a database-generated id, both fresh per test.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels seeding.</param>
