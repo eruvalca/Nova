@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Data;
+using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
@@ -113,10 +114,7 @@ public sealed partial class ClubAttentionQueryService(
     /// <summary>
     /// Reads the campaigns-needing-placement region. The count is participant-level (number of
     /// undecided assignments in the Active campaign with no team and an active player) and the
-    /// identifier/name identify the oldest such campaign in deterministic campaign-list order.
-    /// Both values come from one ordered materialization, so a concurrent placement change cannot
-    /// make the count and the oldest-campaign projection disagree (a single statement is one
-    /// snapshot under read-committed).
+    /// identifier/name identify the newest such campaign in deterministic campaign-list order.
     /// The region reports <see cref="AttentionRegionStatus.Unavailable"/> on failure.
     /// </summary>
     /// <param name="clubId">The current club identifier.</param>
@@ -136,28 +134,16 @@ public sealed partial class ClubAttentionQueryService(
                     && assignment.TeamId == null
                     && assignment.Player.LifecycleStatus == LifecycleStatus.Active);
 
-            var rows = await undecidedQuery
-                .OrderByDescending(assignment => assignment.Campaign.Season.StartDate)
-                .ThenByDescending(assignment => assignment.Campaign.SeasonId)
-                .ThenBy(assignment => assignment.Campaign.Status)
-                .ThenByDescending(assignment => assignment.Campaign.StartDate)
-                .ThenByDescending(assignment => assignment.Campaign.EndDate.HasValue)
-                .ThenByDescending(assignment => assignment.Campaign.EndDate)
-                .ThenBy(assignment => assignment.Campaign.Name)
-                .ThenByDescending(assignment => assignment.Campaign.CampaignId)
-                .ThenByDescending(assignment => assignment.PlayerCampaignAssignmentId)
-                .Select(assignment => new CampaignRow(assignment.CampaignId, assignment.Campaign.Name))
-                .ToListAsync(cancellationToken);
-
-            var count = rows.Count;
-            var oldest = count > 0 ? rows[0] : null;
+            var (count, newest) = db.Database.IsNpgsql()
+                ? await ReadNpgsqlAggregateAsync(clubId, cancellationToken)
+                : await ReadSqliteAggregateAsync(undecidedQuery, cancellationToken);
 
             return new NeedsPlacementRegion
             {
                 Status = AttentionRegionStatus.Loaded,
                 Count = count,
-                CampaignId = oldest?.CampaignId,
-                CampaignName = oldest?.CampaignName
+                CampaignId = newest?.CampaignId,
+                CampaignName = newest?.CampaignName
             };
         }
         catch (Exception exception)
@@ -170,6 +156,93 @@ public sealed partial class ClubAttentionQueryService(
             LogNeedsPlacementRegionUnavailable(exception);
             return new NeedsPlacementRegion { Status = AttentionRegionStatus.Unavailable };
         }
+    }
+
+    /// <summary>
+    /// Reads the needs-placement aggregate from PostgreSQL inside a repeatable-read snapshot
+    /// transaction. The qualifying set is unbounded in principle (one row per undecided
+    /// assignment), so the count and the first campaign in deterministic campaign-list order are
+    /// projected database-side in two scalar queries rather than materialized; both run under the
+    /// same snapshot so a concurrent placement change cannot make the values disagree. The
+    /// composite ordering has no single Min/Max aggregate equivalent (season start, season id,
+    /// status, campaign start, end-date presence, end date, name, and identifiers), so the
+    /// ordered limit-one query is required. A transient failure replays the whole read with a
+    /// fresh read context, mirroring the mutation retry convention.
+    /// </summary>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The count and the newest campaign row.</returns>
+    private async Task<(int Count, CampaignRow? Newest)> ReadNpgsqlAggregateAsync(
+        long clubId,
+        CancellationToken cancellationToken)
+    {
+        await using var strategyDb = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = strategyDb.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(
+            (ClubId: clubId, Token: cancellationToken),
+            async (state, token) =>
+            {
+                // The query must be rebuilt against the fresh context so it shares the
+                // transaction's snapshot and context lifetime.
+                await using var db = await readDbContextFactory.CreateDbContextAsync(token);
+                var undecidedQuery = db.PlayerCampaignAssignments
+                    .Where(assignment => assignment.ClubId == state.ClubId
+                        && assignment.Campaign.Status == CampaignStatus.Active
+                        && assignment.PlacementOutcome == PlacementOutcome.Undecided
+                        && assignment.TeamId == null
+                        && assignment.Player.LifecycleStatus == LifecycleStatus.Active);
+
+                await using var transaction =
+                    await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
+
+                var count = await undecidedQuery.CountAsync(token);
+                var newest = await undecidedQuery
+                    .OrderByDescending(assignment => assignment.Campaign.Season.StartDate)
+                    .ThenByDescending(assignment => assignment.Campaign.SeasonId)
+                    .ThenBy(assignment => assignment.Campaign.Status)
+                    .ThenByDescending(assignment => assignment.Campaign.StartDate)
+                    .ThenByDescending(assignment => assignment.Campaign.EndDate.HasValue)
+                    .ThenByDescending(assignment => assignment.Campaign.EndDate)
+                    .ThenBy(assignment => assignment.Campaign.Name)
+                    .ThenByDescending(assignment => assignment.Campaign.CampaignId)
+                    .ThenByDescending(assignment => assignment.PlayerCampaignAssignmentId)
+                    .Select(assignment => new CampaignRow(assignment.CampaignId, assignment.Campaign.Name))
+                    .FirstOrDefaultAsync(token);
+
+                await transaction.CommitAsync(token);
+                return (count, newest);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the needs-placement aggregate on SQLite, which cannot translate the composite
+    /// ORDER BY into a limit-one projection. The undecided set is materialized and aggregated in
+    /// memory; in-memory SQLite is bounded (single writer, unit-scoped data), and the
+    /// count/newest semantics are the same as the PostgreSQL snapshot aggregate.
+    /// </summary>
+    /// <param name="undecidedQuery">The undecided-assignment query.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The count and the newest campaign row.</returns>
+    private static async Task<(int Count, CampaignRow? Newest)> ReadSqliteAggregateAsync(
+        IQueryable<PlayerCampaignAssignmentEntity> undecidedQuery,
+        CancellationToken cancellationToken)
+    {
+        var rows = await undecidedQuery
+            .OrderByDescending(assignment => assignment.Campaign.Season.StartDate)
+            .ThenByDescending(assignment => assignment.Campaign.SeasonId)
+            .ThenBy(assignment => assignment.Campaign.Status)
+            .ThenByDescending(assignment => assignment.Campaign.StartDate)
+            .ThenByDescending(assignment => assignment.Campaign.EndDate.HasValue)
+            .ThenByDescending(assignment => assignment.Campaign.EndDate)
+            .ThenBy(assignment => assignment.Campaign.Name)
+            .ThenByDescending(assignment => assignment.Campaign.CampaignId)
+            .ThenByDescending(assignment => assignment.PlayerCampaignAssignmentId)
+            .Select(assignment => new CampaignRow(assignment.CampaignId, assignment.Campaign.Name))
+            .ToListAsync(cancellationToken);
+
+        return (rows.Count, rows.FirstOrDefault());
     }
 
     /// <summary>

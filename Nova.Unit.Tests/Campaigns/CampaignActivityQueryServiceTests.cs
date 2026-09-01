@@ -1,4 +1,7 @@
-﻿using System.Text.Json;
+﻿using System.Data.Common;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
@@ -289,32 +292,56 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
         IReadOnlyList<(CampaignLifecycleEventType EventType, DateTimeOffset CreatedAt, long ActorUserId, string ActorDisplayName)> specs)
     {
         using var admin = _harness.CreateAdminContext();
-        var entities = specs.Select(spec => new ActivityEventEntity
+
+        // Straight SQL because the tenant interceptor re-stamps CreatedAt to now on Added, which
+        // would discard the caller-supplied occurrence time the ordering assertions rely on.
+        var connection = admin.Database.GetDbConnection();
+        foreach (var spec in specs)
         {
-            CampaignId = campaignId,
-            ClubId = clubId,
-            EventKind = spec.EventType == CampaignLifecycleEventType.Closed
+            var eventKind = spec.EventType == CampaignLifecycleEventType.Closed
                 ? ActivityEventKind.CampaignClosed
-                : ActivityEventKind.CampaignReopened,
-            IsAdminOnly = ActivityEventPolicy.IsAdminOnly(
-                spec.EventType == CampaignLifecycleEventType.Closed
-                    ? ActivityEventKind.CampaignClosed
-                    : ActivityEventKind.CampaignReopened),
-            ActorUserId = spec.ActorUserId,
-            ActorDisplayName = spec.ActorDisplayName,
-            PayloadJson = JsonSerializer.Serialize(
+                : ActivityEventKind.CampaignReopened;
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO "ActivityEvents"
+                    ("ClubId", "CampaignId", "EventKind", "IsAdminOnly", "ActorUserId",
+                     "ActorDisplayName", "PayloadJson", "CreatedAt", "CreatedById")
+                VALUES
+                    (@clubId, @campaignId, @eventKind, @isAdminOnly, @actorUserId,
+                     @actorDisplayName, @payloadJson, @createdAt, @createdById)
+                """;
+            AddParameter(command, "@clubId", clubId);
+            AddParameter(command, "@campaignId", campaignId);
+            AddParameter(command, "@eventKind", (int)eventKind);
+            AddParameter(command, "@isAdminOnly", ActivityEventPolicy.IsAdminOnly(eventKind) ? 1 : 0);
+            AddParameter(command, "@actorUserId", spec.ActorUserId);
+            AddParameter(command, "@actorDisplayName", spec.ActorDisplayName);
+            AddParameter(command, "@payloadJson", JsonSerializer.Serialize(
                 new CampaignLifecycleContext
                 {
                     CampaignId = campaignId,
                     CampaignName = "Active A",
                 },
                 typeof(ClubActivityContext),
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
-            CreatedById = spec.ActorUserId
-        }).ToList();
-        admin.ActivityEvents.AddRange(entities);
-        admin.SaveChanges();
-        return entities;
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+            AddParameter(command, "@createdAt", spec.CreatedAt);
+            AddParameter(command, "@createdById", spec.ActorUserId);
+            command.ExecuteNonQuery();
+        }
+
+        return admin.ActivityEvents
+            .AsNoTracking()
+            .OrderBy(entity => entity.ActivityEventId)
+            .ToList();
+    }
+
+    private static void AddParameter(DbCommand command, string name, object? value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value ?? DBNull.Value;
+        command.Parameters.Add(parameter);
     }
 
     /// <summary>Seeds clubs, users, seasons, and campaigns for two clubs.</summary>

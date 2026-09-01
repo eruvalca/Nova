@@ -177,7 +177,6 @@ public sealed partial class CampaignPlacementService(
         var participation = await db.PlayerCampaignAssignments
             .Include(assignment => assignment.Player)
             .Include(assignment => assignment.Campaign)
-            .Include(assignment => assignment.Team)
             .SingleOrDefaultAsync(
                 assignment => assignment.PlayerCampaignAssignmentId == input.PlayerCampaignAssignmentId,
                 cancellationToken);
@@ -197,12 +196,33 @@ public sealed partial class CampaignPlacementService(
         await db.AcquirePlayerMutationLockAsync(participation.PlayerId, cancellationToken);
         await db.Entry(participation.Player).ReloadAsync(cancellationToken);
 
+        // The old team-name snapshot must come from post-lock state: the pre-lock Include(Team)
+        // reference is stale by the time the mutation runs. Lock the affected teams in a
+        // deterministic order (interleaved {old, new} sorted by identifier) so concurrent
+        // switches cannot deadlock, then load the target team and reload the old-team reference
+        // before reading either team name.
+        var teamIdsToLock = new[] { participation.TeamId, input.TeamId }
+            .Where(teamId => teamId.HasValue)
+            .Select(teamId => teamId!.Value)
+            .Distinct()
+            .OrderBy(teamId => teamId)
+            .ToList();
+
+        foreach (var lockedTeamId in teamIdsToLock)
+        {
+            await db.AcquireTeamMutationLockAsync(lockedTeamId, cancellationToken);
+        }
+
         TeamEntity? team = null;
         if (input.TeamId is long teamId)
         {
-            await db.AcquireTeamMutationLockAsync(teamId, cancellationToken);
             team = await db.Teams
                 .SingleOrDefaultAsync(candidate => candidate.TeamId == teamId, cancellationToken);
+        }
+
+        if (participation.TeamId is long previousTeamIdValue)
+        {
+            await db.Entry(participation).Reference(assignment => assignment.Team).LoadAsync(cancellationToken);
         }
 
         var placementDecision = CampaignPlacementPolicy.Evaluate(

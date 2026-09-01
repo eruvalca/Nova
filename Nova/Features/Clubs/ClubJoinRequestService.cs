@@ -330,7 +330,13 @@ public sealed partial class ClubJoinRequestService(
         // The requester is club-less, so UserManager resolves the member snapshot; the approving
         // admin is tenant-visible, so the write context resolves the actor snapshot.
         var adminUserId = currentUserProvider.UserId ?? 0;
-        var requestingUser = await userManager.FindByIdAsync(request.RequestingUserId.ToString());
+        // The requester is club-less, so the tenant query filter hides the row. Load via the
+        // write context with filters bypassed so the membership assignment and the approved
+        // request + MemberJoined event land in ONE SaveChanges, atomically (the previous
+        // UserManager-first path could commit ClubId without the request evidence and vice versa).
+        var requestingUser = await db.Users
+            .IgnoreQueryFilters()
+            .SingleOrDefaultAsync(user => user.Id == request.RequestingUserId, cancellationToken);
 
         if (requestingUser is null)
         {
@@ -344,21 +350,7 @@ public sealed partial class ClubJoinRequestService(
             .Select(user => user.FirstName + " " + user.LastName)
             .FirstOrDefaultAsync(cancellationToken)) ?? "Unknown user";
 
-        // Assign the user to the club BEFORE persisting durable joined evidence: an identity
-        // failure now leaves the request pending with no "joined" record for a still club-less
-        // user, instead of the reverse. UserManager runs against the admin context, so the
-        // assignment is safe to re-run after a DB failure.
         requestingUser.ClubId = request.ClubId;
-        var updateResult = await userManager.UpdateAsync(requestingUser);
-        if (!updateResult.Succeeded)
-        {
-            var errorDetails = string.Join(", ", updateResult.Errors.Select(error => error.Description));
-            LogApproveRequestingUserUpdateFailed(request.RequestingUserId, requestId);
-            return ServiceProblem.ServerError(errorDetails);
-        }
-
-        // Best-effort security-stamp refresh so the newly assigned member's claims are regenerated.
-        await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(requestingUser);
 
         ActivityEventWriter.AppendMembership(
             db,
@@ -373,6 +365,17 @@ public sealed partial class ClubJoinRequestService(
             });
 
         await db.SaveChangesAsync(cancellationToken);
+
+        // Best-effort security-stamp refresh so the newly assigned member's claims are regenerated;
+        // failure to refresh is not a reason to fail the already-committed approval. Reload the
+        // requester through UserManager so the instance belongs to the Identity store's context
+        // (NovaAdminDbContext): passing the write-context instance would collide with the instance
+        // already tracked there when UserStore.UpdateAsync calls Context.Attach(user).
+        var identityUser = await userManager.FindByIdAsync(request.RequestingUserId.ToString());
+        if (identityUser is not null)
+        {
+            await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(identityUser);
+        }
 
         LogJoinRequestApproved(currentUserProvider.UserId ?? 0, requestId, request.RequestingUserId, request.ClubId);
         return new Success();
@@ -441,9 +444,6 @@ public sealed partial class ClubJoinRequestService(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but requesting user not found: RequestingUserId={RequestingUserId}, RequestId={RequestId}.")]
     private partial void LogApproveRequestingUserMissing(long requestingUserId, long requestId);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but UserManager failed to update the requesting user: RequestingUserId={RequestingUserId}, RequestId={RequestId}.")]
-    private partial void LogApproveRequestingUserUpdateFailed(long requestingUserId, long requestId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Join request created: RequestId={RequestId} for UserId={UserId} to ClubId={ClubId}.")]
     private partial void LogJoinRequestCreated(long userId, long clubId, long requestId);

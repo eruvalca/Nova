@@ -694,10 +694,16 @@ public class ClubJoinRequestServiceTests : IDisposable
             requestId = request.ClubJoinRequestId;
         }
 
-        // Mock the UserManager to find the user and update it
-        var requestingUser = new NovaUserEntity { Id = RequestingUserId, FirstName = "Requester", LastName = "R" };
-        _userManager.FindByIdAsync(RequestingUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)requestingUser));
-        _userManager.UpdateAsync(requestingUser).Returns(Task.FromResult(Microsoft.AspNetCore.Identity.IdentityResult.Success));
+        // The service reloads the requester via UserManager (Identity store's admin context)
+        // before marking claims stale, so stub the reload to return the requester.
+        _userManager.FindByIdAsync(RequestingUserId.ToString())
+            .Returns(Task.FromResult<NovaUserEntity?>(new NovaUserEntity
+            {
+                Id = RequestingUserId,
+                FirstName = "Requester",
+                LastName = "R",
+                ClubId = ClubAId
+            }));
 
         var service = CreateService();
 
@@ -707,15 +713,15 @@ public class ClubJoinRequestServiceTests : IDisposable
         // Assert
         result.IsSuccess.ShouldBeTrue();
 
-        // Verify the request was approved in the database
+        // Verify the request was approved and the requester's membership was assigned atomically
         using (var context = _harness.CreateAdminContext())
         {
             var updatedRequest = await context.ClubJoinRequests.FirstAsync(r => r.ClubJoinRequestId == requestId, TestContext.Current.CancellationToken);
             updatedRequest.Status.ShouldBe(RequestStatus.Approved);
-        }
 
-        // Verify UserManager.UpdateAsync was called
-        await _userManager.Received().UpdateAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == RequestingUserId));
+            var updatedUser = await context.Users.FirstAsync(u => u.Id == RequestingUserId, TestContext.Current.CancellationToken);
+            updatedUser.ClubId.ShouldBe(ClubAId);
+        }
 
         // Verify UserManager.UpdateSecurityStampAsync was called (proxy for MarkUserClaimsStaleAsync)
         await _userManager.Received().UpdateSecurityStampAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == RequestingUserId));
