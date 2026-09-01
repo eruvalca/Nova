@@ -27,10 +27,12 @@ public static class ActivityEndpoints
     public const string GetClubActivityRouteName = "GetClubActivity";
 
     /// <summary>
-    /// Builds the club activity URL, omitting the optional cursor when it is not supplied.
+    /// Builds the club activity URL, omitting the optional cursor when it is not supplied or when
+    /// it is invalid (a non-positive event identifier), so this builder only emits URLs the input
+    /// contract (<c>[Range(1, long.MaxValue)]</c>) accepts.
     /// </summary>
     public static string GetClubActivityUrl(ClubActivityCursor? cursor)
-        => cursor is null
+        => cursor is not { ActivityEventId: > 0 }
             ? GetClubActivity
             : $"{GetClubActivity}?beforeActivityEventId={cursor.ActivityEventId}&beforeOccurredAt={Uri.EscapeDataString(cursor.OccurredAt.ToString("O"))}";
 }

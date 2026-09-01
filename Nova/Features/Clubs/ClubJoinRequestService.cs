@@ -313,10 +313,12 @@ public sealed partial class ClubJoinRequestService(
         // assignment and the approved request + MemberJoined event land in ONE SaveChanges,
         // atomically (the previous UserManager-first path could commit ClubId without the request
         // evidence and vice versa); the club constraint is applied explicitly because the admin
-        // context has no tenant filter.
-        await using var db = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
+        // context has no tenant filter. The probe resolves the request identity and validates it up
+        // front; the execution-strategy delegate re-runs the whole mutation on a fresh admin context
+        // per attempt and verifies an ambiguous commit instead of replaying the event insert.
+        await using var probeDb = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        var request = await db.ClubJoinRequests
+        var request = await probeDb.ClubJoinRequests
             .FirstOrDefaultAsync(
                 e => e.ClubJoinRequestId == requestId && e.ClubId == currentUserProvider.ClubId,
                 cancellationToken);
@@ -331,57 +333,41 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.Conflict("Only pending join requests can be approved.");
         }
 
-        request.Status = RequestStatus.Approved;
-
-        // The member joined event is visible to all members (only the approval actor snapshot is
-        // admin-shaped, and only while the requesting user remains a tenant-visible club member).
-        // The requester is club-less, so UserManager resolves the member snapshot; the approving
-        // admin is tenant-visible, so the admin context resolves the actor snapshot.
-        var adminUserId = currentUserProvider.UserId ?? 0;
-        var requestingUser = await db.Users
-            .SingleOrDefaultAsync(user => user.Id == request.RequestingUserId, cancellationToken);
-
-        if (requestingUser is null)
-        {
-            LogApproveRequestingUserMissing(request.RequestingUserId, requestId);
-            return ServiceProblem.ServerError("The requesting user account could not be found.");
-        }
-
-        var memberName = requestingUser.FullName;
-        var adminName = (await db.Users
-            .Where(user => user.Id == adminUserId)
-            .Select(user => user.FirstName + " " + user.LastName)
-            .FirstOrDefaultAsync(cancellationToken)) ?? "Unknown user";
-
-        requestingUser.ClubId = request.ClubId;
-
-        ActivityEventWriter.AppendMembership(
-            db,
+        var state = new ApprovalState(
+            requestId,
             request.ClubId,
-            ActivityEventKind.MemberJoined,
-            adminUserId,
-            adminName,
-            new MembershipContext
+            currentUserProvider.UserId ?? 0,
+            request.RequestingUserId);
+        var strategy = probeDb.Database.CreateExecutionStrategy();
+
+        var result = await strategy.ExecuteAsync(
+            state,
+            async (operationState, token) =>
             {
-                MemberDisplayName = memberName,
-                ApprovedByActorName = adminName,
-            });
+                await using var writeDb = await adminDbContextFactory.CreateDbContextAsync(token);
+                return await PersistApprovalAsync(writeDb, operationState, token);
+            },
+            async (operationState, token) =>
+            {
+                await using var verifyDb = await adminDbContextFactory.CreateDbContextAsync(token);
+                return await VerifyApprovalCommittedAsync(verifyDb, operationState, token);
+            },
+            cancellationToken);
 
-        await db.SaveChangesAsync(cancellationToken);
-
-        // Best-effort security-stamp refresh so the newly assigned member's claims are regenerated;
-        // failure to refresh is not a reason to fail the already-committed approval. Reload the
-        // requester through UserManager so the instance belongs to the Identity store's context
-        // (NovaAdminDbContext): passing the write-context instance would collide with the instance
-        // already tracked there when UserStore.UpdateAsync calls Context.Attach(user).
-        var identityUser = await userManager.FindByIdAsync(request.RequestingUserId.ToString());
-        if (identityUser is not null)
+        // Best-effort security-stamp refresh so the newly assigned member's claims are regenerated
+        // after the committed approval; a refresh failure must not fail an already-committed
+        // approval. Reload the requester through UserManager so the instance belongs to the
+        // Identity store's context.
+        if (result.IsSuccess)
         {
-            await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(identityUser);
+            var identityUser = await userManager.FindByIdAsync(state.RequestingUserId.ToString());
+            if (identityUser is not null)
+            {
+                await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(identityUser);
+            }
         }
 
-        LogJoinRequestApproved(currentUserProvider.UserId ?? 0, requestId, request.RequestingUserId, request.ClubId);
-        return new Success();
+        return result;
     }
 
     /// <inheritdoc />
@@ -394,9 +380,13 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.Forbidden("You are not a club administrator.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        // The probe resolves the request identity, validates it up front, and snapshots the names
+        // used by the durable event; the execution-strategy delegate re-runs the mutation on a
+        // fresh write context per attempt and verifies an ambiguous commit instead of replaying the
+        // rejection event.
+        await using var probeDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        var request = await db.ClubJoinRequests
+        var request = await probeDb.ClubJoinRequests
             .FirstOrDefaultAsync(
                 e => e.ClubJoinRequestId == requestId && e.ClubId == currentUserProvider.ClubId,
                 cancellationToken);
@@ -411,35 +401,217 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.Conflict("Only pending join requests can be rejected.");
         }
 
-        request.Status = RequestStatus.Rejected;
-
         // JoinRequestRejected is administrator-only (unresolved join-request events are admin-only
         // per the attention brief). The requester is club-less, so UserManager resolves the
         // snapshot; the rejecting admin is tenant-visible via the write context.
-        var rejectAdminUserId = currentUserProvider.UserId ?? 0;
-        var rejectRequesterName = (await userManager.FindByIdAsync(request.RequestingUserId.ToString()))?.FullName ?? "Unknown user";
-        var rejectAdminName = (await db.Users
-            .Where(user => user.Id == rejectAdminUserId)
+        var adminUserId = currentUserProvider.UserId ?? 0;
+        var requesterName = (await userManager.FindByIdAsync(request.RequestingUserId.ToString()))?.FullName ?? "Unknown user";
+        var adminName = (await probeDb.Users
+            .Where(user => user.Id == adminUserId)
             .Select(user => user.FirstName + " " + user.LastName)
             .FirstOrDefaultAsync(cancellationToken)) ?? "Unknown user";
+
+        var state = new RejectionState(requestId, request.ClubId, adminUserId, adminName, requesterName);
+        var strategy = probeDb.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(
+            state,
+            async (operationState, token) =>
+            {
+                await using var writeDb = await dbContextFactory.CreateDbContextAsync(token);
+                return await PersistRejectionAsync(writeDb, operationState, token);
+            },
+            async (operationState, token) =>
+            {
+                await using var verifyDb = await dbContextFactory.CreateDbContextAsync(token);
+                return await VerifyRejectionCommittedAsync(verifyDb, operationState, token);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Persists an approval (request status, requester membership, and the member-joined event) in
+    /// one transaction on the provided fresh admin context.
+    /// </summary>
+    /// <param name="db">The fresh admin context for this execution attempt.</param>
+    /// <param name="state">The logical approval state captured before the strategy started.</param>
+    /// <param name="cancellationToken">A token that cancels the database work.</param>
+    /// <returns>The approval outcome.</returns>
+    private async Task<ServiceResult<Success>> PersistApprovalAsync(
+        NovaAdminDbContext db,
+        ApprovalState state,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        var request = await db.ClubJoinRequests
+            .FirstOrDefaultAsync(
+                e => e.ClubJoinRequestId == state.RequestId && e.ClubId == state.ClubId,
+                cancellationToken);
+
+        if (request is null)
+        {
+            return ServiceProblem.NotFound("The join request was not found.");
+        }
+
+        if (request.Status != RequestStatus.Pending)
+        {
+            return ServiceProblem.Conflict("Only pending join requests can be approved.");
+        }
+
+        var requestingUser = await db.Users
+            .SingleOrDefaultAsync(user => user.Id == request.RequestingUserId, cancellationToken);
+
+        if (requestingUser is null)
+        {
+            LogApproveRequestingUserMissing(request.RequestingUserId, request.ClubJoinRequestId);
+            return ServiceProblem.ServerError("The requesting user account could not be found.");
+        }
+
+        var memberName = requestingUser.FullName;
+        var adminName = (await db.Users
+            .Where(user => user.Id == state.AdminUserId)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstOrDefaultAsync(cancellationToken)) ?? "Unknown user";
+
+        request.Status = RequestStatus.Approved;
+        requestingUser.ClubId = request.ClubId;
+
+        ActivityEventWriter.AppendMembership(
+            db,
+            request.ClubId,
+            ActivityEventKind.MemberJoined,
+            state.AdminUserId,
+            adminName,
+            new MembershipContext
+            {
+                MemberDisplayName = memberName,
+                ApprovedByActorName = adminName,
+            });
+
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        LogJoinRequestApproved(state.AdminUserId, request.ClubJoinRequestId, request.RequestingUserId, request.ClubId);
+        return new Success();
+    }
+
+    /// <summary>
+    /// Verifies whether an approval with an uncertain commit outcome actually committed by
+    /// re-reading the request status and the requester's membership without replaying the write.
+    /// </summary>
+    /// <param name="db">The fresh admin context used for commit verification.</param>
+    /// <param name="state">The logical approval state captured before the strategy started.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>An execution result indicating whether the committed approval was found.</returns>
+    private async Task<ExecutionResult<ServiceResult<Success>>> VerifyApprovalCommittedAsync(
+        NovaAdminDbContext db,
+        ApprovalState state,
+        CancellationToken cancellationToken)
+    {
+        var request = await db.ClubJoinRequests
+            .AsNoTracking()
+            .SingleOrDefaultAsync(e => e.ClubJoinRequestId == state.RequestId, cancellationToken);
+
+        var requesterClubId = await db.Users
+            .AsNoTracking()
+            .Where(user => user.Id == state.RequestingUserId)
+            .Select(user => user.ClubId)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (request is { Status: RequestStatus.Approved }
+            && requesterClubId is long assignedClubId
+            && assignedClubId == state.ClubId)
+        {
+            LogJoinRequestApproved(state.AdminUserId, state.RequestId, state.RequestingUserId, state.ClubId);
+            return new ExecutionResult<ServiceResult<Success>>(successful: true, new Success());
+        }
+
+        return new ExecutionResult<ServiceResult<Success>>(successful: false, default!);
+    }
+
+    /// <summary>
+    /// Persists a rejection (request status and the join-request-rejected event) in one transaction
+    /// on the provided fresh write context.
+    /// </summary>
+    /// <param name="db">The fresh write context for this execution attempt.</param>
+    /// <param name="state">The logical rejection state captured before the strategy started.</param>
+    /// <param name="cancellationToken">A token that cancels the database work.</param>
+    /// <returns>The rejection outcome.</returns>
+    private async Task<ServiceResult<Success>> PersistRejectionAsync(
+        NovaDbContext db,
+        RejectionState state,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        var request = await db.ClubJoinRequests
+            .FirstOrDefaultAsync(
+                e => e.ClubJoinRequestId == state.RequestId && e.ClubId == state.ClubId,
+                cancellationToken);
+
+        if (request is null)
+        {
+            return ServiceProblem.NotFound("The join request was not found.");
+        }
+
+        if (request.Status != RequestStatus.Pending)
+        {
+            return ServiceProblem.Conflict("Only pending join requests can be rejected.");
+        }
+
+        request.Status = RequestStatus.Rejected;
 
         ActivityEventWriter.AppendJoinRequest(
             db,
             request.ClubId,
             ActivityEventKind.JoinRequestRejected,
-            rejectAdminUserId,
-            rejectAdminName,
+            state.AdminUserId,
+            state.AdminName,
             new JoinRequestContext
             {
                 JoinRequestId = request.ClubJoinRequestId,
-                RequesterDisplayName = rejectRequesterName,
+                RequesterDisplayName = state.RequesterName,
             });
 
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
-        LogJoinRequestRejected(currentUserProvider.UserId ?? 0, requestId, request.RequestingUserId);
+        LogJoinRequestRejected(state.AdminUserId, state.RequestId, request.RequestingUserId);
         return new Success();
     }
+
+    /// <summary>
+    /// Verifies whether a rejection with an uncertain commit outcome actually committed by
+    /// re-reading the request status without replaying the write.
+    /// </summary>
+    /// <param name="db">The fresh write context used for commit verification.</param>
+    /// <param name="state">The logical rejection state captured before the strategy started.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>An execution result indicating whether the committed rejection was found.</returns>
+    private async Task<ExecutionResult<ServiceResult<Success>>> VerifyRejectionCommittedAsync(
+        NovaDbContext db,
+        RejectionState state,
+        CancellationToken cancellationToken)
+    {
+        var request = await db.ClubJoinRequests
+            .AsNoTracking()
+            .SingleOrDefaultAsync(e => e.ClubJoinRequestId == state.RequestId, cancellationToken);
+
+        if (request is { Status: RequestStatus.Rejected })
+        {
+            LogJoinRequestRejected(state.AdminUserId, state.RequestId, request.RequestingUserId);
+            return new ExecutionResult<ServiceResult<Success>>(successful: true, new Success());
+        }
+
+        return new ExecutionResult<ServiceResult<Success>>(successful: false, default!);
+    }
+
+    /// <summary>Captured, immutable state for one approval attempt.</summary>
+    private readonly record struct ApprovalState(long RequestId, long ClubId, long AdminUserId, long RequestingUserId);
+
+    /// <summary>Captured, immutable state for one rejection attempt.</summary>
+    private readonly record struct RejectionState(long RequestId, long ClubId, long AdminUserId, string AdminName, string RequesterName);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Join request approved: RequestId={RequestId} by AdminUserId={AdminUserId} for RequestingUserId={RequestingUserId} into ClubId={ClubId}.")]
     private partial void LogJoinRequestApproved(long adminUserId, long requestId, long requestingUserId, long clubId);

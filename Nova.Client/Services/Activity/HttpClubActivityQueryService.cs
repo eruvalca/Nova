@@ -67,12 +67,32 @@ public sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivit
             return false;
         }
 
-        // MemberJoined rows are shaped subject-led for members, so the top-level actor fields are
-        // only carried for the administrator-approved view; every other kind carries an actor.
-        if (item.Kind != ActivityEventKind.MemberJoined
-            && (item.ActorUserId is not > 0 || string.IsNullOrWhiteSpace(item.ActorDisplayName)))
+        // Every non-membership kind carries a complete actor snapshot. MemberJoined is role-shaped:
+        // the member view hides the actor and approval name, the administrator view carries a
+        // complete actor plus the approval name, and any mixed shape is a malformed payload.
+        if (item.Kind != ActivityEventKind.MemberJoined)
+        {
+            if (item.ActorUserId is not > 0 || string.IsNullOrWhiteSpace(item.ActorDisplayName))
+            {
+                return false;
+            }
+        }
+        else if (item.Context is not MembershipContext membership)
         {
             return false;
+        }
+        else
+        {
+            var memberShape = item.ActorUserId is null
+                && item.ActorDisplayName is null
+                && membership.ApprovedByActorName is null;
+            var adminShape = item.ActorUserId is > 0
+                && !string.IsNullOrWhiteSpace(item.ActorDisplayName)
+                && !string.IsNullOrWhiteSpace(membership.ApprovedByActorName);
+            if (!memberShape && !adminShape)
+            {
+                return false;
+            }
         }
 
         return item.Kind switch

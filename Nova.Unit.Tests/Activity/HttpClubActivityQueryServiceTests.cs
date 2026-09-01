@@ -239,6 +239,85 @@ public sealed class HttpClubActivityQueryServiceTests
         result.Value.NextCursor.ShouldNotBeNull();
     }
 
+    /// <summary>Verifies the member-shaped MemberJoined payload (no actor or approval fields) is accepted.</summary>
+    [Fact]
+    public async Task GetClubActivityAsync_AcceptsMemberJoined_MemberShape()
+    {
+        var body = """{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","context":{"type":"membership","memberDisplayName":"Sam Doe"}}],"hasMore":false,"nextCursor":null}""";
+        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpClubActivityQueryService(http);
+
+        var result = await service.GetClubActivityAsync(
+            new GetClubActivityInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    /// <summary>Verifies the administrator-shaped MemberJoined payload (complete actor and approval fields) is accepted.</summary>
+    [Fact]
+    public async Task GetClubActivityAsync_AcceptsMemberJoined_AdminShape()
+    {
+        var body = """{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Jordan Lee","context":{"type":"membership","memberDisplayName":"Sam Doe","approvedByActorName":"Jordan Lee"}}],"hasMore":false,"nextCursor":null}""";
+        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpClubActivityQueryService(http);
+
+        var result = await service.GetClubActivityAsync(
+            new GetClubActivityInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies a mixed MemberJoined shape (partial actor/approval fields) is rejected as a
+    /// malformed successful payload.
+    /// </summary>
+    /// <param name="body">The invalid successful response body.</param>
+    [Theory]
+    [InlineData("""{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Jordan Lee","context":{"type":"membership","memberDisplayName":"Sam Doe"}}],"hasMore":false,"nextCursor":null}""")]
+    [InlineData("""{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorDisplayName":"Jordan Lee","context":{"type":"membership","memberDisplayName":"Sam Doe","approvedByActorName":"Jordan Lee"}}],"hasMore":false,"nextCursor":null}""")]
+    [InlineData("""{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","context":{"type":"membership","memberDisplayName":"Sam Doe","approvedByActorName":"Jordan Lee"}}],"hasMore":false,"nextCursor":null}""")]
+    [InlineData("""{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Jordan Lee","context":{"type":"membership","memberDisplayName":"Sam Doe","approvedByActorName":" "}}],"hasMore":false,"nextCursor":null}""")]
+    public async Task GetClubActivityAsync_ReturnsServerError_ForMixedMemberJoinedShape(string body)
+    {
+        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpClubActivityQueryService(http);
+
+        var result = await service.GetClubActivityAsync(
+            new GetClubActivityInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies the URL builder omits the cursor when none is supplied.</summary>
+    [Fact]
+    public void GetClubActivityUrl_OmitsCursor_ForNullCursor()
+        => ActivityEndpoints.GetClubActivityUrl(null).ShouldBe("/api/activity");
+
+    /// <summary>Verifies the URL builder omits an invalid cursor with a non-positive event identifier.</summary>
+    [Fact]
+    public void GetClubActivityUrl_OmitsCursor_ForInvalidEventId()
+    {
+        var occurredAt = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);
+        ActivityEndpoints.GetClubActivityUrl(new ClubActivityCursor(0, occurredAt)).ShouldBe("/api/activity");
+        ActivityEndpoints.GetClubActivityUrl(new ClubActivityCursor(-1, occurredAt)).ShouldBe("/api/activity");
+    }
+
     /// <summary>Builds a well-formed campaign-lifecycle activity row.</summary>
     private static ClubActivityItemDto NewItem(long id, ActivityEventKind kind, DateTimeOffset occurredAt)
         => new()
