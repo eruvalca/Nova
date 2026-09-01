@@ -59,7 +59,8 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
 
     /// <summary>
     /// BS2: the evaluator signs in, sees the campaign rows and a recent-activity entry with the seeded
-    /// actor's display name, and sees no administrator attention card or review links.
+    /// actor's display name (a campaign-opened event), and sees no administrator attention card or
+    /// review links.
     /// </summary>
     [Fact]
     public async Task Dashboard_Evaluator_SeesCampaignsAndActivity_WithoutAdminAttention()
@@ -72,9 +73,10 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         await Expect(page.Locator("tbody tr")).ToHaveCountAsync(2);
 
-        // Recent activity includes the seeded note and resolves the evaluator actor's display name.
+        // Recent activity includes the seeded member-visible event and resolves the evaluator actor's
+        // display name.
         await Expect(page.Locator("section[aria-labelledby='recent-activity-heading']")).ToContainTextAsync("Bob Observer");
-        await Expect(page.Locator("section[aria-labelledby='recent-activity-heading']")).ToContainTextAsync("added a note to");
+        await Expect(page.Locator("section[aria-labelledby='recent-activity-heading']")).ToContainTextAsync("opened");
 
         // No administrator-only attention card or review links.
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Admin attention" })).ToHaveCountAsync(0);

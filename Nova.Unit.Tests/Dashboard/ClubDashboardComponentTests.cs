@@ -367,20 +367,47 @@ public sealed class ClubDashboardComponentTests : BunitContext
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         var activityService = Substitute.For<IClubActivityQueryService>();
+        var attentionService = Substitute.For<IClubAttentionQueryService>();
         var persistedSummary = CreatePopulatedSummary();
         var persistedActivity = new ClubActivityResult([BuildNoteEvent()], HasMore: false, NextCursor: null);
-        RegisterServices(isClubAdmin: true, dashboardService, activityService);
+        var persistedAttention = new ClubAttentionResult
+        {
+            PendingJoinRequests = new PendingJoinRequestsRegion
+            {
+                Status = AttentionRegionStatus.Loaded,
+                Count = 2,
+                OldestRequestAt = new DateTimeOffset(2026, 6, 14, 12, 0, 0, TimeSpan.Zero)
+            },
+            NeedsPlacement = new NeedsPlacementRegion
+            {
+                Status = AttentionRegionStatus.Loaded,
+                Count = 3,
+                CampaignId = 42,
+                CampaignName = "Campaign A"
+            }
+        };
+        attentionService.GetClubAttentionAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessAttention(persistedAttention)));
+        RegisterServices(isClubAdmin: true, dashboardService, activityService, attentionService);
 
         var cut = Render<PersistedStateClubDashboard>(parameters => parameters
             .Add(p => p.StartInitialized, true)
             .Add(p => p.PersistedSummaryValue, persistedSummary)
-            .Add(p => p.PersistedActivityValue, persistedActivity));
+            .Add(p => p.PersistedActivityValue, persistedActivity)
+            .Add(p => p.PersistedAttentionValue, persistedAttention));
 
         cut.Markup.ShouldContain("Campaign A");
         cut.Markup.ShouldContain("Admin A requested to join the club");
+        cut.Markup.ShouldContain("Admin attention");
+        var attentionItems = cut.FindAll(".attention-panel p")
+            .Select(item => item.TextContent.Trim())
+            .ToArray();
+        attentionItems.ShouldContain("2 pending join requests");
+        attentionItems.ShouldContain("3 unresolved placements");
 
         dashboardService.DidNotReceive().GetDashboardAsync(Arg.Any<CancellationToken>());
         activityService.DidNotReceive().GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>());
+        attentionService.DidNotReceive().GetClubAttentionAsync(Arg.Any<CancellationToken>());
     }
 
     private void RegisterServices(
@@ -577,6 +604,10 @@ public sealed class ClubDashboardComponentTests : BunitContext
         [Parameter]
         public ClubActivityResult? PersistedActivityValue { get; set; }
 
+        /// <summary>Gets or sets the persisted attention payload.</summary>
+        [Parameter]
+        public ClubAttentionResult? PersistedAttentionValue { get; set; }
+
         /// <inheritdoc />
         protected override Task OnInitializedAsync()
         {
@@ -585,6 +616,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
                 Initialized = true;
                 PersistedSummary = PersistedSummaryValue;
                 PersistedActivity = PersistedActivityValue;
+                PersistedAttention = PersistedAttentionValue;
                 PersistedPageError = null;
             }
 

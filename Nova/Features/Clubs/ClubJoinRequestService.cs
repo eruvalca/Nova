@@ -308,10 +308,18 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.Forbidden("You are not a club administrator.");
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        // The requester is club-less, so the tenant query filters hide the row from the write
+        // context. Approval runs on the admin context (filters bypassed) so the membership
+        // assignment and the approved request + MemberJoined event land in ONE SaveChanges,
+        // atomically (the previous UserManager-first path could commit ClubId without the request
+        // evidence and vice versa); the club constraint is applied explicitly because the admin
+        // context has no tenant filter.
+        await using var db = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var request = await db.ClubJoinRequests
-            .FirstOrDefaultAsync(e => e.ClubJoinRequestId == requestId, cancellationToken);
+            .FirstOrDefaultAsync(
+                e => e.ClubJoinRequestId == requestId && e.ClubId == currentUserProvider.ClubId,
+                cancellationToken);
 
         if (request is null)
         {
@@ -328,14 +336,9 @@ public sealed partial class ClubJoinRequestService(
         // The member joined event is visible to all members (only the approval actor snapshot is
         // admin-shaped, and only while the requesting user remains a tenant-visible club member).
         // The requester is club-less, so UserManager resolves the member snapshot; the approving
-        // admin is tenant-visible, so the write context resolves the actor snapshot.
+        // admin is tenant-visible, so the admin context resolves the actor snapshot.
         var adminUserId = currentUserProvider.UserId ?? 0;
-        // The requester is club-less, so the tenant query filter hides the row. Load via the
-        // write context with filters bypassed so the membership assignment and the approved
-        // request + MemberJoined event land in ONE SaveChanges, atomically (the previous
-        // UserManager-first path could commit ClubId without the request evidence and vice versa).
         var requestingUser = await db.Users
-            .IgnoreQueryFilters()
             .SingleOrDefaultAsync(user => user.Id == request.RequestingUserId, cancellationToken);
 
         if (requestingUser is null)
@@ -394,7 +397,9 @@ public sealed partial class ClubJoinRequestService(
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var request = await db.ClubJoinRequests
-            .FirstOrDefaultAsync(e => e.ClubJoinRequestId == requestId, cancellationToken);
+            .FirstOrDefaultAsync(
+                e => e.ClubJoinRequestId == requestId && e.ClubId == currentUserProvider.ClubId,
+                cancellationToken);
 
         if (request is null)
         {

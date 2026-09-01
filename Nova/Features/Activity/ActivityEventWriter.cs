@@ -10,7 +10,7 @@ namespace Nova.Features.Activity;
 /// The single boundary that appends durable activity events. Each <c>Append*</c> method validates
 /// its facts through <see cref="ActivityEventPolicy"/>, stamps the stored visibility flag,
 /// serializes the family-shaped payload, and adds the entity to the caller's open
-/// <see cref="NovaDbContext"/> so the event commits atomically with the owning mutation. On
+/// <see cref="ApplicationDbContext"/> so the event commits atomically with the owning mutation. On
 /// execution-strategy retries, callers re-run the whole mutation on a fresh context and the event
 /// is naturally re-added.
 /// </summary>
@@ -32,7 +32,7 @@ internal static class ActivityEventWriter
     /// <param name="actorDisplayName">The acting user display-name snapshot.</param>
     /// <param name="campaignName">The campaign display-name snapshot.</param>
     internal static void AppendCampaignLifecycle(
-        NovaDbContext db,
+        ApplicationDbContext db,
         long clubId,
         long campaignId,
         ActivityEventKind kind,
@@ -64,7 +64,7 @@ internal static class ActivityEventWriter
     /// <param name="actorDisplayName">The acting user display-name snapshot.</param>
     /// <param name="context">The placement context payload.</param>
     internal static void AppendPlacement(
-        NovaDbContext db,
+        ApplicationDbContext db,
         long clubId,
         long campaignId,
         ActivityEventKind kind,
@@ -90,7 +90,7 @@ internal static class ActivityEventWriter
     /// <param name="actorDisplayName">The acting user display-name snapshot.</param>
     /// <param name="context">The join request context payload.</param>
     internal static void AppendJoinRequest(
-        NovaDbContext db,
+        ApplicationDbContext db,
         long clubId,
         ActivityEventKind kind,
         long actorUserId,
@@ -115,7 +115,7 @@ internal static class ActivityEventWriter
     /// <param name="actorDisplayName">The acting user display-name snapshot.</param>
     /// <param name="context">The membership context payload.</param>
     internal static void AppendMembership(
-        NovaDbContext db,
+        ApplicationDbContext db,
         long clubId,
         ActivityEventKind kind,
         long actorUserId,
@@ -140,7 +140,7 @@ internal static class ActivityEventWriter
     /// <param name="actorDisplayName">The acting user display-name snapshot.</param>
     /// <param name="context">The member role context payload.</param>
     internal static void AppendMemberRole(
-        NovaDbContext db,
+        ApplicationDbContext db,
         long clubId,
         ActivityEventKind kind,
         long actorUserId,
@@ -156,7 +156,7 @@ internal static class ActivityEventWriter
     }
 
     private static void Append(
-        NovaDbContext db,
+        ApplicationDbContext db,
         long clubId,
         long? campaignId,
         ActivityEventKind kind,

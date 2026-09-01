@@ -1,9 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Campaigns;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
@@ -67,6 +69,50 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         participation.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
         participation.TeamId.ShouldBe(EligibleTeamId);
         participation.ConcurrencyToken.ShouldBe(result.AsT0.ConcurrencyToken);
+    }
+
+    /// <summary>
+    /// Verifies a real assignment persists one durable placement event carrying the full
+    /// placement context snapshot and the acting administrator's display name.
+    /// </summary>
+    [Fact]
+    public async Task UpdatePlacementAsync_AppendsDurablePlacementEvent_WithStructuredSnapshot()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.UpdatePlacementAsync(
+            new UpdateCampaignPlacementInput(
+                ClubAAssignmentId,
+                PlacementOutcome.Assigned,
+                EligibleTeamId,
+                _clubAConcurrencyToken),
+            TestContext.Current.CancellationToken);
+
+        result.IsT0.ShouldBeTrue();
+
+        await using var verify = _harness.CreateAdminContext();
+        var row = await verify.ActivityEvents
+            .SingleAsync(TestContext.Current.CancellationToken);
+        row.EventKind.ShouldBe(ActivityEventKind.PlacementAssigned);
+        row.IsAdminOnly.ShouldBeFalse();
+        row.ClubId.ShouldBe(ClubAId);
+        row.CampaignId.ShouldBe(600);
+        row.ActorUserId.ShouldBe(ClubAAdminId);
+        row.ActorDisplayName.ShouldBe("Admin A");
+
+        var context = JsonSerializer.Deserialize<ClubActivityContext>(
+            row.PayloadJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var placement = context.ShouldBeOfType<PlacementContext>();
+        placement.CampaignId.ShouldBe(600);
+        placement.CampaignName.ShouldBe("Campaign A");
+        placement.PlayerCampaignAssignmentId.ShouldBe(ClubAAssignmentId);
+        placement.PlayerDisplayName.ShouldBe("Alex Able");
+        placement.PreviousOutcome.ShouldBeNull();
+        placement.Outcome.ShouldBe(PlacementOutcome.Assigned);
+        placement.PreviousTeamName.ShouldBeNull();
+        placement.TeamName.ShouldBe("Eligible");
     }
 
     /// <summary>
@@ -385,6 +431,10 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 State = "MA",
                 CreatedById = ClubBAdminId
             });
+
+        db.Users.AddRange(
+            new NovaUserEntity { Id = ClubAAdminId, FirstName = "Admin", LastName = "A", ClubId = ClubAId },
+            new NovaUserEntity { Id = ClubAMemberId, FirstName = "Member", LastName = "M", ClubId = ClubAId });
 
         db.Seasons.AddRange(
             new SeasonEntity

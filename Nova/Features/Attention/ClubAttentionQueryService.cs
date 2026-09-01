@@ -62,21 +62,24 @@ public sealed partial class ClubAttentionQueryService(
             var pendingQuery = db.ClubJoinRequests
                 .Where(request => request.ClubId == clubId && request.Status == RequestStatus.Pending);
 
-            var (count, oldestRequestAt) = db.Database.IsNpgsql()
-                ? await pendingQuery
+            AggregateRow? aggregate;
+            if (db.Database.IsNpgsql())
+            {
+                aggregate = await pendingQuery
                     .GroupBy(_ => 1)
                     .Select(group => new AggregateRow(group.Count(), group.Min(request => request.CreatedAt)))
-                    .FirstOrDefaultAsync(cancellationToken)
-                    .ContinueWith(task => task.Result is null
-                        ? (0, (DateTimeOffset?)null)
-                        : (task.Result.Count, task.Result.OldestRequestAt))
-                : await ReadSqliteAggregateAsync(pendingQuery, cancellationToken);
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+            else
+            {
+                aggregate = await ReadSqliteAggregateAsync(pendingQuery, cancellationToken);
+            }
 
             return new PendingJoinRequestsRegion
             {
                 Status = AttentionRegionStatus.Loaded,
-                Count = count,
-                OldestRequestAt = count > 0 ? oldestRequestAt : null
+                Count = aggregate?.Count ?? 0,
+                OldestRequestAt = aggregate?.OldestRequestAt
             };
         }
         catch (Exception exception)
@@ -98,8 +101,8 @@ public sealed partial class ClubAttentionQueryService(
     /// </summary>
     /// <param name="pendingQuery">The pending join-requests query.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>The count and oldest request timestamp.</returns>
-    private static async Task<(int Count, DateTimeOffset? OldestRequestAt)> ReadSqliteAggregateAsync(
+    /// <returns>The pending aggregate, or null when no rows qualify.</returns>
+    private static async Task<AggregateRow?> ReadSqliteAggregateAsync(
         IQueryable<ClubJoinRequestEntity> pendingQuery,
         CancellationToken cancellationToken)
     {
@@ -107,8 +110,8 @@ public sealed partial class ClubAttentionQueryService(
             .Select(request => request.CreatedAt)
             .ToListAsync(cancellationToken);
         return rows.Count == 0
-            ? (0, null)
-            : (rows.Count, rows.Min());
+            ? null
+            : new AggregateRow(rows.Count, rows.Min());
     }
 
     /// <summary>
