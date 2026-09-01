@@ -121,7 +121,7 @@ internal static class ActivityEventPolicy
                 (var prev, _, _) when !Enum.IsDefined(prev) => ActivityEventKind.PlacementAssigned,
                 _ => ActivityEventKind.PlacementOutcomeReplaced,
             },
-            _ => null,
+            _ => ActivityEventKind.PlacementOutcomeReplaced,
         };
     }
 

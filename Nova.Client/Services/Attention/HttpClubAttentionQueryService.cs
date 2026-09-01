@@ -46,7 +46,7 @@ public sealed class HttpClubAttentionQueryService(HttpClient http) : IClubAttent
         => region is not null
             && region.Status is AttentionRegionStatus.Loaded or AttentionRegionStatus.Unavailable
             && (region.Status != AttentionRegionStatus.Loaded || region.Count >= 0)
-            && (region.Count > 0 || region.OldestRequestAt is null);
+            && (region.Count > 0 ? region.OldestRequestAt is not null : region.OldestRequestAt is null);
 
     /// <summary>
     /// Validates the needs placement region: a loaded region carries a non-negative count and the

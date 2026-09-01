@@ -1,7 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Nova.Entities;
 using Nova.Entities.Base;
+using Nova.Shared.Enums;
 
 namespace Nova.Data.Interceptors;
 
@@ -58,6 +60,22 @@ public sealed class TenantSaveChangesInterceptor : SaveChangesInterceptor
 
     private static void GuardTenant(EntityEntry entry, ITenantOwnedEntity entity, long? tenantId)
     {
+        // A club-less user may write the join-request activity row for the club they are
+        // requesting to join (submitting or cancelling the request is the only club-less write
+        // path for a tenant-owned row). This carve-out is validated: it applies only to the two
+        // join-request kinds, only for Added rows, only when the caller has no club, and only
+        // when the row already carries the explicit target ClubId.
+        if (entry.State == EntityState.Added
+            && entity is ActivityEventEntity
+            {
+                EventKind: ActivityEventKind.JoinRequestSubmitted or ActivityEventKind.JoinRequestCancelled
+            }
+            && entity.ClubId != default
+            && tenantId is null)
+        {
+            return;
+        }
+
         switch (entry.State)
         {
             case EntityState.Added when entity.ClubId == default:

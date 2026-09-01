@@ -34,9 +34,9 @@ internal static class DashboardDisplay
         (ActivityEventKind.PlacementSuperseded, PlacementContext p) =>
             $"superseded {p.PlayerDisplayName}'s placement for {p.CampaignName}",
         (ActivityEventKind.JoinRequestSubmitted, JoinRequestContext j) =>
-            $"requested to join the club: {j.RequesterDisplayName}",
+            "requested to join the club",
         (ActivityEventKind.JoinRequestCancelled, JoinRequestContext j) =>
-            $"withdrew a join request: {j.RequesterDisplayName}",
+            "withdrew their join request",
         (ActivityEventKind.JoinRequestRejected, JoinRequestContext j) =>
             $"rejected {j.RequesterDisplayName}'s join request",
         (ActivityEventKind.MemberJoined, MembershipContext m) =>

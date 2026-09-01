@@ -155,14 +155,14 @@ public sealed class ActivityEventPolicyTests
         result.ShouldBe(ActivityEventKind.PlacementWithdrawn);
     }
 
-    /// <summary>Verifies an unknown outcome change emits no event.</summary>
+    /// <summary>Verifies an unknown outcome change is recorded as a replaced outcome.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsNull_ForUnknownOutcome()
+    public void ClassifyPlacementTransition_ReturnsOutcomeReplaced_ForUnknownOutcome()
     {
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
             PlacementOutcome.Undecided, null, (PlacementOutcome)99, null);
 
-        result.ShouldBeNull();
+        result.ShouldBe(ActivityEventKind.PlacementOutcomeReplaced);
     }
 
     /// <summary>Verifies a matching context family is accepted.</summary>

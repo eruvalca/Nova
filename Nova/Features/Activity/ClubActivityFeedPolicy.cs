@@ -91,6 +91,12 @@ internal static class ClubActivityFeedPolicy
         {
             return null;
         }
+        catch (NotSupportedException)
+        {
+            // A missing/unknown discriminator can surface as NotSupportedException when the
+            // serializer attempts to instantiate the abstract base type.
+            return null;
+        }
 
         if (context is null || !ActivityEventPolicy.ContextMatchesKind(row.EventKind, context))
         {
@@ -98,11 +104,20 @@ internal static class ClubActivityFeedPolicy
         }
 
         var projected = context;
+        long? actorUserId = row.ActorUserId;
+        string? actorDisplayName = row.ActorDisplayName;
         if (row.EventKind == ActivityEventKind.MemberJoined && context is MembershipContext membership)
         {
             // The persisted payload carries the approving-admin snapshot; members see the join
-            // only, administrators see the approval action too.
-            projected = membership with { ApprovedByActorName = isAdmin ? membership.ApprovedByActorName : null };
+            // only (subject-led without the approving actor), administrators see the approval
+            // action with the actor.
+            var isAdminView = isAdmin;
+            projected = membership with { ApprovedByActorName = isAdminView ? membership.ApprovedByActorName : null };
+            if (!isAdminView)
+            {
+                actorUserId = null;
+                actorDisplayName = null;
+            }
         }
 
         return new ClubActivityItemDto
@@ -110,8 +125,8 @@ internal static class ClubActivityFeedPolicy
             Kind = row.EventKind,
             ActivityEventId = row.ActivityEventId,
             OccurredAt = row.CreatedAt,
-            ActorUserId = row.ActorUserId,
-            ActorDisplayName = row.ActorDisplayName,
+            ActorUserId = actorUserId,
+            ActorDisplayName = actorDisplayName,
             Context = projected,
         };
     }

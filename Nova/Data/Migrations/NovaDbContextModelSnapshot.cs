@@ -184,8 +184,8 @@ namespace Nova.Data.Migrations
 
                     b.Property<string>("ActorDisplayName")
                         .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
+                        .HasMaxLength(201)
+                        .HasColumnType("character varying(201)");
 
                     b.Property<long>("ActorUserId")
                         .HasColumnType("bigint");

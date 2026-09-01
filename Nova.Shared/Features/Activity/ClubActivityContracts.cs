@@ -26,14 +26,18 @@ public sealed record ClubActivityItemDto
     public required DateTimeOffset OccurredAt { get; init; }
 
     /// <summary>
-    /// Gets the identifier of the user who performed the action.
+    /// Gets the identifier of the user who performed the action, or <see langword="null"/> when the
+    /// row is projected onto a subject-led shape that hides the actor (member view of a
+    /// <see cref="ActivityEventKind.MemberJoined"/> event).
     /// </summary>
-    public required long ActorUserId { get; init; }
+    public long? ActorUserId { get; init; }
 
     /// <summary>
-    /// Gets the stored actor display-name snapshot.
+    /// Gets the stored actor display-name snapshot, or <see langword="null"/> when the row is
+    /// projected onto a subject-led shape that hides the actor (member view of a
+    /// <see cref="ActivityEventKind.MemberJoined"/> event).
     /// </summary>
-    public required string ActorDisplayName { get; init; }
+    public string? ActorDisplayName { get; init; }
 
     /// <summary>
     /// Gets the family-shaped structured event payload.

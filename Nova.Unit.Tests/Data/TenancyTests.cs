@@ -4,6 +4,7 @@ using Nova.Data;
 using Nova.Data.Interceptors;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Shared.Enums;
 using Nova.Shared.Security;
 using Shouldly;
 
@@ -511,6 +512,74 @@ public class TenancyTests : IDisposable
             CreatedById = ClubAMember1Id
         });
 
+        Should.Throw<InvalidOperationException>(() => context.SaveChanges())
+            .Message.ShouldContain("Cross-tenant");
+    }
+
+    [Fact]
+    public void Interceptor_AllowsClubLessUser_ToWriteJoinRequestSubmittedActivityEvent()
+    {
+        ActAs(NoClubUserId, clubId: null);
+        using var context = _harness.CreateTenantContext();
+
+        context.ActivityEvents.Add(new ActivityEventEntity
+        {
+            ClubId = ClubAId,
+            EventKind = ActivityEventKind.JoinRequestSubmitted,
+            IsAdminOnly = true,
+            ActorUserId = NoClubUserId,
+            ActorDisplayName = "Orphan User",
+            PayloadJson = "{}",
+            CreatedById = NoClubUserId,
+        });
+
+        // The club-less requester can write the join-request activity row for the club they
+        // are requesting to join; the explicit ClubId and join-request kind are the carve-out.
+        context.SaveChanges();
+    }
+
+    [Fact]
+    public void Interceptor_StillGuardsClubLessUser_WhenWritingOtherActivityEventKinds()
+    {
+        ActAs(NoClubUserId, clubId: null);
+        using var context = _harness.CreateTenantContext();
+
+        context.ActivityEvents.Add(new ActivityEventEntity
+        {
+            ClubId = ClubAId,
+            EventKind = ActivityEventKind.MemberJoined,
+            IsAdminOnly = false,
+            ActorUserId = NoClubUserId,
+            ActorDisplayName = "Orphan User",
+            PayloadJson = "{}",
+            CreatedById = NoClubUserId,
+        });
+
+        // The carve-out is scoped to the join-request kinds; any other tenant-owned row
+        // written by a club-less user must still be rejected.
+        Should.Throw<InvalidOperationException>(() => context.SaveChanges())
+            .Message.ShouldContain("Cross-tenant");
+    }
+
+    [Fact]
+    public void Interceptor_GuardsClubMember_WhenWritingJoinRequestSubmittedEventForAnotherClub()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using var context = _harness.CreateTenantContext();
+
+        context.ActivityEvents.Add(new ActivityEventEntity
+        {
+            ClubId = ClubBId,
+            EventKind = ActivityEventKind.JoinRequestSubmitted,
+            IsAdminOnly = true,
+            ActorUserId = ClubAMember1Id,
+            ActorDisplayName = "Club A Member",
+            PayloadJson = "{}",
+            CreatedById = ClubAMember1Id,
+        });
+
+        // A club member is not a club-less requester; the carve-out does not apply, so a
+        // join-request row for a different club is still a cross-tenant write.
         Should.Throw<InvalidOperationException>(() => context.SaveChanges())
             .Message.ShouldContain("Cross-tenant");
     }

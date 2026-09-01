@@ -6,9 +6,12 @@ namespace Nova.Entities;
 /// <summary>
 /// Represents one append-only activity event recorded for a club. The row carries a kind, an
 /// actor and subject display-name snapshot, a stored visibility flag, and a family-shaped payload
-/// so the feed remains readable after the referenced entities change or are removed.
+/// so the feed remains readable after the referenced entities change or are removed. It is a
+/// tenant-owned row like every other club-scoped entity; the join-request write path that runs
+/// for a club-less requester is carved out individually in
+/// <see cref="Nova.Data.Interceptors.TenantSaveChangesInterceptor"/>.
 /// </summary>
-public class ActivityEventEntity : BaseEntity
+public class ActivityEventEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the activity event identifier (the monotonic ordering key used by the feed).

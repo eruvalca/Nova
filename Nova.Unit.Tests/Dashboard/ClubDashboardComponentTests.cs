@@ -91,7 +91,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
         cut.Markup.ShouldContain("1 archived");
         cut.Markup.ShouldContain("href=\"players\"");
         cut.Markup.ShouldContain("href=\"teams\"");
-        cut.Markup.ShouldContain("requested to join the club: Noter");
+        cut.Markup.ShouldContain("Admin A requested to join the club");
     }
 
     /// <summary>Verifies an administrator sees the attention card with both counts and links.</summary>
@@ -377,7 +377,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
             .Add(p => p.PersistedActivityValue, persistedActivity));
 
         cut.Markup.ShouldContain("Campaign A");
-        cut.Markup.ShouldContain("requested to join the club: Noter");
+        cut.Markup.ShouldContain("Admin A requested to join the club");
 
         dashboardService.DidNotReceive().GetDashboardAsync(Arg.Any<CancellationToken>());
         activityService.DidNotReceive().GetClubActivityAsync(Arg.Any<GetClubActivityInput>(), Arg.Any<CancellationToken>());

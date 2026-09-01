@@ -26,7 +26,7 @@ public partial class AddActivityEvents : Migration
                 IsAdminOnly = table.Column<bool>(type: "boolean", nullable: false),
                 CampaignId = table.Column<long>(type: "bigint", nullable: true),
                 ActorUserId = table.Column<long>(type: "bigint", nullable: false),
-                ActorDisplayName = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false),
+                ActorDisplayName = table.Column<string>(type: "character varying(201)", maxLength: 201, nullable: false),
                 PayloadJson = table.Column<string>(type: "text", nullable: false),
                 CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                 CreatedById = table.Column<long>(type: "bigint", nullable: false),

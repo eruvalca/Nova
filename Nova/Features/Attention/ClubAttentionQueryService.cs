@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
+using Nova.Entities;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Attention;
 using Nova.Shared.Results;
@@ -57,27 +58,56 @@ public sealed partial class ClubAttentionQueryService(
         try
         {
             await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-            // SQLite cannot translate ORDER BY on DateTimeOffset columns, so the pending rows are
-            // materialized and ordered in memory. Pending sets are small; the count/oldest
-            // semantics are identical to ordering in SQL.
-            var pending = await db.ClubJoinRequests
-                .Where(request => request.ClubId == clubId && request.Status == RequestStatus.Pending)
-                .Select(request => new PendingRequestRow(request.CreatedAt))
-                .ToListAsync(cancellationToken);
+            var pendingQuery = db.ClubJoinRequests
+                .Where(request => request.ClubId == clubId && request.Status == RequestStatus.Pending);
 
-            var ordered = pending.OrderBy(request => request.CreatedAt).ToList();
+            var (count, oldestRequestAt) = db.Database.IsNpgsql()
+                ? await pendingQuery
+                    .GroupBy(_ => 1)
+                    .Select(group => new AggregateRow(group.Count(), group.Min(request => request.CreatedAt)))
+                    .FirstOrDefaultAsync(cancellationToken)
+                    .ContinueWith(task => task.Result is null
+                        ? (0, (DateTimeOffset?)null)
+                        : (task.Result.Count, task.Result.OldestRequestAt))
+                : await ReadSqliteAggregateAsync(pendingQuery, cancellationToken);
+
             return new PendingJoinRequestsRegion
             {
                 Status = AttentionRegionStatus.Loaded,
-                Count = ordered.Count,
-                OldestRequestAt = ordered.Count > 0 ? ordered[0].CreatedAt : null
+                Count = count,
+                OldestRequestAt = count > 0 ? oldestRequestAt : null
             };
         }
         catch (Exception exception)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
             LogJoinRequestsRegionUnavailable(exception);
             return new PendingJoinRequestsRegion { Status = AttentionRegionStatus.Unavailable };
         }
+    }
+
+    /// <summary>
+    /// Reads the pending join-requests aggregate. SQLite cannot translate ORDER BY on
+    /// DateTimeOffset columns, so the rows are materialized and aggregated in memory; pending sets
+    /// are small, and the count/oldest semantics are identical to the SQL aggregate.
+    /// </summary>
+    /// <param name="pendingQuery">The pending join-requests query.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The count and oldest request timestamp.</returns>
+    private static async Task<(int Count, DateTimeOffset? OldestRequestAt)> ReadSqliteAggregateAsync(
+        IQueryable<ClubJoinRequestEntity> pendingQuery,
+        CancellationToken cancellationToken)
+    {
+        var rows = await pendingQuery
+            .Select(request => request.CreatedAt)
+            .ToListAsync(cancellationToken);
+        return rows.Count == 0
+            ? (0, null)
+            : (rows.Count, rows.Min());
     }
 
     /// <summary>
@@ -136,6 +166,11 @@ public sealed partial class ClubAttentionQueryService(
         }
         catch (Exception exception)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
             LogNeedsPlacementRegionUnavailable(exception);
             return new NeedsPlacementRegion { Status = AttentionRegionStatus.Unavailable };
         }
@@ -163,10 +198,11 @@ public sealed partial class ClubAttentionQueryService(
     private partial void LogNeedsPlacementRegionUnavailable(Exception exception);
 
     /// <summary>
-    /// A pending join request row projection.
+    /// A pending join-requests aggregate row projection.
     /// </summary>
-    /// <param name="CreatedAt">When the request was submitted.</param>
-    private sealed record PendingRequestRow(DateTimeOffset CreatedAt);
+    /// <param name="Count">The number of pending requests.</param>
+    /// <param name="OldestRequestAt">The oldest pending request timestamp.</param>
+    private sealed record AggregateRow(int Count, DateTimeOffset? OldestRequestAt);
 
     /// <summary>
     /// A campaign row projection.

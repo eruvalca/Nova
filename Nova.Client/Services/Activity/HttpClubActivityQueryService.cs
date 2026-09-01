@@ -62,16 +62,24 @@ public sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivit
         if (item is null
             || item.ActivityEventId <= 0
             || item.OccurredAt == default
-            || item.ActorUserId <= 0
-            || string.IsNullOrWhiteSpace(item.ActorDisplayName)
             || item.Context is null)
+        {
+            return false;
+        }
+
+        // MemberJoined rows are shaped subject-led for members, so the top-level actor fields are
+        // only carried for the administrator-approved view; every other kind carries an actor.
+        if (item.Kind != ActivityEventKind.MemberJoined
+            && (item.ActorUserId is not > 0 || string.IsNullOrWhiteSpace(item.ActorDisplayName)))
         {
             return false;
         }
 
         return item.Kind switch
         {
-            ActivityEventKind.CampaignOpened
+            ActivityEventKind.CampaignDraftCreated
+            or ActivityEventKind.CampaignDraftDeleted
+            or ActivityEventKind.CampaignOpened
             or ActivityEventKind.CampaignClosed
             or ActivityEventKind.CampaignReopened
                 => item.Context is CampaignLifecycleContext context

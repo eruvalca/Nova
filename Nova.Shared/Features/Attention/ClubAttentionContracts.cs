@@ -53,20 +53,23 @@ public sealed record NeedsPlacementRegion
     public required AttentionRegionStatus Status { get; init; }
 
     /// <summary>
-    /// Gets the count of Active campaigns with placements still to be decided, meaningful only when
-    /// <see cref="Status"/> is <see cref="AttentionRegionStatus.Loaded"/>.
+    /// Gets the count of undecided participant assignments in Active campaigns awaiting a
+    /// placement decision, meaningful only when <see cref="Status"/> is
+    /// <see cref="AttentionRegionStatus.Loaded"/>.
     /// </summary>
     public int Count { get; init; }
 
     /// <summary>
-    /// Gets the identifier of the oldest campaign still needing placement decisions, meaningful only
-    /// when the region loaded and the count is non-zero.
+    /// Gets the identifier of the newest campaign (by season start, then campaign start) containing
+    /// assignments still needing placement decisions, meaningful only when the region loaded and
+    /// the count is non-zero.
     /// </summary>
     public long? CampaignId { get; init; }
 
     /// <summary>
-    /// Gets the display name of the oldest campaign still needing placement decisions, meaningful only
-    /// when the region loaded and the count is non-zero.
+    /// Gets the display name of the newest campaign (by season start, then campaign start) containing
+    /// assignments still needing placement decisions, meaningful only when the region loaded and
+    /// the count is non-zero.
     /// </summary>
     public string? CampaignName { get; init; }
 }

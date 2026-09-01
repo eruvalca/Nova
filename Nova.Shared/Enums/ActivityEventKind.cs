@@ -58,7 +58,7 @@ public enum ActivityEventKind
     PlacementOutcomeReplaced = 9,
 
     /// <summary>
-    /// An earlier placement was superseded by a later assignment in the same campaign.
+    /// An earlier placement was superseded by an assignment from a later campaign.
     /// </summary>
     PlacementSuperseded = 10,
 

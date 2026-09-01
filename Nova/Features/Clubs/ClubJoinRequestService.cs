@@ -1,11 +1,13 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Components.Account;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Clubs;
 using Nova.Features.Activity;
+using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Clubs;
@@ -61,82 +63,58 @@ public sealed partial class ClubJoinRequestService(
             return ServiceProblem.Conflict("You are already a member of a club.");
         }
 
+        await using var probeDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        // Check for existing pending request
+        var existingRequest = await probeDb.ClubJoinRequests
+            .AnyAsync(e => e.RequestingUserId == userId && e.Status == RequestStatus.Pending, cancellationToken);
+
+        if (existingRequest)
+        {
+            return ServiceProblem.Conflict("You already have a pending join request.");
+        }
+
+        // Check if club exists and capture its name for the response.
+        var clubName = await probeDb.Clubs
+            .Where(c => c.ClubId == clubId)
+            .Select(c => c.Name)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (clubName is null)
+        {
+            return ServiceProblem.NotFound("The specified club does not exist.");
+        }
+
+        // Resolve the requester's display name for the event snapshot. The requester is
+        // club-less, so the tenant-filtered write context cannot see them; UserManager is
+        // the established route for club-less users.
+        var requesterName = (await userManager.FindByIdAsync(userId.ToString()))?.FullName ?? "Unknown user";
+
+        // Create join request. The request id is identity-generated, so the durable event is
+        // appended after the first save but inside the same transaction: the request and its
+        // activity row commit atomically. With the Npgsql retrying execution strategy the
+        // user-initiated transaction must run inside CreateExecutionStrategy().ExecuteAsync()
+        // so the whole unit is retried as one on transient failures. A fresh write context is
+        // created per attempt so tracked Added state from a failed attempt is never replayed.
+        // Post-commit reads (and the DTO construction that triggered them) run via the verify
+        // delegate instead of inside the retryable operation: a transient failure while reloading
+        // must not replay the insert against the request's unique RequestingUserId key.
+        var strategy = probeDb.Database.CreateExecutionStrategy();
+        var state = (ClubId: clubId, UserId: userId, RequesterName: requesterName, ClubName: clubName);
+
         try
         {
-            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-
-            // Check for existing pending request
-            var existingRequest = await db.ClubJoinRequests
-                .AnyAsync(e => e.RequestingUserId == userId && e.Status == RequestStatus.Pending, cancellationToken);
-
-            if (existingRequest)
-            {
-                return ServiceProblem.Conflict("You already have a pending join request.");
-            }
-
-            // Check if club exists
-            var clubExists = await db.Clubs.AnyAsync(c => c.ClubId == clubId, cancellationToken);
-            if (!clubExists)
-            {
-                return ServiceProblem.NotFound("The specified club does not exist.");
-            }
-
-            // Resolve the requester's display name for the event snapshot. The requester is
-            // club-less, so the tenant-filtered write context cannot see them; UserManager is
-            // the established route for club-less users.
-            var requesterName = (await userManager.FindByIdAsync(userId.ToString()))?.FullName ?? "Unknown user";
-
-            // Create join request. The request id is identity-generated, so the durable event is
-            // appended after the first save but inside the same transaction: the request and its
-            // activity row commit atomically. With the Npgsql retrying execution strategy the
-            // user-initiated transaction must run inside CreateExecutionStrategy().ExecuteAsync()
-            // so the whole unit is retried as one on transient failures. A fresh write context is
-            // created per attempt so tracked Added state from a failed attempt is never replayed.
-            var strategy = db.Database.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(
-                (ClubId: clubId, UserId: userId, RequesterName: requesterName),
-                async (state, token) =>
+                state,
+                async (operationState, token) =>
                 {
                     await using var writeDb = await dbContextFactory.CreateDbContextAsync(token);
-
-                    var joinRequest = new ClubJoinRequestEntity
-                    {
-                        ClubId = state.ClubId,
-                        RequestingUserId = state.UserId,
-                        Status = RequestStatus.Pending,
-                        CreatedById = state.UserId
-                    };
-
-                    writeDb.ClubJoinRequests.Add(joinRequest);
-
-                    await using var transaction = await writeDb.Database.BeginTransactionAsync(token);
-                    await writeDb.SaveChangesAsync(token);
-
-                    // JoinRequestSubmitted is administrator-only (unresolved join-request events
-                    // are admin-only per the attention brief).
-                    ActivityEventWriter.AppendJoinRequest(
-                        writeDb,
-                        state.ClubId,
-                        ActivityEventKind.JoinRequestSubmitted,
-                        state.UserId,
-                        state.RequesterName,
-                        new JoinRequestContext
-                        {
-                            JoinRequestId = joinRequest.ClubJoinRequestId,
-                            RequesterDisplayName = state.RequesterName,
-                        });
-
-                    await writeDb.SaveChangesAsync(token);
-                    await transaction.CommitAsync(token);
-
-                    // Reload with Club and RequestingUser navigations
-                    var reloaded = await writeDb.ClubJoinRequests
-                        .Include(e => e.Club)
-                        .Include(e => e.RequestingUser)
-                        .FirstAsync(e => e.ClubJoinRequestId == joinRequest.ClubJoinRequestId, token);
-
-                    LogJoinRequestCreated(state.UserId, state.ClubId, joinRequest.ClubJoinRequestId);
-                    return reloaded.ToClubJoinRequestDto();
+                    return await PersistJoinRequestAsync(writeDb, operationState, token);
+                },
+                async (operationState, token) =>
+                {
+                    await using var verifyDb = await dbContextFactory.CreateDbContextAsync(token);
+                    return await VerifyJoinRequestCommittedAsync(verifyDb, operationState, token);
                 },
                 cancellationToken);
         }
@@ -145,6 +123,97 @@ public sealed partial class ClubJoinRequestService(
             LogJoinRequestCreationFailed(ex, userId, clubId);
             return ServiceProblem.ServerError("Failed to create the join request. Please try again.");
         }
+    }
+
+    /// <summary>
+    /// Persists one join request and its join-request-submitted activity row in a single
+    /// transaction using the provided fresh tenant context.
+    /// </summary>
+    /// <param name="db">The fresh tenant context for this execution attempt.</param>
+    /// <param name="state">The logical operation state captured before the strategy started.</param>
+    /// <param name="cancellationToken">A token that cancels the database work.</param>
+    /// <returns>The created join request DTO.</returns>
+    private async Task<ServiceResult<ClubJoinRequestDto>> PersistJoinRequestAsync(
+        NovaDbContext db,
+        (long ClubId, long UserId, string RequesterName, string ClubName) state,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        var joinRequest = new ClubJoinRequestEntity
+        {
+            ClubId = state.ClubId,
+            RequestingUserId = state.UserId,
+            Status = RequestStatus.Pending,
+            CreatedById = state.UserId
+        };
+
+        db.ClubJoinRequests.Add(joinRequest);
+        await db.SaveChangesAsync(cancellationToken);
+
+        // JoinRequestSubmitted is administrator-only (unresolved join-request events
+        // are admin-only per the attention brief).
+        ActivityEventWriter.AppendJoinRequest(
+            db,
+            state.ClubId,
+            ActivityEventKind.JoinRequestSubmitted,
+            state.UserId,
+            state.RequesterName,
+            new JoinRequestContext
+            {
+                JoinRequestId = joinRequest.ClubJoinRequestId,
+                RequesterDisplayName = state.RequesterName,
+            });
+
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        LogJoinRequestCreated(state.UserId, state.ClubId, joinRequest.ClubJoinRequestId);
+        return new ClubJoinRequestDto(
+            joinRequest.ClubJoinRequestId,
+            state.ClubId,
+            state.ClubName,
+            state.UserId,
+            state.RequesterName,
+            RequestStatus.Pending,
+            joinRequest.CreatedAt);
+    }
+
+    /// <summary>
+    /// Checks whether a join-request creation transaction with an uncertain commit outcome was
+    /// committed and reconstructs its successful service result without replaying the insert.
+    /// </summary>
+    /// <param name="db">The fresh tenant context used for commit verification.</param>
+    /// <param name="state">The logical operation state captured before the strategy started.</param>
+    /// <param name="cancellationToken">A token that cancels the verification query.</param>
+    /// <returns>An execution result indicating whether the committed join request was found.</returns>
+    private async Task<ExecutionResult<ServiceResult<ClubJoinRequestDto>>> VerifyJoinRequestCommittedAsync(
+        NovaDbContext db,
+        (long ClubId, long UserId, string RequesterName, string ClubName) state,
+        CancellationToken cancellationToken)
+    {
+        var joinRequest = await db.ClubJoinRequests
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.RequestingUserId == state.UserId && candidate.ClubId == state.ClubId,
+                cancellationToken);
+
+        if (joinRequest is null)
+        {
+            return new ExecutionResult<ServiceResult<ClubJoinRequestDto>>(successful: false, default!);
+        }
+
+        LogJoinRequestCreated(state.UserId, state.ClubId, joinRequest.ClubJoinRequestId);
+        return new ExecutionResult<ServiceResult<ClubJoinRequestDto>>(
+            successful: true,
+            new ClubJoinRequestDto(
+                joinRequest.ClubJoinRequestId,
+                state.ClubId,
+                state.ClubName,
+                state.UserId,
+                state.RequesterName,
+                joinRequest.Status,
+                joinRequest.CreatedAt));
     }
 
     /// <inheritdoc />
@@ -262,11 +331,34 @@ public sealed partial class ClubJoinRequestService(
         // admin is tenant-visible, so the write context resolves the actor snapshot.
         var adminUserId = currentUserProvider.UserId ?? 0;
         var requestingUser = await userManager.FindByIdAsync(request.RequestingUserId.ToString());
-        var memberName = requestingUser?.FullName ?? "Unknown user";
+
+        if (requestingUser is null)
+        {
+            LogApproveRequestingUserMissing(request.RequestingUserId, requestId);
+            return ServiceProblem.ServerError("The requesting user account could not be found.");
+        }
+
+        var memberName = requestingUser.FullName;
         var adminName = (await db.Users
             .Where(user => user.Id == adminUserId)
             .Select(user => user.FirstName + " " + user.LastName)
             .FirstOrDefaultAsync(cancellationToken)) ?? "Unknown user";
+
+        // Assign the user to the club BEFORE persisting durable joined evidence: an identity
+        // failure now leaves the request pending with no "joined" record for a still club-less
+        // user, instead of the reverse. UserManager runs against the admin context, so the
+        // assignment is safe to re-run after a DB failure.
+        requestingUser.ClubId = request.ClubId;
+        var updateResult = await userManager.UpdateAsync(requestingUser);
+        if (!updateResult.Succeeded)
+        {
+            var errorDetails = string.Join(", ", updateResult.Errors.Select(error => error.Description));
+            LogApproveRequestingUserUpdateFailed(request.RequestingUserId, requestId);
+            return ServiceProblem.ServerError(errorDetails);
+        }
+
+        // Best-effort security-stamp refresh so the newly assigned member's claims are regenerated.
+        await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(requestingUser);
 
         ActivityEventWriter.AppendMembership(
             db,
@@ -281,19 +373,6 @@ public sealed partial class ClubJoinRequestService(
             });
 
         await db.SaveChangesAsync(cancellationToken);
-
-        // Re-fetch the requesting user through UserManager (its own tracked instance) to avoid
-        // an identity-map conflict, then assign them to the club and bump their security stamp.
-        if (requestingUser is not null)
-        {
-            requestingUser.ClubId = request.ClubId;
-            await userManager.UpdateAsync(requestingUser);
-            await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(requestingUser);
-        }
-        else
-        {
-            LogApproveRequestingUserMissing(request.RequestingUserId, requestId);
-        }
 
         LogJoinRequestApproved(currentUserProvider.UserId ?? 0, requestId, request.RequestingUserId, request.ClubId);
         return new Success();
@@ -362,6 +441,9 @@ public sealed partial class ClubJoinRequestService(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but requesting user not found: RequestingUserId={RequestingUserId}, RequestId={RequestId}.")]
     private partial void LogApproveRequestingUserMissing(long requestingUserId, long requestId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but UserManager failed to update the requesting user: RequestingUserId={RequestingUserId}, RequestId={RequestId}.")]
+    private partial void LogApproveRequestingUserUpdateFailed(long requestingUserId, long requestId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Join request created: RequestId={RequestId} for UserId={UserId} to ClubId={ClubId}.")]
     private partial void LogJoinRequestCreated(long userId, long clubId, long requestId);

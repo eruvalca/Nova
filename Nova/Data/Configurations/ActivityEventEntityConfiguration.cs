@@ -27,7 +27,7 @@ public class ActivityEventEntityConfiguration : IEntityTypeConfiguration<Activit
 
         builder.Property(e => e.ActorDisplayName)
             .IsRequired()
-            .HasMaxLength(150);
+            .HasMaxLength(201);
 
         builder.Property(e => e.PayloadJson)
             .IsRequired();

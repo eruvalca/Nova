@@ -78,7 +78,7 @@ public sealed class ClubActivityFeedPolicyTests
         result.NextCursor.ShouldBeNull();
     }
 
-    /// <summary>Verifies the continuation cursor resumes from the newest returned row.</summary>
+    /// <summary>Verifies the continuation cursor resumes after the oldest returned row of the previous page.</summary>
     [Fact]
     public void BuildPage_ApplyingNextCursor_ReturnsFollowingRows()
     {

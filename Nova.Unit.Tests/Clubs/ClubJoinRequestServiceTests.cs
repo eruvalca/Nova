@@ -112,6 +112,135 @@ public class ClubJoinRequestServiceTests : IDisposable
             logger);
     }
 
+    #region CreateJoinRequestAsync Tests
+
+    [Fact]
+    public async Task CreateJoinRequestAsync_ReturnsForbidden_WhenNoSignedInUser()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = null;
+        _harness.CurrentUser.ClubId = null;
+        var service = CreateService();
+
+        // Act
+        var result = await service.CreateJoinRequestAsync(ClubAId, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    [Fact]
+    public async Task CreateJoinRequestAsync_ReturnsConflict_WhenUserAlreadyHasClub()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = AdminUserId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var service = CreateService();
+
+        // Act
+        var result = await service.CreateJoinRequestAsync(ClubAId, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+    }
+
+    [Fact]
+    public async Task CreateJoinRequestAsync_ReturnsConflict_WhenPendingRequestAlreadyExists()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = RequestingUserId;
+        _harness.CurrentUser.ClubId = null;
+        _harness.CurrentUser.IsClubAdmin = false;
+
+        using (var context = _harness.CreateAdminContext())
+        {
+            context.ClubJoinRequests.Add(new ClubJoinRequestEntity
+            {
+                ClubId = ClubAId,
+                RequestingUserId = RequestingUserId,
+                Status = RequestStatus.Pending,
+                CreatedById = RequestingUserId
+            });
+            context.SaveChanges();
+        }
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.CreateJoinRequestAsync(ClubAId, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+    }
+
+    [Fact]
+    public async Task CreateJoinRequestAsync_ReturnsNotFound_WhenClubDoesNotExist()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = RequestingUserId;
+        _harness.CurrentUser.ClubId = null;
+        var service = CreateService();
+
+        // Act
+        var result = await service.CreateJoinRequestAsync(999, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
+    [Fact]
+    public async Task CreateJoinRequestAsync_CreatesRequestAndEmitsJoinRequestSubmittedEvent()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = RequestingUserId;
+        _harness.CurrentUser.ClubId = null;
+        _harness.CurrentUser.IsClubAdmin = false;
+
+        _userManager.FindByIdAsync(RequestingUserId.ToString())
+            .Returns(Task.FromResult<NovaUserEntity?>(new NovaUserEntity
+            {
+                Id = RequestingUserId,
+                FirstName = "Requester",
+                LastName = "R",
+                ClubId = null
+            }));
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.CreateJoinRequestAsync(ClubAId, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ClubId.ShouldBe(ClubAId);
+        result.Value.RequestingUserId.ShouldBe(RequestingUserId);
+        result.Value.Status.ShouldBe(RequestStatus.Pending);
+
+        using (var context = _harness.CreateAdminContext())
+        {
+            var request = await context.ClubJoinRequests.SingleAsync(
+                r => r.RequestingUserId == RequestingUserId,
+                TestContext.Current.CancellationToken);
+            request.ClubId.ShouldBe(ClubAId);
+            request.Status.ShouldBe(RequestStatus.Pending);
+
+            var activityEvent = await context.ActivityEvents.SingleAsync(
+                e => e.EventKind == ActivityEventKind.JoinRequestSubmitted,
+                TestContext.Current.CancellationToken);
+            activityEvent.ClubId.ShouldBe(ClubAId);
+            activityEvent.ActorUserId.ShouldBe(RequestingUserId);
+            activityEvent.ActorDisplayName.ShouldBe("Requester R");
+            activityEvent.IsAdminOnly.ShouldBeTrue();
+            activityEvent.CampaignId.ShouldBeNull();
+        }
+    }
+
+    #endregion
+
     #region GetCurrentUserPendingRequestAsync Tests (Modified Behavior)
 
     [Fact]
