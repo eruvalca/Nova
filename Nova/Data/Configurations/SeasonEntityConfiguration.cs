@@ -28,7 +28,6 @@ public class SeasonEntityConfiguration : IEntityTypeConfiguration<SeasonEntity>
 
         builder.HasIndex(e => new { e.ClubId, e.Name }).IsUnique();
         builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
-            .IsUnique()
-            .HasFilter("\"CreationOperationId\" IS NOT NULL");
+            .IsUnique();
     }
 }

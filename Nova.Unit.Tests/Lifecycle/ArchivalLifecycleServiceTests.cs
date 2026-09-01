@@ -323,6 +323,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         {
             mutate.Campaigns.Add(new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 703,
                 Name = "Started While Archived",
                 StartDate = new DateOnly(2026, 9, 1),
@@ -467,6 +468,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Club A",
                 City = "Austin",
@@ -475,6 +477,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Club B",
                 City = "Boston",
@@ -485,6 +488,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         db.Seasons.AddRange(
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 600,
                 Name = "Season A",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -493,6 +497,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             },
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 601,
                 Name = "Season B",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -503,6 +508,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         db.Campaigns.AddRange(
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 700,
                 Name = "Active Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -512,6 +518,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 701,
                 Name = "Historical Campaign",
                 StartDate = new DateOnly(2025, 6, 1),
@@ -525,6 +532,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 702,
                 Name = "Club B Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -535,6 +543,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
 
         var resolvedPlayer = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerId = ResolvedPlayerId,
             FirstName = "Resolved",
             LastName = "Player",
@@ -545,8 +554,10 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         };
         var tagDefinition = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerTagId = TagDefinitionId,
             Name = "Fast",
+            NormalizedName = "FAST",
             Color = "#ffffff",
             ClubId = ClubAId,
             CreatedById = ClubAAdminId
@@ -554,6 +565,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         db.Players.AddRange(
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = ActiveUndecidedPlayerId,
                 FirstName = "Undecided",
                 LastName = "Player",
@@ -565,6 +577,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             resolvedPlayer,
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = ClubBPlayerId,
                 FirstName = "Other",
                 LastName = "Player",
@@ -575,6 +588,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = ArchivedWithoutAssignmentsPlayerId,
                 FirstName = "Archived",
                 LastName = "NoAssignments",
@@ -588,8 +602,10 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             tagDefinition,
             new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerTagId = ClubBTagDefinitionId,
                 Name = "Other",
+                NormalizedName = "OTHER",
                 Color = "#000000",
                 ClubId = ClubBId,
                 CreatedById = ClubBAdminId
@@ -598,6 +614,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
         db.Teams.AddRange(
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = ActivePlacementTeamId,
                 Name = "Active Placement Team",
                 GraduationYear = 2029,
@@ -606,6 +623,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             },
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = HistoricalPlacementTeamId,
                 Name = "Historical Placement Team",
                 GraduationYear = 2029,
@@ -614,6 +632,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
             },
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = ClubBTeamId,
                 Name = "Other Team",
                 GraduationYear = 2029,
@@ -654,6 +673,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
 
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             CampaignTagApplicationId = 900,
             PlayerCampaignAssignmentId = 801,
             PlayerTagId = TagDefinitionId,

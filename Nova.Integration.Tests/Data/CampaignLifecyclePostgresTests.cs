@@ -350,6 +350,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         var suffix = Guid.NewGuid().ToString("N");
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Concurrent",
             LastName = suffix,
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -397,6 +398,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         var suffix = Guid.NewGuid().ToString("N");
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Campaign Lifecycle Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -407,6 +409,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -417,6 +420,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
 
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = closed ? CampaignStatus.Closed : CampaignStatus.Active,

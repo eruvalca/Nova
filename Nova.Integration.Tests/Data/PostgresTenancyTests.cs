@@ -46,8 +46,8 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
         _clubBMemberId = users[2].Id;
         _noClubUserId = users[3].Id;
 
-        var clubA = new ClubEntity { Name = "Club A", City = "Austin", State = "TX", CreatedById = _noClubUserId };
-        var clubB = new ClubEntity { Name = "Club B", City = "Boston", State = "MA", CreatedById = _noClubUserId };
+        var clubA = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "Club A", City = "Austin", State = "TX", CreatedById = _noClubUserId };
+        var clubB = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "Club B", City = "Boston", State = "MA", CreatedById = _noClubUserId };
         context.Clubs.AddRange(clubA, clubB);
         await context.SaveChangesAsync();
 
@@ -59,9 +59,9 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
         users[2].ClubId = _clubBId;
 
         context.Players.AddRange(
-            new PlayerEntity { FirstName = "PA", LastName = "One", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, ClubId = _clubAId, CreatedById = _clubAMember1Id },
-            new PlayerEntity { FirstName = "PA", LastName = "Two", DateOfBirth = new DateOnly(2011, 2, 2), GraduationYear = 2029, ClubId = _clubAId, CreatedById = _clubAMember1Id },
-            new PlayerEntity { FirstName = "PB", LastName = "One", DateOfBirth = new DateOnly(2012, 3, 3), GraduationYear = 2030, ClubId = _clubBId, CreatedById = _clubBMemberId });
+            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PA", LastName = "One", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, ClubId = _clubAId, CreatedById = _clubAMember1Id },
+            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PA", LastName = "Two", DateOfBirth = new DateOnly(2011, 2, 2), GraduationYear = 2029, ClubId = _clubAId, CreatedById = _clubAMember1Id },
+            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PB", LastName = "One", DateOfBirth = new DateOnly(2012, 3, 3), GraduationYear = 2030, ClubId = _clubBId, CreatedById = _clubBMemberId });
 
         // Pending request from the club-less user to join Club A.
         context.ClubJoinRequests.Add(
@@ -166,6 +166,7 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
         {
             var player = new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 FirstName = "New",
                 LastName = "Player",
                 DateOfBirth = dateOfBirth,
@@ -231,6 +232,7 @@ public class PostgresTenancyTests(NovaAppHostFixture fixture)
 
         context.Players.Add(new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Sneaky",
             LastName = "Player",
             DateOfBirth = new DateOnly(2013, 5, 5),

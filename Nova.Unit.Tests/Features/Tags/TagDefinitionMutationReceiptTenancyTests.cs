@@ -89,6 +89,7 @@ public sealed class TagDefinitionMutationReceiptTenancyTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Tag Receipt Club A",
                 City = "Austin",
@@ -97,6 +98,7 @@ public sealed class TagDefinitionMutationReceiptTenancyTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Tag Receipt Club B",
                 City = "Boston",
@@ -107,16 +109,20 @@ public sealed class TagDefinitionMutationReceiptTenancyTests : IDisposable
         db.PlayerTags.AddRange(
             new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerTagId = ClubATagId,
                 Name = "A Tag",
+                NormalizedName = "A TAG",
                 Color = "#00AA00",
                 ClubId = ClubAId,
                 CreatedById = ClubAUserId
             },
             new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerTagId = ClubBTagId,
                 Name = "B Tag",
+                NormalizedName = "B TAG",
                 Color = "#0000AA",
                 ClubId = ClubBId,
                 CreatedById = ClubBUserId

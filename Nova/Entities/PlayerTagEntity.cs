@@ -17,9 +17,8 @@ public class PlayerTagEntity : ArchivableEntity, ITenantOwnedEntity
     public required string Name { get; set; }
     /// <summary>
     /// Gets or sets the case-insensitive name used to enforce per-club uniqueness.
-    /// Null for rows that predate normalization; the write path always populates it.
     /// </summary>
-    public string? NormalizedName { get; set; }
+    public required string NormalizedName { get; set; }
     /// <summary>
     /// Gets or sets the Color.
     /// </summary>
@@ -36,7 +35,7 @@ public class PlayerTagEntity : ArchivableEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the operation id used to make creation idempotent.
     /// </summary>
-    public Guid? CreationOperationId { get; set; }
+    public required Guid CreationOperationId { get; set; }
 
     /// <summary>
     /// Gets or sets the campaign tag applications using this definition.

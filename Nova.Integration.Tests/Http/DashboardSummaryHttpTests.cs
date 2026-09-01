@@ -59,6 +59,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             context.AddRange(
                 new PlayerEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     FirstName = "Extra",
                     LastName = "Active",
                     DateOfBirth = new DateOnly(2011, 5, 5),
@@ -69,6 +70,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
                 },
                 new PlayerEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     FirstName = "Old",
                     LastName = "Player",
                     DateOfBirth = new DateOnly(2008, 5, 5),
@@ -79,10 +81,11 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
                     ClubId = club.ClubId,
                     CreatedById = adminUserId
                 },
-                new TeamEntity { Name = $"Active Team A {suffix}", GraduationYear = 2029, ClubId = club.ClubId, CreatedById = adminUserId },
-                new TeamEntity { Name = $"Active Team B {suffix}", GraduationYear = 2030, ClubId = club.ClubId, CreatedById = adminUserId },
+                new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = $"Active Team A {suffix}", GraduationYear = 2029, ClubId = club.ClubId, CreatedById = adminUserId },
+                new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = $"Active Team B {suffix}", GraduationYear = 2030, ClubId = club.ClubId, CreatedById = adminUserId },
                 new TeamEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = $"Archived Team {suffix}",
                     GraduationYear = 2028,
                     LifecycleStatus = LifecycleStatus.Archived,
@@ -235,28 +238,29 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             var adminBUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminBEmail.ToUpperInvariant(), cancellationToken)).Id;
 
             // Club A: one active campaign, one active player, one active team, and one note on its assignment.
-            var seasonA = new SeasonEntity { Name = $"Club A Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = adminAUserId };
-            var campaignA = new CampaignEntity { Name = clubACampaignName, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = seasonA, SeasonId = 0, ClubId = clubA.ClubId, CreatedById = adminAUserId };
-            var playerA = new PlayerEntity { FirstName = "Club", LastName = "APlayer", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubA.ClubId, CreatedById = adminAUserId };
-            var teamA = new TeamEntity { Name = $"Club A Team {suffix}", GraduationYear = 2028, ClubId = clubA.ClubId, CreatedById = adminAUserId };
+            var seasonA = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Club A Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = adminAUserId };
+            var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = clubACampaignName, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = seasonA, SeasonId = 0, ClubId = clubA.ClubId, CreatedById = adminAUserId };
+            var playerA = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Club", LastName = "APlayer", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubA.ClubId, CreatedById = adminAUserId };
+            var teamA = new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = $"Club A Team {suffix}", GraduationYear = 2028, ClubId = clubA.ClubId, CreatedById = adminAUserId };
             context.AddRange(seasonA, campaignA, playerA, teamA);
             await context.SaveChangesAsync(cancellationToken);
 
             var assignmentA = new PlayerCampaignAssignmentEntity { PlayerId = playerA.PlayerId, CampaignId = campaignA.CampaignId, ClubId = clubA.ClubId, CreatedById = adminAUserId, PlacementOutcome = PlacementOutcome.Assigned, TeamId = teamA.TeamId };
             context.Add(assignmentA);
             await context.SaveChangesAsync(cancellationToken);
-            context.Add(new NoteEntity { Content = "Club A note", PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = clubA.ClubId, CreatedById = adminAUserId });
+            context.Add(new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Club A note", PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = clubA.ClubId, CreatedById = adminAUserId });
 
             // Club B: decoy campaign, players, archived team, and a pending join request.
-            var seasonB = new SeasonEntity { Name = $"Club B Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = adminBUserId };
-            var campaignB = new CampaignEntity { Name = clubBCampaignName, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = seasonB, SeasonId = 0, ClubId = clubB.ClubId, CreatedById = adminBUserId };
+            var seasonB = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Club B Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = adminBUserId };
+            var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = clubBCampaignName, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = seasonB, SeasonId = 0, ClubId = clubB.ClubId, CreatedById = adminBUserId };
             context.AddRange(
                 seasonB,
                 campaignB,
-                new PlayerEntity { FirstName = "Club", LastName = "BPlayer1", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubB.ClubId, CreatedById = adminBUserId },
-                new PlayerEntity { FirstName = "Club", LastName = "BPlayer2", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubB.ClubId, CreatedById = adminBUserId },
+                new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Club", LastName = "BPlayer1", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubB.ClubId, CreatedById = adminBUserId },
+                new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Club", LastName = "BPlayer2", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubB.ClubId, CreatedById = adminBUserId },
                 new TeamEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = $"Club B Archived Team {suffix}",
                     GraduationYear = 2027,
                     LifecycleStatus = LifecycleStatus.Archived,
@@ -316,9 +320,9 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
         await using var context = fixture.CreateAdminContext();
         var adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
         var name = $"Manual Campaign {suffix}";
-        var season = new SeasonEntity { Name = $"Manual Season {suffix}", StartDate = new DateOnly(2026, 2, 1), ClubId = clubId, CreatedById = adminUserId };
-        var campaign = new CampaignEntity { Name = name, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = adminUserId };
-        var player = new PlayerEntity { FirstName = "Manual", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = adminUserId };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Manual Season {suffix}", StartDate = new DateOnly(2026, 2, 1), ClubId = clubId, CreatedById = adminUserId };
+        var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = name, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = adminUserId };
+        var player = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Manual", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = adminUserId };
         context.AddRange(season, campaign, player);
         await context.SaveChangesAsync(cancellationToken);
 

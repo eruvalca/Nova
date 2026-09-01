@@ -369,6 +369,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Club A",
                 City = "Austin",
@@ -377,6 +378,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Club B",
                 City = "Boston",
@@ -387,6 +389,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         db.Seasons.AddRange(
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 500,
                 Name = "Season A",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -395,6 +398,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             },
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 501,
                 Name = "Season B",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -405,6 +409,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         db.Campaigns.AddRange(
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 600,
                 Name = "Campaign A",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -414,6 +419,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 601,
                 Name = "Campaign B",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -423,6 +429,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 602,
                 Name = "Closed Campaign A",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -437,6 +444,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         db.Players.AddRange(
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 700,
                 FirstName = "Alex",
                 LastName = "Able",
@@ -447,6 +455,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 701,
                 FirstName = "Blair",
                 LastName = "Baker",
@@ -457,6 +466,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 702,
                 FirstName = "Casey",
                 LastName = "Closed",
@@ -469,6 +479,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         db.Teams.AddRange(
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = EligibleTeamId,
                 Name = "Eligible",
                 GraduationYear = 2029,
@@ -477,6 +488,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             },
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = IneligibleTeamId,
                 Name = "Ineligible",
                 GraduationYear = 2031,
@@ -485,6 +497,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             },
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = ClubBTeamId,
                 Name = "Club B Team",
                 GraduationYear = 2029,

@@ -79,12 +79,12 @@ public sealed class ClubServiceTests : IDisposable
         await using (var seed = _harness.CreateAdminContext())
         {
             seed.Clubs.AddRange(
-                new ClubEntity { Name = "50% Wins", City = "Dallas", State = "TX", CreatedById = ExistingClubUserId },
-                new ClubEntity { Name = "50 Losses", City = "Erie", State = "PA", CreatedById = ExistingClubUserId },
-                new ClubEntity { Name = "a_b Squad", City = "Fargo", State = "ND", CreatedById = ExistingClubUserId },
-                new ClubEntity { Name = "axb Squad", City = "Tulsa", State = "OK", CreatedById = ExistingClubUserId },
-                new ClubEntity { Name = @"Path\Team", City = "Boise", State = "ID", CreatedById = ExistingClubUserId },
-                new ClubEntity { Name = "PathTeam", City = "Reno", State = "NV", CreatedById = ExistingClubUserId });
+                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "50% Wins", City = "Dallas", State = "TX", CreatedById = ExistingClubUserId },
+                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "50 Losses", City = "Erie", State = "PA", CreatedById = ExistingClubUserId },
+                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "a_b Squad", City = "Fargo", State = "ND", CreatedById = ExistingClubUserId },
+                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "axb Squad", City = "Tulsa", State = "OK", CreatedById = ExistingClubUserId },
+                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = @"Path\Team", City = "Boise", State = "ID", CreatedById = ExistingClubUserId },
+                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "PathTeam", City = "Reno", State = "NV", CreatedById = ExistingClubUserId });
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
@@ -402,9 +402,9 @@ public sealed class ClubServiceTests : IDisposable
         using var db = _harness.CreateAdminContext();
 
         db.Clubs.AddRange(
-            new ClubEntity { ClubId = 1, Name = "Alpha Club", City = "Austin", State = "TX", CreatedById = ExistingClubUserId },
-            new ClubEntity { ClubId = 2, Name = "Beta Club", City = "Boston", State = "MA", CreatedById = ExistingClubUserId },
-            new ClubEntity { ClubId = 3, Name = "Gamma Club", City = "Denver", State = "CO", CreatedById = ExistingClubUserId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = 1, Name = "Alpha Club", City = "Austin", State = "TX", CreatedById = ExistingClubUserId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = 2, Name = "Beta Club", City = "Boston", State = "MA", CreatedById = ExistingClubUserId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = 3, Name = "Gamma Club", City = "Denver", State = "CO", CreatedById = ExistingClubUserId });
         db.SaveChanges();
 
         db.Users.AddRange(

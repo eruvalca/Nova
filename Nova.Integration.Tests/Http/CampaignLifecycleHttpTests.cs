@@ -515,6 +515,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         var suffix = Guid.NewGuid().ToString("N");
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"{namePrefix} Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubId,
@@ -522,6 +523,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"{namePrefix} Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = closed ? CampaignStatus.Closed : CampaignStatus.Active,
@@ -542,6 +544,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
             var spec = participants[index];
             players.Add(new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 FirstName = namePrefix,
                 LastName = $"Player {index + 1:D2}",
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -554,6 +557,7 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
             teams.Add(spec.TeamGraduationYear is int teamGraduationYear
                 ? new TeamEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = $"{namePrefix} Team {index + 1:D2} {suffix}",
                     GraduationYear = teamGraduationYear,
                     LifecycleStatus = spec.TeamLifecycleStatus ?? LifecycleStatus.Active,

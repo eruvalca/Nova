@@ -229,6 +229,7 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
         await using var seed = fixture.CreateAdminContext();
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Team Retry Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -239,6 +240,7 @@ public sealed class TeamLifecycleRetryTests(NovaAppHostFixture fixture)
 
         var team = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Retry Team {suffix}",
             GraduationYear = 2030,
             ClubId = club.ClubId,

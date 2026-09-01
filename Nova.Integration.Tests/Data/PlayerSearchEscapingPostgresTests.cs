@@ -57,7 +57,7 @@ public sealed class PlayerSearchEscapingPostgresTests(NovaAppHostFixture fixture
         var suffix = Guid.NewGuid().ToString("N");
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
 
-        var club = new ClubEntity { Name = $"Player Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Player Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -84,6 +84,7 @@ public sealed class PlayerSearchEscapingPostgresTests(NovaAppHostFixture fixture
 
     private static PlayerEntity NewPlayer(string firstName, string lastName, long clubId, long createdById) => new()
     {
+        CreationOperationId = Guid.NewGuid(),
         FirstName = firstName,
         LastName = lastName,
         DateOfBirth = new DateOnly(2011, 1, 1),

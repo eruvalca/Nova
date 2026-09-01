@@ -23,8 +23,7 @@ public class PlayerEntityConfiguration : IEntityTypeConfiguration<PlayerEntity>
             .IsConcurrencyToken();
         builder.HasIndex(e => e.ClubId);
         builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
-            .IsUnique()
-            .HasFilter("\"CreationOperationId\" IS NOT NULL");
+            .IsUnique();
 
         var lifecycleStatusColumn = $"\"{nameof(PlayerEntity.LifecycleStatus)}\"";
         var archivedAtColumn = $"\"{nameof(PlayerEntity.ArchivedAt)}\"";

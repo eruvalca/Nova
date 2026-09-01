@@ -122,6 +122,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         await using var db = fixture.CreateAdminContext();
         var otherSeason = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Other Season {seed.Suffix}",
             StartDate = new DateOnly(2027, 1, 1),
             EndDate = new DateOnly(2027, 12, 31),
@@ -487,6 +488,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Campaign Creation Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -497,6 +499,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Existing Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             EndDate = new DateOnly(2026, 12, 31),
@@ -540,6 +543,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         long actorUserId)
         => new()
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = firstName,
             LastName = "Player",
             DateOfBirth = new DateOnly(2012, 1, 1),

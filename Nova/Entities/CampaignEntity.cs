@@ -16,7 +16,7 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the caller-generated identifier for the logical campaign creation operation.
     /// </summary>
-    public Guid? CreationOperationId { get; set; }
+    public required Guid CreationOperationId { get; set; }
 
     /// <summary>
     /// Gets or sets whether campaign creation also created its season in the same transaction.

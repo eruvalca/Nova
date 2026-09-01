@@ -364,7 +364,7 @@ public sealed partial class CampaignCreationService(
         SeasonEntity season,
         int enrolledPlayerCount)
         => new(
-            campaign.CreationOperationId!.Value,
+            campaign.CreationOperationId,
             campaign.CampaignId,
             campaign.Name,
             campaign.StartDate,

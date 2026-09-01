@@ -32,6 +32,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         await using var db = fixture.CreateAdminContext();
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Idempotency Constraint Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -66,6 +67,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         {
             var club = new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Ambiguous Commit Club {suffix}",
                 City = "Austin",
                 State = "TX",
@@ -76,6 +78,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
 
             var season = new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Ambiguous Commit Season {suffix}",
                 StartDate = new DateOnly(2026, 1, 1),
                 ClubId = club.ClubId,
@@ -86,6 +89,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
 
             var campaign = new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Ambiguous Commit Campaign {suffix}",
                 StartDate = new DateOnly(2026, 6, 1),
                 Status = CampaignStatus.Active,
@@ -161,6 +165,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         {
             var club = new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Retry Create Club {suffix}",
                 City = "Austin",
                 State = "TX",
@@ -171,6 +176,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
 
             var season = new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Retry Create Season {suffix}",
                 StartDate = new DateOnly(2026, 1, 1),
                 ClubId = club.ClubId,
@@ -181,6 +187,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
 
             var activeCampaign = new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Retry Create Campaign {suffix}",
                 StartDate = new DateOnly(2026, 6, 1),
                 Status = CampaignStatus.Active,
@@ -256,6 +263,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
         {
             var club = new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Retry Update Club {suffix}",
                 City = "Seattle",
                 State = "WA",
@@ -266,6 +274,7 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
 
             var player = new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 FirstName = "Before",
                 LastName = "Retry",
                 DateOfBirth = new DateOnly(2011, 5, 1),

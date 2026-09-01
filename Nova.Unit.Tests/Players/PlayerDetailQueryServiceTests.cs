@@ -172,8 +172,8 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
         using var context = _harness.CreateAdminContext();
 
         context.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAViewerId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBViewerId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAViewerId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBViewerId });
 
         context.Users.AddRange(
             new NovaUserEntity { Id = ClubAViewerId, FirstName = "Casey", LastName = "Viewer", ClubId = ClubAId },
@@ -183,6 +183,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
         context.Players.AddRange(
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = ClubAPlayerId,
                 FirstName = "Avery",
                 LastName = "Archive",
@@ -198,6 +199,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = ClubBPlayerId,
                 FirstName = "Taylor",
                 LastName = "Tenant",
@@ -210,6 +212,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
         context.Teams.Add(
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = ClubATeamId,
                 Name = "Club A Blue",
                 GraduationYear = 2028,
@@ -220,6 +223,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
         context.Seasons.AddRange(
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 1000,
                 Name = "Club A Season",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -228,6 +232,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 1001,
                 Name = "Club B Season",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -238,6 +243,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
         context.Campaigns.AddRange(
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = ActiveCampaignId,
                 Name = "Active Tryouts",
                 StartDate = new DateOnly(2026, 10, 1),
@@ -248,6 +254,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = ClosedCampaignId,
                 Name = "Closed Tryouts",
                 StartDate = new DateOnly(2026, 10, 1),
@@ -260,6 +267,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = OlderCampaignId,
                 Name = "Older Tryouts",
                 StartDate = new DateOnly(2026, 9, 1),
@@ -272,6 +280,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 9999,
                 Name = "Other Club Campaign",
                 StartDate = new DateOnly(2026, 10, 1),
@@ -284,24 +293,30 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
         context.PlayerTags.AddRange(
             new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerTagId = LeadershipTagId,
                 Name = "Leadership",
+                NormalizedName = "LEADERSHIP",
                 Color = "#112233",
                 ClubId = ClubAId,
                 CreatedById = ClubAOtherUserId
             },
             new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerTagId = AgilityTagId,
                 Name = "Agility",
+                NormalizedName = "AGILITY",
                 Color = "#334455",
                 ClubId = ClubAId,
                 CreatedById = ClubAOtherUserId
             },
             new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerTagId = ArchivedTagId,
                 Name = "Archived Tag",
+                NormalizedName = "ARCHIVED TAG",
                 Color = "#778899",
                 LifecycleStatus = LifecycleStatus.Archived,
                 ArchivedAt = DateTimeOffset.UtcNow.AddDays(-10),
@@ -357,6 +372,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
         context.Notes.AddRange(
             new NoteEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 NoteId = OlderActiveNoteId,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
                 Content = "Older note.",
@@ -365,6 +381,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new NoteEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 NoteId = NewerActiveNoteId,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
                 Content = "Newest note from a deleted actor.",
@@ -373,6 +390,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new NoteEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 NoteId = 902,
                 PlayerCampaignAssignmentId = ClosedAssignmentId,
                 Content = "Closed campaign note.",
@@ -383,6 +401,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
         context.CampaignTagApplications.AddRange(
             new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = 10000,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
                 PlayerTagId = LeadershipTagId,
@@ -391,6 +410,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = 10001,
                 PlayerCampaignAssignmentId = ActiveAssignmentId,
                 PlayerTagId = AgilityTagId,
@@ -399,6 +419,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = 10002,
                 PlayerCampaignAssignmentId = ClosedAssignmentId,
                 PlayerTagId = ArchivedTagId,
@@ -407,6 +428,7 @@ public sealed class PlayerDetailQueryServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = 10003,
                 PlayerCampaignAssignmentId = OlderAssignmentId,
                 PlayerTagId = LeadershipTagId,

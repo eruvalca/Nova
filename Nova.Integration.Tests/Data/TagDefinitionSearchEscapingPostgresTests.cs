@@ -46,7 +46,7 @@ public sealed class TagDefinitionSearchEscapingPostgresTests(NovaAppHostFixture 
         var suffix = Guid.NewGuid().ToString("N");
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
 
-        var club = new ClubEntity { Name = $"Tag Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Tag Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -73,7 +73,9 @@ public sealed class TagDefinitionSearchEscapingPostgresTests(NovaAppHostFixture 
 
     private static PlayerTagEntity NewTag(string name, long clubId, long createdById) => new()
     {
+        CreationOperationId = Guid.NewGuid(),
         Name = name,
+        NormalizedName = name.Trim().ToUpperInvariant(),
         Color = "#AABBCC",
         ClubId = clubId,
         CreatedById = createdById

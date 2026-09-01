@@ -172,6 +172,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
 
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Participation Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -182,6 +183,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -192,6 +194,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
         var players = Enumerable.Range(0, playerCount)
             .Select(index => new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 FirstName = $"Player{index}",
                 LastName = suffix,
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -204,6 +207,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
 
         var team = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Team {suffix}",
             GraduationYear = 2029,
             ClubId = club.ClubId,
@@ -216,6 +220,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
         [
             new()
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Campaign A {suffix}",
                 StartDate = new DateOnly(2026, 6, 1),
                 SeasonId = season.SeasonId,
@@ -224,6 +229,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
             },
             new()
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Campaign B {suffix}",
                 StartDate = new DateOnly(2026, 7, 1),
                 SeasonId = season.SeasonId,

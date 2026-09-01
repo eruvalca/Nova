@@ -112,6 +112,7 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season-{Guid.CreateVersion7():N}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubId,
@@ -122,6 +123,7 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
 
         var activeCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Active Campaign",
             StartDate = new DateOnly(2026, 9, 1),
             Status = CampaignStatus.Active,
@@ -131,6 +133,7 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
         };
         var closedCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Closed Campaign",
             StartDate = new DateOnly(2026, 8, 1),
             Status = CampaignStatus.Closed,
@@ -144,6 +147,7 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
 
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Drew",
             LastName = "Detail",
             DateOfBirth = new DateOnly(2011, 3, 15),
@@ -155,7 +159,9 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
 
         var tag = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Agility",
+            NormalizedName = "AGILITY",
             Color = "#0055AA",
             ClubId = clubId,
             CreatedById = actorUserId
@@ -188,6 +194,7 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
         context.Notes.Add(
             new NoteEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Content = "Solid footwork.",
                 PlayerCampaignAssignmentId = activeAssignment.PlayerCampaignAssignmentId,
                 ClubId = clubId,
@@ -196,6 +203,7 @@ public sealed class PlayerDetailHttpTests(NovaAppHostFixture fixture)
         context.CampaignTagApplications.Add(
             new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = activeAssignment.PlayerCampaignAssignmentId,
                 PlayerTagId = tag.PlayerTagId,
                 ClubId = clubId,

@@ -836,6 +836,7 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     {
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = name,
             City = "Austin",
             State = "TX",
@@ -855,6 +856,7 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// <returns>A new tag-definition entity ready to persist.</returns>
     private static PlayerTagEntity CreateTag(string name, long clubId, long actorUserId) => new()
     {
+        CreationOperationId = Guid.NewGuid(),
         Name = name,
         NormalizedName = name.Trim().ToUpperInvariant(),
         Color = "#00FF00",

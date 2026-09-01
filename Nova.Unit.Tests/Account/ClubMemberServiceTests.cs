@@ -50,8 +50,8 @@ public class ClubMemberServiceTests : IDisposable
 
         // Create two clubs
         context.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = 1 },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = 1 });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = 1 },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = 1 });
 
         // Create users for Club A
         var clubAdminUser = new NovaUserEntity

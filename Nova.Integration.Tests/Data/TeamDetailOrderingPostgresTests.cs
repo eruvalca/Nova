@@ -44,22 +44,23 @@ public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
         var suffix = Guid.NewGuid().ToString("N");
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
 
-        var club = new ClubEntity { Name = $"Team Detail Bound Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Team Detail Bound Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
 
         var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
         db.Users.Add(member);
-        var team = new TeamEntity { Name = $"Bound Team {suffix}", GraduationYear = 2029, ClubId = club.ClubId, CreatedById = actorUserId };
+        var team = new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = $"Bound Team {suffix}", GraduationYear = 2029, ClubId = club.ClubId, CreatedById = actorUserId };
         db.Teams.Add(team);
         await db.SaveChangesAsync(cancellationToken);
 
-        var activeSeason = new SeasonEntity { Name = $"Active Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
+        var activeSeason = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Active Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
         db.Seasons.Add(activeSeason);
         await db.SaveChangesAsync(cancellationToken);
 
         var activeCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Active Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -72,6 +73,7 @@ public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
 
         var activePlayer = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Active",
             LastName = "Player",
             DateOfBirth = new DateOnly(2011, 1, 1),
@@ -97,6 +99,7 @@ public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
         {
             var season = new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Historical Season {suffix} {i:000}",
                 StartDate = new DateOnly(2025, 1, 1),
                 ClubId = club.ClubId,
@@ -107,6 +110,7 @@ public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
 
             var campaign = new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Historical Campaign {suffix} {i:000}",
                 StartDate = new DateOnly(2025, 2, 1).AddDays(i),
                 Status = CampaignStatus.Closed,
@@ -121,6 +125,7 @@ public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
 
             var player = new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 FirstName = "Historical",
                 LastName = $"Player {i:000}",
                 DateOfBirth = new DateOnly(2010, 1, 1),

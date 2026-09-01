@@ -33,6 +33,7 @@ public sealed class TeamManagementServiceTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Club A",
                 City = "Austin",
@@ -41,6 +42,7 @@ public sealed class TeamManagementServiceTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Club B",
                 City = "Boston",
@@ -53,6 +55,7 @@ public sealed class TeamManagementServiceTests : IDisposable
             new NovaUserEntity { Id = ClubBAdminId, FirstName = "B", LastName = "Admin", ClubId = ClubBId });
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Season",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = ClubAId,
@@ -62,6 +65,7 @@ public sealed class TeamManagementServiceTests : IDisposable
         db.SaveChanges();
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Active",
             StartDate = new DateOnly(2026, 1, 1),
             Status = CampaignStatus.Active,
@@ -71,6 +75,7 @@ public sealed class TeamManagementServiceTests : IDisposable
         };
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Player",
             LastName = "One",
             DateOfBirth = new DateOnly(2010, 1, 1),
@@ -80,6 +85,7 @@ public sealed class TeamManagementServiceTests : IDisposable
         };
         var team = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "U16",
             GraduationYear = 2028,
             ClubId = ClubAId,

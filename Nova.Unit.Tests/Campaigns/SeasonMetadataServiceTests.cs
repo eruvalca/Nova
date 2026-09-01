@@ -219,6 +219,7 @@ public sealed class SeasonMetadataServiceTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Club A",
                 City = "Austin",
@@ -227,6 +228,7 @@ public sealed class SeasonMetadataServiceTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Club B",
                 City = "Boston",
@@ -237,6 +239,7 @@ public sealed class SeasonMetadataServiceTests : IDisposable
         db.Seasons.AddRange(
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = SeasonAId,
                 Name = "Season A",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -245,6 +248,7 @@ public sealed class SeasonMetadataServiceTests : IDisposable
             },
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = SeasonA2Id,
                 Name = "Season A2",
                 StartDate = new DateOnly(2026, 7, 1),
@@ -253,6 +257,7 @@ public sealed class SeasonMetadataServiceTests : IDisposable
             },
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = SeasonBId,
                 Name = "Season B",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -262,6 +267,7 @@ public sealed class SeasonMetadataServiceTests : IDisposable
 
         db.Campaigns.Add(new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             CampaignId = 600,
             Name = "Season A Campaign",
             StartDate = new DateOnly(2026, 3, 1),

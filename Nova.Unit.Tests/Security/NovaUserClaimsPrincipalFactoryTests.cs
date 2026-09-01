@@ -176,7 +176,7 @@ public class NovaUserClaimsPrincipalFactoryTests : IDisposable
     private void SeedClub(long id, string? name = null)
     {
         using var context = _harness.CreateAdminContext();
-        context.Clubs.Add(new ClubEntity { ClubId = id, Name = name ?? $"Club {id}", City = "Austin", State = "TX", CreatedById = 1 });
+        context.Clubs.Add(new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = id, Name = name ?? $"Club {id}", City = "Austin", State = "TX", CreatedById = 1 });
         context.SaveChanges();
     }
 

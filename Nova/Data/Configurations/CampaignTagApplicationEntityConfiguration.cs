@@ -24,8 +24,7 @@ public class CampaignTagApplicationEntityConfiguration : IEntityTypeConfiguratio
 
         builder.HasIndex(e => e.ClubId);
         builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
-            .IsUnique()
-            .HasFilter("\"CreationOperationId\" IS NOT NULL");
+            .IsUnique();
 
         builder
             .HasOne(e => e.PlayerCampaignAssignment)

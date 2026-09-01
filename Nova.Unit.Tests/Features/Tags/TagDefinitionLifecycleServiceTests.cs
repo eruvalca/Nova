@@ -31,8 +31,8 @@ public sealed class TagDefinitionLifecycleServiceTests : IDisposable
     {
         using var db = _harness.CreateAdminContext();
         db.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAAdminId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBAdminId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAAdminId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBAdminId });
         db.Users.AddRange(
             new NovaUserEntity { Id = ClubAAdminId, FirstName = "A", LastName = "Admin", ClubId = ClubAId },
             new NovaUserEntity { Id = ClubAMemberId, FirstName = "A", LastName = "Member", ClubId = ClubAId },
@@ -40,6 +40,7 @@ public sealed class TagDefinitionLifecycleServiceTests : IDisposable
         db.PlayerTags.AddRange(
             new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerTagId = ActiveTagId,
                 Name = "Forward",
                 NormalizedName = "FORWARD",
@@ -49,6 +50,7 @@ public sealed class TagDefinitionLifecycleServiceTests : IDisposable
             },
             new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerTagId = ArchivedTagId,
                 Name = "Goalkeeper",
                 NormalizedName = "GOALKEEPER",
@@ -152,6 +154,7 @@ public sealed class TagDefinitionLifecycleServiceTests : IDisposable
             {
                 seed.PlayerTags.Add(new PlayerTagEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     PlayerTagId = 1000 + i,
                     Name = $"Cap {i}",
                     NormalizedName = $"CAP {i}",

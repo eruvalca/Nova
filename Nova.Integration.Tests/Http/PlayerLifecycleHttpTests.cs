@@ -217,6 +217,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season-{Guid.CreateVersion7():N}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubId,
@@ -227,6 +228,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         var activeCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Active History Campaign",
             StartDate = new DateOnly(2026, 6, 1),
             SeasonId = season.SeasonId,
@@ -235,6 +237,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
         };
         var historicalCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Historical Closed Campaign",
             StartDate = new DateOnly(2025, 6, 1),
             EndDate = new DateOnly(2025, 7, 1),
@@ -249,6 +252,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         var team = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Team-{Guid.CreateVersion7():N}",
             GraduationYear = 2030,
             ClubId = clubId,
@@ -258,6 +262,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Resolved",
             LastName = "History",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -307,6 +312,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season-{Guid.CreateVersion7():N}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubId,
@@ -317,6 +323,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Active Blocker Campaign",
             StartDate = new DateOnly(2026, 8, 1),
             SeasonId = season.SeasonId,
@@ -327,6 +334,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Blocked",
             LastName = "Player",
             DateOfBirth = new DateOnly(2013, 2, 2),
@@ -364,6 +372,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
 
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Simple",
             LastName = Guid.CreateVersion7().ToString("N"),
             DateOfBirth = new DateOnly(2011, 1, 1),

@@ -311,6 +311,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
 
         var season = new Nova.Entities.SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Blocker Season {Guid.NewGuid():N}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubId,
@@ -321,6 +322,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
 
         var campaign = new Nova.Entities.CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Blocker Campaign {Guid.NewGuid():N}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = Nova.Shared.Enums.CampaignStatus.Active,
@@ -332,6 +334,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
 
         var team = new Nova.Entities.TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Blocker Team {teamGraduationYear}",
             GraduationYear = teamGraduationYear,
             ClubId = clubId,

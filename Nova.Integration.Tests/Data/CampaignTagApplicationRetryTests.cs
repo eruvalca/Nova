@@ -349,6 +349,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         await using var seed = fixture.CreateAdminContext();
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag Retry Season 2 {suffix}",
             StartDate = new DateOnly(2026, 2, 1),
             ClubId = clubId,
@@ -356,6 +357,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag Retry Campaign 2 {suffix}",
             StartDate = new DateOnly(2026, 7, 1),
             Status = CampaignStatus.Active,
@@ -366,6 +368,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         };
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Tag",
             LastName = $"Retry Player 2 {suffix}",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -376,7 +379,9 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         };
         var playerTag = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag Retry Tag 2 {suffix}",
+            NormalizedName = $"Tag Retry Tag 2 {suffix}".Trim().ToUpperInvariant(),
             Color = "#00CC00",
             LifecycleStatus = LifecycleStatus.Active,
             ClubId = clubId,
@@ -400,6 +405,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
 
         var application = new CampaignTagApplicationEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
             PlayerTagId = playerTag.PlayerTagId,
             ClubId = clubId,
@@ -430,6 +436,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         await using var seed = fixture.CreateAdminContext();
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag Retry Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -440,6 +447,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag Retry Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -447,6 +455,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag Retry Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -457,6 +466,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         };
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Tag",
             LastName = $"Retry Player {suffix}",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -467,7 +477,9 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         };
         var playerTag = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag Retry Tag {suffix}",
+            NormalizedName = $"Tag Retry Tag {suffix}".Trim().ToUpperInvariant(),
             Color = "#00CC00",
             LifecycleStatus = LifecycleStatus.Active,
             ClubId = club.ClubId,
@@ -494,6 +506,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         {
             var application = new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
                 PlayerTagId = playerTag.PlayerTagId,
                 ClubId = club.ClubId,

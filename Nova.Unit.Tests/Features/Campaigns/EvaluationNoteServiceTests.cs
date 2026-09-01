@@ -343,8 +343,8 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         using var db = _harness.CreateAdminContext();
 
         db.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAMember1Id },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBMemberId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAMember1Id },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBMemberId });
 
         db.Users.AddRange(
             new NovaUserEntity { Id = ClubAMember1Id, FirstName = "Alice", LastName = "A", ClubId = ClubAId },
@@ -354,6 +354,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Test",
             LastName = "Player",
             DateOfBirth = new DateOnly(2010, 1, 1),
@@ -365,6 +366,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Season 2026",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = ClubAId,
@@ -375,6 +377,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
         var activeCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Active Campaign",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -384,6 +387,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         };
         var closedCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Closed Campaign",
             StartDate = new DateOnly(2026, 5, 1),
             Status = CampaignStatus.Closed,
@@ -419,6 +423,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         // Seed one note authored by ClubAMember1Id for edit/delete tests.
         var existingNote = new NoteEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Content = "Initial note.",
             PlayerCampaignAssignmentId = _assignmentId,
             ClubId = ClubAId,
@@ -442,6 +447,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         using var db = _harness.CreateAdminContext();
         var note = new NoteEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Content = "Seeded note.",
             PlayerCampaignAssignmentId = assignmentId,
             ClubId = clubId,

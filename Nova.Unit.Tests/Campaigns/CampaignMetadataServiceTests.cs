@@ -279,6 +279,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Club A",
                 City = "Austin",
@@ -287,6 +288,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Club B",
                 City = "Boston",
@@ -297,6 +299,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
         db.Seasons.AddRange(
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = SeasonAId,
                 Name = "Season A",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -305,6 +308,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
             },
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = SeasonBId,
                 Name = "Season B",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -315,6 +319,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
         db.Campaigns.AddRange(
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = ActiveCampaignId,
                 Name = "Active Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -325,6 +330,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = ClosedCampaignId,
                 Name = "Closed Campaign",
                 StartDate = new DateOnly(2026, 3, 1),
@@ -337,6 +343,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = DuplicateNameCampaignId,
                 Name = "Another Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -347,6 +354,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = ClubBCampaignId,
                 Name = "Club B Active Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -358,6 +366,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
 
         db.Players.Add(new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerId = PlayerAId,
             FirstName = "Test",
             LastName = "Player",

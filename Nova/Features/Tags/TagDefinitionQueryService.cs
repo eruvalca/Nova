@@ -90,8 +90,8 @@ public sealed partial class TagDefinitionQueryService(
         }
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-        // The create/restore paths cap active definitions at TagDefinitionLimits.MaxActiveTagDefinitions,
-        // so this Take is a defensive bound that only binds for legacy clubs already above the cap.
+        // The create/restore paths cap active definitions at TagDefinitionLimits.MaxActiveTagDefinitions;
+        // this Take is a hard defensive bound that keeps the result set bounded regardless of source.
         var rows = await db.PlayerTags
             .Where(tag => tag.ClubId == clubId && tag.LifecycleStatus == LifecycleStatus.Active)
             .OrderBy(tag => tag.Name)

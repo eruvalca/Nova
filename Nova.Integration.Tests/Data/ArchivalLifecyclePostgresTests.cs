@@ -131,6 +131,7 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
         var suffix = Guid.NewGuid().ToString("N");
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Lifecycle Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -143,6 +144,7 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
         {
             LifecycleTarget.Player => new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 FirstName = "Lifecycle",
                 LastName = suffix,
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -152,6 +154,7 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
             },
             LifecycleTarget.Team => new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Team {suffix}",
                 GraduationYear = 2030,
                 ClubId = club.ClubId,
@@ -159,7 +162,9 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
             },
             LifecycleTarget.TagDefinition => new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Tag {suffix}",
+                NormalizedName = $"Tag {suffix}".Trim().ToUpperInvariant(),
                 Color = "#ffffff",
                 ClubId = club.ClubId,
                 CreatedById = actorUserId

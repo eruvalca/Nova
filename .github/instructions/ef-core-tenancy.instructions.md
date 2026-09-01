@@ -99,6 +99,7 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   `PendingModelChangesWarning` exception from `MigrateAsync`.
 - After any model change, use the `add-domain-persistence` skill to add an incremental migration, then verify with `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext`.
 - `Nova/Program.cs` applies migrations at startup in Development only and seeds roles in all environments through the execution strategy.
+- **No backwards compatibility, no data preservation.** There is no production data; local dev databases are disposable (Aspire provisions them fresh). Migrations do not need to be data-preserving or backwards-compatible: prefer the simplest schema for the current model, and never add legacy-tolerant columns, tables, or query paths for data that does not exist.
 
 ## Testing data access
 

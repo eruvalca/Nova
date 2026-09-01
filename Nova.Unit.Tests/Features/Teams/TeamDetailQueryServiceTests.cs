@@ -147,26 +147,27 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
         using var db = _harness.CreateAdminContext();
 
         db.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAMemberId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBMemberId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAMemberId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBMemberId });
 
         db.Users.AddRange(
             new NovaUserEntity { Id = ClubAMemberId, FirstName = "Alpha", LastName = "Member", ClubId = ClubAId },
             new NovaUserEntity { Id = ClubBMemberId, FirstName = "Beta", LastName = "Member", ClubId = ClubBId });
 
         db.Teams.AddRange(
-            new TeamEntity { TeamId = ClubATeamId, Name = "U16", GraduationYear = 2028, ClubId = ClubAId, CreatedById = ClubAMemberId },
-            new TeamEntity { TeamId = ClubBTeamId, Name = "U14", GraduationYear = 2030, ClubId = ClubBId, CreatedById = ClubBMemberId });
+            new TeamEntity { CreationOperationId = Guid.NewGuid(), TeamId = ClubATeamId, Name = "U16", GraduationYear = 2028, ClubId = ClubAId, CreatedById = ClubAMemberId },
+            new TeamEntity { CreationOperationId = Guid.NewGuid(), TeamId = ClubBTeamId, Name = "U14", GraduationYear = 2030, ClubId = ClubBId, CreatedById = ClubBMemberId });
 
         db.Seasons.AddRange(
-            new SeasonEntity { SeasonId = ClubASeasonId, Name = "Season A", StartDate = new DateOnly(2025, 1, 1), ClubId = ClubAId, CreatedById = ClubAMemberId },
-            new SeasonEntity { SeasonId = ClubBSeasonId, Name = "Season B", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubBId, CreatedById = ClubBMemberId });
+            new SeasonEntity { CreationOperationId = Guid.NewGuid(), SeasonId = ClubASeasonId, Name = "Season A", StartDate = new DateOnly(2025, 1, 1), ClubId = ClubAId, CreatedById = ClubAMemberId },
+            new SeasonEntity { CreationOperationId = Guid.NewGuid(), SeasonId = ClubBSeasonId, Name = "Season B", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubBId, CreatedById = ClubBMemberId });
 
         // The Active campaign has an OLDER start date (2025-01-01) than the Closed campaign
         // (2026-06-01). A sort that lacks the active-first leading key would put Closed first.
         db.Campaigns.AddRange(
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = ActiveCampaignId,
                 Name = "Active Tryouts",
                 StartDate = new DateOnly(2025, 1, 1),
@@ -177,6 +178,7 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = ClosedCampaignId,
                 Name = "Closed Tryouts",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -191,6 +193,7 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
         db.Players.AddRange(
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = PlayerInActiveId,
                 FirstName = "Active",
                 LastName = "Player",
@@ -201,6 +204,7 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = PlayerInClosedId,
                 FirstName = "Closed",
                 LastName = "Player",

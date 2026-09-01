@@ -82,6 +82,7 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
         var suffix = Guid.NewGuid().ToString("N");
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Placement Lifecycle Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -92,6 +93,7 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Placement Lifecycle Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -102,6 +104,7 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
 
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Placement Lifecycle Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -111,6 +114,7 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
         };
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Lifecycle",
             LastName = suffix,
             DateOfBirth = new DateOnly(2012, 1, 1),

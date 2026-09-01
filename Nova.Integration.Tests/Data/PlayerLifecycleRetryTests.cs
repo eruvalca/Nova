@@ -32,6 +32,7 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
         {
             var club = new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Retry Club {suffix}",
                 City = "Austin",
                 State = "TX",
@@ -42,6 +43,7 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
 
             var player = new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 FirstName = "Retry",
                 LastName = suffix,
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -180,6 +182,7 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
         await using var seed = fixture.CreateAdminContext();
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Player Retry Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -190,6 +193,7 @@ public sealed class PlayerLifecycleRetryTests(NovaAppHostFixture fixture)
 
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Retry",
             LastName = suffix,
             DateOfBirth = new DateOnly(2012, 1, 1),

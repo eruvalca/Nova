@@ -624,9 +624,10 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         await using var context = fixture.CreateAdminContext();
         var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
         var suffix = Guid.NewGuid().ToString("N");
-        var season = new SeasonEntity { Name = $"Tag App Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Tag App Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag App Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = closedCampaign ? CampaignStatus.Closed : CampaignStatus.Active,
@@ -639,6 +640,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         };
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Tag",
             LastName = $"Player {suffix}",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -649,7 +651,9 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         };
         var playerTag = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag {suffix}",
+            NormalizedName = $"Tag {suffix}".Trim().ToUpperInvariant(),
             Color = "#00CC00",
             LifecycleStatus = archivedTag ? LifecycleStatus.Archived : LifecycleStatus.Active,
             ArchivedAt = archivedTag ? DateTimeOffset.UtcNow.AddDays(-1) : null,
@@ -697,6 +701,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
         var application = new CampaignTagApplicationEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = assignmentId,
             PlayerTagId = tagId,
             ClubId = clubId,

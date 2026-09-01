@@ -112,6 +112,7 @@ public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season-{Guid.CreateVersion7():N}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubId,
@@ -122,6 +123,7 @@ public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
 
         var activeCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Active Campaign",
             StartDate = new DateOnly(2026, 9, 1),
             Status = CampaignStatus.Active,
@@ -131,6 +133,7 @@ public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
         };
         var closedCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Closed Campaign",
             StartDate = new DateOnly(2026, 8, 1),
             Status = CampaignStatus.Closed,
@@ -144,6 +147,7 @@ public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
 
         var team = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "U16 Blue",
             GraduationYear = 2028,
             ClubId = clubId,
@@ -153,6 +157,7 @@ public sealed class TeamDetailHttpTests(NovaAppHostFixture fixture)
 
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Alex",
             LastName = "Detail",
             DateOfBirth = new DateOnly(2012, 5, 10),

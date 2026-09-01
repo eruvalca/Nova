@@ -46,7 +46,7 @@ public sealed class TeamRosterSearchEscapingPostgresTests(NovaAppHostFixture fix
         var suffix = Guid.NewGuid().ToString("N");
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
 
-        var club = new ClubEntity { Name = $"Team Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Team Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -73,6 +73,7 @@ public sealed class TeamRosterSearchEscapingPostgresTests(NovaAppHostFixture fix
 
     private static TeamEntity NewTeam(string name, long clubId, long createdById) => new()
     {
+        CreationOperationId = Guid.NewGuid(),
         Name = name,
         GraduationYear = 2030,
         ClubId = clubId,

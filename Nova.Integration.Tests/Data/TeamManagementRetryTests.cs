@@ -326,6 +326,7 @@ public sealed class TeamManagementRetryTests(NovaAppHostFixture fixture)
     {
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = name,
             City = "Austin",
             State = "TX",

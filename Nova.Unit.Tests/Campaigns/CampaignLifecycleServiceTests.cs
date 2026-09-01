@@ -354,6 +354,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Club A",
                 City = "Austin",
@@ -362,6 +363,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Club B",
                 City = "Boston",
@@ -372,6 +374,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         db.Seasons.AddRange(
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 500,
                 Name = "Season A",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -380,6 +383,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 501,
                 Name = "Season B",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -390,6 +394,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         db.Campaigns.AddRange(
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = ReadyCampaignId,
                 Name = "Ready Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -399,6 +404,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = BlockedCampaignId,
                 Name = "Blocked Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -408,6 +414,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = ClosedCampaignId,
                 Name = "Closed Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -420,6 +427,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = ClubBCampaignId,
                 Name = "Club B Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
@@ -431,6 +439,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         db.Players.AddRange(
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 700,
                 FirstName = "Ready",
                 LastName = "Assigned",
@@ -441,6 +450,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 701,
                 FirstName = "Ready",
                 LastName = "Final",
@@ -451,6 +461,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 702,
                 FirstName = "Blocked",
                 LastName = "Undecided",
@@ -461,6 +472,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 703,
                 FirstName = "Blocked",
                 LastName = "Ineligible",
@@ -471,6 +483,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 704,
                 FirstName = "Blocked",
                 LastName = "ArchivedTeam",
@@ -481,6 +494,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 705,
                 FirstName = "Closed",
                 LastName = "Campaign",
@@ -491,6 +505,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 706,
                 FirstName = "ClubB",
                 LastName = "Player",
@@ -503,6 +518,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         db.Teams.AddRange(
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = EligibleTeamId,
                 Name = "Eligible Team",
                 GraduationYear = 2029,
@@ -511,6 +527,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = IneligibleTeamId,
                 Name = "Ineligible Team",
                 GraduationYear = 2031,
@@ -519,6 +536,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = ArchivedTeamId,
                 Name = "Archived Team",
                 GraduationYear = 2029,
@@ -530,6 +548,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             },
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = 803,
                 Name = "Club B Team",
                 GraduationYear = 2029,

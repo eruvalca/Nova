@@ -40,6 +40,7 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
         {
             db.Notes.Add(new NoteEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Content = "Cascade test note.",
                 PlayerCampaignAssignmentId = data.AssignmentId,
                 ClubId = default,
@@ -82,6 +83,7 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
         {
             db.Notes.Add(new NoteEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Content = "Tenant filter test.",
                 PlayerCampaignAssignmentId = data.AssignmentId,
                 ClubId = default,
@@ -111,6 +113,7 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
 
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Note Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -121,6 +124,7 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -130,6 +134,7 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
 
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Note",
             LastName = suffix,
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -142,6 +147,7 @@ public sealed class EvaluationNotePostgresTests(NovaAppHostFixture fixture)
 
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Note Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,

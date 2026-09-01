@@ -41,7 +41,7 @@ public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixtur
         var suffix = Guid.NewGuid().ToString("N");
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
 
-        var club = new ClubEntity { Name = $"Campaign Bound Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Campaign Bound Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -52,6 +52,7 @@ public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixtur
         {
             db.Seasons.Add(new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Season {i:000}",
                 StartDate = baseDate.AddDays(i),
                 ClubId = club.ClubId,

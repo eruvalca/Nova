@@ -189,6 +189,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season-{Guid.CreateVersion7():N}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubId,
@@ -199,6 +200,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
 
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Summer Tryouts",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -210,7 +212,9 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
 
         var defenderTag = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Defender",
+            NormalizedName = "DEFENDER",
             Color = "#0055AA",
             ClubId = clubId,
             CreatedById = actorUserId
@@ -220,6 +224,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
 
         var activePlayer = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Avery",
             LastName = "Active",
             DateOfBirth = new DateOnly(2012, 4, 1),
@@ -230,6 +235,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
         };
         var archivedPlayer = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Riley",
             LastName = "Archived",
             DateOfBirth = new DateOnly(2011, 2, 2),
@@ -257,6 +263,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
 
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = activeAssignment.PlayerCampaignAssignmentId,
             PlayerTagId = defenderTag.PlayerTagId,
             ClubId = clubId,
