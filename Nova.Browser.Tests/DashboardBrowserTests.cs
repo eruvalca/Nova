@@ -72,9 +72,9 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         await Expect(page.Locator("tbody tr")).ToHaveCountAsync(2);
 
-        // Recent activity includes the seeded note and resolves the evaluator actor's display name.
+        // Recent activity includes the durable event and its actor display snapshot.
         await Expect(page.Locator("section[aria-labelledby='recent-activity-heading']")).ToContainTextAsync("Bob Observer");
-        await Expect(page.Locator("section[aria-labelledby='recent-activity-heading']")).ToContainTextAsync("added a note to");
+        await Expect(page.Locator("section[aria-labelledby='recent-activity-heading']")).ToContainTextAsync("opened");
 
         // No administrator-only attention card or review links.
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Admin attention" })).ToHaveCountAsync(0);

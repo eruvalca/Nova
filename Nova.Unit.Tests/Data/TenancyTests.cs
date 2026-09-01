@@ -505,4 +505,72 @@ public class TenancyTests : IDisposable
         Should.Throw<InvalidOperationException>(() => context.SaveChanges())
             .Message.ShouldContain("Cross-tenant");
     }
+
+    [Fact]
+    public void ClubActivityEvents_AreVisibleOnlyToOwningClub()
+    {
+        using (var admin = _harness.CreateAdminContext())
+        {
+            admin.ClubActivityEvents.AddRange(
+                ActivityEvent(ClubAId, ClubAMember1Id, "Club A event"),
+                ActivityEvent(ClubBId, ClubBMemberId, "Club B event"));
+            admin.SaveChanges();
+        }
+
+        ActAs(ClubAMember1Id, ClubAId);
+        using var context = _harness.CreateTenantContext();
+
+        context.ClubActivityEvents.ShouldHaveSingleItem();
+        context.ClubActivityEvents.Single().CampaignName.ShouldBe("Club A event");
+    }
+
+    [Fact]
+    public void Interceptor_Throws_OnCrossTenantActivityAdd()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using var context = _harness.CreateTenantContext();
+        context.ClubActivityEvents.Add(ActivityEvent(ClubBId, ClubAMember1Id, "Forged event"));
+
+        Should.Throw<InvalidOperationException>(() => context.SaveChanges())
+            .Message.ShouldContain("Cross-tenant");
+    }
+
+    [Fact]
+    public void Interceptor_Throws_OnActivityModifyOrDelete()
+    {
+        long eventId;
+        using (var admin = _harness.CreateAdminContext())
+        {
+            var activity = ActivityEvent(ClubAId, ClubAMember1Id, "Original name");
+            admin.ClubActivityEvents.Add(activity);
+            admin.SaveChanges();
+            eventId = activity.ClubActivityEventId;
+        }
+
+        ActAs(ClubAMember1Id, ClubAId);
+        using (var modifyContext = _harness.CreateTenantContext())
+        {
+            var activity = modifyContext.ClubActivityEvents.Single(candidate => candidate.ClubActivityEventId == eventId);
+            activity.CampaignName = "Changed name";
+            Should.Throw<InvalidOperationException>(() => modifyContext.SaveChanges())
+                .Message.ShouldContain("Append-only");
+        }
+
+        using var deleteContext = _harness.CreateTenantContext();
+        var deleteActivity = deleteContext.ClubActivityEvents.Single(candidate => candidate.ClubActivityEventId == eventId);
+        deleteContext.ClubActivityEvents.Remove(deleteActivity);
+        Should.Throw<InvalidOperationException>(() => deleteContext.SaveChanges())
+            .Message.ShouldContain("Append-only");
+    }
+
+    private static ClubActivityEventEntity ActivityEvent(long clubId, long actorUserId, string campaignName)
+        => new()
+        {
+            ClubId = clubId,
+            EventKind = Nova.Shared.Enums.ClubActivityEventKind.CampaignOpened,
+            Audience = Nova.Shared.Enums.ClubActivityAudience.AllMembers,
+            ActorDisplayName = "Actor Snapshot",
+            CampaignName = campaignName,
+            CreatedById = actorUserId
+        };
 }

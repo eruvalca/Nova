@@ -11,9 +11,8 @@ using Shouldly;
 namespace Nova.Integration.Tests.Data;
 
 /// <summary>
-/// Provider-sensitive evidence that the four dashboard activity source queries translate on
-/// PostgreSQL, that <c>timestamptz</c> ordering matches the in-memory policy, and that placement
-/// <c>ModifiedAt</c> round-trips through <c>timestamptz</c>.
+/// Provider-sensitive evidence that durable activity persistence, cursor ordering, and structured
+/// context translate on PostgreSQL.
 /// </summary>
 /// <param name="fixture">The Aspire-hosted Nova application fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
@@ -22,54 +21,21 @@ public sealed class DashboardQueryPostgresTests(NovaAppHostFixture fixture)
     private static readonly DateTimeOffset Base = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>
-    /// Verifies all four source queries translate on PostgreSQL and merge in the deterministic
-    /// policy order.
+    /// Verifies durable event rows translate on PostgreSQL and order deterministically.
     /// </summary>
     [Fact]
-    public async Task GetActivity_Postgres_TranslatesAllFourSources_AndOrdersByPolicy()
+    public async Task GetActivity_Postgres_ReadsDurableEvents_AndOrdersByTimestampThenIdentity()
     {
         var seed = await SeedAsync();
         ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: false);
 
         await using (var db = fixture.CreateAdminContext())
         {
-            var note = new NoteEntity
-            {
-                Content = "Note",
-                PlayerCampaignAssignmentId = seed.AssignmentId,
-                ClubId = seed.ClubId,
-                CreatedById = seed.MemberUserId
-            };
-            var application = new CampaignTagApplicationEntity
-            {
-                PlayerCampaignAssignmentId = seed.AssignmentId,
-                PlayerTagId = seed.TagId,
-                ClubId = seed.ClubId,
-                CreatedById = seed.MemberUserId
-            };
-            var placement = new PlayerCampaignAssignmentEntity
-            {
-                PlayerId = seed.Player2Id,
-                CampaignId = seed.CampaignId,
-                ClubId = seed.ClubId,
-                CreatedById = seed.MemberUserId,
-                PlacementOutcome = PlacementOutcome.NotSelected,
-                ModifiedAt = Base.AddMinutes(2),
-                ModifiedById = seed.MemberUserId
-            };
-            var lifecycle = new CampaignLifecycleEventEntity
-            {
-                CampaignId = seed.CampaignId,
-                ClubId = seed.ClubId,
-                EventType = CampaignLifecycleEventType.Closed,
-                CreatedById = seed.MemberUserId
-            };
-            db.AddRange(note, application, placement, lifecycle);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-            note.CreatedAt = Base.AddMinutes(0);
-            application.CreatedAt = Base.AddMinutes(1);
-            lifecycle.CreatedAt = Base.AddMinutes(3);
+            db.ClubActivityEvents.AddRange(
+                CampaignEvent(seed, ClubActivityEventKind.CampaignOpened, Base),
+                CampaignEvent(seed, ClubActivityEventKind.CampaignClosed, Base.AddMinutes(1)),
+                CampaignEvent(seed, ClubActivityEventKind.CampaignReopened, Base.AddMinutes(1)),
+                CampaignEvent(seed, ClubActivityEventKind.CampaignDraftCreated, Base.AddMinutes(2)));
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
@@ -82,37 +48,43 @@ public sealed class DashboardQueryPostgresTests(NovaAppHostFixture fixture)
         result.Value.Events.Count.ShouldBe(4);
         result.Value.Events.Select(item => item.Kind).ShouldBe(
         [
+            DashboardActivityEventKind.CampaignDraftCreated,
+            DashboardActivityEventKind.CampaignReopened,
             DashboardActivityEventKind.CampaignClosed,
-            DashboardActivityEventKind.PlacementSet,
-            DashboardActivityEventKind.TagApplied,
-            DashboardActivityEventKind.NoteAdded
+            DashboardActivityEventKind.CampaignOpened
         ]);
     }
 
     /// <summary>
-    /// Verifies the placement event time equals the assignment's <c>ModifiedAt</c> with offset and
-    /// sub-second precision preserved by <c>timestamptz</c>.
+    /// Verifies the durable event timestamp and placement snapshots round-trip through PostgreSQL.
     /// </summary>
     [Fact]
-    public async Task GetActivity_Postgres_PlacementModifiedAt_RoundTrips()
+    public async Task GetActivity_Postgres_PlacementEvent_RoundTripsStructuredContext()
     {
         var seed = await SeedAsync();
         ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: false);
 
-        var modifiedAt = new DateTimeOffset(2026, 10, 2, 9, 30, 0, 500, TimeSpan.Zero);
+        DateTimeOffset persistedAt;
         await using (var db = fixture.CreateAdminContext())
         {
-            db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+            var activity = new ClubActivityEventEntity
             {
-                PlayerId = seed.Player2Id,
-                CampaignId = seed.CampaignId,
                 ClubId = seed.ClubId,
+                EventKind = ClubActivityEventKind.PlacementOutcomeChanged,
+                Audience = ClubActivityAudience.AllMembers,
+                ActorDisplayName = "M Member",
                 CreatedById = seed.MemberUserId,
-                PlacementOutcome = PlacementOutcome.Withdrawn,
-                ModifiedAt = modifiedAt,
-                ModifiedById = seed.MemberUserId
-            });
+                CampaignId = seed.CampaignId,
+                CampaignName = "Durable Campaign",
+                PlayerId = seed.Player2Id,
+                PlayerDisplayName = "P2 A",
+                PlayerCampaignAssignmentId = seed.AssignmentId,
+                PreviousPlacementOutcome = PlacementOutcome.Undecided,
+                CurrentPlacementOutcome = PlacementOutcome.Withdrawn
+            };
+            db.ClubActivityEvents.Add(activity);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            persistedAt = activity.CreatedAt;
         }
 
         var service = CreateService();
@@ -121,11 +93,28 @@ public sealed class DashboardQueryPostgresTests(NovaAppHostFixture fixture)
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        var placement = result.Value.Events.Single(item => item.Kind == DashboardActivityEventKind.PlacementSet);
-        placement.EventAt.ShouldBe(modifiedAt);
-        placement.PlacementOutcome.ShouldBe(PlacementOutcome.Withdrawn);
-        placement.ActorUserId.ShouldBe(seed.MemberUserId);
+        var placement = result.Value.Events.Single(item => item.Kind == DashboardActivityEventKind.PlacementOutcomeChanged);
+        Math.Abs((placement.EventAt - persistedAt).Ticks).ShouldBeLessThan(TimeSpan.FromMilliseconds(1).Ticks);
+        var context = placement.Context.ShouldBeOfType<PlacementActivityContextDto>();
+        context.Current.Outcome.ShouldBe(PlacementOutcome.Withdrawn);
+        context.PlayerId.ShouldBe(seed.Player2Id);
     }
+
+    private static ClubActivityEventEntity CampaignEvent(
+        DashboardPostgresSeed seed,
+        ClubActivityEventKind kind,
+        DateTimeOffset createdAt)
+        => new()
+        {
+            ClubId = seed.ClubId,
+            EventKind = kind,
+            Audience = ClubActivityAudience.AllMembers,
+            ActorDisplayName = "M Member",
+            CampaignId = seed.CampaignId,
+            CampaignName = "Durable Campaign",
+            CreatedById = seed.MemberUserId,
+            CreatedAt = createdAt
+        };
 
     /// <summary>Creates the dashboard query service over the live PostgreSQL read context.</summary>
     /// <returns>A service instance.</returns>

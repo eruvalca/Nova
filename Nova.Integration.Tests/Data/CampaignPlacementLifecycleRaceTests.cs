@@ -31,7 +31,8 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
         var service = new CampaignPlacementService(
             fixture.CreateTenantContextFactory(),
             fixture.CurrentUser,
-            NullLogger<CampaignPlacementService>.Instance);
+            NullLogger<CampaignPlacementService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
         await using var archiveContext = fixture.CreateAdminContext();
         await using var transaction = await archiveContext.Database.BeginTransactionAsync(cancellationToken);

@@ -37,6 +37,9 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
         {
             activity.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
+
+        using var attention = await anonymous.GetAsync(DashboardEndpoints.GetAttention, cancellationToken);
+        attention.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     /// <summary>Verifies authenticated callers without a club receive 403 for both dashboard routes.</summary>
@@ -59,6 +62,9 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
         {
             activity.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
+
+        using var attention = await client.GetAsync(DashboardEndpoints.GetAttention, cancellationToken);
+        attention.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     /// <summary>
@@ -116,6 +122,19 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
             dashboard.AdminAttention.FirstUnresolvedCampaignId.ShouldNotBeNull();
         }
 
+        using (var attentionResponse = await adminClient.GetAsync(DashboardEndpoints.GetAttention, cancellationToken))
+        {
+            attentionResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var attention = await attentionResponse.Content.ReadFromJsonAsync<AdminAttentionResult>(cancellationToken);
+            attention.ShouldNotBeNull();
+            attention.PendingJoinRequests.State.ShouldBe(AttentionProjectionState.Available);
+            attention.PendingJoinRequests.Count.ShouldBe(1);
+            attention.PendingJoinRequests.OldestSubmittedAt.ShouldNotBeNull();
+            attention.NeedsPlacement.State.ShouldBe(AttentionProjectionState.Available);
+            attention.NeedsPlacement.Count.ShouldBe(1);
+            attention.NeedsPlacement.CampaignId.ShouldNotBeNull();
+        }
+
         using (var memberResponse = await memberClient.GetAsync(DashboardEndpoints.GetSummary, cancellationToken))
         {
             memberResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -123,6 +142,10 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
             dashboard.ShouldNotBeNull();
             dashboard.AdminAttention.ShouldBeNull();
         }
+
+
+        using var memberAttention = await memberClient.GetAsync(DashboardEndpoints.GetAttention, cancellationToken);
+        memberAttention.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     /// <summary>Verifies the activity endpoint serializes a successful, bounded result.</summary>
@@ -147,23 +170,22 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
         }
     }
 
-    /// <summary>Verifies an invalid explicit limit produces correlated validation ProblemDetails.</summary>
-    /// <param name="limit">The invalid limit.</param>
-    [Theory(IncludeTestCaseIndex = true)]
-    [InlineData(0)]
-    [InlineData(51)]
-    public async Task GetActivity_InvalidLimit_ReturnsValidationProblem_WithTraceId(int limit)
+    /// <summary>Verifies an invalid cursor produces correlated validation ProblemDetails.</summary>
+    [Fact]
+    public async Task GetActivity_InvalidCursor_ReturnsValidationProblem_WithTraceId()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
         using var client = fixture.CreateNovaHttpClient();
-        var email = SeedingHelpers.UniqueEmail("dashboard-bad-limit");
+        var email = SeedingHelpers.UniqueEmail("dashboard-bad-cursor");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await SeedingHelpers.UpdateUserAsync(fixture, email, clubId: null, cancellationToken);
         _ = await SeedingHelpers.CreateClubAsync(client, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using var response = await client.GetAsync($"{DashboardEndpoints.GetActivity}?limit={limit}", cancellationToken);
+        using var response = await client.GetAsync(
+            DashboardEndpoints.GetActivityUrl("not-base64"),
+            cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         document.ShouldNotBeNull();

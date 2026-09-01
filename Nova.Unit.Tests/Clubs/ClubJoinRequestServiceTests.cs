@@ -69,14 +69,10 @@ public class ClubJoinRequestServiceTests : IDisposable
 
     private ClubJoinRequestService CreateService()
     {
-        var dbFactory = Substitute.For<IDbContextFactory<NovaDbContext>>();
         var readDbFactory = Substitute.For<IDbContextFactory<NovaReadDbContext>>();
         var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<ClubJoinRequestService>>();
 
         // Setup factories to use the harness contexts
-        dbFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
-            .Returns(x => Task.FromResult(_harness.CreateTenantContext()));
-
         readDbFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
             .Returns(x => Task.FromResult(_harness.CreateReadContext()));
 
@@ -88,6 +84,14 @@ public class ClubJoinRequestServiceTests : IDisposable
         // Use _userManager so the test can verify UpdateSecurityStampAsync calls
         _userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
             .Returns(Task.FromResult(IdentityResult.Success));
+        _userManager.FindByIdAsync(Arg.Any<string>())
+            .Returns(call => Task.FromResult<NovaUserEntity?>(new NovaUserEntity
+            {
+                Id = long.Parse(call.Arg<string>(), System.Globalization.CultureInfo.InvariantCulture),
+                FirstName = "Requester",
+                LastName = "R",
+                ClubId = ClubAId
+            }));
 
         var signInManager = Substitute.For<SignInManager<NovaUserEntity>>(
             _userManager, Substitute.For<IHttpContextAccessor>(), Substitute.For<IUserClaimsPrincipalFactory<NovaUserEntity>>(),
@@ -103,13 +107,12 @@ public class ClubJoinRequestServiceTests : IDisposable
         var realClaimRefresher = new ClubMembershipClaimRefresher(_userManager, signInManager);
 
         return new ClubJoinRequestService(
-            dbFactory,
             readDbFactory,
             adminDbFactory,
             _harness.CurrentUser,
             realClaimRefresher,
-            _userManager,
-            logger);
+            logger,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
     }
 
     #region GetCurrentUserPendingRequestAsync Tests (Modified Behavior)
@@ -565,11 +568,6 @@ public class ClubJoinRequestServiceTests : IDisposable
             requestId = request.ClubJoinRequestId;
         }
 
-        // Mock the UserManager to find the user and update it
-        var requestingUser = new NovaUserEntity { Id = RequestingUserId, FirstName = "Requester", LastName = "R" };
-        _userManager.FindByIdAsync(RequestingUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)requestingUser));
-        _userManager.UpdateAsync(requestingUser).Returns(Task.FromResult(Microsoft.AspNetCore.Identity.IdentityResult.Success));
-
         var service = CreateService();
 
         // Act
@@ -583,13 +581,65 @@ public class ClubJoinRequestServiceTests : IDisposable
         {
             var updatedRequest = await context.ClubJoinRequests.FirstAsync(r => r.ClubJoinRequestId == requestId, TestContext.Current.CancellationToken);
             updatedRequest.Status.ShouldBe(RequestStatus.Approved);
+            var updatedUser = await context.Users.SingleAsync(user => user.Id == RequestingUserId, TestContext.Current.CancellationToken);
+            updatedUser.ClubId.ShouldBe(ClubAId);
         }
-
-        // Verify UserManager.UpdateAsync was called
-        await _userManager.Received().UpdateAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == RequestingUserId));
 
         // Verify UserManager.UpdateSecurityStampAsync was called (proxy for MarkUserClaimsStaleAsync)
         await _userManager.Received().UpdateSecurityStampAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == RequestingUserId));
+    }
+
+    #endregion
+
+    #region Durable activity and ownership tests
+
+    /// <summary>Verifies request creation commits its durable activity snapshot with the mutation.</summary>
+    [Fact]
+    public async Task CreateJoinRequestAsync_PersistsRequestAndDurableActivity()
+    {
+        _harness.CurrentUser.UserId = RequestingUserId;
+        _harness.CurrentUser.ClubId = null;
+        _harness.CurrentUser.IsClubAdmin = false;
+
+        var result = await CreateService().CreateJoinRequestAsync(ClubAId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        using var context = _harness.CreateAdminContext();
+        var activity = context.ClubActivityEvents.ShouldHaveSingleItem();
+        activity.EventKind.ShouldBe(ClubActivityEventKind.JoinRequestSubmitted);
+        activity.JoinRequestId.ShouldBe(result.Value.ClubJoinRequestId);
+        activity.ActorDisplayName.ShouldBe("Requester R");
+        activity.SubjectDisplayName.ShouldBe("Requester R");
+    }
+
+    /// <summary>Verifies cancellation does not reveal whether another user's request identifier exists.</summary>
+    [Fact]
+    public async Task CancelJoinRequestAsync_ReturnsNotFound_ForAnotherUsersRequest()
+    {
+        long requestId;
+        using (var context = _harness.CreateAdminContext())
+        {
+            var request = new ClubJoinRequestEntity
+            {
+                ClubId = ClubAId,
+                RequestingUserId = AdminUserId,
+                Status = RequestStatus.Pending,
+                CreatedById = AdminUserId
+            };
+            context.ClubJoinRequests.Add(request);
+            context.SaveChanges();
+            requestId = request.ClubJoinRequestId;
+        }
+        _harness.CurrentUser.UserId = RequestingUserId;
+        _harness.CurrentUser.ClubId = null;
+
+        var result = await CreateService().CancelJoinRequestAsync(requestId, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+        using var verification = _harness.CreateAdminContext();
+        verification.ClubJoinRequests.Any(request => request.ClubJoinRequestId == requestId).ShouldBeTrue();
+        verification.ClubActivityEvents.ShouldBeEmpty();
     }
 
     #endregion

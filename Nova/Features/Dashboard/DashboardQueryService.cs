@@ -31,8 +31,6 @@ public sealed partial class DashboardQueryService(
     ICurrentUserProvider currentUserProvider,
     ILogger<DashboardQueryService> logger) : IDashboardQueryService
 {
-    private const string UnresolvedActorFallback = "Former member";
-
     /// <inheritdoc />
     public async Task<ServiceResult<ClubDashboardResult>> GetDashboardAsync(
         CancellationToken cancellationToken = default)
@@ -122,31 +120,30 @@ public sealed partial class DashboardQueryService(
             });
         }
 
-        var limit = input.ContinuationToken is null && input.Limit is int legacyLimit ? legacyLimit : DashboardActivityResult.PageSize;
-        var query = db.ClubActivityEvents.AsNoTracking().Where(activity => activity.ClubId == clubId && (activity.Audience == ClubActivityAudience.AllMembers || currentUserProvider.IsClubAdmin));
-        if (cursor is { } seek)
-        {
-            query = query.Where(activity => activity.CreatedAt < seek.CreatedAt || (activity.CreatedAt == seek.CreatedAt && activity.ClubActivityEventId < seek.EventId));
-        }
+        const int limit = DashboardActivityResult.PageSize;
+        var query = db.ClubActivityEvents
+            .AsNoTracking()
+            .Where(activity => activity.ClubId == clubId
+                && (activity.Audience == ClubActivityAudience.AllMembers || currentUserProvider.IsClubAdmin));
         List<ClubActivityEventEntity> rows;
         if (db.Database.IsNpgsql())
         {
+            if (cursor is { } seek)
+            {
+                query = query.Where(activity => activity.CreatedAt < seek.CreatedAt || (activity.CreatedAt == seek.CreatedAt && activity.ClubActivityEventId < seek.EventId));
+            }
             rows = await query.OrderByDescending(activity => activity.CreatedAt).ThenByDescending(activity => activity.ClubActivityEventId).Take(limit + 1).ToListAsync(cancellationToken);
         }
         else
         {
-            rows = (await query.ToListAsync(cancellationToken)).OrderByDescending(activity => activity.CreatedAt).ThenByDescending(activity => activity.ClubActivityEventId).Take(limit + 1).ToList();
-        }
-        if (rows.Count == 0 && cursor is null)
-        {
-            var legacy = new List<DashboardActivityEventRow>(limit * 4);
-            legacy.AddRange(await ReadNoteRowsAsync(db, clubId, limit, cancellationToken));
-            legacy.AddRange(await ReadTagRowsAsync(db, clubId, limit, cancellationToken));
-            legacy.AddRange(await ReadPlacementRowsAsync(db, clubId, limit, cancellationToken));
-            legacy.AddRange(await ReadLifecycleRowsAsync(db, clubId, limit, cancellationToken));
-            var merged = DashboardActivityFeedPolicy.OrderAndBound(legacy, limit);
-            var names = await ResolveActorDisplayNamesAsync(db, clubId, merged, cancellationToken);
-            return new DashboardActivityResult(merged.Select(row => new DashboardActivityItemDto { Kind = row.Kind, EventId = row.EventId, EventAt = row.EventAt, ActorUserId = row.ActorUserId, ActorDisplayName = ResolveActorDisplayName(names, row.ActorUserId), CampaignId = row.CampaignId, CampaignName = row.CampaignName, PlayerCampaignAssignmentId = row.PlayerCampaignAssignmentId, PlayerDisplayName = row.PlayerDisplayName, TagName = row.TagName, PlacementOutcome = row.PlacementOutcome, LifecycleEventType = row.LifecycleEventType }).ToList().AsReadOnly());
+            var inMemoryRows = await query.ToListAsync(cancellationToken);
+            if (cursor is { } seek)
+            {
+                inMemoryRows = inMemoryRows
+                    .Where(activity => activity.CreatedAt < seek.CreatedAt || (activity.CreatedAt == seek.CreatedAt && activity.ClubActivityEventId < seek.EventId))
+                    .ToList();
+            }
+            rows = inMemoryRows.OrderByDescending(activity => activity.CreatedAt).ThenByDescending(activity => activity.ClubActivityEventId).Take(limit + 1).ToList();
         }
         var hasNext = rows.Count > limit;
         if (hasNext)
@@ -156,23 +153,31 @@ public sealed partial class DashboardQueryService(
 
         var campaignIds = rows.Where(row => row.CampaignId is not null).Select(row => row.CampaignId!.Value).Distinct().ToArray();
         var assignmentIds = rows.Where(row => row.PlayerCampaignAssignmentId is not null).Select(row => row.PlayerCampaignAssignmentId!.Value).Distinct().ToArray();
+        var playerIds = rows.Where(row => row.PlayerId is not null).Select(row => row.PlayerId!.Value).Distinct().ToArray();
         var memberIds = rows.Where(row => row.SubjectUserId is not null).Select(row => row.SubjectUserId!.Value).Distinct().ToArray();
         var requestIds = rows.Where(row => row.JoinRequestId is not null).Select(row => row.JoinRequestId!.Value).Distinct().ToArray();
         var existingCampaignIds = (await db.Campaigns.Where(campaign => campaignIds.Contains(campaign.CampaignId)).Select(campaign => campaign.CampaignId).ToListAsync(cancellationToken)).ToHashSet();
         var existingAssignmentIds = (await db.PlayerCampaignAssignments.Where(assignment => assignmentIds.Contains(assignment.PlayerCampaignAssignmentId)).Select(assignment => assignment.PlayerCampaignAssignmentId).ToListAsync(cancellationToken)).ToHashSet();
+        var existingPlayerIds = (await db.Players.Where(player => playerIds.Contains(player.PlayerId)).Select(player => player.PlayerId).ToListAsync(cancellationToken)).ToHashSet();
         var existingMemberIds = (await db.Users.Where(user => memberIds.Contains(user.Id)).Select(user => user.Id).ToListAsync(cancellationToken)).ToHashSet();
         var existingRequestIds = (await db.ClubJoinRequests.Where(request => requestIds.Contains(request.ClubJoinRequestId) && request.Status == RequestStatus.Pending).Select(request => request.ClubJoinRequestId).ToListAsync(cancellationToken)).ToHashSet();
-        var events = rows.Select(row => MapActivity(row, existingCampaignIds, existingAssignmentIds, existingMemberIds, existingRequestIds)).ToList().AsReadOnly();
+        var events = rows.Select(row => MapActivity(row, existingCampaignIds, existingAssignmentIds, existingPlayerIds, existingMemberIds, existingRequestIds)).ToList().AsReadOnly();
         var next = hasNext && rows.Count > 0 ? ActivityCursor.Encode(rows[^1].CreatedAt, rows[^1].ClubActivityEventId) : null;
         return new DashboardActivityResult(events) { NextContinuationToken = next };
     }
 
-    private DashboardActivityItemDto MapActivity(ClubActivityEventEntity activity, IReadOnlySet<long> existingCampaignIds, IReadOnlySet<long> existingAssignmentIds, IReadOnlySet<long> existingMemberIds, IReadOnlySet<long> existingRequestIds)
+    private DashboardActivityItemDto MapActivity(
+        ClubActivityEventEntity activity,
+        IReadOnlySet<long> existingCampaignIds,
+        IReadOnlySet<long> existingAssignmentIds,
+        IReadOnlySet<long> existingPlayerIds,
+        IReadOnlySet<long> existingMemberIds,
+        IReadOnlySet<long> existingRequestIds)
     {
         var kind = activity.EventKind switch
         {
-            ClubActivityEventKind.CampaignDraftCreated => DashboardActivityEventKind.CampaignOpened,
-            ClubActivityEventKind.CampaignDraftDeleted => DashboardActivityEventKind.CampaignClosed,
+            ClubActivityEventKind.CampaignDraftCreated => DashboardActivityEventKind.CampaignDraftCreated,
+            ClubActivityEventKind.CampaignDraftDeleted => DashboardActivityEventKind.CampaignDraftDeleted,
             ClubActivityEventKind.CampaignOpened => DashboardActivityEventKind.CampaignOpened,
             ClubActivityEventKind.CampaignClosed => DashboardActivityEventKind.CampaignClosed,
             ClubActivityEventKind.CampaignReopened => DashboardActivityEventKind.CampaignReopened,
@@ -192,7 +197,8 @@ public sealed partial class DashboardQueryService(
         };
         DashboardActivityContextDto context = activity.EventKind switch
         {
-            ClubActivityEventKind.PlacementAssigned or ClubActivityEventKind.PlacementReassigned or ClubActivityEventKind.PlacementOutcomeChanged => new PlacementActivityContextDto { ActorDisplayName = activity.ActorDisplayName, PlayerId = activity.PlayerId is long playerId && existingMemberIds.Contains(playerId) ? playerId : null, PlayerDisplayName = activity.PlayerDisplayName ?? "Former member", PlayerCampaignAssignmentId = activity.PlayerCampaignAssignmentId is long assignmentId && existingAssignmentIds.Contains(assignmentId) ? assignmentId : null, CampaignId = activity.CampaignId is long campaignId && existingCampaignIds.Contains(campaignId) ? campaignId : null, CampaignName = activity.CampaignName ?? "Former campaign", Previous = new PlacementSnapshotDto { Outcome = activity.PreviousPlacementOutcome ?? PlacementOutcome.Undecided, TeamId = activity.PreviousTeamId, TeamName = activity.PreviousTeamName, SourceCampaignName = activity.PreviousSourceCampaignName }, Current = new PlacementSnapshotDto { Outcome = activity.CurrentPlacementOutcome ?? PlacementOutcome.Undecided, TeamId = activity.CurrentTeamId, TeamName = activity.CurrentTeamName, SourceCampaignName = activity.CurrentSourceCampaignName } },
+            ClubActivityEventKind.PlacementAssigned or ClubActivityEventKind.PlacementReassigned or ClubActivityEventKind.PlacementOutcomeChanged => new PlacementActivityContextDto { ActorDisplayName = activity.ActorDisplayName, PlayerId = activity.PlayerId is long playerId && existingPlayerIds.Contains(playerId) ? playerId : null, PlayerDisplayName = activity.PlayerDisplayName ?? "Former player", PlayerCampaignAssignmentId = activity.PlayerCampaignAssignmentId is long assignmentId && existingAssignmentIds.Contains(assignmentId) ? assignmentId : null, CampaignId = activity.CampaignId is long campaignId && existingCampaignIds.Contains(campaignId) ? campaignId : null, CampaignName = activity.CampaignName ?? "Former campaign", Previous = new PlacementSnapshotDto { Outcome = activity.PreviousPlacementOutcome ?? PlacementOutcome.Undecided, TeamId = activity.PreviousTeamId, TeamName = activity.PreviousTeamName, SourceCampaignName = activity.PreviousSourceCampaignName }, Current = new PlacementSnapshotDto { Outcome = activity.CurrentPlacementOutcome ?? PlacementOutcome.Undecided, TeamId = activity.CurrentTeamId, TeamName = activity.CurrentTeamName, SourceCampaignName = activity.CurrentSourceCampaignName } },
+            ClubActivityEventKind.JoinRequestApproved when !currentUserProvider.IsClubAdmin => new MembershipActivityContextDto { MemberUserId = activity.SubjectUserId is long memberId && existingMemberIds.Contains(memberId) ? memberId : null, MemberDisplayName = activity.SubjectDisplayName ?? "Former member", ActorDisplayName = null },
             ClubActivityEventKind.JoinRequestSubmitted or ClubActivityEventKind.JoinRequestCancelled or ClubActivityEventKind.JoinRequestRejected or ClubActivityEventKind.JoinRequestApproved => new JoinRequestActivityContextDto { ActorDisplayName = activity.ActorDisplayName, RequesterUserId = activity.SubjectUserId is long requesterId && existingMemberIds.Contains(requesterId) ? requesterId : null, RequesterDisplayName = activity.SubjectDisplayName ?? "Former member", ActionableRequestId = activity.JoinRequestId is long requestId && existingRequestIds.Contains(requestId) ? requestId : null },
             ClubActivityEventKind.MemberJoined or ClubActivityEventKind.MemberPromoted or ClubActivityEventKind.MemberDemoted or ClubActivityEventKind.MemberRemoved or ClubActivityEventKind.MemberLeft => new MembershipActivityContextDto { ActorDisplayName = activity.ActorDisplayName, MemberUserId = activity.SubjectUserId is long memberId && existingMemberIds.Contains(memberId) ? memberId : null, MemberDisplayName = activity.SubjectDisplayName ?? "Former member" },
             _ => new CampaignActivityContextDto { ActorDisplayName = activity.ActorDisplayName, CampaignId = activity.CampaignId is long campaignId && existingCampaignIds.Contains(campaignId) ? campaignId : null, CampaignName = activity.CampaignName ?? "Former campaign", SeasonName = activity.SeasonName }
@@ -220,7 +226,10 @@ public sealed partial class DashboardQueryService(
 
                 return new ActivityCursor(new DateTimeOffset(ticks, TimeSpan.Zero), id);
             }
-            catch { return null; }
+            catch (Exception exception) when (exception is FormatException or ArgumentOutOfRangeException)
+            {
+                return null;
+            }
         }
     }
 
@@ -341,295 +350,6 @@ public sealed partial class DashboardQueryService(
             ArchivedTeams = rows.FirstOrDefault(row => row.Status == LifecycleStatus.Archived)?.Count ?? 0
         };
     }
-
-    /// <summary>
-    /// Reads the bounded note-added activity rows. PostgreSQL orders and bounds in SQL; SQLite
-    /// materializes and applies the identical deterministic order and bound in memory because it
-    /// cannot translate <see cref="DateTimeOffset"/> ordering.
-    /// </summary>
-    private async Task<IReadOnlyList<DashboardActivityEventRow>> ReadNoteRowsAsync(
-        NovaReadDbContext db,
-        long clubId,
-        int limit,
-        CancellationToken cancellationToken)
-    {
-        var query = db.Notes
-            .AsNoTracking()
-            .Where(note => note.ClubId == clubId);
-
-        if (db.Database.IsNpgsql())
-        {
-            return await query
-                .OrderByDescending(note => note.CreatedAt)
-                .ThenByDescending(note => note.NoteId)
-                .Take(limit)
-                .Select(note => new DashboardActivityEventRow(
-                    DashboardActivityEventKind.NoteAdded,
-                    note.NoteId,
-                    note.CreatedAt,
-                    note.CreatedById,
-                    note.PlayerCampaignAssignment.CampaignId,
-                    note.PlayerCampaignAssignment.Campaign.Name,
-                    note.PlayerCampaignAssignmentId,
-                    $"{note.PlayerCampaignAssignment.Player.FirstName} {note.PlayerCampaignAssignment.Player.LastName}",
-                    null,
-                    null,
-                    null))
-                .ToListAsync(cancellationToken);
-        }
-
-        var rows = await query
-            .Select(note => new DashboardActivityEventRow(
-                DashboardActivityEventKind.NoteAdded,
-                note.NoteId,
-                note.CreatedAt,
-                note.CreatedById,
-                note.PlayerCampaignAssignment.CampaignId,
-                note.PlayerCampaignAssignment.Campaign.Name,
-                note.PlayerCampaignAssignmentId,
-                $"{note.PlayerCampaignAssignment.Player.FirstName} {note.PlayerCampaignAssignment.Player.LastName}",
-                null,
-                null,
-                null))
-            .ToListAsync(cancellationToken);
-
-        return rows
-            .OrderByDescending(row => row.EventAt)
-            .ThenByDescending(row => row.EventId)
-            .Take(limit)
-            .ToList()
-            .AsReadOnly();
-    }
-
-    /// <summary>
-    /// Reads the bounded tag-applied activity rows with full player and tag context.
-    /// </summary>
-    private async Task<IReadOnlyList<DashboardActivityEventRow>> ReadTagRowsAsync(
-        NovaReadDbContext db,
-        long clubId,
-        int limit,
-        CancellationToken cancellationToken)
-    {
-        var query = db.CampaignTagApplications
-            .AsNoTracking()
-            .Where(application => application.ClubId == clubId);
-
-        if (db.Database.IsNpgsql())
-        {
-            return await query
-                .OrderByDescending(application => application.CreatedAt)
-                .ThenByDescending(application => application.CampaignTagApplicationId)
-                .Take(limit)
-                .Select(application => new DashboardActivityEventRow(
-                    DashboardActivityEventKind.TagApplied,
-                    application.CampaignTagApplicationId,
-                    application.CreatedAt,
-                    application.CreatedById,
-                    application.PlayerCampaignAssignment.CampaignId,
-                    application.PlayerCampaignAssignment.Campaign.Name,
-                    application.PlayerCampaignAssignmentId,
-                    $"{application.PlayerCampaignAssignment.Player.FirstName} {application.PlayerCampaignAssignment.Player.LastName}",
-                    application.PlayerTag.Name,
-                    null,
-                    null))
-                .ToListAsync(cancellationToken);
-        }
-
-        var rows = await query
-            .Select(application => new DashboardActivityEventRow(
-                DashboardActivityEventKind.TagApplied,
-                application.CampaignTagApplicationId,
-                application.CreatedAt,
-                application.CreatedById,
-                application.PlayerCampaignAssignment.CampaignId,
-                application.PlayerCampaignAssignment.Campaign.Name,
-                application.PlayerCampaignAssignmentId,
-                $"{application.PlayerCampaignAssignment.Player.FirstName} {application.PlayerCampaignAssignment.Player.LastName}",
-                application.PlayerTag.Name,
-                null,
-                null))
-            .ToListAsync(cancellationToken);
-
-        return rows
-            .OrderByDescending(row => row.EventAt)
-            .ThenByDescending(row => row.EventId)
-            .Take(limit)
-            .ToList()
-            .AsReadOnly();
-    }
-
-    /// <summary>
-    /// Reads the bounded placement-change activity rows, using each assignment's latest modification
-    /// (its <c>ModifiedAt</c>/<c>ModifiedById</c> audit stamps) as the placement event.
-    /// </summary>
-    private async Task<IReadOnlyList<DashboardActivityEventRow>> ReadPlacementRowsAsync(
-        NovaReadDbContext db,
-        long clubId,
-        int limit,
-        CancellationToken cancellationToken)
-    {
-        var query = db.PlayerCampaignAssignments
-            .AsNoTracking()
-            .Where(assignment => assignment.ClubId == clubId && assignment.ModifiedAt != null);
-
-        if (db.Database.IsNpgsql())
-        {
-            return await query
-                .OrderByDescending(assignment => assignment.ModifiedAt)
-                .ThenByDescending(assignment => assignment.PlayerCampaignAssignmentId)
-                .Take(limit)
-                .Select(assignment => new DashboardActivityEventRow(
-                    DashboardActivityEventKind.PlacementSet,
-                    assignment.PlayerCampaignAssignmentId,
-                    // The filter guarantees ModifiedAt is set; coalescing to CreatedAt is a defensive
-                    // fallback so the projection stays non-null for both providers.
-                    assignment.ModifiedAt ?? assignment.CreatedAt,
-                    assignment.ModifiedById ?? assignment.CreatedById,
-                    assignment.CampaignId,
-                    assignment.Campaign.Name,
-                    assignment.PlayerCampaignAssignmentId,
-                    $"{assignment.Player.FirstName} {assignment.Player.LastName}",
-                    null,
-                    assignment.PlacementOutcome,
-                    null))
-                .ToListAsync(cancellationToken);
-        }
-
-        var rows = await query
-            .Select(assignment => new DashboardActivityEventRow(
-                DashboardActivityEventKind.PlacementSet,
-                assignment.PlayerCampaignAssignmentId,
-                assignment.ModifiedAt ?? assignment.CreatedAt,
-                assignment.ModifiedById ?? assignment.CreatedById,
-                assignment.CampaignId,
-                assignment.Campaign.Name,
-                assignment.PlayerCampaignAssignmentId,
-                $"{assignment.Player.FirstName} {assignment.Player.LastName}",
-                null,
-                assignment.PlacementOutcome,
-                null))
-            .ToListAsync(cancellationToken);
-
-        return rows
-            .OrderByDescending(row => row.EventAt)
-            .ThenByDescending(row => row.EventId)
-            .Take(limit)
-            .ToList()
-            .AsReadOnly();
-    }
-
-    /// <summary>
-    /// Reads the bounded campaign close and reopen lifecycle activity rows.
-    /// </summary>
-    private async Task<IReadOnlyList<DashboardActivityEventRow>> ReadLifecycleRowsAsync(
-        NovaReadDbContext db,
-        long clubId,
-        int limit,
-        CancellationToken cancellationToken)
-    {
-        var query = db.CampaignLifecycleEvents
-            .AsNoTracking()
-            .Where(activityEvent => activityEvent.ClubId == clubId);
-
-        if (db.Database.IsNpgsql())
-        {
-            return await query
-                .OrderByDescending(activityEvent => activityEvent.CreatedAt)
-                .ThenByDescending(activityEvent => activityEvent.CampaignLifecycleEventId)
-                .Take(limit)
-                .Select(activityEvent => new DashboardActivityEventRow(
-                    activityEvent.EventType == CampaignLifecycleEventType.Closed
-                        ? DashboardActivityEventKind.CampaignClosed
-                        : DashboardActivityEventKind.CampaignReopened,
-                    activityEvent.CampaignLifecycleEventId,
-                    activityEvent.CreatedAt,
-                    activityEvent.CreatedById,
-                    activityEvent.CampaignId,
-                    activityEvent.Campaign.Name,
-                    null,
-                    null,
-                    null,
-                    null,
-                    activityEvent.EventType))
-                .ToListAsync(cancellationToken);
-        }
-
-        var rows = await query
-            .Select(activityEvent => new DashboardActivityEventRow(
-                activityEvent.EventType == CampaignLifecycleEventType.Closed
-                    ? DashboardActivityEventKind.CampaignClosed
-                    : DashboardActivityEventKind.CampaignReopened,
-                activityEvent.CampaignLifecycleEventId,
-                activityEvent.CreatedAt,
-                activityEvent.CreatedById,
-                activityEvent.CampaignId,
-                activityEvent.Campaign.Name,
-                null,
-                null,
-                null,
-                null,
-                activityEvent.EventType))
-            .ToListAsync(cancellationToken);
-
-        return rows
-            .OrderByDescending(row => row.EventAt)
-            .ThenByDescending(row => row.EventId)
-            .Take(limit)
-            .ToList()
-            .AsReadOnly();
-    }
-
-    /// <summary>
-    /// Batch-resolves actor display names for the bounded merged rows from the club-scoped user set.
-    /// </summary>
-    /// <param name="db">The read-only tenant-scoped context.</param>
-    /// <param name="clubId">The current club identifier.</param>
-    /// <param name="rows">The bounded merged activity rows.</param>
-    /// <param name="cancellationToken">A token that cancels the operation.</param>
-    /// <returns>A lookup from actor user identifier to resolved display name.</returns>
-    private static async Task<Dictionary<long, string>> ResolveActorDisplayNamesAsync(
-        NovaReadDbContext db,
-        long clubId,
-        IReadOnlyList<DashboardActivityEventRow> rows,
-        CancellationToken cancellationToken)
-    {
-        var actorUserIds = rows
-            .Select(row => row.ActorUserId)
-            .Distinct()
-            .ToArray();
-
-        if (actorUserIds.Length == 0)
-        {
-            return new Dictionary<long, string>();
-        }
-
-        return await db.Users
-            .Where(user => user.ClubId == clubId && actorUserIds.Contains(user.Id))
-            .Select(user => new
-            {
-                user.Id,
-                user.FirstName,
-                user.LastName
-            })
-            .ToDictionaryAsync(
-                user => user.Id,
-                user => $"{user.FirstName} {user.LastName}",
-                cancellationToken);
-    }
-
-    /// <summary>
-    /// Resolves an actor display name, falling back to the stable "Former member" text when the
-    /// actor user row is no longer available in the club.
-    /// </summary>
-    /// <param name="actorDisplayNames">The actor display-name lookup.</param>
-    /// <param name="actorUserId">The actor user identifier.</param>
-    /// <returns>The resolved display name, or <see cref="UnresolvedActorFallback"/> when unavailable.</returns>
-    private static string ResolveActorDisplayName(
-        IReadOnlyDictionary<long, string> actorDisplayNames,
-        long actorUserId)
-        => actorDisplayNames.TryGetValue(actorUserId, out var displayName)
-            ? displayName
-            : UnresolvedActorFallback;
 
     /// <summary>
     /// Resolves the approved caller's current club identifier.

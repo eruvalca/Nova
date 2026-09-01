@@ -384,7 +384,8 @@ internal static class SeedingHelpers
         var service = new CampaignLifecycleService(
             fixture.CreateTenantContextFactory(),
             fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
         var result = await service.CloseAsync(campaignId, cancellationToken);
         result.IsT0.ShouldBeTrue();
     }
@@ -413,7 +414,8 @@ internal static class SeedingHelpers
         var service = new CampaignLifecycleService(
             fixture.CreateTenantContextFactory(),
             fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
         var result = await service.ReopenAsync(campaignId, cancellationToken);
         result.IsT0.ShouldBeTrue();
     }

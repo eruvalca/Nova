@@ -62,7 +62,7 @@ public interface IClubActivityEventWriter
 }
 
 /// <summary>Default application implementation of the transaction-friendly activity writer.</summary>
-internal sealed class ClubActivityEventWriter : IClubActivityEventWriter
+public sealed class ClubActivityEventWriter : IClubActivityEventWriter
 {
     /// <inheritdoc />
     public void AppendCampaign(ApplicationDbContext db, CampaignActivityEvidence evidence)

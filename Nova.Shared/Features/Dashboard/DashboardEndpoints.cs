@@ -74,10 +74,6 @@ public static class DashboardEndpoints
             ? GetActivity
             : $"{GetActivity}?continuationToken={Uri.EscapeDataString(continuationToken)}";
 
-    [Obsolete("Use cursor-based activity paging.")]
-    public static string GetActivityUrl(int? limit)
-        => limit is int value and > 0 ? $"{GetActivity}?limit={value}" : GetActivity;
-
     /// <summary>
     /// Builds the prebuilt workspace URL for an active campaign card, pointing at the campaign
     /// workspace page without duplicating the roster or workspace route literal.

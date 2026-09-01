@@ -22,7 +22,7 @@ public sealed partial class CampaignCreationService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignCreationService> logger,
-    IClubActivityEventWriter? activityEventWriter = null) : ICampaignCreationService
+    IClubActivityEventWriter activityEventWriter) : ICampaignCreationService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<CreateCampaignResult>> CreateAsync(
@@ -163,7 +163,7 @@ public sealed partial class CampaignCreationService(
             var actorName = await db.Users.Where(user => user.Id == actorUserId)
                 .Select(user => user.FirstName + " " + user.LastName)
                 .SingleOrDefaultAsync(cancellationToken) ?? "Club administrator";
-            activityEventWriter?.AppendCampaign(db, new CampaignActivityEvidence(
+            activityEventWriter.AppendCampaign(db, new CampaignActivityEvidence(
                 ClubActivityEventKind.CampaignOpened, clubId, new ActivityActorEvidence(actorUserId, actorName),
                 campaign.CampaignId, campaign.Name, season.Value.Name));
 

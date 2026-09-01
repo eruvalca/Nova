@@ -129,7 +129,8 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
         var service = new CampaignLifecycleService(
             factory,
             currentUser,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<CampaignLifecycleService>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
         var result = await service.CloseAsync(campaignId, cancellationToken);
         result.IsT0.ShouldBeTrue();
     }

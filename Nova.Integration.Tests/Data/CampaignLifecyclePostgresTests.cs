@@ -169,7 +169,8 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         var service = new CampaignPlacementService(
             new FixtureDbContextFactory(fixture),
             fixture.CurrentUser,
-            NullLogger<CampaignPlacementService>.Instance);
+            NullLogger<CampaignPlacementService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
         var cancellationToken = TestContext.Current.CancellationToken;
 
         await using var closeContext = fixture.CreateAdminContext();
@@ -224,7 +225,8 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         var service = new CampaignLifecycleService(
             new FixtureDbContextFactory(fixture),
             fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
         var cancellationToken = TestContext.Current.CancellationToken;
 
         await using var closeContext = fixture.CreateAdminContext();
@@ -288,7 +290,8 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         var service = new CampaignLifecycleService(
             new FixtureDbContextFactory(fixture),
             fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
         var cancellationToken = TestContext.Current.CancellationToken;
 
         await using var reopenContext = fixture.CreateAdminContext();

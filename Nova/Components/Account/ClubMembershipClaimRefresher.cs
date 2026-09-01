@@ -56,6 +56,20 @@ public sealed class ClubMembershipClaimRefresher(UserManager<NovaUserEntity> use
     }
 
     /// <summary>
+    /// Marks another user's claims as stale by resolving the user through the identity context.
+    /// This avoids attaching an entity instance owned by a separate transactional context.
+    /// </summary>
+    /// <param name="userId">The user whose authentication principal must be rebuilt.</param>
+    /// <returns><see cref="Success"/> when the security stamp was updated; otherwise the Identity errors.</returns>
+    public async Task<OneOf<Success, Error<string[]>>> MarkUserClaimsStaleAsync(long userId)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return user is null
+            ? new Error<string[]>(["The user no longer exists."])
+            : await MarkUserClaimsStaleAsync(user);
+    }
+
+    /// <summary>
     /// Marks ALL members of the given club as stale after a club-wide change that affects
     /// every member's claims (e.g. the club crest was changed/removed). Bumping each member's
     /// security stamp causes <see cref="IdentityRevalidatingAuthenticationStateProvider"/>

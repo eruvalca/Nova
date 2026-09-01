@@ -37,7 +37,8 @@ public sealed class CampaignLifecycleEndpointTests
         builder.Services.AddSingleton(_ => new CampaignLifecycleService(
             Substitute.For<IDbContextFactory<NovaDbContext>>(),
             Substitute.For<ICurrentUserProvider>(),
-            NullLogger<CampaignLifecycleService>.Instance));
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter()));
         await using var app = builder.Build();
 
         app.MapCampaignLifecycleEndpoints();

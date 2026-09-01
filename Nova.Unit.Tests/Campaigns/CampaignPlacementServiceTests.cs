@@ -343,7 +343,8 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         return new CampaignPlacementService(
             dbContextFactory,
             _harness.CurrentUser,
-            NullLogger<CampaignPlacementService>.Instance);
+            NullLogger<CampaignPlacementService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
     }
 
     /// <summary>

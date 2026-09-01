@@ -49,7 +49,7 @@ public sealed partial class CampaignPlacementService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignPlacementService> logger,
-    IClubActivityEventWriter? activityEventWriter = null) : ICampaignPlacementService
+    IClubActivityEventWriter activityEventWriter) : ICampaignPlacementService
 {
     /// <inheritdoc />
     async Task<ServiceResult<PlacementMutationSuccess>> ICampaignPlacementService.UpdatePlacementAsync(
@@ -235,7 +235,7 @@ public sealed partial class CampaignPlacementService(
             participation.ConcurrencyToken = replacementToken;
 
             var actorName = await db.Users.Where(candidate => candidate.Id == userId).Select(candidate => candidate.FirstName + " " + candidate.LastName).SingleOrDefaultAsync(cancellationToken) ?? "Club administrator";
-            activityEventWriter?.AppendPlacement(db, new PlacementActivityEvidence(
+            activityEventWriter.AppendPlacement(db, new PlacementActivityEvidence(
                 clubId, new ActivityActorEvidence(userId, actorName), participation.CampaignId,
                 participation.Campaign.Name, participation.PlayerCampaignAssignmentId, participation.PlayerId,
                 participation.Player.FirstName + " " + participation.Player.LastName, previous,

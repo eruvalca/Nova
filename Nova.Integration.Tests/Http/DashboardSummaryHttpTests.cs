@@ -245,7 +245,18 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             var assignmentA = new PlayerCampaignAssignmentEntity { PlayerId = playerA.PlayerId, CampaignId = campaignA.CampaignId, ClubId = clubA.ClubId, CreatedById = adminAUserId, PlacementOutcome = PlacementOutcome.Assigned, TeamId = teamA.TeamId };
             context.Add(assignmentA);
             await context.SaveChangesAsync(cancellationToken);
-            context.Add(new NoteEntity { Content = "Club A note", PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = clubA.ClubId, CreatedById = adminAUserId });
+            context.AddRange(
+                new NoteEntity { Content = "Club A note", PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = clubA.ClubId, CreatedById = adminAUserId },
+                new ClubActivityEventEntity
+                {
+                    ClubId = clubA.ClubId,
+                    EventKind = ClubActivityEventKind.CampaignOpened,
+                    Audience = ClubActivityAudience.AllMembers,
+                    ActorDisplayName = "Club A Admin",
+                    CampaignId = campaignA.CampaignId,
+                    CampaignName = clubACampaignName,
+                    CreatedById = adminAUserId
+                });
 
             // Club B: decoy campaign, players, archived team, and a pending join request.
             var seasonB = new SeasonEntity { Name = $"Club B Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = adminBUserId };
@@ -292,8 +303,10 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             activity.ShouldNotBeNull();
 
             activity.Events.ShouldNotBeEmpty();
-            activity.Events.ShouldContain(item => item.CampaignName == clubACampaignName);
-            activity.Events.ShouldNotContain(item => item.CampaignName == clubBCampaignName);
+            activity.Events.Any(item =>
+                item.Context is CampaignActivityContextDto context && context.CampaignName == clubACampaignName).ShouldBeTrue();
+            activity.Events.Any(item =>
+                item.Context is CampaignActivityContextDto context && context.CampaignName == clubBCampaignName).ShouldBeFalse();
         }
     }
 

@@ -159,7 +159,7 @@ FORM: Campaign map, ranked 1; two-zone operations-board staging; seed key assign
                     {
                         <li>
                             <time>@DashboardDisplay.FormatActivityDate(item.EventAt)</time>
-                            <span>@item.ActorDisplayName @DashboardDisplay.ActivityVerb(item) <strong>@item.CampaignName</strong></span>
+                            <span>@DashboardDisplay.ActivitySentence(item)</span>
                         </li>
                     }
                 </ul>

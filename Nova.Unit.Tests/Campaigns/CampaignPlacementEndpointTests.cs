@@ -35,7 +35,8 @@ public sealed class CampaignPlacementEndpointTests
         builder.Services.AddSingleton(_ => new CampaignPlacementService(
             Substitute.For<IDbContextFactory<NovaDbContext>>(),
             Substitute.For<ICurrentUserProvider>(),
-            NullLogger<CampaignPlacementService>.Instance));
+            NullLogger<CampaignPlacementService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter()));
         builder.Services.AddSingleton<ICampaignPlacementQueryService>(_ => Substitute.For<ICampaignPlacementQueryService>());
         await using var app = builder.Build();
 

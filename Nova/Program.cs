@@ -130,6 +130,7 @@ builder.Services.AddScoped<ICampaignPlacementQueryService, CampaignPlacementQuer
 builder.Services.AddScoped<ICampaignCloseoutQueryService, CampaignCloseoutQueryService>();
 builder.Services.AddScoped<IDashboardQueryService, DashboardQueryService>();
 builder.Services.AddScoped<IClubActivityEventWriter, ClubActivityEventWriter>();
+builder.Services.AddScoped<IDashboardAttentionProjectionReader, DashboardAttentionProjectionReader>();
 builder.Services.AddScoped<IAdminAttentionQueryService, DashboardAttentionQueryService>();
 builder.Services.AddScoped<ICampaignMetadataService, CampaignMetadataService>();
 builder.Services.AddScoped<ISeasonMetadataService, SeasonMetadataService>();

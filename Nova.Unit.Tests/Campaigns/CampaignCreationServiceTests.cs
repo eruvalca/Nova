@@ -383,7 +383,8 @@ public sealed class CampaignCreationServiceTests : IDisposable
         => new(
             new CampaignHarnessDbContextFactory(_harness),
             _harness.CurrentUser,
-            NullLogger<CampaignCreationService>.Instance);
+            NullLogger<CampaignCreationService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
     /// <summary>
     /// Sets the fake current user for the next tenant context.

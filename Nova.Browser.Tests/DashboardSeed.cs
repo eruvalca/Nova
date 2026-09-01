@@ -66,7 +66,7 @@ public sealed record SeededEmptyDashboardWorkspace(
 /// Seeds the club dashboard workspace for browser scenarios: an administrator, an approved evaluator,
 /// a pending applicant, a photo-less user, a photo-complete club-less user, two active campaigns (one
 /// with undecided participants), active + archived players and teams, one pending join request, and one
-/// evaluation note so the evaluator sees real recent-activity rows with actor names.
+/// durable activity event so the evaluator sees a real recent-activity row with an actor snapshot.
 /// </summary>
 public static class DashboardSeed
 {
@@ -163,11 +163,14 @@ public static class DashboardSeed
                     CreatedById = applicantUserId,
                     Status = RequestStatus.Pending
                 },
-                new NoteEntity
+                new ClubActivityEventEntity
                 {
-                    Content = "Strong first touch.",
-                    PlayerCampaignAssignmentId = undecided.AssignmentIds[0],
                     ClubId = club.ClubId,
+                    EventKind = ClubActivityEventKind.CampaignOpened,
+                    Audience = ClubActivityAudience.AllMembers,
+                    ActorDisplayName = "Bob Observer",
+                    CampaignId = undecided.CampaignId,
+                    CampaignName = undecided.CampaignName,
                     CreatedById = evaluatorUserId
                 });
             await seedContext.SaveChangesAsync(cancellationToken);

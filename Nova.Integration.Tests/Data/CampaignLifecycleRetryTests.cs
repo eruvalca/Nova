@@ -36,7 +36,8 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
         var service = new CampaignLifecycleService(
             factory,
             fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
         var result = await service.CloseAsync(campaignId, TestContext.Current.CancellationToken);
 
@@ -79,7 +80,8 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
         var service = new CampaignLifecycleService(
             factory,
             fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
         var result = await service.ReopenAsync(campaignId, TestContext.Current.CancellationToken);
 
@@ -119,7 +121,8 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
         var service = new CampaignLifecycleService(
             factory,
             fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
         var result = await service.CloseAsync(campaignId, TestContext.Current.CancellationToken);
 
@@ -157,7 +160,8 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
         var service = new CampaignLifecycleService(
             factory,
             fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
         var result = await service.ReopenAsync(campaignId, TestContext.Current.CancellationToken);
 
@@ -202,7 +206,8 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
         var service = new CampaignLifecycleService(
             factory,
             fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
         var result = await service.CloseAsync(campaignId, TestContext.Current.CancellationToken);
 
@@ -238,7 +243,8 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
         var service = new CampaignLifecycleService(
             factory,
             fixture.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
         var result = await service.ReopenAsync(campaignId, TestContext.Current.CancellationToken);
 

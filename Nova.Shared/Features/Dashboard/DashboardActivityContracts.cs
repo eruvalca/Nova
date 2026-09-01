@@ -6,42 +6,40 @@ namespace Nova.Shared.Features.Dashboard;
 /// <summary>Identifies the activity kinds exposed by the dashboard feed.</summary>
 public enum DashboardActivityEventKind
 {
-    /// <summary>Legacy note event; new club activity never emits this kind.</summary>
-    NoteAdded = 0,
-    /// <summary>Legacy tag event; new club activity never emits this kind.</summary>
-    TagApplied = 1,
-    /// <summary>Legacy placement event.</summary>
-    PlacementSet = 2,
+    /// <summary>A campaign Draft was created.</summary>
+    CampaignDraftCreated = 0,
+    /// <summary>A campaign Draft was deleted.</summary>
+    CampaignDraftDeleted = 1,
+    /// <summary>A campaign was opened.</summary>
+    CampaignOpened = 2,
     /// <summary>A campaign was closed.</summary>
     CampaignClosed = 3,
     /// <summary>A campaign was reopened.</summary>
     CampaignReopened = 4,
-    /// <summary>A campaign was opened.</summary>
-    CampaignOpened = 5,
     /// <summary>A placement was assigned.</summary>
-    PlacementAssigned = 6,
+    PlacementAssigned = 5,
     /// <summary>A placement was reassigned.</summary>
-    PlacementReassigned = 7,
+    PlacementReassigned = 6,
     /// <summary>A placement outcome changed.</summary>
-    PlacementOutcomeChanged = 8,
+    PlacementOutcomeChanged = 7,
     /// <summary>A join request was submitted.</summary>
-    JoinRequestSubmitted = 9,
+    JoinRequestSubmitted = 8,
     /// <summary>A join request was cancelled.</summary>
-    JoinRequestCancelled = 10,
+    JoinRequestCancelled = 9,
     /// <summary>A join request was rejected.</summary>
-    JoinRequestRejected = 11,
+    JoinRequestRejected = 10,
     /// <summary>A join request was approved.</summary>
-    JoinRequestApproved = 12,
+    JoinRequestApproved = 11,
     /// <summary>A member joined the club.</summary>
-    MemberJoined = 13,
+    MemberJoined = 12,
     /// <summary>A member was promoted.</summary>
-    MemberPromoted = 14,
+    MemberPromoted = 13,
     /// <summary>A member was demoted.</summary>
-    MemberDemoted = 15,
+    MemberDemoted = 14,
     /// <summary>A member was removed.</summary>
-    MemberRemoved = 16,
+    MemberRemoved = 15,
     /// <summary>A member left voluntarily.</summary>
-    MemberLeft = 17,
+    MemberLeft = 16,
 }
 
 /// <summary>Identifies the structured family carried by a dashboard activity item.</summary>
@@ -146,28 +144,7 @@ public sealed record DashboardActivityItemDto
     /// <summary>When the event was committed.</summary>
     public required DateTimeOffset EventAt { get; init; }
     /// <summary>The family-specific structured event context.</summary>
-    public DashboardActivityContextDto? Context { get; init; }
-
-    // Legacy fields remain deserializable for existing campaign/evaluation components while the
-    // dashboard migrates to Context. New server responses populate Context and not these fields.
-    /// <summary>Legacy actor identifier.</summary>
-    public long ActorUserId { get; init; }
-    /// <summary>Legacy actor display name.</summary>
-    public string? ActorDisplayName { get; init; }
-    /// <summary>Legacy campaign identifier.</summary>
-    public long CampaignId { get; init; }
-    /// <summary>Legacy campaign display name.</summary>
-    public string? CampaignName { get; init; }
-    /// <summary>Legacy assignment identifier.</summary>
-    public long? PlayerCampaignAssignmentId { get; init; }
-    /// <summary>Legacy player display name.</summary>
-    public string? PlayerDisplayName { get; init; }
-    /// <summary>Legacy tag display name.</summary>
-    public string? TagName { get; init; }
-    /// <summary>Legacy placement outcome.</summary>
-    public PlacementOutcome? PlacementOutcome { get; init; }
-    /// <summary>Legacy lifecycle event type.</summary>
-    public CampaignLifecycleEventType? LifecycleEventType { get; init; }
+    public required DashboardActivityContextDto Context { get; init; }
 }
 
 /// <summary>The fixed-size, cursor-paged club activity response.</summary>
@@ -175,7 +152,6 @@ public sealed record DashboardActivityResult(IReadOnlyList<DashboardActivityItem
 {
     /// <summary>The number of events returned per page.</summary>
     public const int PageSize = 20;
-    /// <summary>The visible events in newest-first order.</summary>
     /// <summary>The opaque continuation token for the next older page.</summary>
     public string? NextContinuationToken { get; init; }
 }

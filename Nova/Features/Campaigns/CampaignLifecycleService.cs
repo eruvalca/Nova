@@ -36,7 +36,7 @@ public sealed partial class CampaignLifecycleService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignLifecycleService> logger,
-    IClubActivityEventWriter? activityEventWriter = null) : ICampaignLifecycleService
+    IClubActivityEventWriter activityEventWriter) : ICampaignLifecycleService
 {
     /// <inheritdoc />
     async Task<ServiceResult<Success>> ICampaignLifecycleService.CloseAsync(
@@ -182,7 +182,7 @@ public sealed partial class CampaignLifecycleService(
             campaign.ClosedById = actorUserId;
 
             var actorName = await db.Users.Where(user => user.Id == actorUserId).Select(user => user.FirstName + " " + user.LastName).SingleOrDefaultAsync(cancellationToken) ?? "Club administrator";
-            activityEventWriter?.AppendCampaign(db, new CampaignActivityEvidence(ClubActivityEventKind.CampaignClosed, clubId, new ActivityActorEvidence(actorUserId, actorName), campaign.CampaignId, campaign.Name, null));
+            activityEventWriter.AppendCampaign(db, new CampaignActivityEvidence(ClubActivityEventKind.CampaignClosed, clubId, new ActivityActorEvidence(actorUserId, actorName), campaign.CampaignId, campaign.Name, null));
 
             db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
             {
@@ -349,7 +349,7 @@ public sealed partial class CampaignLifecycleService(
         campaign.ClosedById = null;
 
         var actorName = await db.Users.Where(user => user.Id == actorUserId).Select(user => user.FirstName + " " + user.LastName).SingleOrDefaultAsync(cancellationToken) ?? "Club administrator";
-        activityEventWriter?.AppendCampaign(db, new CampaignActivityEvidence(ClubActivityEventKind.CampaignReopened, clubId, new ActivityActorEvidence(actorUserId, actorName), campaign.CampaignId, campaign.Name, null));
+        activityEventWriter.AppendCampaign(db, new CampaignActivityEvidence(ClubActivityEventKind.CampaignReopened, clubId, new ActivityActorEvidence(actorUserId, actorName), campaign.CampaignId, campaign.Name, null));
 
         db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
         {

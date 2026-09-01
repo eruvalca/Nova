@@ -80,6 +80,10 @@ internal static class DashboardEndpointRouteBuilderExtensions
         return result.ToHttpResult();
     }
 
+    /// <summary>Handles the administrator attention GET request.</summary>
+    /// <param name="attentionQueryService">The service that composes independent attention projections.</param>
+    /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
+    /// <returns>The HTTP result for administrator attention.</returns>
     private static async Task<IResult> GetAttentionHandler(
         IAdminAttentionQueryService attentionQueryService,
         CancellationToken cancellationToken)

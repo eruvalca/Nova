@@ -142,52 +142,12 @@ public sealed class HttpDashboardQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
-    /// <summary>Verifies an explicit activity limit is emitted in the query string.</summary>
+    /// <summary>Verifies the first activity page uses the shared route and reads structured context.</summary>
     [Fact]
-    public async Task GetActivityAsync_EmitsLimitQuery_WhenLimitProvided()
+    public async Task GetActivityAsync_RequestsSharedRoute_AndReadsStructuredPayload()
     {
         HttpRequestMessage? capturedRequest = null;
-        var payload = new DashboardActivityResult(
-        [
-            new DashboardActivityItemDto
-            {
-                Kind = DashboardActivityEventKind.NoteAdded,
-                EventId = 1,
-                EventAt = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero),
-                ActorUserId = 300,
-                ActorDisplayName = "Admin A",
-                CampaignId = 42,
-                CampaignName = "Campaign A",
-                PlayerCampaignAssignmentId = 7,
-                PlayerDisplayName = "P A",
-                TagName = null,
-                PlacementOutcome = null,
-                LifecycleEventType = null
-            }
-        ]);
-        var handler = new RecordingHandler(request =>
-        {
-            capturedRequest = request;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
-        });
-        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
-        var service = new HttpDashboardQueryService(http);
-
-        var result = await service.GetActivityAsync(
-            new GetDashboardActivityInput { Limit = 5 },
-            TestContext.Current.CancellationToken);
-
-        result.IsSuccess.ShouldBeTrue();
-        capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/dashboard/activity?limit=5");
-    }
-
-    /// <summary>Verifies an omitted activity limit omits the query parameter.</summary>
-    [Fact]
-    public async Task GetActivityAsync_OmitsLimitQuery_WhenLimitNotProvided()
-    {
-        HttpRequestMessage? capturedRequest = null;
-        var payload = new DashboardActivityResult([]);
+        var payload = new DashboardActivityResult([BuildCampaignEvent(1, ActivityAt)]);
         var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
@@ -201,23 +161,44 @@ public sealed class HttpDashboardQueryServiceTests
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
+        result.Value.Events[0].Context.ShouldBeOfType<CampaignActivityContextDto>();
         capturedRequest.ShouldNotBeNull();
         capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/dashboard/activity");
     }
 
+    /// <summary>Verifies a continuation token is escaped into the shared activity route.</summary>
+    [Fact]
+    public async Task GetActivityAsync_EmitsEscapedContinuationToken()
+    {
+        HttpRequestMessage? capturedRequest = null;
+        var payload = new DashboardActivityResult([]);
+        var handler = new RecordingHandler(request =>
+        {
+            capturedRequest = request;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpDashboardQueryService(http);
+
+        var result = await service.GetActivityAsync(
+            new GetDashboardActivityInput { ContinuationToken = "cursor+/=" },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        capturedRequest.ShouldNotBeNull();
+        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/dashboard/activity?continuationToken=cursor%2B%2F%3D");
+    }
+
     /// <summary>Verifies invalid caller input is rejected before any HTTP request is made.</summary>
-    /// <param name="limit">The out-of-range limit.</param>
-    [Theory(IncludeTestCaseIndex = true)]
-    [InlineData(0)]
-    [InlineData(51)]
-    public async Task GetActivityAsync_ReturnsValidation_ForInvalidInput(int limit)
+    [Fact]
+    public async Task GetActivityAsync_ReturnsValidation_ForOversizedContinuationToken()
     {
         var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpDashboardQueryService(http);
 
         var result = await service.GetActivityAsync(
-            new GetDashboardActivityInput { Limit = limit },
+            new GetDashboardActivityInput { ContinuationToken = new string('x', 513) },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
@@ -235,10 +216,11 @@ public sealed class HttpDashboardQueryServiceTests
     [InlineData("{}")]
     [InlineData("""{"events":null}""")]
     [InlineData("""{"events":[null]}""")]
-    [InlineData("""{"events":[{"kind":0,"eventId":0,"eventAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","campaignId":42,"campaignName":"Campaign A","playerCampaignAssignmentId":7,"playerDisplayName":"P A","tagName":null,"placementOutcome":null,"lifecycleEventType":null}]}""")]
-    [InlineData("""{"events":[{"kind":0,"eventId":1,"eventAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","campaignId":42,"campaignName":"Campaign A","playerCampaignAssignmentId":null,"playerDisplayName":"P A","tagName":null,"placementOutcome":null,"lifecycleEventType":null}]}""")]
-    [InlineData("""{"events":[{"kind":2,"eventId":1,"eventAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","campaignId":42,"campaignName":"Campaign A","playerCampaignAssignmentId":7,"playerDisplayName":"P A","tagName":null,"placementOutcome":null,"lifecycleEventType":null}]}""")]
-    [InlineData("""{"events":[{"kind":99,"eventId":1,"eventAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","campaignId":42,"campaignName":"Campaign A","playerCampaignAssignmentId":7,"playerDisplayName":"P A","tagName":null,"placementOutcome":null,"lifecycleEventType":null}]}""")]
+    [InlineData("""{"events":[{"kind":0,"eventId":1,"eventAt":"2026-10-01T09:00:00+00:00"}]}""")]
+    [InlineData("""{"events":[{"kind":2,"eventId":1,"eventAt":"2026-10-01T09:00:00+00:00","context":{"family":"membership","memberUserId":1,"memberDisplayName":"Member"}}]}""")]
+    [InlineData("""{"events":[{"kind":0,"eventId":0,"eventAt":"2026-10-01T09:00:00+00:00","context":{"family":"campaign","actorDisplayName":"Admin","campaignId":1,"campaignName":"Campaign"}}]}""")]
+    [InlineData("""{"events":[{"kind":0,"eventId":1,"eventAt":"2026-10-01T09:00:00+00:00","context":{"family":"campaign","actorDisplayName":" ","campaignId":1,"campaignName":"Campaign"}}]}""")]
+    [InlineData("""{"events":[],"nextContinuationToken":" "}""")]
     public async Task GetActivityAsync_ReturnsServerError_ForInvalidSuccessPayload(string body)
     {
         var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -262,8 +244,8 @@ public sealed class HttpDashboardQueryServiceTests
     {
         var payload = new DashboardActivityResult(
         [
-            BuildNoteEvent(1, new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero)),
-            BuildNoteEvent(2, new DateTimeOffset(2026, 10, 2, 9, 0, 0, TimeSpan.Zero))
+            BuildCampaignEvent(1, new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero)),
+            BuildCampaignEvent(2, new DateTimeOffset(2026, 10, 2, 9, 0, 0, TimeSpan.Zero))
         ]);
         var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
@@ -278,47 +260,64 @@ public sealed class HttpDashboardQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
-    /// <summary>Verifies an over-bound activity payload is rejected.</summary>
+    /// <summary>Verifies an activity payload over the fixed server page size is rejected.</summary>
     [Fact]
     public async Task GetActivityAsync_ReturnsServerError_ForOverBoundPayload()
     {
-        var payload = new DashboardActivityResult(
-        [
-            BuildNoteEvent(1, new DateTimeOffset(2026, 10, 2, 9, 0, 0, TimeSpan.Zero)),
-            BuildNoteEvent(2, new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero))
-        ]);
+        var payload = new DashboardActivityResult(Enumerable.Range(1, 21)
+            .Select(index => BuildCampaignEvent(index, ActivityAt.AddMinutes(-index)))
+            .ToList());
         var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpDashboardQueryService(http);
 
         var result = await service.GetActivityAsync(
-            new GetDashboardActivityInput { Limit = 1 },
+            new GetDashboardActivityInput(),
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
-    /// <summary>Builds a valid note-added activity event.</summary>
+    /// <summary>Verifies equal timestamps accept the same event-identity ordering as the server.</summary>
+    [Fact]
+    public async Task GetActivityAsync_AcceptsEqualTimestamp_WhenEventIdsDescend()
+    {
+        var payload = new DashboardActivityResult(
+        [
+            BuildCampaignEvent(2, ActivityAt),
+            BuildCampaignEvent(1, ActivityAt)
+        ]);
+        var handler = new RecordingHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+        var service = new HttpDashboardQueryService(http);
+
+        var result = await service.GetActivityAsync(new(), TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    private static readonly DateTimeOffset ActivityAt = new(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);
+
+    /// <summary>Builds a valid campaign-opened activity event.</summary>
     /// <param name="eventId">The event identifier.</param>
     /// <param name="eventAt">When the event occurred.</param>
-    /// <returns>A note-added event.</returns>
-    private static DashboardActivityItemDto BuildNoteEvent(long eventId, DateTimeOffset eventAt)
+    /// <returns>A campaign-opened event.</returns>
+    private static DashboardActivityItemDto BuildCampaignEvent(long eventId, DateTimeOffset eventAt)
         => new()
         {
-            Kind = DashboardActivityEventKind.NoteAdded,
+            Kind = DashboardActivityEventKind.CampaignOpened,
             EventId = eventId,
             EventAt = eventAt,
-            ActorUserId = 300,
-            ActorDisplayName = "Admin A",
-            CampaignId = 42,
-            CampaignName = "Campaign A",
-            PlayerCampaignAssignmentId = 7,
-            PlayerDisplayName = "P A",
-            TagName = null,
-            PlacementOutcome = null,
-            LifecycleEventType = null
+            Context = new CampaignActivityContextDto
+            {
+                ActorDisplayName = "Admin A",
+                CampaignId = 42,
+                CampaignName = "Campaign A",
+                SeasonName = "Fall"
+            }
         };
 
     /// <summary>Minimal problem-details payload shape for problem-response tests.</summary>

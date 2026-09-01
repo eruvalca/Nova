@@ -73,7 +73,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessDashboard(CreatePopulatedSummary())));
         dashboardService.GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(SuccessActivity([BuildNoteEvent()])));
+            .Returns(Task.FromResult(SuccessActivity([BuildCampaignEvent(DashboardActivityEventKind.CampaignOpened, 1)])));
 
         RegisterServices(isClubAdmin: false, dashboardService);
 
@@ -88,7 +88,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
         cut.Markup.ShouldContain("1 archived");
         cut.Markup.ShouldContain("href=\"players\"");
         cut.Markup.ShouldContain("href=\"teams\"");
-        cut.Markup.ShouldContain("added a note to Noter");
+        cut.Markup.ShouldContain("opened Campaign A");
     }
 
     /// <summary>Verifies an administrator sees the attention card with both counts and links.</summary>
@@ -235,11 +235,11 @@ public sealed class ClubDashboardComponentTests : BunitContext
     {
         var events = new List<DashboardActivityItemDto>
         {
-            BuildNoteEvent(),
-            BuildTagEvent(),
+            BuildCampaignEvent(DashboardActivityEventKind.CampaignDraftCreated, eventId: 1),
+            BuildJoinRequestEvent(),
             BuildPlacementEvent(),
-            BuildLifecycleEvent(DashboardActivityEventKind.CampaignClosed, CampaignLifecycleEventType.Closed, eventId: 4),
-            BuildLifecycleEvent(DashboardActivityEventKind.CampaignReopened, CampaignLifecycleEventType.Reopened, eventId: 5)
+            BuildMembershipEvent(),
+            BuildCampaignEvent(DashboardActivityEventKind.CampaignReopened, eventId: 5)
         };
         var dashboardService = Substitute.For<IDashboardQueryService>();
         dashboardService.GetDashboardAsync(Arg.Any<CancellationToken>())
@@ -254,15 +254,12 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
         cut.FindAll("ul li").Count.ShouldBe(5);
         cut.Markup.ShouldContain(ActivityAt.ToString("MMM d, yyyy"));
-        cut.Markup.ShouldContain("added a note to Noter");
-        cut.Markup.ShouldContain("applied tag");
-        cut.Markup.ShouldContain("Leader");
-        cut.Markup.ShouldContain("Tagger");
-        cut.Markup.ShouldContain("placement to");
-        cut.Markup.ShouldContain("Assigned");
+        cut.Markup.ShouldContain("created Draft Campaign A");
+        cut.Markup.ShouldContain("Requester submitted a request");
+        cut.Markup.ShouldContain("placed Placer on U14 Teal");
         cut.Markup.ShouldContain("Placer");
-        cut.Markup.ShouldContain("closed the campaign");
-        cut.Markup.ShouldContain("reopened the campaign");
+        cut.Markup.ShouldContain("promoted Member A");
+        cut.Markup.ShouldContain("reopened Campaign A");
     }
 
     /// <summary>Verifies the dashboard shows an accessible loading state while the request is pending.</summary>
@@ -332,7 +329,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
     {
         var dashboardService = Substitute.For<IDashboardQueryService>();
         var persistedSummary = CreatePopulatedSummary();
-        var persistedActivity = new DashboardActivityResult([BuildNoteEvent()]);
+        var persistedActivity = new DashboardActivityResult([BuildCampaignEvent(DashboardActivityEventKind.CampaignOpened, 1)]);
 
         RegisterServices(isClubAdmin: true, dashboardService);
 
@@ -342,7 +339,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
             .Add(p => p.PersistedActivityValue, persistedActivity));
 
         cut.Markup.ShouldContain("Campaign A");
-        cut.Markup.ShouldContain("added a note to Noter");
+        cut.Markup.ShouldContain("opened Campaign A");
 
         dashboardService.DidNotReceive().GetDashboardAsync(Arg.Any<CancellationToken>());
         dashboardService.DidNotReceive().GetActivityAsync(Arg.Any<GetDashboardActivityInput>(), Arg.Any<CancellationToken>());
@@ -390,42 +387,67 @@ public sealed class ClubDashboardComponentTests : BunitContext
     private static ServiceResult<DashboardActivityResult> SuccessActivity(IReadOnlyList<DashboardActivityItemDto> events)
         => new(new DashboardActivityResult(events));
 
-    private static DashboardActivityItemDto BuildNoteEvent()
-        => BuildEvent(DashboardActivityEventKind.NoteAdded, eventId: 1, player: "Noter");
-
-    private static DashboardActivityItemDto BuildTagEvent()
-        => BuildEvent(DashboardActivityEventKind.TagApplied, eventId: 2, player: "Tagger", tag: "Leader");
-
     private static DashboardActivityItemDto BuildPlacementEvent()
-        => BuildEvent(DashboardActivityEventKind.PlacementSet, eventId: 3, player: "Placer", outcome: PlacementOutcome.Assigned);
+        => new()
+        {
+            Kind = DashboardActivityEventKind.PlacementAssigned,
+            EventId = 3,
+            EventAt = ActivityAt,
+            Context = new PlacementActivityContextDto
+            {
+                ActorDisplayName = "Admin A",
+                PlayerId = 8,
+                PlayerDisplayName = "Placer",
+                PlayerCampaignAssignmentId = 7,
+                CampaignId = 42,
+                CampaignName = "Campaign A",
+                Previous = new PlacementSnapshotDto { Outcome = PlacementOutcome.Undecided },
+                Current = new PlacementSnapshotDto { Outcome = PlacementOutcome.Assigned, TeamId = 9, TeamName = "U14 Teal" }
+            }
+        };
 
-    private static DashboardActivityItemDto BuildLifecycleEvent(
-        DashboardActivityEventKind kind,
-        CampaignLifecycleEventType lifecycle,
-        long eventId)
-        => BuildEvent(kind, eventId, lifecycle: lifecycle);
+    private static DashboardActivityItemDto BuildJoinRequestEvent()
+        => new()
+        {
+            Kind = DashboardActivityEventKind.JoinRequestSubmitted,
+            EventId = 2,
+            EventAt = ActivityAt,
+            Context = new JoinRequestActivityContextDto
+            {
+                ActorDisplayName = "Requester",
+                RequesterUserId = 10,
+                RequesterDisplayName = "Requester",
+                ActionableRequestId = 11
+            }
+        };
 
-    private static DashboardActivityItemDto BuildEvent(
-        DashboardActivityEventKind kind,
-        long eventId,
-        string? player = null,
-        string? tag = null,
-        PlacementOutcome? outcome = null,
-        CampaignLifecycleEventType? lifecycle = null)
+    private static DashboardActivityItemDto BuildMembershipEvent()
+        => new()
+        {
+            Kind = DashboardActivityEventKind.MemberPromoted,
+            EventId = 4,
+            EventAt = ActivityAt,
+            Context = new MembershipActivityContextDto
+            {
+                MemberUserId = 12,
+                MemberDisplayName = "Member A",
+                ActorDisplayName = "Admin A"
+            }
+        };
+
+    private static DashboardActivityItemDto BuildCampaignEvent(DashboardActivityEventKind kind, long eventId)
         => new()
         {
             Kind = kind,
             EventId = eventId,
             EventAt = ActivityAt,
-            ActorUserId = 300,
-            ActorDisplayName = "Admin A",
-            CampaignId = 42,
-            CampaignName = "Campaign A",
-            PlayerCampaignAssignmentId = player is null ? null : 7,
-            PlayerDisplayName = player,
-            TagName = tag,
-            PlacementOutcome = outcome,
-            LifecycleEventType = lifecycle
+            Context = new CampaignActivityContextDto
+            {
+                ActorDisplayName = "Admin A",
+                CampaignId = 42,
+                CampaignName = "Campaign A",
+                SeasonName = "Fall"
+            }
         };
 
     private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, string? clubId = "42")

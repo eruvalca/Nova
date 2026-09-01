@@ -375,7 +375,8 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         => new(
             factory,
             fixture.CurrentUser,
-            NullLogger<CampaignCreationService>.Instance);
+            NullLogger<CampaignCreationService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
     /// <summary>
     /// Creates the player service used by the shared roster-lock race.

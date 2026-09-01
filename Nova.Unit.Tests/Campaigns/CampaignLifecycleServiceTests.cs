@@ -328,7 +328,8 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         return new CampaignLifecycleService(
             dbContextFactory,
             _harness.CurrentUser,
-            NullLogger<CampaignLifecycleService>.Instance);
+            NullLogger<CampaignLifecycleService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
     }
 
     /// <summary>

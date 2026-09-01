@@ -39,19 +39,16 @@ public sealed class HttpDashboardQueryService(HttpClient http) : IDashboardQuery
         }
 
         using var response = await http.GetAsync(
-            input.ContinuationToken is null && input.Limit is not null
-                ? $"{DashboardEndpoints.GetActivity}?limit={input.Limit.Value}"
-                : DashboardEndpoints.GetActivityUrl(input.ContinuationToken),
+            DashboardEndpoints.GetActivityUrl(input.ContinuationToken),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
         }
 
-        var requestedLimit = input.Limit ?? DashboardActivityResult.PageSize;
         return await response.Content.ReadRequiredJsonAsync<DashboardActivityResult>(
             "The server returned an invalid club dashboard activity response.",
-            result => IsValidActivity(result, requestedLimit),
+            IsValidActivity,
             cancellationToken);
     }
 
@@ -129,13 +126,13 @@ public sealed class HttpDashboardQueryService(HttpClient http) : IDashboardQuery
     /// kind-specific fields are present for each event.
     /// </summary>
     /// <param name="result">The decoded activity result.</param>
-    /// <param name="requestedLimit">The bound the client requested.</param>
     /// <returns><see langword="true"/> when the payload satisfies the client contract.</returns>
-    private static bool IsValidActivity(DashboardActivityResult result, int requestedLimit)
+    private static bool IsValidActivity(DashboardActivityResult result)
         => result is not null
             && result.Events is not null
-            && result.Events.Count <= requestedLimit
+            && result.Events.Count <= DashboardActivityResult.PageSize
             && result.Events.All(IsValidActivityItem)
+            && (result.NextContinuationToken is null || !string.IsNullOrWhiteSpace(result.NextContinuationToken))
             && IsOrdered(result.Events);
 
     /// <summary>
@@ -145,40 +142,74 @@ public sealed class HttpDashboardQueryService(HttpClient http) : IDashboardQuery
     /// <returns><see langword="true"/> when the row is structurally valid for its kind.</returns>
     private static bool IsValidActivityItem(DashboardActivityItemDto item)
     {
-        if (item is null || item.EventId <= 0 || item.EventAt == default)
+        if (item is null || item.EventId <= 0 || item.EventAt == default || !Enum.IsDefined(item.Kind))
         {
             return false;
         }
-        if (item.Context is null)
-        {
-            if (!Enum.IsDefined(item.Kind) || item.ActorUserId <= 0 || string.IsNullOrWhiteSpace(item.ActorDisplayName) || item.CampaignId <= 0 || string.IsNullOrWhiteSpace(item.CampaignName))
-            {
-                return false;
-            }
 
-            return item.Kind switch
-            {
-                DashboardActivityEventKind.NoteAdded => item.PlayerCampaignAssignmentId is > 0 && !string.IsNullOrWhiteSpace(item.PlayerDisplayName),
-                DashboardActivityEventKind.TagApplied => item.PlayerCampaignAssignmentId is > 0 && !string.IsNullOrWhiteSpace(item.PlayerDisplayName) && !string.IsNullOrWhiteSpace(item.TagName),
-                DashboardActivityEventKind.PlacementSet => item.PlayerCampaignAssignmentId is > 0 && !string.IsNullOrWhiteSpace(item.PlayerDisplayName) && item.PlacementOutcome is not null,
-                DashboardActivityEventKind.CampaignClosed => item.LifecycleEventType == CampaignLifecycleEventType.Closed,
-                DashboardActivityEventKind.CampaignReopened => item.LifecycleEventType == CampaignLifecycleEventType.Reopened,
-                _ => false
-            };
-        }
-        return item.Context switch
+        return item.Kind switch
         {
-            CampaignActivityContextDto c => !string.IsNullOrWhiteSpace(c.ActorDisplayName) && !string.IsNullOrWhiteSpace(c.CampaignName),
-            PlacementActivityContextDto p => !string.IsNullOrWhiteSpace(p.ActorDisplayName) && !string.IsNullOrWhiteSpace(p.PlayerDisplayName),
-            JoinRequestActivityContextDto j => !string.IsNullOrWhiteSpace(j.ActorDisplayName) && !string.IsNullOrWhiteSpace(j.RequesterDisplayName),
-            MembershipActivityContextDto m => !string.IsNullOrWhiteSpace(m.MemberDisplayName),
+            DashboardActivityEventKind.CampaignDraftCreated
+                or DashboardActivityEventKind.CampaignDraftDeleted
+                or DashboardActivityEventKind.CampaignOpened
+                or DashboardActivityEventKind.CampaignClosed
+                or DashboardActivityEventKind.CampaignReopened
+                => item.Context is CampaignActivityContextDto campaign && IsValid(campaign),
+            DashboardActivityEventKind.PlacementAssigned
+                or DashboardActivityEventKind.PlacementReassigned
+                or DashboardActivityEventKind.PlacementOutcomeChanged
+                => item.Context is PlacementActivityContextDto placement && IsValid(placement),
+            DashboardActivityEventKind.JoinRequestSubmitted
+                or DashboardActivityEventKind.JoinRequestCancelled
+                or DashboardActivityEventKind.JoinRequestRejected
+                or DashboardActivityEventKind.JoinRequestApproved
+                => item.Context is JoinRequestActivityContextDto request && IsValid(request),
+            DashboardActivityEventKind.MemberJoined
+                or DashboardActivityEventKind.MemberPromoted
+                or DashboardActivityEventKind.MemberDemoted
+                or DashboardActivityEventKind.MemberRemoved
+                or DashboardActivityEventKind.MemberLeft
+                => item.Context is MembershipActivityContextDto membership && IsValid(membership),
             _ => false
         };
     }
 
+    /// <summary>Validates campaign activity context.</summary>
+    private static bool IsValid(CampaignActivityContextDto context)
+        => !string.IsNullOrWhiteSpace(context.ActorDisplayName)
+            && !string.IsNullOrWhiteSpace(context.CampaignName)
+            && context.CampaignId is null or > 0;
+
+    /// <summary>Validates placement activity context.</summary>
+    private static bool IsValid(PlacementActivityContextDto context)
+        => !string.IsNullOrWhiteSpace(context.ActorDisplayName)
+            && !string.IsNullOrWhiteSpace(context.PlayerDisplayName)
+            && !string.IsNullOrWhiteSpace(context.CampaignName)
+            && context.PlayerId is null or > 0
+            && context.PlayerCampaignAssignmentId is null or > 0
+            && context.CampaignId is null or > 0
+            && IsValid(context.Previous)
+            && IsValid(context.Current);
+
+    /// <summary>Validates one placement state snapshot.</summary>
+    private static bool IsValid(PlacementSnapshotDto context)
+        => Enum.IsDefined(context.Outcome) && context.TeamId is null or > 0;
+
+    /// <summary>Validates administrator join-request activity context.</summary>
+    private static bool IsValid(JoinRequestActivityContextDto context)
+        => !string.IsNullOrWhiteSpace(context.ActorDisplayName)
+            && !string.IsNullOrWhiteSpace(context.RequesterDisplayName)
+            && context.RequesterUserId is null or > 0
+            && context.ActionableRequestId is null or > 0;
+
+    /// <summary>Validates membership activity context.</summary>
+    private static bool IsValid(MembershipActivityContextDto context)
+        => !string.IsNullOrWhiteSpace(context.MemberDisplayName)
+            && context.MemberUserId is null or > 0;
+
     /// <summary>
-    /// Verifies the portable activity ordering contract: <c>EventAt</c>, then kind rank, then event
-    /// identifier must all be non-increasing across adjacent events.
+    /// Verifies the portable activity ordering contract: <c>EventAt</c>, then event identifier must
+    /// be non-increasing across adjacent events.
     /// </summary>
     /// <param name="events">The activity rows to verify.</param>
     /// <returns><see langword="true"/> when every adjacent pair satisfies the ordering contract.</returns>
@@ -194,13 +225,6 @@ public sealed class HttpDashboardQueryService(HttpClient http) : IDashboardQuery
             }
 
             if (previous.EventAt == current.EventAt
-                && (int)previous.Kind < (int)current.Kind)
-            {
-                return false;
-            }
-
-            if (previous.EventAt == current.EventAt
-                && previous.Kind == current.Kind
                 && previous.EventId < current.EventId)
             {
                 return false;

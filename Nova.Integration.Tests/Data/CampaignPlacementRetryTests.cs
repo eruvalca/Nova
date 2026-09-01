@@ -39,7 +39,8 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         var service = new CampaignPlacementService(
             factory,
             fixture.CurrentUser,
-            NullLogger<CampaignPlacementService>.Instance);
+            NullLogger<CampaignPlacementService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
         var result = await ((ICampaignPlacementService)service).UpdatePlacementAsync(
             new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken),
@@ -80,7 +81,8 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         var service = new CampaignPlacementService(
             factory,
             fixture.CurrentUser,
-            NullLogger<CampaignPlacementService>.Instance);
+            NullLogger<CampaignPlacementService>.Instance,
+            new Nova.Features.ClubActivity.ClubActivityEventWriter());
 
         var result = await ((ICampaignPlacementService)service).UpdatePlacementAsync(
             new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, expectedToken),
