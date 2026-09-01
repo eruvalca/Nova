@@ -583,4 +583,88 @@ public class TenancyTests : IDisposable
         Should.Throw<InvalidOperationException>(() => context.SaveChanges())
             .Message.ShouldContain("Cross-tenant");
     }
+
+    [Fact]
+    public void Interceptor_Throws_OnExistingActivityEventUpdate()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using var admin = _harness.CreateAdminContext();
+        var activity = new ActivityEventEntity
+        {
+            ClubId = ClubAId,
+            EventKind = ActivityEventKind.MemberJoined,
+            IsAdminOnly = false,
+            ActorUserId = ClubAMember1Id,
+            ActorDisplayName = "Alice A",
+            PayloadJson = "{}",
+            CreatedById = ClubAMember1Id,
+        };
+        admin.ActivityEvents.Add(activity);
+        admin.SaveChanges();
+
+        ActAs(ClubAMember1Id, ClubAId);
+        using var context = _harness.CreateTenantContext();
+        var tracked = context.ActivityEvents.Single(row => row.ActivityEventId == activity.ActivityEventId);
+        tracked.ActorDisplayName = "Alice A. Renamed";
+
+        // Activity events are append-only history; a tenant-context update is rejected before
+        // the change is written.
+        Should.Throw<InvalidOperationException>(() => context.SaveChanges())
+            .Message.ShouldContain("append-only");
+    }
+
+    [Fact]
+    public void Interceptor_Throws_OnExistingActivityEventDelete()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using var admin = _harness.CreateAdminContext();
+        var activity = new ActivityEventEntity
+        {
+            ClubId = ClubAId,
+            EventKind = ActivityEventKind.MemberJoined,
+            IsAdminOnly = false,
+            ActorUserId = ClubAMember1Id,
+            ActorDisplayName = "Alice A",
+            PayloadJson = "{}",
+            CreatedById = ClubAMember1Id,
+        };
+        admin.ActivityEvents.Add(activity);
+        admin.SaveChanges();
+
+        ActAs(ClubAMember1Id, ClubAId);
+        using var context = _harness.CreateTenantContext();
+        var tracked = context.ActivityEvents.Single(row => row.ActivityEventId == activity.ActivityEventId);
+        context.ActivityEvents.Remove(tracked);
+
+        Should.Throw<InvalidOperationException>(() => context.SaveChanges())
+            .Message.ShouldContain("append-only");
+    }
+
+    [Fact]
+    public void Interceptor_Throws_OnAdminContextActivityEventDelete()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using var admin = _harness.CreateAdminContext();
+        var activity = new ActivityEventEntity
+        {
+            ClubId = ClubAId,
+            EventKind = ActivityEventKind.MemberJoined,
+            IsAdminOnly = false,
+            ActorUserId = ClubAMember1Id,
+            ActorDisplayName = "Alice A",
+            PayloadJson = "{}",
+            CreatedById = ClubAMember1Id,
+        };
+        admin.ActivityEvents.Add(activity);
+        admin.SaveChanges();
+
+        using var deleteContext = _harness.CreateAdminContext();
+        var tracked = deleteContext.ActivityEvents.Single(row => row.ActivityEventId == activity.ActivityEventId);
+        deleteContext.ActivityEvents.Remove(tracked);
+
+        // The append-only guard applies to admin contexts too: an administrator may not rewrite
+        // or delete published history, only append new rows.
+        Should.Throw<InvalidOperationException>(() => deleteContext.SaveChanges())
+            .Message.ShouldContain("append-only");
+    }
 }

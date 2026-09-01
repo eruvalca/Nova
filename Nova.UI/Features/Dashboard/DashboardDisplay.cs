@@ -44,7 +44,7 @@ internal static class DashboardDisplay
                 ? $"approved {m.MemberDisplayName}'s membership"
                 : $"{m.MemberDisplayName} joined the club",
         (ActivityEventKind.MemberRemoved, MembershipContext m) => $"removed {m.MemberDisplayName}",
-        (ActivityEventKind.MemberLeft, MembershipContext m) => $"{m.MemberDisplayName} left the club",
+        (ActivityEventKind.MemberLeft, MembershipContext m) => "left the club",
         (ActivityEventKind.MemberPromoted, MemberRoleContext r) => $"promoted {r.MemberDisplayName} to {r.Role}",
         (ActivityEventKind.MemberDemoted, MemberRoleContext r) => $"demoted {r.MemberDisplayName}",
         _ => "updated the club"

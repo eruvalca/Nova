@@ -18,8 +18,6 @@ namespace Nova.Integration.Tests.Data;
 [Collection(NovaAppHostCollection.Name)]
 public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
 {
-    private static readonly DateTimeOffset Base = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
-
     /// <summary>
     /// Verifies the feed pushes the club and visibility filters plus the keyset predicate into SQL
     /// so a page crosses many rows with a stable cursor and sub-second order ties.
@@ -51,12 +49,6 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
                     PayloadJson = IndexPayload(kind, seed.CampaignId),
                     CreatedById = seed.MemberUserId
                 });
-            }
-
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            foreach (var row in db.ActivityEvents.ToList())
-            {
-                row.CreatedAt = Base.AddMinutes(row.ActivityEventId);
             }
 
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -114,12 +106,6 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
                     PayloadJson = IndexPayload(kind, seed.CampaignId),
                     CreatedById = seed.MemberUserId
                 });
-            }
-
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            foreach (var row in db.ActivityEvents.ToList())
-            {
-                row.CreatedAt = Base;
             }
 
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);

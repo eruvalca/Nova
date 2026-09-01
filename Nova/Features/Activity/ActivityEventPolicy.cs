@@ -134,6 +134,13 @@ internal static class ActivityEventPolicy
     /// <returns>True when the context family matches the kind family.</returns>
     internal static bool ContextMatchesKind(ActivityEventKind kind, ClubActivityContext context)
     {
+        // An undefined persisted kind must not crash the feed projection: family resolution
+        // throws for unknown kinds, so treat the row as malformed and let the caller skip it.
+        if (!Enum.IsDefined(kind))
+        {
+            return false;
+        }
+
         var family = FamilyFor(kind);
         return (family, context) switch
         {

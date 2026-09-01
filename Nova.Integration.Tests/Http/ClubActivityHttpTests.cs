@@ -33,8 +33,7 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
         var (club, adminUserId) = await CreateClubWithAdminAsync(adminClient, cancellationToken);
         using var memberClient = await CreateMemberClientAsync(club.ClubId, cancellationToken);
 
-        var baseTime = DateTimeOffset.UtcNow;
-        await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 21, baseTime, cancellationToken);
+        await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 21, cancellationToken);
 
         using var firstResponse = await memberClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
         firstResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -79,7 +78,7 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
         var payload = JsonSerializer.Serialize(
             new MembershipContext { MemberDisplayName = "Jordan Lee", ApprovedByActorName = "Club Admin" },
             typeof(ClubActivityContext));
-        await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 1, DateTimeOffset.UtcNow, cancellationToken, kind: ActivityEventKind.MemberJoined, payloadJson: payload);
+        await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 1, cancellationToken, kind: ActivityEventKind.MemberJoined, payloadJson: payload);
 
         using var memberResponse = await memberClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
         memberResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -110,12 +109,11 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
         var (club, adminUserId) = await CreateClubWithAdminAsync(adminClient, cancellationToken);
         using var memberClient = await CreateMemberClientAsync(club.ClubId, cancellationToken);
 
-        var baseTime = DateTimeOffset.UtcNow;
         var joinRequestPayload = JsonSerializer.Serialize(
             new JoinRequestContext { JoinRequestId = 1, RequesterDisplayName = "New Member" },
             typeof(ClubActivityContext));
-        await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 1, baseTime, cancellationToken, kind: ActivityEventKind.JoinRequestSubmitted, payloadJson: joinRequestPayload);
-        await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 1, baseTime, cancellationToken, kind: ActivityEventKind.CampaignOpened);
+        await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 1, cancellationToken, kind: ActivityEventKind.JoinRequestSubmitted, payloadJson: joinRequestPayload);
+        await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 1, cancellationToken, kind: ActivityEventKind.CampaignOpened);
 
         using var memberResponse = await memberClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
         memberResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -176,7 +174,6 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
     /// <param name="clubId">The club identifier.</param>
     /// <param name="createdById">The user identifier stamped as the creator.</param>
     /// <param name="count">The number of rows to create.</param>
-    /// <param name="baseTime">The base occurrence time for the keyset ordering.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
     /// <param name="kind">The event kind, defaults to a member-visible campaign kind.</param>
     /// <param name="payloadJson">The payload JSON, defaults to the family-matching payload.</param>
@@ -184,7 +181,6 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
         long clubId,
         long createdById,
         int count,
-        DateTimeOffset baseTime,
         CancellationToken cancellationToken,
         ActivityEventKind kind = ActivityEventKind.CampaignOpened,
         string? payloadJson = null)
@@ -210,12 +206,6 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
                 PayloadJson = payload,
                 CreatedById = createdById,
             });
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
-        foreach (var row in context.ActivityEvents.Local)
-        {
-            row.CreatedAt = baseTime;
         }
 
         await context.SaveChangesAsync(cancellationToken);

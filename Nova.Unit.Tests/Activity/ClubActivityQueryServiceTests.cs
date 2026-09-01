@@ -130,16 +130,16 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
     public async Task GetClubActivity_IncludesAdminOnlyEvents_ForAdministrators()
     {
         SeedEvents(ClubAId, [
-            EventSpec(ActivityEventKind.JoinRequestSubmitted, ClubAAdminId, "Admin A", new JoinRequestContext
-            {
-                JoinRequestId = 1,
-                RequesterDisplayName = "Nadia N"
-            }, Time(10, 0)),
             EventSpec(ActivityEventKind.CampaignOpened, ClubAAdminId, "Admin A", new CampaignLifecycleContext
             {
                 CampaignId = 1,
                 CampaignName = "Campaign A"
-            }, Time(9, 0))
+            }, Time(9, 0)),
+            EventSpec(ActivityEventKind.JoinRequestSubmitted, ClubAAdminId, "Admin A", new JoinRequestContext
+            {
+                JoinRequestId = 1,
+                RequesterDisplayName = "Nadia N"
+            }, Time(10, 0))
         ]);
 
         _harness.CurrentUser.UserId = ClubAAdminId;
@@ -400,14 +400,6 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
             CreatedById = spec.ActorUserId
         }).ToList();
         admin.ActivityEvents.AddRange(entities);
-        admin.SaveChanges();
-
-        // Re-stamp deterministic timestamps after the audit interceptor set a uniform CreatedAt.
-        for (var index = 0; index < entities.Count; index++)
-        {
-            entities[index].CreatedAt = specs[index].CreatedAt;
-        }
-
         admin.SaveChanges();
         return entities;
     }

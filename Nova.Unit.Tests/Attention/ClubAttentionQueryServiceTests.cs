@@ -226,6 +226,90 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
         result.Value.NeedsPlacement.Status.ShouldBe(AttentionRegionStatus.Unavailable);
     }
 
+    /// <summary>Verifies a pending-requests region failure does not hide a loadable
+    /// needs-placement region (the regions read on separate contexts, in order).</summary>
+    [Fact]
+    public async Task GetClubAttention_IsolatesPendingRequestFailure_WhenNeedsPlacementLoads()
+    {
+        SeedJoinRequests(ClubAId, new[]
+        {
+            (RequestStatus.Pending, new DateTimeOffset(2026, 9, 1, 9, 0, 0, TimeSpan.Zero))
+        });
+        SeedCampaignWithPlayers(ClubAId, "Campaign A", new DateOnly(2026, 6, 1), CampaignStatus.Active, new[]
+        {
+            new PlayerAssignmentSeed(PlayerName: "Player A", LifecycleStatus: LifecycleStatus.Active, Outcome: PlacementOutcome.Undecided, TeamId: null)
+        });
+
+        _harness.CurrentUser.UserId = ClubAAdminId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+
+        var calls = 0;
+        var sequencedFactory = Substitute.For<IDbContextFactory<NovaReadDbContext>>();
+        sequencedFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                if (calls++ == 0)
+                {
+                    throw new InvalidOperationException("boom on join requests");
+                }
+
+                return _harness.CreateReadContext();
+            });
+        var service = new ClubAttentionQueryService(
+            sequencedFactory,
+            _harness.CurrentUser,
+            NullLogger<ClubAttentionQueryService>.Instance);
+
+        var result = await service.GetClubAttentionAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PendingJoinRequests.Status.ShouldBe(AttentionRegionStatus.Unavailable);
+        result.Value.NeedsPlacement.Status.ShouldBe(AttentionRegionStatus.Loaded);
+        result.Value.NeedsPlacement.Count.ShouldBe(1);
+        result.Value.NeedsPlacement.CampaignName.ShouldBe("Campaign A");
+    }
+
+    /// <summary>Verifies a needs-placement region failure does not hide a loadable pending
+    /// requests region (the regions read on separate contexts, in order).</summary>
+    [Fact]
+    public async Task GetClubAttention_IsolatesNeedsPlacementFailure_WhenPendingRequestsLoad()
+    {
+        SeedJoinRequests(ClubAId, new[]
+        {
+            (RequestStatus.Pending, new DateTimeOffset(2026, 9, 1, 9, 0, 0, TimeSpan.Zero))
+        });
+
+        _harness.CurrentUser.UserId = ClubAAdminId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+
+        var calls = 0;
+        var sequencedFactory = Substitute.For<IDbContextFactory<NovaReadDbContext>>();
+        sequencedFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                if (calls++ > 0)
+                {
+                    throw new InvalidOperationException("boom on needs placement");
+                }
+
+                return _harness.CreateReadContext();
+            });
+        var service = new ClubAttentionQueryService(
+            sequencedFactory,
+            _harness.CurrentUser,
+            NullLogger<ClubAttentionQueryService>.Instance);
+
+        var result = await service.GetClubAttentionAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PendingJoinRequests.Status.ShouldBe(AttentionRegionStatus.Loaded);
+        result.Value.PendingJoinRequests.Count.ShouldBe(1);
+        result.Value.PendingJoinRequests.OldestRequestAt.ShouldBe(new DateTimeOffset(2026, 9, 1, 9, 0, 0, TimeSpan.Zero));
+        result.Value.NeedsPlacement.Status.ShouldBe(AttentionRegionStatus.Unavailable);
+    }
+
     /// <summary>Creates the attention query service over the shared SQLite tenancy harness.</summary>
     /// <returns>A service instance using the mutable fake current-user provider.</returns>
     private ClubAttentionQueryService CreateService()

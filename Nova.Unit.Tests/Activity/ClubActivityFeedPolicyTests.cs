@@ -218,6 +218,30 @@ public sealed class ClubActivityFeedPolicyTests
         result.Events[0].ActivityEventId.ShouldBe(2);
     }
 
+    /// <summary>Verifies a persisted undefined kind is skipped rather than throwing out of the page build.</summary>
+    [Fact]
+    public void BuildPage_SkipsRows_WithUndefinedPersistedKind()
+    {
+        var rows = new[]
+        {
+            Row(id: 2, kind: ActivityEventKind.CampaignOpened, time: BaseTime.AddMinutes(1), campaignName: "Newest"),
+            RawRow(
+                id: 1,
+                kind: (ActivityEventKind)999,
+                time: BaseTime,
+                payload: JsonSerializer.Serialize(
+                    new CampaignLifecycleContext { CampaignId = 1, CampaignName = "C" },
+                    typeof(ClubActivityContext),
+                    JsonOptions)),
+        };
+
+        var result = ClubActivityFeedPolicy.BuildPage(rows, isAdmin: true, cursor: null, JsonOptions);
+
+        result.Events.ShouldHaveSingleItem();
+        result.Events[0].ActivityEventId.ShouldBe(2);
+        result.Events[0].Kind.ShouldBe(ActivityEventKind.CampaignOpened);
+    }
+
     /// <summary>Verifies the cursor still points at the raw page boundary when a row is skipped.</summary>
     [Fact]
     public void BuildPage_SkippedRow_CursorPointsAtRawPageBoundary()

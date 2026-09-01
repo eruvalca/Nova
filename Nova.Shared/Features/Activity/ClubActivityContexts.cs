@@ -16,11 +16,6 @@ namespace Nova.Shared.Features.Activity;
 [JsonDerivedType(typeof(MemberRoleContext), "memberRole")]
 public abstract record ClubActivityContext
 {
-    /// <summary>
-    /// Gets the kind that selects the derived context type.
-    /// </summary>
-    [JsonIgnore]
-    public abstract ActivityEventKind Kind { get; }
 }
 
 /// <summary>
@@ -28,10 +23,6 @@ public abstract record ClubActivityContext
 /// </summary>
 public sealed record CampaignLifecycleContext : ClubActivityContext
 {
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override ActivityEventKind Kind => ActivityEventKind.CampaignOpened;
-
     /// <summary>
     /// Gets or sets the campaign identifier.
     /// </summary>
@@ -49,10 +40,6 @@ public sealed record CampaignLifecycleContext : ClubActivityContext
 /// </summary>
 public sealed record PlacementContext : ClubActivityContext
 {
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override ActivityEventKind Kind => ActivityEventKind.PlacementAssigned;
-
     /// <summary>
     /// Gets or sets the campaign identifier.
     /// </summary>
@@ -99,10 +86,6 @@ public sealed record PlacementContext : ClubActivityContext
 /// </summary>
 public sealed record JoinRequestContext : ClubActivityContext
 {
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override ActivityEventKind Kind => ActivityEventKind.JoinRequestSubmitted;
-
     /// <summary>
     /// Gets or sets the join request identifier.
     /// </summary>
@@ -119,10 +102,6 @@ public sealed record JoinRequestContext : ClubActivityContext
 /// </summary>
 public sealed record MembershipContext : ClubActivityContext
 {
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override ActivityEventKind Kind => ActivityEventKind.MemberJoined;
-
     /// <summary>
     /// Gets or sets the member display-name snapshot.
     /// </summary>
@@ -141,10 +120,6 @@ public sealed record MembershipContext : ClubActivityContext
 /// </summary>
 public sealed record MemberRoleContext : ClubActivityContext
 {
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override ActivityEventKind Kind => ActivityEventKind.MemberPromoted;
-
     /// <summary>
     /// Gets or sets the member display-name snapshot.
     /// </summary>

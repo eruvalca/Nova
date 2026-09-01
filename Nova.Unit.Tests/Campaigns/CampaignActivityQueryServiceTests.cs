@@ -314,14 +314,6 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
         }).ToList();
         admin.ActivityEvents.AddRange(entities);
         admin.SaveChanges();
-
-        // Re-stamp deterministic timestamps after the audit interceptor set a uniform CreatedAt.
-        for (var index = 0; index < entities.Count; index++)
-        {
-            entities[index].CreatedAt = specs[index].CreatedAt;
-        }
-
-        admin.SaveChanges();
         return entities;
     }
 

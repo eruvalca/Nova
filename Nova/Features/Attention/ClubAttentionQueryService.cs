@@ -114,6 +114,9 @@ public sealed partial class ClubAttentionQueryService(
     /// Reads the campaigns-needing-placement region. The count is participant-level (number of
     /// undecided assignments in the Active campaign with no team and an active player) and the
     /// identifier/name identify the oldest such campaign in deterministic campaign-list order.
+    /// Both values come from one ordered materialization, so a concurrent placement change cannot
+    /// make the count and the oldest-campaign projection disagree (a single statement is one
+    /// snapshot under read-committed).
     /// The region reports <see cref="AttentionRegionStatus.Unavailable"/> on failure.
     /// </summary>
     /// <param name="clubId">The current club identifier.</param>
@@ -133,35 +136,28 @@ public sealed partial class ClubAttentionQueryService(
                     && assignment.TeamId == null
                     && assignment.Player.LifecycleStatus == LifecycleStatus.Active);
 
-            var count = await undecidedQuery.CountAsync(cancellationToken);
+            var rows = await undecidedQuery
+                .OrderByDescending(assignment => assignment.Campaign.Season.StartDate)
+                .ThenByDescending(assignment => assignment.Campaign.SeasonId)
+                .ThenBy(assignment => assignment.Campaign.Status)
+                .ThenByDescending(assignment => assignment.Campaign.StartDate)
+                .ThenByDescending(assignment => assignment.Campaign.EndDate.HasValue)
+                .ThenByDescending(assignment => assignment.Campaign.EndDate)
+                .ThenBy(assignment => assignment.Campaign.Name)
+                .ThenByDescending(assignment => assignment.Campaign.CampaignId)
+                .ThenByDescending(assignment => assignment.PlayerCampaignAssignmentId)
+                .Select(assignment => new CampaignRow(assignment.CampaignId, assignment.Campaign.Name))
+                .ToListAsync(cancellationToken);
 
-            long? campaignId = null;
-            string? campaignName = null;
-            if (count > 0)
-            {
-                var oldest = await undecidedQuery
-                    .OrderByDescending(assignment => assignment.Campaign.Season.StartDate)
-                    .ThenByDescending(assignment => assignment.Campaign.SeasonId)
-                    .ThenBy(assignment => assignment.Campaign.Status)
-                    .ThenByDescending(assignment => assignment.Campaign.StartDate)
-                    .ThenByDescending(assignment => assignment.Campaign.EndDate.HasValue)
-                    .ThenByDescending(assignment => assignment.Campaign.EndDate)
-                    .ThenBy(assignment => assignment.Campaign.Name)
-                    .ThenByDescending(assignment => assignment.Campaign.CampaignId)
-                    .ThenByDescending(assignment => assignment.PlayerCampaignAssignmentId)
-                    .Select(assignment => new CampaignRow(assignment.CampaignId, assignment.Campaign.Name))
-                    .FirstOrDefaultAsync(cancellationToken);
-
-                campaignId = oldest?.CampaignId;
-                campaignName = oldest?.CampaignName;
-            }
+            var count = rows.Count;
+            var oldest = count > 0 ? rows[0] : null;
 
             return new NeedsPlacementRegion
             {
                 Status = AttentionRegionStatus.Loaded,
                 Count = count,
-                CampaignId = campaignId,
-                CampaignName = campaignName
+                CampaignId = oldest?.CampaignId,
+                CampaignName = oldest?.CampaignName
             };
         }
         catch (Exception exception)

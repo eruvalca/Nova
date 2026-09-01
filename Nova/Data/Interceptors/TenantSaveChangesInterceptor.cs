@@ -46,6 +46,17 @@ public sealed class TenantSaveChangesInterceptor : SaveChangesInterceptor
                 continue;
             }
 
+            // Activity events are an append-only history over which the feed, attention, and
+            // campaign-local surfaces already projected; rewriting or deleting a row would
+            // silently rewrite published history. The guard applies to every context,
+            // including admin contexts that skip the tenant guard.
+            if (entry.State is EntityState.Modified or EntityState.Deleted
+                && entry.Entity is ActivityEventEntity)
+            {
+                throw new InvalidOperationException(
+                    "Activity events are append-only and cannot be modified or deleted.");
+            }
+
             if (enforceTenant && entry.Entity is ITenantOwnedEntity tenantOwned)
             {
                 GuardTenant(entry, tenantOwned, currentUser.ClubId);
