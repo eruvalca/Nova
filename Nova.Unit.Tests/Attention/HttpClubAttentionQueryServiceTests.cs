@@ -88,6 +88,9 @@ public sealed class HttpClubAttentionQueryServiceTests
     [InlineData("""{"pendingJoinRequests":{"status":0,"count":0,"oldestRequestAt":null},"needsPlacement":{"status":0,"count":-1,"campaignId":null,"campaignName":null}}""")]
     [InlineData("""{"pendingJoinRequests":{"status":0,"count":0,"oldestRequestAt":null},"needsPlacement":{"status":0,"count":1,"campaignId":null,"campaignName":null}}""")]
     [InlineData("""{"pendingJoinRequests":{"status":0,"count":0,"oldestRequestAt":null},"needsPlacement":{"status":0,"count":1,"campaignId":42,"campaignName":" "}}""")]
+    [InlineData("""{"pendingJoinRequests":{"status":0,"oldestRequestAt":null},"needsPlacement":{"status":0,"count":0,"campaignId":null,"campaignName":null}}""")]
+    [InlineData("""{"pendingJoinRequests":{"status":0,"count":0,"oldestRequestAt":null},"needsPlacement":{"status":0,"campaignId":null,"campaignName":null}}""")]
+    [InlineData("""{"pendingJoinRequests":{"status":1,"oldestRequestAt":null},"needsPlacement":{"status":1,"campaignId":null,"campaignName":null}}""")]
     public async Task GetClubAttentionAsync_ReturnsServerError_ForInvalidSuccessPayload(string body)
     {
         var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)

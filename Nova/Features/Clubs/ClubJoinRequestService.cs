@@ -101,20 +101,27 @@ public sealed partial class ClubJoinRequestService(
         // must not replay the insert against the request's unique RequestingUserId key.
         var strategy = probeDb.Database.CreateExecutionStrategy();
         var state = (ClubId: clubId, UserId: userId, RequesterName: requesterName, ClubName: clubName);
+        var commitAttempted = new CommitAttemptTracker();
 
         try
         {
             return await strategy.ExecuteAsync(
-                state,
+                (State: state, CommitAttempted: commitAttempted),
                 async (operationState, token) =>
                 {
+                    operationState.CommitAttempted.Reset();
                     await using var writeDb = await dbContextFactory.CreateDbContextAsync(token);
-                    return await PersistJoinRequestAsync(writeDb, operationState, token);
+                    return await PersistJoinRequestAsync(writeDb, operationState.State, operationState.CommitAttempted, token);
                 },
                 async (operationState, token) =>
                 {
+                    if (!operationState.CommitAttempted.Attempted)
+                    {
+                        return new ExecutionResult<ServiceResult<ClubJoinRequestDto>>(successful: false, default!);
+                    }
+
                     await using var verifyDb = await dbContextFactory.CreateDbContextAsync(token);
-                    return await VerifyJoinRequestCommittedAsync(verifyDb, operationState, token);
+                    return await VerifyJoinRequestCommittedAsync(verifyDb, operationState.State, token);
                 },
                 cancellationToken);
         }
@@ -131,11 +138,13 @@ public sealed partial class ClubJoinRequestService(
     /// </summary>
     /// <param name="db">The fresh tenant context for this execution attempt.</param>
     /// <param name="state">The logical operation state captured before the strategy started.</param>
+    /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database work.</param>
     /// <returns>The created join request DTO.</returns>
     private async Task<ServiceResult<ClubJoinRequestDto>> PersistJoinRequestAsync(
         NovaDbContext db,
         (long ClubId, long UserId, string RequesterName, string ClubName) state,
+        CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -166,6 +175,7 @@ public sealed partial class ClubJoinRequestService(
             });
 
         await db.SaveChangesAsync(cancellationToken);
+        commitAttempted.MarkAttempted();
         await transaction.CommitAsync(cancellationToken);
 
         LogJoinRequestCreated(state.UserId, state.ClubId, joinRequest.ClubJoinRequestId);
@@ -491,7 +501,9 @@ public sealed partial class ClubJoinRequestService(
 
         if (request is null)
         {
-            return ServiceProblem.NotFound("The join request was not found.");
+            // The preflight confirmed the request exists, so a vanished row means a concurrent
+            // cancellation deleted it while this attempt waited for the request lock.
+            return ServiceProblem.Conflict("The join request was already resolved.");
         }
 
         if (request.Status != RequestStatus.Pending)
@@ -597,7 +609,9 @@ public sealed partial class ClubJoinRequestService(
 
         if (request is null)
         {
-            return ServiceProblem.NotFound("The join request was not found.");
+            // The preflight confirmed the request exists, so a vanished row means a concurrent
+            // cancellation deleted it while this attempt waited for the request lock.
+            return ServiceProblem.Conflict("The join request was already resolved.");
         }
 
         if (request.Status != RequestStatus.Pending)
@@ -677,7 +691,9 @@ public sealed partial class ClubJoinRequestService(
 
         if (request is null)
         {
-            return ServiceProblem.NotFound("The join request was not found.");
+            // The preflight confirmed the request exists, so a vanished row means a concurrent
+            // approval/rejection/cancellation resolved it while this attempt waited for the lock.
+            return ServiceProblem.Conflict("The join request was already resolved.");
         }
 
         if (request.RequestingUserId != state.UserId)

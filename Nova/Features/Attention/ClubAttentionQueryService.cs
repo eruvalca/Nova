@@ -90,7 +90,7 @@ public sealed partial class ClubAttentionQueryService(
             }
 
             LogJoinRequestsRegionUnavailable(exception);
-            return new PendingJoinRequestsRegion { Status = AttentionRegionStatus.Unavailable };
+            return new PendingJoinRequestsRegion { Status = AttentionRegionStatus.Unavailable, Count = 0 };
         }
     }
 
@@ -157,7 +157,7 @@ public sealed partial class ClubAttentionQueryService(
             }
 
             LogNeedsPlacementRegionUnavailable(exception);
-            return new NeedsPlacementRegion { Status = AttentionRegionStatus.Unavailable };
+            return new NeedsPlacementRegion { Status = AttentionRegionStatus.Unavailable, Count = 0 };
         }
     }
 

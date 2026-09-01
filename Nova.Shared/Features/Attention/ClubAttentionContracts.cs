@@ -33,7 +33,7 @@ public sealed record PendingJoinRequestsRegion
     /// Gets the count of pending join requests, meaningful only when <see cref="Status"/> is
     /// <see cref="AttentionRegionStatus.Loaded"/>.
     /// </summary>
-    public int Count { get; init; }
+    public required int Count { get; init; }
 
     /// <summary>
     /// Gets when the oldest pending request was submitted, meaningful only when the region loaded
@@ -57,7 +57,7 @@ public sealed record NeedsPlacementRegion
     /// placement decision, meaningful only when <see cref="Status"/> is
     /// <see cref="AttentionRegionStatus.Loaded"/>.
     /// </summary>
-    public int Count { get; init; }
+    public required int Count { get; init; }
 
     /// <summary>
     /// Gets the identifier of the newest campaign (by season start, then campaign start) containing
