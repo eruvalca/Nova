@@ -393,4 +393,9 @@ Nova/wwwroot/css/
 .impeccable/live/*.png
 # impeccable-ignore-end
 .impeccable/questions/
-.codex/
+# OpenAI Codex: ignore local state (config, logs, sessions), but commit the
+# repo-level hook manifest and the project-scoped custom agents.
+.codex/*
+!.codex/hooks.json
+!.codex/agents/
+!.codex/agents/**
