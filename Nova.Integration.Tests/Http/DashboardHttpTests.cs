@@ -93,9 +93,9 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
                 .Select(user => user.Id)
                 .SingleAsync(cancellationToken);
 
-            var season = new SeasonEntity { Name = "S", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = adminUserId };
-            var campaign = new CampaignEntity { Name = "C", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = club.ClubId, CreatedById = adminUserId };
-            var player = new PlayerEntity { FirstName = "P", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = club.ClubId, CreatedById = adminUserId };
+            var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "S", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = adminUserId };
+            var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "C", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = club.ClubId, CreatedById = adminUserId };
+            var player = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "P", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = club.ClubId, CreatedById = adminUserId };
             context.AddRange(season, campaign, player);
             await context.SaveChangesAsync(cancellationToken);
 

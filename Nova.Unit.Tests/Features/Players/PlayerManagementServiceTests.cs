@@ -105,6 +105,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
         {
             var seasonB = new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = "Season B",
                 StartDate = new DateOnly(2026, 1, 1),
                 ClubId = ClubBId,
@@ -115,6 +116,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
 
             var campaignB = new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = "Club B Active Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
                 Status = CampaignStatus.Active,
@@ -303,6 +305,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
         {
             var team = new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = "Team 2030",
                 GraduationYear = 2030,
                 ClubId = ClubAId,
@@ -351,6 +354,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
         {
             var team = new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = "Team 2025",
                 GraduationYear = 2025,
                 ClubId = ClubAId,
@@ -416,11 +420,12 @@ public sealed class PlayerManagementServiceTests : IDisposable
         using var db = _harness.CreateAdminContext();
 
         db.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAAdminId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBAdminId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAAdminId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBAdminId });
 
         var seasonA = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Season 2026",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = ClubAId,
@@ -437,6 +442,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
 
         var activeCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Active Campaign",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -446,6 +452,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
         };
         var closedCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Closed Campaign",
             StartDate = new DateOnly(2026, 1, 1),
             Status = CampaignStatus.Closed,
@@ -459,6 +466,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
 
         var existingPlayer = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Existing",
             LastName = "Player",
             DateOfBirth = new DateOnly(2012, 4, 10),

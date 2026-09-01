@@ -57,18 +57,19 @@ public sealed class CampaignParticipantSearchEscapingPostgresTests(NovaAppHostFi
         var suffix = Guid.NewGuid().ToString("N");
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
 
-        var club = new ClubEntity { Name = $"Participant Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Participant Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
 
         var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
         db.Users.Add(member);
-        var season = new SeasonEntity { Name = $"Escaping Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Escaping Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
         db.Seasons.Add(season);
         await db.SaveChangesAsync(cancellationToken);
 
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Escaping Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -116,6 +117,7 @@ public sealed class CampaignParticipantSearchEscapingPostgresTests(NovaAppHostFi
 
     private static PlayerEntity NewPlayer(string firstName, string lastName, long clubId, long createdById) => new()
     {
+        CreationOperationId = Guid.NewGuid(),
         FirstName = firstName,
         LastName = lastName,
         DateOfBirth = new DateOnly(2011, 1, 1),

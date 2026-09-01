@@ -358,8 +358,8 @@ public class ClubAdminServiceTests : IDisposable
         using var context = _harness.CreateAdminContext();
 
         context.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = CurrentUserId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = OtherClubAdminUserId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = CurrentUserId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = OtherClubAdminUserId });
 
         context.Users.AddRange(
             new NovaUserEntity { Id = CurrentUserId, FirstName = "Alice", LastName = "Alpha", ClubId = ClubAId },

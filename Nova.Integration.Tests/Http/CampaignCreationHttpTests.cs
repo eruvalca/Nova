@@ -264,6 +264,7 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
         await using var context = fixture.CreateAdminContext();
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"HTTP Season {Guid.CreateVersion7():N}",
             StartDate = new DateOnly(2026, 1, 1),
             EndDate = new DateOnly(2026, 12, 31),

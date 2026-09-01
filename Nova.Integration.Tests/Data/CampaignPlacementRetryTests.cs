@@ -116,6 +116,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         await using var seed = fixture.CreateAdminContext();
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Placement Retry Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -126,6 +127,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Placement Retry Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -133,6 +135,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Placement Retry Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -143,6 +146,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         };
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Place",
             LastName = $"Retry Player {suffix}",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -153,6 +157,7 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         };
         var team = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Retry Team {suffix}",
             GraduationYear = 2029,
             ClubId = club.ClubId,

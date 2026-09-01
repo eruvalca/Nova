@@ -170,8 +170,8 @@ public sealed class TeamLifecycleServiceTests : IDisposable
         using var db = _harness.CreateAdminContext();
 
         db.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAAdminId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBAdminId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAAdminId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBAdminId });
 
         db.Users.AddRange(
             new NovaUserEntity { Id = ClubAAdminId, FirstName = "Admin", LastName = "A", ClubId = ClubAId },
@@ -180,6 +180,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
 
         db.Players.Add(new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerId = PlacedPlayerId,
             FirstName = "Placed",
             LastName = "Player",
@@ -192,6 +193,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
         db.Teams.AddRange(
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = ActiveTeamId,
                 Name = "Active Team",
                 GraduationYear = 2029,
@@ -200,6 +202,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
             },
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = BlockedTeamId,
                 Name = "Blocked Team",
                 GraduationYear = 2029,
@@ -208,6 +211,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
             },
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = ArchivedTeamId,
                 Name = "Archived Team",
                 GraduationYear = 2029,
@@ -219,6 +223,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
             },
             new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 TeamId = ClubBTeamId,
                 Name = "Club B Team",
                 GraduationYear = 2030,
@@ -230,6 +235,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Lifecycle Season",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = ClubAId,
@@ -240,6 +246,7 @@ public sealed class TeamLifecycleServiceTests : IDisposable
 
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Lifecycle Campaign",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,

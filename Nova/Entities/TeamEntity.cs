@@ -22,9 +22,8 @@ public class TeamEntity : ArchivableEntity, ITenantOwnedEntity
 
     /// <summary>
     /// Gets or sets the stable identifier used to verify an idempotent team-creation transaction.
-    /// Teams created before idempotent creation support have no identifier.
     /// </summary>
-    public Guid? CreationOperationId { get; set; }
+    public required Guid CreationOperationId { get; set; }
 
     /// <summary>
     /// Gets or sets the Player Assignments.

@@ -161,6 +161,7 @@ public static class CloseoutSeed
         await using var context = fixture.CreateAdminContext();
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Closeout Blocked Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubId,
@@ -168,6 +169,7 @@ public static class CloseoutSeed
         };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Closeout Blocked Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -184,6 +186,7 @@ public static class CloseoutSeed
         {
             players.Add(new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 FirstName = "Blocked",
                 LastName = $"Player {index:D2} {suffix}",
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -196,6 +199,7 @@ public static class CloseoutSeed
 
         var ineligibleTeam = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Ineligible {suffix}",
             GraduationYear = PlayerGraduationYear + 1,
             LifecycleStatus = LifecycleStatus.Active,
@@ -204,6 +208,7 @@ public static class CloseoutSeed
         };
         var archivedTeam = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Archived {suffix}",
             GraduationYear = PlayerGraduationYear - 1,
             LifecycleStatus = LifecycleStatus.Archived,

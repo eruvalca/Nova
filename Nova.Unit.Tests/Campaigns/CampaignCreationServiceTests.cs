@@ -169,6 +169,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
 
             var latePlayer = new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 FirstName = "Late",
                 LastName = "Player",
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -448,6 +449,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Club A",
                 City = "Austin",
@@ -456,6 +458,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Club B",
                 City = "Boston",
@@ -465,6 +468,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
 
         var seasonA = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Club A Season",
             StartDate = new DateOnly(2026, 1, 1),
             EndDate = new DateOnly(2026, 12, 31),
@@ -473,6 +477,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
         };
         var seasonB = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Club B Season",
             StartDate = new DateOnly(2026, 1, 1),
             EndDate = new DateOnly(2026, 12, 31),
@@ -483,6 +488,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
 
         var activePlayer = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Active",
             LastName = "Player",
             DateOfBirth = new DateOnly(2010, 1, 1),
@@ -493,6 +499,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
         };
         var archivedPlayer = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Archived",
             LastName = "Player",
             DateOfBirth = new DateOnly(2011, 1, 1),
@@ -505,6 +512,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
         };
         var otherClubPlayer = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Other",
             LastName = "Player",
             DateOfBirth = new DateOnly(2012, 1, 1),

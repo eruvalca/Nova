@@ -21,8 +21,7 @@ public class NoteEntityConfiguration : IEntityTypeConfiguration<NoteEntity>
             .ValueGeneratedOnAdd();
 
         builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
-            .IsUnique()
-            .HasFilter("\"CreationOperationId\" IS NOT NULL");
+            .IsUnique();
 
         builder
             .HasOne(e => e.PlayerCampaignAssignment)

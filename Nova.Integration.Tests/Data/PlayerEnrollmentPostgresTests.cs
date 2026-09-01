@@ -140,18 +140,18 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
             var suffix = Guid.NewGuid().ToString("N");
             var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
 
-            var clubA = new ClubEntity { Name = $"Isolation Club A {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
-            var clubB = new ClubEntity { Name = $"Isolation Club B {suffix}", City = "Boston", State = "MA", CreatedById = actorUserId };
+            var clubA = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Isolation Club A {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+            var clubB = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Isolation Club B {suffix}", City = "Boston", State = "MA", CreatedById = actorUserId };
             db.Clubs.AddRange(clubA, clubB);
             await db.SaveChangesAsync(cancellationToken);
 
-            var seasonA = new SeasonEntity { Name = $"Season A {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = actorUserId };
-            var seasonB = new SeasonEntity { Name = $"Season B {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = actorUserId };
+            var seasonA = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Season A {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = actorUserId };
+            var seasonB = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Season B {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = actorUserId };
             db.Seasons.AddRange(seasonA, seasonB);
             await db.SaveChangesAsync(cancellationToken);
 
-            var campaignA = new CampaignEntity { Name = $"Campaign A {suffix}", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonA.SeasonId, ClubId = clubA.ClubId, CreatedById = actorUserId };
-            var campaignB = new CampaignEntity { Name = $"Campaign B {suffix}", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonB.SeasonId, ClubId = clubB.ClubId, CreatedById = actorUserId };
+            var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = $"Campaign A {suffix}", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonA.SeasonId, ClubId = clubA.ClubId, CreatedById = actorUserId };
+            var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = $"Campaign B {suffix}", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonB.SeasonId, ClubId = clubB.ClubId, CreatedById = actorUserId };
             db.Campaigns.AddRange(campaignA, campaignB);
             await db.SaveChangesAsync(cancellationToken);
 
@@ -207,6 +207,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
 
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Enrollment Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -217,6 +218,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -227,6 +229,7 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
 
         var campaigns = Enumerable.Range(1, activeCampaignCount).Select(i => new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Campaign {i} {suffix}",
             StartDate = new DateOnly(2026, i, 1),
             Status = CampaignStatus.Active,

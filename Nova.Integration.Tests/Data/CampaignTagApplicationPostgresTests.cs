@@ -36,6 +36,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         await using var db = fixture.CreateTenantContext();
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = seed.ClubAAssignmentId,
             PlayerTagId = seed.ClubATagId,
             ClubId = default,
@@ -65,6 +66,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         // index cannot fire first.
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = seed.ClubAAssignmentId,
             PlayerTagId = seed.ClubBTagId,
             ClubId = seed.ClubAId,
@@ -88,6 +90,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
 
         var clubA = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag App Club A {suffix}",
             City = "Austin",
             State = "TX",
@@ -95,6 +98,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         };
         var clubB = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag App Club B {suffix}",
             City = "Boston",
             State = "MA",
@@ -105,6 +109,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
 
         var seasonA = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season A {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubA.ClubId,
@@ -112,6 +117,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         };
         var seasonB = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season B {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubB.ClubId,
@@ -122,6 +128,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
 
         var campaignA = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Campaign A {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             SeasonId = seasonA.SeasonId,
@@ -130,6 +137,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         };
         var campaignB = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Campaign B {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Closed,
@@ -144,6 +152,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
 
         var playerA = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Player",
             LastName = $"A{suffix}",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -153,6 +162,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
         };
         var playerB = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Player",
             LastName = $"B{suffix}",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -181,14 +191,18 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
 
         var tagA = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag A {suffix}",
+            NormalizedName = $"Tag A {suffix}".Trim().ToUpperInvariant(),
             Color = "#00CC00",
             ClubId = clubA.ClubId,
             CreatedById = actorUserId
         };
         var tagB = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Tag B {suffix}",
+            NormalizedName = $"Tag B {suffix}".Trim().ToUpperInvariant(),
             Color = "#0000CC",
             ClubId = clubB.ClubId,
             CreatedById = actorUserId
@@ -198,6 +212,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
 
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId,
             PlayerTagId = tagA.PlayerTagId,
             ClubId = clubA.ClubId,

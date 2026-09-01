@@ -909,6 +909,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var suffix = Guid.NewGuid().ToString("N");
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Placement Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = clubId,
@@ -916,6 +917,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Placement Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = closedCampaign ? CampaignStatus.Closed : CampaignStatus.Active,
@@ -928,6 +930,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         };
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Place",
             LastName = $"Player {suffix}",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -940,6 +943,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         };
         var team = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Team {suffix}",
             GraduationYear = teamGraduationYear,
             LifecycleStatus = archivedTeam ? LifecycleStatus.Archived : LifecycleStatus.Active,
@@ -982,15 +986,15 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         await using var context = fixture.CreateAdminContext();
         var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
 
-        var season = new SeasonEntity { Name = "Placement Season", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
-        var campaign = new CampaignEntity { Name = "Placement Campaign", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = user.Id };
-        var team = new TeamEntity { Name = "Alpha", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "Placement Season", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+        var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Placement Campaign", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = user.Id };
+        var team = new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = "Alpha", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
 
-        var zoeAdamsAssigned = new PlayerEntity { FirstName = "Zoe", LastName = "Adams", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
-        var zoeAdamsUndecided = new PlayerEntity { FirstName = "Zoe", LastName = "Adams", DateOfBirth = new DateOnly(2010, 2, 2), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
-        var amyBrown = new PlayerEntity { FirstName = "Amy", LastName = "Brown", DateOfBirth = new DateOnly(2011, 3, 3), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
-        var caraChen = new PlayerEntity { FirstName = "Cara", LastName = "Chen", DateOfBirth = new DateOnly(2011, 4, 4), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
-        var drewDavis = new PlayerEntity { FirstName = "Drew", LastName = "Davis", DateOfBirth = new DateOnly(2012, 5, 5), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+        var zoeAdamsAssigned = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Zoe", LastName = "Adams", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+        var zoeAdamsUndecided = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Zoe", LastName = "Adams", DateOfBirth = new DateOnly(2010, 2, 2), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+        var amyBrown = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Amy", LastName = "Brown", DateOfBirth = new DateOnly(2011, 3, 3), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+        var caraChen = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Cara", LastName = "Chen", DateOfBirth = new DateOnly(2011, 4, 4), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+        var drewDavis = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Drew", LastName = "Davis", DateOfBirth = new DateOnly(2012, 5, 5), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
 
         context.AddRange(season, campaign, team, zoeAdamsAssigned, zoeAdamsUndecided, amyBrown, caraChen, drewDavis);
         await context.SaveChangesAsync(cancellationToken);

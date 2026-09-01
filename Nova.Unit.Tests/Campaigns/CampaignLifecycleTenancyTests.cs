@@ -140,6 +140,7 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Campaign Lifecycle Club A",
                 City = "Austin",
@@ -148,6 +149,7 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Campaign Lifecycle Club B",
                 City = "Boston",
@@ -158,6 +160,7 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
         db.Seasons.AddRange(
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 1000,
                 Name = "Season A",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -166,6 +169,7 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
             },
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 1001,
                 Name = "Season B",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -176,6 +180,7 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
         db.Campaigns.AddRange(
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 1200,
                 Name = "Campaign A",
                 SeasonId = 1000,
@@ -184,6 +189,7 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 1201,
                 Name = "Campaign B",
                 SeasonId = 1001,

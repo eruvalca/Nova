@@ -59,6 +59,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         using var db = _harness.CreateTenantContext();
         db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = ClubBAssignmentId,
             PlayerTagId = ClubBTagId,
             ClubId = ClubBId,
@@ -167,6 +168,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Tag App Club A",
                 City = "Austin",
@@ -175,6 +177,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Tag App Club B",
                 City = "Boston",
@@ -185,6 +188,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         db.Seasons.AddRange(
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 1000,
                 Name = "Season A",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -193,6 +197,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             },
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 1001,
                 Name = "Season B",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -203,6 +208,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         db.Players.AddRange(
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 1100,
                 FirstName = "Club",
                 LastName = "A Player",
@@ -213,6 +219,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 1101,
                 FirstName = "Club",
                 LastName = "B Player",
@@ -225,6 +232,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         db.Campaigns.AddRange(
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 1200,
                 Name = "Campaign A",
                 SeasonId = 1000,
@@ -233,6 +241,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 1201,
                 Name = "Campaign B",
                 SeasonId = 1001,
@@ -261,16 +270,20 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         db.PlayerTags.AddRange(
             new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerTagId = ClubATagId,
                 Name = "A Tag",
+                NormalizedName = "A TAG",
                 Color = "#00AA00",
                 ClubId = ClubAId,
                 CreatedById = ClubAUserId
             },
             new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerTagId = ClubBTagId,
                 Name = "B Tag",
+                NormalizedName = "B TAG",
                 Color = "#0000AA",
                 ClubId = ClubBId,
                 CreatedById = ClubBUserId
@@ -279,6 +292,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
         db.CampaignTagApplications.AddRange(
             new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = 1500,
                 PlayerCampaignAssignmentId = ClubAAssignmentId,
                 PlayerTagId = ClubATagId,
@@ -287,6 +301,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignTagApplicationId = 1501,
                 PlayerCampaignAssignmentId = ClubBAssignmentId,
                 PlayerTagId = ClubBTagId,

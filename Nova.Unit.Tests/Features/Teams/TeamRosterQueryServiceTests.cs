@@ -161,6 +161,7 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
 
         db.Clubs.Add(new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             ClubId = ClubId,
             Name = "Roster Test Club",
             City = "Austin",
@@ -176,13 +177,13 @@ public sealed class TeamRosterQueryServiceTests : IDisposable
         });
         db.Teams.AddRange(
             // Literal percent in name — must match "50%" search exactly.
-            new TeamEntity { Name = "50% Wins", GraduationYear = 2028, ClubId = ClubId, CreatedById = AdminId },
+            new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = "50% Wins", GraduationYear = 2028, ClubId = ClubId, CreatedById = AdminId },
             // Unrelated name — must not match "50%" search.
-            new TeamEntity { Name = "U16 Blue", GraduationYear = 2028, ClubId = ClubId, CreatedById = AdminId },
+            new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = "U16 Blue", GraduationYear = 2028, ClubId = ClubId, CreatedById = AdminId },
             // Literal underscore in name — must match "a_b" search literally.
-            new TeamEntity { Name = "a_b Team", GraduationYear = 2029, ClubId = ClubId, CreatedById = AdminId },
+            new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = "a_b Team", GraduationYear = 2029, ClubId = ClubId, CreatedById = AdminId },
             // Single-char substitution name — must NOT match "a_b" search.
-            new TeamEntity { Name = "axb Team", GraduationYear = 2030, ClubId = ClubId, CreatedById = AdminId });
+            new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = "axb Team", GraduationYear = 2030, ClubId = ClubId, CreatedById = AdminId });
 
         db.SaveChanges();
     }

@@ -157,9 +157,10 @@ internal static class SeedingHelpers
         await using var context = fixture.CreateAdminContext();
         var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
         var suffix = Guid.NewGuid().ToString("N");
-        var season = new SeasonEntity { Name = $"{namePrefix} Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"{namePrefix} Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"{namePrefix} Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -176,6 +177,7 @@ internal static class SeedingHelpers
         {
             players.Add(new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 FirstName = namePrefix,
                 LastName = $"Player {index:D2}",
                 DateOfBirth = new DateOnly(2012, 1, 1),
@@ -239,6 +241,7 @@ internal static class SeedingHelpers
         var suffix = Guid.NewGuid().ToString("N");
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"{namePrefix} Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             EndDate = new DateOnly(2026, 12, 31),
@@ -247,6 +250,7 @@ internal static class SeedingHelpers
         };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"{namePrefix} Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -284,6 +288,7 @@ internal static class SeedingHelpers
             .SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
         var team = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = name,
             GraduationYear = graduationYear,
             ClubId = clubId,
@@ -345,7 +350,9 @@ internal static class SeedingHelpers
             .SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
         var playerTag = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = name,
+            NormalizedName = name.Trim().ToUpperInvariant(),
             Color = color,
             LifecycleStatus = archived ? LifecycleStatus.Archived : LifecycleStatus.Active,
             ArchivedAt = archived ? DateTimeOffset.UtcNow.AddDays(-1) : null,

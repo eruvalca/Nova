@@ -15,7 +15,7 @@ public class SeasonEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the caller-generated identifier when the season was created inline with a campaign.
     /// </summary>
-    public Guid? CreationOperationId { get; set; }
+    public required Guid CreationOperationId { get; set; }
 
     /// <summary>
     /// Gets or sets the Name.

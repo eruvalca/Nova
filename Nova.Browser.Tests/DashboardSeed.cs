@@ -134,6 +134,7 @@ public static class DashboardSeed
             seedContext.AddRange(
                 new PlayerEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     FirstName = "Archived",
                     LastName = "Player",
                     DateOfBirth = new DateOnly(2008, 5, 5),
@@ -144,10 +145,11 @@ public static class DashboardSeed
                     ClubId = club.ClubId,
                     CreatedById = adminUserId
                 },
-                new TeamEntity { Name = $"Dash Active Team A {suffix}", GraduationYear = 2029, ClubId = club.ClubId, CreatedById = adminUserId },
-                new TeamEntity { Name = $"Dash Active Team B {suffix}", GraduationYear = 2030, ClubId = club.ClubId, CreatedById = adminUserId },
+                new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = $"Dash Active Team A {suffix}", GraduationYear = 2029, ClubId = club.ClubId, CreatedById = adminUserId },
+                new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = $"Dash Active Team B {suffix}", GraduationYear = 2030, ClubId = club.ClubId, CreatedById = adminUserId },
                 new TeamEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = $"Dash Archived Team {suffix}",
                     GraduationYear = 2028,
                     LifecycleStatus = LifecycleStatus.Archived,
@@ -165,6 +167,7 @@ public static class DashboardSeed
                 },
                 new NoteEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Content = "Strong first touch.",
                     PlayerCampaignAssignmentId = undecided.AssignmentIds[0],
                     ClubId = club.ClubId,
@@ -243,9 +246,9 @@ public static class DashboardSeed
         var adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
         var suffix = Guid.NewGuid().ToString("N");
         var name = $"Dash Decided Campaign {suffix}";
-        var season = new SeasonEntity { Name = $"Dash Decided Season {suffix}", StartDate = new DateOnly(2026, 2, 1), ClubId = clubId, CreatedById = adminUserId };
-        var campaign = new CampaignEntity { Name = name, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = adminUserId };
-        var player = new PlayerEntity { FirstName = "Decided", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = adminUserId };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Dash Decided Season {suffix}", StartDate = new DateOnly(2026, 2, 1), ClubId = clubId, CreatedById = adminUserId };
+        var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = name, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = adminUserId };
+        var player = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Decided", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = adminUserId };
         context.AddRange(season, campaign, player);
         await context.SaveChangesAsync(cancellationToken);
 

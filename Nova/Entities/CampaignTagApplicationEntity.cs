@@ -44,7 +44,6 @@ public class CampaignTagApplicationEntity : BaseEntity, ITenantOwnedEntity
 
     /// <summary>
     /// Gets or sets the stable identifier used to verify an idempotent apply transaction.
-    /// Applications created before request-scoped apply verification support have no identifier.
     /// </summary>
-    public Guid? CreationOperationId { get; set; }
+    public required Guid CreationOperationId { get; set; }
 }

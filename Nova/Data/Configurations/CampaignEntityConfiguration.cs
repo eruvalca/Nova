@@ -23,8 +23,7 @@ public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEnti
             .IsConcurrencyToken();
         builder.HasAlternateKey(e => new { e.CampaignId, e.ClubId });
         builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
-            .IsUnique()
-            .HasFilter("\"CreationOperationId\" IS NOT NULL");
+            .IsUnique();
         builder.HasIndex(e => new { e.ClubId, e.SeasonId, e.Name })
             .IsUnique();
 

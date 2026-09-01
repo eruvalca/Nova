@@ -141,6 +141,7 @@ public static class EvaluationSeed
         {
             context.Add(new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = seeded.AssignmentIds[0],
                 PlayerTagId = archivedTagId,
                 ClubId = clubId,

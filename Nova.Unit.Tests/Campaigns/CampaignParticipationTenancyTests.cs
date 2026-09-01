@@ -123,6 +123,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
         db.Clubs.AddRange(
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 Name = "Participation Club A",
                 City = "Austin",
@@ -131,6 +132,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
             },
             new ClubEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 Name = "Participation Club B",
                 City = "Boston",
@@ -141,6 +143,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
         db.Seasons.AddRange(
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 1000,
                 Name = "Season A",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -149,6 +152,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
             },
             new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 SeasonId = 1001,
                 Name = "Season B",
                 StartDate = new DateOnly(2026, 1, 1),
@@ -159,6 +163,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
         db.Players.AddRange(
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 1100,
                 FirstName = "Club",
                 LastName = "A Player",
@@ -169,6 +174,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerId = 1101,
                 FirstName = "Club",
                 LastName = "B Player",
@@ -181,6 +187,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
         db.Campaigns.AddRange(
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 1200,
                 Name = "Campaign A",
                 SeasonId = 1000,
@@ -189,6 +196,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
             },
             new CampaignEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 CampaignId = 1201,
                 Name = "Campaign B",
                 SeasonId = 1001,

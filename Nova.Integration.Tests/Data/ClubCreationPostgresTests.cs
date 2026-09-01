@@ -57,7 +57,7 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
             candidate => candidate.CreatedById == seed.UserId
                 && candidate.Name == input.Name,
             cancellationToken);
-        club.CreationOperationId.ShouldNotBeNull();
+        club.CreationOperationId.ShouldNotBe(Guid.Empty);
         (await verify.Clubs.CountAsync(
             candidate => candidate.CreatedById == seed.UserId
                 && candidate.CreationOperationId == club.CreationOperationId,

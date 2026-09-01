@@ -286,6 +286,7 @@ public sealed class DashboardActivityQueryServiceTests : IDisposable
         using var admin = _harness.CreateAdminContext();
         var note = new NoteEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Content = "Note",
             PlayerCampaignAssignmentId = assignmentId,
             ClubId = clubId,
@@ -304,6 +305,7 @@ public sealed class DashboardActivityQueryServiceTests : IDisposable
         using var admin = _harness.CreateAdminContext();
         var application = new CampaignTagApplicationEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = assignmentId,
             PlayerTagId = playerTagId,
             ClubId = clubId,
@@ -370,33 +372,33 @@ public sealed class DashboardActivityQueryServiceTests : IDisposable
         using var admin = _harness.CreateAdminContext();
 
         admin.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAMemberId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBMemberId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAMemberId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBMemberId });
 
         admin.Users.AddRange(
             new NovaUserEntity { Id = ClubAMemberId, FirstName = "Amelia", LastName = "Member", ClubId = ClubAId },
             new NovaUserEntity { Id = ClubAAdminId, FirstName = "Admin", LastName = "A", ClubId = ClubAId },
             new NovaUserEntity { Id = ClubBMemberId, FirstName = "Bobby", LastName = "Member", ClubId = ClubBId });
 
-        var seasonA = new SeasonEntity { Name = "Season A", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var seasonB = new SeasonEntity { Name = "Season B", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubBId, CreatedById = ClubBMemberId };
+        var seasonA = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "Season A", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var seasonB = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "Season B", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubBId, CreatedById = ClubBMemberId };
         admin.Seasons.AddRange(seasonA, seasonB);
         admin.SaveChanges();
 
-        var campaignA = new CampaignEntity { Name = "Active A", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonA.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var campaignB = new CampaignEntity { Name = "Campaign B", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonB.SeasonId, ClubId = ClubBId, CreatedById = ClubBMemberId };
+        var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Active A", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonA.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign B", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonB.SeasonId, ClubId = ClubBId, CreatedById = ClubBMemberId };
         admin.Campaigns.AddRange(campaignA, campaignB);
         admin.SaveChanges();
 
         _campaignAId = campaignA.CampaignId;
         _campaignBId = campaignB.CampaignId;
 
-        var playerA = new PlayerEntity { FirstName = "P", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var playerA2 = new PlayerEntity { FirstName = "P2", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var playerB = new PlayerEntity { FirstName = "B", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubBId, CreatedById = ClubBMemberId };
+        var playerA = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "P", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var playerA2 = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "P2", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var playerB = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "B", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubBId, CreatedById = ClubBMemberId };
         admin.Players.AddRange(playerA, playerA2, playerB);
 
-        var tagA = new PlayerTagEntity { Name = "Speed", Color = "#000000", ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var tagA = new PlayerTagEntity { CreationOperationId = Guid.NewGuid(), Name = "Speed", NormalizedName = "SPEED", Color = "#000000", ClubId = ClubAId, CreatedById = ClubAMemberId };
         admin.PlayerTags.Add(tagA);
         admin.SaveChanges();
 

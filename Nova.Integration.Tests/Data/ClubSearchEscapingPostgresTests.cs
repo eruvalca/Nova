@@ -64,6 +64,7 @@ public sealed class ClubSearchEscapingPostgresTests(NovaAppHostFixture fixture)
 
     private static ClubEntity NewClub(string name, long actorUserId) => new()
     {
+        CreationOperationId = Guid.NewGuid(),
         Name = name,
         City = "Austin",
         State = "TX",

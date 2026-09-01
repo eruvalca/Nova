@@ -221,6 +221,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
         await using var seed = fixture.CreateAdminContext();
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Latecomer",
             LastName = $"Player{Guid.CreateVersion7().ToString("N")[..8]}",
             DateOfBirth = new DateOnly(2012, 6, 6),
@@ -256,6 +257,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
 
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Race Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -266,6 +268,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Race Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -276,6 +279,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
 
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Race Campaign {suffix}",
             StartDate = new DateOnly(2026, 8, 1),
             Status = CampaignStatus.Active,
@@ -287,6 +291,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
 
         var team = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Race Team {suffix}",
             GraduationYear = teamGraduationYear,
             ClubId = club.ClubId,
@@ -296,6 +301,7 @@ public sealed class TeamPlayerGraduationYearRaceTests(NovaAppHostFixture fixture
 
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Race",
             LastName = $"Player{suffix[..8]}",
             DateOfBirth = new DateOnly(2012, 5, 5),

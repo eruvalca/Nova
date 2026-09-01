@@ -35,6 +35,7 @@ public sealed class DashboardQueryPostgresTests(NovaAppHostFixture fixture)
         {
             var note = new NoteEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Content = "Note",
                 PlayerCampaignAssignmentId = seed.AssignmentId,
                 ClubId = seed.ClubId,
@@ -42,6 +43,7 @@ public sealed class DashboardQueryPostgresTests(NovaAppHostFixture fixture)
             };
             var application = new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = seed.AssignmentId,
                 PlayerTagId = seed.TagId,
                 ClubId = seed.ClubId,
@@ -157,26 +159,26 @@ public sealed class DashboardQueryPostgresTests(NovaAppHostFixture fixture)
         var suffix = Guid.NewGuid().ToString("N");
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
 
-        var club = new ClubEntity { Name = $"Dashboard Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Dashboard Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
         db.Clubs.Add(club);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
         db.Users.Add(member);
-        var season = new SeasonEntity { Name = $"Dashboard Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Dashboard Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
         db.Seasons.Add(season);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var campaign = new CampaignEntity { Name = $"Dashboard Campaign {suffix}", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = actorUserId };
+        var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = $"Dashboard Campaign {suffix}", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = actorUserId };
         db.Campaigns.Add(campaign);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var player = new PlayerEntity { FirstName = "P", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = club.ClubId, CreatedById = actorUserId };
-        var player2 = new PlayerEntity { FirstName = "P2", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = club.ClubId, CreatedById = actorUserId };
+        var player = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "P", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = club.ClubId, CreatedById = actorUserId };
+        var player2 = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "P2", LastName = "A", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = club.ClubId, CreatedById = actorUserId };
         db.Players.AddRange(player, player2);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var tag = new PlayerTagEntity { Name = "Speed", Color = "#000000", ClubId = club.ClubId, CreatedById = actorUserId };
+        var tag = new PlayerTagEntity { CreationOperationId = Guid.NewGuid(), Name = "Speed", NormalizedName = "SPEED", Color = "#000000", ClubId = club.ClubId, CreatedById = actorUserId };
         db.PlayerTags.Add(tag);
         var assignment = new PlayerCampaignAssignmentEntity { PlayerId = player.PlayerId, CampaignId = campaign.CampaignId, ClubId = club.ClubId, CreatedById = actorUserId, PlacementOutcome = PlacementOutcome.Undecided };
         db.PlayerCampaignAssignments.Add(assignment);

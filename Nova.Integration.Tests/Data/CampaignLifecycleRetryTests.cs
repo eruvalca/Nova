@@ -265,6 +265,7 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
         await using var seed = fixture.CreateAdminContext();
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Campaign Retry Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -275,6 +276,7 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -285,6 +287,7 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
 
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             SeasonId = season.SeasonId,

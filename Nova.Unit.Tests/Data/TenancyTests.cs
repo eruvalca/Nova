@@ -99,8 +99,8 @@ public class TenancyTests : IDisposable
         using var context = _harness.CreateAdminContext();
 
         context.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = NoClubUserId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = NoClubUserId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = NoClubUserId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = NoClubUserId });
 
         context.Users.AddRange(
             new NovaUserEntity { Id = ClubAMember1Id, FirstName = "Alice", LastName = "A", ClubId = ClubAId },
@@ -109,9 +109,9 @@ public class TenancyTests : IDisposable
             new NovaUserEntity { Id = NoClubUserId, FirstName = "Nadia", LastName = "N", ClubId = null });
 
         context.Players.AddRange(
-            new PlayerEntity { FirstName = "PA", LastName = "One", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, ClubId = ClubAId, CreatedById = ClubAMember1Id },
-            new PlayerEntity { FirstName = "PA", LastName = "Two", DateOfBirth = new DateOnly(2011, 2, 2), GraduationYear = 2029, ClubId = ClubAId, CreatedById = ClubAMember1Id },
-            new PlayerEntity { FirstName = "PB", LastName = "One", DateOfBirth = new DateOnly(2012, 3, 3), GraduationYear = 2030, ClubId = ClubBId, CreatedById = ClubBMemberId });
+            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PA", LastName = "One", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PA", LastName = "Two", DateOfBirth = new DateOnly(2011, 2, 2), GraduationYear = 2029, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "PB", LastName = "One", DateOfBirth = new DateOnly(2012, 3, 3), GraduationYear = 2030, ClubId = ClubBId, CreatedById = ClubBMemberId });
 
         // Pending request from the club-less user to join Club A.
         context.ClubJoinRequests.Add(
@@ -129,6 +129,7 @@ public class TenancyTests : IDisposable
         // Seed seasons, campaigns, and participations so notes can be associated per-club.
         var seasonA = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Season A",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = ClubAId,
@@ -136,6 +137,7 @@ public class TenancyTests : IDisposable
         };
         var seasonB = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Season B",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = ClubBId,
@@ -146,6 +148,7 @@ public class TenancyTests : IDisposable
 
         var campaignA = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Campaign A",
             StartDate = new DateOnly(2026, 6, 1),
             SeasonId = seasonA.SeasonId,
@@ -154,6 +157,7 @@ public class TenancyTests : IDisposable
         };
         var campaignB = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Campaign B",
             StartDate = new DateOnly(2026, 6, 1),
             SeasonId = seasonB.SeasonId,
@@ -187,8 +191,8 @@ public class TenancyTests : IDisposable
 
         // One note per club to exercise the tenant filter on NoteEntity.
         context.Notes.AddRange(
-            new NoteEntity { Content = "Note A", PlayerCampaignAssignmentId = _clubAAssignmentId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
-            new NoteEntity { Content = "Note B", PlayerCampaignAssignmentId = _clubBAssignmentId, ClubId = ClubBId, CreatedById = ClubBMemberId });
+            new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Note A", PlayerCampaignAssignmentId = _clubAAssignmentId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Note B", PlayerCampaignAssignmentId = _clubBAssignmentId, ClubId = ClubBId, CreatedById = ClubBMemberId });
         context.SaveChanges();
     }
 
@@ -355,6 +359,7 @@ public class TenancyTests : IDisposable
 
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "New",
             LastName = "Player",
             DateOfBirth = new DateOnly(2013, 4, 4),
@@ -378,6 +383,7 @@ public class TenancyTests : IDisposable
 
         context.Players.Add(new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Sneaky",
             LastName = "Player",
             DateOfBirth = new DateOnly(2013, 5, 5),
@@ -418,6 +424,7 @@ public class TenancyTests : IDisposable
 
         context.Players.Remove(new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerId = clubBPlayerId,
             FirstName = "PB",
             LastName = "One",
@@ -439,6 +446,7 @@ public class TenancyTests : IDisposable
 
         context.Players.Add(new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Orphan",
             LastName = "Player",
             DateOfBirth = new DateOnly(2013, 6, 6),
@@ -496,6 +504,7 @@ public class TenancyTests : IDisposable
 
         context.Notes.Add(new NoteEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Content = "Cross-tenant attempt.",
             PlayerCampaignAssignmentId = _clubBAssignmentId,
             ClubId = ClubBId,

@@ -60,7 +60,7 @@ public sealed class TagDefinitionOrderingPostgresTests(NovaAppHostFixture fixtur
         var suffix = Guid.NewGuid().ToString("N");
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
 
-        var club = new ClubEntity { Name = $"Tag Bound Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Tag Bound Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -70,7 +70,9 @@ public sealed class TagDefinitionOrderingPostgresTests(NovaAppHostFixture fixtur
         {
             db.PlayerTags.Add(new PlayerTagEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Tag {i:000}",
+                NormalizedName = $"Tag {i:000}".Trim().ToUpperInvariant(),
                 Color = "#AABBCC",
                 ClubId = club.ClubId,
                 CreatedById = actorUserId

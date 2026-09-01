@@ -30,14 +30,15 @@ public sealed class TagDefinitionServiceTests : IDisposable
     {
         using var db = _harness.CreateAdminContext();
         db.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAAdminId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBAdminId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAAdminId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBAdminId });
         db.Users.AddRange(
             new NovaUserEntity { Id = ClubAAdminId, FirstName = "A", LastName = "Admin", ClubId = ClubAId },
             new NovaUserEntity { Id = ClubAMemberId, FirstName = "A", LastName = "Member", ClubId = ClubAId },
             new NovaUserEntity { Id = ClubBAdminId, FirstName = "B", LastName = "Admin", ClubId = ClubBId });
         db.PlayerTags.Add(new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerTagId = ClubATagId,
             Name = "Forward",
             NormalizedName = "FORWARD",
@@ -136,6 +137,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
             {
                 db.PlayerTags.Add(new PlayerTagEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = $"Limit Tag {i}",
                     NormalizedName = $"LIMIT TAG {i}",
                     Color = "#111111",
@@ -169,6 +171,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
             {
                 db.PlayerTags.Add(new PlayerTagEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = $"Archived Limit Tag {i}",
                     NormalizedName = $"ARCHIVED LIMIT TAG {i}",
                     Color = "#111111",

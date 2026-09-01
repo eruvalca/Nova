@@ -746,9 +746,10 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         await using var context = fixture.CreateAdminContext();
         var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
         var suffix = Guid.NewGuid().ToString("N");
-        var season = new SeasonEntity { Name = $"Note Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Note Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Note Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = closedCampaign ? CampaignStatus.Closed : CampaignStatus.Active,
@@ -761,6 +762,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         };
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Note",
             LastName = $"Player {suffix}",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -809,6 +811,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
         var note = new NoteEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Content = content,
             PlayerCampaignAssignmentId = assignmentId,
             ClubId = clubId,

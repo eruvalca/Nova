@@ -532,6 +532,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
         await using var seed = fixture.CreateAdminContext();
         var club = new ClubEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Note Retry Club {suffix}",
             City = "Austin",
             State = "TX",
@@ -542,6 +543,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
 
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Note Retry Season {suffix}",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -549,6 +551,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
         };
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = $"Note Retry Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -559,6 +562,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
         };
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Note",
             LastName = $"Retry Player {suffix}",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -588,6 +592,7 @@ public sealed class EvaluationNoteRetryTests(NovaAppHostFixture fixture)
         {
             var note = new NoteEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Content = $"Original note content {suffix}",
                 PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId,
                 ClubId = club.ClubId,

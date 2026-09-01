@@ -28,7 +28,7 @@ public class ClubEntity : BaseEntity
     /// operation and reused across retry attempts so an ambiguous commit can be verified (and
     /// not replayed) by looking up the club created by this operation.
     /// </summary>
-    public Guid? CreationOperationId { get; set; }
+    public required Guid CreationOperationId { get; set; }
 
     /// <summary>
     /// Gets or sets the Nova Users.

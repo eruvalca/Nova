@@ -15,7 +15,7 @@ public class NoteEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the stable identifier for the logical note-creation operation.
     /// </summary>
-    public Guid? CreationOperationId { get; set; }
+    public required Guid CreationOperationId { get; set; }
 
     /// <summary>
     /// Gets or sets the note content.

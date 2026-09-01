@@ -200,29 +200,29 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
         using var admin = _harness.CreateAdminContext();
 
         admin.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAViewerId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBMemberId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAViewerId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBMemberId });
         admin.Users.AddRange(
             new NovaUserEntity { Id = ClubAViewerId, FirstName = "Casey", LastName = "Viewer", ClubId = ClubAId },
             new NovaUserEntity { Id = ClubAAdminId, FirstName = "Admin", LastName = "A", ClubId = ClubAId },
             new NovaUserEntity { Id = ClubBMemberId, FirstName = "Bobby", LastName = "Member", ClubId = ClubBId });
         admin.Seasons.AddRange(
-            new SeasonEntity { SeasonId = 500, Name = "Season A", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubAId, CreatedById = ClubAViewerId },
-            new SeasonEntity { SeasonId = 501, Name = "Season B", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubBId, CreatedById = ClubBMemberId });
+            new SeasonEntity { CreationOperationId = Guid.NewGuid(), SeasonId = 500, Name = "Season A", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubAId, CreatedById = ClubAViewerId },
+            new SeasonEntity { CreationOperationId = Guid.NewGuid(), SeasonId = 501, Name = "Season B", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubBId, CreatedById = ClubBMemberId });
         admin.Teams.AddRange(
-            new TeamEntity { TeamId = 600, Name = "Alpha", GraduationYear = 2030, ClubId = ClubAId, CreatedById = ClubAViewerId },
-            new TeamEntity { TeamId = 602, Name = "Beta", GraduationYear = 2030, ClubId = ClubBId, CreatedById = ClubBMemberId });
+            new TeamEntity { CreationOperationId = Guid.NewGuid(), TeamId = 600, Name = "Alpha", GraduationYear = 2030, ClubId = ClubAId, CreatedById = ClubAViewerId },
+            new TeamEntity { CreationOperationId = Guid.NewGuid(), TeamId = 602, Name = "Beta", GraduationYear = 2030, ClubId = ClubBId, CreatedById = ClubBMemberId });
         admin.SaveChanges();
 
-        var closedCampaign = new CampaignEntity { Name = "Closed A", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAAdminId, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAViewerId };
-        var activeCampaign = new CampaignEntity { Name = "Active A", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAViewerId };
-        var closedCampaignB = new CampaignEntity { Name = "Closed B", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubBMemberId, SeasonId = 501, ClubId = ClubBId, CreatedById = ClubBMemberId };
+        var closedCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Closed A", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAAdminId, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAViewerId };
+        var activeCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Active A", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAViewerId };
+        var closedCampaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Closed B", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubBMemberId, SeasonId = 501, ClubId = ClubBId, CreatedById = ClubBMemberId };
         admin.Campaigns.AddRange(closedCampaign, activeCampaign, closedCampaignB);
         admin.SaveChanges();
 
-        var histPlayer = new PlayerEntity { FirstName = "Hist", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2030, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAViewerId };
-        var activePlayer = new PlayerEntity { FirstName = "Active", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2030, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAViewerId };
-        var closedBPlayer = new PlayerEntity { FirstName = "Closed", LastName = "BPlayer", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2030, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubBId, CreatedById = ClubBMemberId };
+        var histPlayer = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Hist", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2030, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAViewerId };
+        var activePlayer = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Active", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2030, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAViewerId };
+        var closedBPlayer = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Closed", LastName = "BPlayer", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2030, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubBId, CreatedById = ClubBMemberId };
         admin.Players.AddRange(histPlayer, activePlayer, closedBPlayer);
         admin.SaveChanges();
 
@@ -234,6 +234,7 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
 
         admin.Notes.Add(new NoteEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             PlayerCampaignAssignmentId = histAssignment.PlayerCampaignAssignmentId,
             Content = "Closed campaign note.",
             ClubId = ClubAId,

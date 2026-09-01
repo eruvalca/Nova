@@ -57,30 +57,30 @@ public sealed class CampaignQueryServiceTests : IDisposable
         using var admin = _harness.CreateAdminContext();
 
         admin.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "A", State = "TX", CreatedById = ClubAMemberId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "B", State = "MA", CreatedById = ClubAMemberId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "A", State = "TX", CreatedById = ClubAMemberId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "B", State = "MA", CreatedById = ClubAMemberId });
 
         admin.Users.Add(
             new NovaUserEntity { Id = ClubAMemberId, FirstName = "Amelia", LastName = "Member", ClubId = ClubAId });
 
-        var season = new SeasonEntity { Name = "Season 1", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var seasonB = new SeasonEntity { Name = "Season B", StartDate = new DateOnly(2025, 1, 1), ClubId = ClubBId, CreatedById = ClubAMemberId };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "Season 1", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var seasonB = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "Season B", StartDate = new DateOnly(2025, 1, 1), ClubId = ClubBId, CreatedById = ClubAMemberId };
         admin.Seasons.AddRange(season, seasonB);
         admin.SaveChanges();
 
-        var campaignA = new CampaignEntity { Name = "A1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var campaignA2 = new CampaignEntity { Name = "A2", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAMemberId, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var campaignA3 = new CampaignEntity { Name = "A3", StartDate = new DateOnly(2026, 4, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = 999_999, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var campaignB = new CampaignEntity { Name = "B1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonB.SeasonId, ClubId = ClubBId, CreatedById = ClubAMemberId };
+        var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignA2 = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A2", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAMemberId, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignA3 = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A3", StartDate = new DateOnly(2026, 4, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = 999_999, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "B1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = seasonB.SeasonId, ClubId = ClubBId, CreatedById = ClubAMemberId };
         admin.Campaigns.AddRange(campaignA, campaignA2, campaignA3, campaignB);
         admin.SaveChanges();
 
-        var playerA = new PlayerEntity { FirstName = "P1", LastName = "One", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var playerArchived = new PlayerEntity { FirstName = "P2", LastName = "Two", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Archived, ClubId = ClubAId, CreatedById = ClubAMemberId, ArchivedAt = DateTimeOffset.UtcNow, ArchivedById = ClubAMemberId };
+        var playerA = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "P1", LastName = "One", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var playerArchived = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "P2", LastName = "Two", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Archived, ClubId = ClubAId, CreatedById = ClubAMemberId, ArchivedAt = DateTimeOffset.UtcNow, ArchivedById = ClubAMemberId };
         admin.Players.AddRange(playerA, playerArchived);
         admin.Teams.AddRange(
-            new TeamEntity { Name = "Active Team", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId },
-            new TeamEntity { Name = "Archived Team", GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Archived, ClubId = ClubAId, CreatedById = ClubAMemberId, ArchivedAt = DateTimeOffset.UtcNow, ArchivedById = ClubAMemberId });
+            new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = "Active Team", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = ClubAId, CreatedById = ClubAMemberId },
+            new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = "Archived Team", GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Archived, ClubId = ClubAId, CreatedById = ClubAMemberId, ArchivedAt = DateTimeOffset.UtcNow, ArchivedById = ClubAMemberId });
         admin.SaveChanges();
 
         admin.PlayerCampaignAssignments.AddRange(
@@ -207,6 +207,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         {
             admin.Seasons.AddRange(Enumerable.Range(1, 101).Select(index => new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Bounded Season {index}",
                 StartDate = new DateOnly(2027, 1, 1),
                 ClubId = ClubAId,
@@ -248,6 +249,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         {
             var season = new SeasonEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = "Ordering Season",
                 StartDate = new DateOnly(2027, 1, 1),
                 ClubId = ClubAId,
@@ -261,6 +263,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
             admin.Campaigns.AddRange(
                 new CampaignEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = "Later",
                     StartDate = new DateOnly(2027, 6, 2),
                     Status = CampaignStatus.Active,
@@ -270,6 +273,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                 },
                 new CampaignEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = "Z",
                     StartDate = sameDate,
                     EndDate = sameEnd,
@@ -280,6 +284,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                 },
                 new CampaignEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = "Earlier End",
                     StartDate = sameDate,
                     EndDate = sameEnd.AddDays(-1),
@@ -290,6 +295,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                 },
                 new CampaignEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = "A",
                     StartDate = sameDate,
                     EndDate = sameEnd,
@@ -300,6 +306,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                 },
                 new CampaignEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = "Open",
                     StartDate = sameDate,
                     Status = CampaignStatus.Active,
@@ -309,6 +316,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                 },
                 new CampaignEntity
                 {
+                    CreationOperationId = Guid.NewGuid(),
                     Name = "Closed",
                     StartDate = sameDate,
                     Status = CampaignStatus.Closed,

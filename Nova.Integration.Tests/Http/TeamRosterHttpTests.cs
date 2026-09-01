@@ -44,6 +44,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
             .SingleAsync(cancellationToken);
         var season = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Roster Season",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = club.ClubId,
@@ -53,6 +54,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         await context.SaveChangesAsync(cancellationToken);
         var campaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Roster Campaign",
             StartDate = new DateOnly(2026, 1, 1),
             Status = CampaignStatus.Active,
@@ -62,6 +64,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         };
         var player = new PlayerEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             FirstName = "Roster",
             LastName = "Player",
             DateOfBirth = new DateOnly(2012, 1, 1),
@@ -71,6 +74,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         };
         var alpha = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Alpha",
             GraduationYear = 2030,
             ClubId = club.ClubId,
@@ -78,6 +82,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         };
         var beta = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Beta",
             GraduationYear = 2031,
             ClubId = club.ClubId,
@@ -85,6 +90,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         };
         var archived = new TeamEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Archived",
             GraduationYear = 2030,
             LifecycleStatus = LifecycleStatus.Archived,
@@ -149,6 +155,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
 
             var team = new TeamEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 Name = $"Member Readable {Guid.CreateVersion7():N}",
                 GraduationYear = 2030,
                 ClubId = club.ClubId,
@@ -323,6 +330,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     /// <returns>A new team entity.</returns>
     private static TeamEntity NewTeam(string name, long clubId, long createdById) => new()
     {
+        CreationOperationId = Guid.NewGuid(),
         Name = name,
         GraduationYear = 2030,
         ClubId = clubId,

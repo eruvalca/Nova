@@ -24,7 +24,6 @@ public class ClubEntityConfiguration : IEntityTypeConfiguration<ClubEntity>
         // verify, not replay) the club created by the exact operation, even if a retry attempt
         // would otherwise insert a second club for the same user.
         builder.HasIndex(e => new { e.CreatedById, e.CreationOperationId })
-            .IsUnique()
-            .HasFilter("\"CreationOperationId\" IS NOT NULL");
+            .IsUnique();
     }
 }

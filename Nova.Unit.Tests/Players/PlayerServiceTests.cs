@@ -200,12 +200,13 @@ public sealed class PlayerServiceTests : IDisposable
     {
         using var db = _harness.CreateAdminContext();
         db.Clubs.AddRange(
-            new ClubEntity { ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAUserId },
-            new ClubEntity { ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBUserId });
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = ClubAUserId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = ClubBUserId });
 
         db.Players.AddRange(
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 FirstName = "Amy",
                 LastName = "Adams",
@@ -215,6 +216,7 @@ public sealed class PlayerServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 FirstName = "Bobby",
                 LastName = "Brown",
@@ -224,6 +226,7 @@ public sealed class PlayerServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 FirstName = "Casey",
                 LastName = "Clark",
@@ -233,6 +236,7 @@ public sealed class PlayerServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubAId,
                 FirstName = "Archie",
                 LastName = "Archived",
@@ -245,6 +249,7 @@ public sealed class PlayerServiceTests : IDisposable
             },
             new PlayerEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 ClubId = ClubBId,
                 FirstName = "Blake",
                 LastName = "Bishop",
@@ -257,6 +262,7 @@ public sealed class PlayerServiceTests : IDisposable
 
         var seasonA = new SeasonEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Season A",
             StartDate = new DateOnly(2026, 1, 1),
             ClubId = ClubAId,
@@ -267,6 +273,7 @@ public sealed class PlayerServiceTests : IDisposable
 
         var activeCampaign = new CampaignEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Summer Tryouts",
             StartDate = new DateOnly(2026, 6, 1),
             Status = CampaignStatus.Active,
@@ -279,14 +286,18 @@ public sealed class PlayerServiceTests : IDisposable
 
         var defenderTag = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Defender",
+            NormalizedName = "DEFENDER",
             Color = "#0055AA",
             ClubId = ClubAId,
             CreatedById = ClubAUserId
         };
         var keeperTag = new PlayerTagEntity
         {
+            CreationOperationId = Guid.NewGuid(),
             Name = "Keeper",
+            NormalizedName = "KEEPER",
             Color = "#228B22",
             ClubId = ClubAId,
             CreatedById = ClubAUserId
@@ -336,6 +347,7 @@ public sealed class PlayerServiceTests : IDisposable
         db.CampaignTagApplications.AddRange(
             new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = bobbyAssignment.PlayerCampaignAssignmentId,
                 PlayerTagId = keeperTag.PlayerTagId,
                 ClubId = ClubAId,
@@ -343,6 +355,7 @@ public sealed class PlayerServiceTests : IDisposable
             },
             new CampaignTagApplicationEntity
             {
+                CreationOperationId = Guid.NewGuid(),
                 PlayerCampaignAssignmentId = caseyAssignment.PlayerCampaignAssignmentId,
                 PlayerTagId = defenderTag.PlayerTagId,
                 ClubId = ClubAId,

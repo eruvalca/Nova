@@ -493,10 +493,10 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
     {
         await using var context = fixture.CreateAdminContext();
         var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        var season = new SeasonEntity { Name = "Roster Season", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
-        var campaign = new CampaignEntity { Name = "Roster Campaign", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = user.Id };
-        var player = new PlayerEntity { FirstName = "Avery", LastName = "Adams", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
-        var playerTag = new PlayerTagEntity { Name = "Roster Tag", Color = "Blue", ClubId = clubId, CreatedById = user.Id, LifecycleStatus = LifecycleStatus.Active };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "Roster Season", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+        var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Roster Campaign", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = user.Id };
+        var player = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Avery", LastName = "Adams", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+        var playerTag = new PlayerTagEntity { CreationOperationId = Guid.NewGuid(), Name = "Roster Tag", NormalizedName = "ROSTER TAG", Color = "Blue", ClubId = clubId, CreatedById = user.Id, LifecycleStatus = LifecycleStatus.Active };
 
         context.AddRange(season, campaign, player, playerTag);
         await context.SaveChangesAsync(cancellationToken);
@@ -505,8 +505,8 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
         context.Add(assignment);
         await context.SaveChangesAsync(cancellationToken);
 
-        context.CampaignTagApplications.Add(new CampaignTagApplicationEntity { PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, PlayerTagId = playerTag.PlayerTagId, ClubId = clubId, CreatedById = user.Id });
-        context.Notes.Add(new NoteEntity { PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, ClubId = clubId, Content = "Roster note", CreatedById = user.Id });
+        context.CampaignTagApplications.Add(new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, PlayerTagId = playerTag.PlayerTagId, ClubId = clubId, CreatedById = user.Id });
+        context.Notes.Add(new NoteEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = assignment.PlayerCampaignAssignmentId, ClubId = clubId, Content = "Roster note", CreatedById = user.Id });
         await context.SaveChangesAsync(cancellationToken);
 
         return (campaign.CampaignId, playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId);
@@ -516,16 +516,16 @@ public sealed class CampaignParticipantHttpTests(NovaAppHostFixture fixture)
     {
         await using var context = fixture.CreateAdminContext();
         var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        var season = new SeasonEntity { Name = "Wildcard Search Season", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
-        var campaign = new CampaignEntity { Name = "Wildcard Search Campaign", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = user.Id };
+        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "Wildcard Search Season", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+        var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Wildcard Search Campaign", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = user.Id };
         context.AddRange(season, campaign);
         await context.SaveChangesAsync(cancellationToken);
 
         var players = new[]
         {
-            new PlayerEntity { FirstName = "A%", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id },
-            new PlayerEntity { FirstName = "A_", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id },
-            new PlayerEntity { FirstName = "A\\", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id }
+            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "A%", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id },
+            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "A_", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id },
+            new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "A\\", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id }
         };
 
         context.Players.AddRange(players);
