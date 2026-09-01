@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using System.Text.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -7,6 +8,8 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
+using Nova.Shared.Results;
 using NSubstitute;
 using Shouldly;
 
@@ -220,6 +223,85 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
             .ToListAsync(cancellationToken);
         events.Count.ShouldBe(1);
         events[0].ActorUserId.ShouldBe(seed.RequesterUserId);
+    }
+
+    /// <summary>
+    /// Verifies the join-request advisory lock serializes competing terminal transitions: when a
+    /// rejection commits while an approval waits for the request lock, the approval re-reads the
+    /// committed rejection and returns Conflict instead of appending a contradictory member-joined
+    /// event.
+    /// </summary>
+    [Fact]
+    public async Task ApproveJoinRequest_ReturnsConflict_WhenRejectionWinsTheRequestLock()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedApprovalDataAsync(cancellationToken);
+        ActAsAdmin(seed.AdminUserId, seed.ClubId);
+
+        var service = CreateService(
+            new RetryingTenantDbContextFactory(
+                fixture.ConnectionString,
+                fixture.CurrentUser,
+                new NoOpInterceptor()),
+            seed.RequesterUserId);
+
+        // Hold the join-request advisory lock so the approval blocks inside its mutation attempt.
+        var lockKey = (long.MinValue / 8) + seed.RequestId;
+        await using var holdDb = fixture.CreateAdminContext();
+        await using var holdTransaction = await holdDb.Database.BeginTransactionAsync(cancellationToken);
+        await holdDb.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({lockKey})",
+            cancellationToken);
+
+        var approveTask = service.ApproveJoinRequestAsync(seed.RequestId, cancellationToken);
+
+        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+            holdDb,
+            lockKey,
+            cancellationToken);
+
+        // The competing rejection wins while the approval waits: mark the request rejected and
+        // append its durable event, then release the lock.
+        var request = await holdDb.ClubJoinRequests
+            .SingleAsync(candidate => candidate.ClubJoinRequestId == seed.RequestId, cancellationToken);
+        request.Status = RequestStatus.Rejected;
+        var rejectPayload = JsonSerializer.Serialize(
+            new JoinRequestContext { JoinRequestId = seed.RequestId, RequesterDisplayName = "Requester R" },
+            typeof(ClubActivityContext));
+        holdDb.ActivityEvents.Add(new ActivityEventEntity
+        {
+            ClubId = seed.ClubId,
+            EventKind = ActivityEventKind.JoinRequestRejected,
+            IsAdminOnly = true,
+            ActorUserId = seed.AdminUserId,
+            ActorDisplayName = "Admin A",
+            PayloadJson = rejectPayload,
+            CreatedById = seed.AdminUserId,
+        });
+        await holdDb.SaveChangesAsync(cancellationToken);
+        await holdTransaction.CommitAsync(cancellationToken);
+
+        var result = await approveTask;
+        result.IsProblem.ShouldBeTrue(
+            "the losing approval must observe the committed rejection and return Conflict");
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+
+        await using var verify = fixture.CreateAdminContext();
+        var persisted = await verify.ClubJoinRequests
+            .SingleAsync(candidate => candidate.ClubJoinRequestId == seed.RequestId, cancellationToken);
+        persisted.Status.ShouldBe(RequestStatus.Rejected);
+
+        var joinedEvents = await verify.ActivityEvents
+            .Where(activity => activity.ClubId == seed.ClubId
+                && activity.EventKind == ActivityEventKind.MemberJoined)
+            .CountAsync(cancellationToken);
+        joinedEvents.ShouldBe(0, "the losing approval must not append a member-joined event");
+
+        var rejectedEvents = await verify.ActivityEvents
+            .Where(activity => activity.ClubId == seed.ClubId
+                && activity.EventKind == ActivityEventKind.JoinRequestRejected)
+            .CountAsync(cancellationToken);
+        rejectedEvents.ShouldBe(1);
     }
 
     /// <summary>

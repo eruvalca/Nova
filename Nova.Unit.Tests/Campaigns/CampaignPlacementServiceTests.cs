@@ -26,11 +26,14 @@ public sealed class CampaignPlacementServiceTests : IDisposable
     private const long ClubAAssignmentId = 300;
     private const long ClubBAssignmentId = 301;
     private const long ClosedCampaignAssignmentId = 302;
+    private const long ClubAReassignedAssignmentId = 303;
     private const long EligibleTeamId = 400;
     private const long IneligibleTeamId = 401;
     private const long ClubBTeamId = 402;
+    private const long SecondEligibleTeamId = 403;
 
     private readonly Guid _clubAConcurrencyToken = Guid.NewGuid();
+    private readonly Guid _clubAReassignedConcurrencyToken = Guid.NewGuid();
     private readonly TenancyTestHarness _harness = new();
 
     /// <summary>
@@ -113,6 +116,54 @@ public sealed class CampaignPlacementServiceTests : IDisposable
         placement.Outcome.ShouldBe(PlacementOutcome.Assigned);
         placement.PreviousTeamName.ShouldBeNull();
         placement.TeamName.ShouldBe("Eligible");
+    }
+
+    /// <summary>
+    /// Verifies reassigning a player between two eligible teams records a <c>PlacementReassigned</c>
+    /// event that snapshots both the previous and current team names, exercising the branch that
+    /// reloads the old-team reference after locking (rather than only the first assignment).
+    /// </summary>
+    [Fact]
+    public async Task UpdatePlacementAsync_AppendsReassignmentEvent_WithPreviousAndCurrentTeamSnapshots()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.UpdatePlacementAsync(
+            new UpdateCampaignPlacementInput(
+                ClubAReassignedAssignmentId,
+                PlacementOutcome.Assigned,
+                SecondEligibleTeamId,
+                _clubAReassignedConcurrencyToken),
+            TestContext.Current.CancellationToken);
+
+        result.IsT0.ShouldBeTrue();
+        result.AsT0.ConcurrencyToken.ShouldNotBe(_clubAReassignedConcurrencyToken);
+
+        await using var verify = _harness.CreateAdminContext();
+        var participation = await verify.PlayerCampaignAssignments
+            .SingleAsync(
+                assignment => assignment.PlayerCampaignAssignmentId == ClubAReassignedAssignmentId,
+                TestContext.Current.CancellationToken);
+        participation.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
+        participation.TeamId.ShouldBe(SecondEligibleTeamId);
+
+        var row = await verify.ActivityEvents
+            .SingleAsync(TestContext.Current.CancellationToken);
+        row.EventKind.ShouldBe(ActivityEventKind.PlacementReassigned);
+
+        var context = JsonSerializer.Deserialize<ClubActivityContext>(
+            row.PayloadJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var placement = context.ShouldBeOfType<PlacementContext>();
+        placement.CampaignId.ShouldBe(600);
+        placement.CampaignName.ShouldBe("Campaign A");
+        placement.PlayerCampaignAssignmentId.ShouldBe(ClubAReassignedAssignmentId);
+        placement.PlayerDisplayName.ShouldBe("Drew Doe");
+        placement.PreviousOutcome.ShouldBe(PlacementOutcome.Assigned);
+        placement.Outcome.ShouldBe(PlacementOutcome.Assigned);
+        placement.PreviousTeamName.ShouldBe("Eligible");
+        placement.TeamName.ShouldBe("Eligible 2");
     }
 
     /// <summary>
@@ -524,6 +575,17 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 GraduationYear = 2030,
                 ClubId = ClubAId,
                 CreatedById = ClubAAdminId
+            },
+            new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                PlayerId = 703,
+                FirstName = "Drew",
+                LastName = "Doe",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId
             });
 
         db.Teams.AddRange(
@@ -553,6 +615,15 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 GraduationYear = 2029,
                 ClubId = ClubBId,
                 CreatedById = ClubBAdminId
+            },
+            new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                TeamId = SecondEligibleTeamId,
+                Name = "Eligible 2",
+                GraduationYear = 2029,
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId
             });
 
         db.PlayerCampaignAssignments.AddRange(
@@ -584,6 +655,17 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 ClubId = ClubAId,
                 PlacementOutcome = PlacementOutcome.Undecided,
                 ConcurrencyToken = Guid.NewGuid(),
+                CreatedById = ClubAAdminId
+            },
+            new PlayerCampaignAssignmentEntity
+            {
+                PlayerCampaignAssignmentId = ClubAReassignedAssignmentId,
+                PlayerId = 703,
+                CampaignId = 600,
+                ClubId = ClubAId,
+                PlacementOutcome = PlacementOutcome.Assigned,
+                TeamId = EligibleTeamId,
+                ConcurrencyToken = _clubAReassignedConcurrencyToken,
                 CreatedById = ClubAAdminId
             });
 
