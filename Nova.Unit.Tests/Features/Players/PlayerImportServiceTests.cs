@@ -13,14 +13,21 @@ using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Players;
 
-internal sealed class PlayerImportReadContextFactory(TenancyTestHarness harness) : IDbContextFactory<NovaReadDbContext>
+/// <summary>Creates tenant-filtered read contexts and optionally records their SQL commands.</summary>
+/// <param name="harness">The shared SQLite tenancy harness.</param>
+/// <param name="commandInterceptor">The optional command-counting interceptor.</param>
+internal sealed class PlayerImportReadContextFactory(
+    TenancyTestHarness harness,
+    CountingCommandInterceptor? commandInterceptor = null) : IDbContextFactory<NovaReadDbContext>
 {
     public int CreatedContexts { get; private set; }
 
     public NovaReadDbContext CreateDbContext()
     {
         CreatedContexts++;
-        return harness.CreateReadContext();
+        return commandInterceptor is null
+            ? harness.CreateReadContext()
+            : harness.CreateReadContext(commandInterceptor);
     }
 
     public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
@@ -154,6 +161,51 @@ public sealed class PlayerImportServiceTests : IDisposable
         duplicate.ShouldNotBeNull();
         duplicate.Kind.ShouldBe(PlayerImportDuplicateKind.ExistingActivePlayer);
         duplicate.ExistingPlayerId.ShouldBe(firstActive.PlayerId);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("Alex", "Archer", "2012-01-01", PlayerImportDuplicateKind.ExistingActivePlayer)]
+    [InlineData("Archived", "Player", "2011-01-01", PlayerImportDuplicateKind.ExistingArchivedPlayer)]
+    public async Task PreviewAsync_PrefersExistingPlayer_ForEveryMatchingUploadRow(
+        string firstName,
+        string lastName,
+        string dateOfBirth,
+        PlayerImportDuplicateKind expectedKind)
+    {
+        ActAs(AdminId, ClubAId, isAdmin: true);
+        var rows = $" {firstName} ,{lastName.ToUpperInvariant()},{dateOfBirth},,,2030\r\n"
+            + $"{firstName.ToUpperInvariant()}, {lastName} ,{dateOfBirth},,,2030\r\n";
+
+        var result = await CreateService().PreviewAsync(
+            Upload(rows),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ReadyRows.ShouldBe(0);
+        result.Value.DuplicateRows.ShouldBe(2);
+        result.Value.Rows.ShouldAllBe(row => row.Duplicate!.Kind == expectedKind);
+        result.Value.Rows.ShouldAllBe(row => row.Duplicate!.ExistingPlayerId.GetValueOrDefault() > 0);
+        result.Value.Rows.ShouldAllBe(row => row.Duplicate!.EarlierSourceRowNumber == null);
+        result.Value.Rows.Select(row => row.Duplicate!.ExistingPlayerId).Distinct().ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public async Task PreviewAsync_UsesOneReaderCommand_ForDuplicateHeavyUpload()
+    {
+        ActAs(AdminId, ClubAId, isAdmin: true);
+        var interceptor = new CountingCommandInterceptor();
+        var factory = new PlayerImportReadContextFactory(_harness, interceptor);
+        var rows = string.Concat(Enumerable.Repeat("Taylor,Stone,2013-02-03,,,2031\r\n", 200));
+
+        var result = await CreateService(factory).PreviewAsync(
+            Upload(rows),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.TotalRows.ShouldBe(200);
+        result.Value.ReadyRows.ShouldBe(1);
+        result.Value.DuplicateRows.ShouldBe(199);
+        interceptor.ReaderExecutionCount.ShouldBe(1);
     }
 
     [Fact]
