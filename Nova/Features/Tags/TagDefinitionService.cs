@@ -171,7 +171,7 @@ public sealed partial class TagDefinitionService(
         {
             LogTagDefinitionActiveLimitReached(clubId);
             return ServiceProblem.Conflict(
-                $"This club already has the maximum of {TagDefinitionLimits.MaxActiveTagDefinitions} active tag definitions. Archive an existing tag before creating a new one.");
+                $"This club already has the maximum of {TagDefinitionLimits.MaxActiveTagDefinitions} active tag definitions. Ask a club administrator to archive an existing tag before creating a new one.");
         }
 
         var tagDefinition = new PlayerTagEntity

@@ -236,8 +236,8 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 _clubAConcurrencyToken),
             TestContext.Current.CancellationToken);
 
-        result.IsT0.ShouldBeTrue();
-        result.AsT0.ConcurrencyToken.ShouldNotBe(_clubAConcurrencyToken);
+        var success = result.Value.ShouldBeOfType<PlacementMutationSuccess>();
+        success.ConcurrencyToken.ShouldNotBe(_clubAConcurrencyToken);
     }
 
     /// <summary>
