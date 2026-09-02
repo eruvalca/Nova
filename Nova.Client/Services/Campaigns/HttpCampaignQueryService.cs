@@ -141,6 +141,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
                 || string.IsNullOrWhiteSpace(season.Name)
                 || season.StartDate == default
                 || season.EndDate < season.StartDate
+                || season.ConcurrencyToken == Guid.Empty
                 || (previousSeasonStart is not null
                     && (season.StartDate > previousSeasonStart
                         || (season.StartDate == previousSeasonStart && season.SeasonId >= previousSeasonId))))

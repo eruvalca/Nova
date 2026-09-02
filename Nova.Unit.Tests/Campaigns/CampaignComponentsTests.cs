@@ -871,6 +871,44 @@ public sealed class CampaignComponentsTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("inline-season-name"));
     }
 
+    /// <summary>Verifies disabling inline creation hides the option and normalizes stale local state.</summary>
+    [Fact]
+    public void CampaignCreateForm_HidesInlineModeAndResetsInlineSelection_WhenInlineCreationIsDisabled()
+    {
+        CampaignCreateFormState? submitted = null;
+        var model = new CampaignCreateFormState
+        {
+            OperationId = Guid.CreateVersion7(),
+            Name = "Summer Tryouts",
+            StartDate = new DateOnly(2026, 6, 1),
+            PlannedEndDate = new DateOnly(2026, 6, 30),
+            UseInlineSeason = true,
+            ExistingSeasonId = 5,
+            InlineSeasonName = "Invalid inline choice",
+            InlineSeasonStartDate = new DateOnly(2026, 6, 1)
+        };
+
+        var cut = Render<CampaignCreateForm>(parameters => parameters
+            .Add(component => component.Heading, "Campaign details")
+            .Add(component => component.Model, model)
+            .Add(component => component.Seasons, CreateSeasonChoices())
+            .Add(component => component.AllowInlineSeasonCreation, false)
+            .Add(
+                component => component.OnValidSubmit,
+                EventCallback.Factory.Create<CampaignCreateFormState>(this, value => submitted = value)));
+
+        cut.Markup.ShouldNotContain("season-mode-inline");
+        cut.Markup.ShouldNotContain("inline-season-name");
+        cut.Markup.ShouldContain("Campaigns can only be created in the current season.");
+        cut.Find("button[type='submit']").Click();
+
+        cut.WaitForAssertion(() => submitted.ShouldNotBeNull());
+        submitted!.UseInlineSeason.ShouldBeFalse();
+        submitted.ToCreateInput().ExistingSeasonId.ShouldBe(5);
+        submitted.ToCreateInput().InlineSeason.ShouldBeNull();
+    }
+
+    /// <summary>Verifies current setup renders enrollment context without an invalid inline-season action.</summary>
     [Fact]
     public void NewCampaign_ShowsPreviewCountsAndExplainer_WhenSetupLoads()
     {
@@ -885,6 +923,8 @@ public sealed class CampaignComponentsTests : BunitContext
         cut.Markup.ShouldContain("active teams will be available for placement");
         cut.Markup.ShouldContain("Active");
         cut.Markup.ShouldContain("does not close the campaign");
+        cut.Markup.ShouldNotContain("season-mode-inline");
+        cut.Markup.ShouldContain("Campaigns can only be created in the current season.");
     }
 
     [Fact]
@@ -904,6 +944,7 @@ public sealed class CampaignComponentsTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Current enrollment preview"));
     }
 
+    /// <summary>Verifies no-current setup can create a campaign and its first season together.</summary>
     [Fact]
     public void NewCampaign_CreatesWithInlineSeason_AndNavigatesToList()
     {
@@ -923,7 +964,14 @@ public sealed class CampaignComponentsTests : BunitContext
                 SeasonCreatedInline: true,
                 EnrolledPlayerCount: 34))));
 
-        RegisterServices(isClubAdmin: true, creationService: creationService);
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessSetupResult(seasons: [])));
+
+        RegisterServices(
+            isClubAdmin: true,
+            queryService: queryService,
+            creationService: creationService);
 
         var cut = Render<NewCampaignPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Current enrollment preview"));

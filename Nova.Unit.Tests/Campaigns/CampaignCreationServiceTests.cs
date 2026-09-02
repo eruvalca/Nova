@@ -364,6 +364,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
     public async Task Create_ReturnsConflict_ForDuplicateInlineSeasonName()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        ClearCurrentSeason(ClubAId);
         var input = ValidInlineSeasonInput() with
         {
             InlineSeason = ValidInlineSeasonInput().InlineSeason! with { Name = "Club A Season" }
@@ -375,6 +376,8 @@ public sealed class CampaignCreationServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Detail.ShouldBe(
+            "A season with that name already exists. Choose a different season name.");
         CampaignCountForClubA().ShouldBe(0);
     }
 

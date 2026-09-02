@@ -39,6 +39,12 @@ public partial class CampaignCreateForm
     public IReadOnlyList<CampaignSeasonChoice> Seasons { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets whether the no-current-season workflow may offer inline season creation.
+    /// </summary>
+    [Parameter]
+    public bool AllowInlineSeasonCreation { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets the submit button text.
     /// </summary>
     [Parameter]
@@ -75,6 +81,11 @@ public partial class CampaignCreateForm
         {
             _lastModelReference = Model;
             _localModel = Model.Clone();
+        }
+
+        if (!AllowInlineSeasonCreation)
+        {
+            _localModel.UseInlineSeason = false;
         }
     }
 

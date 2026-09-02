@@ -105,16 +105,11 @@ public sealed class SeasonCommandService(
                     clubId,
                     normalizedInput.OperationId,
                     cancellationToken);
-                var result = current is null
-                    ? null
-                    : new StartNextSeasonResult
-                    {
-                        PreviousSeasonId = normalizedInput.ExpectedCurrentSeasonId,
-                        CurrentSeason = current
-                    };
-                return result is null
+                return current is null
                     ? new ExecutionResult<ServiceResult<StartNextSeasonResult>>(false, default!)
-                    : new ExecutionResult<ServiceResult<StartNextSeasonResult>>(true, result);
+                    : new ExecutionResult<ServiceResult<StartNextSeasonResult>>(
+                        true,
+                        ToStartNextReplayResult(current, normalizedInput.ExpectedCurrentSeasonId));
             },
             cancellationToken);
     }
@@ -199,19 +194,31 @@ public sealed class SeasonCommandService(
             return ServiceProblem.Conflict("A season with that name already exists.");
         }
 
-        var campaignOutsideWindow = await db.Campaigns.AnyAsync(
+        var campaignDateErrors = new Dictionary<string, string[]>();
+        if (await db.Campaigns.AnyAsync(
             campaign => campaign.SeasonId == seasonId
-                && (campaign.StartDate < input.StartDate
-                    || (input.EndDate != null
-                        && (campaign.StartDate > input.EndDate
-                            || campaign.EndDate == null
-                            || campaign.EndDate > input.EndDate))),
-            cancellationToken);
-        if (campaignOutsideWindow)
+                && campaign.StartDate < input.StartDate,
+            cancellationToken))
         {
-            return ServiceProblem.Validation(
-                nameof(UpdateSeasonInput.EndDate),
-                "The season dates must contain every linked campaign.");
+            campaignDateErrors[nameof(UpdateSeasonInput.StartDate)] =
+                ["The season start date must be on or before every linked campaign start date."];
+        }
+
+        if (input.EndDate is DateOnly seasonEndDate
+            && await db.Campaigns.AnyAsync(
+                campaign => campaign.SeasonId == seasonId
+                    && (campaign.StartDate > seasonEndDate
+                        || campaign.EndDate == null
+                        || campaign.EndDate > seasonEndDate),
+                cancellationToken))
+        {
+            campaignDateErrors[nameof(UpdateSeasonInput.EndDate)] =
+                ["The season end date must contain every linked campaign."];
+        }
+
+        if (campaignDateErrors.Count > 0)
+        {
+            return ServiceProblem.Validation(campaignDateErrors);
         }
 
         db.Entry(season).Property(value => value.ConcurrencyToken).OriginalValue = input.ExpectedConcurrencyToken;
@@ -253,11 +260,7 @@ public sealed class SeasonCommandService(
         var committed = await FindCommittedSeasonAsync(db, clubId, input.OperationId, cancellationToken);
         if (committed is not null)
         {
-            return new StartNextSeasonResult
-            {
-                PreviousSeasonId = input.ExpectedCurrentSeasonId,
-                CurrentSeason = committed
-            };
+            return ToStartNextReplayResult(committed, input.ExpectedCurrentSeasonId);
         }
 
         var club = await db.Clubs.SingleOrDefaultAsync(club => club.ClubId == clubId, cancellationToken);
@@ -348,6 +351,22 @@ public sealed class SeasonCommandService(
                 ConcurrencyToken = season.ConcurrencyToken
             })
             .SingleOrDefaultAsync(cancellationToken);
+
+    /// <summary>Reconstructs a valid advancement replay or rejects an operation-currentness collision.</summary>
+    /// <param name="committed">The operation-created season that is currently selected by the club.</param>
+    /// <param name="expectedCurrentSeasonId">The current season identifier supplied by the caller.</param>
+    /// <returns>The reconstructed advancement result, or a conflict when no transition occurred.</returns>
+    private static ServiceResult<StartNextSeasonResult> ToStartNextReplayResult(
+        SeasonSummary committed,
+        long expectedCurrentSeasonId)
+        => committed.SeasonId == expectedCurrentSeasonId
+            ? ServiceProblem.Conflict(
+                "The operation identifier belongs to the current season and cannot be reused to start another season.")
+            : new StartNextSeasonResult
+            {
+                PreviousSeasonId = expectedCurrentSeasonId,
+                CurrentSeason = committed
+            };
 
     /// <summary>Maps a season to its public summary.</summary>
     private static SeasonSummary ToSummary(SeasonEntity season, bool isCurrent)

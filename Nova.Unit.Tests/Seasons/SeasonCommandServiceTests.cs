@@ -246,27 +246,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
     [Fact]
     public async Task UpdateAsync_ReturnsValidation_WhenCampaignFallsOutsideWindow()
     {
-        Guid token;
-        await using (var db = _harness.CreateAdminContext())
-        {
-            token = await db.Seasons
-                .Where(season => season.SeasonId == CurrentSeasonId)
-                .Select(season => season.ConcurrencyToken)
-                .SingleAsync(TestContext.Current.CancellationToken);
-            db.Campaigns.Add(new CampaignEntity
-            {
-                CreationOperationId = Guid.NewGuid(),
-                Name = "Open-ended",
-                StartDate = new DateOnly(2026, 2, 1),
-                Status = CampaignStatus.Closed,
-                ClosedAt = DateTimeOffset.UtcNow,
-                ClosedById = AdminId,
-                SeasonId = CurrentSeasonId,
-                ClubId = ClubId,
-                CreatedById = AdminId
-            });
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        }
+        var token = await SeedClosedCampaignAsync(new DateOnly(2026, 2, 1), endDate: null);
 
         var result = await CreateService().UpdateAsync(
             CurrentSeasonId,
@@ -281,12 +261,69 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
+        result.Problem.Errors.Count.ShouldBe(1);
+        result.Problem.Errors.ShouldContainKey(nameof(UpdateSeasonInput.EndDate));
+        result.Problem.Errors.ShouldNotContainKey(nameof(UpdateSeasonInput.StartDate));
         await using var verify = _harness.CreateAdminContext();
         var unchanged = await verify.Seasons.SingleAsync(
             season => season.SeasonId == CurrentSeasonId,
             TestContext.Current.CancellationToken);
         unchanged.Name.ShouldBe("Current");
         unchanged.ConcurrencyToken.ShouldBe(token);
+    }
+
+    /// <summary>Verifies a lower-bound campaign-window failure targets the season start date.</summary>
+    [Fact]
+    public async Task UpdateAsync_ReturnsStartDateValidation_WhenCampaignStartsBeforeWindow()
+    {
+        var token = await SeedClosedCampaignAsync(
+            new DateOnly(2026, 2, 1),
+            new DateOnly(2026, 4, 1));
+
+        var result = await CreateService().UpdateAsync(
+            CurrentSeasonId,
+            new UpdateSeasonInput
+            {
+                ExpectedConcurrencyToken = token,
+                Name = "Changed",
+                StartDate = new DateOnly(2026, 3, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
+        result.Problem.Errors.Count.ShouldBe(1);
+        result.Problem.Errors.ShouldContainKey(nameof(UpdateSeasonInput.StartDate));
+        result.Problem.Errors.ShouldNotContainKey(nameof(UpdateSeasonInput.EndDate));
+    }
+
+    /// <summary>Verifies independent lower and upper campaign-window failures target both date fields.</summary>
+    [Fact]
+    public async Task UpdateAsync_ReturnsBothDateValidations_WhenCampaignCrossesWindow()
+    {
+        var token = await SeedClosedCampaignAsync(
+            new DateOnly(2026, 2, 1),
+            new DateOnly(2026, 10, 1));
+
+        var result = await CreateService().UpdateAsync(
+            CurrentSeasonId,
+            new UpdateSeasonInput
+            {
+                ExpectedConcurrencyToken = token,
+                Name = "Changed",
+                StartDate = new DateOnly(2026, 3, 1),
+                EndDate = new DateOnly(2026, 9, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull();
+        result.Problem.Errors.Count.ShouldBe(2);
+        result.Problem.Errors.ShouldContainKey(nameof(UpdateSeasonInput.StartDate));
+        result.Problem.Errors.ShouldContainKey(nameof(UpdateSeasonInput.EndDate));
     }
 
     /// <summary>Verifies stale expected currentness cannot advance a club.</summary>
@@ -334,6 +371,72 @@ public sealed class SeasonCommandServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
         await using var verify = _harness.CreateAdminContext();
         (await verify.Seasons.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+    }
+
+    /// <summary>Verifies a first-season operation identifier cannot masquerade as advancement.</summary>
+    [Fact]
+    public async Task StartNextAsync_ReturnsConflict_WhenCurrentSeasonCreationOperationIsReused()
+    {
+        Guid currentSeasonOperationId;
+        await using (var db = _harness.CreateAdminContext())
+        {
+            currentSeasonOperationId = await db.Seasons
+                .Where(season => season.SeasonId == CurrentSeasonId)
+                .Select(season => season.CreationOperationId)
+                .SingleAsync(TestContext.Current.CancellationToken);
+        }
+
+        var result = await CreateService().StartNextAsync(
+            new StartNextSeasonInput
+            {
+                OperationId = currentSeasonOperationId,
+                ExpectedCurrentSeasonId = CurrentSeasonId,
+                Name = "Next",
+                StartDate = new DateOnly(2027, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Seasons.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await verify.Clubs.SingleAsync(TestContext.Current.CancellationToken))
+            .CurrentSeasonId.ShouldBe(CurrentSeasonId);
+    }
+
+    /// <summary>Verifies an advancement operation cannot be replayed using its new current season as the expected predecessor.</summary>
+    [Fact]
+    public async Task StartNextAsync_ReturnsConflict_WhenOperationIsReusedWithNewCurrentSeason()
+    {
+        var operationId = Guid.NewGuid();
+        var service = CreateService();
+        var first = await service.StartNextAsync(
+            new StartNextSeasonInput
+            {
+                OperationId = operationId,
+                ExpectedCurrentSeasonId = CurrentSeasonId,
+                Name = "Next",
+                StartDate = new DateOnly(2027, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+        first.IsSuccess.ShouldBeTrue();
+
+        var collision = await service.StartNextAsync(
+            new StartNextSeasonInput
+            {
+                OperationId = operationId,
+                ExpectedCurrentSeasonId = first.Value.CurrentSeason.SeasonId,
+                Name = "Another",
+                StartDate = new DateOnly(2028, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        collision.IsProblem.ShouldBeTrue();
+        collision.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Seasons.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(2);
+        (await verify.Clubs.SingleAsync(TestContext.Current.CancellationToken))
+            .CurrentSeasonId.ShouldBe(first.Value.CurrentSeason.SeasonId);
     }
 
     /// <summary>Verifies an open campaign blocks advancement without mutating the pointer.</summary>
@@ -470,6 +573,34 @@ public sealed class SeasonCommandServiceTests : IDisposable
         (await verify.PlayerCampaignAssignments.CountAsync(
             assignment => assignment.Campaign.SeasonId == first.Value.CurrentSeason.SeasonId,
             TestContext.Current.CancellationToken)).ShouldBe(0);
+    }
+
+    /// <summary>Seeds one linked Closed campaign and returns the current season concurrency token.</summary>
+    /// <param name="startDate">The campaign start date.</param>
+    /// <param name="endDate">The optional campaign end date.</param>
+    /// <returns>The concurrency token required for the metadata update under test.</returns>
+    private async Task<Guid> SeedClosedCampaignAsync(DateOnly startDate, DateOnly? endDate)
+    {
+        await using var db = _harness.CreateAdminContext();
+        var token = await db.Seasons
+            .Where(season => season.SeasonId == CurrentSeasonId)
+            .Select(season => season.ConcurrencyToken)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        db.Campaigns.Add(new CampaignEntity
+        {
+            CreationOperationId = Guid.NewGuid(),
+            Name = "Closed linked campaign",
+            StartDate = startDate,
+            EndDate = endDate,
+            Status = CampaignStatus.Closed,
+            ClosedAt = DateTimeOffset.UtcNow,
+            ClosedById = AdminId,
+            SeasonId = CurrentSeasonId,
+            ClubId = ClubId,
+            CreatedById = AdminId
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return token;
     }
 
     /// <summary>Creates the command service against fresh tenant contexts.</summary>

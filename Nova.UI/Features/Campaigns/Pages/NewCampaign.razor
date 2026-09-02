@@ -53,6 +53,7 @@
         <CampaignCreateForm Heading="Campaign details"
                             Model="_createForm"
                             Seasons="@(_setup.CurrentSeason is null ? [] : [_setup.CurrentSeason])"
+                            AllowInlineSeasonCreation="@(_setup.CurrentSeason is null)"
                             SubmitButtonText="Create campaign"
                             IsSubmitting="_isSubmitting"
                             ErrorMessage="@_formError"

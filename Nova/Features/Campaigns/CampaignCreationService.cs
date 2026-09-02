@@ -261,7 +261,7 @@ public sealed partial class CampaignCreationService(
         {
             LogDuplicateSeasonName(clubId);
             return ServiceProblem.Conflict(
-                "A season with that name already exists. Select the existing season instead.");
+                "A season with that name already exists. Choose a different season name.");
         }
 
         var season = new SeasonEntity

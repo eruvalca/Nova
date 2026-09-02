@@ -14,5 +14,11 @@
 | Historical reopen versus advancement | Extend campaign lifecycle service/unit coverage and PostgreSQL race coverage so club-season is acquired before campaign and historical campaigns cannot reopen |
 | Paging and client concurrency boundaries | Add unit cases for `int.MaxValue` pages and eventually-consistent totals smaller than the returned page |
 | HTTP query validation and metadata | Bind query DTOs with `[AsParameters]`; extend endpoint metadata and HTTP validation assertions for 401, route/query ranges, and reachable outcomes |
+| Start-next operation collision safety | Add `SeasonCommandServiceTests` for first-season operation reuse and for reusing an advancement operation with the new current ID |
+| Season client request/response paging fidelity | Add `HttpSeasonQueryServiceTests` for local invalid-input rejection and mismatched list/detail paging metadata |
+| Campaign season token validation | Add `HttpCampaignQueryServiceTests` for an otherwise-valid group with `Guid.Empty` concurrency token |
+| Current-season-only campaign UI | Add bUnit coverage proving the new-campaign page hides inline mode when currentness exists, the form resets stale inline state, and the no-current flow still exposes inline fields |
+| Metadata field attribution | Add `SeasonCommandServiceTests` for lower-only, upper-only, and combined linked-campaign window violations |
+| Duplicate inline-season recovery text | Extend `CampaignCreationServiceTests` to assert the conflict directs the caller to choose a different name |
 
 Implementation proceeds production-first, then the narrow unit and PostgreSQL/HTTP suites, followed by solution validation. Final assertion and pseudo-mutation reviews will be recorded in `.testagent/status.md`.

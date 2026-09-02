@@ -175,6 +175,21 @@ public sealed class HttpCampaignQueryServiceTests
         result.IsSuccess.ShouldBeTrue();
     }
 
+    /// <summary>Verifies an empty season metadata token is rejected as a malformed success payload.</summary>
+    [Fact]
+    public async Task GetCampaignListAsync_ReturnsServerError_ForEmptySeasonConcurrencyToken()
+    {
+        const string payload = """
+            {"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","endDate":null,
+            "concurrencyToken":"00000000-0000-0000-0000-000000000000","campaigns":[]}],"totalCount":0}
+            """;
+
+        var result = await GetCampaignListFromJsonAsync(payload);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>
     /// Verifies strict list-payload invariants map invalid successful responses to server errors.
     /// </summary>

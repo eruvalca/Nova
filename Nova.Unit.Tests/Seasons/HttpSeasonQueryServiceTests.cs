@@ -36,6 +36,56 @@ public sealed class HttpSeasonQueryServiceTests
         handler.LastRequest.RequestUri!.PathAndQuery.ShouldBe("/api/seasons?page=2&pageSize=50");
     }
 
+    /// <summary>Verifies invalid list paging is rejected before transport.</summary>
+    [Fact]
+    public async Task ListAsync_ReturnsValidationProblem_ForInvalidInput()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK);
+        var handler = new RecordingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpSeasonQueryService(http).ListAsync(
+            new GetSeasonListInput { Page = 0 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        handler.LastRequest.ShouldBeNull();
+    }
+
+    /// <summary>Verifies list responses must identify the exact effective requested paging values.</summary>
+    /// <param name="responsePage">The page returned by the malformed response.</param>
+    /// <param name="responsePageSize">The page size returned by the malformed response.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, 50)]
+    [InlineData(2, 20)]
+    public async Task ListAsync_ReturnsServerError_WhenResponsePagingDoesNotMatchRequest(
+        int responsePage,
+        int responsePageSize)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new SeasonPageResult
+            {
+                Items = [],
+                Page = responsePage,
+                PageSize = responsePageSize,
+                TotalCount = 0
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonQueryService(http).ListAsync(
+            new GetSeasonListInput { Page = 2, PageSize = 50 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>Verifies malformed successful list payloads become protocol failures.</summary>
     [Fact]
     public async Task ListAsync_ReturnsServerError_ForInvalidSuccessBody()
@@ -175,6 +225,69 @@ public sealed class HttpSeasonQueryServiceTests
         result.IsSuccess.ShouldBeTrue();
         handler.LastRequest!.RequestUri!.PathAndQuery
             .ShouldBe("/api/seasons/7?campaignPage=3&campaignPageSize=10");
+    }
+
+    /// <summary>Verifies invalid detail paging is rejected before transport.</summary>
+    [Fact]
+    public async Task GetAsync_ReturnsValidationProblem_ForInvalidInput()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK);
+        var handler = new RecordingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpSeasonQueryService(http).GetAsync(
+            new GetSeasonDetailInput { SeasonId = 7, CampaignPageSize = 0 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        handler.LastRequest.ShouldBeNull();
+    }
+
+    /// <summary>Verifies detail responses must identify the exact effective requested campaign paging values.</summary>
+    /// <param name="responsePage">The campaign page returned by the malformed response.</param>
+    /// <param name="responsePageSize">The campaign page size returned by the malformed response.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, 10)]
+    [InlineData(2, 20)]
+    public async Task GetAsync_ReturnsServerError_WhenResponsePagingDoesNotMatchRequest(
+        int responsePage,
+        int responsePageSize)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new SeasonDetailResult
+            {
+                Season = new SeasonSummary
+                {
+                    SeasonId = 7,
+                    Name = "Season",
+                    StartDate = new DateOnly(2026, 1, 1),
+                    IsCurrent = true,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
+                Campaigns = [],
+                CampaignPage = responsePage,
+                CampaignPageSize = responsePageSize,
+                CampaignTotalCount = 0
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonQueryService(http).GetAsync(
+            new GetSeasonDetailInput
+            {
+                SeasonId = 7,
+                CampaignPage = 2,
+                CampaignPageSize = 10
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
     /// <summary>Verifies a campaign total may trail the detail page under concurrent inserts.</summary>

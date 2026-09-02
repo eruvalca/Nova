@@ -1,6 +1,7 @@
 ﻿using System.Net.Http.Json;
 using Nova.Shared.Features.Seasons;
 using Nova.Shared.Results;
+using Nova.Shared.Validation;
 
 namespace Nova.Client.Services.Seasons;
 
@@ -13,6 +14,14 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
         GetSeasonListInput input,
         CancellationToken cancellationToken = default)
     {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
+
+        var expectedPage = input.Page ?? GetSeasonListInput.DefaultPage;
+        var expectedPageSize = input.PageSize ?? GetSeasonListInput.DefaultPageSize;
         var query = new List<string>();
         if (input.Page is int page)
         {
@@ -35,7 +44,7 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
 
         return await response.Content.ReadRequiredJsonAsync<SeasonPageResult>(
             "The server returned an invalid season page.",
-            IsValidPage,
+            page => IsValidPage(page, expectedPage, expectedPageSize),
             cancellationToken);
     }
 
@@ -44,6 +53,14 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
         GetSeasonDetailInput input,
         CancellationToken cancellationToken = default)
     {
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
+
+        var expectedCampaignPage = input.CampaignPage ?? GetSeasonListInput.DefaultPage;
+        var expectedCampaignPageSize = input.CampaignPageSize ?? GetSeasonListInput.DefaultPageSize;
         var query = new List<string>();
         if (input.CampaignPage is int page)
         {
@@ -69,8 +86,8 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
                 && IsValidSummary(result.Season)
                 && result.Season.SeasonId == input.SeasonId
                 && result.Campaigns is not null
-                && result.CampaignPage > 0
-                && result.CampaignPageSize is > 0 and <= GetSeasonListInput.MaximumPageSize
+                && result.CampaignPage == expectedCampaignPage
+                && result.CampaignPageSize == expectedCampaignPageSize
                 && result.CampaignTotalCount >= 0
                 && result.Campaigns.Count <= result.CampaignPageSize
                 && result.Campaigns.All(campaign => campaign.CampaignId > 0
@@ -81,12 +98,16 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
             cancellationToken);
     }
 
-    /// <summary>Validates portable season-page invariants.</summary>
-    private static bool IsValidPage(SeasonPageResult page)
+    /// <summary>Validates portable season-page invariants and requested paging metadata.</summary>
+    /// <param name="page">The deserialized season page.</param>
+    /// <param name="expectedPage">The effective page requested by the caller.</param>
+    /// <param name="expectedPageSize">The effective page size requested by the caller.</param>
+    /// <returns><see langword="true"/> when the page satisfies the client contract.</returns>
+    private static bool IsValidPage(SeasonPageResult page, int expectedPage, int expectedPageSize)
         => page is not null
             && page.Items is not null
-            && page.Page > 0
-            && page.PageSize is > 0 and <= GetSeasonListInput.MaximumPageSize
+            && page.Page == expectedPage
+            && page.PageSize == expectedPageSize
             && page.TotalCount >= 0
             && page.Items.Count <= page.PageSize
             && page.Items.All(IsValidSummary)

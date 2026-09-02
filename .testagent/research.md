@@ -25,4 +25,8 @@
 - Routes, OpenAPI metadata, authorization, ProblemDetails, `201 Location`, and strict WASM payload validation follow existing patterns.
 - Review carry-forward: campaign metadata and historical-campaign reopen writers participate in the club-season lock invariant; advancing cannot miss an Active campaign moved or reopened concurrently.
 - Review carry-forward: huge valid page numbers cannot overflow SQL offsets, eventually-consistent totals remain valid under concurrent inserts, query DTO annotations run at the HTTP boundary, and endpoint metadata advertises the reachable problem responses.
+- PR #227 review: start-next replay must reject an operation-created current season when it equals the caller's expected current season, including both first-season operation reuse and a changed expected ID after successful advancement.
+- PR #227 review: season clients must validate inputs before transport and require response paging metadata to match effective requested/default values while still tolerating eventually-consistent totals.
+- PR #227 review: campaign-list payload validation must reject empty season concurrency tokens, and inline season creation must be unavailable whenever setup exposes a current season.
+- PR #227 review: season metadata campaign-window errors must identify `StartDate` and `EndDate` independently, and duplicate historical inline-season names must offer an actionable different-name recovery.
 - Approved exclusions remain unchanged: season detail has no effective-roster projection (#214 owns it), and season mutations emit no new activity-event family.
