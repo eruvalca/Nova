@@ -196,11 +196,11 @@ public sealed partial class CampaignPlacementService(
         await db.AcquirePlayerMutationLockAsync(participation.PlayerId, cancellationToken);
         await db.Entry(participation.Player).ReloadAsync(cancellationToken);
 
-        // The old team-name snapshot must come from post-lock state: the pre-lock Include(Team)
-        // reference is stale by the time the mutation runs. Lock the affected teams in a
-        // deterministic order (interleaved {old, new} sorted by identifier) so concurrent
-        // switches cannot deadlock, then load the target team and reload the old-team reference
-        // before reading either team name.
+        // The old team-name snapshot must come from post-lock state: the team navigation is not
+        // loaded up front (only Player and Campaign are included above), so it is first loaded
+        // after the team locks. Lock the affected teams in a deterministic order (interleaved
+        // {old, new} sorted by identifier) so concurrent switches cannot deadlock, then load the
+        // target team and the old-team reference before reading either team name.
         var teamIdsToLock = new[] { participation.TeamId, input.TeamId }
             .Where(teamId => teamId.HasValue)
             .Select(teamId => teamId!.Value)
