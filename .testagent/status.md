@@ -22,7 +22,7 @@ Strong: the generated suite protects the import contract's security denials, fil
 - Focused strict-client and endpoint review tests: 26 passed.
 - Focused Aspire player-import HTTP tests: 11 passed.
 - `dotnet build Nova.slnx --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,090 passed.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,091 passed.
 - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`: 412 passed.
 - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`: 111 passed, 7 expected opt-in accessibility evidence tests skipped.
 - `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`: formatted 0 of 778 files.
@@ -44,3 +44,4 @@ Strong: the generated suite protects the import contract's security denials, fil
 - The multipart endpoint now rejects unsafe filenames and unsupported media types before opening or buffering the upload stream.
 - The preview route advertises its framework-generated 415 response, with authenticated non-multipart HTTP coverage and trace-ID assertions.
 - Invalid preview rows must contain genuinely invalid raw values, and every returned cell is capped by the shared character bound.
+- Oversized CSV fields are reported with their logical source row, exact import field heading, and shared character limit.

@@ -167,13 +167,19 @@ public sealed class PlayerImportCsvParserTests
         excessive.AsT1.Message.ShouldContain("no more than 1000");
     }
 
-    [Fact]
-    public void Parse_RejectsOversizedField()
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(0, "First name")]
+    [InlineData(5, "Graduation year")]
+    public void Parse_RejectsOversizedField_WithSourceRowAndField(int fieldIndex, string fieldName)
     {
-        var result = Parse($"{new string('a', 1_025)},Archer,2012-01-01,,,2030\r\n");
+        var cells = new[] { "Alex", "Archer", "2012-01-01", "", "", "2030" };
+        cells[fieldIndex] = new string('a', PlayerImportConstraints.MaxFieldCharacters + 1);
+        var result = Parse(string.Join(',', cells) + "\r\n");
 
         result.IsT1.ShouldBeTrue();
-        result.AsT1.Message.ShouldContain("malformed CSV");
+        result.AsT1.Message.ShouldContain("Source row 2");
+        result.AsT1.Message.ShouldContain($"field '{fieldName}'");
+        result.AsT1.Message.ShouldContain($"{PlayerImportConstraints.MaxFieldCharacters} characters");
     }
 
     [Fact]

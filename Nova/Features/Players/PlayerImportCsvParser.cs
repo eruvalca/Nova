@@ -115,6 +115,18 @@ internal sealed class PlayerImportCsvParser
         {
             return new PlayerImportFileFailure("The file must use valid UTF-8 encoding.");
         }
+        catch (MaxFieldSizeException exception)
+        {
+            var parser = exception.Context?.Parser;
+            var sourceRow = parser?.Row ?? 0;
+            var fieldIndex = parser?.Count ?? -1;
+            var fieldName = fieldIndex >= 0 && fieldIndex < PlayerImportConstraints.Headers.Count
+                ? PlayerImportConstraints.Headers[fieldIndex]
+                : $"column {fieldIndex + 1}";
+            return new PlayerImportFileFailure(
+                $"Source row {sourceRow}, field '{fieldName}' must not exceed "
+                + $"{PlayerImportConstraints.MaxFieldCharacters} characters.");
+        }
         catch (CsvHelperException exception)
         {
             var row = exception.Context?.Parser?.Row;
