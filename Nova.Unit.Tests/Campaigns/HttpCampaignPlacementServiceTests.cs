@@ -220,7 +220,7 @@ public sealed class HttpCampaignPlacementServiceTests
             {
                 title = "Forbidden",
                 status = 403,
-                detail = "You must be a club administrator to update campaign placements."
+                detail = "You must be an approved club member to update campaign placements."
             })
         };
         using var http = new HttpClient(new FakeHttpMessageHandler(response))

@@ -1,6 +1,5 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Extensions.Security;
 using Nova.Shared.Security;
@@ -9,17 +8,17 @@ using Shouldly;
 namespace Nova.Unit.Tests.Security;
 
 /// <summary>
-/// Verifies evaluator authorization and the existing Nova policy registrations.
+/// Verifies the Nova authorization policy registrations and their authorization matrices.
 /// </summary>
-public sealed class EvaluatorAuthorizationPolicyTests
+public sealed class AuthorizationPolicyTests
 {
     /// <summary>
-    /// Verifies that evaluator authorization requires authentication and approved club membership.
+    /// Verifies that club-member authorization requires authentication and a club membership claim.
     /// </summary>
     /// <param name="isAuthenticated">Whether the test principal is authenticated.</param>
     /// <param name="hasClub">Whether the test principal carries a club membership claim.</param>
     /// <param name="role">The optional role assigned to the test principal.</param>
-    /// <param name="expected">Whether evaluator authorization should succeed.</param>
+    /// <param name="expected">Whether club-member authorization should succeed.</param>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false, false, null, false)]
     [InlineData(false, true, null, false)]
@@ -28,7 +27,7 @@ public sealed class EvaluatorAuthorizationPolicyTests
     [InlineData(true, true, Roles.ClubAdmin, true)]
     [InlineData(true, false, Roles.Admin, false)]
     [InlineData(true, true, Roles.Admin, true)]
-    public async Task EvaluatorPolicy_ReturnsExpectedResult_ForAuthorizationMatrix(
+    public async Task ClubMemberPolicy_ReturnsExpectedResult_ForAuthorizationMatrix(
         bool isAuthenticated,
         bool hasClub,
         string? role,
@@ -41,50 +40,15 @@ public sealed class EvaluatorAuthorizationPolicyTests
         var result = await authorizationService.AuthorizeAsync(
             principal,
             resource: null,
-            Policies.RequireEvaluator);
+            Policies.RequireClubMember);
 
         result.Succeeded.ShouldBe(expected);
     }
 
     /// <summary>
-    /// Verifies that evaluator and club-member policy names enforce equivalent requirements.
+    /// Verifies the role and club-membership policies produce the expected authorization result.
     /// </summary>
-    [Fact]
-    public async Task EvaluatorPolicy_HasEquivalentRequirements_ToClubMemberPolicy()
-    {
-        using var serviceProvider = CreateServiceProvider();
-        var policyProvider = serviceProvider.GetRequiredService<IAuthorizationPolicyProvider>();
-
-        var clubMemberPolicy = await policyProvider.GetPolicyAsync(Policies.RequireClubMember);
-        var evaluatorPolicy = await policyProvider.GetPolicyAsync(Policies.RequireEvaluator);
-
-        clubMemberPolicy.ShouldNotBeNull();
-        evaluatorPolicy.ShouldNotBeNull();
-        evaluatorPolicy.AuthenticationSchemes.Order()
-            .ShouldBe(clubMemberPolicy.AuthenticationSchemes.Order());
-        evaluatorPolicy.Requirements
-            .Select(requirement => requirement.GetType().FullName)
-            .Order()
-            .ShouldBe(clubMemberPolicy.Requirements
-                .Select(requirement => requirement.GetType().FullName)
-                .Order());
-
-        var clubClaimRequirement = clubMemberPolicy.Requirements
-            .OfType<ClaimsAuthorizationRequirement>()
-            .ShouldHaveSingleItem();
-        var evaluatorClaimRequirement = evaluatorPolicy.Requirements
-            .OfType<ClaimsAuthorizationRequirement>()
-            .ShouldHaveSingleItem();
-
-        evaluatorClaimRequirement.ClaimType.ShouldBe(clubClaimRequirement.ClaimType);
-        evaluatorClaimRequirement.AllowedValues?.Order()
-            .ShouldBe(clubClaimRequirement.AllowedValues?.Order());
-    }
-
-    /// <summary>
-    /// Verifies that adding the evaluator policy does not change existing authorization behavior.
-    /// </summary>
-    /// <param name="policyName">The existing policy to authorize against.</param>
+    /// <param name="policyName">The policy to authorize against.</param>
     /// <param name="hasClub">Whether the test principal carries a club membership claim.</param>
     /// <param name="role">The optional role assigned to the test principal.</param>
     /// <param name="expected">Whether authorization should succeed.</param>
@@ -96,7 +60,7 @@ public sealed class EvaluatorAuthorizationPolicyTests
     [InlineData(Policies.RequireClubAdmin, true, Roles.Admin, false)]
     [InlineData(Policies.RequireClubMember, true, Roles.StandardUser, true)]
     [InlineData(Policies.RequireClubMember, false, Roles.Admin, false)]
-    public async Task ExistingPolicy_ReturnsExpectedResult_AfterEvaluatorRegistration(
+    public async Task ExistingPolicy_ReturnsExpectedResult_AfterNovaPolicyRegistration(
         string policyName,
         bool hasClub,
         string? role,

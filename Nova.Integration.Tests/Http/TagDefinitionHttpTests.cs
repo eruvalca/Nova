@@ -302,12 +302,13 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies a non-administrator club member can read the active-only choices but is denied every
-    /// management operation, covering the <c>RequireEvaluator</c> read policy and the
-    /// <c>RequireClubAdmin</c> policy across create, update, archive, restore, and the management list.
+    /// Verifies a non-administrator club member can read the active-only choices and create tags,
+    /// but is denied every administration operation: the <c>RequireClubMember</c> read and create
+    /// paths plus the <c>RequireClubAdmin</c> policy across update, archive, restore, and the
+    /// management list.
     /// </summary>
     [Fact]
-    public async Task NonAdminClubMember_CanReadChoices_ButCannotMutate()
+    public async Task NonAdminClubMember_CanReadChoicesAndCreate_ButCannotAdminister()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -334,7 +335,10 @@ public sealed class TagDefinitionHttpTests(NovaAppHostFixture fixture)
             new CreateTagDefinitionInput { Name = $"Member-{Guid.CreateVersion7():N}", Color = "#222222" },
             cancellationToken))
         {
-            create.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+            create.StatusCode.ShouldBe(HttpStatusCode.Created);
+            var createdTag = await create.Content.ReadFromJsonAsync<TagDefinitionDto>(cancellationToken);
+            createdTag.ShouldNotBeNull();
+            createdTag.Name.ShouldNotBeNullOrEmpty();
         }
 
         using (var archive = await memberClient.PostAsync(TagEndpoints.ArchiveUrl(adminCreated.PlayerTagId), null, cancellationToken))

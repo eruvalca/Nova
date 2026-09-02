@@ -71,7 +71,7 @@ public sealed class TagDefinitionServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_ReturnsForbidden_ForNonAdmin()
+    public async Task Create_ReturnsActiveTag_ForClubMember()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
 
@@ -79,8 +79,10 @@ public sealed class TagDefinitionServiceTests : IDisposable
             new CreateTagDefinitionInput { Name = "Defender", Color = "#1a2b3c" },
             TestContext.Current.CancellationToken);
 
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Name.ShouldBe("Defender");
+        result.Value.Color.ShouldBe("#1A2B3C");
+        result.Value.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
     }
 
     [Fact]

@@ -12,8 +12,9 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
     extension(IEndpointRouteBuilder endpoints)
     {
         /// <summary>
-        /// Maps tag-definition endpoints under the tags group, with club-administrator
-        /// authorization for management/lifecycle and evaluator authorization for active choices.
+        /// Maps tag-definition endpoints under the tags group, with club-member authorization for
+        /// creation and active choices, and club-administrator authorization for rename, archive,
+        /// restore, and the management list.
         /// </summary>
         /// <returns>The endpoint route builder, for chaining.</returns>
         public IEndpointRouteBuilder MapTagDefinitionEndpoints()
@@ -23,16 +24,6 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
             var managementGroup = endpoints
                 .MapGroup(TagEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubAdmin);
-
-            managementGroup.MapPost(TagEndpoints.CreateRelative, CreateTagDefinitionHandler)
-                .Produces<TagDefinitionDto>(StatusCodes.Status201Created)
-                .ProducesValidationProblem()
-                .ProducesProblem(StatusCodes.Status401Unauthorized)
-                .ProducesProblem(StatusCodes.Status403Forbidden)
-                .ProducesProblem(StatusCodes.Status409Conflict)
-                .ProducesProblem(StatusCodes.Status500InternalServerError)
-                .DisableAntiforgery()
-                .WithName("CreateTagDefinition");
 
             managementGroup.MapPut(TagEndpoints.UpdateRelative, UpdateTagDefinitionHandler)
                 .Produces<TagDefinitionDto>()
@@ -74,7 +65,19 @@ internal static class TagDefinitionEndpointRouteBuilderExtensions
                 .WithName("GetTagDefinitions");
 
             endpoints.MapGroup(TagEndpoints.GroupPrefix)
-                .RequireAuthorization(Policies.RequireEvaluator)
+                .RequireAuthorization(Policies.RequireClubMember)
+                .MapPost(TagEndpoints.CreateRelative, CreateTagDefinitionHandler)
+                .Produces<TagDefinitionDto>(StatusCodes.Status201Created)
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery()
+                .WithName("CreateTagDefinition");
+
+            endpoints.MapGroup(TagEndpoints.GroupPrefix)
+                .RequireAuthorization(Policies.RequireClubMember)
                 .MapGet(TagEndpoints.GetChoicesRelative, GetTagDefinitionChoicesHandler)
                 .Produces<IReadOnlyList<TagDefinitionDto>>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
