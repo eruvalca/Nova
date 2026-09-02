@@ -71,6 +71,94 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies the visibility filter runs before paging: a member still receives a public row even
+    /// when more than a page of newer admin-only rows would otherwise fill the page first.
+    /// </summary>
+    [Fact]
+    public async Task GetClubActivity_Postgres_FiltersAdminOnlyBeforePaging_ForMember()
+    {
+        var seed = await SeedAsync();
+        ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: false);
+
+        await using (var db = fixture.CreateAdminContext())
+        {
+            // One public row seeded first (oldest, lowest id), then a full page plus one of newer
+            // admin-only rows. If paging ran before the visibility filter, the member's page would
+            // be taken from the admin-only rows and return nothing.
+            db.ActivityEvents.Add(Event(seed, ActivityEventKind.CampaignOpened));
+            for (var i = 0; i < GetClubActivityInput.PageSize + 1; i++)
+            {
+                db.ActivityEvents.Add(Event(seed, ActivityEventKind.JoinRequestSubmitted));
+            }
+
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var result = await CreateService().GetClubActivityAsync(
+            new GetClubActivityInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Events.Select(item => item.Kind).ShouldBe([ActivityEventKind.CampaignOpened]);
+        result.Value.HasMore.ShouldBeFalse();
+        result.Value.NextCursor.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// Verifies the keyset predicate's timestamp branch translates on PostgreSQL: seeding two
+    /// distinct-timestamp batches and forcing the page boundary across them makes the second page
+    /// resume via <c>CreatedAt &lt; cursor.OccurredAt</c> rather than the id tie-break.
+    /// </summary>
+    [Fact]
+    public async Task GetClubActivity_Postgres_CursorResumesAcrossTimestampBoundary()
+    {
+        var seed = await SeedAsync();
+        ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: true);
+
+        await using (var db = fixture.CreateAdminContext())
+        {
+            // Older batch: one public row. The interceptor stamps CreatedAt once per SaveChanges,
+            // so a later batch carries a distinct (newer) timestamp.
+            db.ActivityEvents.Add(Event(seed, ActivityEventKind.MemberJoined));
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            await Task.Delay(TimeSpan.FromMilliseconds(10), TestContext.Current.CancellationToken);
+
+            // Newer batch: a full page of rows. Paging splits the batches, so the second page's
+            // continuation predicate exercises the CreatedAt < cursor.OccurredAt branch.
+            for (var i = 0; i < GetClubActivityInput.PageSize; i++)
+            {
+                db.ActivityEvents.Add(Event(seed, ActivityEventKind.PlacementAssigned));
+            }
+
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var service = CreateService();
+        var firstPage = await service.GetClubActivityAsync(
+            new GetClubActivityInput(),
+            TestContext.Current.CancellationToken);
+
+        firstPage.IsSuccess.ShouldBeTrue();
+        firstPage.Value.Events.Count.ShouldBe(GetClubActivityInput.PageSize);
+        firstPage.Value.HasMore.ShouldBeTrue();
+        firstPage.Value.NextCursor.ShouldNotBeNull();
+
+        var secondPage = await service.GetClubActivityAsync(
+            new GetClubActivityInput
+            {
+                BeforeActivityEventId = firstPage.Value.NextCursor!.ActivityEventId,
+                BeforeOccurredAt = firstPage.Value.NextCursor!.OccurredAt
+            },
+            TestContext.Current.CancellationToken);
+
+        secondPage.IsSuccess.ShouldBeTrue();
+        secondPage.Value.Events.Count.ShouldBe(1);
+        secondPage.Value.Events[0].Kind.ShouldBe(ActivityEventKind.MemberJoined);
+        secondPage.Value.HasMore.ShouldBeFalse();
+    }
+
+    /// <summary>
     /// Verifies the admin feed includes the admin-only join-request rows and that a member cursor
     /// resumes after the admin-only page boundary, proving the visibility filter and keyset
     /// predicate compose in SQL and return the deterministic policy order.
@@ -197,6 +285,25 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.ClubId = clubId;
         fixture.CurrentUser.IsClubAdmin = isClubAdmin;
     }
+
+    /// <summary>Builds an activity event row for the seeded club with a family-matching payload.</summary>
+    /// <param name="seed">The seeded club/member/campaign identifiers.</param>
+    /// <param name="kind">The event kind.</param>
+    /// <returns>The activity event row.</returns>
+    private static ActivityEventEntity Event(ActivityEventSeed seed, ActivityEventKind kind)
+        => new()
+        {
+            ClubId = seed.ClubId,
+            EventKind = kind,
+            IsAdminOnly = kind == ActivityEventKind.JoinRequestSubmitted,
+            CampaignId = kind is ActivityEventKind.CampaignOpened or ActivityEventKind.PlacementAssigned
+                ? seed.CampaignId
+                : null,
+            ActorUserId = seed.MemberUserId,
+            ActorDisplayName = "Member",
+            PayloadJson = IndexPayload(kind, seed.CampaignId),
+            CreatedById = seed.MemberUserId
+        };
 
     /// <summary>Creates a family-matching payload JSON for a seeded event kind.</summary>
     /// <param name="kind">The event kind being seeded.</param>
