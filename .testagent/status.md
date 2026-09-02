@@ -30,7 +30,7 @@ Strong: the generated suite protects the import contract's security denials, fil
 ## PR review follow-up
 
 - Strict clients now validate the exact template bytes/charset/filename, consecutive source rows, and every ready or duplicate candidate without trusting the browser clock for token expiry.
-- Untrusted filenames containing CR/LF are rejected before multipart header construction, preserving the client's structured validation contract.
+- The client never inserts an untrusted original filename into multipart headers; it validates the `.csv` extension and transmits the fixed safe template filename.
 - CSV parsing now rejects numeric gender spellings and all-empty wrong-width rows.
 - Token `Try*` methods return safe null out values for unsupported versions, malformed hashes, and every binding mismatch.
 - Both routes advertise 401 responses, and the transport-level request limit has an end-to-end 413 ProblemDetails regression.
