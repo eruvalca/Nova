@@ -87,6 +87,10 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
   DataAnnotations for explicitly supplied values, and coalesce to the default in the service.
 - Add HTTP coverage for both an omitted optional property and an invalid explicit value so binding
   and validation behavior are exercised before the handler boundary.
+- Cross-property rules that DataAnnotations cannot express (e.g. a keyset cursor whose two parts must
+  be supplied together) belong in `IValidatableObject.Validate` on the input record — endpoint
+  automatic validation and the service's `InputValidator.Validate<T>` both honor it. Supply neither
+  part for the newest page and both for continuation.
 
 ## Enum query parameters
 
@@ -96,6 +100,18 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 ## WASM success payloads
 
 - A success response with a required body must deserialize to that body. Treat an empty, `null`, malformed, or unexpected success payload as `ServiceProblem.ServerError` (or a deliberate protocol exception consistent with the service contract), never as an empty collection or default DTO that hides a contract defect.
+
+## Polymorphic payload contexts
+
+- When a DTO carries one of several family-specific payloads (e.g. the activity feed's
+  `ClubActivityContext`), mark the abstract base with `[JsonPolymorphic(TypeDiscriminatorPropertyName
+  = "type")]` and one `[JsonDerivedType(typeof(…), "…")]` per derived type. Serialize through the
+  abstract base type (`JsonSerializer.Serialize(value, typeof(Base))`) so the discriminator is
+  emitted; deserialize through the base with `PropertyNameCaseInsensitive = true` (payloads are
+  written camelCase).
+- Treat a missing/unknown discriminator or malformed persisted payload as skip-not-crash: catch
+  `JsonException` and `NotSupportedException` when projecting and omit the row instead of failing the
+  page. A projection skip affects the keyset cursor, so the cursor must mark the page boundary.
 
 ## Related
 
