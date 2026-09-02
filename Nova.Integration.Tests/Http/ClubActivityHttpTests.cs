@@ -122,6 +122,8 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
         var memberContext = memberResult.Events.Single().Context.ShouldBeOfType<MembershipContext>();
         memberContext.MemberDisplayName.ShouldBe("Jordan Lee");
         memberContext.ApprovedByActorName.ShouldBeNull();
+        memberResult.Events.Single().ActorUserId.ShouldBeNull();
+        memberResult.Events.Single().ActorDisplayName.ShouldBeNull();
 
         using var adminResponse = await adminClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken);
         adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);

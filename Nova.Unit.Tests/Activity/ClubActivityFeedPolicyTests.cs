@@ -137,7 +137,8 @@ public sealed class ClubActivityFeedPolicyTests
         adminResult.Events.Count.ShouldBe(2);
     }
 
-    /// <summary>Verifies MemberJoined is role-shaped: members see no approving actor name.</summary>
+    /// <summary>Verifies MemberJoined is role-shaped: members see no approving actor name and no
+    /// top-level actor identity.</summary>
     [Fact]
     public void BuildPage_ShapesMemberJoined_ForMemberViewer()
     {
@@ -153,9 +154,13 @@ public sealed class ClubActivityFeedPolicyTests
 
         var result = ClubActivityFeedPolicy.BuildPage(rows, isAdmin: false, cursor: null, JsonOptions);
 
-        var context = result.Events.Single().Context.ShouldBeOfType<MembershipContext>();
+        var item = result.Events.Single();
+        item.Kind.ShouldBe(ActivityEventKind.MemberJoined);
+        var context = item.Context.ShouldBeOfType<MembershipContext>();
         context.MemberDisplayName.ShouldBe("Sam Doe");
         context.ApprovedByActorName.ShouldBeNull();
+        item.ActorUserId.ShouldBeNull();
+        item.ActorDisplayName.ShouldBeNull();
     }
 
     /// <summary>Verifies MemberJoined is role-shaped: administrators see the approving actor name.</summary>

@@ -139,8 +139,8 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies a polymorphic member-joined payload round-trips through PostgreSQL JSON storage
-    /// with the captain context shape used by the feed projection.
+    /// Verifies a polymorphic join-request payload round-trips through PostgreSQL JSON storage with
+    /// the join-request context shape used by the feed projection.
     /// </summary>
     [Fact]
     public async Task GetClubActivity_Postgres_JoinRequestContextRoundTrips()
