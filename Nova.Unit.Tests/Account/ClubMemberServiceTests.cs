@@ -136,12 +136,25 @@ public sealed class ClubMemberServiceTests : IDisposable
     [Fact]
     public async Task RemoveMemberAsync_ClearsMembershipAndWritesOnlyRemovedEvent()
     {
+        using (var setup = _harness.CreateAdminContext())
+        {
+            setup.ClubJoinRequests.Add(new ClubJoinRequestEntity
+            {
+                ClubId = ClubId,
+                RequestingUserId = SecondAdminId,
+                Status = RequestStatus.Approved,
+                CreatedById = SecondAdminId,
+            });
+            setup.SaveChanges();
+        }
+
         var result = await CreateService().RemoveMemberAsync(SecondAdminId, TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
         db.Users.Single(user => user.Id == SecondAdminId).ClubId.ShouldBeNull();
         db.UserRoles.ShouldNotContain(role => role.UserId == SecondAdminId);
+        db.ClubJoinRequests.ShouldNotContain(request => request.RequestingUserId == SecondAdminId);
         db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberRemoved).ShouldBe(1);
         db.ActivityEvents.ShouldNotContain(activity => activity.EventKind == ActivityEventKind.MemberDemoted);
     }
@@ -189,12 +202,24 @@ public sealed class ClubMemberServiceTests : IDisposable
     {
         _harness.CurrentUser.UserId = MemberId;
         _harness.CurrentUser.IsClubAdmin = false;
+        using (var setup = _harness.CreateAdminContext())
+        {
+            setup.ClubJoinRequests.Add(new ClubJoinRequestEntity
+            {
+                ClubId = ClubId,
+                RequestingUserId = MemberId,
+                Status = RequestStatus.Approved,
+                CreatedById = MemberId,
+            });
+            setup.SaveChanges();
+        }
 
         var result = await CreateService().LeaveClubAsync(TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
         db.Users.Single(user => user.Id == MemberId).ClubId.ShouldBeNull();
+        db.ClubJoinRequests.ShouldNotContain(request => request.RequestingUserId == MemberId);
         db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberLeft).ShouldBe(1);
         await _signInManager.Received(1).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user => user.Id == MemberId));
     }

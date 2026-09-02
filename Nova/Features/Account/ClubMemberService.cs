@@ -298,6 +298,14 @@ public sealed partial class ClubMemberService(
 
             case MutationKind.Remove:
             case MutationKind.Leave:
+                var resolvedJoinRequest = await db.ClubJoinRequests.SingleOrDefaultAsync(
+                    request => request.RequestingUserId == target.Id && request.Status != RequestStatus.Pending,
+                    cancellationToken);
+                if (resolvedJoinRequest is not null)
+                {
+                    db.ClubJoinRequests.Remove(resolvedJoinRequest);
+                }
+
                 if (targetRole is not null)
                 {
                     db.UserRoles.Remove(targetRole);

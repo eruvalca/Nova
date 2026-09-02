@@ -411,11 +411,9 @@ public class AccountDeletionServiceTests : IDisposable
         // Act & Assert
         await service.DeleteAccountAsync(TestContext.Current.CancellationToken);
 
-        // Verify DeleteAsync was called
-        await userManager.Received(1).DeleteAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == AdminUserId));
-
-        // Verify club was removed
+        // Verify the account and club were removed atomically through the admin context.
         using var finalContext = _harness.CreateAdminContext();
+        finalContext.Users.ShouldNotContain(user => user.Id == AdminUserId);
         var club = await finalContext.Clubs.FindAsync([ClubAId], cancellationToken: TestContext.Current.CancellationToken);
         club.ShouldBeNull();
     }
@@ -461,12 +459,9 @@ public class AccountDeletionServiceTests : IDisposable
         // Act
         await service.DeleteAccountAsync(TestContext.Current.CancellationToken);
 
-        // Assert
-        // Verify DeleteAsync was called
-        await userManager.Received(1).DeleteAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == NonAdminUserId));
-
-        // Verify club still exists (not deleted)
+        // Assert the account is gone while the shared club remains.
         using var finalContext = _harness.CreateAdminContext();
+        finalContext.Users.ShouldNotContain(user => user.Id == NonAdminUserId);
         var club = await finalContext.Clubs.FindAsync([ClubAId], cancellationToken: TestContext.Current.CancellationToken);
         club.ShouldNotBeNull();
     }

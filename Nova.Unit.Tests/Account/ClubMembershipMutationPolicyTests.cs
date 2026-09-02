@@ -19,6 +19,12 @@ public class ClubMembershipMutationPolicyTests
         => OutcomeType(ClubMembershipMutationPolicy.Demote(isAdministrator, count)).ShouldBe(expected);
 
     [Theory]
+    [InlineData(10, 10, typeof(UseLeaveEndpointConflict))]
+    [InlineData(10, 11, typeof(MembershipMutationMayApply))]
+    public void Remove_ReturnsExpectedDecision(long actorUserId, long targetUserId, Type expected)
+        => OutcomeType(ClubMembershipMutationPolicy.Remove(actorUserId, targetUserId)).ShouldBe(expected);
+
+    [Theory]
     [InlineData(false, 0, 1, typeof(FinalMemberConflict))]
     [InlineData(true, 1, 2, typeof(SoleAdministratorConflict))]
     [InlineData(true, 2, 2, typeof(MembershipMutationMayApply))]

@@ -1,10 +1,14 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Shared;
 using Nova.Shared.Features.Account;
 using Nova.Shared.Security;
+using OneOf;
+using OneOf.Types;
 
 namespace Nova.Features.Account;
 
@@ -38,49 +42,111 @@ public sealed partial class AccountDeletionService(
     /// <inheritdoc />
     public async Task DeleteAccountAsync(CancellationToken cancellationToken = default)
     {
-        // Get current user ID
         if (currentUserProvider.UserId is not long userId)
         {
             throw new InvalidOperationException("User is not authenticated.");
         }
 
-        // Re-read current facts immediately before deciding which destructive effects to apply.
-        var deletionFacts = await GatherDeletionFactsAsync(cancellationToken);
-        var preview = AccountDeletionPolicy.Evaluate(deletionFacts);
+        await using var probeDb = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var strategy = probeDb.Database.CreateExecutionStrategy();
+        var commitAttempted = new CommitAttemptTracker();
+        var outcome = await strategy.ExecuteAsync(
+            (UserId: userId, CommitAttempted: commitAttempted),
+            async (state, token) =>
+            {
+                state.CommitAttempted.Reset();
+                await using var db = await adminDbContextFactory.CreateDbContextAsync(token);
+                return await PersistDeletionAsync(db, state.UserId, state.CommitAttempted, token);
+            },
+            async (state, token) =>
+            {
+                if (!state.CommitAttempted.Attempted)
+                {
+                    return new ExecutionResult<OneOf<Success, NotFound, AccountDeletionBlocked>>(successful: false, default!);
+                }
 
-        // Load the current user
-        var user = await userManager.FindByIdAsync(userId.ToString());
+                await using var db = await adminDbContextFactory.CreateDbContextAsync(token);
+                var committed = !await db.Users.AnyAsync(user => user.Id == state.UserId, token);
+                return committed
+                    ? new ExecutionResult<OneOf<Success, NotFound, AccountDeletionBlocked>>(successful: true, new Success())
+                    : new ExecutionResult<OneOf<Success, NotFound, AccountDeletionBlocked>>(successful: false, default!);
+            },
+            cancellationToken);
+
+        outcome.Switch(
+            _ => { },
+            _ => throw new InvalidOperationException("User not found."),
+            _ => throw new InvalidOperationException("Another club administrator must be assigned before deleting this account."));
+    }
+
+    /// <summary>
+    /// Deletes one user and, when they are the final member, their club in one retry-safe
+    /// transaction after acquiring the shared user-then-club membership locks.
+    /// </summary>
+    /// <param name="db">The fresh admin context for the execution attempt.</param>
+    /// <param name="userId">The user account to delete.</param>
+    /// <param name="commitAttempted">Tracks whether the attempt reached its commit.</param>
+    /// <param name="cancellationToken">A token that cancels database work.</param>
+    /// <returns>The deletion, missing-user, or sole-administrator outcome.</returns>
+    private async Task<OneOf<Success, NotFound, AccountDeletionBlocked>> PersistDeletionAsync(
+        NovaAdminDbContext db,
+        long userId,
+        CommitAttemptTracker commitAttempted,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireUserMembershipLockAsync(userId, cancellationToken);
+        var user = await db.Users.SingleOrDefaultAsync(candidate => candidate.Id == userId, cancellationToken);
         if (user is null)
         {
-            throw new InvalidOperationException("User not found.");
+            return new NotFound();
         }
 
-        // If user is the only member, delete the club
-        if (preview.Scenario == AccountDeletionScenario.OnlyClubMember)
+        var clubId = user.ClubId;
+        var deleteClub = false;
+        if (clubId is long currentClubId)
         {
-            if (deletionFacts.ClubId is long clubId)
+            await db.AcquireClubMembershipLockAsync(currentClubId, cancellationToken);
+            var administratorRoleId = await db.Roles
+                .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+                .Select(role => (long?)role.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+            var userIsAdministrator = administratorRoleId is not null && await db.UserRoles.AnyAsync(
+                role => role.UserId == userId && role.RoleId == administratorRoleId.Value,
+                cancellationToken);
+            var memberCount = await db.Users.CountAsync(candidate => candidate.ClubId == currentClubId, cancellationToken);
+            var administratorCount = administratorRoleId is null
+                ? 0
+                : await (from candidate in db.Users
+                         join role in db.UserRoles on candidate.Id equals role.UserId
+                         where candidate.ClubId == currentClubId && role.RoleId == administratorRoleId.Value
+                         select candidate.Id).CountAsync(cancellationToken);
+            if (userIsAdministrator && memberCount > 1 && administratorCount <= 1)
             {
-                await using var adminDb = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
-
-                var club = await adminDb.Clubs.FindAsync([clubId], cancellationToken);
-                if (club is not null)
-                {
-                    adminDb.Clubs.Remove(club);
-                    await adminDb.SaveChangesAsync(cancellationToken);
-                    LogClubDeletion(clubId, userId);
-                }
+                return new AccountDeletionBlocked();
             }
 
+            deleteClub = memberCount == 1;
+            if (deleteClub)
+            {
+                var club = await db.Clubs.SingleOrDefaultAsync(candidate => candidate.ClubId == currentClubId, cancellationToken);
+                if (club is not null)
+                {
+                    db.Clubs.Remove(club);
+                }
+            }
         }
 
-        // Delete the user account
-        var result = await userManager.DeleteAsync(user);
-        if (!result.Succeeded)
+        db.Users.Remove(user);
+        await db.SaveChangesAsync(cancellationToken);
+        commitAttempted.MarkAttempted();
+        await transaction.CommitAsync(cancellationToken);
+        if (deleteClub)
         {
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            LogDeleteFailed(userId, errors);
-            throw new InvalidOperationException($"Failed to delete account: {errors}");
+            LogClubDeletion(clubId!.Value, userId);
         }
+
+        return new Success();
     }
 
     /// <summary>
@@ -134,6 +200,21 @@ public sealed partial class AccountDeletionService(
     [LoggerMessage(Level = LogLevel.Information, Message = "Deleting club {ClubId} as part of account deletion for user {UserId}.")]
     private partial void LogClubDeletion(long clubId, long userId);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to delete account for user {UserId}: {Errors}.")]
-    private partial void LogDeleteFailed(long userId, string errors);
+    /// <summary>Tracks whether the current retry attempt reached transaction commit.</summary>
+    private sealed class CommitAttemptTracker
+    {
+        private int _attempted;
+
+        /// <summary>Gets whether the current attempt reached its commit call.</summary>
+        public bool Attempted => Volatile.Read(ref _attempted) == 1;
+
+        /// <summary>Clears the marker before a fresh execution attempt.</summary>
+        public void Reset() => Volatile.Write(ref _attempted, 0);
+
+        /// <summary>Marks the attempt immediately before committing.</summary>
+        public void MarkAttempted() => Volatile.Write(ref _attempted, 1);
+    }
+
+    /// <summary>Indicates that deleting the sole administrator would orphan other members.</summary>
+    private readonly record struct AccountDeletionBlocked;
 }
