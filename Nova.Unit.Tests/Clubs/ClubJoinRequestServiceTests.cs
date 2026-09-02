@@ -64,6 +64,16 @@ public class ClubJoinRequestServiceTests : IDisposable
             new NovaUserEntity { Id = RequestingUserId, FirstName = "Requester", LastName = "R", ClubId = null },
             new NovaUserEntity { Id = OtherClubAdminId, FirstName = "Admin", LastName = "B", ClubId = ClubBId });
 
+        var administratorRole = new IdentityRole<long>(Nova.Shared.Security.Roles.ClubAdmin)
+        {
+            Id = 10,
+            NormalizedName = Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant(),
+        };
+        context.Roles.Add(administratorRole);
+        context.UserRoles.AddRange(
+            new IdentityUserRole<long> { UserId = AdminUserId, RoleId = administratorRole.Id },
+            new IdentityUserRole<long> { UserId = OtherClubAdminId, RoleId = administratorRole.Id });
+
         context.SaveChanges();
     }
 

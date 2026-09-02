@@ -509,7 +509,22 @@ public sealed partial class ClubJoinRequestService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireClubMembershipLockAsync(state.ClubId, cancellationToken);
         await db.AcquireJoinRequestLockAsync(state.RequestId, cancellationToken);
+
+        var administratorRoleId = await db.Roles
+            .Where(role => role.NormalizedName == Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant())
+            .Select(role => (long?)role.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        var administratorIsCurrent = administratorRoleId is not null
+            && await db.Users.AnyAsync(user => user.Id == state.AdminUserId && user.ClubId == state.ClubId, cancellationToken)
+            && await db.UserRoles.AnyAsync(
+                role => role.UserId == state.AdminUserId && role.RoleId == administratorRoleId.Value,
+                cancellationToken);
+        if (!administratorIsCurrent)
+        {
+            return ServiceProblem.Forbidden("You must be a club administrator to approve join requests.");
+        }
 
         var request = await db.ClubJoinRequests
             .FirstOrDefaultAsync(

@@ -115,16 +115,51 @@ internal static class ClubEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubMember)
                 .WithName("GetClubMembers");
 
-            // Assign ClubAdmin to a member.
-            group.MapPost(ClubEndpoints.AssignAdminRelative, AssignClubAdminHandler)
-                .Produces<bool>()
+            group.MapPost(ClubEndpoints.PromoteMemberRelative, PromoteMemberHandler)
+                .Produces(StatusCodes.Status204NoContent)
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .DisableAntiforgery()
                 .RequireAuthorization(Policies.RequireClubAdmin)
-                .WithName("AssignClubAdmin");
+                .WithName("PromoteClubMember");
+
+            group.MapPost(ClubEndpoints.DemoteMemberRelative, DemoteMemberHandler)
+                .Produces(StatusCodes.Status204NoContent)
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery()
+                .RequireAuthorization(Policies.RequireClubAdmin)
+                .WithName("DemoteClubMember");
+
+            group.MapDelete(ClubEndpoints.RemoveMemberRelative, RemoveMemberHandler)
+                .Produces(StatusCodes.Status204NoContent)
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery()
+                .RequireAuthorization(Policies.RequireClubAdmin)
+                .WithName("RemoveClubMember");
+
+            group.MapDelete(ClubEndpoints.LeaveClubRelative, LeaveClubHandler)
+                .Produces(StatusCodes.Status204NoContent)
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery()
+                .RequireAuthorization(Policies.RequireClubMember)
+                .WithName("LeaveClub");
 
             // Serve a club crest by club ID and size, with ETag caching. Mapped outside
             // the clubs group because its route lives under /api/clubs/{clubId}/crest.
@@ -484,20 +519,36 @@ internal static class ClubEndpointRouteBuilderExtensions
     }
 
     /// <summary>
-    /// Handles POST /api/clubs/assign-admin — promotes a member to ClubAdmin.
+    /// Handles promotion of a club member.
     /// </summary>
-    /// <param name="input">The input containing the target user ID to promote.</param>
-    /// <param name="clubMemberService">The club member service.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The HTTP result indicating success or failure of the promotion.</returns>
-    private static async Task<IResult> AssignClubAdminHandler(
-        AssignAdminInput input,
+    private static async Task<IResult> PromoteMemberHandler(
+        long memberUserId,
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
     {
-        var result = await clubMemberService.AssignClubAdminAsync(input, cancellationToken);
-        return result.ToHttpResult();
+        var result = await clubMemberService.PromoteMemberAsync(memberUserId, cancellationToken);
+        return result.ToHttpResult(_ => TypedResults.NoContent());
     }
+
+    private static async Task<IResult> DemoteMemberHandler(
+        long memberUserId,
+        IClubMemberService clubMemberService,
+        CancellationToken cancellationToken)
+        => (await clubMemberService.DemoteMemberAsync(memberUserId, cancellationToken))
+            .ToHttpResult(_ => TypedResults.NoContent());
+
+    private static async Task<IResult> RemoveMemberHandler(
+        long memberUserId,
+        IClubMemberService clubMemberService,
+        CancellationToken cancellationToken)
+        => (await clubMemberService.RemoveMemberAsync(memberUserId, cancellationToken))
+            .ToHttpResult(_ => TypedResults.NoContent());
+
+    private static async Task<IResult> LeaveClubHandler(
+        IClubMemberService clubMemberService,
+        CancellationToken cancellationToken)
+        => (await clubMemberService.LeaveClubAsync(cancellationToken))
+            .ToHttpResult(_ => TypedResults.NoContent());
 
     /// <summary>
     /// Handles the post-onboarding cookie refresh: reissues the auth cookie so the

@@ -501,6 +501,11 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
         await db.SaveChangesAsync(cancellationToken);
 
         admin.ClubId = club.ClubId;
+        var administratorRoleId = await db.Roles
+            .Where(role => role.NormalizedName == Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant())
+            .Select(role => role.Id)
+            .SingleAsync(cancellationToken);
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = admin.Id, RoleId = administratorRoleId });
         await db.SaveChangesAsync(cancellationToken);
 
         var request = new ClubJoinRequestEntity

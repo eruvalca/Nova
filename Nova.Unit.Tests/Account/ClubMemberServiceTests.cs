@@ -1,12 +1,14 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Account;
-using Nova.Shared.Features.Account;
+using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.Unit.Tests.Data;
@@ -15,488 +17,275 @@ using Shouldly;
 
 namespace Nova.Unit.Tests.Account;
 
-/// <summary>
-/// Tests for <see cref="ClubMemberService.GetClubMembersAsync"/> and <see cref="ClubMemberService.AssignClubAdminAsync"/>.
-/// </summary>
-public class ClubMemberServiceTests : IDisposable
+public sealed class ClubMemberServiceTests : IDisposable
 {
-    private const long ClubAId = 200;
-    private const long ClubBId = 201;
-    private const long ClubAdminUserId = 300;
-    private const long Member1UserId = 301;
-    private const long Member2UserId = 302;
-    private const long ClubBAdminUserId = 303;
-    private const long NonExistentUserId = 999;
+    private const long ClubId = 200;
+    private const long OtherClubId = 201;
+    private const long AdminId = 300;
+    private const long SecondAdminId = 301;
+    private const long MemberId = 302;
+    private const long OtherClubMemberId = 303;
 
     private readonly TenancyTestHarness _harness = new();
-    private readonly ILogger<ClubMemberService> _mockLogger;
-    private NovaUserEntity? _clubAdminUser;
-    private NovaUserEntity? _member1User;
-    private NovaUserEntity? _member2User;
-    private NovaUserEntity? _clubBAdminUser;
+    private readonly UserManager<NovaUserEntity> _userManager;
+    private readonly SignInManager<NovaUserEntity> _signInManager;
 
     public ClubMemberServiceTests()
     {
-        _mockLogger = Substitute.For<ILogger<ClubMemberService>>();
+        (_userManager, _signInManager) = CreateIdentityManagers();
         Seed();
+        _harness.CurrentUser.UserId = AdminId;
+        _harness.CurrentUser.ClubId = ClubId;
+        _harness.CurrentUser.IsClubAdmin = true;
     }
 
     public void Dispose() => _harness.Dispose();
 
-    private void Seed()
+    [Fact]
+    public async Task GetClubMembersAsync_ReturnsOtherMembersOnly()
     {
-        // Seed clubs and users via admin context
-        using var context = _harness.CreateAdminContext();
+        var result = await CreateService().GetClubMembersAsync(TestContext.Current.CancellationToken);
 
-        // Create two clubs
-        context.Clubs.AddRange(
-            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubAId, Name = "Club A", City = "Austin", State = "TX", CreatedById = 1 },
-            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubBId, Name = "Club B", City = "Boston", State = "MA", CreatedById = 1 });
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Select(member => member.UserId).ShouldBe([SecondAdminId, MemberId], ignoreOrder: true);
+    }
 
-        // Create users for Club A
-        var clubAdminUser = new NovaUserEntity
+    [Fact]
+    public async Task PromoteMemberAsync_PersistsRoleStampAndActivityAtomically()
+    {
+        string? oldStamp;
+        using (var before = _harness.CreateAdminContext())
         {
-            Id = ClubAdminUserId,
-            UserName = "admin@cluba.com",
-            Email = "admin@cluba.com",
-            FirstName = "Club",
-            LastName = "Admin",
-            ClubId = ClubAId
-        };
+            oldStamp = before.Users.Single(user => user.Id == MemberId).SecurityStamp;
+        }
 
-        var member1User = new NovaUserEntity
+        var result = await CreateService().PromoteMemberAsync(MemberId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        using var db = _harness.CreateAdminContext();
+        var roleId = db.Roles.Single(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Id;
+        db.UserRoles.ShouldContain(role => role.UserId == MemberId && role.RoleId == roleId);
+        db.Users.Single(user => user.Id == MemberId).SecurityStamp.ShouldNotBe(oldStamp);
+        var activity = db.ActivityEvents.Single(activity => activity.EventKind == ActivityEventKind.MemberPromoted);
+        var context = JsonSerializer.Deserialize<MemberRoleContext>(activity.PayloadJson, JsonOptions());
+        context!.MemberUserId.ShouldBe(MemberId);
+        context.MemberDisplayName.ShouldBe("Member One");
+    }
+
+    [Fact]
+    public async Task PromoteMemberAsync_IsIdempotentWithoutAnotherEventOrStampChange()
+    {
+        await CreateService().PromoteMemberAsync(MemberId, TestContext.Current.CancellationToken);
+        string? stamp;
+        using (var db = _harness.CreateAdminContext())
         {
-            Id = Member1UserId,
-            UserName = "member1@cluba.com",
-            Email = "member1@cluba.com",
-            FirstName = "Member",
-            LastName = "One",
-            ClubId = ClubAId
-        };
+            stamp = db.Users.Single(user => user.Id == MemberId).SecurityStamp;
+        }
 
-        var member2User = new NovaUserEntity
+        var result = await CreateService().PromoteMemberAsync(MemberId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        using var after = _harness.CreateAdminContext();
+        after.Users.Single(user => user.Id == MemberId).SecurityStamp.ShouldBe(stamp);
+        after.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberPromoted).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task DemoteMemberAsync_RejectsSoleAdministrator()
+    {
+        using (var db = _harness.CreateAdminContext())
         {
-            Id = Member2UserId,
-            UserName = "member2@cluba.com",
-            Email = "member2@cluba.com",
-            FirstName = "Member",
-            LastName = "Two",
-            ClubId = ClubAId
-        };
+            var roleId = db.Roles.Single(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Id;
+            db.UserRoles.Remove(db.UserRoles.Single(role => role.UserId == SecondAdminId && role.RoleId == roleId));
+            db.SaveChanges();
+        }
 
-        // Create user for Club B
-        var clubBAdminUser = new NovaUserEntity
+        var result = await CreateService().DemoteMemberAsync(AdminId, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+    }
+
+    [Fact]
+    public async Task DemoteMemberAsync_AllowsSelfDemotionAndRefreshesSignIn()
+    {
+        var result = await CreateService().DemoteMemberAsync(AdminId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        using var db = _harness.CreateAdminContext();
+        db.UserRoles.ShouldNotContain(role => role.UserId == AdminId);
+        db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberDemoted).ShouldBe(1);
+        await _signInManager.Received(1).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user => user.Id == AdminId));
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_ClearsMembershipAndWritesOnlyRemovedEvent()
+    {
+        var result = await CreateService().RemoveMemberAsync(SecondAdminId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        using var db = _harness.CreateAdminContext();
+        db.Users.Single(user => user.Id == SecondAdminId).ClubId.ShouldBeNull();
+        db.UserRoles.ShouldNotContain(role => role.UserId == SecondAdminId);
+        db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberRemoved).ShouldBe(1);
+        db.ActivityEvents.ShouldNotContain(activity => activity.EventKind == ActivityEventKind.MemberDemoted);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_UsesNonDisclosingNotFoundForCrossClubTarget()
+    {
+        var result = await CreateService().RemoveMemberAsync(OtherClubMemberId, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_RejectsSelfRemoval()
+    {
+        var result = await CreateService().RemoveMemberAsync(AdminId, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Detail.ShouldNotBeNull();
+        result.Problem.Detail!.ShouldContain("leave-club");
+    }
+
+    [Fact]
+    public async Task LeaveClubAsync_RejectsFinalMemberWithDeletionGuidance()
+    {
+        using (var db = _harness.CreateAdminContext())
         {
-            Id = ClubBAdminUserId,
-            UserName = "admin@clubb.com",
-            Email = "admin@clubb.com",
-            FirstName = "ClubB",
-            LastName = "Admin",
-            ClubId = ClubBId
-        };
+            db.Users.Where(user => user.ClubId == ClubId && user.Id != AdminId)
+                .ToList()
+                .ForEach(user => user.ClubId = null);
+            db.SaveChanges();
+        }
 
-        context.Users.AddRange(clubAdminUser, member1User, member2User, clubBAdminUser);
-        context.SaveChanges();
+        var result = await CreateService().LeaveClubAsync(TestContext.Current.CancellationToken);
 
-        _clubAdminUser = clubAdminUser;
-        _member1User = member1User;
-        _member2User = member2User;
-        _clubBAdminUser = clubBAdminUser;
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Detail.ShouldBe("The final club member cannot leave. Delete the club instead.");
+    }
+
+    [Fact]
+    public async Task LeaveClubAsync_ClearsMembershipWritesLeftEventAndRefreshesSignIn()
+    {
+        _harness.CurrentUser.UserId = MemberId;
+        _harness.CurrentUser.IsClubAdmin = false;
+
+        var result = await CreateService().LeaveClubAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        using var db = _harness.CreateAdminContext();
+        db.Users.Single(user => user.Id == MemberId).ClubId.ShouldBeNull();
+        db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberLeft).ShouldBe(1);
+        await _signInManager.Received(1).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user => user.Id == MemberId));
+    }
+
+    [Fact]
+    public async Task LeaveClubAsync_IsIdempotentForStaleMemberCookie()
+    {
+        _harness.CurrentUser.UserId = MemberId;
+        _harness.CurrentUser.IsClubAdmin = false;
+        var service = CreateService();
+        await service.LeaveClubAsync(TestContext.Current.CancellationToken);
+
+        var retry = await service.LeaveClubAsync(TestContext.Current.CancellationToken);
+
+        retry.IsSuccess.ShouldBeTrue();
+        using var db = _harness.CreateAdminContext();
+        db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberLeft).ShouldBe(1);
+        await _signInManager.Received(2).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user => user.Id == MemberId));
+    }
+
+    [Fact]
+    public async Task LeaveClubAsync_RejectsSoleAdministratorWhenOtherMembersRemain()
+    {
+        using (var db = _harness.CreateAdminContext())
+        {
+            var roleId = db.Roles.Single(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Id;
+            db.UserRoles.Remove(db.UserRoles.Single(role => role.UserId == SecondAdminId && role.RoleId == roleId));
+            db.SaveChanges();
+        }
+
+        var result = await CreateService().LeaveClubAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
     }
 
     private ClubMemberService CreateService()
-    {
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
-        var userManager = CreateUserManagerMock();
-
-        return new ClubMemberService(
-            readDbFactory,
-            userManager,
+        => new(
+            new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
+            new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),
+            _userManager,
             _harness.CurrentUser,
-            CreateClaimRefresher(userManager),
-            _mockLogger);
-    }
+            new ClubMembershipClaimRefresher(_userManager, _signInManager),
+            NullLogger<ClubMemberService>.Instance);
 
-    private static ClubMembershipClaimRefresher CreateClaimRefresher(UserManager<NovaUserEntity> userManager)
+    private (UserManager<NovaUserEntity>, SignInManager<NovaUserEntity>) CreateIdentityManagers()
     {
-        userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
-            .Returns(Task.FromResult(IdentityResult.Success));
+        var store = Substitute.For<IUserStore<NovaUserEntity>>();
+        var manager = Substitute.For<UserManager<NovaUserEntity>>(
+            store,
+            Options.Create(new IdentityOptions()),
+            new PasswordHasher<NovaUserEntity>(),
+            Array.Empty<IUserValidator<NovaUserEntity>>(),
+            Array.Empty<IPasswordValidator<NovaUserEntity>>(),
+            new UpperInvariantLookupNormalizer(),
+            new IdentityErrorDescriber(),
+            Substitute.For<IServiceProvider>(),
+            NullLogger<UserManager<NovaUserEntity>>.Instance);
+        manager.FindByIdAsync(Arg.Any<string>()).Returns(call =>
+        {
+            using var db = _harness.CreateAdminContext();
+            var id = long.Parse(call.Arg<string>());
+            return Task.FromResult(db.Users.SingleOrDefault(user => user.Id == id));
+        });
 
-        var signInManager = Substitute.For<SignInManager<NovaUserEntity>>(
-            userManager,
+        var signIn = Substitute.For<SignInManager<NovaUserEntity>>(
+            manager,
             Substitute.For<IHttpContextAccessor>(),
             Substitute.For<IUserClaimsPrincipalFactory<NovaUserEntity>>(),
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<ILogger<SignInManager<NovaUserEntity>>>(),
+            Options.Create(new IdentityOptions()),
+            NullLogger<SignInManager<NovaUserEntity>>.Instance,
             Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>(),
             Substitute.For<IUserConfirmation<NovaUserEntity>>());
-
-        return new ClubMembershipClaimRefresher(userManager, signInManager);
+        return (manager, signIn);
     }
 
-    private UserManager<NovaUserEntity> CreateUserManagerMock()
+    private void Seed()
     {
-        var store = Substitute.For<IUserStore<NovaUserEntity>>();
-        var userManager = Substitute.For<UserManager<NovaUserEntity>>(
-            store,
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<IPasswordHasher<NovaUserEntity>>(),
-            new List<IUserValidator<NovaUserEntity>>(),
-            new List<IPasswordValidator<NovaUserEntity>>(),
-            Substitute.For<ILookupNormalizer>(),
-            Substitute.For<IdentityErrorDescriber>(),
-            Substitute.For<IServiceProvider>(),
-            Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
-
-        // Setup FindByIdAsync to return users - use Arg.Any to catch all calls
-        userManager.FindByIdAsync(ClubAdminUserId.ToString()).Returns(Task.FromResult(_clubAdminUser)!);
-        userManager.FindByIdAsync(Member1UserId.ToString()).Returns(Task.FromResult(_member1User)!);
-        userManager.FindByIdAsync(Member2UserId.ToString()).Returns(Task.FromResult(_member2User)!);
-        userManager.FindByIdAsync(ClubBAdminUserId.ToString()).Returns(Task.FromResult(_clubBAdminUser)!);
-        userManager.FindByIdAsync(NonExistentUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)null));
-
-        // Setup role checks - default all to not ClubAdmin
-        userManager.IsInRoleAsync(Arg.Any<NovaUserEntity>(), Roles.ClubAdmin).Returns(Task.FromResult(false));
-
-        // Setup AddToRoleAsync to succeed for any user
-        userManager.AddToRoleAsync(Arg.Any<NovaUserEntity>(), Roles.ClubAdmin)
-            .Returns(Task.FromResult(IdentityResult.Success));
-
-        return userManager;
+        using var db = _harness.CreateAdminContext();
+        db.Clubs.AddRange(
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = ClubId, Name = "Club A", City = "Austin", State = "TX", CreatedById = AdminId },
+            new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = OtherClubId, Name = "Club B", City = "Boston", State = "MA", CreatedById = OtherClubMemberId });
+        db.Users.AddRange(
+            User(AdminId, "Admin", "One", ClubId),
+            User(SecondAdminId, "Admin", "Two", ClubId),
+            User(MemberId, "Member", "One", ClubId),
+            User(OtherClubMemberId, "Other", "Member", OtherClubId));
+        var adminRole = new IdentityRole<long>(Roles.ClubAdmin) { Id = 10, NormalizedName = Roles.ClubAdmin.ToUpperInvariant() };
+        db.Roles.Add(adminRole);
+        db.UserRoles.AddRange(
+            new IdentityUserRole<long> { UserId = AdminId, RoleId = adminRole.Id },
+            new IdentityUserRole<long> { UserId = SecondAdminId, RoleId = adminRole.Id });
+        db.SaveChanges();
     }
 
-    #region GetClubMembersAsync Tests
+    private static NovaUserEntity User(long id, string firstName, string lastName, long clubId)
+        => new()
+        {
+            Id = id,
+            UserName = $"user{id}@example.com",
+            NormalizedUserName = $"USER{id}@EXAMPLE.COM",
+            FirstName = firstName,
+            LastName = lastName,
+            ClubId = clubId,
+            SecurityStamp = $"stamp-{id}",
+        };
 
-    [Fact]
-    public async Task GetClubMembersAsync_ReturnsForbidden_WhenUserNotAuthenticated()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = null;
-        _harness.CurrentUser.ClubId = ClubAId;
-        var service = CreateService();
-
-        // Act
-        var result = await service.GetClubMembersAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
-    }
-
-    [Fact]
-    public async Task GetClubMembersAsync_ReturnsForbidden_WhenUserHasNoClub()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = 500; // Some user ID
-        _harness.CurrentUser.ClubId = null;
-        var service = CreateService();
-
-        // Act
-        var result = await service.GetClubMembersAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
-    }
-
-    [Fact]
-    public async Task GetClubMembersAsync_ReturnsOtherMembers_ExcludingCurrentUser()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = ClubAdminUserId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        var service = CreateService();
-
-        // Act
-        var result = await service.GetClubMembersAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsSuccess.ShouldBeTrue();
-        var members = result.Value;
-        members.Count.ShouldBe(2); // Member1 and Member2, but not the admin user
-        members.ShouldContain(m => m.UserId == Member1UserId);
-        members.ShouldContain(m => m.UserId == Member2UserId);
-        members.ShouldNotContain(m => m.UserId == ClubAdminUserId);
-    }
-
-    [Fact]
-    public async Task GetClubMembersAsync_ReturnsCorrectFullNames()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = ClubAdminUserId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        var service = CreateService();
-
-        // Act
-        var result = await service.GetClubMembersAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsSuccess.ShouldBeTrue();
-        var members = result.Value;
-        members.ShouldContain(m => m.FullName == "Member One");
-        members.ShouldContain(m => m.FullName == "Member Two");
-    }
-
-    #endregion
-
-    #region AssignClubAdminAsync Tests
-
-    [Fact]
-    public async Task AssignClubAdminAsync_ReturnsValidation_WhenTargetUserIdIsZero()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = ClubAdminUserId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-        var service = CreateService();
-
-        // Act
-        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = 0 }, TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
-    }
-
-    [Fact]
-    public async Task AssignClubAdminAsync_ReturnsForbidden_WhenActorNotAuthenticated()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = null;
-        _harness.CurrentUser.ClubId = ClubAId;
-        var service = CreateService();
-
-        // Act
-        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
-    }
-
-    [Fact]
-    public async Task AssignClubAdminAsync_ReturnsForbidden_WhenActorHasNoClub()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = ClubAdminUserId;
-        _harness.CurrentUser.ClubId = null;
-        var service = CreateService();
-
-        // Act
-        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
-    }
-
-    [Fact]
-    public async Task AssignClubAdminAsync_ReturnsNotFound_WhenTargetUserNotFound()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = ClubAdminUserId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-        var service = CreateService();
-
-        // Act
-        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = NonExistentUserId }, TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
-    }
-
-    [Fact]
-    public async Task AssignClubAdminAsync_ReturnsNotFound_WhenTargetInDifferentClub()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = ClubAdminUserId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-        var service = CreateService();
-
-        // Act
-        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = ClubBAdminUserId }, TestContext.Current.CancellationToken);
-
-        // Assert: a cross-club target must be non-disclosing (NotFound), never Forbidden.
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
-    }
-
-    [Fact]
-    public async Task AssignClubAdminAsync_ReturnsTrue_WhenTargetAlreadyAdmin()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = ClubAdminUserId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
-        var store = Substitute.For<IUserStore<NovaUserEntity>>();
-        var userManager = Substitute.For<UserManager<NovaUserEntity>>(
-            store,
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<IPasswordHasher<NovaUserEntity>>(),
-            new List<IUserValidator<NovaUserEntity>>(),
-            new List<IPasswordValidator<NovaUserEntity>>(),
-            Substitute.For<ILookupNormalizer>(),
-            Substitute.For<IdentityErrorDescriber>(),
-            Substitute.For<IServiceProvider>(),
-            Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
-
-        userManager.FindByIdAsync(Member1UserId.ToString()).Returns(Task.FromResult(_member1User)!);
-        // Member1 is already a ClubAdmin
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
-            .Returns(Task.FromResult(true));
-
-        var service = new ClubMemberService(
-            readDbFactory,
-            userManager,
-            _harness.CurrentUser,
-            CreateClaimRefresher(userManager),
-            _mockLogger);
-
-        // Act
-        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task AssignClubAdminAsync_ReturnsTrue_OnSuccessfulAssignment()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = ClubAdminUserId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
-        var store = Substitute.For<IUserStore<NovaUserEntity>>();
-        var userManager = Substitute.For<UserManager<NovaUserEntity>>(
-            store,
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<IPasswordHasher<NovaUserEntity>>(),
-            new List<IUserValidator<NovaUserEntity>>(),
-            new List<IPasswordValidator<NovaUserEntity>>(),
-            Substitute.For<ILookupNormalizer>(),
-            Substitute.For<IdentityErrorDescriber>(),
-            Substitute.For<IServiceProvider>(),
-            Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
-
-        userManager.FindByIdAsync(Member1UserId.ToString()).Returns(Task.FromResult(_member1User)!);
-        // Member1 is not yet a ClubAdmin
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
-            .Returns(Task.FromResult(false));
-        userManager.AddToRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
-            .Returns(Task.FromResult(IdentityResult.Success));
-
-        var service = new ClubMemberService(
-            readDbFactory,
-            userManager,
-            _harness.CurrentUser,
-            CreateClaimRefresher(userManager),
-            _mockLogger);
-
-        // Act
-        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task AssignClubAdminAsync_MarksTargetClaimsStale_WhenPromotionSucceeds()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = ClubAdminUserId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
-        var store = Substitute.For<IUserStore<NovaUserEntity>>();
-        var userManager = Substitute.For<UserManager<NovaUserEntity>>(
-            store,
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<IPasswordHasher<NovaUserEntity>>(),
-            new List<IUserValidator<NovaUserEntity>>(),
-            new List<IPasswordValidator<NovaUserEntity>>(),
-            Substitute.For<ILookupNormalizer>(),
-            Substitute.For<IdentityErrorDescriber>(),
-            Substitute.For<IServiceProvider>(),
-            Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
-
-        userManager.FindByIdAsync(Member1UserId.ToString()).Returns(Task.FromResult(_member1User)!);
-        // Member1 is not yet a ClubAdmin
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
-            .Returns(Task.FromResult(false));
-        userManager.AddToRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
-            .Returns(Task.FromResult(IdentityResult.Success));
-
-        var service = new ClubMemberService(
-            readDbFactory,
-            userManager,
-            _harness.CurrentUser,
-            CreateClaimRefresher(userManager),
-            _mockLogger);
-
-        // Act
-        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsSuccess.ShouldBeTrue();
-        await userManager.Received().UpdateSecurityStampAsync(_member1User!);
-    }
-
-    [Fact]
-    public async Task AssignClubAdminAsync_ReturnsServerError_WhenAddToRoleAsyncFails()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = ClubAdminUserId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-
-        var readDbFactory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
-        var store = Substitute.For<IUserStore<NovaUserEntity>>();
-        var userManager = Substitute.For<UserManager<NovaUserEntity>>(
-            store,
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<IPasswordHasher<NovaUserEntity>>(),
-            new List<IUserValidator<NovaUserEntity>>(),
-            new List<IPasswordValidator<NovaUserEntity>>(),
-            Substitute.For<ILookupNormalizer>(),
-            Substitute.For<IdentityErrorDescriber>(),
-            Substitute.For<IServiceProvider>(),
-            Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
-
-        userManager.FindByIdAsync(Member1UserId.ToString()).Returns(Task.FromResult(_member1User)!);
-        // Member1 is not yet a ClubAdmin
-        userManager.IsInRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
-            .Returns(Task.FromResult(false));
-        // AddToRoleAsync fails
-        var failedResult = IdentityResult.Failed(new IdentityError { Code = "RoleFailed", Description = "Role assignment failed." });
-        userManager.AddToRoleAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == Member1UserId), Roles.ClubAdmin)
-            .Returns(Task.FromResult(failedResult));
-
-        var service = new ClubMemberService(
-            readDbFactory,
-            userManager,
-            _harness.CurrentUser,
-            CreateClaimRefresher(userManager),
-            _mockLogger);
-
-        // Act
-        var result = await service.AssignClubAdminAsync(new AssignAdminInput { TargetUserId = Member1UserId }, TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-        result.Problem.Detail.ShouldNotBeNullOrEmpty();
-        result.Problem.Detail!.ShouldContain("Role assignment failed.");
-    }
-
-    #endregion
+    private static JsonSerializerOptions JsonOptions() => new() { PropertyNameCaseInsensitive = true };
 }

@@ -77,6 +77,13 @@ internal static class LifecycleMutationLock
         /// <returns>A task representing lock acquisition.</returns>
         public Task AcquireClubRosterLockAsync(long clubId, CancellationToken cancellationToken)
             => AcquirePostgresLockAsync(db, (long.MinValue / 4) + clubId, cancellationToken);
+
+        /// <summary>
+        /// Acquires a transaction-scoped lock for club membership and ClubAdmin role mutations.
+        /// Acquire this before request-specific locks when an operation changes membership.
+        /// </summary>
+        public Task AcquireClubMembershipLockAsync(long clubId, CancellationToken cancellationToken)
+            => AcquirePostgresLockAsync(db, (long.MinValue / 32) + clubId, cancellationToken);
     }
 
     /// <summary>

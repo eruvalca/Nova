@@ -1,27 +1,27 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using System.Diagnostics;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Components.Account;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Account;
+using Nova.Features.Activity;
+using Nova.Features.Shared;
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Account;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
-using Nova.Shared.Validation;
+using OneOf.Types;
 
 namespace Nova.Features.Account;
 
-/// <summary>
-/// Server-side implementation of <see cref="IClubMemberService"/>: lists club members and assigns ClubAdmin.
-/// </summary>
-/// <param name="readDbContextFactory">The read-only context factory for club-member queries.</param>
-/// <param name="userManager">The identity user manager for club-admin role membership changes.</param>
-/// <param name="currentUserProvider">The current user provider used for authorization checks and user context.</param>
-/// <param name="clubMembershipClaimRefresher">The claim refresher used to bump a promoted member's security stamp.</param>
-/// <param name="logger">The logger used for warning-level access failures.</param>
+/// <summary>Lists club members and owns the transactional club-membership lifecycle.</summary>
 public sealed partial class ClubMemberService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
+    IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
     UserManager<NovaUserEntity> userManager,
     ICurrentUserProvider currentUserProvider,
     ClubMembershipClaimRefresher clubMembershipClaimRefresher,
@@ -30,97 +30,361 @@ public sealed partial class ClubMemberService(
     /// <inheritdoc />
     public async Task<ServiceResult<IReadOnlyList<ClubMemberDto>>> GetClubMembersAsync(CancellationToken cancellationToken = default)
     {
-        // Get current user ID and club ID
-        if (currentUserProvider.UserId is not long userId)
-        {
-            return ServiceProblem.Forbidden("You must be a club member to list members.");
-        }
-
-        if (currentUserProvider.ClubId is not long clubId)
+        if (currentUserProvider.UserId is not long userId || currentUserProvider.ClubId is not long clubId)
         {
             return ServiceProblem.Forbidden("You must be a club member to list members.");
         }
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-
-        // Query other members of the club (exclude the current user)
         var members = await db.Users
-            .Where(u => u.ClubId == clubId && u.Id != userId)
+            .Where(user => user.ClubId == clubId && user.Id != userId)
             .ToListAsync(cancellationToken);
 
-        // Map to DTOs
-        var dtos = members
-            .Select(u => u.ToClubMemberDto())
-            .ToList()
-            .AsReadOnly();
-
-        return dtos;
+        return members.Select(user => user.ToClubMemberDto()).ToList().AsReadOnly();
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<bool>> AssignClubAdminAsync(AssignAdminInput input, CancellationToken cancellationToken = default)
+    public Task<ServiceResult<Success>> PromoteMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
+        => ExecuteForAdminAsync(MutationKind.Promote, memberUserId, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ServiceResult<Success>> DemoteMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
+        => ExecuteForAdminAsync(MutationKind.Demote, memberUserId, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ServiceResult<Success>> RemoveMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
+        => ExecuteForAdminAsync(MutationKind.Remove, memberUserId, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<ServiceResult<Success>> LeaveClubAsync(CancellationToken cancellationToken = default)
     {
-        var errors = InputValidator.Validate(input);
-        if (errors.Count > 0)
+        if (currentUserProvider.UserId is not long actorUserId || currentUserProvider.ClubId is not long clubId)
         {
-            return ServiceProblem.Validation(errors);
+            return ServiceProblem.Forbidden("You must be a club member to leave a club.");
         }
 
-        // Get current user ID and club ID
-        if (currentUserProvider.UserId is not long actorUserId)
-        {
-            return ServiceProblem.Forbidden("You must be authenticated to assign club admin roles.");
-        }
-
-        if (currentUserProvider.ClubId is not long actorClubId)
-        {
-            return ServiceProblem.Forbidden("You must be a club member to assign club admin roles.");
-        }
-
-        if (!currentUserProvider.IsClubAdmin)
-        {
-            return ServiceProblem.Forbidden("You must be a club admin to assign club admin roles.");
-        }
-
-        // Load target user
-        var targetUser = await userManager.FindByIdAsync(input.TargetUserId.ToString());
-        if (targetUser is null)
-        {
-            return ServiceProblem.NotFound("The specified member was not found.");
-        }
-
-        // Verify target is in the same club. A cross-club target must be non-disclosing
-        // (NotFound rather than Forbidden) so a caller cannot probe for another club's members.
-        if (targetUser.ClubId != actorClubId)
-        {
-            LogAssignRejected(input.TargetUserId, actorClubId);
-            return ServiceProblem.NotFound("The specified member was not found.");
-        }
-
-        // Check if already a ClubAdmin (idempotent)
-        var isAlreadyAdmin = await userManager.IsInRoleAsync(targetUser, Roles.ClubAdmin);
-        if (isAlreadyAdmin)
-        {
-            return true;
-        }
-
-        // Assign the role
-        var result = await userManager.AddToRoleAsync(targetUser, Roles.ClubAdmin);
-        if (!result.Succeeded)
-        {
-            var roleErrors = string.Join(", ", result.Errors.Select(e => e.Description));
-            return ServiceProblem.ServerError(roleErrors);
-        }
-
-        await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(targetUser);
-
-        LogAdminAssigned(input.TargetUserId, actorClubId, actorUserId);
-        return true;
+        return await ExecuteAndRefreshAsync(
+            new MutationState(MutationKind.Leave, actorUserId, clubId, actorUserId, NewSecurityStamp()),
+            cancellationToken);
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Assigned ClubAdmin to user {TargetUserId} in club {ClubId} by user {ActorUserId}.")]
-    private partial void LogAdminAssigned(long targetUserId, long clubId, long actorUserId);
+    private async Task<ServiceResult<Success>> ExecuteForAdminAsync(
+        MutationKind kind,
+        long memberUserId,
+        CancellationToken cancellationToken)
+    {
+        if (memberUserId <= 0)
+        {
+            return ServiceProblem.Validation(nameof(memberUserId), "The member user id must be greater than zero.");
+        }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Assign ClubAdmin rejected: target {TargetUserId} not in actor's club {ClubId}.")]
-    private partial void LogAssignRejected(long targetUserId, long clubId);
+        if (currentUserProvider.UserId is not long actorUserId
+            || currentUserProvider.ClubId is not long clubId
+            || !currentUserProvider.IsClubAdmin)
+        {
+            return ServiceProblem.Forbidden("You must be a club administrator to manage members.");
+        }
+
+        return await ExecuteAndRefreshAsync(
+            new MutationState(kind, actorUserId, clubId, memberUserId, NewSecurityStamp()),
+            cancellationToken);
+    }
+
+    private async Task<ServiceResult<Success>> ExecuteAndRefreshAsync(MutationState state, CancellationToken cancellationToken)
+    {
+        ServiceResult<MutationReceipt> result;
+        try
+        {
+            await using var probeDb = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var strategy = probeDb.Database.CreateExecutionStrategy();
+            var commitAttempted = new CommitAttemptTracker();
+            result = await strategy.ExecuteAsync(
+                (State: state, CommitAttempted: commitAttempted),
+                async (operationState, token) =>
+                {
+                    operationState.CommitAttempted.Reset();
+                    await using var db = await adminDbContextFactory.CreateDbContextAsync(token);
+                    return await PersistMutationAsync(db, operationState.State, operationState.CommitAttempted, token);
+                },
+                async (operationState, token) =>
+                {
+                    if (!operationState.CommitAttempted.Attempted)
+                    {
+                        return new ExecutionResult<ServiceResult<MutationReceipt>>(successful: false, default!);
+                    }
+
+                    await using var db = await adminDbContextFactory.CreateDbContextAsync(token);
+                    return await VerifyMutationCommittedAsync(db, operationState.State, token);
+                },
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            LogMutationFailed(exception, state.Kind, state.ActorUserId, state.TargetUserId, state.ClubId);
+            return ServiceProblem.ServerError("The membership change could not be completed.");
+        }
+
+        if (result.IsProblem)
+        {
+            return result.Problem;
+        }
+
+        if (!result.Value.RefreshCurrentUser)
+        {
+            return new Success();
+        }
+
+        var currentUser = await userManager.FindByIdAsync(state.ActorUserId.ToString());
+        if (currentUser is null)
+        {
+            return ServiceProblem.ServerError("The membership changed, but the current sign-in could not be refreshed.");
+        }
+
+        try
+        {
+            var refreshResult = await clubMembershipClaimRefresher.RefreshCurrentUserSignInAsync(currentUser);
+            return refreshResult.Match<ServiceResult<Success>>(
+                success => success,
+                _ => ServiceProblem.ServerError("The membership changed, but the current sign-in could not be refreshed."));
+        }
+        catch (Exception exception)
+        {
+            LogSignInRefreshFailed(exception, state.ActorUserId);
+            return ServiceProblem.ServerError("The membership changed, but the current sign-in could not be refreshed.");
+        }
+    }
+
+    private async Task<ServiceResult<MutationReceipt>> PersistMutationAsync(
+        NovaAdminDbContext db,
+        MutationState state,
+        CommitAttemptTracker commitAttempted,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireClubMembershipLockAsync(state.ClubId, cancellationToken);
+
+        var administratorRoleId = await db.Roles
+            .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+            .Select(role => (long?)role.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (administratorRoleId is null)
+        {
+            return ServiceProblem.ServerError("The club administrator role is not configured.");
+        }
+
+        var actor = await db.Users.SingleOrDefaultAsync(user => user.Id == state.ActorUserId, cancellationToken);
+        if (actor is null)
+        {
+            return ServiceProblem.Forbidden("The current account is no longer available.");
+        }
+
+        var actorIsAdministrator = await db.UserRoles.AnyAsync(
+            role => role.UserId == actor.Id && role.RoleId == administratorRoleId.Value,
+            cancellationToken);
+
+        if (state.Kind == MutationKind.Leave && actor.ClubId is null)
+        {
+            return new MutationReceipt(RefreshCurrentUser: true);
+        }
+
+        if (actor.ClubId != state.ClubId)
+        {
+            return ServiceProblem.Forbidden("Your club membership changed. Refresh and try again.");
+        }
+
+        if (state.Kind != MutationKind.Leave && !actorIsAdministrator)
+        {
+            return ServiceProblem.Forbidden("You must be a club administrator to manage members.");
+        }
+
+        var target = state.Kind == MutationKind.Leave
+            ? actor
+            : await db.Users.SingleOrDefaultAsync(
+                user => user.Id == state.TargetUserId && user.ClubId == state.ClubId,
+                cancellationToken);
+        if (target is null)
+        {
+            return ServiceProblem.NotFound("The specified member was not found.");
+        }
+
+        var targetRole = await db.UserRoles.SingleOrDefaultAsync(
+            role => role.UserId == target.Id && role.RoleId == administratorRoleId.Value,
+            cancellationToken);
+        var targetIsAdministrator = targetRole is not null;
+        var administratorCount = 0;
+        var memberCount = 0;
+
+        if (state.Kind is MutationKind.Demote or MutationKind.Leave)
+        {
+            administratorCount = await (from user in db.Users
+                                        join role in db.UserRoles on user.Id equals role.UserId
+                                        where user.ClubId == state.ClubId && role.RoleId == administratorRoleId.Value
+                                        select user.Id).CountAsync(cancellationToken);
+        }
+
+        if (state.Kind == MutationKind.Leave)
+        {
+            memberCount = await db.Users.CountAsync(user => user.ClubId == state.ClubId, cancellationToken);
+        }
+
+        var decision = state.Kind switch
+        {
+            MutationKind.Promote => ClubMembershipMutationPolicy.Promote(targetIsAdministrator),
+            MutationKind.Demote => ClubMembershipMutationPolicy.Demote(targetIsAdministrator, administratorCount),
+            MutationKind.Remove => ClubMembershipMutationPolicy.Remove(actor.Id, target.Id),
+            MutationKind.Leave => ClubMembershipMutationPolicy.Leave(actorIsAdministrator, administratorCount, memberCount),
+            _ => throw new UnreachableException(),
+        };
+
+        if (decision == ClubMembershipMutationPolicy.Decision.NoOp)
+        {
+            return new MutationReceipt(RefreshCurrentUser: false);
+        }
+
+        if (decision == ClubMembershipMutationPolicy.Decision.SoleAdministrator)
+        {
+            return ServiceProblem.Conflict("The club must always have at least one administrator. Promote another member first.");
+        }
+
+        if (decision == ClubMembershipMutationPolicy.Decision.FinalMember)
+        {
+            return ServiceProblem.Conflict("The final club member cannot leave. Delete the club instead.");
+        }
+
+        if (decision == ClubMembershipMutationPolicy.Decision.UseLeaveEndpoint)
+        {
+            return ServiceProblem.Conflict("Use the leave-club action to remove yourself from the club.");
+        }
+
+        var actorDisplayName = actor.FullName;
+        var targetDisplayName = target.FullName;
+        switch (state.Kind)
+        {
+            case MutationKind.Promote:
+                db.UserRoles.Add(new IdentityUserRole<long> { UserId = target.Id, RoleId = administratorRoleId.Value });
+                ActivityEventWriter.AppendMemberRole(
+                    db, state.ClubId, ActivityEventKind.MemberPromoted, actor.Id, actorDisplayName,
+                    new MemberRoleContext
+                    {
+                        MemberUserId = target.Id,
+                        MemberDisplayName = targetDisplayName,
+                        Role = "club administrator",
+                    });
+                break;
+
+            case MutationKind.Demote:
+                db.UserRoles.Remove(targetRole!);
+                ActivityEventWriter.AppendMemberRole(
+                    db, state.ClubId, ActivityEventKind.MemberDemoted, actor.Id, actorDisplayName,
+                    new MemberRoleContext
+                    {
+                        MemberUserId = target.Id,
+                        MemberDisplayName = targetDisplayName,
+                        Role = "club member",
+                    });
+                break;
+
+            case MutationKind.Remove:
+            case MutationKind.Leave:
+                if (targetRole is not null)
+                {
+                    db.UserRoles.Remove(targetRole);
+                }
+
+                target.ClubId = null;
+                ActivityEventWriter.AppendMembership(
+                    db,
+                    state.ClubId,
+                    state.Kind == MutationKind.Remove ? ActivityEventKind.MemberRemoved : ActivityEventKind.MemberLeft,
+                    actor.Id,
+                    actorDisplayName,
+                    new MembershipContext { MemberUserId = target.Id, MemberDisplayName = targetDisplayName });
+                break;
+        }
+
+        target.SecurityStamp = state.SecurityStamp;
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            commitAttempted.MarkAttempted();
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ServiceProblem.Conflict("The club membership changed. Reload and try again.");
+        }
+
+        LogMutationCompleted(state.Kind, state.ActorUserId, state.TargetUserId, state.ClubId);
+        return new MutationReceipt(RefreshCurrentUser: state.ActorUserId == state.TargetUserId);
+    }
+
+    private static async Task<ExecutionResult<ServiceResult<MutationReceipt>>> VerifyMutationCommittedAsync(
+        NovaAdminDbContext db,
+        MutationState state,
+        CancellationToken cancellationToken)
+    {
+        var target = await db.Users
+            .Where(user => user.Id == state.TargetUserId)
+            .Select(user => new { user.ClubId, user.SecurityStamp })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (target is null || target.SecurityStamp != state.SecurityStamp)
+        {
+            return new ExecutionResult<ServiceResult<MutationReceipt>>(successful: false, default!);
+        }
+
+        var administratorRoleId = await db.Roles
+            .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+            .Select(role => (long?)role.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        var hasAdministratorRole = administratorRoleId is not null && await db.UserRoles.AnyAsync(
+            role => role.UserId == state.TargetUserId && role.RoleId == administratorRoleId.Value,
+            cancellationToken);
+        var applied = state.Kind switch
+        {
+            MutationKind.Promote => target.ClubId == state.ClubId && hasAdministratorRole,
+            MutationKind.Demote => target.ClubId == state.ClubId && !hasAdministratorRole,
+            MutationKind.Remove or MutationKind.Leave => target.ClubId is null && !hasAdministratorRole,
+            _ => false,
+        };
+
+        return applied
+            ? new ExecutionResult<ServiceResult<MutationReceipt>>(
+                successful: true,
+                new MutationReceipt(RefreshCurrentUser: state.ActorUserId == state.TargetUserId))
+            : new ExecutionResult<ServiceResult<MutationReceipt>>(successful: false, default!);
+    }
+
+    private static string NewSecurityStamp() => Guid.NewGuid().ToString("N");
+
+    private enum MutationKind { Promote, Demote, Remove, Leave }
+
+    private sealed record MutationState(
+        MutationKind Kind,
+        long ActorUserId,
+        long ClubId,
+        long TargetUserId,
+        string SecurityStamp);
+
+    private readonly record struct MutationReceipt(bool RefreshCurrentUser);
+
+    private sealed class CommitAttemptTracker
+    {
+        private int _attempted;
+        public bool Attempted => Volatile.Read(ref _attempted) == 1;
+        public void Reset() => Volatile.Write(ref _attempted, 0);
+        public void MarkAttempted() => Volatile.Write(ref _attempted, 1);
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Completed {Kind} membership mutation by user {ActorUserId} for user {TargetUserId} in club {ClubId}.")]
+    private partial void LogMutationCompleted(MutationKind kind, long actorUserId, long targetUserId, long clubId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed {Kind} membership mutation by user {ActorUserId} for user {TargetUserId} in club {ClubId}.")]
+    private partial void LogMutationFailed(Exception exception, MutationKind kind, long actorUserId, long targetUserId, long clubId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Membership changed but sign-in refresh failed for user {UserId}.")]
+    private partial void LogSignInRefreshFailed(Exception exception, long userId);
 }

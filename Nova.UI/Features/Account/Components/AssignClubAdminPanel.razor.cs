@@ -66,9 +66,7 @@ public partial class AssignClubAdminPanel(IClubMemberService clubMemberService, 
         _submitting = true;
         _submitError = null;
 
-        var result = await clubMemberService.AssignClubAdminAsync(
-            new AssignAdminInput { TargetUserId = _selectedUserId.Value },
-            ComponentCancellationToken);
+        var result = await clubMemberService.PromoteMemberAsync(_selectedUserId.Value, ComponentCancellationToken);
         result.Switch(
             _ => navigationManager.Refresh(forceReload: true),
             problem =>

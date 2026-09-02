@@ -14,6 +14,13 @@ namespace Nova.Components.Account;
 /// <param name="signInManager">The sign In Manager.</param>
 public sealed class ClubMembershipClaimRefresher(UserManager<NovaUserEntity> userManager, SignInManager<NovaUserEntity> signInManager)
 {
+    /// <summary>Reissues the current user's cookie after its stamp was changed transactionally.</summary>
+    public async Task<OneOf<Success, Error<string[]>>> RefreshCurrentUserSignInAsync(NovaUserEntity user)
+    {
+        await signInManager.RefreshSignInAsync(user);
+        return new Success();
+    }
+
     /// <summary>
     /// Refreshes claims after the CURRENT user's club membership changed (e.g. they created a
     /// club or left one). Bumps the security stamp and reissues the sign-in cookie.

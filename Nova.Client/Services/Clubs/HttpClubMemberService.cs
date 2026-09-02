@@ -32,20 +32,31 @@ public sealed class HttpClubMemberService(HttpClient http) : IClubMemberService
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<bool>> AssignClubAdminAsync(
-        AssignAdminInput input,
-        CancellationToken cancellationToken = default)
-    {
-        using var response = await http.PostAsJsonAsync(ClubEndpoints.AssignAdmin, input, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return await response.ToServiceProblemAsync(cancellationToken);
-        }
+    public Task<ServiceResult<OneOf.Types.Success>> PromoteMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
+        => SendMutationAsync(HttpMethod.Post, ClubEndpoints.PromoteMemberUrl(memberUserId), cancellationToken);
 
-        return await response.Content.ReadRequiredJsonAsync<bool>(
-            "The server returned an invalid administrator assignment response.",
-            assigned => assigned,
-            cancellationToken);
+    /// <inheritdoc />
+    public Task<ServiceResult<OneOf.Types.Success>> DemoteMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
+        => SendMutationAsync(HttpMethod.Post, ClubEndpoints.DemoteMemberUrl(memberUserId), cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ServiceResult<OneOf.Types.Success>> RemoveMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
+        => SendMutationAsync(HttpMethod.Delete, ClubEndpoints.RemoveMemberUrl(memberUserId), cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ServiceResult<OneOf.Types.Success>> LeaveClubAsync(CancellationToken cancellationToken = default)
+        => SendMutationAsync(HttpMethod.Delete, ClubEndpoints.LeaveClub, cancellationToken);
+
+    private async Task<ServiceResult<OneOf.Types.Success>> SendMutationAsync(
+        HttpMethod method,
+        string requestUri,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(method, requestUri);
+        using var response = await http.SendAsync(request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? new OneOf.Types.Success()
+            : await response.ToServiceProblemAsync(cancellationToken);
     }
 
     /// <summary>

@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-using Nova.Shared.Features.Account;
+﻿using Nova.Shared.Features.Account;
 using Nova.Shared.Features.Clubs;
 using Shouldly;
 
@@ -10,8 +9,7 @@ namespace Nova.Unit.Tests.Account;
 /// - <see cref="AccountDeletionScenario"/> enum values
 /// - <see cref="AccountDeletionPreviewDto"/> record equality and deconstruction
 /// - <see cref="ClubMemberDto"/> record equality and deconstruction
-/// - <see cref="AssignAdminInput"/> record equality, deconstruction, and validation
-/// - <see cref="ClubEndpoints"/> constants for member and admin assignment routes
+/// - <see cref="ClubEndpoints"/> constants for member lifecycle routes
 /// </summary>
 public class AccountDeletionTests
 {
@@ -215,112 +213,6 @@ public class AccountDeletionTests
 
     #endregion
 
-    #region AssignAdminInput Tests
-
-    [Fact]
-    public void AssignAdminInput_EqualsOtherInstance_WithSameValues()
-    {
-        // Arrange
-        var input1 = new AssignAdminInput { TargetUserId = 100 };
-        var input2 = new AssignAdminInput { TargetUserId = 100 };
-
-        // Act & Assert
-        input1.ShouldBe(input2);
-        (input1 == input2).ShouldBeTrue();
-    }
-
-    [Fact]
-    public void AssignAdminInput_NotEqualsOtherInstance_WithDifferentTargetUserId()
-    {
-        // Arrange
-        var input1 = new AssignAdminInput { TargetUserId = 100 };
-        var input2 = new AssignAdminInput { TargetUserId = 200 };
-
-        // Act & Assert
-        input1.ShouldNotBe(input2);
-        (input1 != input2).ShouldBeTrue();
-    }
-
-    [Fact]
-    public void AssignAdminInput_ValidationFails_WhenTargetUserIdIsZero()
-    {
-        // Arrange
-        var input = new AssignAdminInput { TargetUserId = 0 };
-        var context = new ValidationContext(input, null, null);
-        var results = new List<ValidationResult>();
-
-        // Act
-        var isValid = Validator.TryValidateObject(input, context, results, validateAllProperties: true);
-
-        // Assert
-        isValid.ShouldBeFalse();
-        results.ShouldNotBeEmpty();
-        results.ShouldContain(r => r.MemberNames.Contains(nameof(AssignAdminInput.TargetUserId)));
-    }
-
-    [Fact]
-    public void AssignAdminInput_ValidationSucceeds_WhenTargetUserIdIsNonZero()
-    {
-        // Arrange
-        var input = new AssignAdminInput { TargetUserId = 1 };
-        var context = new ValidationContext(input, null, null);
-        var results = new List<ValidationResult>();
-
-        // Act
-        var isValid = Validator.TryValidateObject(input, context, results, validateAllProperties: true);
-
-        // Assert
-        isValid.ShouldBeTrue();
-        results.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void AssignAdminInput_HasRequiredAttribute_OnTargetUserId()
-    {
-        // Arrange
-        var property = typeof(AssignAdminInput).GetProperty(nameof(AssignAdminInput.TargetUserId));
-
-        // Act
-        var hasRequired = property?.GetCustomAttributes(typeof(RequiredAttribute), inherit: false).Any() ?? false;
-
-        // Assert
-        hasRequired.ShouldBeTrue();
-    }
-
-    [Fact]
-    public void AssignAdminInput_HasRangeAttribute_OnTargetUserId()
-    {
-        // Arrange
-        var property = typeof(AssignAdminInput).GetProperty(nameof(AssignAdminInput.TargetUserId));
-
-        // Act
-        var range = property?.GetCustomAttributes(typeof(RangeAttribute), inherit: false)
-            .Cast<RangeAttribute>()
-            .FirstOrDefault();
-
-        // Assert
-        range.ShouldNotBeNull();
-        range!.Minimum.ShouldBe(1);
-        range.Maximum.ShouldBe(long.MaxValue);
-    }
-
-    [Fact]
-    public void AssignAdminInput_ValidationSucceeds_WhenTargetUserIdIsLargePositive()
-    {
-        // Arrange
-        var input = new AssignAdminInput { TargetUserId = 9876543210 };
-        var context = new ValidationContext(input, null, null);
-        var results = new List<ValidationResult>();
-
-        // Act
-        var isValid = Validator.TryValidateObject(input, context, results, validateAllProperties: true);
-
-        // Assert
-        isValid.ShouldBeTrue();
-        results.ShouldBeEmpty();
-    }
-
-    #endregion
 
     #region ClubEndpoints Constants Tests
 
@@ -345,23 +237,23 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void ClubEndpoints_AssignAdminRelative_EqualsExpectedValue()
+    public void ClubEndpoints_PromoteMemberUrl_EqualsExpectedValue()
     {
         // Arrange & Act
-        var value = ClubEndpoints.AssignAdminRelative;
+        var value = ClubEndpoints.PromoteMemberUrl(42);
 
         // Assert
-        value.ShouldBe("assign-admin");
+        value.ShouldBe("/api/clubs/members/42/promote");
     }
 
     [Fact]
-    public void ClubEndpoints_AssignAdmin_EqualsExpectedValue()
+    public void ClubEndpoints_LeaveClub_EqualsExpectedValue()
     {
         // Arrange & Act
-        var value = ClubEndpoints.AssignAdmin;
+        var value = ClubEndpoints.LeaveClub;
 
         // Assert
-        value.ShouldBe("/api/clubs/assign-admin");
+        value.ShouldBe("/api/clubs/membership");
     }
 
     #endregion

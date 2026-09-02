@@ -34,15 +34,4 @@ public interface IClubAdminService
     /// </returns>
     Task<ServiceResult<IReadOnlyList<ClubMemberDetailDto>>> GetClubRosterAsync(long clubId, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Removes the ClubAdmin role from a target member of the caller's club.
-    /// </summary>
-    /// <param name="input">The target member to demote.</param>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>
-    /// <see cref="ServiceResult{TSuccess}"/> containing <c>true</c> when demotion succeeds,
-    /// or a <see cref="ServiceProblem"/> when the caller is unauthorized, the target is invalid,
-    /// or the club would be left without any administrators.
-    /// </returns>
-    Task<ServiceResult<bool>> DemoteClubAdminAsync(DemoteAdminInput input, CancellationToken cancellationToken = default);
 }

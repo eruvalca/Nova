@@ -329,7 +329,7 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
                     typeof(ClubActivityContext)),
             ActivityEventKind.MemberPromoted
                 or ActivityEventKind.MemberDemoted => JsonSerializer.Serialize(
-                    new MemberRoleContext { MemberDisplayName = "Member", Role = "Captain" },
+                    new MemberRoleContext { MemberUserId = 1, MemberDisplayName = "Member", Role = "Captain" },
                     typeof(ClubActivityContext)),
             _ => JsonSerializer.Serialize(
                 new PlacementContext

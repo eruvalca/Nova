@@ -98,12 +98,10 @@ public static class CloseoutSeed
             evaluatorUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == evaluatorEmail.ToUpperInvariant(), cancellationToken)).Id;
         }
 
-        using (var promotion = await adminClient.PostAsJsonAsync(
-                   ClubEndpoints.AssignAdmin,
-                   new AssignAdminInput { TargetUserId = secondAdminUserId },
-                   cancellationToken))
+        using (var promotion = await adminClient.PostAsync(
+                   ClubEndpoints.PromoteMemberUrl(secondAdminUserId), null, cancellationToken))
         {
-            promotion.StatusCode.ShouldBe(HttpStatusCode.OK);
+            promotion.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
         await SeedingHelpers.RefreshClubMembershipCookieAsync(secondAdminClient, cancellationToken);

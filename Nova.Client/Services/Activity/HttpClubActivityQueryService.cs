@@ -128,6 +128,7 @@ public sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivit
             ActivityEventKind.MemberPromoted
             or ActivityEventKind.MemberDemoted
                 => item.Context is MemberRoleContext role
+                    && role.MemberUserId > 0
                     && !string.IsNullOrWhiteSpace(role.MemberDisplayName)
                     && !string.IsNullOrWhiteSpace(role.Role),
             _ => false

@@ -124,8 +124,8 @@ public class AssignClubAdminPanelTests
         };
         var service = Substitute.For<IClubMemberService>();
         service
-            .AssignClubAdminAsync(Arg.Any<AssignAdminInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult((ServiceResult<bool>)true));
+            .PromoteMemberAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult((ServiceResult<OneOf.Types.Success>)new OneOf.Types.Success()));
 
         var navigationManager = Substitute.For<NavigationManager>();
 
@@ -144,8 +144,8 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         // Assert
-        await service.Received(1).AssignClubAdminAsync(
-            Arg.Is<AssignAdminInput>(i => i != null && i.TargetUserId == 1L),
+        await service.Received(1).PromoteMemberAsync(
+            1L,
             Arg.Any<CancellationToken>());
         navigationManager.Received(1).Refresh(forceReload: true);
     }
@@ -163,8 +163,8 @@ public class AssignClubAdminPanelTests
             "Persisted-state submit failure");
         var service = Substitute.For<IClubMemberService>();
         service
-            .AssignClubAdminAsync(Arg.Any<AssignAdminInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult((ServiceResult<bool>)submissionProblem));
+            .PromoteMemberAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult((ServiceResult<OneOf.Types.Success>)submissionProblem));
 
         var navigationManager = Substitute.For<NavigationManager>();
 
@@ -193,8 +193,8 @@ public class AssignClubAdminPanelTests
         assignButton.Click();
         await cut.InvokeAsync(() => { });
 
-        await service.Received(2).AssignClubAdminAsync(
-            Arg.Is<AssignAdminInput>(i => i != null && i.TargetUserId == 1L),
+        await service.Received(2).PromoteMemberAsync(
+            1L,
             Arg.Any<CancellationToken>());
         navigationManager.DidNotReceive().Refresh(forceReload: Arg.Any<bool>());
     }
@@ -360,8 +360,8 @@ public class AssignClubAdminPanelTests
             .GetClubMembersAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((ServiceResult<IReadOnlyList<ClubMemberDto>>)members.ToList()));
         service
-            .AssignClubAdminAsync(Arg.Any<AssignAdminInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult((ServiceResult<bool>)true));
+            .PromoteMemberAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult((ServiceResult<OneOf.Types.Success>)new OneOf.Types.Success()));
 
         var navigationManager = Substitute.For<NavigationManager>();
 
@@ -382,7 +382,7 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         // Assert
-        await service.Received(1).AssignClubAdminAsync(Arg.Is<AssignAdminInput>(i => i != null && i.TargetUserId == 1L), Arg.Any<CancellationToken>());
+        await service.Received(1).PromoteMemberAsync(1L, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -398,8 +398,8 @@ public class AssignClubAdminPanelTests
             .GetClubMembersAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((ServiceResult<IReadOnlyList<ClubMemberDto>>)members.ToList()));
         service
-            .AssignClubAdminAsync(Arg.Any<AssignAdminInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult((ServiceResult<bool>)true));
+            .PromoteMemberAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult((ServiceResult<OneOf.Types.Success>)new OneOf.Types.Success()));
 
         var navigationManager = Substitute.For<NavigationManager>();
 
@@ -441,8 +441,8 @@ public class AssignClubAdminPanelTests
             "This user is already a club admin"
         );
         service
-            .AssignClubAdminAsync(Arg.Any<AssignAdminInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult((ServiceResult<bool>)problem));
+            .PromoteMemberAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult((ServiceResult<OneOf.Types.Success>)problem));
 
         var navigationManager = Substitute.For<NavigationManager>();
 
@@ -473,8 +473,8 @@ public class AssignClubAdminPanelTests
         assignButton.Click();
         await cut.InvokeAsync(() => { });
 
-        await service.Received(2).AssignClubAdminAsync(
-            Arg.Is<AssignAdminInput>(i => i != null && i.TargetUserId == 1L),
+        await service.Received(2).PromoteMemberAsync(
+            1L,
             Arg.Any<CancellationToken>());
         navigationManager.DidNotReceive().Refresh(forceReload: Arg.Any<bool>());
     }

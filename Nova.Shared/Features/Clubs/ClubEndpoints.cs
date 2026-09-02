@@ -104,14 +104,23 @@ public static class ClubEndpoints
     public const string GetMembers = "/api/clubs/members";
 
     /// <summary>
-    /// Relative route (within the clubs group) for assigning ClubAdmin to a member.
+    /// Relative route template for promoting a club member.
     /// </summary>
-    public const string AssignAdminRelative = "assign-admin";
+    public const string PromoteMemberRelative = "members/{memberUserId:long}/promote";
 
     /// <summary>
-    /// Absolute route for assigning ClubAdmin to a member.
+    /// Relative route template for demoting a club member.
     /// </summary>
-    public const string AssignAdmin = "/api/clubs/assign-admin";
+    public const string DemoteMemberRelative = "members/{memberUserId:long}/demote";
+
+    /// <summary>Relative route template for removing a club member.</summary>
+    public const string RemoveMemberRelative = "members/{memberUserId:long}";
+
+    /// <summary>Relative route for leaving the current club.</summary>
+    public const string LeaveClubRelative = "membership";
+
+    /// <summary>Absolute route for leaving the current club.</summary>
+    public const string LeaveClub = "/api/clubs/membership";
 
     /// <summary>
     /// The full-document navigation endpoint that refreshes the auth cookie after club creation
@@ -161,4 +170,13 @@ public static class ClubEndpoints
     /// <param name="requestId">The id of the join request.</param>
     /// <returns>The relative URL of the reject endpoint.</returns>
     public static string RejectJoinRequestUrl(long requestId) => $"/api/clubs/join-requests/{requestId}/reject";
+
+    /// <summary>Builds the URL for promoting a member.</summary>
+    public static string PromoteMemberUrl(long memberUserId) => $"/api/clubs/members/{memberUserId}/promote";
+
+    /// <summary>Builds the URL for demoting a member.</summary>
+    public static string DemoteMemberUrl(long memberUserId) => $"/api/clubs/members/{memberUserId}/demote";
+
+    /// <summary>Builds the URL for removing a member.</summary>
+    public static string RemoveMemberUrl(long memberUserId) => $"/api/clubs/members/{memberUserId}";
 }
