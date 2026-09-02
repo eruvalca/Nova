@@ -33,6 +33,12 @@ public partial class AddCurrentSeasonFoundation : Migration
             oldNullable: true);
 
         migrationBuilder.AddColumn<long>(
+            name: "CreationPreviousSeasonId",
+            table: "Seasons",
+            type: "bigint",
+            nullable: true);
+
+        migrationBuilder.AddColumn<long>(
             name: "CurrentSeasonId",
             table: "Clubs",
             type: "bigint",
@@ -53,6 +59,11 @@ public partial class AddCurrentSeasonFoundation : Migration
             """);
 
         migrationBuilder.CreateIndex(
+            name: "IX_Seasons_CreationPreviousSeasonId_ClubId",
+            table: "Seasons",
+            columns: new[] { "CreationPreviousSeasonId", "ClubId" });
+
+        migrationBuilder.CreateIndex(
             name: "IX_Clubs_CurrentSeasonId_ClubId",
             table: "Clubs",
             columns: new[] { "CurrentSeasonId", "ClubId" },
@@ -65,6 +76,14 @@ public partial class AddCurrentSeasonFoundation : Migration
             principalTable: "Seasons",
             principalColumns: new[] { "SeasonId", "ClubId" },
             onDelete: ReferentialAction.NoAction);
+
+        migrationBuilder.AddForeignKey(
+            name: "FK_Seasons_Seasons_CreationPreviousSeasonId_ClubId",
+            table: "Seasons",
+            columns: new[] { "CreationPreviousSeasonId", "ClubId" },
+            principalTable: "Seasons",
+            principalColumns: new[] { "SeasonId", "ClubId" },
+            onDelete: ReferentialAction.NoAction);
     }
 
     /// <inheritdoc />
@@ -73,6 +92,14 @@ public partial class AddCurrentSeasonFoundation : Migration
         migrationBuilder.DropForeignKey(
             name: "FK_Clubs_Seasons_CurrentSeasonId_ClubId",
             table: "Clubs");
+
+        migrationBuilder.DropForeignKey(
+            name: "FK_Seasons_Seasons_CreationPreviousSeasonId_ClubId",
+            table: "Seasons");
+
+        migrationBuilder.DropIndex(
+            name: "IX_Seasons_CreationPreviousSeasonId_ClubId",
+            table: "Seasons");
 
         migrationBuilder.DropIndex(
             name: "IX_Clubs_CurrentSeasonId_ClubId",
@@ -83,8 +110,11 @@ public partial class AddCurrentSeasonFoundation : Migration
             table: "Seasons");
 
         migrationBuilder.DropColumn(
+            name: "CreationPreviousSeasonId",
+            table: "Seasons");
+
+        migrationBuilder.DropColumn(
             name: "CurrentSeasonId",
             table: "Clubs");
-
     }
 }

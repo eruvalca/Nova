@@ -19,6 +19,12 @@ public class SeasonEntity : BaseEntity, ITenantOwnedEntity
     public required Guid CreationOperationId { get; set; }
 
     /// <summary>
+    /// Gets or sets the season that was current when this season was created by an advancement
+    /// operation. A null value identifies standalone first-season creation.
+    /// </summary>
+    public long? CreationPreviousSeasonId { get; set; }
+
+    /// <summary>
     /// Gets or sets the application-managed token used to detect concurrent season metadata
     /// corrections.
     /// </summary>

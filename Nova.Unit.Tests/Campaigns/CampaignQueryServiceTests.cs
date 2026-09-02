@@ -15,16 +15,21 @@ namespace Nova.Unit.Tests.Campaigns;
 /// Creates read contexts backed by the shared tenancy test harness.
 /// </summary>
 /// <param name="harness">The shared SQLite tenancy harness.</param>
-file sealed class CampaignReadHarnessDbContextFactory(TenancyTestHarness harness) : IDbContextFactory<NovaReadDbContext>
+file sealed class CampaignReadHarnessDbContextFactory(
+    TenancyTestHarness harness,
+    CountingCommandInterceptor? interceptor = null) : IDbContextFactory<NovaReadDbContext>
 {
     /// <summary>Creates a synchronous read context.</summary>
     /// <returns>A tenant-filtered read context.</returns>
-    public NovaReadDbContext CreateDbContext() => harness.CreateReadContext();
+    public NovaReadDbContext CreateDbContext()
+        => interceptor is null
+            ? harness.CreateReadContext()
+            : harness.CreateReadContext(interceptor);
     /// <summary>Creates an asynchronous read context.</summary>
     /// <param name="_">The cancellation token.</param>
     /// <returns>A tenant-filtered read context.</returns>
     public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken _ = default)
-        => Task.FromResult(harness.CreateReadContext());
+        => Task.FromResult(CreateDbContext());
 }
 
 /// <summary>
@@ -197,6 +202,24 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Value.CurrentSeason.Name.ShouldBe("Season 1");
         result.Value.ActivePlayerCount.ShouldBe(1);
         result.Value.ActiveTeamCount.ShouldBe(1);
+    }
+
+    /// <summary>Verifies setup reads the pointer and current-season metadata in one statement.</summary>
+    [Fact]
+    public async Task GetCreationSetup_UsesOneStatement_ForPointerAndSeason()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var interceptor = new CountingCommandInterceptor();
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness, interceptor),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCreationSetupAsync(TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        interceptor.ReaderExecutionCount.ShouldBe(3);
     }
 
     /// <summary>Verifies setup never offers historical seasons after more history is inserted.</summary>

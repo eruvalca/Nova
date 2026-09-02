@@ -34,14 +34,10 @@ public sealed class SeasonQueryService(
         var pageSize = input.PageSize ?? GetSeasonListInput.DefaultPageSize;
         var offset = GetOffset(page, pageSize);
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var currentSeasonId = await db.Clubs
-            .Where(club => club.ClubId == clubId)
-            .Select(club => club.CurrentSeasonId)
-            .SingleOrDefaultAsync(cancellationToken);
         var totalCount = await db.Seasons.CountAsync(cancellationToken);
         var items = await db.Seasons
             .AsNoTracking()
-            .OrderByDescending(season => season.SeasonId == currentSeasonId)
+            .OrderByDescending(season => season.Club.CurrentSeasonId == season.SeasonId)
             .ThenByDescending(season => season.StartDate)
             .ThenByDescending(season => season.SeasonId)
             .Skip(offset)
@@ -52,7 +48,7 @@ public sealed class SeasonQueryService(
                 Name = season.Name,
                 StartDate = season.StartDate,
                 EndDate = season.EndDate,
-                IsCurrent = season.SeasonId == currentSeasonId,
+                IsCurrent = season.Club.CurrentSeasonId == season.SeasonId,
                 ConcurrencyToken = season.ConcurrencyToken
             })
             .ToListAsync(cancellationToken);
@@ -86,10 +82,6 @@ public sealed class SeasonQueryService(
         var pageSize = input.CampaignPageSize ?? GetSeasonListInput.DefaultPageSize;
         var offset = GetOffset(page, pageSize);
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var currentSeasonId = await db.Clubs
-            .Where(club => club.ClubId == clubId)
-            .Select(club => club.CurrentSeasonId)
-            .SingleOrDefaultAsync(cancellationToken);
         var season = await db.Seasons
             .AsNoTracking()
             .Where(season => season.SeasonId == input.SeasonId)
@@ -99,7 +91,7 @@ public sealed class SeasonQueryService(
                 Name = season.Name,
                 StartDate = season.StartDate,
                 EndDate = season.EndDate,
-                IsCurrent = season.SeasonId == currentSeasonId,
+                IsCurrent = season.Club.CurrentSeasonId == season.SeasonId,
                 ConcurrencyToken = season.ConcurrencyToken
             })
             .SingleOrDefaultAsync(cancellationToken);

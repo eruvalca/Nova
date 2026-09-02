@@ -94,7 +94,8 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
                     && !string.IsNullOrWhiteSpace(campaign.Name)
                     && campaign.StartDate != default
                     && (campaign.EndDate is null || campaign.EndDate >= campaign.StartDate)
-                    && campaign.ParticipantCount >= 0),
+                    && campaign.ParticipantCount >= 0)
+                && IsCampaignOrderValid(result.Campaigns),
             cancellationToken);
     }
 
@@ -111,7 +112,8 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
             && page.TotalCount >= 0
             && page.Items.Count <= page.PageSize
             && page.Items.All(IsValidSummary)
-            && page.Items.Count(season => season.IsCurrent) <= 1;
+            && page.Items.Count(season => season.IsCurrent) <= 1
+            && IsSeasonOrderValid(page.Items, page.Page);
 
     /// <summary>Validates portable season-summary invariants.</summary>
     private static bool IsValidSummary(SeasonSummary season)
@@ -121,4 +123,51 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
             && season.StartDate != default
             && (season.EndDate is null || season.EndDate >= season.StartDate)
             && season.ConcurrencyToken != Guid.Empty;
+
+    /// <summary>Validates current-first, start-date-descending, identifier-descending page order.</summary>
+    private static bool IsSeasonOrderValid(IReadOnlyList<SeasonSummary> seasons, int page)
+    {
+        if (page > 1 && seasons.Any(season => season.IsCurrent))
+        {
+            return false;
+        }
+
+        for (var index = 1; index < seasons.Count; index++)
+        {
+            var previous = seasons[index - 1];
+            var current = seasons[index];
+            if (!previous.IsCurrent && current.IsCurrent)
+            {
+                return false;
+            }
+
+            if (previous.IsCurrent == current.IsCurrent
+                && (previous.StartDate < current.StartDate
+                    || (previous.StartDate == current.StartDate
+                        && previous.SeasonId < current.SeasonId)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Validates campaign start-date-descending, identifier-descending page order.</summary>
+    private static bool IsCampaignOrderValid(IReadOnlyList<SeasonCampaignSummary> campaigns)
+    {
+        for (var index = 1; index < campaigns.Count; index++)
+        {
+            var previous = campaigns[index - 1];
+            var current = campaigns[index];
+            if (previous.StartDate < current.StartDate
+                || (previous.StartDate == current.StartDate
+                    && previous.CampaignId < current.CampaignId))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

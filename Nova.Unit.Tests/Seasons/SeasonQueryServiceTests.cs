@@ -81,6 +81,20 @@ public sealed class SeasonQueryServiceTests : IDisposable
         result.Value.Items[1].IsCurrent.ShouldBeFalse();
     }
 
+    /// <summary>Verifies list currentness is projected in the page query instead of read separately.</summary>
+    [Fact]
+    public async Task ListAsync_UsesOnePageStatement_ForRowsAndCurrentness()
+    {
+        var interceptor = new CountingCommandInterceptor();
+
+        var result = await CreateService(interceptor).ListAsync(
+            new GetSeasonListInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        interceptor.ReaderExecutionCount.ShouldBe(2);
+    }
+
     /// <summary>Verifies a structurally valid maximum page cannot overflow the SQL offset.</summary>
     [Fact]
     public async Task ListAsync_ReturnsEmptyPage_WhenPageOffsetExceedsInt32()
@@ -122,6 +136,20 @@ public sealed class SeasonQueryServiceTests : IDisposable
         hidden.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
+    /// <summary>Verifies detail currentness is projected with metadata instead of read separately.</summary>
+    [Fact]
+    public async Task GetAsync_UsesOneMetadataStatement_ForSeasonAndCurrentness()
+    {
+        var interceptor = new CountingCommandInterceptor();
+
+        var result = await CreateService(interceptor).GetAsync(
+            new GetSeasonDetailInput { SeasonId = _historicalSeasonId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        interceptor.ReaderExecutionCount.ShouldBe(3);
+    }
+
     /// <summary>Verifies maximum campaign paging cannot wrap to an earlier result page.</summary>
     [Fact]
     public async Task GetAsync_ReturnsEmptyCampaignPage_WhenPageOffsetExceedsInt32()
@@ -158,8 +186,8 @@ public sealed class SeasonQueryServiceTests : IDisposable
     }
 
     /// <summary>Creates a query service over fresh read contexts.</summary>
-    private SeasonQueryService CreateService()
-        => new(new ReadFactory(_harness), _harness.CurrentUser);
+    private SeasonQueryService CreateService(CountingCommandInterceptor? interceptor = null)
+        => new(new ReadFactory(_harness, interceptor), _harness.CurrentUser);
 
     /// <summary>Creates a season entity for the supplied club.</summary>
     private static SeasonEntity NewSeason(string name, DateOnly startDate, long clubId)
@@ -189,13 +217,18 @@ public sealed class SeasonQueryServiceTests : IDisposable
         };
 
     /// <summary>Creates read contexts from the shared SQLite database.</summary>
-    private sealed class ReadFactory(TenancyTestHarness harness) : IDbContextFactory<NovaReadDbContext>
+    private sealed class ReadFactory(
+        TenancyTestHarness harness,
+        CountingCommandInterceptor? interceptor) : IDbContextFactory<NovaReadDbContext>
     {
         /// <inheritdoc />
-        public NovaReadDbContext CreateDbContext() => harness.CreateReadContext();
+        public NovaReadDbContext CreateDbContext()
+            => interceptor is null
+                ? harness.CreateReadContext()
+                : harness.CreateReadContext(interceptor);
 
         /// <inheritdoc />
         public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(harness.CreateReadContext());
+            => Task.FromResult(CreateDbContext());
     }
 }

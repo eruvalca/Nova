@@ -46,7 +46,9 @@ public sealed class SeasonCommandService(
                     cancellationToken);
                 return committed is null
                     ? new ExecutionResult<ServiceResult<SeasonSummary>>(false, default!)
-                    : new ExecutionResult<ServiceResult<SeasonSummary>>(true, committed);
+                    : new ExecutionResult<ServiceResult<SeasonSummary>>(
+                        true,
+                        ToCreateReplayResult(committed));
             },
             cancellationToken);
     }
@@ -128,7 +130,7 @@ public sealed class SeasonCommandService(
         var committed = await FindCommittedSeasonAsync(db, clubId, input.OperationId, cancellationToken);
         if (committed is not null)
         {
-            return committed;
+            return ToCreateReplayResult(committed);
         }
 
         var club = await db.Clubs.SingleOrDefaultAsync(club => club.ClubId == clubId, cancellationToken);
@@ -147,7 +149,14 @@ public sealed class SeasonCommandService(
             return ServiceProblem.Conflict("A season with that name already exists.");
         }
 
-        var season = NewSeason(input.OperationId, input.Name, input.StartDate, input.EndDate, actorUserId, clubId);
+        var season = NewSeason(
+            input.OperationId,
+            creationPreviousSeasonId: null,
+            input.Name,
+            input.StartDate,
+            input.EndDate,
+            actorUserId,
+            clubId);
         db.Seasons.Add(season);
 
         try
@@ -286,7 +295,14 @@ public sealed class SeasonCommandService(
             return ServiceProblem.Conflict("A season with that name already exists.");
         }
 
-        var season = NewSeason(input.OperationId, input.Name, input.StartDate, input.EndDate, actorUserId, clubId);
+        var season = NewSeason(
+            input.OperationId,
+            currentSeasonId,
+            input.Name,
+            input.StartDate,
+            input.EndDate,
+            actorUserId,
+            clubId);
         db.Seasons.Add(season);
 
         try
@@ -314,6 +330,7 @@ public sealed class SeasonCommandService(
     /// <summary>Creates a new tracked season entity.</summary>
     private static SeasonEntity NewSeason(
         Guid operationId,
+        long? creationPreviousSeasonId,
         string name,
         DateOnly startDate,
         DateOnly? endDate,
@@ -322,6 +339,7 @@ public sealed class SeasonCommandService(
         => new()
         {
             CreationOperationId = operationId,
+            CreationPreviousSeasonId = creationPreviousSeasonId,
             Name = name,
             StartDate = startDate,
             EndDate = endDate,
@@ -331,7 +349,7 @@ public sealed class SeasonCommandService(
         };
 
     /// <summary>Finds an operation-created season only when it is now the club's current season.</summary>
-    private static Task<SeasonSummary?> FindCommittedSeasonAsync(
+    private static Task<CommittedSeason?> FindCommittedSeasonAsync(
         NovaDbContext db,
         long clubId,
         Guid operationId,
@@ -341,31 +359,38 @@ public sealed class SeasonCommandService(
             .Where(season => season.ClubId == clubId
                 && season.CreationOperationId == operationId
                 && season.Club.CurrentSeasonId == season.SeasonId)
-            .Select(season => new SeasonSummary
+            .Select(season => new CommittedSeason
             {
                 SeasonId = season.SeasonId,
                 Name = season.Name,
                 StartDate = season.StartDate,
                 EndDate = season.EndDate,
-                IsCurrent = true,
-                ConcurrencyToken = season.ConcurrencyToken
+                ConcurrencyToken = season.ConcurrencyToken,
+                CreationPreviousSeasonId = season.CreationPreviousSeasonId
             })
             .SingleOrDefaultAsync(cancellationToken);
 
-    /// <summary>Reconstructs a valid advancement replay or rejects an operation-currentness collision.</summary>
+    /// <summary>Reconstructs a valid standalone-creation replay or rejects an operation-kind collision.</summary>
+    private static ServiceResult<SeasonSummary> ToCreateReplayResult(CommittedSeason committed)
+        => committed.CreationPreviousSeasonId is null
+            ? ToSummary(committed)
+            : ServiceProblem.Conflict(
+                "The operation identifier was already used for a different season transition.");
+
+    /// <summary>Reconstructs a valid advancement replay only for its persisted predecessor.</summary>
     /// <param name="committed">The operation-created season that is currently selected by the club.</param>
     /// <param name="expectedCurrentSeasonId">The current season identifier supplied by the caller.</param>
     /// <returns>The reconstructed advancement result, or a conflict when no transition occurred.</returns>
     private static ServiceResult<StartNextSeasonResult> ToStartNextReplayResult(
-        SeasonSummary committed,
+        CommittedSeason committed,
         long expectedCurrentSeasonId)
-        => committed.SeasonId == expectedCurrentSeasonId
+        => committed.CreationPreviousSeasonId != expectedCurrentSeasonId
             ? ServiceProblem.Conflict(
-                "The operation identifier belongs to the current season and cannot be reused to start another season.")
+                "The operation identifier was already used for a different season transition.")
             : new StartNextSeasonResult
             {
-                PreviousSeasonId = expectedCurrentSeasonId,
-                CurrentSeason = committed
+                PreviousSeasonId = committed.CreationPreviousSeasonId.Value,
+                CurrentSeason = ToSummary(committed)
             };
 
     /// <summary>Maps a season to its public summary.</summary>
@@ -377,6 +402,18 @@ public sealed class SeasonCommandService(
             StartDate = season.StartDate,
             EndDate = season.EndDate,
             IsCurrent = isCurrent,
+            ConcurrencyToken = season.ConcurrencyToken
+        };
+
+    /// <summary>Maps a committed operation projection to its public current-season summary.</summary>
+    private static SeasonSummary ToSummary(CommittedSeason season)
+        => new()
+        {
+            SeasonId = season.SeasonId,
+            Name = season.Name,
+            StartDate = season.StartDate,
+            EndDate = season.EndDate,
+            IsCurrent = true,
             ConcurrencyToken = season.ConcurrencyToken
         };
 
@@ -441,5 +478,22 @@ public sealed class SeasonCommandService(
         return message is not null
             && (message.Contains("23505", StringComparison.Ordinal)
                 || message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Captures the durable identity of one operation-created current season.</summary>
+    private sealed class CommittedSeason
+    {
+        /// <summary>Gets the created season identifier.</summary>
+        public long SeasonId { get; init; }
+        /// <summary>Gets the stored season name.</summary>
+        public required string Name { get; init; }
+        /// <summary>Gets the stored start date.</summary>
+        public DateOnly StartDate { get; init; }
+        /// <summary>Gets the optional stored end date.</summary>
+        public DateOnly? EndDate { get; init; }
+        /// <summary>Gets the metadata concurrency token.</summary>
+        public Guid ConcurrencyToken { get; init; }
+        /// <summary>Gets the exact predecessor recorded for an advancement operation.</summary>
+        public long? CreationPreviousSeasonId { get; init; }
     }
 }

@@ -140,6 +140,9 @@ public sealed class SeasonCommandServiceTests : IDisposable
         (await verify.Seasons.CountAsync(
             season => season.CreationOperationId == input.OperationId,
             TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await verify.Seasons.SingleAsync(
+            season => season.CreationOperationId == input.OperationId,
+            TestContext.Current.CancellationToken)).CreationPreviousSeasonId.ShouldBeNull();
     }
 
     /// <summary>Verifies exact stored names remain unique across every season command.</summary>
@@ -404,6 +407,35 @@ public sealed class SeasonCommandServiceTests : IDisposable
             .CurrentSeasonId.ShouldBe(CurrentSeasonId);
     }
 
+    /// <summary>Verifies standalone-operation identity cannot be rebound to another predecessor.</summary>
+    [Fact]
+    public async Task StartNextAsync_ReturnsConflict_WhenStandaloneOperationUsesDifferentExpectedSeason()
+    {
+        Guid currentSeasonOperationId;
+        await using (var db = _harness.CreateAdminContext())
+        {
+            currentSeasonOperationId = await db.Seasons
+                .Where(season => season.SeasonId == CurrentSeasonId)
+                .Select(season => season.CreationOperationId)
+                .SingleAsync(TestContext.Current.CancellationToken);
+        }
+
+        var result = await CreateService().StartNextAsync(
+            new StartNextSeasonInput
+            {
+                OperationId = currentSeasonOperationId,
+                ExpectedCurrentSeasonId = CurrentSeasonId - 1,
+                Name = "Next",
+                StartDate = new DateOnly(2027, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Seasons.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+    }
+
     /// <summary>Verifies an advancement operation cannot be replayed using its new current season as the expected predecessor.</summary>
     [Fact]
     public async Task StartNextAsync_ReturnsConflict_WhenOperationIsReusedWithNewCurrentSeason()
@@ -437,6 +469,85 @@ public sealed class SeasonCommandServiceTests : IDisposable
         (await verify.Seasons.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(2);
         (await verify.Clubs.SingleAsync(TestContext.Current.CancellationToken))
             .CurrentSeasonId.ShouldBe(first.Value.CurrentSeason.SeasonId);
+    }
+
+    /// <summary>Verifies an advancement replay must name its exact persisted predecessor.</summary>
+    [Fact]
+    public async Task StartNextAsync_ReturnsConflict_WhenOperationUsesDifferentHistoricalPredecessor()
+    {
+        await using (var db = _harness.CreateAdminContext())
+        {
+            db.Seasons.Add(new SeasonEntity
+            {
+                SeasonId = CurrentSeasonId - 1,
+                CreationOperationId = Guid.NewGuid(),
+                Name = "History",
+                StartDate = new DateOnly(2025, 1, 1),
+                ClubId = ClubId,
+                CreatedById = AdminId
+            });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var operationId = Guid.NewGuid();
+        var service = CreateService();
+        var first = await service.StartNextAsync(
+            new StartNextSeasonInput
+            {
+                OperationId = operationId,
+                ExpectedCurrentSeasonId = CurrentSeasonId,
+                Name = "Next",
+                StartDate = new DateOnly(2027, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+        first.IsSuccess.ShouldBeTrue();
+
+        var collision = await service.StartNextAsync(
+            new StartNextSeasonInput
+            {
+                OperationId = operationId,
+                ExpectedCurrentSeasonId = CurrentSeasonId - 1,
+                Name = "Another",
+                StartDate = new DateOnly(2028, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        collision.IsProblem.ShouldBeTrue();
+        collision.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Seasons.SingleAsync(
+            season => season.CreationOperationId == operationId,
+            TestContext.Current.CancellationToken)).CreationPreviousSeasonId.ShouldBe(CurrentSeasonId);
+    }
+
+    /// <summary>Verifies standalone creation cannot replay an advancement operation.</summary>
+    [Fact]
+    public async Task CreateAsync_ReturnsConflict_WhenAdvancementOperationIsReused()
+    {
+        var operationId = Guid.NewGuid();
+        var service = CreateService();
+        var advanced = await service.StartNextAsync(
+            new StartNextSeasonInput
+            {
+                OperationId = operationId,
+                ExpectedCurrentSeasonId = CurrentSeasonId,
+                Name = "Next",
+                StartDate = new DateOnly(2027, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+        advanced.IsSuccess.ShouldBeTrue();
+
+        var collision = await service.CreateAsync(
+            new CreateSeasonInput
+            {
+                OperationId = operationId,
+                Name = "Different",
+                StartDate = new DateOnly(2028, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        collision.IsProblem.ShouldBeTrue();
+        collision.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
     }
 
     /// <summary>Verifies an open campaign blocks advancement without mutating the pointer.</summary>
@@ -553,6 +664,9 @@ public sealed class SeasonCommandServiceTests : IDisposable
         await using var verify = _harness.CreateAdminContext();
         (await verify.Clubs.SingleAsync(TestContext.Current.CancellationToken))
             .CurrentSeasonId.ShouldBe(first.Value.CurrentSeason.SeasonId);
+        (await verify.Seasons.SingleAsync(
+            season => season.SeasonId == first.Value.CurrentSeason.SeasonId,
+            TestContext.Current.CancellationToken)).CreationPreviousSeasonId.ShouldBe(CurrentSeasonId);
         (await verify.Campaigns.SingleAsync(
             campaign => campaign.CampaignId == campaignId,
             TestContext.Current.CancellationToken)).SeasonId.ShouldBe(CurrentSeasonId);

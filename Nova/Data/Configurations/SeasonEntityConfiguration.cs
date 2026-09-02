@@ -28,6 +28,13 @@ public class SeasonEntityConfiguration : IEntityTypeConfiguration<SeasonEntity>
             .HasForeignKey(e => e.ClubId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder
+            .HasOne<SeasonEntity>()
+            .WithMany()
+            .HasForeignKey(e => new { e.CreationPreviousSeasonId, e.ClubId })
+            .HasPrincipalKey(e => new { e.SeasonId, e.ClubId })
+            .OnDelete(DeleteBehavior.NoAction);
+
         builder.HasIndex(e => new { e.ClubId, e.Name }).IsUnique();
         builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })
             .IsUnique();

@@ -1,5 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Nova.Data;
 using Nova.Data.Interceptors;
 using Nova.Data.Tenancy;
@@ -47,25 +48,36 @@ public sealed class TenancyTestHarness : IDisposable
     }
 
     public NovaDbContext CreateTenantContext() =>
-        new(Options<NovaDbContext>(withInterceptor: true), CurrentUser);
+        new(Options<NovaDbContext>(withTenantInterceptor: true), CurrentUser);
 
     public NovaReadDbContext CreateReadContext() =>
-        new(Options<NovaReadDbContext>(withInterceptor: false), CurrentUser);
+        new(Options<NovaReadDbContext>(withTenantInterceptor: false), CurrentUser);
+
+    public NovaReadDbContext CreateReadContext(IInterceptor interceptor) =>
+        new(Options<NovaReadDbContext>(withTenantInterceptor: false, interceptor), CurrentUser);
 
     public NovaAdminDbContext CreateAdminContext() =>
-        new(Options<NovaAdminDbContext>(withInterceptor: true), CurrentUser);
+        new(Options<NovaAdminDbContext>(withTenantInterceptor: true), CurrentUser);
 
     public void Dispose() => _connection.Dispose();
 
-    private DbContextOptions<TContext> Options<TContext>(bool withInterceptor) where TContext : DbContext
+    private DbContextOptions<TContext> Options<TContext>(
+        bool withTenantInterceptor,
+        params IInterceptor[] interceptors)
+        where TContext : DbContext
     {
         // Attach the pinned Identity options so the model matches the running app.
         var builder = new DbContextOptionsBuilder<TContext>()
             .UseSqlite(_connection)
             .UseApplicationServiceProvider(IdentityStoreServiceProvider.Instance);
-        if (withInterceptor)
+        if (withTenantInterceptor)
         {
             builder.AddInterceptors(new TenantSaveChangesInterceptor());
+        }
+
+        if (interceptors.Length > 0)
+        {
+            builder.AddInterceptors(interceptors);
         }
 
         return builder.Options;

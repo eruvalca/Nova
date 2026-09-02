@@ -62,6 +62,7 @@ public sealed class HttpSeasonCommandService(HttpClient http) : ISeasonCommandSe
             result => result is not null
                 && result.PreviousSeasonId == input.ExpectedCurrentSeasonId
                 && IsValidSummary(result.CurrentSeason)
+                && result.CurrentSeason.SeasonId != result.PreviousSeasonId
                 && result.CurrentSeason.IsCurrent,
             cancellationToken);
     }

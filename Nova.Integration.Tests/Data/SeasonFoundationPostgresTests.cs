@@ -52,6 +52,29 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
             () => db.SaveChangesAsync(cancellationToken));
     }
 
+    /// <summary>Verifies an advancement predecessor cannot reference another club's season.</summary>
+    [Fact]
+    public async Task CreationPredecessorForeignKey_RejectsCrossClubSeason()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var db = fixture.CreateAdminContext();
+        var suffix = Guid.NewGuid().ToString("N");
+        var actorId = Random.Shared.NextInt64(1, long.MaxValue);
+        var clubA = NewClub($"Predecessor FK A {suffix}", actorId);
+        var clubB = NewClub($"Predecessor FK B {suffix}", actorId);
+        db.Clubs.AddRange(clubA, clubB);
+        await db.SaveChangesAsync(cancellationToken);
+        var seasonB = NewSeason($"Predecessor B {suffix}", clubB.ClubId, actorId);
+        db.Seasons.Add(seasonB);
+        await db.SaveChangesAsync(cancellationToken);
+        var invalid = NewSeason($"Predecessor A {suffix}", clubA.ClubId, actorId);
+        invalid.CreationPreviousSeasonId = seasonB.SeasonId;
+        db.Seasons.Add(invalid);
+
+        await Should.ThrowAsync<DbUpdateException>(
+            () => db.SaveChangesAsync(cancellationToken));
+    }
+
     /// <summary>Verifies adding history cannot create another current-season marker.</summary>
     [Fact]
     public async Task AddingHistoricalSeason_DoesNotChangePointer()
@@ -113,6 +136,7 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
         var committed = await verify.Seasons.SingleAsync(
             season => season.ClubId == club.ClubId && season.CreationOperationId == operationId,
             cancellationToken);
+        committed.CreationPreviousSeasonId.ShouldBeNull();
         (await verify.Clubs.SingleAsync(
             candidate => candidate.ClubId == club.ClubId,
             cancellationToken)).CurrentSeasonId.ShouldBe(committed.SeasonId);
@@ -156,9 +180,10 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
         result.IsSuccess.ShouldBeTrue();
         interceptor.FailureCount.ShouldBe(1);
         await using var verify = fixture.CreateAdminContext();
-        (await verify.Seasons.CountAsync(
+        var committed = await verify.Seasons.SingleAsync(
             season => season.ClubId == club.ClubId && season.CreationOperationId == operationId,
-            cancellationToken)).ShouldBe(1);
+            cancellationToken);
+        committed.CreationPreviousSeasonId.ShouldBe(current.SeasonId);
         (await verify.Clubs.SingleAsync(
             candidate => candidate.ClubId == club.ClubId,
             cancellationToken)).CurrentSeasonId.ShouldBe(result.Value.CurrentSeason.SeasonId);

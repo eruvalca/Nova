@@ -1013,6 +1013,9 @@ namespace Nova.Data.Migrations
                     b.Property<Guid>("CreationOperationId")
                         .HasColumnType("uuid");
 
+                    b.Property<long?>("CreationPreviousSeasonId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("date");
 
@@ -1036,6 +1039,8 @@ namespace Nova.Data.Migrations
 
                     b.HasIndex("ClubId", "Name")
                         .IsUnique();
+
+                    b.HasIndex("CreationPreviousSeasonId", "ClubId");
 
                     b.ToTable("Seasons");
                 });
@@ -1488,6 +1493,12 @@ namespace Nova.Data.Migrations
                         .HasForeignKey("ClubId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Nova.Entities.SeasonEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CreationPreviousSeasonId", "ClubId")
+                        .HasPrincipalKey("SeasonId", "ClubId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Club");
                 });

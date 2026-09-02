@@ -29,4 +29,6 @@
 - PR #227 review: season clients must validate inputs before transport and require response paging metadata to match effective requested/default values while still tolerating eventually-consistent totals.
 - PR #227 review: campaign-list payload validation must reject empty season concurrency tokens, and inline season creation must be unavailable whenever setup exposes a current season.
 - PR #227 review: season metadata campaign-window errors must identify `StartDate` and `EndDate` independently, and duplicate historical inline-season names must offer an actionable different-name recovery.
+- PR #227 follow-up review: creation operations must durably distinguish standalone creation from advancement and bind advancement replay to the exact persisted predecessor.
+- PR #227 follow-up review: currentness must be projected in the same SQL statement as season rows/details and campaign setup metadata; strict clients must reject no-op advancement payloads and malformed season/campaign ordering, including current rows after page 1.
 - Approved exclusions remain unchanged: season detail has no effective-roster projection (#214 owns it), and season mutations emit no new activity-event family.

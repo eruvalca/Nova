@@ -20,5 +20,8 @@
 | Current-season-only campaign UI | Add bUnit coverage proving the new-campaign page hides inline mode when currentness exists, the form resets stale inline state, and the no-current flow still exposes inline fields |
 | Metadata field attribution | Add `SeasonCommandServiceTests` for lower-only, upper-only, and combined linked-campaign window violations |
 | Duplicate inline-season recovery text | Extend `CampaignCreationServiceTests` to assert the conflict directs the caller to choose a different name |
+| Durable creation-operation identity | Persist the optional advancement predecessor with a tenant-consistent composite FK; add command and PostgreSQL tests for operation-kind/predecessor collisions |
+| Atomic currentness reads | Project the club pointer in the same season/setup SQL statement and use command-count regressions to prevent separate pointer reads |
+| Strict ordering and advancement payloads | Add HTTP-client regressions for current-first/history ordering, campaign history ordering, page-2 current rows, and equal previous/current advancement IDs |
 
 Implementation proceeds production-first, then the narrow unit and PostgreSQL/HTTP suites, followed by solution validation. Final assertion and pseudo-mutation reviews will be recorded in `.testagent/status.md`.

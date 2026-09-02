@@ -188,6 +188,49 @@ public sealed class HttpSeasonQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    /// <summary>Verifies a current season cannot follow a historical row.</summary>
+    [Fact]
+    public async Task ListAsync_ReturnsServerError_WhenCurrentSeasonIsBehindHistory()
+    {
+        await AssertInvalidSeasonOrderAsync(
+        [
+            NewSeasonSummary(8, new DateOnly(2027, 1, 1), isCurrent: false),
+            NewSeasonSummary(7, new DateOnly(2026, 1, 1), isCurrent: true)
+        ]);
+    }
+
+    /// <summary>Verifies historical rows remain newest-first by start date.</summary>
+    [Fact]
+    public async Task ListAsync_ReturnsServerError_WhenHistoricalStartDatesAreAscending()
+    {
+        await AssertInvalidSeasonOrderAsync(
+        [
+            NewSeasonSummary(7, new DateOnly(2026, 1, 1), isCurrent: false),
+            NewSeasonSummary(8, new DateOnly(2027, 1, 1), isCurrent: false)
+        ]);
+    }
+
+    /// <summary>Verifies equal-date historical rows remain identifier-descending.</summary>
+    [Fact]
+    public async Task ListAsync_ReturnsServerError_WhenHistoricalIdentifiersAreAscending()
+    {
+        var startDate = new DateOnly(2027, 1, 1);
+        await AssertInvalidSeasonOrderAsync(
+        [
+            NewSeasonSummary(7, startDate, isCurrent: false),
+            NewSeasonSummary(8, startDate, isCurrent: false)
+        ]);
+    }
+
+    /// <summary>Verifies the current row cannot appear after the first page.</summary>
+    [Fact]
+    public async Task ListAsync_ReturnsServerError_WhenCurrentSeasonAppearsAfterFirstPage()
+    {
+        await AssertInvalidSeasonOrderAsync(
+            [NewSeasonSummary(7, new DateOnly(2027, 1, 1), isCurrent: true)],
+            page: 2);
+    }
+
     /// <summary>Verifies detail paging uses the season identifier and campaign paging names.</summary>
     [Fact]
     public async Task GetAsync_GetsSeasonDetailPagingRoute()
@@ -371,6 +414,101 @@ public sealed class HttpSeasonQueryServiceTests
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
+
+    /// <summary>Verifies campaign rows obey start-date and identifier descending keys.</summary>
+    /// <param name="useIdentifierTieBreak">Whether the malformed pair shares a start date.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetAsync_ReturnsServerError_WhenCampaignOrderIsAscending(bool useIdentifierTieBreak)
+    {
+        var firstStartDate = new DateOnly(2026, 1, 1);
+        var secondStartDate = useIdentifierTieBreak
+            ? firstStartDate
+            : new DateOnly(2026, 2, 1);
+        await AssertInvalidCampaignOrderAsync(
+        [
+            NewCampaignSummary(10, firstStartDate),
+            NewCampaignSummary(11, secondStartDate)
+        ]);
+    }
+
+    /// <summary>Asserts the list client rejects a malformed season order.</summary>
+    private static async Task AssertInvalidSeasonOrderAsync(
+        IReadOnlyList<SeasonSummary> items,
+        int page = 1)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new SeasonPageResult
+            {
+                Items = items,
+                Page = page,
+                PageSize = 20,
+                TotalCount = items.Count
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonQueryService(http).ListAsync(
+            new GetSeasonListInput { Page = page },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Asserts the detail client rejects a malformed campaign order.</summary>
+    private static async Task AssertInvalidCampaignOrderAsync(IReadOnlyList<SeasonCampaignSummary> campaigns)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new SeasonDetailResult
+            {
+                Season = NewSeasonSummary(7, new DateOnly(2026, 1, 1), isCurrent: false),
+                Campaigns = campaigns,
+                CampaignPage = 1,
+                CampaignPageSize = 20,
+                CampaignTotalCount = campaigns.Count
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonQueryService(http).GetAsync(
+            new GetSeasonDetailInput { SeasonId = 7 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Creates a structurally valid season summary.</summary>
+    private static SeasonSummary NewSeasonSummary(long seasonId, DateOnly startDate, bool isCurrent)
+        => new()
+        {
+            SeasonId = seasonId,
+            Name = $"Season {seasonId}",
+            StartDate = startDate,
+            IsCurrent = isCurrent,
+            ConcurrencyToken = Guid.NewGuid()
+        };
+
+    /// <summary>Creates a structurally valid campaign summary.</summary>
+    private static SeasonCampaignSummary NewCampaignSummary(long campaignId, DateOnly startDate)
+        => new()
+        {
+            CampaignId = campaignId,
+            Name = $"Campaign {campaignId}",
+            Status = Nova.Shared.Enums.CampaignStatus.Closed,
+            StartDate = startDate,
+            ParticipantCount = 0
+        };
 
     /// <summary>Records the request while returning a fixed response.</summary>
     private sealed class RecordingHandler(HttpResponseMessage response) : HttpMessageHandler

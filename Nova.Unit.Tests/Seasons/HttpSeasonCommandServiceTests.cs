@@ -77,6 +77,44 @@ public sealed class HttpSeasonCommandServiceTests
         handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe("/api/seasons/7");
     }
 
+    /// <summary>Verifies a successful advancement payload must identify a real season transition.</summary>
+    [Fact]
+    public async Task StartNextAsync_ReturnsServerError_WhenResponseDoesNotAdvance()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = JsonContent.Create(new StartNextSeasonResult
+            {
+                PreviousSeasonId = 7,
+                CurrentSeason = new SeasonSummary
+                {
+                    SeasonId = 7,
+                    Name = "Same Season",
+                    StartDate = new DateOnly(2026, 1, 1),
+                    IsCurrent = true,
+                    ConcurrencyToken = Guid.NewGuid()
+                }
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonCommandService(http).StartNextAsync(
+            new StartNextSeasonInput
+            {
+                OperationId = Guid.NewGuid(),
+                ExpectedCurrentSeasonId = 7,
+                Name = "Next",
+                StartDate = new DateOnly(2027, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>Records the request while returning a fixed response.</summary>
     private sealed class RecordingHandler(HttpResponseMessage response) : HttpMessageHandler
     {

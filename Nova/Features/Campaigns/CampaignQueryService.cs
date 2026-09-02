@@ -210,22 +210,18 @@ public sealed partial class CampaignQueryService(
         }
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-        var currentSeasonId = await db.Clubs
-            .Where(club => club.ClubId == clubId)
-            .Select(club => club.CurrentSeasonId)
+        var currentSeason = await db.Seasons
+            .AsNoTracking()
+            .Where(season => season.ClubId == clubId
+                && season.Club.CurrentSeasonId == season.SeasonId)
+            .Select(season => new CampaignSeasonChoice
+            {
+                SeasonId = season.SeasonId,
+                Name = season.Name,
+                StartDate = season.StartDate,
+                EndDate = season.EndDate
+            })
             .SingleOrDefaultAsync(cancellationToken);
-        var currentSeason = currentSeasonId is null
-            ? null
-            : await db.Seasons
-                .Where(season => season.SeasonId == currentSeasonId)
-                .Select(season => new CampaignSeasonChoice
-                {
-                    SeasonId = season.SeasonId,
-                    Name = season.Name,
-                    StartDate = season.StartDate,
-                    EndDate = season.EndDate
-                })
-                .SingleOrDefaultAsync(cancellationToken);
         var activePlayerCount = await db.Players
             .CountAsync(player => player.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
         var activeTeamCount = await db.Teams
