@@ -39,12 +39,14 @@ Canonical examples:
    model `ActivityEventEntity` (append-only, snapshots not navigations, family-shaped `PayloadJson`),
    add the interceptor guard, and add the incremental migration. Adding a new event kind requires no
    migration.
-2. **Write boundary** — add the `Append*` method to `ActivityEventWriter` and the kind → family /
-   admin-only mapping to `ActivityEventPolicy`. Emit the event from the owning mutation on its open
-   context so it commits atomically.
-3. **Shared contracts** — add the family `*Context` record (with `[JsonDerivedType]`), the cursor, the
-   item/result DTOs, and the input record in `Nova.Shared\Features\Activity\`. Use
-   `IValidatableObject` for the cursor's both-or-neither rule (see
+2. **Write boundary** — add the kind → family and admin-only mappings to `ActivityEventPolicy`, then
+   emit the event from the owning mutation on its open context so it commits atomically. Add a new
+   `Append*` method to `ActivityEventWriter` only when the kind belongs to a **new** family; kinds in
+   an existing family reuse its shared method.
+3. **Shared contracts** — add the cursor, the item/result DTOs, and the input record in
+   `Nova.Shared\Features\Activity\`. Add a `*Context` record (with `[JsonDerivedType]`) only when the
+   kind belongs to a **new** family; existing families reuse their context. Use `IValidatableObject`
+   for the cursor's both-or-neither rule (see
    [add-api-endpoint validation](../add-api-endpoint/references/validation-and-problemdetails.md)).
 4. **Feed query service** — implement `IClubActivityQueryService` against `NovaReadDbContext`, then
    project role-shaped pages through `ClubActivityFeedPolicy`; follow

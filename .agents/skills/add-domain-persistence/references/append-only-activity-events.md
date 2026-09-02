@@ -14,8 +14,9 @@ Canonical Nova examples:
 
 The club activity feed is an append-only, tenant-owned event log. Each row records a `kind`, actor and
 subject display-name **snapshots**, a stored visibility flag, and a family-shaped structured payload.
-Rows are never updated or deleted: `TenantSaveChangesInterceptor` throws on any modify/delete in every
-context (including admin contexts), so a correction is a new event, not an edit.
+Application code never updates or deletes rows: `TenantSaveChangesInterceptor` throws on any
+modify/delete in every context (including admin contexts), so a correction is a new event, not an
+edit. The one removal path is database cascade delete when the owning club is deleted.
 
 ## Writing events
 
@@ -45,11 +46,16 @@ missing/unknown discriminator or malformed payload as skip-not-crash: catch `Jso
 A new lifecycle/placement/join/membership/role transition means:
 
 1. Add the enum member to `ActivityEventKind` (no schema migration needed).
-2. Add the kind → family and admin-only mappings to `ActivityEventPolicy`.
-3. Add a matching `*Context` record with a `[JsonDerivedType]` discriminator.
-4. Add an `Append*` method to `ActivityEventWriter` that validates the family and serializes the
-   payload.
-5. Call it from the owning mutation on the caller's open context.
+2. Add the kind → family and admin-only mappings to `ActivityEventPolicy`. Kinds are grouped into
+   families (`ActivityEventFamily`); `FamilyFor` and `ContextMatchesKind` key off the family, not the
+   kind.
+3. Call it from the owning mutation on the caller's open context, reusing the family's existing
+   `Append*` method and `*Context` record.
+
+Only when the new kind belongs to a **new** family, additionally add:
+
+- A `*Context` record with a `[JsonDerivedType]` discriminator.
+- An `Append*` method to `ActivityEventWriter` that validates the family and serializes the payload.
 
 ## Tenant carve-out
 

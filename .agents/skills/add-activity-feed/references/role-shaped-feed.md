@@ -26,10 +26,11 @@ and the payload's `ApprovedByActorName`) rather than selecting a different row.
 ## Projection-cursor interaction
 
 Projection can skip rows (invalid or administrator-only payloads a viewer cannot see). The keyset
-cursor therefore marks the **page boundary** — the oldest returned row's `(OccurredAt, Id)` — not the
-newest row, so a skipped row does not strand the following pages. When the visibility filter is
-applied before paging, the cursor is computed after filtering; see
-[query-construction.md](../add-domain-persistence/references/query-construction.md) for the keyset
+cursor is computed from the final raw page row *before* projection — which may be malformed and absent
+from the returned DTOs — so it marks the **page boundary**, not the oldest returned DTO. This keeps a
+skipped row from stranding the following pages. When the visibility filter is applied before paging,
+the cursor is computed after filtering; see
+[query-construction.md](../../add-domain-persistence/references/query-construction.md) for the keyset
 predicate and `Take(PageSize + 1)` hasMore probe.
 
 ## Attention badge counts
@@ -38,4 +39,4 @@ Badge counts are derived live from current state (pending join requests, campaig
 not from the event log. Keep each region's count/status independent and failure-aware: an unavailable
 region reports `AttentionRegionStatus.Unavailable`, never a misleading zero, and never hides another
 region. See **Partial-failure projections** in
-[query-construction.md](../add-domain-persistence/references/query-construction.md).
+[query-construction.md](../../add-domain-persistence/references/query-construction.md).

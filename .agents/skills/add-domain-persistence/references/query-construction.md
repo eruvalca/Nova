@@ -52,8 +52,9 @@ deterministic. `ClubActivityQueryService` and `ClubActivityFeedPolicy` are the c
 
 1. Order by `(OccurredAt DESC, Id DESC)` and probe `PageSize + 1` rows to detect whether another page
    exists.
-2. The cursor is the *oldest returned row's* `(OccurredAt, Id)` — the page boundary, not the newest
-   row — because projection can skip invalid or administrator-only rows.
+2. The cursor is the final raw page row's `(OccurredAt, Id)` — the page boundary, computed *before*
+   projection — not the oldest returned DTO or the newest row, because projection can skip invalid or
+   administrator-only rows.
 3. The continuation predicate is
    `OccurredAt < cursor.OccurredAt || (OccurredAt == cursor.OccurredAt && Id < cursor.Id)`.
 4. Emit `hasMore` from the `PageSize + 1` probe and a `NextCursor` only when more rows follow.
@@ -63,8 +64,10 @@ deterministic. `ClubActivityQueryService` and `ClubActivityFeedPolicy` are the c
 - Npgsql binds only offset-zero `DateTimeOffset` values to `timestamptz`; normalize cursor/timestamp
   values to UTC (`ToUniversalTime()`) before binding.
 - SQLite cannot translate `ORDER BY` over `DateTimeOffset` columns. Keep SQL-side ordering on
-  PostgreSQL; on SQLite, materialize the bounded set and re-apply the exact same keys, directions, and
-  null semantics in memory so projection and cursor rules stay identical across providers.
+  PostgreSQL; on SQLite, materialize the club-scoped set and re-apply the exact same keys, directions,
+  and null semantics in memory so projection and cursor rules stay identical across providers. The
+  SQLite fallback is unbounded — do not `Take` before the in-memory order, or newer rows can be
+  omitted.
 
 ## Partial-failure projections
 
