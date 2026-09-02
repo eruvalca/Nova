@@ -46,6 +46,7 @@ public sealed class PlayerImportCsvParserTests
     [InlineData("-cmd")]
     [InlineData("@cmd")]
     [InlineData("\tcmd")]
+    [InlineData(" \t=cmd")]
     public void Parse_RejectsFormulaLikeCells(string firstName)
     {
         var result = Parse($"{firstName},Archer,2012-01-01,,,2030\r\n");

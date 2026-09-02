@@ -252,7 +252,7 @@ internal sealed class PlayerImportCsvParser
         }
 
         var firstMeaningfulCharacter = value.FirstOrDefault(character => character != ' ');
-        return firstMeaningfulCharacter is '=' or '+' or '-' or '@';
+        return firstMeaningfulCharacter is '\t' or '\r' or '\n' or '=' or '+' or '-' or '@';
     }
 
     private static bool TryParseUnsignedInt(string value, out int result)
