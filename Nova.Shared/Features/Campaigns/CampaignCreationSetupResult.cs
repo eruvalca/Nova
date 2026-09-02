@@ -1,7 +1,7 @@
 ﻿namespace Nova.Shared.Features.Campaigns;
 
 /// <summary>
-/// Represents a season choice available while creating a campaign.
+/// Represents the current season available while creating a campaign.
 /// </summary>
 public sealed record CampaignSeasonChoice
 {
@@ -32,19 +32,9 @@ public sealed record CampaignSeasonChoice
 public sealed record CampaignCreationSetupResult
 {
     /// <summary>
-    /// Gets the maximum number of season choices returned by the setup endpoint.
+    /// Gets the club's current season, or null when inline first-season creation is available.
     /// </summary>
-    public const int MaxSeasonChoices = 100;
-
-    /// <summary>
-    /// Gets the newest tenant seasons returned as choices.
-    /// </summary>
-    public required IReadOnlyList<CampaignSeasonChoice> Seasons { get; init; }
-
-    /// <summary>
-    /// Gets the total number of tenant seasons before the choice bound.
-    /// </summary>
-    public required int TotalSeasonCount { get; init; }
+    public CampaignSeasonChoice? CurrentSeason { get; init; }
 
     /// <summary>
     /// Gets the current number of Active players.

@@ -7,18 +7,17 @@ using Shouldly;
 namespace Nova.Integration.Tests.Data;
 
 /// <summary>
-/// Verifies PostgreSQL bounds the campaign-creation season choices to
-/// <see cref="CampaignCreationSetupResult.MaxSeasonChoices"/> newest-first seasons and reports the unbounded total.
+/// Verifies PostgreSQL campaign setup exposes only the club's current season.
 /// </summary>
 /// <param name="fixture">The shared Aspire AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
 public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixture)
 {
     [Fact]
-    public async Task GetCreationSetup_BoundsSeasonChoices_NewestFirst()
+    public async Task GetCreationSetup_ReturnsOnlyCurrentSeason()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var seed = await SeedAsync(CampaignCreationSetupResult.MaxSeasonChoices + 1, cancellationToken);
+        var seed = await SeedAsync(101, cancellationToken);
         ActAs(seed.MemberUserId, seed.ClubId);
 
         var service = new CampaignQueryService(
@@ -29,9 +28,8 @@ public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixtur
         var result = await service.GetCreationSetupAsync(cancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.TotalSeasonCount.ShouldBe(CampaignCreationSetupResult.MaxSeasonChoices + 1);
-        result.Value.Seasons.Count.ShouldBe(CampaignCreationSetupResult.MaxSeasonChoices);
-        result.Value.Seasons.Select(season => season.StartDate).ShouldBeInOrder(SortDirection.Descending);
+        result.Value.CurrentSeason.ShouldNotBeNull();
+        result.Value.CurrentSeason.SeasonId.ShouldBe(seed.CurrentSeasonId);
     }
 
     private async Task<Seed> SeedAsync(int seasonCount, CancellationToken cancellationToken)
@@ -48,21 +46,26 @@ public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixtur
         var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
         db.Users.Add(member);
         var baseDate = new DateOnly(2026, 1, 1);
+        SeasonEntity? currentSeason = null;
         for (var i = 0; i < seasonCount; i++)
         {
-            db.Seasons.Add(new SeasonEntity
+            var season = new SeasonEntity
             {
                 CreationOperationId = Guid.NewGuid(),
                 Name = $"Season {i:000}",
                 StartDate = baseDate.AddDays(i),
                 ClubId = club.ClubId,
                 CreatedById = actorUserId
-            });
+            };
+            db.Seasons.Add(season);
+            currentSeason = season;
         }
 
         await db.SaveChangesAsync(cancellationToken);
+        club.CurrentSeasonId = currentSeason!.SeasonId;
+        await db.SaveChangesAsync(cancellationToken);
 
-        return new Seed(club.ClubId, member.Id);
+        return new Seed(club.ClubId, member.Id, currentSeason.SeasonId);
     }
 
     private void ActAs(long? userId, long? clubId)
@@ -72,5 +75,5 @@ public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixtur
         fixture.CurrentUser.IsClubAdmin = false;
     }
 
-    private sealed record Seed(long ClubId, long MemberUserId);
+    private sealed record Seed(long ClubId, long MemberUserId, long CurrentSeasonId);
 }

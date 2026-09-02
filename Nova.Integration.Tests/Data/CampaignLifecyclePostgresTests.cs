@@ -383,6 +383,8 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         };
         db.Seasons.Add(season);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        club.CurrentSeasonId = season.SeasonId;
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var campaign = new CampaignEntity
         {

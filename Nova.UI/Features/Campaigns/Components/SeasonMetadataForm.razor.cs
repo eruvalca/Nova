@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Features.Seasons;
 using Nova.Shared.Validation;
 
 namespace Nova.UI.Features.Campaigns.Components;
@@ -105,6 +106,11 @@ public sealed class SeasonMetadataFormState : IValidatableObject
     public DateOnly? EndDate { get; set; }
 
     /// <summary>
+    /// Gets or sets the concurrency token observed with the season metadata.
+    /// </summary>
+    public Guid ConcurrencyToken { get; set; }
+
+    /// <summary>
     /// Creates a default form state.
     /// </summary>
     /// <returns>A default form state.</returns>
@@ -120,16 +126,17 @@ public sealed class SeasonMetadataFormState : IValidatableObject
         SeasonId = season.SeasonId,
         Name = season.Name,
         StartDate = season.StartDate,
-        EndDate = season.EndDate
+        EndDate = season.EndDate,
+        ConcurrencyToken = season.ConcurrencyToken
     };
 
     /// <summary>
     /// Converts this state to an update-season-metadata input payload.
     /// </summary>
     /// <returns>An update-season-metadata input payload.</returns>
-    public UpdateSeasonMetadataInput ToUpdateInput() => new()
+    public UpdateSeasonInput ToUpdateInput() => new()
     {
-        SeasonId = SeasonId,
+        ExpectedConcurrencyToken = ConcurrencyToken,
         Name = Name,
         StartDate = StartDate,
         EndDate = EndDate
@@ -144,7 +151,8 @@ public sealed class SeasonMetadataFormState : IValidatableObject
         SeasonId = SeasonId,
         Name = Name,
         StartDate = StartDate,
-        EndDate = EndDate
+        EndDate = EndDate,
+        ConcurrencyToken = ConcurrencyToken
     };
 
     /// <inheritdoc />

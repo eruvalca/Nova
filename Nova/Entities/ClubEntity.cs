@@ -31,6 +31,18 @@ public class ClubEntity : BaseEntity
     public required Guid CreationOperationId { get; set; }
 
     /// <summary>
+    /// Gets or sets the identifier of the season that currently owns the club's active work.
+    /// A null value represents the supported onboarding or recovery state where no season has
+    /// yet been established.
+    /// </summary>
+    public long? CurrentSeasonId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the season currently selected for the club.
+    /// </summary>
+    public SeasonEntity? CurrentSeason { get; set; }
+
+    /// <summary>
     /// Gets or sets the Nova Users.
     /// </summary>
     public ICollection<NovaUserEntity> NovaUsers { get; set; } = [];

@@ -18,6 +18,8 @@ public class SeasonEntityConfiguration : IEntityTypeConfiguration<SeasonEntity>
         builder.HasKey(e => e.SeasonId);
         builder.Property(e => e.SeasonId)
             .ValueGeneratedOnAdd();
+        builder.Property(e => e.ConcurrencyToken)
+            .IsConcurrencyToken();
         builder.HasAlternateKey(e => new { e.SeasonId, e.ClubId });
 
         builder
@@ -25,6 +27,13 @@ public class SeasonEntityConfiguration : IEntityTypeConfiguration<SeasonEntity>
             .WithMany(c => c.Seasons)
             .HasForeignKey(e => e.ClubId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder
+            .HasOne<SeasonEntity>()
+            .WithMany()
+            .HasForeignKey(e => new { e.CreationPreviousSeasonId, e.ClubId })
+            .HasPrincipalKey(e => new { e.SeasonId, e.ClubId })
+            .OnDelete(DeleteBehavior.NoAction);
 
         builder.HasIndex(e => new { e.ClubId, e.Name }).IsUnique();
         builder.HasIndex(e => new { e.ClubId, e.CreationOperationId })

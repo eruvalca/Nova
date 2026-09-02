@@ -157,7 +157,21 @@ internal static class SeedingHelpers
         await using var context = fixture.CreateAdminContext();
         var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
         var suffix = Guid.NewGuid().ToString("N");
-        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"{namePrefix} Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+        var club = await context.Clubs.SingleAsync(
+            candidate => candidate.ClubId == clubId,
+            cancellationToken);
+        var season = club.CurrentSeasonId is long currentSeasonId
+            ? await context.Seasons.SingleAsync(
+                candidate => candidate.SeasonId == currentSeasonId,
+                cancellationToken)
+            : new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"{namePrefix} Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
         var campaign = new CampaignEntity
         {
             CreationOperationId = Guid.NewGuid(),
@@ -169,8 +183,18 @@ internal static class SeedingHelpers
             ClubId = clubId,
             CreatedById = user.Id
         };
-        context.AddRange(season, campaign);
+        if (club.CurrentSeasonId is null)
+        {
+            context.Add(season);
+        }
+
+        context.Add(campaign);
         await context.SaveChangesAsync(cancellationToken);
+        if (club.CurrentSeasonId is null)
+        {
+            club.CurrentSeasonId = season.SeasonId;
+            await context.SaveChangesAsync(cancellationToken);
+        }
 
         var players = new List<PlayerEntity>(participantCount);
         for (var index = 1; index <= participantCount; index++)
@@ -261,6 +285,12 @@ internal static class SeedingHelpers
         };
         context.AddRange(season, campaign);
         await context.SaveChangesAsync(cancellationToken);
+        var club = await context.Clubs.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
+        if (club.CurrentSeasonId is null)
+        {
+            club.CurrentSeasonId = season.SeasonId;
+            await context.SaveChangesAsync(cancellationToken);
+        }
 
         return new SeededSeasonAndCampaign(season.SeasonId, campaign.CampaignId);
     }

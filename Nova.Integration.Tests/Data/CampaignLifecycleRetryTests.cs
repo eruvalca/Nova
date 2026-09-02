@@ -284,6 +284,8 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
         };
         seed.Seasons.Add(season);
         await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+        club.CurrentSeasonId = season.SeasonId;
+        await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var campaign = new CampaignEntity
         {

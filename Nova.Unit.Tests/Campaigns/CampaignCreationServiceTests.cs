@@ -3,8 +3,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
+using Nova.Features.Seasons;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Features.Seasons;
 using Nova.Shared.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -78,6 +80,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
     public async Task Create_CreatesSeasonAndCampaign_ForInlineSeason()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        ClearCurrentSeason(ClubAId);
         var input = ValidInlineSeasonInput();
 
         var result = await CreateService().CreateAsync(
@@ -88,12 +91,30 @@ public sealed class CampaignCreationServiceTests : IDisposable
         result.Value.SeasonCreatedInline.ShouldBeTrue();
         result.Value.SeasonName.ShouldBe(input.InlineSeason!.Name);
 
-        using var db = _harness.CreateAdminContext();
-        var season = db.Seasons.Single(candidate => candidate.SeasonId == result.Value.SeasonId);
-        season.CreationOperationId.ShouldBe(input.OperationId);
-        var campaign = db.Campaigns.Single(candidate => candidate.CampaignId == result.Value.CampaignId);
-        campaign.CreationOperationId.ShouldBe(input.OperationId);
-        campaign.SeasonCreatedInline.ShouldBeTrue();
+        using (var db = _harness.CreateAdminContext())
+        {
+            var season = db.Seasons.Single(candidate => candidate.SeasonId == result.Value.SeasonId);
+            season.CreationOperationId.ShouldBe(input.OperationId);
+            season.CreationKind.ShouldBe(SeasonCreationKind.InlineCampaign);
+            var campaign = db.Campaigns.Single(candidate => candidate.CampaignId == result.Value.CampaignId);
+            campaign.CreationOperationId.ShouldBe(input.OperationId);
+            campaign.SeasonCreatedInline.ShouldBeTrue();
+        }
+
+        var crossCommandReplay = await new SeasonCommandService(
+            new CampaignHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<SeasonCommandService>.Instance).CreateAsync(
+            new CreateSeasonInput
+            {
+                OperationId = input.OperationId,
+                Name = "Not a standalone replay",
+                StartDate = input.InlineSeason!.StartDate
+            },
+            TestContext.Current.CancellationToken);
+
+        crossCommandReplay.IsProblem.ShouldBeTrue();
+        crossCommandReplay.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
     }
 
     /// <summary>
@@ -127,6 +148,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
     public async Task Create_ReturnsOriginalResult_WhenOperationIsRepeated()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        ClearCurrentSeason(ClubAId);
         var service = CreateService();
         var input = ValidInlineSeasonInput();
 
@@ -362,6 +384,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
     public async Task Create_ReturnsConflict_ForDuplicateInlineSeasonName()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        ClearCurrentSeason(ClubAId);
         var input = ValidInlineSeasonInput() with
         {
             InlineSeason = ValidInlineSeasonInput().InlineSeason! with { Name = "Club A Season" }
@@ -373,6 +396,8 @@ public sealed class CampaignCreationServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Detail.ShouldBe(
+            "A season with that name already exists. Choose a different season name.");
         CampaignCountForClubA().ShouldBe(0);
     }
 
@@ -397,6 +422,15 @@ public sealed class CampaignCreationServiceTests : IDisposable
         _harness.CurrentUser.UserId = userId;
         _harness.CurrentUser.ClubId = clubId;
         _harness.CurrentUser.IsClubAdmin = isAdmin;
+    }
+
+    /// <summary>Places a club into the supported no-current recovery state.</summary>
+    /// <param name="clubId">The club identifier.</param>
+    private void ClearCurrentSeason(long clubId)
+    {
+        using var db = _harness.CreateAdminContext();
+        db.Clubs.Single(club => club.ClubId == clubId).CurrentSeasonId = null;
+        db.SaveChanges();
     }
 
     /// <summary>
@@ -522,6 +556,10 @@ public sealed class CampaignCreationServiceTests : IDisposable
             CreatedById = ClubAAdminId
         };
         db.Players.AddRange(activePlayer, archivedPlayer, otherClubPlayer);
+        db.SaveChanges();
+
+        db.Clubs.Single(club => club.ClubId == ClubAId).CurrentSeasonId = seasonA.SeasonId;
+        db.Clubs.Single(club => club.ClubId == ClubBId).CurrentSeasonId = seasonB.SeasonId;
         db.SaveChanges();
 
         _clubASeasonId = seasonA.SeasonId;

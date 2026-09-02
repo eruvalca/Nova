@@ -42,8 +42,11 @@ public sealed partial class CampaignCreationService(
             return ServiceProblem.Forbidden("You must be a club administrator to create campaigns.");
         }
 
+        var normalizedInput = input.InlineSeason is null
+            ? input
+            : input with { InlineSeason = input.InlineSeason with { Name = input.InlineSeason.Name.Trim() } };
         return await ExecuteWithFreshContextAsync(
-            db => CreateCampaignAsync(db, input, actorUserId, clubId, cancellationToken),
+            db => CreateCampaignAsync(db, normalizedInput, actorUserId, clubId, cancellationToken),
             db => VerifyCampaignCreationAsync(db, clubId, input.OperationId, cancellationToken),
             cancellationToken);
     }
@@ -97,6 +100,7 @@ public sealed partial class CampaignCreationService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireClubSeasonLockAsync(clubId, cancellationToken);
         await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
 
         var committedResult = await FindCommittedResultAsync(
@@ -109,7 +113,21 @@ public sealed partial class CampaignCreationService(
             return committedResult;
         }
 
-        var season = await ResolveSeasonAsync(db, input, actorUserId, clubId, cancellationToken);
+        var club = await db.Clubs.SingleOrDefaultAsync(
+            candidate => candidate.ClubId == clubId,
+            cancellationToken);
+        if (club is null)
+        {
+            return ServiceProblem.NotFound();
+        }
+
+        var season = await ResolveSeasonAsync(
+            db,
+            input,
+            actorUserId,
+            clubId,
+            club,
+            cancellationToken);
         if (season.IsProblem)
         {
             return season.Problem;
@@ -202,6 +220,7 @@ public sealed partial class CampaignCreationService(
     /// <param name="input">The request containing exactly one season choice.</param>
     /// <param name="actorUserId">The authenticated club administrator identifier.</param>
     /// <param name="clubId">The current tenant club identifier.</param>
+    /// <param name="club">The tracked club whose current-season pointer is authoritative.</param>
     /// <param name="cancellationToken">A token that cancels season resolution.</param>
     /// <returns>The selected or staged season, or a known failure.</returns>
     private async Task<ServiceResult<SeasonEntity>> ResolveSeasonAsync(
@@ -209,6 +228,7 @@ public sealed partial class CampaignCreationService(
         CreateCampaignInput input,
         long actorUserId,
         long clubId,
+        ClubEntity club,
         CancellationToken cancellationToken)
     {
         if (input.ExistingSeasonId is long seasonId)
@@ -221,20 +241,33 @@ public sealed partial class CampaignCreationService(
                 return ServiceProblem.NotFound("The selected season was not found.");
             }
 
+            if (club.CurrentSeasonId != existingSeason.SeasonId)
+            {
+                return ServiceProblem.Conflict(
+                    "The selected season is not the club's current season.");
+            }
+
             return existingSeason;
         }
 
         var inlineSeason = input.InlineSeason!;
+        if (club.CurrentSeasonId is not null)
+        {
+            return ServiceProblem.Conflict(
+                "The club already has a current season. Select it instead of creating an inline season.");
+        }
+
         if (await db.Seasons.AnyAsync(season => season.Name == inlineSeason.Name, cancellationToken))
         {
             LogDuplicateSeasonName(clubId);
             return ServiceProblem.Conflict(
-                "A season with that name already exists. Select the existing season instead.");
+                "A season with that name already exists. Choose a different season name.");
         }
 
         var season = new SeasonEntity
         {
             CreationOperationId = input.OperationId,
+            CreationKind = SeasonCreationKind.InlineCampaign,
             Name = inlineSeason.Name,
             StartDate = inlineSeason.StartDate,
             EndDate = inlineSeason.EndDate,
@@ -242,6 +275,7 @@ public sealed partial class CampaignCreationService(
             CreatedById = actorUserId
         };
         db.Seasons.Add(season);
+        club.CurrentSeason = season;
         return season;
     }
 

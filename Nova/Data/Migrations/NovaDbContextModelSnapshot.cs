@@ -458,6 +458,10 @@ namespace Nova.Data.Migrations
                     b.Property<Guid>("CreationOperationId")
                         .HasColumnType("uuid");
 
+                    b.Property<long?>("CurrentSeasonId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
                     b.Property<DateTimeOffset?>("ModifiedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -475,6 +479,9 @@ namespace Nova.Data.Migrations
                     b.HasKey("ClubId");
 
                     b.HasIndex("CreatedById", "CreationOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("CurrentSeasonId", "ClubId")
                         .IsUnique();
 
                     b.ToTable("Clubs");
@@ -993,14 +1000,24 @@ namespace Nova.Data.Migrations
                     b.Property<long>("ClubId")
                         .HasColumnType("bigint");
 
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<long>("CreatedById")
                         .HasColumnType("bigint");
 
+                    b.Property<int>("CreationKind")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("CreationOperationId")
                         .HasColumnType("uuid");
+
+                    b.Property<long?>("CreationPreviousSeasonId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("date");
@@ -1025,6 +1042,8 @@ namespace Nova.Data.Migrations
 
                     b.HasIndex("ClubId", "Name")
                         .IsUnique();
+
+                    b.HasIndex("CreationPreviousSeasonId", "ClubId");
 
                     b.ToTable("Seasons");
                 });
@@ -1314,6 +1333,17 @@ namespace Nova.Data.Migrations
                     b.Navigation("Club");
                 });
 
+            modelBuilder.Entity("Nova.Entities.ClubEntity", b =>
+                {
+                    b.HasOne("Nova.Entities.SeasonEntity", "CurrentSeason")
+                        .WithOne()
+                        .HasForeignKey("Nova.Entities.ClubEntity", "CurrentSeasonId", "ClubId")
+                        .HasPrincipalKey("Nova.Entities.SeasonEntity", "SeasonId", "ClubId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("CurrentSeason");
+                });
+
             modelBuilder.Entity("Nova.Entities.ClubJoinRequestEntity", b =>
                 {
                     b.HasOne("Nova.Entities.ClubEntity", "Club")
@@ -1466,6 +1496,12 @@ namespace Nova.Data.Migrations
                         .HasForeignKey("ClubId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Nova.Entities.SeasonEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CreationPreviousSeasonId", "ClubId")
+                        .HasPrincipalKey("SeasonId", "ClubId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Club");
                 });

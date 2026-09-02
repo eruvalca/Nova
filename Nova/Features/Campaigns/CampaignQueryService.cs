@@ -32,7 +32,7 @@ public sealed partial class CampaignQueryService(
             return ServiceProblem.Validation(errors);
         }
 
-        if (!TryGetClubId(out _))
+        if (!TryGetClubId(out var clubId))
         {
             LogCampaignListForbidden(currentUserProvider.UserId ?? 0);
             return ServiceProblem.Forbidden("You must be an approved club member to view campaigns.");
@@ -75,6 +75,7 @@ public sealed partial class CampaignQueryService(
                 SeasonName = campaign.Season.Name,
                 SeasonStartDate = campaign.Season.StartDate,
                 SeasonEndDate = campaign.Season.EndDate,
+                SeasonConcurrencyToken = campaign.Season.ConcurrencyToken,
                 ParticipantCount = campaign.PlayerAssignments.Count,
                 UnresolvedCount = campaign.PlayerAssignments.Count(
                     assignment => assignment.PlacementOutcome == PlacementOutcome.Undecided)
@@ -87,7 +88,8 @@ public sealed partial class CampaignQueryService(
                 row.SeasonId,
                 row.SeasonName,
                 row.SeasonStartDate,
-                row.SeasonEndDate
+                row.SeasonEndDate,
+                row.SeasonConcurrencyToken
             })
             .Select(group => new CampaignSeasonGroup
             {
@@ -95,6 +97,7 @@ public sealed partial class CampaignQueryService(
                 Name = group.Key.SeasonName,
                 StartDate = group.Key.SeasonStartDate,
                 EndDate = group.Key.SeasonEndDate,
+                ConcurrencyToken = group.Key.SeasonConcurrencyToken,
                 Campaigns = group.Select(row => new CampaignListItem
                 {
                     CampaignId = row.CampaignId,
@@ -200,19 +203,17 @@ public sealed partial class CampaignQueryService(
     public async Task<ServiceResult<CampaignCreationSetupResult>> GetCreationSetupAsync(
         CancellationToken cancellationToken = default)
     {
-        if (!TryGetClubId(out _))
+        if (!TryGetClubId(out var clubId))
         {
             LogCreationSetupForbidden(currentUserProvider.UserId ?? 0);
             return ServiceProblem.Forbidden("You must be an approved club member to view campaign setup.");
         }
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-        var seasonsQuery = db.Seasons.AsQueryable();
-        var totalSeasonCount = await seasonsQuery.CountAsync(cancellationToken);
-        var seasons = await seasonsQuery
-            .OrderByDescending(season => season.StartDate)
-            .ThenByDescending(season => season.SeasonId)
-            .Take(CampaignCreationSetupResult.MaxSeasonChoices)
+        var currentSeason = await db.Seasons
+            .AsNoTracking()
+            .Where(season => season.ClubId == clubId
+                && season.Club.CurrentSeasonId == season.SeasonId)
             .Select(season => new CampaignSeasonChoice
             {
                 SeasonId = season.SeasonId,
@@ -220,7 +221,7 @@ public sealed partial class CampaignQueryService(
                 StartDate = season.StartDate,
                 EndDate = season.EndDate
             })
-            .ToListAsync(cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken);
         var activePlayerCount = await db.Players
             .CountAsync(player => player.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
         var activeTeamCount = await db.Teams
@@ -228,8 +229,7 @@ public sealed partial class CampaignQueryService(
 
         return new CampaignCreationSetupResult
         {
-            Seasons = seasons.AsReadOnly(),
-            TotalSeasonCount = totalSeasonCount,
+            CurrentSeason = currentSeason,
             ActivePlayerCount = activePlayerCount,
             ActiveTeamCount = activeTeamCount
         };
@@ -302,6 +302,8 @@ public sealed partial class CampaignQueryService(
         public DateOnly SeasonStartDate { get; init; }
         /// <summary>Gets the optional season end date.</summary>
         public DateOnly? SeasonEndDate { get; init; }
+        /// <summary>Gets the season metadata concurrency token.</summary>
+        public Guid SeasonConcurrencyToken { get; init; }
         /// <summary>Gets the persisted participant count.</summary>
         public int ParticipantCount { get; init; }
         /// <summary>Gets the unresolved participant count.</summary>

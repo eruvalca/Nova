@@ -33,25 +33,32 @@
 
             <fieldset class="mt-4">
                 <legend class="fs-6 fw-semibold">Season</legend>
-                <InputRadioGroup @bind-Value="_localModel.UseInlineSeason">
-                    <div class="form-check">
-                        <InputRadio id="season-mode-existing"
-                                    class="form-check-input"
-                                    Value="false"
-                                    disabled="@(Seasons.Count == 0)" />
-                        <label class="form-check-label" for="season-mode-existing">
-                            Use an existing season
-                            @if (Seasons.Count == 0)
-                            {
-                                <span class="text-muted">(no seasons available yet)</span>
-                            }
-                        </label>
-                    </div>
-                    <div class="form-check">
-                        <InputRadio id="season-mode-inline" class="form-check-input" Value="true" />
-                        <label class="form-check-label" for="season-mode-inline">Create a new season</label>
-                    </div>
-                </InputRadioGroup>
+                @if (AllowInlineSeasonCreation)
+                {
+                    <InputRadioGroup @bind-Value="_localModel.UseInlineSeason">
+                        <div class="form-check">
+                            <InputRadio id="season-mode-existing"
+                                        class="form-check-input"
+                                        Value="false"
+                                        disabled="@(Seasons.Count == 0)" />
+                            <label class="form-check-label" for="season-mode-existing">
+                                Use an existing season
+                                @if (Seasons.Count == 0)
+                                {
+                                    <span class="text-muted">(no seasons available yet)</span>
+                                }
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <InputRadio id="season-mode-inline" class="form-check-input" Value="true" />
+                            <label class="form-check-label" for="season-mode-inline">Create a new season</label>
+                        </div>
+                    </InputRadioGroup>
+                }
+                else
+                {
+                    <p class="text-muted mb-2">Campaigns can only be created in the current season.</p>
+                }
 
                 @if (_localModel.UseInlineSeason)
                 {

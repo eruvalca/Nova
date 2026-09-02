@@ -141,6 +141,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
                 || string.IsNullOrWhiteSpace(season.Name)
                 || season.StartDate == default
                 || season.EndDate < season.StartDate
+                || season.ConcurrencyToken == Guid.Empty
                 || (previousSeasonStart is not null
                     && (season.StartDate > previousSeasonStart
                         || (season.StartDate == previousSeasonStart && season.SeasonId >= previousSeasonId))))
@@ -228,40 +229,14 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
     /// <param name="result">The deserialized setup payload.</param>
     /// <returns><see langword="true"/> when the payload satisfies the client contract.</returns>
     private static bool IsValidCreationSetup(CampaignCreationSetupResult result)
-        => result.Seasons is not null
-            && result.Seasons.All(season => season is not null)
-            && result.TotalSeasonCount >= 0
-            && result.Seasons.Count <= CampaignCreationSetupResult.MaxSeasonChoices
+        => result is not null
             && result.ActivePlayerCount >= 0
             && result.ActiveTeamCount >= 0
-            && IsOrderedAndValidSeasons(result.Seasons);
+            && (result.CurrentSeason is null
+                || (result.CurrentSeason.SeasonId > 0
+                    && !string.IsNullOrWhiteSpace(result.CurrentSeason.Name)
+                    && result.CurrentSeason.StartDate != default
+                    && (result.CurrentSeason.EndDate is null
+                        || result.CurrentSeason.EndDate >= result.CurrentSeason.StartDate)));
 
-    /// <summary>
-    /// Validates season choices and their descending start-date and identifier order.
-    /// </summary>
-    /// <param name="seasons">The season choices to validate.</param>
-    /// <returns><see langword="true"/> when all choices and ordering keys are valid.</returns>
-    private static bool IsOrderedAndValidSeasons(IReadOnlyList<CampaignSeasonChoice> seasons)
-    {
-        DateOnly? previousStart = null;
-        long? previousId = null;
-        foreach (var season in seasons)
-        {
-            if (season.SeasonId <= 0
-                || string.IsNullOrWhiteSpace(season.Name)
-                || season.StartDate == default
-                || (season.EndDate is not null && season.EndDate < season.StartDate)
-                || (previousStart is not null
-                    && (season.StartDate > previousStart
-                        || (season.StartDate == previousStart && season.SeasonId >= previousId))))
-            {
-                return false;
-            }
-
-            previousStart = season.StartDate;
-            previousId = season.SeasonId;
-        }
-
-        return true;
-    }
 }

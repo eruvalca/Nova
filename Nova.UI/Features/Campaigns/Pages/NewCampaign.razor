@@ -50,17 +50,10 @@
             informational and does not close the campaign.
         </div>
 
-        @if (_setup.TotalSeasonCount > _setup.Seasons.Count)
-        {
-            <div class="alert alert-info" role="status">
-                Only the newest @_setup.Seasons.Count of @_setup.TotalSeasonCount seasons are available for
-                selection. Choose a listed season or create a new one inline.
-            </div>
-        }
-
         <CampaignCreateForm Heading="Campaign details"
                             Model="_createForm"
-                            Seasons="_setup.Seasons"
+                            Seasons="@(_setup.CurrentSeason is null ? [] : [_setup.CurrentSeason])"
+                            AllowInlineSeasonCreation="@(_setup.CurrentSeason is null)"
                             SubmitButtonText="Create campaign"
                             IsSubmitting="_isSubmitting"
                             ErrorMessage="@_formError"
