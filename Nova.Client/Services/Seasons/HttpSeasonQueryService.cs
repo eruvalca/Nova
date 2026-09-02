@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Json;
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Seasons;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
@@ -22,21 +23,7 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
 
         var expectedPage = input.Page ?? GetSeasonListInput.DefaultPage;
         var expectedPageSize = input.PageSize ?? GetSeasonListInput.DefaultPageSize;
-        var query = new List<string>();
-        if (input.Page is int page)
-        {
-            query.Add($"page={page}");
-        }
-
-        if (input.PageSize is int pageSize)
-        {
-            query.Add($"pageSize={pageSize}");
-        }
-
-        var url = query.Count == 0
-            ? SeasonEndpoints.GroupPrefix
-            : $"{SeasonEndpoints.GroupPrefix}?{string.Join('&', query)}";
-        using var response = await http.GetAsync(url, cancellationToken);
+        using var response = await http.GetAsync(SeasonEndpoints.ListUrl(input), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -61,20 +48,7 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
 
         var expectedCampaignPage = input.CampaignPage ?? GetSeasonListInput.DefaultPage;
         var expectedCampaignPageSize = input.CampaignPageSize ?? GetSeasonListInput.DefaultPageSize;
-        var query = new List<string>();
-        if (input.CampaignPage is int page)
-        {
-            query.Add($"campaignPage={page}");
-        }
-
-        if (input.CampaignPageSize is int pageSize)
-        {
-            query.Add($"campaignPageSize={pageSize}");
-        }
-
-        var baseUrl = SeasonEndpoints.Detail(input.SeasonId);
-        var url = query.Count == 0 ? baseUrl : $"{baseUrl}?{string.Join('&', query)}";
-        using var response = await http.GetAsync(url, cancellationToken);
+        using var response = await http.GetAsync(SeasonEndpoints.DetailUrl(input), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -92,6 +66,7 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
                 && result.Campaigns.Count <= result.CampaignPageSize
                 && result.Campaigns.All(campaign => campaign.CampaignId > 0
                     && !string.IsNullOrWhiteSpace(campaign.Name)
+                    && campaign.Status is CampaignStatus.Active or CampaignStatus.Closed
                     && campaign.StartDate != default
                     && (campaign.EndDate is null || campaign.EndDate >= campaign.StartDate)
                     && campaign.ParticipantCount >= 0)

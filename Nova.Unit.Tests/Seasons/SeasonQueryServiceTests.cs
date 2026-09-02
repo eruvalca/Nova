@@ -187,7 +187,10 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
     /// <summary>Creates a query service over fresh read contexts.</summary>
     private SeasonQueryService CreateService(CountingCommandInterceptor? interceptor = null)
-        => new(new ReadFactory(_harness, interceptor), _harness.CurrentUser);
+        => new(
+            new ReadFactory(_harness, interceptor),
+            _harness.CurrentUser,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SeasonQueryService>.Instance);
 
     /// <summary>Creates a season entity for the supplied club.</summary>
     private static SeasonEntity NewSeason(string name, DateOnly startDate, long clubId)

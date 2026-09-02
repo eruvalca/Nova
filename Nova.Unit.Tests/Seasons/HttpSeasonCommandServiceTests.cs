@@ -77,6 +77,41 @@ public sealed class HttpSeasonCommandServiceTests
         handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe("/api/seasons/7");
     }
 
+    /// <summary>Verifies a successful metadata response must rotate the expected concurrency token.</summary>
+    [Fact]
+    public async Task UpdateAsync_ReturnsServerError_WhenConcurrencyTokenDoesNotRotate()
+    {
+        var token = Guid.NewGuid();
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new SeasonSummary
+            {
+                SeasonId = 7,
+                Name = "Season",
+                StartDate = new DateOnly(2026, 1, 1),
+                IsCurrent = true,
+                ConcurrencyToken = token
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonCommandService(http).UpdateAsync(
+            7,
+            new UpdateSeasonInput
+            {
+                ExpectedConcurrencyToken = token,
+                Name = "Season",
+                StartDate = new DateOnly(2026, 1, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>Verifies a successful advancement payload must identify a real season transition.</summary>
     [Fact]
     public async Task StartNextAsync_ReturnsServerError_WhenResponseDoesNotAdvance()
@@ -96,7 +131,8 @@ public sealed class HttpSeasonCommandServiceTests
                 }
             })
         };
-        using var http = new HttpClient(new RecordingHandler(response))
+        var handler = new RecordingHandler(response);
+        using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -113,6 +149,7 @@ public sealed class HttpSeasonCommandServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        handler.LastRequest!.RequestUri!.AbsolutePath.ShouldBe(SeasonEndpoints.StartNext);
     }
 
     /// <summary>Records the request while returning a fixed response.</summary>

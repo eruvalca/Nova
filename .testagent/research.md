@@ -31,4 +31,5 @@
 - PR #227 review: season metadata campaign-window errors must identify `StartDate` and `EndDate` independently, and duplicate historical inline-season names must offer an actionable different-name recovery.
 - PR #227 follow-up review: creation operations must durably distinguish standalone creation from advancement and bind advancement replay to the exact persisted predecessor.
 - PR #227 follow-up review: currentness must be projected in the same SQL statement as season rows/details and campaign setup metadata; strict clients must reject no-op advancement payloads and malformed season/campaign ordering, including current rows after page 1.
+- PR #227 second follow-up review: strict clients must reject unchanged update tokens and undefined campaign statuses; all season URLs belong to the shared endpoint contract; command lifecycle outcomes, ambiguous-commit recovery, and forbidden reads require typed source-generated logs.
 - Approved exclusions remain unchanged: season detail has no effective-roster projection (#214 owns it), and season mutations emit no new activity-event family.

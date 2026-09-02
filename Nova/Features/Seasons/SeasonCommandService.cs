@@ -14,9 +14,11 @@ namespace Nova.Features.Seasons;
 /// <summary>Provides retry-safe season creation, metadata updates, and advancement.</summary>
 /// <param name="dbContextFactory">The tenant-scoped context factory.</param>
 /// <param name="currentUserProvider">The current user and club state.</param>
-public sealed class SeasonCommandService(
+/// <param name="logger">The logger used for season lifecycle outcomes.</param>
+public sealed partial class SeasonCommandService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
-    ICurrentUserProvider currentUserProvider) : ISeasonCommandService
+    ICurrentUserProvider currentUserProvider,
+    ILogger<SeasonCommandService> logger) : ISeasonCommandService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<SeasonSummary>> CreateAsync(
@@ -26,11 +28,13 @@ public sealed class SeasonCommandService(
         var validationErrors = InputValidator.Validate(input);
         if (validationErrors.Count > 0)
         {
+            LogSeasonCreateValidationFailed(input.OperationId);
             return ServiceProblem.Validation(validationErrors);
         }
 
         if (!TryGetAdministrator(out var actorUserId, out var clubId))
         {
+            LogSeasonCreateForbidden(currentUserProvider.UserId ?? 0, input.OperationId);
             return ServiceProblem.Forbidden("You must be a club administrator to create seasons.");
         }
 
@@ -44,11 +48,28 @@ public sealed class SeasonCommandService(
                     clubId,
                     normalizedInput.OperationId,
                     cancellationToken);
-                return committed is null
-                    ? new ExecutionResult<ServiceResult<SeasonSummary>>(false, default!)
-                    : new ExecutionResult<ServiceResult<SeasonSummary>>(
-                        true,
-                        ToCreateReplayResult(committed));
+                if (committed is null)
+                {
+                    return new ExecutionResult<ServiceResult<SeasonSummary>>(false, default!);
+                }
+
+                var replay = ToCreateReplayResult(committed);
+                if (replay.IsSuccess)
+                {
+                    LogSeasonCreateCommitRecovered(
+                        normalizedInput.OperationId,
+                        committed.SeasonId,
+                        clubId);
+                }
+                else
+                {
+                    LogSeasonCreateConflict(
+                        normalizedInput.OperationId,
+                        clubId,
+                        "operation-kind-collision");
+                }
+
+                return new ExecutionResult<ServiceResult<SeasonSummary>>(true, replay);
             },
             cancellationToken);
     }
@@ -67,17 +88,25 @@ public sealed class SeasonCommandService(
 
         if (validationErrors.Count > 0)
         {
+            LogSeasonUpdateValidationFailed(seasonId);
             return ServiceProblem.Validation(validationErrors);
         }
 
-        if (!TryGetAdministrator(out _, out var clubId))
+        if (!TryGetAdministrator(out var actorUserId, out var clubId))
         {
+            LogSeasonUpdateForbidden(currentUserProvider.UserId ?? 0, seasonId);
             return ServiceProblem.Forbidden("You must be a club administrator to update seasons.");
         }
 
         var normalizedInput = input with { Name = input.Name.Trim() };
         return await ExecuteAsync(
-            db => UpdateAttemptAsync(db, seasonId, normalizedInput, clubId, cancellationToken),
+            db => UpdateAttemptAsync(
+                db,
+                seasonId,
+                normalizedInput,
+                actorUserId,
+                clubId,
+                cancellationToken),
             cancellationToken);
     }
 
@@ -89,11 +118,13 @@ public sealed class SeasonCommandService(
         var validationErrors = InputValidator.Validate(input);
         if (validationErrors.Count > 0)
         {
+            LogSeasonAdvanceValidationFailed(input.OperationId);
             return ServiceProblem.Validation(validationErrors);
         }
 
         if (!TryGetAdministrator(out var actorUserId, out var clubId))
         {
+            LogSeasonAdvanceForbidden(currentUserProvider.UserId ?? 0, input.OperationId);
             return ServiceProblem.Forbidden("You must be a club administrator to start the next season.");
         }
 
@@ -107,17 +138,38 @@ public sealed class SeasonCommandService(
                     clubId,
                     normalizedInput.OperationId,
                     cancellationToken);
-                return current is null
-                    ? new ExecutionResult<ServiceResult<StartNextSeasonResult>>(false, default!)
-                    : new ExecutionResult<ServiceResult<StartNextSeasonResult>>(
-                        true,
-                        ToStartNextReplayResult(current, normalizedInput.ExpectedCurrentSeasonId));
+                if (current is null)
+                {
+                    return new ExecutionResult<ServiceResult<StartNextSeasonResult>>(false, default!);
+                }
+
+                var replay = ToStartNextReplayResult(
+                    current,
+                    normalizedInput.ExpectedCurrentSeasonId);
+                if (replay.IsSuccess)
+                {
+                    LogSeasonAdvanceCommitRecovered(
+                        normalizedInput.OperationId,
+                        normalizedInput.ExpectedCurrentSeasonId,
+                        current.SeasonId,
+                        clubId);
+                }
+                else
+                {
+                    LogSeasonAdvanceConflict(
+                        normalizedInput.OperationId,
+                        normalizedInput.ExpectedCurrentSeasonId,
+                        clubId,
+                        "operation-predecessor-mismatch");
+                }
+
+                return new ExecutionResult<ServiceResult<StartNextSeasonResult>>(true, replay);
             },
             cancellationToken);
     }
 
     /// <summary>Executes one transaction that creates the club's first current season.</summary>
-    private static async Task<ServiceResult<SeasonSummary>> CreateAttemptAsync(
+    private async Task<ServiceResult<SeasonSummary>> CreateAttemptAsync(
         NovaDbContext db,
         CreateSeasonInput input,
         long actorUserId,
@@ -130,22 +182,35 @@ public sealed class SeasonCommandService(
         var committed = await FindCommittedSeasonAsync(db, clubId, input.OperationId, cancellationToken);
         if (committed is not null)
         {
-            return ToCreateReplayResult(committed);
+            var replay = ToCreateReplayResult(committed);
+            if (replay.IsSuccess)
+            {
+                LogSeasonCreateReplayed(input.OperationId, committed.SeasonId, clubId);
+            }
+            else
+            {
+                LogSeasonCreateConflict(input.OperationId, clubId, "operation-kind-collision");
+            }
+
+            return replay;
         }
 
         var club = await db.Clubs.SingleOrDefaultAsync(club => club.ClubId == clubId, cancellationToken);
         if (club is null)
         {
+            LogSeasonCreateConflict(input.OperationId, clubId, "club-not-found");
             return ServiceProblem.NotFound();
         }
 
         if (club.CurrentSeasonId is not null)
         {
+            LogSeasonCreateConflict(input.OperationId, clubId, "current-season-exists");
             return ServiceProblem.Conflict("The club already has a current season. Start the next season instead.");
         }
 
         if (await db.Seasons.AnyAsync(season => season.Name == input.Name, cancellationToken))
         {
+            LogSeasonCreateConflict(input.OperationId, clubId, "duplicate-name");
             return ServiceProblem.Conflict("A season with that name already exists.");
         }
 
@@ -165,23 +230,27 @@ public sealed class SeasonCommandService(
             club.CurrentSeasonId = season.SeasonId;
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            LogSeasonCreated(input.OperationId, season.SeasonId, clubId, actorUserId);
             return ToSummary(season, isCurrent: true);
         }
         catch (DbUpdateConcurrencyException)
         {
+            LogSeasonCreateConflict(input.OperationId, clubId, "current-season-concurrency");
             return ServiceProblem.Conflict("The club's current season changed. Reload and try again.");
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
         {
+            LogSeasonCreateConflict(input.OperationId, clubId, "operation-or-name-uniqueness");
             return ServiceProblem.Conflict("The season operation or season name already exists.");
         }
     }
 
     /// <summary>Executes one optimistic-concurrency-protected metadata update.</summary>
-    private static async Task<ServiceResult<SeasonSummary>> UpdateAttemptAsync(
+    private async Task<ServiceResult<SeasonSummary>> UpdateAttemptAsync(
         NovaDbContext db,
         long seasonId,
         UpdateSeasonInput input,
+        long actorUserId,
         long clubId,
         CancellationToken cancellationToken)
     {
@@ -193,6 +262,7 @@ public sealed class SeasonCommandService(
             cancellationToken);
         if (season is null)
         {
+            LogSeasonUpdateConflict(seasonId, clubId, "not-found");
             return ServiceProblem.NotFound();
         }
 
@@ -200,6 +270,7 @@ public sealed class SeasonCommandService(
             other => other.SeasonId != seasonId && other.Name == input.Name,
             cancellationToken))
         {
+            LogSeasonUpdateConflict(seasonId, clubId, "duplicate-name");
             return ServiceProblem.Conflict("A season with that name already exists.");
         }
 
@@ -227,6 +298,7 @@ public sealed class SeasonCommandService(
 
         if (campaignDateErrors.Count > 0)
         {
+            LogSeasonUpdateConflict(seasonId, clubId, "campaign-window-validation");
             return ServiceProblem.Validation(campaignDateErrors);
         }
 
@@ -243,20 +315,23 @@ public sealed class SeasonCommandService(
                 club => club.ClubId == clubId && club.CurrentSeasonId == seasonId,
                 cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            LogSeasonUpdated(seasonId, clubId, actorUserId);
             return ToSummary(season, isCurrent);
         }
         catch (DbUpdateConcurrencyException)
         {
+            LogSeasonUpdateConflict(seasonId, clubId, "metadata-concurrency");
             return ServiceProblem.Conflict("The season changed. Reload it and try again.");
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
         {
+            LogSeasonUpdateConflict(seasonId, clubId, "name-uniqueness");
             return ServiceProblem.Conflict("A season with that name already exists.");
         }
     }
 
     /// <summary>Executes one atomic current-season advancement attempt.</summary>
-    private static async Task<ServiceResult<StartNextSeasonResult>> StartNextAttemptAsync(
+    private async Task<ServiceResult<StartNextSeasonResult>> StartNextAttemptAsync(
         NovaDbContext db,
         StartNextSeasonInput input,
         long actorUserId,
@@ -269,17 +344,45 @@ public sealed class SeasonCommandService(
         var committed = await FindCommittedSeasonAsync(db, clubId, input.OperationId, cancellationToken);
         if (committed is not null)
         {
-            return ToStartNextReplayResult(committed, input.ExpectedCurrentSeasonId);
+            var replay = ToStartNextReplayResult(committed, input.ExpectedCurrentSeasonId);
+            if (replay.IsSuccess)
+            {
+                LogSeasonAdvanceReplayed(
+                    input.OperationId,
+                    input.ExpectedCurrentSeasonId,
+                    committed.SeasonId,
+                    clubId);
+            }
+            else
+            {
+                LogSeasonAdvanceConflict(
+                    input.OperationId,
+                    input.ExpectedCurrentSeasonId,
+                    clubId,
+                    "operation-predecessor-mismatch");
+            }
+
+            return replay;
         }
 
         var club = await db.Clubs.SingleOrDefaultAsync(club => club.ClubId == clubId, cancellationToken);
         if (club?.CurrentSeasonId is not long currentSeasonId)
         {
+            LogSeasonAdvanceConflict(
+                input.OperationId,
+                input.ExpectedCurrentSeasonId,
+                clubId,
+                "no-current-season");
             return ServiceProblem.Conflict("The club does not have a current season.");
         }
 
         if (currentSeasonId != input.ExpectedCurrentSeasonId)
         {
+            LogSeasonAdvanceConflict(
+                input.OperationId,
+                input.ExpectedCurrentSeasonId,
+                clubId,
+                "stale-current-season");
             return ServiceProblem.Conflict("The current season changed. Reload and try again.");
         }
 
@@ -287,11 +390,21 @@ public sealed class SeasonCommandService(
             campaign => campaign.SeasonId == currentSeasonId && campaign.Status != CampaignStatus.Closed,
             cancellationToken))
         {
+            LogSeasonAdvanceConflict(
+                input.OperationId,
+                input.ExpectedCurrentSeasonId,
+                clubId,
+                "open-current-season-campaign");
             return ServiceProblem.Conflict("Every campaign in the current season must be closed first.");
         }
 
         if (await db.Seasons.AnyAsync(season => season.Name == input.Name, cancellationToken))
         {
+            LogSeasonAdvanceConflict(
+                input.OperationId,
+                input.ExpectedCurrentSeasonId,
+                clubId,
+                "duplicate-name");
             return ServiceProblem.Conflict("A season with that name already exists.");
         }
 
@@ -311,6 +424,12 @@ public sealed class SeasonCommandService(
             club.CurrentSeasonId = season.SeasonId;
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            LogSeasonAdvanced(
+                input.OperationId,
+                currentSeasonId,
+                season.SeasonId,
+                clubId,
+                actorUserId);
             return new StartNextSeasonResult
             {
                 PreviousSeasonId = currentSeasonId,
@@ -319,10 +438,20 @@ public sealed class SeasonCommandService(
         }
         catch (DbUpdateConcurrencyException)
         {
+            LogSeasonAdvanceConflict(
+                input.OperationId,
+                input.ExpectedCurrentSeasonId,
+                clubId,
+                "current-season-concurrency");
             return ServiceProblem.Conflict("The current season changed. Reload and try again.");
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
         {
+            LogSeasonAdvanceConflict(
+                input.OperationId,
+                input.ExpectedCurrentSeasonId,
+                clubId,
+                "operation-or-name-uniqueness");
             return ServiceProblem.Conflict("The season operation or season name already exists.");
         }
     }
@@ -479,6 +608,87 @@ public sealed class SeasonCommandService(
             && (message.Contains("23505", StringComparison.Ordinal)
                 || message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>Logs structural rejection of a standalone season creation request.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season creation validation failed for OperationId={OperationId}.")]
+    private partial void LogSeasonCreateValidationFailed(Guid operationId);
+
+    /// <summary>Logs standalone season creation rejected because the caller is not an administrator.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season creation forbidden for UserId={UserId}, OperationId={OperationId}.")]
+    private partial void LogSeasonCreateForbidden(long userId, Guid operationId);
+
+    /// <summary>Logs a standalone season creation conflict.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season creation conflict for OperationId={OperationId}, ClubId={ClubId}, Reason={Reason}.")]
+    private partial void LogSeasonCreateConflict(Guid operationId, long clubId, string reason);
+
+    /// <summary>Logs successful standalone season creation.</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Season creation OperationId={OperationId} committed as SeasonId={SeasonId} for ClubId={ClubId} by UserId={ActorUserId}.")]
+    private partial void LogSeasonCreated(Guid operationId, long seasonId, long clubId, long actorUserId);
+
+    /// <summary>Logs a successful idempotent replay of standalone season creation.</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Season creation OperationId={OperationId} replayed committed SeasonId={SeasonId} for ClubId={ClubId}.")]
+    private partial void LogSeasonCreateReplayed(Guid operationId, long seasonId, long clubId);
+
+    /// <summary>Logs successful verification after an ambiguous standalone season creation commit.</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Season creation OperationId={OperationId} recovered committed SeasonId={SeasonId} for ClubId={ClubId} after an ambiguous commit.")]
+    private partial void LogSeasonCreateCommitRecovered(Guid operationId, long seasonId, long clubId);
+
+    /// <summary>Logs structural rejection of a season metadata update.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season metadata update validation failed for SeasonId={SeasonId}.")]
+    private partial void LogSeasonUpdateValidationFailed(long seasonId);
+
+    /// <summary>Logs a season metadata update rejected because the caller is not an administrator.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season metadata update forbidden for UserId={UserId}, SeasonId={SeasonId}.")]
+    private partial void LogSeasonUpdateForbidden(long userId, long seasonId);
+
+    /// <summary>Logs a season metadata update conflict or contextual rejection.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season metadata update conflict for SeasonId={SeasonId}, ClubId={ClubId}, Reason={Reason}.")]
+    private partial void LogSeasonUpdateConflict(long seasonId, long clubId, string reason);
+
+    /// <summary>Logs a successful season metadata update.</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "SeasonId={SeasonId} metadata updated for ClubId={ClubId} by UserId={ActorUserId}.")]
+    private partial void LogSeasonUpdated(long seasonId, long clubId, long actorUserId);
+
+    /// <summary>Logs structural rejection of a season advancement request.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season advancement validation failed for OperationId={OperationId}.")]
+    private partial void LogSeasonAdvanceValidationFailed(Guid operationId);
+
+    /// <summary>Logs season advancement rejected because the caller is not an administrator.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season advancement forbidden for UserId={UserId}, OperationId={OperationId}.")]
+    private partial void LogSeasonAdvanceForbidden(long userId, Guid operationId);
+
+    /// <summary>Logs a season advancement conflict.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season advancement conflict for OperationId={OperationId}, ExpectedCurrentSeasonId={ExpectedCurrentSeasonId}, ClubId={ClubId}, Reason={Reason}.")]
+    private partial void LogSeasonAdvanceConflict(
+        Guid operationId,
+        long expectedCurrentSeasonId,
+        long clubId,
+        string reason);
+
+    /// <summary>Logs a successful season advancement.</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Season advancement OperationId={OperationId} moved ClubId={ClubId} from SeasonId={PreviousSeasonId} to SeasonId={CurrentSeasonId} by UserId={ActorUserId}.")]
+    private partial void LogSeasonAdvanced(
+        Guid operationId,
+        long previousSeasonId,
+        long currentSeasonId,
+        long clubId,
+        long actorUserId);
+
+    /// <summary>Logs a successful idempotent replay of season advancement.</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Season advancement OperationId={OperationId} replayed ClubId={ClubId} transition from SeasonId={PreviousSeasonId} to SeasonId={CurrentSeasonId}.")]
+    private partial void LogSeasonAdvanceReplayed(
+        Guid operationId,
+        long previousSeasonId,
+        long currentSeasonId,
+        long clubId);
+
+    /// <summary>Logs successful verification after an ambiguous season advancement commit.</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Season advancement OperationId={OperationId} recovered ClubId={ClubId} transition from SeasonId={PreviousSeasonId} to SeasonId={CurrentSeasonId} after an ambiguous commit.")]
+    private partial void LogSeasonAdvanceCommitRecovered(
+        Guid operationId,
+        long previousSeasonId,
+        long currentSeasonId,
+        long clubId);
 
     /// <summary>Captures the durable identity of one operation-created current season.</summary>
     private sealed class CommittedSeason

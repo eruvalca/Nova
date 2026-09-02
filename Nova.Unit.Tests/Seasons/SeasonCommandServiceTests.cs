@@ -721,5 +721,6 @@ public sealed class SeasonCommandServiceTests : IDisposable
     private SeasonCommandService CreateService()
         => new(
             new TestDbContextFactory<NovaDbContext>(_harness.CreateTenantContext),
-            _harness.CurrentUser);
+            _harness.CurrentUser,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SeasonCommandService>.Instance);
 }

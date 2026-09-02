@@ -39,7 +39,9 @@ public sealed class HttpSeasonCommandService(HttpClient http) : ISeasonCommandSe
 
         return await response.Content.ReadRequiredJsonAsync<SeasonSummary>(
             "The server returned an invalid season response.",
-            season => IsValidSummary(season) && season.SeasonId == seasonId,
+            season => IsValidSummary(season)
+                && season.SeasonId == seasonId
+                && season.ConcurrencyToken != input.ExpectedConcurrencyToken,
             cancellationToken);
     }
 
@@ -49,7 +51,7 @@ public sealed class HttpSeasonCommandService(HttpClient http) : ISeasonCommandSe
         CancellationToken cancellationToken = default)
     {
         using var response = await http.PostAsJsonAsync(
-            $"{SeasonEndpoints.GroupPrefix}/{SeasonEndpoints.StartNextRelative}",
+            SeasonEndpoints.StartNext,
             input,
             cancellationToken);
         if (!response.IsSuccessStatusCode)

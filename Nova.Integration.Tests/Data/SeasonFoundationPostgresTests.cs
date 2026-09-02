@@ -121,7 +121,10 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
             interceptor);
         var operationId = Guid.NewGuid();
 
-        var result = await new SeasonCommandService(factory, fixture.CurrentUser).CreateAsync(
+        var result = await new SeasonCommandService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<SeasonCommandService>.Instance).CreateAsync(
             new CreateSeasonInput
             {
                 OperationId = operationId,
@@ -167,7 +170,10 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
             interceptor);
         var operationId = Guid.NewGuid();
 
-        var result = await new SeasonCommandService(factory, fixture.CurrentUser).StartNextAsync(
+        var result = await new SeasonCommandService(
+            factory,
+            fixture.CurrentUser,
+            NullLogger<SeasonCommandService>.Instance).StartNextAsync(
             new StartNextSeasonInput
             {
                 OperationId = operationId,
@@ -209,7 +215,8 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
             NullLogger<CampaignMetadataService>.Instance);
         var seasonService = new SeasonCommandService(
             new FixtureDbContextFactory(fixture),
-            fixture.CurrentUser);
+            fixture.CurrentUser,
+            NullLogger<SeasonCommandService>.Instance);
 
         var metadataTask = metadataService.UpdateAsync(
             new UpdateCampaignMetadataInput
@@ -286,7 +293,8 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
             NullLogger<CampaignLifecycleService>.Instance);
         var seasonService = new SeasonCommandService(
             new FixtureDbContextFactory(fixture),
-            fixture.CurrentUser);
+            fixture.CurrentUser,
+            NullLogger<SeasonCommandService>.Instance);
 
         var reopenTask = reopenService.ReopenAsync(seed.CampaignId, cancellationToken);
 

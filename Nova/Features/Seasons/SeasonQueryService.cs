@@ -10,9 +10,11 @@ namespace Nova.Features.Seasons;
 /// <summary>Provides tenant-safe, bounded season list and detail projections.</summary>
 /// <param name="dbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club state.</param>
-public sealed class SeasonQueryService(
+/// <param name="logger">The logger used for denied season reads.</param>
+public sealed partial class SeasonQueryService(
     IDbContextFactory<NovaReadDbContext> dbContextFactory,
-    ICurrentUserProvider currentUserProvider) : ISeasonQueryService
+    ICurrentUserProvider currentUserProvider,
+    ILogger<SeasonQueryService> logger) : ISeasonQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<SeasonPageResult>> ListAsync(
@@ -27,6 +29,7 @@ public sealed class SeasonQueryService(
 
         if (!TryGetMemberClubId(out var clubId))
         {
+            LogSeasonListForbidden(currentUserProvider.UserId ?? 0);
             return ServiceProblem.Forbidden("You must be an approved club member to view seasons.");
         }
 
@@ -75,6 +78,7 @@ public sealed class SeasonQueryService(
 
         if (!TryGetMemberClubId(out var clubId))
         {
+            LogSeasonDetailForbidden(currentUserProvider.UserId ?? 0, input.SeasonId);
             return ServiceProblem.Forbidden("You must be an approved club member to view seasons.");
         }
 
@@ -146,4 +150,12 @@ public sealed class SeasonQueryService(
     /// <summary>Calculates a provider-safe offset for a structurally valid page request.</summary>
     private static int GetOffset(int page, int pageSize)
         => (int)Math.Min((long)(page - 1) * pageSize, int.MaxValue);
+
+    /// <summary>Logs season-list access rejected because the caller is not a club member.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season list access forbidden for UserId={UserId}.")]
+    private partial void LogSeasonListForbidden(long userId);
+
+    /// <summary>Logs season-detail access rejected because the caller is not a club member.</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Season detail access forbidden for UserId={UserId}, SeasonId={SeasonId}.")]
+    private partial void LogSeasonDetailForbidden(long userId, long seasonId);
 }

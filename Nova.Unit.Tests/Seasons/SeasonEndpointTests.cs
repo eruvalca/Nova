@@ -55,7 +55,7 @@ public sealed class SeasonEndpointTests
             .Contains(StatusCodes.Status401Unauthorized));
 
         var startNext = endpoints.Single(endpoint =>
-            endpoint.RoutePattern.RawText == $"{SeasonEndpoints.GroupPrefix}/{SeasonEndpoints.StartNextRelative}");
+            endpoint.RoutePattern.RawText == SeasonEndpoints.StartNext);
         ResponseStatuses(startNext).ShouldNotContain(StatusCodes.Status404NotFound);
         ResponseStatuses(startNext).ShouldContain(StatusCodes.Status409Conflict);
     }

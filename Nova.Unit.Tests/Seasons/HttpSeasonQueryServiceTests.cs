@@ -380,6 +380,44 @@ public sealed class HttpSeasonQueryServiceTests
         result.Value.CampaignTotalCount.ShouldBe(0);
     }
 
+    /// <summary>Verifies detail responses reject campaign statuses outside the public lifecycle enum.</summary>
+    [Fact]
+    public async Task GetAsync_ReturnsServerError_WhenCampaignStatusIsUndefined()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new SeasonDetailResult
+            {
+                Season = NewSeasonSummary(7, new DateOnly(2026, 1, 1), isCurrent: false),
+                Campaigns =
+                [
+                    new SeasonCampaignSummary
+                    {
+                        CampaignId = 11,
+                        Name = "Campaign",
+                        Status = (Nova.Shared.Enums.CampaignStatus)999,
+                        StartDate = new DateOnly(2026, 2, 1),
+                        ParticipantCount = 0
+                    }
+                ],
+                CampaignPage = 1,
+                CampaignPageSize = 20,
+                CampaignTotalCount = 1
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonQueryService(http).GetAsync(
+            new GetSeasonDetailInput { SeasonId = 7 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>Verifies an eventually consistent campaign total must still be nonnegative.</summary>
     [Fact]
     public async Task GetAsync_ReturnsServerError_WhenCampaignTotalIsNegative()

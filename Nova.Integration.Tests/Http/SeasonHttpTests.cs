@@ -55,7 +55,7 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
             StartDate = new DateOnly(2025, 12, 1)
         };
         using var firstStartResponse = await client.PostAsJsonAsync(
-            $"{SeasonEndpoints.GroupPrefix}/{SeasonEndpoints.StartNextRelative}",
+            SeasonEndpoints.StartNext,
             startInput,
             cancellationToken);
         firstStartResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
@@ -73,7 +73,7 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
         advancedDetail.Season.SeasonId.ShouldBe(advanced.CurrentSeason.SeasonId);
 
         using var repeatedResponse = await client.PostAsJsonAsync(
-            $"{SeasonEndpoints.GroupPrefix}/{SeasonEndpoints.StartNextRelative}",
+            SeasonEndpoints.StartNext,
             startInput,
             cancellationToken);
         repeatedResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
@@ -82,7 +82,7 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
         repeated.CurrentSeason.SeasonId.ShouldBe(advanced.CurrentSeason.SeasonId);
 
         using var staleResponse = await client.PostAsJsonAsync(
-            $"{SeasonEndpoints.GroupPrefix}/{SeasonEndpoints.StartNextRelative}",
+            SeasonEndpoints.StartNext,
             startInput with { OperationId = Guid.NewGuid(), Name = "Losing Race" },
             cancellationToken);
         staleResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -162,11 +162,11 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
         current.ShouldNotBeNull();
 
         var firstTask = client.PostAsJsonAsync(
-            $"{SeasonEndpoints.GroupPrefix}/{SeasonEndpoints.StartNextRelative}",
+            SeasonEndpoints.StartNext,
             ValidStartNextInput(current.SeasonId, "Race A"),
             cancellationToken);
         var secondTask = client.PostAsJsonAsync(
-            $"{SeasonEndpoints.GroupPrefix}/{SeasonEndpoints.StartNextRelative}",
+            SeasonEndpoints.StartNext,
             ValidStartNextInput(current.SeasonId, "Race B"),
             cancellationToken);
         var responses = await Task.WhenAll(firstTask, secondTask);
