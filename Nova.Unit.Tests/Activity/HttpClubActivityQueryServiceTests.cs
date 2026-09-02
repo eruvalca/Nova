@@ -290,7 +290,7 @@ public sealed class HttpClubActivityQueryServiceTests
     [Fact]
     public async Task GetClubActivityAsync_AcceptsMemberJoined_MemberShape()
     {
-        var body = """{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","context":{"type":"membership","memberDisplayName":"Sam Doe"}}],"hasMore":false,"nextCursor":null}""";
+        var body = """{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","context":{"type":"membership","memberUserId":42,"memberDisplayName":"Sam Doe"}}],"hasMore":false,"nextCursor":null}""";
         var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
@@ -309,7 +309,7 @@ public sealed class HttpClubActivityQueryServiceTests
     [Fact]
     public async Task GetClubActivityAsync_AcceptsMemberJoined_AdminShape()
     {
-        var body = """{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Jordan Lee","context":{"type":"membership","memberDisplayName":"Sam Doe","approvedByActorName":"Jordan Lee"}}],"hasMore":false,"nextCursor":null}""";
+        var body = """{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Jordan Lee","context":{"type":"membership","memberUserId":42,"memberDisplayName":"Sam Doe","approvedByActorName":"Jordan Lee"}}],"hasMore":false,"nextCursor":null}""";
         var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")

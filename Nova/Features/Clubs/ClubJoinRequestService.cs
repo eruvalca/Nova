@@ -125,6 +125,14 @@ public sealed partial class ClubJoinRequestService(
                 },
                 cancellationToken);
         }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // The one-to-one RequestingUserId constraint is the final guard after the preflight:
+            // two concurrent submissions can both pass the probe, and the loser reaches the unique
+            // violation rather than the expected conflict.
+            LogJoinRequestCreationConflict(userId, clubId);
+            return ServiceProblem.Conflict("You already have a pending join request.");
+        }
         catch (DbUpdateException ex)
         {
             LogJoinRequestCreationFailed(ex, userId, clubId);
@@ -385,23 +393,32 @@ public sealed partial class ClubJoinRequestService(
         // after the committed approval; a refresh failure must not fail an already-committed
         // approval. Reload the requester through UserManager so the instance belongs to the
         // Identity store's context, then Match the refresh result so a stale-mark failure is
-        // diagnosed instead of silently leaving the member stuck behind the onboarding gate.
+        // diagnosed instead of silently leaving the member stuck behind the onboarding gate. The
+        // whole block is exception-guarded so an Identity operation that throws (rather than
+        // returning a failed result) also preserves the committed success.
         if (result.IsSuccess)
         {
-            var identityUser = await userManager.FindByIdAsync(state.RequestingUserId.ToString());
-            if (identityUser is null)
+            try
             {
-                LogApproveRequestingUserMissing(state.RequestingUserId, state.RequestId);
+                var identityUser = await userManager.FindByIdAsync(state.RequestingUserId.ToString());
+                if (identityUser is null)
+                {
+                    LogApproveRequestingUserMissing(state.RequestingUserId, state.RequestId);
+                }
+                else
+                {
+                    var refreshResult = await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(identityUser);
+                    refreshResult.Switch(
+                        _ => { },
+                        error => LogApproveClaimsStaleFailed(
+                            state.RequestingUserId,
+                            state.RequestId,
+                            string.Join(", ", error.Value)));
+                }
             }
-            else
+            catch (Exception exception)
             {
-                var refreshResult = await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(identityUser);
-                refreshResult.Switch(
-                    _ => { },
-                    error => LogApproveClaimsStaleFailed(
-                        state.RequestingUserId,
-                        state.RequestId,
-                        string.Join(", ", error.Value)));
+                LogApproveClaimsStaleFailed(state.RequestingUserId, state.RequestId, exception.Message);
             }
         }
 
@@ -537,6 +554,7 @@ public sealed partial class ClubJoinRequestService(
             adminName,
             new MembershipContext
             {
+                MemberUserId = request.RequestingUserId,
                 MemberDisplayName = memberName,
                 ApprovedByActorName = adminName,
             });
@@ -783,6 +801,24 @@ public sealed partial class ClubJoinRequestService(
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Failed to create join request for UserId={UserId} to ClubId={ClubId}.")]
     private partial void LogJoinRequestCreationFailed(Exception exception, long userId, long clubId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Join request creation conflicted with an existing request for UserId={UserId} to ClubId={ClubId}.")]
+    private partial void LogJoinRequestCreationConflict(long userId, long clubId);
+
+    /// <summary>
+    /// Determines whether a persistence failure was caused by a unique-index violation. The check is
+    /// text-based so it holds for both the Npgsql production provider (SQLSTATE 23505) and the SQLite
+    /// provider used by the tenancy unit-test harness, without either provider being referenced here.
+    /// </summary>
+    /// <param name="exception">The persistence failure to classify.</param>
+    /// <returns><see langword="true"/> when the failure was a unique-index violation.</returns>
+    private static bool IsUniqueViolation(DbUpdateException exception)
+    {
+        var message = exception.InnerException?.Message;
+        return message is not null
+            && (message.Contains("23505", StringComparison.Ordinal)
+                || message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase));
+    }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Join request cancelled: RequestId={RequestId} by UserId={UserId}.")]
     private partial void LogJoinRequestCancelled(long userId, long requestId);

@@ -103,6 +103,12 @@ public sealed record JoinRequestContext : ClubActivityContext
 public sealed record MembershipContext : ClubActivityContext
 {
     /// <summary>
+    /// Gets or sets the member user's stable identifier, so duplicate display names can be
+    /// disambiguated and future member destinations can link to the subject.
+    /// </summary>
+    public required long MemberUserId { get; init; }
+
+    /// <summary>
     /// Gets or sets the member display-name snapshot.
     /// </summary>
     public required string MemberDisplayName { get; init; }

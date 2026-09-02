@@ -519,7 +519,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
             OccurredAt = ActivityAt,
             ActorUserId = 300,
             ActorDisplayName = "Admin A",
-            Context = new MembershipContext { MemberDisplayName = "Noter", ApprovedByActorName = null }
+            Context = new MembershipContext { MemberUserId = 99, MemberDisplayName = "Noter", ApprovedByActorName = null }
         };
 
     private static ClubActivityItemDto BuildMemberRoleEvent(long eventId)

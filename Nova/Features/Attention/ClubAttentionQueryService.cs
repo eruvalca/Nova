@@ -115,10 +115,11 @@ public sealed partial class ClubAttentionQueryService(
     }
 
     /// <summary>
-    /// Reads the campaigns-needing-placement region. The count is participant-level (number of
-    /// undecided assignments in the Active campaign with no team and an active player) and the
-    /// identifier/name identify the newest such campaign in deterministic campaign-list order.
-    /// The region reports <see cref="AttentionRegionStatus.Unavailable"/> on failure.
+    /// Reads the campaigns-needing-placement region. The target is the newest Active campaign with
+    /// an unresolved assignment, and the count is participant-level (undecided assignments with no
+    /// team and an active player) scoped to that target campaign, so the count and the resolution
+    /// target always agree. The region reports <see cref="AttentionRegionStatus.Unavailable"/> on
+    /// failure.
     /// </summary>
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
@@ -199,7 +200,10 @@ public sealed partial class ClubAttentionQueryService(
                 await using var transaction =
                     await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
 
-                var count = await undecidedQuery.CountAsync(token);
+                // Select the target Active campaign first (the newest one with an unresolved
+                // assignment), then count only that campaign's assignments so the count and the
+                // resolution target always agree under one snapshot. One-Active enforcement is
+                // deferred to #178, so multiple Active campaigns can coexist for now.
                 var newest = await undecidedQuery
                     .OrderByDescending(assignment => assignment.Campaign.Season.StartDate)
                     .ThenByDescending(assignment => assignment.Campaign.SeasonId)
@@ -212,6 +216,11 @@ public sealed partial class ClubAttentionQueryService(
                     .ThenByDescending(assignment => assignment.PlayerCampaignAssignmentId)
                     .Select(assignment => new CampaignRow(assignment.CampaignId, assignment.Campaign.Name))
                     .FirstOrDefaultAsync(token);
+
+                var count = newest is null
+                    ? 0
+                    : await undecidedQuery
+                        .CountAsync(assignment => assignment.CampaignId == newest.CampaignId, token);
 
                 await transaction.CommitAsync(token);
                 return (count, newest);
@@ -245,7 +254,11 @@ public sealed partial class ClubAttentionQueryService(
             .Select(assignment => new CampaignRow(assignment.CampaignId, assignment.Campaign.Name))
             .ToListAsync(cancellationToken);
 
-        return (rows.Count, rows.FirstOrDefault());
+        // Count only the newest campaign's unresolved assignments so the count and resolution
+        // target agree (mirrors the PostgreSQL aggregate semantics).
+        var newest = rows.FirstOrDefault();
+        var count = newest is null ? 0 : rows.Count(row => row.CampaignId == newest.CampaignId);
+        return (count, newest);
     }
 
     /// <summary>

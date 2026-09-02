@@ -53,9 +53,10 @@ public sealed record NeedsPlacementRegion
     public required AttentionRegionStatus Status { get; init; }
 
     /// <summary>
-    /// Gets the count of undecided participant assignments in Active campaigns awaiting a
-    /// placement decision, meaningful only when <see cref="Status"/> is
-    /// <see cref="AttentionRegionStatus.Loaded"/>.
+    /// Gets the count of undecided participant assignments in the target (newest) Active campaign
+    /// awaiting a placement decision, meaningful only when <see cref="Status"/> is
+    /// <see cref="AttentionRegionStatus.Loaded"/>. Scoped to the campaign named by
+    /// <see cref="CampaignId"/> so the count and its resolution target always agree.
     /// </summary>
     public required int Count { get; init; }
 

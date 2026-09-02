@@ -122,8 +122,8 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
         region.OldestRequestAt.ShouldBeNull();
     }
 
-    /// <summary>Verifies the needs-placement count includes only active players in an active
-    /// campaign with no team assigned, and names the newest qualifying campaign.</summary>
+    /// <summary>Verifies the needs-placement count is scoped to the newest Active campaign's
+    /// unresolved assignments (not summed across campaigns), and names that target campaign.</summary>
     [Fact]
     public async Task GetClubAttention_CountsNeedsPlacement_WithNewestCampaignName()
     {
@@ -148,7 +148,9 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
         result.IsSuccess.ShouldBeTrue();
         var region = result.Value.NeedsPlacement;
         region.Status.ShouldBe(AttentionRegionStatus.Loaded);
-        region.Count.ShouldBe(2);
+        // The newest campaign's unresolved count is 1 ("New Undecided"); the older campaign's
+        // unresolved assignment is not summed in because the count is scoped to the target.
+        region.Count.ShouldBe(1);
         region.CampaignId.ShouldNotBeNull();
         region.CampaignName.ShouldBe("Newer Campaign");
     }

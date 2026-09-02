@@ -28,7 +28,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
     /// Verifies the summary returns authoritative, tenant-scoped counts: two active campaign cards in
     /// deterministic order, per-card participant/unresolved counts and workspace links, and roster and
     /// team counts. The separate attention projection verifies the administrator counts matching the
-    /// seeded pending request and the total undecided participants across campaigns.
+    /// seeded pending request and the newest campaign's undecided participants.
     /// </summary>
     [Fact]
     public async Task GetSummary_ReturnsAuthoritativeTenantScopedCounts()
@@ -137,7 +137,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             attention.PendingJoinRequests.Status.ShouldBe(AttentionRegionStatus.Loaded);
             attention.PendingJoinRequests.Count.ShouldBe(1);
             attention.NeedsPlacement.Status.ShouldBe(AttentionRegionStatus.Loaded);
-            attention.NeedsPlacement.Count.ShouldBe(3);
+            attention.NeedsPlacement.Count.ShouldBe(1);
             attention.NeedsPlacement.CampaignId.ShouldBe(manual.CampaignId);
             attention.NeedsPlacement.CampaignName.ShouldBe(manual.Name);
         }

@@ -305,6 +305,46 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies a join-request create whose insert violates the one-to-one RequestingUserId unique
+    /// constraint (a concurrent submission won the probe/write race, or a non-pending request still
+    /// occupies the slot) is classified as Conflict rather than a server error.
+    /// </summary>
+    [Fact]
+    public async Task CreateJoinRequest_ReturnsConflict_WhenUniqueViolationOccurs()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedJoinRequestDataAsync(cancellationToken);
+
+        // Seed a non-pending request for the requester: the preflight only checks for a Pending
+        // request, so it passes, but the one-to-one RequestingUserId unique constraint rejects the
+        // subsequent insert.
+        await using (var db = fixture.CreateAdminContext())
+        {
+            db.ClubJoinRequests.Add(new ClubJoinRequestEntity
+            {
+                ClubId = seed.ClubId,
+                RequestingUserId = seed.RequesterUserId,
+                Status = RequestStatus.Rejected,
+                CreatedById = seed.RequesterUserId
+            });
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        ActAs(seed.RequesterUserId, clubId: null);
+        var service = CreateService(
+            new RetryingTenantDbContextFactory(
+                fixture.ConnectionString,
+                fixture.CurrentUser,
+                new NoOpInterceptor()),
+            seed.RequesterUserId);
+
+        var result = await service.CreateJoinRequestAsync(seed.ClubId, cancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+    }
+
+    /// <summary>
     /// Seeds one club and one identity user with a database-generated id, both fresh per test.
     /// </summary>
     /// <param name="cancellationToken">A token that cancels seeding.</param>

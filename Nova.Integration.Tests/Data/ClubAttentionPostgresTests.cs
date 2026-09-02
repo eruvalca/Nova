@@ -10,19 +10,20 @@ namespace Nova.Integration.Tests.Data;
 
 /// <summary>
 /// Provider-sensitive evidence that the attention projection's needs-placement region translates on
-/// PostgreSQL: the undecided-assignment filters push into SQL, the count and the newest campaign in
-/// deterministic campaign-list order are computed in one repeatable-read snapshot, and the region
-/// still reports <see cref="AttentionRegionStatus.Loaded"/> with one count even when several
-/// assignments share a campaign.
+/// PostgreSQL: the undecided-assignment filters push into SQL, the target (newest) campaign and its
+/// scoped count are computed in one repeatable-read snapshot, and the region still reports
+/// <see cref="AttentionRegionStatus.Loaded"/> with the target campaign's count when several
+/// assignments span multiple campaigns.
 /// </summary>
 /// <param name="fixture">The Aspire-hosted Nova application fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
 public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
 {
     /// <summary>
-    /// Verifies the needs-placement region: three undecided assignments across two Active campaigns
-    /// count to three and identify the newest campaign (by season start, then campaign start) in
-    /// deterministic order, all computed database-side under one snapshot transaction.
+    /// Verifies the needs-placement region scopes its count to the newest Active campaign: three
+    /// undecided assignments across two Active campaigns resolve to the two on the newer campaign,
+    /// which is named in deterministic order, all computed database-side under one snapshot
+    /// transaction.
     /// </summary>
     [Fact]
     public async Task GetClubAttention_Postgres_CountsUndecidedAssignments_AndNamesNewestCampaign()
@@ -36,7 +37,7 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
         result.IsSuccess.ShouldBeTrue();
         var region = result.Value.NeedsPlacement;
         region.Status.ShouldBe(AttentionRegionStatus.Loaded);
-        region.Count.ShouldBe(3);
+        region.Count.ShouldBe(2);
         region.CampaignId.ShouldNotBeNull();
         region.CampaignName.ShouldBe(seed.NewestCampaignName);
     }

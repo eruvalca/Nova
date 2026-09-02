@@ -218,7 +218,7 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
             ActivityEventKind.MemberJoined
                 or ActivityEventKind.MemberRemoved
                 or ActivityEventKind.MemberLeft => JsonSerializer.Serialize(
-                    new MembershipContext { MemberDisplayName = "Member", ApprovedByActorName = null },
+                    new MembershipContext { MemberUserId = 99, MemberDisplayName = "Member", ApprovedByActorName = null },
                     typeof(ClubActivityContext)),
             ActivityEventKind.MemberPromoted
                 or ActivityEventKind.MemberDemoted => JsonSerializer.Serialize(

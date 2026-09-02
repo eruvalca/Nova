@@ -293,6 +293,7 @@ public sealed class ClubActivityFeedPolicyTests
             },
             ActivityEventKind.MemberJoined => new MembershipContext
             {
+                MemberUserId = 99,
                 MemberDisplayName = member ?? "M",
                 ApprovedByActorName = approvedBy,
             },

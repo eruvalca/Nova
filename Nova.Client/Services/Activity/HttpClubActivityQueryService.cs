@@ -123,6 +123,7 @@ public sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivit
             or ActivityEventKind.MemberRemoved
             or ActivityEventKind.MemberLeft
                 => item.Context is MembershipContext membership
+                    && membership.MemberUserId > 0
                     && !string.IsNullOrWhiteSpace(membership.MemberDisplayName),
             ActivityEventKind.MemberPromoted
             or ActivityEventKind.MemberDemoted

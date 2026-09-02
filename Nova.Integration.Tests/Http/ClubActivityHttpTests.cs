@@ -111,7 +111,7 @@ public sealed class ClubActivityHttpTests(NovaAppHostFixture fixture)
         using var memberClient = await CreateMemberClientAsync(club.ClubId, cancellationToken);
 
         var payload = JsonSerializer.Serialize(
-            new MembershipContext { MemberDisplayName = "Jordan Lee", ApprovedByActorName = "Club Admin" },
+            new MembershipContext { MemberUserId = 99, MemberDisplayName = "Jordan Lee", ApprovedByActorName = "Club Admin" },
             typeof(ClubActivityContext));
         await SeedActivityEventsAsync(club.ClubId, adminUserId, count: 1, cancellationToken, kind: ActivityEventKind.MemberJoined, payloadJson: payload);
 

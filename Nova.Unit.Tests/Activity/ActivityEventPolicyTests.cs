@@ -191,6 +191,7 @@ public sealed class ActivityEventPolicyTests
             },
             ActivityEventKind.MemberJoined => new MembershipContext
             {
+                MemberUserId = 99,
                 MemberDisplayName = "M",
             },
             ActivityEventKind.MemberPromoted => new MemberRoleContext
