@@ -33,7 +33,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status409Conflict)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .DisableAntiforgery()
-                .RequireAuthorization(Policies.RequireClubAdmin)
+                .RequireAuthorization(Policies.RequireClubMember)
                 .WithName(CampaignEndpoints.UpdateCampaignPlacementRouteName);
 
             group.MapGet(CampaignEndpoints.GetCampaignPlacementRosterRelative, GetPlacementRosterHandler)

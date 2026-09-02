@@ -8,13 +8,14 @@ using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Results;
+using Nova.Shared.Security;
 using Nova.Shared.Validation;
 
 namespace Nova.Features.Tags;
 
 /// <summary>
-/// Creates and updates tag definitions with club-administrator authorization and race-safe,
-/// case-insensitive per-club name uniqueness.
+/// Creates and updates tag definitions with club-member creation and club-administrator editing
+/// authorization, plus race-safe, case-insensitive per-club name uniqueness.
 /// </summary>
 /// <param name="dbContextFactory">The tenant-scoped context factory used for mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
@@ -42,14 +43,14 @@ public sealed partial class TagDefinitionService(
             return ServiceProblem.Validation(validationErrors);
         }
 
-        if (currentUserProvider.UserId is not long actorUserId
-            || currentUserProvider.ClubId is not long clubId
-            || !currentUserProvider.IsClubAdmin)
+        if (currentUserProvider.GetCurrentUserState().Value is not ClubMember member)
         {
             LogTagDefinitionCreateForbidden(currentUserProvider.UserId ?? 0);
-            return ServiceProblem.Forbidden("You must be a club administrator to create tag definitions.");
+            return ServiceProblem.Forbidden("You must be an approved club member to create tag definitions.");
         }
 
+        var actorUserId = member.UserId;
+        var clubId = member.ClubId;
         var creationOperationId = Guid.CreateVersion7();
         return await ExecuteWithFreshContextAsync(
             (db, commitAttempted) => CreateTagDefinitionAsync(db, input, actorUserId, clubId, creationOperationId, commitAttempted, cancellationToken),
@@ -132,7 +133,7 @@ public sealed partial class TagDefinitionService(
     /// </summary>
     /// <param name="db">The fresh tenant context for this execution attempt.</param>
     /// <param name="input">The requested tag-definition details.</param>
-    /// <param name="actorUserId">The authenticated club-administrator identifier.</param>
+    /// <param name="actorUserId">The authenticated club-member identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
     /// <param name="creationOperationId">The stable identifier for this logical creation operation.</param>
     /// <param name="commitAttempted">Tracks whether this attempt reached its commit.</param>
@@ -412,7 +413,7 @@ public sealed partial class TagDefinitionService(
     [LoggerMessage(Level = LogLevel.Warning, Message = "Tag-definition update validation failed for PlayerTagId={TagId}.")]
     private partial void LogTagDefinitionUpdateValidationFailed(long tagId);
 
-    /// <summary>Logs a tag-definition creation request from a non-administrator.</summary>
+    /// <summary>Logs a tag-definition creation request from a non-club-member.</summary>
     /// <param name="userId">The current user identifier, or zero when unauthenticated.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Tag-definition create forbidden for UserId={UserId}.")]
     private partial void LogTagDefinitionCreateForbidden(long userId);
@@ -451,7 +452,7 @@ public sealed partial class TagDefinitionService(
 
     /// <summary>Logs a successful tag-definition creation.</summary>
     /// <param name="tagId">The created tag-definition identifier.</param>
-    /// <param name="actorUserId">The acting administrator identifier.</param>
+    /// <param name="actorUserId">The acting club-member identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "PlayerTagId={TagId} created by UserId={ActorUserId}.")]
     private partial void LogTagDefinitionCreated(long tagId, long actorUserId);
 

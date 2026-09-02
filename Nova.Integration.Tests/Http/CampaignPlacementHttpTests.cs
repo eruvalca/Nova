@@ -42,10 +42,10 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies an authenticated club member without administrator rights receives a forbidden response.
+    /// Verifies an approved club member can update a placement and receives a replacement concurrency token.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsForbidden_ForClubMember()
+    public async Task CampaignPlacementUpdate_ReturnsOk_WithReplacementToken_AndPersistsPlacement_ForClubMember()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -63,6 +63,45 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
         using var response = await memberClient.PutAsJsonAsync(
+            CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var success = await response.Content.ReadFromJsonAsync<PlacementMutationSuccess>(cancellationToken);
+        success.ConcurrencyToken.ShouldNotBe(Guid.Empty);
+        success.ConcurrencyToken.ShouldNotBe(token);
+
+        await using var context = fixture.CreateAdminContext();
+        var persisted = await context.PlayerCampaignAssignments
+            .SingleAsync(assignment => assignment.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
+        persisted.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
+        persisted.TeamId.ShouldBe(teamId);
+        persisted.ConcurrencyToken.ShouldBe(success.ConcurrencyToken);
+    }
+
+    /// <summary>
+    /// Verifies an authenticated user without a club receives a forbidden response for placement updates.
+    /// </summary>
+    [Fact]
+    public async Task CampaignPlacementUpdate_ReturnsForbidden_ForAuthenticatedUserWithoutClub()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        var adminEmail = UniqueEmail("placement-no-club-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
+        await UpdateUserAsync(adminEmail, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(adminClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
+        var (assignmentId, teamId, token) = await SeedPlacementDataAsync(club.ClubId, adminEmail, cancellationToken);
+
+        using var noClubClient = fixture.CreateNovaHttpClient();
+        var noClubEmail = UniqueEmail("placement-no-club");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(noClubClient, noClubEmail, Password, cancellationToken);
+        await UpdateUserAsync(noClubEmail, clubId: null, cancellationToken);
+        await RefreshClubMembershipCookieAsync(noClubClient, cancellationToken);
+
+        using var response = await noClubClient.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
             new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token),
             cancellationToken);

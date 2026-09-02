@@ -220,12 +220,33 @@ public sealed class CampaignPlacementServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies a regular club member cannot mutate placement decisions.
+    /// Verifies a regular club member can mutate placement decisions.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsForbidden_WhenCallerIsNotClubAdmin()
+    public async Task UpdatePlacementAsync_AssignsPlacement_ForClubMember()
     {
         ActAs(ClubAMemberId, ClubAId);
+        var service = CreateService();
+
+        var result = await service.UpdatePlacementAsync(
+            new UpdateCampaignPlacementInput(
+                ClubAAssignmentId,
+                PlacementOutcome.NotSelected,
+                teamId: null,
+                _clubAConcurrencyToken),
+            TestContext.Current.CancellationToken);
+
+        result.IsT0.ShouldBeTrue();
+        result.AsT0.ConcurrencyToken.ShouldNotBe(_clubAConcurrencyToken);
+    }
+
+    /// <summary>
+    /// Verifies an authenticated user without club membership cannot mutate placement decisions.
+    /// </summary>
+    [Fact]
+    public async Task UpdatePlacementAsync_ReturnsForbidden_WhenCallerHasNoClub()
+    {
+        ActAs(ClubAMemberId, clubId: null);
         var service = CreateService();
 
         var result = await service.UpdatePlacementAsync(
@@ -447,9 +468,9 @@ public sealed class CampaignPlacementServiceTests : IDisposable
     /// Sets the current user state for the next tenant context.
     /// </summary>
     /// <param name="userId">The current user identifier.</param>
-    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="clubId">The current club identifier, or null for an authenticated user without a club.</param>
     /// <param name="isClubAdmin">Whether the current user is a club administrator.</param>
-    private void ActAs(long userId, long clubId, bool isClubAdmin = false)
+    private void ActAs(long userId, long? clubId, bool isClubAdmin = false)
     {
         _harness.CurrentUser.UserId = userId;
         _harness.CurrentUser.ClubId = clubId;

@@ -25,11 +25,11 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class CampaignPlacementEndpointTests
 {
     /// <summary>
-    /// Verifies the placement update route is registered with club-administrator authorization,
+    /// Verifies the placement update route is registered with club-member authorization,
     /// disabled antiforgery, the PUT verb, and the shared route name.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementEndpoint_RequiresClubAdmin_AndDisablesAntiforgery()
+    public async Task CampaignPlacementEndpoint_RequiresClubMember_AndDisablesAntiforgery()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(_ => new CampaignPlacementService(
@@ -50,7 +50,7 @@ public sealed class CampaignPlacementEndpointTests
             $"The placement update endpoint must be registered at '{CampaignEndpoints.UpdateCampaignPlacement}'.");
         endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
-            .ShouldContain(metadata => metadata.Policy == Policies.RequireClubAdmin);
+            .ShouldContain(metadata => metadata.Policy == Policies.RequireClubMember);
         endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>()!.RequiresValidation.ShouldBeFalse();
         endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName
             .ShouldBe(CampaignEndpoints.UpdateCampaignPlacementRouteName);
@@ -113,9 +113,9 @@ public sealed class CampaignPlacementEndpointTests
     /// Verifies forbidden placement results convert to a 403 response with the service detail.
     /// </summary>
     [Fact]
-    public async Task ToHttpResult_ReturnsForbidden_WithServiceDetail_ForUnauthorizedCaller()
+    public async Task ToHttpResult_ReturnsForbidden_WithServiceDetail_ForNonMemberCaller()
     {
-        const string detail = "You must be a club administrator to update campaign placements.";
+        const string detail = "You must be an approved club member to update campaign placements.";
         PlacementUpdateResult result = new PlacementForbidden(detail);
 
         var httpContext = await ExecuteAsync(result);

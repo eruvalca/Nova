@@ -9,6 +9,7 @@ using Nova.Shared.Enums;
 using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
+using Nova.Shared.Security;
 using Nova.Shared.Validation;
 using OneOf;
 using OneOf.Types;
@@ -16,7 +17,7 @@ using OneOf.Types;
 namespace Nova.Features.Campaigns;
 
 /// <summary>
-/// Reports that the current user is not authorized to mutate campaign placements.
+/// Reports that the current user is not an approved club member authorized to mutate campaign placements.
 /// </summary>
 /// <param name="Detail">A description of the authorization failure.</param>
 public readonly record struct PlacementForbidden(string Detail);
@@ -41,7 +42,7 @@ public partial class PlacementUpdateResult : OneOfBase<
 }
 
 /// <summary>
-/// Applies tenant-safe campaign placement mutations with administrator authorization and optimistic concurrency.
+/// Applies tenant-safe campaign placement mutations with approved-club-member authorization and optimistic concurrency.
 /// </summary>
 /// <param name="dbContextFactory">The tenant-scoped context factory used for the placement mutation.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
@@ -84,13 +85,14 @@ public sealed partial class CampaignPlacementService(
             return new Error<IReadOnlyDictionary<string, string[]>>(validationErrors);
         }
 
-        if (currentUserProvider.UserId is not long userId
-            || currentUserProvider.ClubId is not long clubId
-            || !currentUserProvider.IsClubAdmin)
+        if (currentUserProvider.GetCurrentUserState().Value is not ClubMember member)
         {
             LogPlacementForbidden(input.PlayerCampaignAssignmentId, currentUserProvider.UserId ?? 0);
-            return new PlacementForbidden("You must be a club administrator to update campaign placements.");
+            return new PlacementForbidden("You must be an approved club member to update campaign placements.");
         }
+
+        var userId = member.UserId;
+        var clubId = member.ClubId;
 
         // One stable replacement token for the whole logical request lets a retry after an
         // ambiguous commit recognize the write it already persisted instead of reporting a
@@ -157,7 +159,7 @@ public sealed partial class CampaignPlacementService(
     /// </summary>
     /// <param name="db">The fresh tenant context for this execution attempt.</param>
     /// <param name="input">The requested placement values and expected concurrency token.</param>
-    /// <param name="userId">The acting administrator identifier.</param>
+    /// <param name="userId">The acting club member identifier.</param>
     /// <param name="clubId">The current tenant club identifier.</param>
     /// <param name="replacementToken">The stable token this logical request writes on success.</param>
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
@@ -402,7 +404,7 @@ public sealed partial class CampaignPlacementService(
     private partial void LogPlacementValidationFailed(long assignmentId);
 
     /// <summary>
-    /// Logs a placement request rejected because the caller is not a club administrator.
+    /// Logs a placement request rejected because the caller is not an approved club member.
     /// </summary>
     /// <param name="assignmentId">The requested campaign participation identifier.</param>
     /// <param name="userId">The current user identifier, or zero when unauthenticated.</param>
@@ -462,7 +464,7 @@ public sealed partial class CampaignPlacementService(
     /// Logs a placement rejected because its expected token was stale.
     /// </summary>
     /// <param name="assignmentId">The requested campaign participation identifier.</param>
-    /// <param name="userId">The acting administrator identifier.</param>
+    /// <param name="userId">The acting club member identifier.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign placement conflict for AssignmentId={AssignmentId} by UserId={UserId}.")]
     private partial void LogPlacementConflict(long assignmentId, long userId);
 
@@ -470,7 +472,7 @@ public sealed partial class CampaignPlacementService(
     /// Logs a successful placement mutation.
     /// </summary>
     /// <param name="assignmentId">The updated campaign participation identifier.</param>
-    /// <param name="userId">The acting administrator identifier.</param>
+    /// <param name="userId">The acting club member identifier.</param>
     [LoggerMessage(Level = LogLevel.Information, Message = "Campaign placement updated for AssignmentId={AssignmentId} by UserId={UserId}.")]
     private partial void LogPlacementUpdated(long assignmentId, long userId);
 

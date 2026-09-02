@@ -11,7 +11,7 @@ public static class AuthorizationBuilderExtensions
     extension(AuthorizationBuilder builder)
     {
         /// <summary>
-        /// Registers the role, club membership, and evaluator policies used by Nova.
+        /// Registers the role and club membership policies used by Nova.
         /// </summary>
         /// <returns>The authorization builder for further configuration.</returns>
         public AuthorizationBuilder AddNovaAuthorizationPolicies()
@@ -25,8 +25,7 @@ public static class AuthorizationBuilderExtensions
             return builder
                 .AddPolicy(Policies.RequireAdmin, policy => policy.RequireRole(Roles.Admin))
                 .AddPolicy(Policies.RequireClubAdmin, policy => policy.RequireRole(Roles.ClubAdmin))
-                .AddPolicy(Policies.RequireClubMember, ConfigureClubMemberPolicy)
-                .AddPolicy(Policies.RequireEvaluator, ConfigureClubMemberPolicy);
+                .AddPolicy(Policies.RequireClubMember, ConfigureClubMemberPolicy);
         }
     }
 }
