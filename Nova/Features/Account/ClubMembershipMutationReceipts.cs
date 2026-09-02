@@ -11,20 +11,26 @@ internal static class ClubMembershipMutationReceipts
 
     /// <summary>Removes membership mutation receipts older than the verification window.</summary>
     /// <param name="db">The admin context participating in the current mutation transaction.</param>
+    /// <param name="clubId">The club whose expired receipts may be removed.</param>
     /// <param name="cancellationToken">A token that cancels receipt cleanup.</param>
     /// <returns>A task representing receipt cleanup.</returns>
-    internal static async Task PruneExpiredAsync(NovaAdminDbContext db, CancellationToken cancellationToken)
+    internal static async Task PruneExpiredAsync(
+        NovaAdminDbContext db,
+        long clubId,
+        CancellationToken cancellationToken)
     {
         var cutoff = DateTimeOffset.UtcNow.AddDays(-RetentionDays);
         if (db.Database.IsNpgsql())
         {
             await db.ClubMembershipMutationReceipts
-                .Where(receipt => receipt.CreatedAt < cutoff)
+                .Where(receipt => receipt.ClubId == clubId && receipt.CreatedAt < cutoff)
                 .ExecuteDeleteAsync(cancellationToken);
             return;
         }
 
-        var expired = (await db.ClubMembershipMutationReceipts.ToListAsync(cancellationToken))
+        var expired = (await db.ClubMembershipMutationReceipts
+                .Where(receipt => receipt.ClubId == clubId)
+                .ToListAsync(cancellationToken))
             .Where(receipt => receipt.CreatedAt < cutoff)
             .ToList();
         if (expired.Count > 0)

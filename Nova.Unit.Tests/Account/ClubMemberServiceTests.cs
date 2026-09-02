@@ -105,6 +105,55 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task PromoteMemberAsync_PrunesExpiredReceiptsOnlyForCurrentClub()
+    {
+        var currentClubReceiptOperationId = Guid.NewGuid();
+        var otherClubReceiptOperationId = Guid.NewGuid();
+        using (var setup = _harness.CreateAdminContext())
+        {
+            var expiredAt = DateTimeOffset.UtcNow.AddDays(-2);
+            setup.ClubMembershipMutationReceipts.AddRange(
+                new ClubMembershipMutationReceiptEntity
+                {
+                    OperationId = currentClubReceiptOperationId,
+                    MemberUserId = AdminId,
+                    MutationKind = "Promote",
+                    ClubId = ClubId,
+                    CreatedAt = expiredAt,
+                    CreatedById = AdminId,
+                },
+                new ClubMembershipMutationReceiptEntity
+                {
+                    OperationId = otherClubReceiptOperationId,
+                    MemberUserId = OtherClubMemberId,
+                    MutationKind = "Promote",
+                    ClubId = OtherClubId,
+                    CreatedAt = expiredAt,
+                    CreatedById = OtherClubMemberId,
+                });
+            setup.SaveChanges();
+
+            foreach (var receipt in setup.ClubMembershipMutationReceipts.Local)
+            {
+                receipt.CreatedAt = expiredAt;
+            }
+
+            setup.SaveChanges();
+        }
+
+        var result = await CreateService().PromoteMemberAsync(
+            MemberInput(MemberId),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        using var verify = _harness.CreateAdminContext();
+        verify.ClubMembershipMutationReceipts.ShouldNotContain(
+            receipt => receipt.OperationId == currentClubReceiptOperationId);
+        verify.ClubMembershipMutationReceipts.ShouldContain(
+            receipt => receipt.OperationId == otherClubReceiptOperationId);
+    }
+
+    [Fact]
     public async Task DemoteMemberAsync_RejectsSoleAdministrator()
     {
         using (var db = _harness.CreateAdminContext())

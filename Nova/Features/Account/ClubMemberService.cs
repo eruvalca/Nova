@@ -344,7 +344,7 @@ public sealed partial class ClubMemberService(
 
         target.SecurityStamp = state.SecurityStamp;
         target.ConcurrencyStamp = state.ConcurrencyStamp;
-        await ClubMembershipMutationReceipts.PruneExpiredAsync(db, cancellationToken);
+        await ClubMembershipMutationReceipts.PruneExpiredAsync(db, state.ClubId, cancellationToken);
         db.ClubMembershipMutationReceipts.Add(new ClubMembershipMutationReceiptEntity
         {
             OperationId = state.OperationId,
