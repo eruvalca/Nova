@@ -8,6 +8,7 @@ using Nova.Shared.Features.Dashboard;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Components;
+using Nova.UI.Features.Campaigns.Services;
 
 namespace Nova.UI.Features.Dashboard.Pages;
 
@@ -99,12 +100,13 @@ public partial class ClubDashboard(
     protected string ReviewRequestsUrl => $"/Clubs/{_clubId}/admin";
 
     /// <summary>
-    /// Gets the administrator placement review link target, falling back to the campaign list when no
-    /// active campaign has an unresolved placement.
+    /// Gets the administrator placement review link target, resolving to the unresolved-only
+    /// placements surface of the newest campaign needing placement (falling back to the campaign
+    /// list when no active campaign has an unresolved placement).
     /// </summary>
     protected string ReviewPlacementsUrl =>
         _attention?.NeedsPlacement.CampaignId is long campaignId
-            ? DashboardEndpoints.CampaignWorkspaceUrl(campaignId)
+            ? CampaignWorkspaceUrlState.BuildReviewUnresolvedUrl(campaignId)
             : "/campaigns";
 
     /// <inheritdoc />

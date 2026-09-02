@@ -141,7 +141,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
 
         var reviewPlacementsLink = cut.FindAll("a")
             .Single(a => a.TextContent.Contains("Review placements", StringComparison.Ordinal));
-        reviewPlacementsLink.GetAttribute("href").ShouldBe("/campaigns/77");
+        reviewPlacementsLink.GetAttribute("href").ShouldBe("/campaigns/77?unresolvedOnly=true&tab=placements");
     }
 
     /// <summary>Verifies an evaluator does not see the administrator attention card.</summary>
