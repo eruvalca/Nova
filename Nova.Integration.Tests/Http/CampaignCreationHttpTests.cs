@@ -273,6 +273,11 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
         };
         context.Seasons.Add(season);
         await context.SaveChangesAsync(cancellationToken);
+        var club = await context.Clubs.SingleAsync(
+            candidate => candidate.ClubId == actor.Club.ClubId,
+            cancellationToken);
+        club.CurrentSeasonId = season.SeasonId;
+        await context.SaveChangesAsync(cancellationToken);
         return season;
     }
 

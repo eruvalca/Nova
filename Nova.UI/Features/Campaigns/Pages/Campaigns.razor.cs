@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Features.Seasons;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Components;
@@ -14,13 +15,13 @@ namespace Nova.UI.Features.Campaigns.Pages;
 /// </summary>
 /// <param name="campaignQueryService">The campaign list query service.</param>
 /// <param name="campaignMetadataService">The campaign metadata correction service.</param>
-/// <param name="seasonMetadataService">The season metadata correction service.</param>
+/// <param name="seasonCommandService">The season command service.</param>
 /// <param name="authenticationStateProvider">The authentication state provider.</param>
 /// <param name="navigationManager">The navigation manager used for redirects.</param>
 public partial class Campaigns(
     ICampaignQueryService campaignQueryService,
     ICampaignMetadataService campaignMetadataService,
-    ISeasonMetadataService seasonMetadataService,
+    ISeasonCommandService seasonCommandService,
     AuthenticationStateProvider authenticationStateProvider,
     NavigationManager navigationManager) : NovaComponentBase
 {
@@ -452,8 +453,8 @@ public partial class Campaigns(
                 // completion must not replace fresher choices cached by a newer request.
                 if (IsCurrent())
                 {
-                    _seasonChoices = setup.Seasons;
-                    _seasonChoiceTotalCount = setup.TotalSeasonCount;
+                    _seasonChoices = setup.CurrentSeason is null ? [] : [setup.CurrentSeason];
+                    _seasonChoiceTotalCount = _seasonChoices.Count;
                     _pageError = null;
                 }
 
@@ -536,7 +537,10 @@ public partial class Campaigns(
 
         try
         {
-            var result = await seasonMetadataService.UpdateAsync(model.ToUpdateInput(), ComponentCancellationToken);
+            var result = await seasonCommandService.UpdateAsync(
+                model.SeasonId,
+                model.ToUpdateInput(),
+                ComponentCancellationToken);
             await HandleMutationResultAsync(
                 result,
                 updated =>

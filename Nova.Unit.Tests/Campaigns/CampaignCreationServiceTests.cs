@@ -78,6 +78,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
     public async Task Create_CreatesSeasonAndCampaign_ForInlineSeason()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        ClearCurrentSeason(ClubAId);
         var input = ValidInlineSeasonInput();
 
         var result = await CreateService().CreateAsync(
@@ -127,6 +128,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
     public async Task Create_ReturnsOriginalResult_WhenOperationIsRepeated()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        ClearCurrentSeason(ClubAId);
         var service = CreateService();
         var input = ValidInlineSeasonInput();
 
@@ -399,6 +401,15 @@ public sealed class CampaignCreationServiceTests : IDisposable
         _harness.CurrentUser.IsClubAdmin = isAdmin;
     }
 
+    /// <summary>Places a club into the supported no-current recovery state.</summary>
+    /// <param name="clubId">The club identifier.</param>
+    private void ClearCurrentSeason(long clubId)
+    {
+        using var db = _harness.CreateAdminContext();
+        db.Clubs.Single(club => club.ClubId == clubId).CurrentSeasonId = null;
+        db.SaveChanges();
+    }
+
     /// <summary>
     /// Counts campaigns persisted for Club A through the unfiltered admin context.
     /// </summary>
@@ -522,6 +533,10 @@ public sealed class CampaignCreationServiceTests : IDisposable
             CreatedById = ClubAAdminId
         };
         db.Players.AddRange(activePlayer, archivedPlayer, otherClubPlayer);
+        db.SaveChanges();
+
+        db.Clubs.Single(club => club.ClubId == ClubAId).CurrentSeasonId = seasonA.SeasonId;
+        db.Clubs.Single(club => club.ClubId == ClubBId).CurrentSeasonId = seasonB.SeasonId;
         db.SaveChanges();
 
         _clubASeasonId = seasonA.SeasonId;
