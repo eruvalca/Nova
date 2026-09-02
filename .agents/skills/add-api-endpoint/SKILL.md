@@ -4,7 +4,7 @@ description: >-
   Recipe for adding a minimal-API HTTP endpoint in Nova with shared route constants,
   MapGroup mapping, static handlers, ServiceResult-to-HTTP conversion, validation,
   ProblemDetails, metadata, authorization, antiforgery, OpenAPI, and WASM client wiring.
-  USE FOR: add an API endpoint, remove a dead endpoint, audit duplicate mutation routes, map a new route, new MapPost/MapGet handler, wire a WASM client call to a server endpoint, ProblemDetails/ToHttpResult, ProducesProblem, antiforgery on WASM endpoints, optional AsParameters query binding, enum query binding, CreatedAtRoute, Location header testing.
+  USE FOR: add an API endpoint, remove a dead endpoint, audit duplicate mutation routes, map a new route, new MapPost/MapGet handler, wire a WASM client call to a server endpoint, ProblemDetails/ToHttpResult, ProducesProblem, antiforgery on WASM endpoints, optional AsParameters query binding, enum query binding, CreatedAtRoute, Location header testing, polymorphic payload DTOs, IValidatableObject cross-property validation (e.g. keyset cursors).
   DO NOT USE FOR: building a full feature from scratch (use add-feature-slice), domain/persistence-only work (use add-domain-persistence), service-layer result types only, writing tests (use nova-testing).
 ---
 

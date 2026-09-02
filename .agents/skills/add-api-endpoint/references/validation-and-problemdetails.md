@@ -151,3 +151,42 @@ private static async Task<IResult> GetPhotoHandler(
     // ... use photoSize
 }
 ```
+
+## Cross-property `IValidatableObject` validation
+
+DataAnnotations are per-property; rules that span properties cannot be expressed on a single member.
+A keyset cursor whose two parts must be supplied together (or not at all) is the canonical case:
+implement `IValidatableObject.Validate` on the input record so both endpoint automatic validation and
+the service's `InputValidator.Validate<T>` honor it. Supply neither part for the newest page and both
+for continuation.
+
+```csharp
+public sealed record GetClubActivityInput : IValidatableObject
+{
+    [Range(1, long.MaxValue)]
+    public long? BeforeActivityEventId { get; init; }
+
+    public DateTimeOffset? BeforeOccurredAt { get; init; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (BeforeActivityEventId is null != BeforeOccurredAt is null)
+        {
+            yield return new ValidationResult(
+                "Both the cursor activity event identifier and cursor occurrence time must be supplied together.",
+                [nameof(BeforeActivityEventId), nameof(BeforeOccurredAt)]);
+        }
+    }
+}
+```
+
+## Polymorphic response payloads
+
+When a DTO carries one of several family-specific payloads (the activity feed's `ClubActivityContext`),
+mark the abstract base with `[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]` and one
+`[JsonDerivedType(typeof(…), "…")]` per derived type. Serialize through the base type
+(`JsonSerializer.Serialize(value, typeof(Base))`) so the discriminator is emitted; deserialize through
+the base with `PropertyNameCaseInsensitive = true`. In the projection, treat a missing/unknown
+discriminator or malformed payload as skip-not-crash (catch `JsonException` and
+`NotSupportedException`) rather than failing the page — and remember the keyset cursor must mark the
+page boundary when rows are skipped.
