@@ -27,6 +27,8 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     private const long BlockedCampaignId = 601;
     private const long ClosedCampaignId = 602;
     private const long ClubBCampaignId = 603;
+    private const long CurrentSeasonAId = 500;
+    private const long NextSeasonAId = 502;
     private const long EligibleTeamId = 800;
     private const long IneligibleTeamId = 801;
     private const long ArchivedTeamId = 802;
@@ -231,6 +233,33 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
         result.IsT1.ShouldBeTrue();
     }
 
+    /// <summary>Verifies a campaign from a superseded season cannot be reopened.</summary>
+    [Fact]
+    public async Task ReopenAsync_ReturnsConflict_WhenCampaignSeasonIsHistorical()
+    {
+        await using (var db = _harness.CreateAdminContext())
+        {
+            db.Clubs.Single(club => club.ClubId == ClubAId).CurrentSeasonId = NextSeasonAId;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var result = await CreateService().ReopenAsync(
+            ClosedCampaignId,
+            TestContext.Current.CancellationToken);
+
+        result.IsT3.ShouldBeTrue();
+        result.AsT3.Detail.ShouldContain("current season");
+
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Campaigns.SingleAsync(
+            campaign => campaign.CampaignId == ClosedCampaignId,
+            TestContext.Current.CancellationToken)).Status.ShouldBe(CampaignStatus.Closed);
+        (await verify.ActivityEvents.CountAsync(
+            activityEvent => activityEvent.CampaignId == ClosedCampaignId,
+            TestContext.Current.CancellationToken)).ShouldBe(1);
+    }
+
     /// <summary>
     /// Verifies the cross-tier interface returns a success result when a close succeeds.
     /// </summary>
@@ -376,7 +405,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             new SeasonEntity
             {
                 CreationOperationId = Guid.NewGuid(),
-                SeasonId = 500,
+                SeasonId = CurrentSeasonAId,
                 Name = "Season A",
                 StartDate = new DateOnly(2026, 1, 1),
                 ClubId = ClubAId,
@@ -390,6 +419,15 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 1, 1),
                 ClubId = ClubBId,
                 CreatedById = ClubBAdminId
+            },
+            new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                SeasonId = NextSeasonAId,
+                Name = "Next Season A",
+                StartDate = new DateOnly(2027, 1, 1),
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId
             });
 
         db.Campaigns.AddRange(
@@ -399,7 +437,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
                 CampaignId = ReadyCampaignId,
                 Name = "Ready Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
-                SeasonId = 500,
+                SeasonId = CurrentSeasonAId,
                 ClubId = ClubAId,
                 CreatedById = ClubAAdminId
             },
@@ -409,7 +447,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
                 CampaignId = BlockedCampaignId,
                 Name = "Blocked Campaign",
                 StartDate = new DateOnly(2026, 6, 1),
-                SeasonId = 500,
+                SeasonId = CurrentSeasonAId,
                 ClubId = ClubAId,
                 CreatedById = ClubAAdminId
             },
@@ -422,7 +460,7 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
                 Status = CampaignStatus.Closed,
                 ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
                 ClosedById = ClubAAdminId,
-                SeasonId = 500,
+                SeasonId = CurrentSeasonAId,
                 ClubId = ClubAId,
                 CreatedById = ClubAAdminId
             },
@@ -640,6 +678,9 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
             CreatedById = ClubAAdminId
         });
 
+        db.SaveChanges();
+        db.Clubs.Single(club => club.ClubId == ClubAId).CurrentSeasonId = CurrentSeasonAId;
+        db.Clubs.Single(club => club.ClubId == ClubBId).CurrentSeasonId = 501;
         db.SaveChanges();
     }
 }

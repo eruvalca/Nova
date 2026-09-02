@@ -87,6 +87,7 @@ public sealed partial class CampaignMetadataService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireClubSeasonLockAsync(clubId, cancellationToken);
         await db.AcquireCampaignMutationLockAsync(input.CampaignId, cancellationToken);
 
         var campaign = await db.Campaigns
@@ -123,6 +124,17 @@ public sealed partial class CampaignMetadataService(
             }
 
             season = targetSeason;
+        }
+
+        var currentSeasonId = await db.Clubs
+            .Where(club => club.ClubId == clubId)
+            .Select(club => club.CurrentSeasonId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (input.SeasonId != currentSeasonId)
+        {
+            LogCampaignMetadataHistoricalSeasonConflict(input.CampaignId, input.SeasonId, currentSeasonId);
+            return ServiceProblem.Conflict(
+                "An active campaign must belong to the club's current season.");
         }
 
         // Cross-field date validation against the target season
@@ -237,6 +249,15 @@ public sealed partial class CampaignMetadataService(
     /// <summary>Logs a target season that is not visible in the current tenant.</summary>
     [LoggerMessage(Level = LogLevel.Warning, Message = "SeasonId={SeasonId} was not found for ClubId={ClubId}.")]
     private partial void LogSeasonNotFound(long seasonId, long clubId);
+
+    /// <summary>Logs an Active campaign metadata update targeting a non-current season.</summary>
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Campaign metadata update rejected; CampaignId={CampaignId} targeted SeasonId={SeasonId}, but CurrentSeasonId={CurrentSeasonId}.")]
+    private partial void LogCampaignMetadataHistoricalSeasonConflict(
+        long campaignId,
+        long seasonId,
+        long? currentSeasonId);
 
     /// <summary>Logs a campaign-to-season date validation failure.</summary>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign date validation failed for CampaignId={CampaignId}, SeasonId={SeasonId}.")]

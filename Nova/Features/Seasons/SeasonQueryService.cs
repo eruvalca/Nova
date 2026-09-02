@@ -32,6 +32,7 @@ public sealed class SeasonQueryService(
 
         var page = input.Page ?? GetSeasonListInput.DefaultPage;
         var pageSize = input.PageSize ?? GetSeasonListInput.DefaultPageSize;
+        var offset = GetOffset(page, pageSize);
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var currentSeasonId = await db.Clubs
             .Where(club => club.ClubId == clubId)
@@ -43,7 +44,7 @@ public sealed class SeasonQueryService(
             .OrderByDescending(season => season.SeasonId == currentSeasonId)
             .ThenByDescending(season => season.StartDate)
             .ThenByDescending(season => season.SeasonId)
-            .Skip((page - 1) * pageSize)
+            .Skip(offset)
             .Take(pageSize)
             .Select(season => new SeasonSummary
             {
@@ -83,6 +84,7 @@ public sealed class SeasonQueryService(
 
         var page = input.CampaignPage ?? GetSeasonListInput.DefaultPage;
         var pageSize = input.CampaignPageSize ?? GetSeasonListInput.DefaultPageSize;
+        var offset = GetOffset(page, pageSize);
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var currentSeasonId = await db.Clubs
             .Where(club => club.ClubId == clubId)
@@ -113,7 +115,7 @@ public sealed class SeasonQueryService(
         var campaigns = await campaignsQuery
             .OrderByDescending(campaign => campaign.StartDate)
             .ThenByDescending(campaign => campaign.CampaignId)
-            .Skip((page - 1) * pageSize)
+            .Skip(offset)
             .Take(pageSize)
             .Select(campaign => new SeasonCampaignSummary
             {
@@ -148,4 +150,8 @@ public sealed class SeasonQueryService(
         clubId = default;
         return false;
     }
+
+    /// <summary>Calculates a provider-safe offset for a structurally valid page request.</summary>
+    private static int GetOffset(int page, int pageSize)
+        => (int)Math.Min((long)(page - 1) * pageSize, int.MaxValue);
 }

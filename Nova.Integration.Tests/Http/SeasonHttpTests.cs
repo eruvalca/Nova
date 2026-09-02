@@ -136,6 +136,11 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
             cancellationToken);
         await AssertProblemDetailsAsync(invalid, HttpStatusCode.BadRequest, cancellationToken);
 
+        using var invalidDetail = await clubAClient.GetAsync(
+            $"{SeasonEndpoints.Detail(0)}?campaignPage=0&campaignPageSize=51",
+            cancellationToken);
+        await AssertProblemDetailsAsync(invalidDetail, HttpStatusCode.BadRequest, cancellationToken);
+
         using var hidden = await clubBClient.GetAsync(
             SeasonEndpoints.Detail(created.SeasonId),
             cancellationToken);

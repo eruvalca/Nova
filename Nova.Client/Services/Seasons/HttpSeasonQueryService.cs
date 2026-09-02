@@ -71,7 +71,8 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
                 && result.Campaigns is not null
                 && result.CampaignPage > 0
                 && result.CampaignPageSize is > 0 and <= GetSeasonListInput.MaximumPageSize
-                && result.CampaignTotalCount >= result.Campaigns.Count
+                && result.CampaignTotalCount >= 0
+                && result.Campaigns.Count <= result.CampaignPageSize
                 && result.Campaigns.All(campaign => campaign.CampaignId > 0
                     && !string.IsNullOrWhiteSpace(campaign.Name)
                     && campaign.StartDate != default
@@ -86,7 +87,7 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
             && page.Items is not null
             && page.Page > 0
             && page.PageSize is > 0 and <= GetSeasonListInput.MaximumPageSize
-            && page.TotalCount >= page.Items.Count
+            && page.TotalCount >= 0
             && page.Items.Count <= page.PageSize
             && page.Items.All(IsValidSummary)
             && page.Items.Count(season => season.IsCurrent) <= 1;

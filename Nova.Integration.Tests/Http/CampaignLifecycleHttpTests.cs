@@ -539,6 +539,11 @@ public sealed class CampaignLifecycleHttpTests(NovaAppHostFixture fixture)
         };
         context.AddRange(season, campaign);
         await context.SaveChangesAsync(cancellationToken);
+        var club = await context.Clubs.SingleAsync(
+            candidate => candidate.ClubId == clubId,
+            cancellationToken);
+        club.CurrentSeasonId = season.SeasonId;
+        await context.SaveChangesAsync(cancellationToken);
 
         var players = new List<PlayerEntity>(participants.Count);
         var teams = new List<TeamEntity?>(participants.Count);

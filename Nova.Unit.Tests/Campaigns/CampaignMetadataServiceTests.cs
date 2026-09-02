@@ -24,6 +24,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
     private const long ClubBAdminId = 202;
     private const long SeasonAId = 500;
     private const long SeasonBId = 501;
+    private const long HistoricalSeasonAId = 502;
     private const long ActiveCampaignId = 600;
     private const long ClosedCampaignId = 601;
     private const long DuplicateNameCampaignId = 602;
@@ -254,6 +255,31 @@ public sealed class CampaignMetadataServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
+    /// <summary>Verifies an Active campaign cannot be moved out of the club's current season.</summary>
+    [Fact]
+    public async Task UpdateAsync_ReturnsConflict_WhenTargetSeasonIsHistorical()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+
+        var result = await CreateService().UpdateAsync(
+            new UpdateCampaignMetadataInput
+            {
+                CampaignId = ActiveCampaignId,
+                Name = "Historical Move",
+                SeasonId = HistoricalSeasonAId,
+                StartDate = new DateOnly(2025, 6, 1)
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Campaigns.SingleAsync(
+            campaign => campaign.CampaignId == ActiveCampaignId,
+            TestContext.Current.CancellationToken)).SeasonId.ShouldBe(SeasonAId);
+    }
+
     private CampaignMetadataService CreateService()
     {
         IDbContextFactory<NovaDbContext> dbContextFactory =
@@ -314,6 +340,15 @@ public sealed class CampaignMetadataServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 1, 1),
                 ClubId = ClubBId,
                 CreatedById = ClubBAdminId
+            },
+            new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                SeasonId = HistoricalSeasonAId,
+                Name = "Historical Season A",
+                StartDate = new DateOnly(2025, 1, 1),
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId
             });
 
         db.Campaigns.AddRange(
@@ -386,6 +421,9 @@ public sealed class CampaignMetadataServiceTests : IDisposable
             CreatedById = ClubAAdminId
         });
 
+        db.SaveChanges();
+        db.Clubs.Single(club => club.ClubId == ClubAId).CurrentSeasonId = SeasonAId;
+        db.Clubs.Single(club => club.ClubId == ClubBId).CurrentSeasonId = SeasonBId;
         db.SaveChanges();
     }
 }

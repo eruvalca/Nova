@@ -81,6 +81,23 @@ public sealed class SeasonQueryServiceTests : IDisposable
         result.Value.Items[1].IsCurrent.ShouldBeFalse();
     }
 
+    /// <summary>Verifies a structurally valid maximum page cannot overflow the SQL offset.</summary>
+    [Fact]
+    public async Task ListAsync_ReturnsEmptyPage_WhenPageOffsetExceedsInt32()
+    {
+        var result = await CreateService().ListAsync(
+            new GetSeasonListInput
+            {
+                Page = int.MaxValue,
+                PageSize = GetSeasonListInput.MaximumPageSize
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.ShouldBeEmpty();
+        result.Value.TotalCount.ShouldBe(2);
+    }
+
     /// <summary>Verifies detail orders campaigns newest-first and hides another tenant's season.</summary>
     [Fact]
     public async Task GetAsync_ReturnsBoundedHistory_AndNonDisclosingNotFound()
@@ -103,6 +120,24 @@ public sealed class SeasonQueryServiceTests : IDisposable
             TestContext.Current.CancellationToken);
         hidden.IsProblem.ShouldBeTrue();
         hidden.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
+    /// <summary>Verifies maximum campaign paging cannot wrap to an earlier result page.</summary>
+    [Fact]
+    public async Task GetAsync_ReturnsEmptyCampaignPage_WhenPageOffsetExceedsInt32()
+    {
+        var result = await CreateService().GetAsync(
+            new GetSeasonDetailInput
+            {
+                SeasonId = _historicalSeasonId,
+                CampaignPage = int.MaxValue,
+                CampaignPageSize = GetSeasonListInput.MaximumPageSize
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Campaigns.ShouldBeEmpty();
+        result.Value.CampaignTotalCount.ShouldBe(2);
     }
 
     /// <summary>Verifies season reads require an authenticated club member.</summary>

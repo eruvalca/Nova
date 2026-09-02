@@ -73,6 +73,71 @@ public sealed class HttpSeasonQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    /// <summary>Verifies an eventually consistent total may trail the already-read page.</summary>
+    [Fact]
+    public async Task ListAsync_AcceptsPage_WhenEventuallyConsistentTotalIsSmaller()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new SeasonPageResult
+            {
+                Items =
+                [
+                    new SeasonSummary
+                    {
+                        SeasonId = 7,
+                        Name = "Season",
+                        StartDate = new DateOnly(2026, 1, 1),
+                        IsCurrent = true,
+                        ConcurrencyToken = Guid.NewGuid()
+                    }
+                ],
+                Page = 1,
+                PageSize = 20,
+                TotalCount = 0
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonQueryService(http).ListAsync(
+            new GetSeasonListInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Count.ShouldBe(1);
+        result.Value.TotalCount.ShouldBe(0);
+    }
+
+    /// <summary>Verifies an eventually consistent total must still be nonnegative.</summary>
+    [Fact]
+    public async Task ListAsync_ReturnsServerError_WhenTotalIsNegative()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new SeasonPageResult
+            {
+                Items = [],
+                Page = 1,
+                PageSize = 20,
+                TotalCount = -1
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonQueryService(http).ListAsync(
+            new GetSeasonListInput(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>Verifies detail paging uses the season identifier and campaign paging names.</summary>
     [Fact]
     public async Task GetAsync_GetsSeasonDetailPagingRoute()
@@ -110,6 +175,88 @@ public sealed class HttpSeasonQueryServiceTests
         result.IsSuccess.ShouldBeTrue();
         handler.LastRequest!.RequestUri!.PathAndQuery
             .ShouldBe("/api/seasons/7?campaignPage=3&campaignPageSize=10");
+    }
+
+    /// <summary>Verifies a campaign total may trail the detail page under concurrent inserts.</summary>
+    [Fact]
+    public async Task GetAsync_AcceptsDetail_WhenEventuallyConsistentTotalIsSmaller()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new SeasonDetailResult
+            {
+                Season = new SeasonSummary
+                {
+                    SeasonId = 7,
+                    Name = "Season",
+                    StartDate = new DateOnly(2026, 1, 1),
+                    IsCurrent = false,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
+                Campaigns =
+                [
+                    new SeasonCampaignSummary
+                    {
+                        CampaignId = 11,
+                        Name = "Campaign",
+                        Status = Nova.Shared.Enums.CampaignStatus.Closed,
+                        StartDate = new DateOnly(2026, 2, 1),
+                        EndDate = new DateOnly(2026, 3, 1),
+                        ParticipantCount = 3
+                    }
+                ],
+                CampaignPage = 1,
+                CampaignPageSize = 20,
+                CampaignTotalCount = 0
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonQueryService(http).GetAsync(
+            new GetSeasonDetailInput { SeasonId = 7 },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Campaigns.Count.ShouldBe(1);
+        result.Value.CampaignTotalCount.ShouldBe(0);
+    }
+
+    /// <summary>Verifies an eventually consistent campaign total must still be nonnegative.</summary>
+    [Fact]
+    public async Task GetAsync_ReturnsServerError_WhenCampaignTotalIsNegative()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new SeasonDetailResult
+            {
+                Season = new SeasonSummary
+                {
+                    SeasonId = 7,
+                    Name = "Season",
+                    StartDate = new DateOnly(2026, 1, 1),
+                    IsCurrent = false,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
+                Campaigns = [],
+                CampaignPage = 1,
+                CampaignPageSize = 20,
+                CampaignTotalCount = -1
+            })
+        };
+        using var http = new HttpClient(new RecordingHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpSeasonQueryService(http).GetAsync(
+            new GetSeasonDetailInput { SeasonId = 7 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
     /// <summary>Records the request while returning a fixed response.</summary>

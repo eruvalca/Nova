@@ -1,7 +1,13 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Nova.Data;
 using Nova.Entities;
+using Nova.Features.Campaigns;
 using Nova.Features.Seasons;
+using Nova.Shared.Enums;
+using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Seasons;
+using Nova.Shared.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -158,6 +164,203 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
             cancellationToken)).CurrentSeasonId.ShouldBe(result.Value.CurrentSeason.SeasonId);
     }
 
+    /// <summary>
+    /// Verifies campaign metadata takes the club-season lock before the campaign lock, so a season
+    /// update waiting behind it observes the committed campaign dates and rejects an invalid window.
+    /// </summary>
+    [Fact]
+    public async Task CampaignMetadataAndSeasonUpdate_PreserveCampaignWindow_WhenMetadataWinsSeasonLock()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedMutationRaceAsync(closedCampaign: false, cancellationToken);
+        ActAs(seed.ActorUserId, seed.ClubId);
+        var metadataGate = new AdvisoryLockGateInterceptor();
+        var metadataService = new CampaignMetadataService(
+            new RetryingTenantDbContextFactory(
+                fixture.ConnectionString,
+                fixture.CurrentUser,
+                metadataGate),
+            fixture.CurrentUser,
+            NullLogger<CampaignMetadataService>.Instance);
+        var seasonService = new SeasonCommandService(
+            new FixtureDbContextFactory(fixture),
+            fixture.CurrentUser);
+
+        var metadataTask = metadataService.UpdateAsync(
+            new UpdateCampaignMetadataInput
+            {
+                CampaignId = seed.CampaignId,
+                Name = seed.CampaignName,
+                SeasonId = seed.SeasonId,
+                StartDate = new DateOnly(2026, 6, 1),
+                PlannedEndDate = new DateOnly(2026, 11, 30)
+            },
+            cancellationToken);
+
+        try
+        {
+            await metadataGate.WaitForAcquiredAsync(cancellationToken);
+            var seasonTask = seasonService.UpdateAsync(
+                seed.SeasonId,
+                new UpdateSeasonInput
+                {
+                    ExpectedConcurrencyToken = seed.SeasonConcurrencyToken,
+                    Name = seed.SeasonName,
+                    StartDate = new DateOnly(2026, 1, 1),
+                    EndDate = new DateOnly(2026, 6, 30)
+                },
+                cancellationToken);
+
+            await using var lockProbe = fixture.CreateAdminContext();
+            await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+                lockProbe,
+                ClubSeasonLockKey(seed.ClubId),
+                cancellationToken);
+            metadataGate.Release();
+
+            var metadataResult = await metadataTask;
+            var seasonResult = await seasonTask;
+            metadataResult.IsSuccess.ShouldBeTrue();
+            seasonResult.IsProblem.ShouldBeTrue();
+            seasonResult.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        }
+        finally
+        {
+            metadataGate.Release();
+        }
+
+        await using var verify = fixture.CreateAdminContext();
+        var season = await verify.Seasons.SingleAsync(
+            candidate => candidate.SeasonId == seed.SeasonId,
+            cancellationToken);
+        var campaign = await verify.Campaigns.SingleAsync(
+            candidate => candidate.CampaignId == seed.CampaignId,
+            cancellationToken);
+        season.EndDate.ShouldBe(new DateOnly(2026, 12, 31));
+        campaign.EndDate.ShouldBe(new DateOnly(2026, 11, 30));
+        campaign.EndDate!.Value.ShouldBeLessThanOrEqualTo(season.EndDate!.Value);
+    }
+
+    /// <summary>
+    /// Verifies reopen takes the club-season lock before the campaign lock, so advancement waiting
+    /// behind it observes the Active campaign and cannot make that campaign historical.
+    /// </summary>
+    [Fact]
+    public async Task CampaignReopenAndAdvancement_RejectAdvancement_WhenReopenWinsSeasonLock()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedMutationRaceAsync(closedCampaign: true, cancellationToken);
+        ActAs(seed.ActorUserId, seed.ClubId);
+        var reopenGate = new AdvisoryLockGateInterceptor();
+        var reopenService = new CampaignLifecycleService(
+            new RetryingTenantDbContextFactory(
+                fixture.ConnectionString,
+                fixture.CurrentUser,
+                reopenGate),
+            fixture.CurrentUser,
+            NullLogger<CampaignLifecycleService>.Instance);
+        var seasonService = new SeasonCommandService(
+            new FixtureDbContextFactory(fixture),
+            fixture.CurrentUser);
+
+        var reopenTask = reopenService.ReopenAsync(seed.CampaignId, cancellationToken);
+
+        try
+        {
+            await reopenGate.WaitForAcquiredAsync(cancellationToken);
+            var advancementTask = seasonService.StartNextAsync(
+                new StartNextSeasonInput
+                {
+                    OperationId = Guid.CreateVersion7(),
+                    ExpectedCurrentSeasonId = seed.SeasonId,
+                    Name = $"Next {seed.Suffix}",
+                    StartDate = new DateOnly(2027, 1, 1)
+                },
+                cancellationToken);
+
+            await using var lockProbe = fixture.CreateAdminContext();
+            await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+                lockProbe,
+                ClubSeasonLockKey(seed.ClubId),
+                cancellationToken);
+            reopenGate.Release();
+
+            var reopenResult = await reopenTask;
+            var advancementResult = await advancementTask;
+            reopenResult.IsT0.ShouldBeTrue();
+            advancementResult.IsProblem.ShouldBeTrue();
+            advancementResult.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        }
+        finally
+        {
+            reopenGate.Release();
+        }
+
+        await using var verify = fixture.CreateAdminContext();
+        (await verify.Clubs.SingleAsync(
+            club => club.ClubId == seed.ClubId,
+            cancellationToken)).CurrentSeasonId.ShouldBe(seed.SeasonId);
+        (await verify.Campaigns.SingleAsync(
+            campaign => campaign.CampaignId == seed.CampaignId,
+            cancellationToken)).Status.ShouldBe(CampaignStatus.Active);
+        (await verify.Seasons.AnyAsync(
+            season => season.ClubId == seed.ClubId && season.Name == $"Next {seed.Suffix}",
+            cancellationToken)).ShouldBeFalse();
+    }
+
+    private void ActAs(long actorUserId, long clubId)
+    {
+        fixture.CurrentUser.UserId = actorUserId;
+        fixture.CurrentUser.ClubId = clubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+    }
+
+    private async Task<SeasonMutationRaceSeed> SeedMutationRaceAsync(
+        bool closedCampaign,
+        CancellationToken cancellationToken)
+    {
+        fixture.CurrentUser.UserId = null;
+        fixture.CurrentUser.ClubId = null;
+        fixture.CurrentUser.IsClubAdmin = false;
+        await using var db = fixture.CreateAdminContext();
+        var suffix = Guid.NewGuid().ToString("N");
+        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var club = NewClub($"Season Mutation Race {suffix}", actorUserId);
+        db.Clubs.Add(club);
+        await db.SaveChangesAsync(cancellationToken);
+        var season = NewSeason($"Season {suffix}", club.ClubId, actorUserId);
+        season.EndDate = new DateOnly(2026, 12, 31);
+        db.Seasons.Add(season);
+        await db.SaveChangesAsync(cancellationToken);
+        club.CurrentSeasonId = season.SeasonId;
+        var campaign = new CampaignEntity
+        {
+            CreationOperationId = Guid.NewGuid(),
+            Name = $"Campaign {suffix}",
+            StartDate = new DateOnly(2026, 6, 1),
+            EndDate = new DateOnly(2026, 6, 15),
+            Status = closedCampaign ? CampaignStatus.Closed : CampaignStatus.Active,
+            ClosedAt = closedCampaign ? DateTimeOffset.UtcNow : null,
+            ClosedById = closedCampaign ? actorUserId : null,
+            SeasonId = season.SeasonId,
+            ClubId = club.ClubId,
+            CreatedById = actorUserId
+        };
+        db.Campaigns.Add(campaign);
+        await db.SaveChangesAsync(cancellationToken);
+        return new SeasonMutationRaceSeed(
+            club.ClubId,
+            season.SeasonId,
+            campaign.CampaignId,
+            actorUserId,
+            suffix,
+            season.Name,
+            campaign.Name,
+            season.ConcurrencyToken);
+    }
+
+    private static long ClubSeasonLockKey(long clubId) => (long.MinValue / 16) + clubId;
+
     /// <summary>Creates a unique club.</summary>
     private static ClubEntity NewClub(string name, long actorId)
         => new()
@@ -180,4 +383,24 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
             ClubId = clubId,
             CreatedById = actorId
         };
+
+    private sealed record SeasonMutationRaceSeed(
+        long ClubId,
+        long SeasonId,
+        long CampaignId,
+        long ActorUserId,
+        string Suffix,
+        string SeasonName,
+        string CampaignName,
+        Guid SeasonConcurrencyToken);
+
+    private sealed class FixtureDbContextFactory(NovaAppHostFixture fixture)
+        : IDbContextFactory<NovaDbContext>
+    {
+        public NovaDbContext CreateDbContext() => fixture.CreateTenantContext();
+
+        public Task<NovaDbContext> CreateDbContextAsync(
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(fixture.CreateTenantContext());
+    }
 }

@@ -14,20 +14,21 @@
 
 ## Assertion-quality review
 
-- Scope: 23 focused unit tests and 10 focused PostgreSQL/HTTP tests in the new Seasons slice.
+- Scope: the original season-foundation suite plus 10 focused unit regressions and 2 deterministic PostgreSQL race regressions added during replacement-PR review carry-forward.
 - No assertion-free, trivial-only, always-true, or self-referential tests were found.
-- Assertions cover equality/boolean outcomes, negative paths, exceptions, collections/order, HTTP structure, and persisted state/side effects.
-- The strongest state assertions compare the durable campaign/team/assignment fields before and after advancement and prove the new season has no inherited campaigns or placements.
+- Assertions cover equality/boolean outcomes, negative paths, collections/order, endpoint metadata, HTTP structure, and persisted state/side effects.
+- The review regressions pin current-season conflicts, durable campaign status/season identity, provider-safe empty pages at `int.MaxValue`, nonnegative but eventually-consistent totals, `[AsParameters]` binding, reachable endpoint metadata, and both sides of the club-season concurrency invariant.
+- The strongest state assertions compare the durable campaign/team/assignment fields before and after advancement, prove the new season has no inherited campaigns or placements, and prove competing metadata/reopen operations cannot leave an out-of-window or Active historical campaign.
 
 ## Pseudo-mutation gap review
 
-Verdict: **Strong**. Core authorization denials, validation boundaries, tenant isolation, currentness transitions, retry recovery, concurrency, and preservation side effects are directly observable in assertions. The remaining migration-backfill risk is implementation-level upgrade simulation; the checked-in SQL and applied-migration/provider tests provide the current evidence without mutating the shared integration database to an old schema.
+Verdict: **Strong**. Core authorization denials, validation boundaries, tenant isolation, currentness transitions, retry recovery, paging overflow, eventually-consistent count handling, endpoint metadata, lock ordering, and preservation side effects are directly observable in assertions. Removing either new club-season lock, allowing a historical campaign target/reopen, restoring unchecked offset arithmetic, or reinstating the old total-count predicate changes an asserted public result or durable state. The remaining migration-backfill risk is implementation-level upgrade simulation; the checked-in SQL and applied-migration/provider tests provide the current evidence without mutating the shared integration database to an old schema.
 
 ## Final commands
 
 - `dotnet build Nova.slnx` — passed, 0 warnings and 0 errors.
-- `dotnet format Nova.slnx --verify-no-changes` — passed; EF-generated migration retains the repository's generated block-namespace style and emits one non-failing IDE0161 suggestion.
+- `dotnet format Nova.slnx --verify-no-changes` — passed.
 - `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` — no model changes.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — 1,977 passed.
-- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — 398 passed.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — 1,988 passed.
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — 401 passed.
 - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — 111 passed, 7 opt-in screenshot evidence tests skipped.

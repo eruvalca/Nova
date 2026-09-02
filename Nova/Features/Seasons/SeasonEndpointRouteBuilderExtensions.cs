@@ -21,6 +21,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
             group.MapGet(SeasonEndpoints.CollectionRelative, ListHandler)
                 .Produces<SeasonPageResult>()
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName("ListSeasons");
@@ -28,6 +29,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
             group.MapGet(SeasonEndpoints.DetailRelative, GetHandler)
                 .Produces<SeasonDetailResult>()
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
@@ -37,6 +39,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .Produces<SeasonSummary>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status409Conflict)
@@ -48,6 +51,7 @@ internal static class SeasonEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .Produces<SeasonSummary>()
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status409Conflict)
@@ -59,8 +63,8 @@ internal static class SeasonEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .Produces<StartNextSeasonResult>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
-                .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status409Conflict)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .DisableAntiforgery()
@@ -72,29 +76,17 @@ internal static class SeasonEndpointRouteBuilderExtensions
 
     /// <summary>Handles season-list reads.</summary>
     private static async Task<IResult> ListHandler(
-        int? page,
-        int? pageSize,
+        [AsParameters] GetSeasonListInput input,
         ISeasonQueryService service,
         CancellationToken cancellationToken)
-        => (await service.ListAsync(
-            new GetSeasonListInput { Page = page, PageSize = pageSize },
-            cancellationToken)).ToHttpResult();
+        => (await service.ListAsync(input, cancellationToken)).ToHttpResult();
 
     /// <summary>Handles season-detail reads.</summary>
     private static async Task<IResult> GetHandler(
-        long seasonId,
-        int? campaignPage,
-        int? campaignPageSize,
+        [AsParameters] GetSeasonDetailInput input,
         ISeasonQueryService service,
         CancellationToken cancellationToken)
-        => (await service.GetAsync(
-            new GetSeasonDetailInput
-            {
-                SeasonId = seasonId,
-                CampaignPage = campaignPage,
-                CampaignPageSize = campaignPageSize
-            },
-            cancellationToken)).ToHttpResult();
+        => (await service.GetAsync(input, cancellationToken)).ToHttpResult();
 
     /// <summary>Handles first-current-season creation.</summary>
     private static async Task<IResult> CreateHandler(

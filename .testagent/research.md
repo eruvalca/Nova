@@ -11,7 +11,7 @@
 
 - SDK-style .NET 10 solution; xUnit v4 on Microsoft.Testing.Platform with Shouldly.
 - Unit/service tests use `TenancyTestHarness` with in-memory SQLite; provider, constraint, retry, and HTTP tests use `NovaAppHostFixture` with PostgreSQL.
-- The mandatory Roslyn static pairing pass found 437 production files, 242 test files, 275 paired files, and 162 unpaired files. `SeasonEntity`, `CampaignCreationService`, `CampaignQueryService`, and the existing `SeasonMetadataService` are already referenced by focused unit/integration tests; new first-class season services require new focused pairings.
+- The replacement-PR Roslyn static pairing pass found 442 production files, 247 test files, 278 paired files, and 164 unpaired files. `SeasonEntity`, `CampaignCreationService`, `CampaignQueryService`, `CampaignLifecycleService`, `CampaignMetadataService`, `SeasonCommandService`, `SeasonQueryService`, and both season HTTP clients already have focused unit or integration pairings.
 - Static pairing is a source-reference heuristic, not line or branch coverage evidence.
 
 ## Acceptance checklist
@@ -23,3 +23,6 @@
 - Start-next is admin-only, retry/ambiguous-commit safe, blocks stale/no-current/non-Closed work/name conflicts, and preserves all historical/team/placement data.
 - Campaign creation accepts only current seasons; inline seasons establish currentness only from no-current state; setup exposes one nullable current season.
 - Routes, OpenAPI metadata, authorization, ProblemDetails, `201 Location`, and strict WASM payload validation follow existing patterns.
+- Review carry-forward: campaign metadata and historical-campaign reopen writers participate in the club-season lock invariant; advancing cannot miss an Active campaign moved or reopened concurrently.
+- Review carry-forward: huge valid page numbers cannot overflow SQL offsets, eventually-consistent totals remain valid under concurrent inserts, query DTO annotations run at the HTTP boundary, and endpoint metadata advertises the reachable problem responses.
+- Approved exclusions remain unchanged: season detail has no effective-roster projection (#214 owns it), and season mutations emit no new activity-event family.

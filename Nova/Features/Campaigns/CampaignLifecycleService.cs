@@ -331,6 +331,7 @@ public sealed partial class CampaignLifecycleService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireClubSeasonLockAsync(clubId, cancellationToken);
         await db.AcquireCampaignMutationLockAsync(campaignId, cancellationToken);
 
         var campaign = await db.Campaigns
@@ -340,6 +341,17 @@ public sealed partial class CampaignLifecycleService(
         {
             LogCampaignNotFound(campaignId, clubId);
             return new NotFound();
+        }
+
+        var currentSeasonId = await db.Clubs
+            .Where(club => club.ClubId == clubId)
+            .Select(club => club.CurrentSeasonId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (campaign.SeasonId != currentSeasonId)
+        {
+            LogCampaignReopenHistoricalSeasonConflict(campaignId, campaign.SeasonId, currentSeasonId);
+            return new LifecycleConflict(
+                "Only a campaign in the club's current season can be reopened.");
         }
 
         if (campaign.Status == CampaignStatus.Active)
@@ -451,6 +463,18 @@ public sealed partial class CampaignLifecycleService(
     /// <param name="status">The already-current lifecycle status.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "CampaignId={CampaignId} is already in lifecycle status {Status}.")]
     private partial void LogCampaignLifecycleConflict(long campaignId, CampaignStatus status);
+
+    /// <summary>Logs a reopen rejected because the campaign does not belong to the current season.</summary>
+    /// <param name="campaignId">The historical campaign identifier.</param>
+    /// <param name="seasonId">The campaign's season identifier.</param>
+    /// <param name="currentSeasonId">The club's current season identifier, when one exists.</param>
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Campaign reopen rejected; CampaignId={CampaignId} belongs to SeasonId={SeasonId}, but CurrentSeasonId={CurrentSeasonId}.")]
+    private partial void LogCampaignReopenHistoricalSeasonConflict(
+        long campaignId,
+        long seasonId,
+        long? currentSeasonId);
 
     /// <summary>
     /// Logs a lifecycle transition rejected because the campaign changed concurrently.
