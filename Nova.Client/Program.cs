@@ -52,6 +52,7 @@ builder.Services.AddScoped<IClubMemberService, HttpClubMemberService>();
 builder.Services.AddScoped<IPlayerService, HttpPlayerService>();
 builder.Services.AddScoped<IPlayerLifecycleService, HttpPlayerLifecycleService>();
 builder.Services.AddScoped<IPlayerManagementService, HttpPlayerManagementService>();
+builder.Services.AddScoped<IPlayerImportService, HttpPlayerImportService>();
 builder.Services.AddScoped<ITeamManagementService, HttpTeamManagementService>();
 builder.Services.AddScoped<ITeamLifecycleService, HttpTeamLifecycleService>();
 builder.Services.AddScoped<ITeamRosterService, HttpTeamRosterService>();

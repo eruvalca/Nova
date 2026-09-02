@@ -1,40 +1,28 @@
-# Season foundation verification status
+# Player CSV import test status
 
-## Requirement evidence
+## Result
 
-| Requirement | Evidence |
-| --- | --- |
-| Tenant-consistent current-season persistence | `SeasonFoundationPostgresTests` verifies the migration is applied, cross-club current and creation-predecessor pointers fail at the PostgreSQL boundary, and additional historical seasons leave the pointer unchanged. The migration backfill is deterministically ordered by `StartDate DESC, SeasonId DESC`. |
-| First current season | `SeasonCommandServiceTests` verifies no-current creation, pointer installation, trimming, exact-operation replay, standalone-operation identity, duplicate/current conflicts, and administrator enforcement. Campaign creation coverage proves an inline-created season persists a distinct creation kind and cannot replay through the standalone command. |
-| Bounded tenant-safe reads | `SeasonQueryServiceTests` verifies current-first ordering, deterministic history, campaign paging/counts, membership enforcement, cross-tenant non-disclosing not-found behavior, and that currentness is projected without separate pointer reads. |
-| Metadata integrity | Unit and PostgreSQL HTTP tests verify token rotation, stale-token conflict, exact-name uniqueness, pointer immutability, administrator-only writes, and independent `StartDate`/`EndDate` attribution for lower, upper, and combined campaign-window failures. |
-| Atomic advancement | Unit tests verify no-current/stale/open-campaign/duplicate blockers, bind replay to the explicit persisted creation kind and exact predecessor, and preserve campaigns, teams, assignments, placement fields, and concurrency tokens. PostgreSQL tests verify persisted standalone/advancement kinds, transient retry, ambiguous-commit recovery, and one-winner/one-conflict concurrent advancement. |
-| Campaign integration | Campaign unit, PostgreSQL, HTTP, and bUnit tests verify current-only existing-season selection, inline creation only from no-current, pointer installation, nullable current-season setup, hidden inline controls when currentness exists, and actionable duplicate-name recovery. |
-| HTTP and WASM contracts | Season HTTP tests verify anonymous/member/admin policies—including successful member detail plus member-forbidden and anonymous-unauthorized start-next—traced validation/not-found/conflict ProblemDetails, resolvable `201 Location` values, cross-tenant detail isolation, and same-operation replay. WASM tests reject invalid input before transport, unchanged metadata tokens, undefined campaign statuses, no-op advancement payloads, malformed current/history/campaign ordering, and empty season concurrency tokens while requiring exact list/detail paging echoes, consuming shared route builders, and tolerating eventually-consistent totals. |
-| Season observability | `SeasonCommandService` emits typed source-generated logs for validation and authorization rejections, contextual and persistence conflicts, successful mutations and idempotent replays, and ambiguous-commit recovery. `SeasonQueryService` records forbidden list/detail reads with user and requested-season context. |
-
-## Assertion-quality review
-
-- Scope: the original season-foundation suite plus 37 focused unit regressions, 2 deterministic PostgreSQL race regressions, and a PostgreSQL creation-predecessor FK regression added during replacement-PR review carry-forward and PR #227 review.
-- No assertion-free, trivial-only, always-true, or self-referential tests were found.
-- Assertions cover equality/boolean outcomes, negative paths, collections/order, endpoint metadata, HTTP structure, and persisted state/side effects.
-- The review regressions pin current-season conflicts, durable campaign status/season identity, provider-safe empty pages at `int.MaxValue`, nonnegative but eventually-consistent totals, `[AsParameters]` binding, reachable endpoint metadata, and both sides of the club-season concurrency invariant.
-- PR #227 regressions separately pin page and page-size echoes, request short-circuiting, both operation-collision sequences, lower/upper/combined metadata errors, empty write tokens, inline-control visibility plus normalized submission state, and exact recovery guidance.
-- Follow-up regressions pin exact persisted replay predecessors, standalone-versus-advancement operation identity, one-statement currentness projections, current-first and page-boundary season ordering, campaign tie-break ordering, and non-no-op advancement payloads.
-- Second follow-up regressions pin metadata-token rotation, defined campaign lifecycle values, and shared start-next/list/detail route construction.
-- Third follow-up regressions pin explicit inline/standalone/advancement creation identity, cross-command replay rejection, least-privilege detail reads, and start-next 401/403 behavior.
-- Fourth follow-up hygiene keeps each season request contract independently discoverable and removes the dead historical season-choice validator; the unchanged shapes remain covered by the existing validation and client suites.
-- The strongest state assertions compare the durable campaign/team/assignment fields before and after advancement, prove the new season has no inherited campaigns or placements, and prove competing metadata/reopen operations cannot leave an out-of-window or Active historical campaign.
+Strong: the generated suite protects the import contract's security denials, file and row boundaries, parser classifications, duplicate precedence, tenant isolation, signed identity, client response invariants, and no-persistence guarantee.
 
 ## Pseudo-mutation gap review
 
-Verdict: **Strong**. Core authorization denials, validation boundaries, tenant isolation, currentness transitions, retry recovery, paging overflow and response fidelity, eventually-consistent count handling, endpoint metadata, lock ordering, and preservation side effects are directly observable in assertions. Removing either new club-season lock, allowing a historical campaign target/reopen, accepting an operation-kind/predecessor collision, no-op advancement response, malformed ordering, or empty write token, restoring separate pointer reads or unchecked offset arithmetic, reinstating the old total-count predicate, misattributing either date boundary, or exposing inline mode with a current season changes an asserted public result, query count, or durable state. The remaining migration-backfill risk is implementation-level upgrade simulation; the checked-in SQL and applied-migration/provider tests provide the current evidence without mutating the shared integration database to an old schema.
+- A change that selected an archived player before an active match, or a higher active player ID before the lowest ID, was initially unprotected. `PreviewAsync_PrefersActiveExistingMatch_ThenLowestPlayerId` now pins both observable outcomes.
+- Header comparison, UTF-8 rejection, maximum rows, malformed structure, formula defense, row status/count reconciliation, cross-club filtering, token bindings, and endpoint authorization all have assertions that would observe their caller-visible outcomes.
+- No remaining high-risk caller-visible survivor was identified in the issue scope. Campaign projection, commit behavior, UI behavior, and durable receipts were intentionally excluded by the issue boundary.
 
-## Final commands
+## Assertion-quality review
 
-- `dotnet build Nova.slnx` — passed, 0 warnings and 0 errors.
-- `dotnet format Nova.slnx --verify-no-changes` — passed.
-- `dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext --no-build` — no model changes.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj` — 2,015 passed.
-- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — 402 passed.
-- `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — 111 passed, 7 opt-in screenshot evidence tests skipped.
+- Reviewed 44 test methods across the parser, service/token, WASM client, and Aspire HTTP files.
+- No assertion-free, always-true, self-referential, or null-only tests were found.
+- Assertions cover equality/boolean results, nullability, strings, collections and ordering, exceptions/cancellation, comparisons/bounds, negative behavior, database side effects, HTTP request metadata, and nested response structure.
+- Smoke-style authorization tests intentionally assert only their exact HTTP status; broader response-shape assertions are exercised by the validation tests.
+
+## Validation evidence
+
+- Focused player-import unit tests: 45 passed before the final four gap-closing cases; the final full unit run includes all additions.
+- Focused Aspire player-import HTTP tests: 9 passed.
+- `dotnet build Nova.slnx --no-restore`: passed with 0 warnings and 0 errors.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,064 passed.
+- `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`: 411 passed.
+- `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`: 111 passed, 7 expected opt-in accessibility evidence tests skipped.
+- `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`: formatted 0 of 776 files.

@@ -141,6 +141,10 @@ builder.Services.AddScoped<ISeasonCommandService, SeasonCommandService>();
 builder.Services.AddScoped<ISeasonQueryService, SeasonQueryService>();
 builder.Services.AddScoped<IPlayerLifecycleService, PlayerLifecycleService>();
 builder.Services.AddScoped<IPlayerManagementService, PlayerManagementService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<PlayerImportCsvParser>();
+builder.Services.AddSingleton<PlayerImportPreviewTokenProtector>();
+builder.Services.AddScoped<IPlayerImportService, PlayerImportService>();
 builder.Services.AddScoped<ITeamManagementService, TeamManagementService>();
 builder.Services.AddScoped<TeamLifecycleService>();
 builder.Services.AddScoped<ITeamLifecycleService>(services => services.GetRequiredService<TeamLifecycleService>());
@@ -280,6 +284,7 @@ app.MapPlayerLifecycleEndpoints();
 
 // Player create and update endpoints.
 app.MapPlayerManagementEndpoints();
+app.MapPlayerImportEndpoints();
 app.MapTeamManagementEndpoints();
 app.MapTeamLifecycleEndpoints();
 app.MapTeamRosterEndpoints();

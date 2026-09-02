@@ -20,6 +20,18 @@ public static class PlayerEndpoints
     /// </summary>
     public const string CreateRelative = "";
 
+    /// <summary>Downloads the authoritative player import template.</summary>
+    public const string ImportTemplate = "/api/players/import/template";
+
+    /// <summary>The template path relative to <see cref="GroupPrefix"/>.</summary>
+    public const string ImportTemplateRelative = "import/template";
+
+    /// <summary>Uploads a CSV for a read-only validation preview.</summary>
+    public const string ImportPreview = "/api/players/import/preview";
+
+    /// <summary>The preview path relative to <see cref="GroupPrefix"/>.</summary>
+    public const string ImportPreviewRelative = "import/preview";
+
     /// <summary>
     /// The route template for updating a specific player's permanent profile (PUT).
     /// Use <see cref="UpdateUrl"/> to build the URL.

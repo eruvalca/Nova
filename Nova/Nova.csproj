@@ -11,6 +11,7 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="CsvHelper" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="SixLabors.ImageSharp" />
     <ProjectReference Include="..\Nova.ServiceDefaults\Nova.ServiceDefaults.csproj" />
