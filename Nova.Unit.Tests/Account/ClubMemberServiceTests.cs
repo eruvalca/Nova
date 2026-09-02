@@ -66,6 +66,7 @@ public sealed class ClubMemberServiceTests : IDisposable
         var roleId = db.Roles.Single(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant()).Id;
         db.UserRoles.ShouldContain(role => role.UserId == MemberId && role.RoleId == roleId);
         db.Users.Single(user => user.Id == MemberId).SecurityStamp.ShouldNotBe(oldStamp);
+        db.ClubMembershipMutationReceipts.Count(receipt => receipt.MemberUserId == MemberId).ShouldBe(1);
         var activity = db.ActivityEvents.Single(activity => activity.EventKind == ActivityEventKind.MemberPromoted);
         var context = JsonSerializer.Deserialize<MemberRoleContext>(activity.PayloadJson, JsonOptions());
         context!.MemberUserId.ShouldBe(MemberId);
@@ -116,6 +117,20 @@ public sealed class ClubMemberServiceTests : IDisposable
         db.UserRoles.ShouldNotContain(role => role.UserId == AdminId);
         db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberDemoted).ShouldBe(1);
         await _signInManager.Received(1).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user => user.Id == AdminId));
+    }
+
+    [Fact]
+    public async Task DemoteMemberAsync_IdempotentSelfRetryRefreshesSignInWithoutDuplicateEvent()
+    {
+        var service = CreateService();
+        await service.DemoteMemberAsync(AdminId, TestContext.Current.CancellationToken);
+
+        var retry = await service.DemoteMemberAsync(AdminId, TestContext.Current.CancellationToken);
+
+        retry.IsSuccess.ShouldBeTrue();
+        using var db = _harness.CreateAdminContext();
+        db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberDemoted).ShouldBe(1);
+        await _signInManager.Received(2).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user => user.Id == AdminId));
     }
 
     [Fact]

@@ -200,6 +200,88 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
 
+    [Fact]
+    public async Task RemoveMember_ReturnsNoContentAndClearsMembership_ForClubAdministrator()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var admin = await RegisterClubAdminAsync(adminClient, "remove-admin", "Remove Member", cancellationToken);
+        var member = await RegisterUserAsync(memberClient, "remove-member", "Removed", "Member", admin.Club.ClubId, cancellationToken);
+
+        using var response = await adminClient.DeleteAsync(ClubEndpoints.RemoveMemberUrl(member.UserId), cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await using var db = fixture.CreateAdminContext();
+        (await db.Users.SingleAsync(user => user.Id == member.UserId, cancellationToken)).ClubId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RemoveMember_ReturnsForbidden_ForRegularMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var admin = await RegisterClubAdminAsync(adminClient, "remove-forbid-admin", "Remove Forbidden", cancellationToken);
+        var member = await RegisterUserAsync(memberClient, "remove-forbid-member", "Regular", "Member", admin.Club.ClubId, cancellationToken);
+
+        using var response = await memberClient.DeleteAsync(ClubEndpoints.RemoveMemberUrl(admin.UserId), cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task LeaveClub_ReturnsNoContentAndClearsMembership_ForRegularMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var admin = await RegisterClubAdminAsync(adminClient, "leave-admin", "Leave Club", cancellationToken);
+        var member = await RegisterUserAsync(memberClient, "leave-member", "Leaving", "Member", admin.Club.ClubId, cancellationToken);
+
+        using var response = await memberClient.DeleteAsync(ClubEndpoints.LeaveClub, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await using var db = fixture.CreateAdminContext();
+        (await db.Users.SingleAsync(user => user.Id == member.UserId, cancellationToken)).ClubId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task LeaveClub_ReturnsUnauthorized_ForAnonymousCaller()
+    {
+        using var client = fixture.CreateNovaHttpClient();
+
+        using var response = await client.DeleteAsync(ClubEndpoints.LeaveClub, TestContext.Current.CancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task LeaveClub_ReturnsForbidden_ForUserWithoutClub()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        await RegisterUserAsync(client, "leave-no-club", "No", "Club", clubId: null, cancellationToken);
+
+        using var response = await client.DeleteAsync(ClubEndpoints.LeaveClub, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task LeaveClub_ReturnsConflict_ForFinalMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        _ = await RegisterClubAdminAsync(client, "leave-final", "Final Member", cancellationToken);
+
+        using var response = await client.DeleteAsync(ClubEndpoints.LeaveClub, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        var problem = await response.ToServiceProblemAsync(cancellationToken);
+        problem.Detail.ShouldBe("The final club member cannot leave. Delete the club instead.");
+    }
+
     // ── Cancel join request ─────────────────────────────────────────────────────
 
     /// <summary>

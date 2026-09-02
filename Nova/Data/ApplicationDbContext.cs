@@ -72,6 +72,8 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// Gets the Tag Definition Mutation Receipts.
     /// </summary>
     public DbSet<TagDefinitionMutationReceiptEntity> TagDefinitionMutationReceipts => Set<TagDefinitionMutationReceiptEntity>();
+    /// <summary>Gets the Club Membership Mutation Receipts.</summary>
+    public DbSet<ClubMembershipMutationReceiptEntity> ClubMembershipMutationReceipts => Set<ClubMembershipMutationReceiptEntity>();
     /// <summary>
     /// Gets the Notes.
     /// </summary>

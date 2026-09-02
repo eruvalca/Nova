@@ -64,7 +64,7 @@ public sealed partial class ClubMemberService(
         }
 
         return await ExecuteAndRefreshAsync(
-            new MutationState(MutationKind.Leave, actorUserId, clubId, actorUserId, NewSecurityStamp()),
+            new MutationState(MutationKind.Leave, actorUserId, clubId, actorUserId, Guid.NewGuid(), NewSecurityStamp()),
             cancellationToken);
     }
 
@@ -86,7 +86,7 @@ public sealed partial class ClubMemberService(
         }
 
         return await ExecuteAndRefreshAsync(
-            new MutationState(kind, actorUserId, clubId, memberUserId, NewSecurityStamp()),
+            new MutationState(kind, actorUserId, clubId, memberUserId, Guid.NewGuid(), NewSecurityStamp()),
             cancellationToken);
     }
 
@@ -198,6 +198,11 @@ public sealed partial class ClubMemberService(
 
         if (state.Kind != MutationKind.Leave && !actorIsAdministrator)
         {
+            if (state.Kind == MutationKind.Demote && state.ActorUserId == state.TargetUserId)
+            {
+                return new MutationReceipt(RefreshCurrentUser: true);
+            }
+
             return ServiceProblem.Forbidden("You must be a club administrator to manage members.");
         }
 
@@ -242,7 +247,9 @@ public sealed partial class ClubMemberService(
 
         if (decision == ClubMembershipMutationPolicy.Decision.NoOp)
         {
-            return new MutationReceipt(RefreshCurrentUser: false);
+            var refreshCurrentUser = state.Kind == MutationKind.Demote
+                && state.ActorUserId == state.TargetUserId;
+            return new MutationReceipt(refreshCurrentUser);
         }
 
         if (decision == ClubMembershipMutationPolicy.Decision.SoleAdministrator)
@@ -307,6 +314,15 @@ public sealed partial class ClubMemberService(
         }
 
         target.SecurityStamp = state.SecurityStamp;
+        await ClubMembershipMutationReceipts.PruneExpiredAsync(db, cancellationToken);
+        db.ClubMembershipMutationReceipts.Add(new ClubMembershipMutationReceiptEntity
+        {
+            OperationId = state.OperationId,
+            MemberUserId = target.Id,
+            MutationKind = state.Kind.ToString(),
+            ClubId = state.ClubId,
+            CreatedById = actor.Id,
+        });
         try
         {
             await db.SaveChangesAsync(cancellationToken);
@@ -327,31 +343,16 @@ public sealed partial class ClubMemberService(
         MutationState state,
         CancellationToken cancellationToken)
     {
-        var target = await db.Users
-            .Where(user => user.Id == state.TargetUserId)
-            .Select(user => new { user.ClubId, user.SecurityStamp })
-            .SingleOrDefaultAsync(cancellationToken);
-        if (target is null || target.SecurityStamp != state.SecurityStamp)
-        {
-            return new ExecutionResult<ServiceResult<MutationReceipt>>(successful: false, default!);
-        }
+        var committed = await db.ClubMembershipMutationReceipts
+            .AsNoTracking()
+            .AnyAsync(
+                receipt => receipt.OperationId == state.OperationId
+                    && receipt.ClubId == state.ClubId
+                    && receipt.MemberUserId == state.TargetUserId
+                    && receipt.MutationKind == state.Kind.ToString(),
+                cancellationToken);
 
-        var administratorRoleId = await db.Roles
-            .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
-            .Select(role => (long?)role.Id)
-            .SingleOrDefaultAsync(cancellationToken);
-        var hasAdministratorRole = administratorRoleId is not null && await db.UserRoles.AnyAsync(
-            role => role.UserId == state.TargetUserId && role.RoleId == administratorRoleId.Value,
-            cancellationToken);
-        var applied = state.Kind switch
-        {
-            MutationKind.Promote => target.ClubId == state.ClubId && hasAdministratorRole,
-            MutationKind.Demote => target.ClubId == state.ClubId && !hasAdministratorRole,
-            MutationKind.Remove or MutationKind.Leave => target.ClubId is null && !hasAdministratorRole,
-            _ => false,
-        };
-
-        return applied
+        return committed
             ? new ExecutionResult<ServiceResult<MutationReceipt>>(
                 successful: true,
                 new MutationReceipt(RefreshCurrentUser: state.ActorUserId == state.TargetUserId))
@@ -367,6 +368,7 @@ public sealed partial class ClubMemberService(
         long ActorUserId,
         long ClubId,
         long TargetUserId,
+        Guid OperationId,
         string SecurityStamp);
 
     private readonly record struct MutationReceipt(bool RefreshCurrentUser);
