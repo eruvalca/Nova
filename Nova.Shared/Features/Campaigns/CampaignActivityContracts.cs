@@ -9,7 +9,7 @@ namespace Nova.Shared.Features.Campaigns;
 /// <param name="EventType">The recorded lifecycle transition type.</param>
 /// <param name="CreatedAt">When the lifecycle transition was recorded.</param>
 /// <param name="ActorUserId">The user identifier of the actor who performed the transition.</param>
-/// <param name="ActorDisplayName">The resolved actor display name, or "Former member" when the actor row is unavailable.</param>
+/// <param name="ActorDisplayName">The stored actor display-name snapshot taken when the event was written (for example, "Unknown user" when the actor could not be resolved at write time).</param>
 public sealed record CampaignActivityItemDto(
     long CampaignLifecycleEventId,
     CampaignLifecycleEventType EventType,
