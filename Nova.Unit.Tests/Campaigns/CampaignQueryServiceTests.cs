@@ -67,9 +67,6 @@ public sealed class CampaignQueryServiceTests : IDisposable
         var seasonB = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "Season B", StartDate = new DateOnly(2025, 1, 1), ClubId = ClubBId, CreatedById = ClubAMemberId };
         admin.Seasons.AddRange(season, seasonB);
         admin.SaveChanges();
-        admin.Clubs.Single(club => club.ClubId == ClubAId).CurrentSeasonId = season.SeasonId;
-        admin.Clubs.Single(club => club.ClubId == ClubBId).CurrentSeasonId = seasonB.SeasonId;
-        admin.SaveChanges();
 
         var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A1", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
         var campaignA2 = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "A2", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAMemberId, SeasonId = season.SeasonId, ClubId = ClubAId, CreatedById = ClubAMemberId };
@@ -193,15 +190,15 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
         var result = await service.GetCreationSetupAsync(TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBeTrue();
-        result.Value.CurrentSeason.ShouldNotBeNull();
-        result.Value.CurrentSeason.Name.ShouldBe("Season 1");
+        result.Value.TotalSeasonCount.ShouldBeGreaterThanOrEqualTo(1);
+        result.Value.Seasons.Count.ShouldBeGreaterThanOrEqualTo(1);
         result.Value.ActivePlayerCount.ShouldBe(1);
         result.Value.ActiveTeamCount.ShouldBe(1);
     }
 
-    /// <summary>Verifies setup never offers historical seasons after more history is inserted.</summary>
+    /// <summary>Verifies setup returns the newest bounded choices and the pre-bound total.</summary>
     [Fact]
-    public async Task GetCreationSetup_ReturnsOnlyCurrentSeason_AfterHistoryIsInserted()
+    public async Task GetCreationSetup_ReturnsNewestHundredSeasons_AndTotalBeforeBound()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -219,6 +216,14 @@ public sealed class CampaignQueryServiceTests : IDisposable
             admin.SaveChanges();
         }
 
+        using var verification = _harness.CreateAdminContext();
+        var expectedIds = verification.Seasons
+            .Where(season => season.ClubId == ClubAId && season.StartDate == new DateOnly(2027, 1, 1))
+            .OrderByDescending(season => season.StartDate)
+            .ThenByDescending(season => season.SeasonId)
+            .Select(season => season.SeasonId)
+            .ToList();
+
         var service = new CampaignQueryService(
             new CampaignReadHarnessDbContextFactory(_harness),
             _harness.CurrentUser,
@@ -227,8 +232,10 @@ public sealed class CampaignQueryServiceTests : IDisposable
         var result = await service.GetCreationSetupAsync(TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.CurrentSeason.ShouldNotBeNull();
-        result.Value.CurrentSeason.Name.ShouldBe("Season 1");
+        result.Value.TotalSeasonCount.ShouldBe(102);
+        result.Value.Seasons.Count.ShouldBe(CampaignCreationSetupResult.MaxSeasonChoices);
+        result.Value.Seasons.Select(season => season.SeasonId)
+            .ShouldBe(expectedIds.Take(CampaignCreationSetupResult.MaxSeasonChoices));
     }
 
     /// <summary>Verifies campaign rows follow the contracted deterministic keys.</summary>

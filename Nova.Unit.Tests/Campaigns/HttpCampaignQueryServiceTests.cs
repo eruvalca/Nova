@@ -73,7 +73,7 @@ public sealed class HttpCampaignQueryServiceTests
     [Fact]
     public async Task GetCreationSetupAsync_UsesSetupRoute_AndValidatesPayload()
     {
-        var sample = new CampaignCreationSetupResult { CurrentSeason = null, ActivePlayerCount = 0, ActiveTeamCount = 0 };
+        var sample = new CampaignCreationSetupResult { TotalSeasonCount = 0, Seasons = new List<CampaignSeasonChoice>(), ActivePlayerCount = 0, ActiveTeamCount = 0 };
         using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(sample) };
         var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
@@ -132,18 +132,18 @@ public sealed class HttpCampaignQueryServiceTests
         handler.LastRequest.ShouldBeNull();
     }
 
-    /// <summary>Verifies an invalid current-season payload is rejected.</summary>
+    /// <summary>Verifies incorrectly ordered season choices are rejected.</summary>
     [Fact]
-    public async Task GetCreationSetupAsync_ReturnsServerError_ForInvalidCurrentSeason()
+    public async Task GetCreationSetupAsync_ReturnsServerError_ForIncorrectSeasonOrdering()
     {
         var sample = new CampaignCreationSetupResult
         {
-            CurrentSeason = new CampaignSeasonChoice
-            {
-                SeasonId = 0,
-                Name = "Invalid",
-                StartDate = new DateOnly(2026, 1, 1)
-            },
+            TotalSeasonCount = 2,
+            Seasons =
+            [
+                new CampaignSeasonChoice { SeasonId = 1, Name = "Older", StartDate = new DateOnly(2025, 1, 1) },
+                new CampaignSeasonChoice { SeasonId = 2, Name = "Newer", StartDate = new DateOnly(2026, 1, 1) }
+            ],
             ActivePlayerCount = 0,
             ActiveTeamCount = 0
         };
@@ -165,7 +165,6 @@ public sealed class HttpCampaignQueryServiceTests
     {
         const string payload = """
             {"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","endDate":null,
-            "concurrencyToken":"11111111-1111-1111-1111-111111111111",
             "campaigns":[{"campaignId":2,"name":"Campaign","startDate":"2026-06-01",
             "plannedEndDate":null,"status":0,"participantCount":1,"unresolvedCount":1}]}],"totalCount":1}
             """;
@@ -217,14 +216,48 @@ public sealed class HttpCampaignQueryServiceTests
     }
 
     /// <summary>
+    /// Verifies setup responses exceeding the shared season-choice bound are rejected.
+    /// </summary>
+    [Fact]
+    public async Task GetCreationSetupAsync_ReturnsServerError_ForOverLimitChoices()
+    {
+        var sample = new CampaignCreationSetupResult
+        {
+            TotalSeasonCount = CampaignCreationSetupResult.MaxSeasonChoices + 1,
+            Seasons = Enumerable.Range(1, CampaignCreationSetupResult.MaxSeasonChoices + 1)
+                .Select(index => new CampaignSeasonChoice
+                {
+                    SeasonId = CampaignCreationSetupResult.MaxSeasonChoices + 2 - index,
+                    Name = $"Season {index}",
+                    StartDate = new DateOnly(2026, 1, 1)
+                })
+                .ToList(),
+            ActivePlayerCount = 0,
+            ActiveTeamCount = 0
+        };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(sample) };
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignQueryService(http)
+            .GetCreationSetupAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
     /// Verifies strict setup-payload invariants map invalid successful responses to server errors.
     /// </summary>
     /// <param name="payload">The invalid successful JSON payload.</param>
     [Theory(IncludeTestCaseIndex = true)]
-    [InlineData("""{"currentSeason":null,"activePlayerCount":-1,"activeTeamCount":0}""")]
-    [InlineData("""{"currentSeason":null,"activePlayerCount":0,"activeTeamCount":-1}""")]
-    [InlineData("""{"currentSeason":{"seasonId":0,"name":"Season","startDate":"2026-01-01"},"activePlayerCount":0,"activeTeamCount":0}""")]
-    [InlineData("""{"currentSeason":{"seasonId":1,"name":"Season","startDate":"2026-01-02","endDate":"2026-01-01"},"activePlayerCount":0,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":null,"totalSeasonCount":0,"activePlayerCount":0,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":[null],"totalSeasonCount":1,"activePlayerCount":0,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":[],"totalSeasonCount":-1,"activePlayerCount":0,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":[],"totalSeasonCount":0,"activePlayerCount":-1,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":[],"totalSeasonCount":0,"activePlayerCount":0,"activeTeamCount":-1}""")]
+    [InlineData("""{"seasons":[{"seasonId":0,"name":"Season","startDate":"2026-01-01"}],"totalSeasonCount":1,"activePlayerCount":0,"activeTeamCount":0}""")]
+    [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-02","endDate":"2026-01-01"}],"totalSeasonCount":1,"activePlayerCount":0,"activeTeamCount":0}""")]
     public async Task GetCreationSetupAsync_ReturnsServerError_ForInvalidPayload(string payload)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)

@@ -1141,8 +1141,8 @@ public partial class CampaignWorkspace(
             {
                 if (editVersion == _editVersion)
                 {
-                    _seasonChoices = setup.CurrentSeason is null ? [] : [setup.CurrentSeason];
-                    _seasonChoiceTotalCount = _seasonChoices.Count;
+                    _seasonChoices = setup.Seasons;
+                    _seasonChoiceTotalCount = setup.TotalSeasonCount;
                 }
 
                 loaded = true;

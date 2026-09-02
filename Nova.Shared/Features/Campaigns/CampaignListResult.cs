@@ -69,11 +69,6 @@ public sealed record CampaignSeasonGroup
     public DateOnly? EndDate { get; init; }
 
     /// <summary>
-    /// Gets the token required to update this season's metadata.
-    /// </summary>
-    public required Guid ConcurrencyToken { get; init; }
-
-    /// <summary>
     /// Gets the campaigns in this season group.
     /// </summary>
     public required IReadOnlyList<CampaignListItem> Campaigns { get; init; }

@@ -1622,13 +1622,24 @@ public sealed class CampaignWorkspaceTests : BunitContext
 
     private static CampaignCreationSetupResult CreateSetup() => new()
     {
-        CurrentSeason = new CampaignSeasonChoice
-        {
-            SeasonId = 5,
-            Name = "Summer 2026",
-            StartDate = new DateOnly(2026, 6, 1),
-            EndDate = new DateOnly(2026, 8, 31)
-        },
+        Seasons =
+        [
+            new CampaignSeasonChoice
+            {
+                SeasonId = 5,
+                Name = "Summer 2026",
+                StartDate = new DateOnly(2026, 6, 1),
+                EndDate = new DateOnly(2026, 8, 31)
+            },
+            new CampaignSeasonChoice
+            {
+                SeasonId = 6,
+                Name = "Fall 2026",
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = null
+            }
+        ],
+        TotalSeasonCount = 2,
         ActivePlayerCount = 20,
         ActiveTeamCount = 4
     };

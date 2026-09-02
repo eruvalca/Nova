@@ -168,10 +168,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     public async Task Create_VerifiesCompleteAggregate_AfterAmbiguousCommitFailure()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var seed = await SeedAsync(
-            includePlayers: true,
-            cancellationToken,
-            establishCurrentSeason: false);
+        var seed = await SeedAsync(includePlayers: true, cancellationToken);
         ActAs(seed.ActorUserId, seed.ClubId, isAdmin: true);
 
         var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
@@ -215,10 +212,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     public async Task Create_RetriesFreshTransaction_AfterTransientSaveFailure()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var seed = await SeedAsync(
-            includePlayers: true,
-            cancellationToken,
-            establishCurrentSeason: false);
+        var seed = await SeedAsync(includePlayers: true, cancellationToken);
         ActAs(seed.ActorUserId, seed.ClubId, isAdmin: true);
 
         var failureInterceptor = new FailFirstSaveChangesInterceptor();
@@ -255,10 +249,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     public async Task Create_RollsBackSeasonCampaignAndParticipations_WhenSecondSaveFails()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var seed = await SeedAsync(
-            includePlayers: true,
-            cancellationToken,
-            establishCurrentSeason: false);
+        var seed = await SeedAsync(includePlayers: true, cancellationToken);
         ActAs(seed.ActorUserId, seed.ClubId, isAdmin: true);
 
         var failureInterceptor = new FailSecondSaveChangesInterceptor();
@@ -298,7 +289,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
         ActAs(seed.ActorUserId, seed.ClubId, isAdmin: true);
 
-        var campaignGate = new AdvisoryLockGateInterceptor(advisoryLocksToSkip: 1);
+        var campaignGate = new AdvisoryLockGateInterceptor();
         var playerGate = new AdvisoryLockGateInterceptor();
         var campaignFactory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
@@ -489,8 +480,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// <returns>The generated tenant identifiers and expected Active player count.</returns>
     private async Task<CampaignCreationSeed> SeedAsync(
         bool includePlayers,
-        CancellationToken cancellationToken,
-        bool establishCurrentSeason = true)
+        CancellationToken cancellationToken)
     {
         ActAs(userId: null, clubId: null, isAdmin: false);
         await using var db = fixture.CreateAdminContext();
@@ -518,11 +508,6 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         };
         db.Seasons.Add(season);
         await db.SaveChangesAsync(cancellationToken);
-        if (establishCurrentSeason)
-        {
-            club.CurrentSeasonId = season.SeasonId;
-            await db.SaveChangesAsync(cancellationToken);
-        }
 
         var activePlayerCount = 0;
         if (includePlayers)

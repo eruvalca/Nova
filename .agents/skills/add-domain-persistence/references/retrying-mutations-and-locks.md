@@ -2,12 +2,9 @@
 
 Canonical Nova examples:
 
-- `Nova\Features\Seasons\SeasonCommandService.cs`
-- `Nova\Features\Campaigns\CampaignCreationService.cs`
 - `Nova\Features\Teams\TeamManagementService.cs`
 - `Nova\Features\Teams\TeamLifecycleService.cs`
 - `Nova\Data\Configurations\TeamEntityConfiguration.cs`
-- `Nova.Integration.Tests\Data\SeasonFoundationPostgresTests.cs`
 - `Nova.Integration.Tests\Data\TeamManagementRetryTests.cs`
 - `Nova.Integration.Tests\Data\TeamLifecycleRetryTests.cs`
 - `Nova.Integration.Tests\Data\TeamPlayerGraduationYearRaceTests.cs`
@@ -44,9 +41,8 @@ the start of each attempt, mark it immediately before `CommitAsync`, and only le
 ## Multi-entity advisory locks
 
 Every writer of the same invariant must use the global entity-type order:
-club-season → club-roster → campaign → player → team → tag. Acquire multiple locks of the same type
-by ascending ID. Writers may take a subsequence, but never reverse it. Campaign creation is the
-canonical club-season-then-club-roster example.
+campaign → player → team → tag. Acquire multiple locks of the same type by ascending ID. Writers may
+take a subsequence, but never reverse it.
 
 The canonical global order for the team/player eligibility invariant is campaign, players ascending,
 then team. `TeamManagementService.UpdateTeamAsync` takes the players-then-team subsequence: it

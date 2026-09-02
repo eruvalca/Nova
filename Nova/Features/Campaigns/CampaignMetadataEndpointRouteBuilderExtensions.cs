@@ -33,6 +33,16 @@ internal static class CampaignMetadataEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .DisableAntiforgery();
 
+            group.MapPut(CampaignEndpoints.UpdateSeasonMetadataRelative, UpdateSeasonMetadataHandler)
+                .Produces<UpdateSeasonMetadataResult>(StatusCodes.Status200OK)
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery();
+
             return endpoints;
         }
     }
@@ -53,4 +63,19 @@ internal static class CampaignMetadataEndpointRouteBuilderExtensions
         return result.ToHttpResult();
     }
 
+    /// <summary>
+    /// Updates a season's name, start date, and optional end date without affecting linked campaigns.
+    /// </summary>
+    /// <param name="input">The season metadata correction request.</param>
+    /// <param name="seasonMetadataService">The season metadata service.</param>
+    /// <param name="cancellationToken">A token that cancels the request.</param>
+    /// <returns>A 200 response containing the updated metadata, or ProblemDetails.</returns>
+    private static async Task<IResult> UpdateSeasonMetadataHandler(
+        UpdateSeasonMetadataInput input,
+        ISeasonMetadataService seasonMetadataService,
+        CancellationToken cancellationToken)
+    {
+        var result = await seasonMetadataService.UpdateAsync(input, cancellationToken);
+        return result.ToHttpResult();
+    }
 }
