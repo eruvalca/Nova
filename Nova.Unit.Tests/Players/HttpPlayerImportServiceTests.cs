@@ -260,6 +260,91 @@ public sealed class HttpPlayerImportServiceTests
         }
     }
 
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(PlayerImportRowStatus.Ready)]
+    [InlineData(PlayerImportRowStatus.Duplicate)]
+    public async Task PreviewAsync_ReturnsServerError_WhenCandidateDoesNotMatchRawValues(
+        PlayerImportRowStatus status)
+    {
+        var row = ValidPreview().Rows[0];
+        var duplicate = status == PlayerImportRowStatus.Duplicate
+            ? new PlayerImportDuplicate(PlayerImportDuplicateKind.ExistingActivePlayer, 1, null)
+            : null;
+        var preview = ValidPreview() with
+        {
+            ReadyRows = status == PlayerImportRowStatus.Ready ? 1 : 0,
+            DuplicateRows = status == PlayerImportRowStatus.Duplicate ? 1 : 0,
+            Rows = [row with
+            {
+                Values = row.Values with { FirstName = "Taylor" },
+                Status = status,
+                Duplicate = duplicate
+            }]
+        };
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(preview)
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerImportService(http).PreviewAsync(
+            ValidUpload(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PreviewAsync_ReturnsServerError_WhenEarlierUploadReferenceIsIneligible(
+        bool referencedRowIsInvalid)
+    {
+        var first = ValidPreview().Rows[0];
+        var referencedRow = referencedRowIsInvalid
+            ? first with
+            {
+                Candidate = null,
+                Status = PlayerImportRowStatus.Invalid,
+                Errors = [new(PlayerImportField.GraduationYear, "Graduation year is invalid.")]
+            }
+            : first;
+        var duplicateCandidate = referencedRowIsInvalid
+            ? first.Candidate!
+            : first.Candidate! with { FirstName = "Taylor" };
+        var duplicateValues = referencedRowIsInvalid
+            ? first.Values
+            : first.Values with { FirstName = "Taylor" };
+        var duplicateRow = new PlayerImportPreviewRow(
+            3,
+            duplicateValues,
+            duplicateCandidate,
+            PlayerImportRowStatus.Duplicate,
+            [],
+            new(PlayerImportDuplicateKind.EarlierUploadRow, null, 2));
+        var preview = ValidPreview() with
+        {
+            TotalRows = 2,
+            ReadyRows = referencedRowIsInvalid ? 0 : 1,
+            InvalidRows = referencedRowIsInvalid ? 1 : 0,
+            DuplicateRows = 1,
+            Rows = [referencedRow, duplicateRow]
+        };
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(preview)
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerImportService(http).PreviewAsync(
+            ValidUpload(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     [Fact]
     public async Task PreviewAsync_AcceptsNonDefaultExpiry_WithoutUsingClientClock()
     {

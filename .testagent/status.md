@@ -12,17 +12,17 @@ Strong: the generated suite protects the import contract's security denials, fil
 
 ## Assertion-quality review
 
-- Reviewed 57 test methods across the parser, service/token, endpoint metadata, WASM client, and Aspire HTTP files.
+- Reviewed 59 test methods across the parser, service/token, endpoint metadata, WASM client, and Aspire HTTP files.
 - No assertion-free, always-true, self-referential, or null-only tests were found.
 - Assertions cover equality/boolean results, nullability, strings, collections and ordering, exceptions/cancellation, comparisons/bounds, negative behavior, database side effects, HTTP request metadata, and nested response structure.
 - Smoke-style authorization tests intentionally assert only their exact HTTP status; broader response-shape assertions are exercised by the validation tests.
 
 ## Validation evidence
 
-- Focused player-import service and client review tests: 40 passed.
-- Focused Aspire player-import HTTP tests: 9 passed.
+- Focused strict-client and endpoint review tests: 23 passed.
+- Focused Aspire player-import HTTP tests: 10 passed.
 - `dotnet build Nova.slnx --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,083 passed.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,087 passed.
 - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`: 412 passed.
 - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`: 111 passed, 7 expected opt-in accessibility evidence tests skipped.
 - `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`: formatted 0 of 778 files.
@@ -39,3 +39,6 @@ Strong: the generated suite protects the import contract's security denials, fil
 - The upload operation input now uses explicit required init-only properties so reflection-based validation can inspect the contract consistently.
 - Missing filenames and null or blank protected tokens now return structured validation or safe `Try*` failure results instead of throwing.
 - Invalid rows intentionally do not reserve duplicate identities; `PreviewAsync_DoesNotLetInvalidRowReserveDuplicateIdentity` pins the issue contract that duplicate keys are built from valid rows only.
+- The strict client now reconstructs every Ready and Duplicate candidate from its raw cells and rejects candidate/value drift.
+- Earlier-upload duplicate references must resolve to a prior Ready row with the same normalized duplicate key.
+- The multipart endpoint now rejects unsafe filenames and unsupported media types before opening or buffering the upload stream.

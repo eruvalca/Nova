@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Net.Http.Headers;
+using Microsoft.AspNetCore.Mvc;
 using Nova.Features.Shared;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
@@ -74,6 +75,24 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
             return ServiceProblem.Validation(
                     "file",
                     $"The CSV file must be between 1 and {PlayerImportConstraints.MaxFileBytes} bytes.")
+                .ToHttpResult();
+        }
+
+        if (string.IsNullOrWhiteSpace(file.FileName)
+            || file.FileName.Contains('\r')
+            || file.FileName.Contains('\n')
+            || !string.Equals(Path.GetExtension(file.FileName), ".csv", StringComparison.OrdinalIgnoreCase))
+        {
+            return ServiceProblem.Validation("file", "The uploaded file must have a .csv extension.")
+                .ToHttpResult();
+        }
+
+        if (!string.IsNullOrEmpty(file.ContentType)
+            && (!MediaTypeHeaderValue.TryParse(file.ContentType, out var contentType)
+                || contentType.MediaType is null
+                || !PlayerImportConstraints.AllowedContentTypes.Contains(contentType.MediaType)))
+        {
+            return ServiceProblem.Validation("file", "The uploaded file type is not supported.")
                 .ToHttpResult();
         }
 
