@@ -16,9 +16,9 @@ namespace Nova.Unit.Tests.Features.Tags;
 public sealed class TagDefinitionEndpointTests
 {
     /// <summary>
-    /// Verifies create and choices carry <see cref="Policies.RequireClubMember"/> while update,
-    /// archive, and restore retain <see cref="Policies.RequireClubAdmin"/>, so the endpoint-level
-    /// policy split cannot silently regress to bare authentication.
+    /// Verifies create and choices carry <see cref="Policies.RequireClubMember"/> while the
+    /// management list, update, archive, and restore retain <see cref="Policies.RequireClubAdmin"/>,
+    /// so the endpoint-level policy split cannot silently regress to bare authentication.
     /// </summary>
     [Fact]
     public async Task TagDefinitionEndpoints_SplitMemberAndAdminAuthorization()
@@ -40,6 +40,7 @@ public sealed class TagDefinitionEndpointTests
         AssertPolicy(endpoints, "UpdateTagDefinition", Policies.RequireClubAdmin);
         AssertPolicy(endpoints, "ArchiveTagDefinition", Policies.RequireClubAdmin);
         AssertPolicy(endpoints, "RestoreTagDefinition", Policies.RequireClubAdmin);
+        AssertPolicy(endpoints, "GetTagDefinitions", Policies.RequireClubAdmin);
         AssertPolicy(endpoints, "GetTagDefinitionChoices", Policies.RequireClubMember);
     }
 
