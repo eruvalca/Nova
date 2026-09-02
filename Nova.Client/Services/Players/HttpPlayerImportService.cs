@@ -168,7 +168,10 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
                     break;
                 case PlayerImportRowStatus.Invalid:
                     invalidRows++;
-                    if (row.Candidate is not null || row.Errors.Count == 0 || row.Duplicate is not null)
+                    if (row.Candidate is not null
+                        || row.Errors.Count == 0
+                        || row.Duplicate is not null
+                        || TryParseCandidate(row.Values, out _))
                     {
                         return false;
                     }
@@ -365,13 +368,22 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
             StringComparison.Ordinal)
         && candidate.DateOfBirth == earlierCandidate.DateOfBirth;
 
+    /// <summary>Validates that every raw cell is present and within the shared character bound.</summary>
+    /// <param name="values">The original CSV cell values.</param>
+    /// <returns><see langword="true" /> when all six cells satisfy the response contract.</returns>
     private static bool IsValidValues(PlayerImportRowValues values) =>
         values.FirstName is not null
+        && values.FirstName.Length <= PlayerImportConstraints.MaxFieldCharacters
         && values.LastName is not null
+        && values.LastName.Length <= PlayerImportConstraints.MaxFieldCharacters
         && values.DateOfBirth is not null
+        && values.DateOfBirth.Length <= PlayerImportConstraints.MaxFieldCharacters
         && values.Gender is not null
+        && values.Gender.Length <= PlayerImportConstraints.MaxFieldCharacters
         && values.JerseyNumber is not null
-        && values.GraduationYear is not null;
+        && values.JerseyNumber.Length <= PlayerImportConstraints.MaxFieldCharacters
+        && values.GraduationYear is not null
+        && values.GraduationYear.Length <= PlayerImportConstraints.MaxFieldCharacters;
 
     private static byte[] CreateExpectedTemplateContent()
     {

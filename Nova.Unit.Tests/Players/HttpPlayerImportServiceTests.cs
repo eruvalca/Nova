@@ -176,6 +176,69 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
+    public async Task PreviewAsync_ReturnsServerError_WhenInvalidRowValuesAreActuallyValid()
+    {
+        var row = ValidPreview().Rows[0];
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(ValidPreview() with
+            {
+                ReadyRows = 0,
+                InvalidRows = 1,
+                Rows = [row with
+                {
+                    Candidate = null,
+                    Status = PlayerImportRowStatus.Invalid,
+                    Errors = [new(PlayerImportField.FirstName, "Arbitrary error.")]
+                }]
+            })
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerImportService(http).PreviewAsync(
+            ValidUpload(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task PreviewAsync_ReturnsServerError_WhenInvalidRowExceedsCellBound()
+    {
+        var invalidRow = new PlayerImportPreviewRow(
+            2,
+            new(
+                new string('A', PlayerImportConstraints.MaxFieldCharacters + 1),
+                "Archer",
+                "invalid",
+                "",
+                "",
+                "2030"),
+            Candidate: null,
+            PlayerImportRowStatus.Invalid,
+            [new(PlayerImportField.FirstName, "First name is too long.")],
+            Duplicate: null);
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(ValidPreview() with
+            {
+                ReadyRows = 0,
+                InvalidRows = 1,
+                Rows = [invalidRow]
+            })
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerImportService(http).PreviewAsync(
+            ValidUpload(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
     public async Task PreviewAsync_ReturnsServerError_WhenRowsAreOutOfOrder()
     {
         var preview = ValidPreview() with
