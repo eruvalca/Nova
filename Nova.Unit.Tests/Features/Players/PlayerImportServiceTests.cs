@@ -88,6 +88,7 @@ public sealed class PlayerImportServiceTests : IDisposable
 
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("players.txt", "text/csv")]
+    [InlineData("players\r\n.csv", "text/csv")]
     [InlineData("players.csv", "image/png")]
     public async Task PreviewAsync_RejectsUnsupportedUploadMetadata(string fileName, string contentType)
     {

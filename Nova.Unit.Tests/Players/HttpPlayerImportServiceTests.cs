@@ -51,6 +51,21 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
+    public async Task PreviewAsync_DoesNotSendRequest_WhenFilenameContainsNewline()
+    {
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerImportService(http).PreviewAsync(
+            ValidUpload() with { FileName = "players\r\n.csv" },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        handler.Method.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task PreviewAsync_PropagatesValidationProblemDetails()
     {
         var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.BadRequest)

@@ -230,7 +230,9 @@ internal sealed partial class PlayerImportService(
                 $"The CSV file must not exceed {PlayerImportConstraints.MaxFileBytes} bytes.");
         }
 
-        if (!string.Equals(Path.GetExtension(upload.FileName), ".csv", StringComparison.OrdinalIgnoreCase))
+        if (upload.FileName.Contains('\r')
+            || upload.FileName.Contains('\n')
+            || !string.Equals(Path.GetExtension(upload.FileName), ".csv", StringComparison.OrdinalIgnoreCase))
         {
             return ServiceProblem.Validation("file", "The uploaded file must have a .csv extension.");
         }
