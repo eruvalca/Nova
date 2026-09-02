@@ -46,9 +46,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
 
     /// <summary>
     /// LP2: every landing section carries its approved, truthful content — the product preview is
-    /// clearly illustrative, the how-it-works sequence uses Nova terminology, the admin/coach role-fit
-    /// copy is present, and the trust section is limited to verifiable role-based access and club data
-    /// isolation (no fabricated certifications, customer counts, or pricing).
+    /// clearly illustrative, player intake is staff-managed, the membership journey follows search,
+    /// request, and administrator approval, the admin/coach role-fit copy is present, and the trust
+    /// section is limited to verifiable role-based access and club data isolation.
     /// </summary>
     [Fact]
     public async Task Landing_Sections_CarryTruthfulApprovedContent()
@@ -60,17 +60,25 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
         await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
 
         // Product preview: illustrative content is explicitly labelled.
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Registration to roster, without losing the thread.", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Player intake to roster, without losing the thread.", Exact = true })).ToBeVisibleAsync();
         await Expect(page.Locator("[aria-label='Illustrative Nova campaign workspace']")).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Build the player pool", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByText("Staff add and maintain player records", new() { Exact = false })).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Capture observations", Exact = true })).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Resolve team assignments", Exact = true })).ToBeVisibleAsync();
 
         // How it works: Nova's own workflow terminology.
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Three stops. One source of truth.", Exact = true })).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Establish the context", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByText("search for one and request to join", new() { Exact = false })).ToBeVisibleAsync();
+        await Expect(page.GetByText("An administrator approves or rejects the request", new() { Exact = false })).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Collaborate on evaluations", Exact = true })).ToHaveCountAsync(1);
+        await Expect(page.GetByText("Approved club staff record shared notes", new() { Exact = false })).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Place and close", Exact = true })).ToBeVisibleAsync();
+
+        var landingText = await page.Locator("article.landing-container").InnerTextAsync();
+        Regex.IsMatch(landingText, @"\binvit(?:e|ed|es|ing|ation|ations)\b", RegexOptions.IgnoreCase).ShouldBeFalse();
+        Regex.IsMatch(landingText, @"\bself(?:-|\s+)(?:service(?:-|\s+))?registration\b", RegexOptions.IgnoreCase).ShouldBeFalse();
 
         // Admin/coach role fit.
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "The whole staff. The right access.", Exact = true })).ToBeVisibleAsync();
