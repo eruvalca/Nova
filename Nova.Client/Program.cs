@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Nova.Client.Services;
+using Nova.Client.Services.Activity;
+using Nova.Client.Services.Attention;
 using Nova.Client.Services.Campaigns;
 using Nova.Client.Services.Clubs;
 using Nova.Client.Services.Dashboard;
@@ -11,6 +13,8 @@ using Nova.Client.Services.Tags;
 using Nova.Client.Services.Teams;
 using Nova.Client.Telemetry;
 using Nova.Shared.Features.Account;
+using Nova.Shared.Features.Activity;
+using Nova.Shared.Features.Attention;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Dashboard;
@@ -57,6 +61,8 @@ builder.Services.AddScoped<ICampaignParticipantQueryService, HttpCampaignPartici
 builder.Services.AddScoped<ICampaignPlacementQueryService, HttpCampaignPlacementQueryService>();
 builder.Services.AddScoped<ICampaignCloseoutQueryService, HttpCampaignCloseoutQueryService>();
 builder.Services.AddScoped<IDashboardQueryService, HttpDashboardQueryService>();
+builder.Services.AddScoped<IClubActivityQueryService, HttpClubActivityQueryService>();
+builder.Services.AddScoped<IClubAttentionQueryService, HttpClubAttentionQueryService>();
 builder.Services.AddScoped<ICampaignMetadataService, HttpCampaignMetadataService>();
 builder.Services.AddScoped<ISeasonMetadataService, HttpSeasonMetadataService>();
 builder.Services.AddScoped<ICampaignTagApplicationService, HttpCampaignTagApplicationService>();

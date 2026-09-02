@@ -40,7 +40,7 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 - Query filters may only reference fields/properties on the context instance (`_bypassTenantFilter`, `_currentUser.ClubId`, `_currentUser.UserId`, `_currentUser.IsClubAdmin`) so EF parameterizes them per instance. Keep `ICurrentUserProvider` members flat primitives; `GetCurrentUserState()` (a OneOf union) is for application/UI logic only.
 - EF allows ONE query filter per entity (`HasQueryFilter` replaces). Bespoke filters live in
   `ApplicationDbContext` after the generic loop — never add filters in entity configurations.
-- Do not set `ClubId` manually when creating entities via `NovaDbContext`; `TenantSaveChangesInterceptor` stamps it from the current user (throws if the user has no club or on cross-tenant write). Under `NovaAdminDbContext` stamping is skipped — admin code MUST set `ClubId` explicitly. The interceptor always stamps `CreatedAt`/`ModifiedAt` + `CreatedById`/`ModifiedById` (intentionally FK-less).
+- Do not set `ClubId` manually when creating entities via `NovaDbContext`; `TenantSaveChangesInterceptor` stamps it from the current user (throws if the user has no club or on cross-tenant write). Under `NovaAdminDbContext` stamping is skipped — admin code MUST set `ClubId` explicitly. The interceptor always stamps `CreatedAt`/`ModifiedAt` + `CreatedById`/`ModifiedById` (intentionally FK-less). The one exception to manual `ClubId` stamping is the club-less join-request activity write — see **Append-only activity events**.
 - Visibility belongs in query filters; ACTIONS (approve/reject/delete) belong in authorization
   policies (`Policies.RequireAdmin` / `RequireClubAdmin` / `RequireClubMember` in
   `Nova.Shared/Security/Policies.cs`).
@@ -67,6 +67,27 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 - Club deletion is NOT interceptor-guarded (Club isn't tenant-owned) — any club-delete feature
   must be gated by `Policies.RequireClubAdmin` or `RequireAdmin`.
 
+## Append-only activity events
+
+- The activity feed is a durable, club-scoped event log (`ActivityEventEntity`). Rows are
+  **append-only**: `TenantSaveChangesInterceptor` throws on any modify/delete in every context,
+  including admin contexts. Never update or delete history; a correction is a new event, not an edit.
+- Write events only through `ActivityEventWriter` (internal static) by passing the caller's open
+  `ApplicationDbContext`, so the event commits atomically with the owning mutation. Do not open a
+  second context to append an event. On execution-strategy retries, re-run the whole mutation on a
+  fresh context and the event is re-added naturally.
+- Display names (`ActorDisplayName` and every payload name) are **snapshots**, not navigations, so
+  the feed stays readable after an actor leaves, a subject is renamed, or a Draft/team is removed.
+  `CampaignId` and `ActorUserId` are deliberate loose snapshot keys with **no FK**.
+- Every mutation that changes member- or admin-visible state emits an event through this boundary.
+  Adding a new lifecycle/placement/join/membership/role transition means adding it to
+  `ActivityEventPolicy` (kind → family, admin-only) plus a matching `*Context` type with a
+  `[JsonDerivedType]` discriminator.
+- One carve-out to the tenant guard: a club-less user may write their own
+  `JoinRequestSubmitted`/`JoinRequestCancelled` event for the club they are requesting to join (the
+  row carries the explicit target `ClubId`). This is the only club-less write path for a
+  tenant-owned row; do not generalize it.
+
 ## Query construction and provider behavior
 
 - Keep filtering, deterministic ordering, `Skip`, and `Take` in SQL before materialization; do not load an entire tenant result set to sort or page in memory. For provider-incompatible behavior, isolate a fallback and retain SQL-side execution for PostgreSQL.
@@ -82,6 +103,15 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 - Validation and normalization must have one explicit behavior. If `[Range]` rejects a page size,
   do not also clamp it after validation; either reject or cap, and make the contract, service, and
   tests agree.
+- SQLite cannot translate `ORDER BY` over `DateTimeOffset` columns, and Npgsql binds only
+  offset-zero `DateTimeOffset` values to `timestamptz`. Normalize `DateTimeOffset` cursor/timestamp
+  values to UTC (`ToUniversalTime`) before binding, and where a `DateTimeOffset` ordering is required,
+  keep SQL-side ordering on PostgreSQL and fall back to materialize-then-order in memory on SQLite
+  with identical keys, directions, and null semantics.
+- For unbounded newest-first feeds, prefer keyset paging over `Skip`/`Take`: `Skip` drifts when rows
+  are inserted or removed between pages, while a keyset predicate over the stable ordering key
+  `(OccurredAt, Id)` stays deterministic. The keyset cursor marks the page boundary, not the newest
+  row, when projection can skip rows.
 
 ## Migrations
 

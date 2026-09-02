@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Account;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Clubs;
 using Shouldly;
@@ -107,9 +108,9 @@ public sealed class CampaignLifecycleRaceHttpTests(NovaAppHostFixture fixture)
         persisted.ClosedAt.ShouldNotBeNull();
         persisted.ClosedById.ShouldBe(winnerUserId);
 
-        var closedEvents = await verify.CampaignLifecycleEvents
+        var closedEvents = await verify.ActivityEvents
             .Where(candidate => candidate.CampaignId == seeded.CampaignId
-                && candidate.EventType == CampaignLifecycleEventType.Closed)
+                && candidate.EventKind == ActivityEventKind.CampaignClosed)
             .ToListAsync(cancellationToken);
         closedEvents.Count.ShouldBe(1);
     }

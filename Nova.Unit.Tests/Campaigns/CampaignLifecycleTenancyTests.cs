@@ -29,94 +29,48 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     /// <summary>
-    /// Verifies lifecycle events are visible only to the current club.
+    /// Verifies activity events are visible only to the current club.
     /// </summary>
     [Fact]
-    public void TenantContext_FiltersCampaignLifecycleEventsToCurrentClub()
+    public void TenantContext_FiltersActivityEventsToCurrentClub()
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
 
-        var events = db.CampaignLifecycleEvents.ToList();
+        var events = db.ActivityEvents.ToList();
 
         events.Count.ShouldBe(1);
         events.ShouldAllBe(candidate => candidate.ClubId == ClubAId);
     }
 
     /// <summary>
-    /// Verifies the save interceptor rejects lifecycle events explicitly assigned to another tenant.
+    /// Verifies the activity event model exposes an allowed values list for the event kind and
+    /// carries the snapshot fields required for readable feed rows.
     /// </summary>
     [Fact]
-    public void TenantContext_RejectsCrossTenantCampaignLifecycleEventWrite()
-    {
-        ActAs(ClubAUserId, ClubAId);
-        using var db = _harness.CreateTenantContext();
-        db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
-        {
-            CampaignId = 1200,
-            EventType = CampaignLifecycleEventType.Closed,
-            ClubId = ClubBId,
-            CreatedById = ClubAUserId
-        });
-
-        var exception = Should.Throw<InvalidOperationException>(() => db.SaveChanges());
-
-        exception.Message.ShouldContain("Cross-tenant");
-    }
-
-    /// <summary>
-    /// Verifies the campaign foreign key rejects an event that claims the current club but references another club's campaign.
-    /// </summary>
-    [Fact]
-    public void TenantContext_RejectsCampaignLifecycleEvent_ForCrossTenantCampaign()
-    {
-        ActAs(ClubAUserId, ClubAId);
-        using var db = _harness.CreateTenantContext();
-        db.CampaignLifecycleEvents.Add(new CampaignLifecycleEventEntity
-        {
-            CampaignId = 1201,
-            EventType = CampaignLifecycleEventType.Closed,
-            ClubId = ClubAId,
-            CreatedById = ClubAUserId
-        });
-
-        Should.Throw<DbUpdateException>(() => db.SaveChanges());
-    }
-
-    /// <summary>
-    /// Verifies the model carries campaign lifecycle status and event-type check constraints.
-    /// </summary>
-    [Fact]
-    public void Model_ConfiguresCampaignLifecycleIntegrityMetadata()
+    public void Model_ConfiguresActivityEventIntegrityMetadata()
     {
         using var db = _harness.CreateAdminContext();
         var model = db.GetService<IDesignTimeModel>().Model;
 
-        var campaignEntityType = model.FindEntityType(typeof(CampaignEntity));
-        campaignEntityType.ShouldNotBeNull();
-        campaignEntityType.FindProperty(nameof(CampaignEntity.Status))!
-            .IsConcurrencyToken.ShouldBeTrue();
-        campaignEntityType.GetCheckConstraints()
-            .ShouldContain(constraint => constraint.Name == "CK_Campaigns_StatusClosureMetadata");
+        var entityType = model.FindEntityType(typeof(ActivityEventEntity));
+        entityType.ShouldNotBeNull();
 
-        var eventEntityType = model.FindEntityType(typeof(CampaignLifecycleEventEntity));
-        eventEntityType.ShouldNotBeNull();
-        eventEntityType.GetCheckConstraints()
-            .ShouldContain(constraint => constraint.Name == "CK_CampaignLifecycleEvents_EventType");
-        var campaignForeignKey = eventEntityType.GetForeignKeys()
-            .Single(foreignKey => foreignKey.PrincipalEntityType.ClrType == typeof(CampaignEntity));
-        campaignForeignKey.Properties.Select(property => property.Name)
-            .ShouldBe(
-            [
-                nameof(CampaignLifecycleEventEntity.CampaignId),
-                nameof(CampaignLifecycleEventEntity.ClubId)
-            ]);
-        campaignForeignKey.PrincipalKey.Properties.Select(property => property.Name)
-            .ShouldBe(
-            [
-                nameof(CampaignEntity.CampaignId),
-                nameof(CampaignEntity.ClubId)
-            ]);
+        var idProperty = entityType.FindProperty(nameof(ActivityEventEntity.ActivityEventId));
+        idProperty.ShouldNotBeNull();
+        idProperty!.ValueGenerated.ShouldBe(ValueGenerated.OnAdd);
+
+        entityType.FindProperty(nameof(ActivityEventEntity.ActorDisplayName))!
+            .IsNullable.ShouldBeFalse();
+        entityType.FindProperty(nameof(ActivityEventEntity.PayloadJson))!
+            .IsNullable.ShouldBeFalse();
+
+        var clubForeignKey = entityType.GetForeignKeys()
+            .Single(foreignKey => foreignKey.PrincipalEntityType.ClrType == typeof(ClubEntity));
+        clubForeignKey.Properties.Select(property => property.Name).ShouldBe([nameof(ActivityEventEntity.ClubId)]);
+        clubForeignKey.DeleteBehavior.ShouldBe(DeleteBehavior.Cascade);
+
+        entityType.GetCheckConstraints().ShouldBeEmpty();
     }
 
     /// <summary>
@@ -197,21 +151,29 @@ public sealed class CampaignLifecycleTenancyTests : IDisposable
                 CreatedById = ClubBUserId
             });
 
-        db.CampaignLifecycleEvents.AddRange(
-            new CampaignLifecycleEventEntity
+        db.ActivityEvents.AddRange(
+            new ActivityEventEntity
             {
-                CampaignLifecycleEventId = 1300,
+                ActivityEventId = 1300,
                 CampaignId = 1200,
-                EventType = CampaignLifecycleEventType.Closed,
+                EventKind = ActivityEventKind.CampaignClosed,
+                IsAdminOnly = false,
                 ClubId = ClubAId,
+                ActorUserId = ClubAUserId,
+                ActorDisplayName = "Club A User",
+                PayloadJson = """{"campaignId":1200,"campaignName":"Campaign A"}""",
                 CreatedById = ClubAUserId
             },
-            new CampaignLifecycleEventEntity
+            new ActivityEventEntity
             {
-                CampaignLifecycleEventId = 1301,
+                ActivityEventId = 1301,
                 CampaignId = 1201,
-                EventType = CampaignLifecycleEventType.Reopened,
+                EventKind = ActivityEventKind.CampaignReopened,
+                IsAdminOnly = false,
                 ClubId = ClubBId,
+                ActorUserId = ClubBUserId,
+                ActorDisplayName = "Club B User",
+                PayloadJson = """{"campaignId":1201,"campaignName":"Campaign B"}""",
                 CreatedById = ClubBUserId
             });
 

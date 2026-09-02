@@ -21,7 +21,7 @@ public sealed class ServiceResultExtensionsTests
     [Fact]
     public async Task ToHttpResult_ExecutesForbiddenProblemDetails_WithTraceId()
     {
-        using var activity = new Activity(nameof(ToHttpResult_ExecutesForbiddenProblemDetails_WithTraceId)).Start();
+        using var activity = new System.Diagnostics.Activity(nameof(ToHttpResult_ExecutesForbiddenProblemDetails_WithTraceId)).Start();
         using var services = new ServiceCollection()
             .AddLogging()
             .BuildServiceProvider();

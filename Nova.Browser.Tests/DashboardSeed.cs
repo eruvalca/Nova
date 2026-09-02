@@ -1,8 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
 
 namespace Nova.Browser.Tests;
 
@@ -66,7 +68,7 @@ public sealed record SeededEmptyDashboardWorkspace(
 /// Seeds the club dashboard workspace for browser scenarios: an administrator, an approved evaluator,
 /// a pending applicant, a photo-less user, a photo-complete club-less user, two active campaigns (one
 /// with undecided participants), active + archived players and teams, one pending join request, and one
-/// evaluation note so the evaluator sees real recent-activity rows with actor names.
+/// member-visible activity event so the evaluator sees a recent-activity row with the actor name.
 /// </summary>
 public static class DashboardSeed
 {
@@ -165,12 +167,21 @@ public static class DashboardSeed
                     CreatedById = applicantUserId,
                     Status = RequestStatus.Pending
                 },
-                new NoteEntity
+                new ActivityEventEntity
                 {
-                    CreationOperationId = Guid.NewGuid(),
-                    Content = "Strong first touch.",
-                    PlayerCampaignAssignmentId = undecided.AssignmentIds[0],
                     ClubId = club.ClubId,
+                    CampaignId = undecided.CampaignId,
+                    EventKind = ActivityEventKind.CampaignOpened,
+                    IsAdminOnly = false,
+                    ActorUserId = evaluatorUserId,
+                    ActorDisplayName = "Bob Observer",
+                    PayloadJson = JsonSerializer.Serialize(
+                        new CampaignLifecycleContext
+                        {
+                            CampaignId = undecided.CampaignId,
+                            CampaignName = undecided.CampaignName,
+                        },
+                        typeof(ClubActivityContext)),
                     CreatedById = evaluatorUserId
                 });
             await seedContext.SaveChangesAsync(cancellationToken);

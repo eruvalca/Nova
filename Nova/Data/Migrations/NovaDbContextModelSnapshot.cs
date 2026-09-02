@@ -174,6 +174,59 @@ namespace Nova.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Nova.Entities.ActivityEventEntity", b =>
+                {
+                    b.Property<long>("ActivityEventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("ActivityEventId"));
+
+                    b.Property<string>("ActorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(201)
+                        .HasColumnType("character varying(201)");
+
+                    b.Property<long>("ActorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("CampaignId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ClubId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("CreatedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("EventKind")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsAdminOnly")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("ModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("ModifiedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("ActivityEventId");
+
+                    b.HasIndex("ClubId", "CampaignId");
+
+                    b.HasIndex("ClubId", "CreatedAt", "ActivityEventId");
+
+                    b.ToTable("ActivityEvents");
+                });
+
             modelBuilder.Entity("Nova.Entities.CampaignEntity", b =>
                 {
                     b.Property<long>("CampaignId")
@@ -231,6 +284,8 @@ namespace Nova.Data.Migrations
 
                     b.HasKey("CampaignId");
 
+                    b.HasAlternateKey("CampaignId", "ClubId");
+
                     b.HasIndex("SeasonId");
 
                     b.HasIndex("ClubId", "CreationOperationId")
@@ -244,47 +299,6 @@ namespace Nova.Data.Migrations
                     b.ToTable("Campaigns", t =>
                         {
                             t.HasCheckConstraint("CK_Campaigns_StatusClosureMetadata", "(\"Status\" = 0 AND \"ClosedAt\" IS NULL AND \"ClosedById\" IS NULL) OR (\"Status\" = 1 AND \"ClosedAt\" IS NOT NULL AND \"ClosedById\" IS NOT NULL)");
-                        });
-                });
-
-            modelBuilder.Entity("Nova.Entities.CampaignLifecycleEventEntity", b =>
-                {
-                    b.Property<long>("CampaignLifecycleEventId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("CampaignLifecycleEventId"));
-
-                    b.Property<long>("CampaignId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("ClubId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("CreatedById")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("EventType")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("ModifiedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("ModifiedById")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("CampaignLifecycleEventId");
-
-                    b.HasIndex("ClubId");
-
-                    b.HasIndex("CampaignId", "ClubId");
-
-                    b.ToTable("CampaignLifecycleEvents", t =>
-                        {
-                            t.HasCheckConstraint("CK_CampaignLifecycleEvents_EventType", "\"EventType\" IN (0, 1)");
                         });
                 });
 
@@ -1218,6 +1232,17 @@ namespace Nova.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Nova.Entities.ActivityEventEntity", b =>
+                {
+                    b.HasOne("Nova.Entities.ClubEntity", "Club")
+                        .WithMany("ActivityEvents")
+                        .HasForeignKey("ClubId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Club");
+                });
+
             modelBuilder.Entity("Nova.Entities.CampaignEntity", b =>
                 {
                     b.HasOne("Nova.Entities.ClubEntity", "Club")
@@ -1236,26 +1261,6 @@ namespace Nova.Data.Migrations
                     b.Navigation("Club");
 
                     b.Navigation("Season");
-                });
-
-            modelBuilder.Entity("Nova.Entities.CampaignLifecycleEventEntity", b =>
-                {
-                    b.HasOne("Nova.Entities.ClubEntity", "Club")
-                        .WithMany()
-                        .HasForeignKey("ClubId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Nova.Entities.CampaignEntity", "Campaign")
-                        .WithMany("LifecycleEvents")
-                        .HasForeignKey("CampaignId", "ClubId")
-                        .HasPrincipalKey("CampaignId", "ClubId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Campaign");
-
-                    b.Navigation("Club");
                 });
 
             modelBuilder.Entity("Nova.Entities.CampaignTagApplicationEntity", b =>
@@ -1489,13 +1494,13 @@ namespace Nova.Data.Migrations
 
             modelBuilder.Entity("Nova.Entities.CampaignEntity", b =>
                 {
-                    b.Navigation("LifecycleEvents");
-
                     b.Navigation("PlayerAssignments");
                 });
 
             modelBuilder.Entity("Nova.Entities.ClubEntity", b =>
                 {
+                    b.Navigation("ActivityEvents");
+
                     b.Navigation("CampaignTagApplicationRemovalReceipts");
 
                     b.Navigation("CampaignTagApplications");

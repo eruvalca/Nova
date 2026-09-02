@@ -112,6 +112,135 @@ public class ClubJoinRequestServiceTests : IDisposable
             logger);
     }
 
+    #region CreateJoinRequestAsync Tests
+
+    [Fact]
+    public async Task CreateJoinRequestAsync_ReturnsForbidden_WhenNoSignedInUser()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = null;
+        _harness.CurrentUser.ClubId = null;
+        var service = CreateService();
+
+        // Act
+        var result = await service.CreateJoinRequestAsync(ClubAId, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    [Fact]
+    public async Task CreateJoinRequestAsync_ReturnsConflict_WhenUserAlreadyHasClub()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = AdminUserId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var service = CreateService();
+
+        // Act
+        var result = await service.CreateJoinRequestAsync(ClubAId, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+    }
+
+    [Fact]
+    public async Task CreateJoinRequestAsync_ReturnsConflict_WhenPendingRequestAlreadyExists()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = RequestingUserId;
+        _harness.CurrentUser.ClubId = null;
+        _harness.CurrentUser.IsClubAdmin = false;
+
+        using (var context = _harness.CreateAdminContext())
+        {
+            context.ClubJoinRequests.Add(new ClubJoinRequestEntity
+            {
+                ClubId = ClubAId,
+                RequestingUserId = RequestingUserId,
+                Status = RequestStatus.Pending,
+                CreatedById = RequestingUserId
+            });
+            context.SaveChanges();
+        }
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.CreateJoinRequestAsync(ClubAId, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+    }
+
+    [Fact]
+    public async Task CreateJoinRequestAsync_ReturnsNotFound_WhenClubDoesNotExist()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = RequestingUserId;
+        _harness.CurrentUser.ClubId = null;
+        var service = CreateService();
+
+        // Act
+        var result = await service.CreateJoinRequestAsync(999, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+    }
+
+    [Fact]
+    public async Task CreateJoinRequestAsync_CreatesRequestAndEmitsJoinRequestSubmittedEvent()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = RequestingUserId;
+        _harness.CurrentUser.ClubId = null;
+        _harness.CurrentUser.IsClubAdmin = false;
+
+        _userManager.FindByIdAsync(RequestingUserId.ToString())
+            .Returns(Task.FromResult<NovaUserEntity?>(new NovaUserEntity
+            {
+                Id = RequestingUserId,
+                FirstName = "Requester",
+                LastName = "R",
+                ClubId = null
+            }));
+
+        var service = CreateService();
+
+        // Act
+        var result = await service.CreateJoinRequestAsync(ClubAId, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ClubId.ShouldBe(ClubAId);
+        result.Value.RequestingUserId.ShouldBe(RequestingUserId);
+        result.Value.Status.ShouldBe(RequestStatus.Pending);
+
+        using (var context = _harness.CreateAdminContext())
+        {
+            var request = await context.ClubJoinRequests.SingleAsync(
+                r => r.RequestingUserId == RequestingUserId,
+                TestContext.Current.CancellationToken);
+            request.ClubId.ShouldBe(ClubAId);
+            request.Status.ShouldBe(RequestStatus.Pending);
+
+            var activityEvent = await context.ActivityEvents.SingleAsync(
+                e => e.EventKind == ActivityEventKind.JoinRequestSubmitted,
+                TestContext.Current.CancellationToken);
+            activityEvent.ClubId.ShouldBe(ClubAId);
+            activityEvent.ActorUserId.ShouldBe(RequestingUserId);
+            activityEvent.ActorDisplayName.ShouldBe("Requester R");
+            activityEvent.IsAdminOnly.ShouldBeTrue();
+            activityEvent.CampaignId.ShouldBeNull();
+        }
+    }
+
+    #endregion
+
     #region GetCurrentUserPendingRequestAsync Tests (Modified Behavior)
 
     [Fact]
@@ -565,10 +694,16 @@ public class ClubJoinRequestServiceTests : IDisposable
             requestId = request.ClubJoinRequestId;
         }
 
-        // Mock the UserManager to find the user and update it
-        var requestingUser = new NovaUserEntity { Id = RequestingUserId, FirstName = "Requester", LastName = "R" };
-        _userManager.FindByIdAsync(RequestingUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)requestingUser));
-        _userManager.UpdateAsync(requestingUser).Returns(Task.FromResult(Microsoft.AspNetCore.Identity.IdentityResult.Success));
+        // The service reloads the requester via UserManager (Identity store's admin context)
+        // before marking claims stale, so stub the reload to return the requester.
+        _userManager.FindByIdAsync(RequestingUserId.ToString())
+            .Returns(Task.FromResult<NovaUserEntity?>(new NovaUserEntity
+            {
+                Id = RequestingUserId,
+                FirstName = "Requester",
+                LastName = "R",
+                ClubId = ClubAId
+            }));
 
         var service = CreateService();
 
@@ -578,18 +713,78 @@ public class ClubJoinRequestServiceTests : IDisposable
         // Assert
         result.IsSuccess.ShouldBeTrue();
 
-        // Verify the request was approved in the database
+        // Verify the request was approved and the requester's membership was assigned atomically
         using (var context = _harness.CreateAdminContext())
         {
             var updatedRequest = await context.ClubJoinRequests.FirstAsync(r => r.ClubJoinRequestId == requestId, TestContext.Current.CancellationToken);
             updatedRequest.Status.ShouldBe(RequestStatus.Approved);
-        }
 
-        // Verify UserManager.UpdateAsync was called
-        await _userManager.Received().UpdateAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == RequestingUserId));
+            var updatedUser = await context.Users.FirstAsync(u => u.Id == RequestingUserId, TestContext.Current.CancellationToken);
+            updatedUser.ClubId.ShouldBe(ClubAId);
+        }
 
         // Verify UserManager.UpdateSecurityStampAsync was called (proxy for MarkUserClaimsStaleAsync)
         await _userManager.Received().UpdateSecurityStampAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == RequestingUserId));
+    }
+
+    /// <summary>
+    /// Verifies a committed approval still reports success when the post-commit claim refresh
+    /// fails: the membership and event are durable, and the stamp failure is logged rather than
+    /// turning the approval into a server error.
+    /// </summary>
+    [Fact]
+    public async Task ApproveJoinRequestAsync_StillSucceeds_WhenClaimsStaleMarkFails()
+    {
+        // Arrange
+        _harness.CurrentUser.UserId = AdminUserId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+
+        long requestId = 0;
+        using (var context = _harness.CreateAdminContext())
+        {
+            var request = new ClubJoinRequestEntity
+            {
+                ClubId = ClubAId,
+                RequestingUserId = RequestingUserId,
+                Status = RequestStatus.Pending,
+                CreatedById = RequestingUserId
+            };
+            context.ClubJoinRequests.Add(request);
+            context.SaveChanges();
+            requestId = request.ClubJoinRequestId;
+        }
+
+        _userManager.FindByIdAsync(RequestingUserId.ToString())
+            .Returns(Task.FromResult<NovaUserEntity?>(new NovaUserEntity
+            {
+                Id = RequestingUserId,
+                FirstName = "Requester",
+                LastName = "R",
+                ClubId = ClubAId
+            }));
+
+        var service = CreateService();
+
+        // Override the harness's success stub so the security-stamp refresh fails.
+        _userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
+            .Returns(Task.FromResult(IdentityResult.Failed(
+                new IdentityError { Code = "StampFailed", Description = "Security stamp update failed." })));
+
+        // Act
+        var result = await service.ApproveJoinRequestAsync(requestId, TestContext.Current.CancellationToken);
+
+        // Assert: the approval is durable and successful despite the refresh failure.
+        result.IsSuccess.ShouldBeTrue();
+
+        using (var context = _harness.CreateAdminContext())
+        {
+            var updatedRequest = await context.ClubJoinRequests.FirstAsync(r => r.ClubJoinRequestId == requestId, TestContext.Current.CancellationToken);
+            updatedRequest.Status.ShouldBe(RequestStatus.Approved);
+
+            var updatedUser = await context.Users.FirstAsync(u => u.Id == RequestingUserId, TestContext.Current.CancellationToken);
+            updatedUser.ClubId.ShouldBe(ClubAId);
+        }
     }
 
     #endregion

@@ -1,6 +1,5 @@
 ﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Dashboard;
-using Nova.UI.Features.Campaigns.Components;
+using Nova.Shared.Features.Activity;
 
 namespace Nova.UI.Features.Dashboard;
 
@@ -10,20 +9,45 @@ namespace Nova.UI.Features.Dashboard;
 internal static class DashboardDisplay
 {
     /// <summary>
-    /// Maps a dashboard activity event to its display verb phrase, including the player, tag, or
-    /// placement outcome context specific to the event kind.
+    /// Maps a club activity event to its display verb phrase, using the family-shaped context for
+    /// campaign, placement, membership, or role specifics.
     /// </summary>
     /// <param name="item">The activity event row.</param>
     /// <returns>The display verb phrase for the event.</returns>
-    public static string ActivityVerb(DashboardActivityItemDto item) => item.Kind switch
+    public static string ActivityVerb(ClubActivityItemDto item) => (item.Kind, item.Context) switch
     {
-        DashboardActivityEventKind.NoteAdded => $"added a note to {item.PlayerDisplayName}",
-        DashboardActivityEventKind.TagApplied => $"applied tag \"{item.TagName}\" to {item.PlayerDisplayName}",
-        DashboardActivityEventKind.PlacementSet =>
-            $"set {item.PlayerDisplayName}'s placement to {CampaignRosterDisplay.OutcomeLabel(item.PlacementOutcome ?? PlacementOutcome.Undecided)}",
-        DashboardActivityEventKind.CampaignClosed => "closed the campaign",
-        DashboardActivityEventKind.CampaignReopened => "reopened the campaign",
-        _ => "updated the campaign"
+        (ActivityEventKind.CampaignDraftCreated, CampaignLifecycleContext c) => $"drafted {c.CampaignName}",
+        (ActivityEventKind.CampaignDraftDeleted, CampaignLifecycleContext c) => $"deleted draft {c.CampaignName}",
+        (ActivityEventKind.CampaignOpened, CampaignLifecycleContext c) => $"opened {c.CampaignName}",
+        (ActivityEventKind.CampaignClosed, CampaignLifecycleContext c) => $"closed {c.CampaignName}",
+        (ActivityEventKind.CampaignReopened, CampaignLifecycleContext c) => $"reopened {c.CampaignName}",
+        (ActivityEventKind.PlacementAssigned, PlacementContext p) =>
+            $"assigned {p.PlayerDisplayName} to {p.TeamName ?? "a team"} in {p.CampaignName}",
+        (ActivityEventKind.PlacementNotSelected, PlacementContext p) =>
+            $"marked {p.PlayerDisplayName} not selected for {p.CampaignName}",
+        (ActivityEventKind.PlacementWithdrawn, PlacementContext p) =>
+            $"withdrew {p.PlayerDisplayName}'s placement for {p.CampaignName}",
+        (ActivityEventKind.PlacementReassigned, PlacementContext p) =>
+            $"moved {p.PlayerDisplayName} to {p.TeamName ?? "a new team"} in {p.CampaignName}",
+        (ActivityEventKind.PlacementOutcomeReplaced, PlacementContext p) =>
+            $"updated {p.PlayerDisplayName}'s placement for {p.CampaignName}",
+        (ActivityEventKind.PlacementSuperseded, PlacementContext p) =>
+            $"superseded {p.PlayerDisplayName}'s placement for {p.CampaignName}",
+        (ActivityEventKind.JoinRequestSubmitted, JoinRequestContext j) =>
+            "requested to join the club",
+        (ActivityEventKind.JoinRequestCancelled, JoinRequestContext j) =>
+            "withdrew their join request",
+        (ActivityEventKind.JoinRequestRejected, JoinRequestContext j) =>
+            $"rejected {j.RequesterDisplayName}'s join request",
+        (ActivityEventKind.MemberJoined, MembershipContext m) =>
+            m.ApprovedByActorName is string approver
+                ? $"approved {m.MemberDisplayName}'s membership"
+                : $"{m.MemberDisplayName} joined the club",
+        (ActivityEventKind.MemberRemoved, MembershipContext m) => $"removed {m.MemberDisplayName}",
+        (ActivityEventKind.MemberLeft, MembershipContext m) => "left the club",
+        (ActivityEventKind.MemberPromoted, MemberRoleContext r) => $"promoted {r.MemberDisplayName} to {r.Role}",
+        (ActivityEventKind.MemberDemoted, MemberRoleContext r) => $"demoted {r.MemberDisplayName}",
+        _ => "updated the club"
     };
 
     /// <summary>

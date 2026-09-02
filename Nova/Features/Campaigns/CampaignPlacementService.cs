@@ -3,7 +3,10 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Activity;
 using Nova.Features.Shared;
+using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.Shared.Validation;
@@ -193,12 +196,33 @@ public sealed partial class CampaignPlacementService(
         await db.AcquirePlayerMutationLockAsync(participation.PlayerId, cancellationToken);
         await db.Entry(participation.Player).ReloadAsync(cancellationToken);
 
+        // The old team-name snapshot must come from post-lock state: the team navigation is not
+        // loaded up front (only Player and Campaign are included above), so it is first loaded
+        // after the team locks. Lock the affected teams in a deterministic order (interleaved
+        // {old, new} sorted by identifier) so concurrent switches cannot deadlock, then load the
+        // target team and the old-team reference before reading either team name.
+        var teamIdsToLock = new[] { participation.TeamId, input.TeamId }
+            .Where(teamId => teamId.HasValue)
+            .Select(teamId => teamId!.Value)
+            .Distinct()
+            .OrderBy(teamId => teamId)
+            .ToList();
+
+        foreach (var lockedTeamId in teamIdsToLock)
+        {
+            await db.AcquireTeamMutationLockAsync(lockedTeamId, cancellationToken);
+        }
+
         TeamEntity? team = null;
         if (input.TeamId is long teamId)
         {
-            await db.AcquireTeamMutationLockAsync(teamId, cancellationToken);
             team = await db.Teams
                 .SingleOrDefaultAsync(candidate => candidate.TeamId == teamId, cancellationToken);
+        }
+
+        if (participation.TeamId is long previousTeamIdValue)
+        {
+            await db.Entry(participation).Reference(assignment => assignment.Team).LoadAsync(cancellationToken);
         }
 
         var placementDecision = CampaignPlacementPolicy.Evaluate(
@@ -225,9 +249,49 @@ public sealed partial class CampaignPlacementService(
                 .Property(assignment => assignment.ConcurrencyToken)
                 .OriginalValue = input.ExpectedConcurrencyToken;
 
+            // Capture the prior placement state and the old team-name snapshot before mutation so
+            // the durable event can describe the transition; a no-op save emits nothing.
+            var previousOutcome = participation.PlacementOutcome;
+            var previousTeamId = participation.TeamId;
+            var previousTeamName = participation.Team?.Name;
+            var placementKind = ActivityEventPolicy.ClassifyPlacementTransition(
+                previousOutcome,
+                previousTeamId,
+                input.Outcome,
+                input.TeamId);
+
             participation.PlacementOutcome = input.Outcome;
             participation.TeamId = input.TeamId;
             participation.ConcurrencyToken = replacementToken;
+
+            // The actor is a club member (tenant-visible), so the write context resolves the
+            // snapshot deterministically.
+            var actorName = await db.Users
+                .Where(user => user.Id == userId)
+                .Select(user => user.FirstName + " " + user.LastName)
+                .FirstOrDefaultAsync(cancellationToken) ?? "Unknown user";
+
+            if (placementKind is ActivityEventKind kind)
+            {
+                ActivityEventWriter.AppendPlacement(
+                    db,
+                    participation.ClubId,
+                    participation.CampaignId,
+                    kind,
+                    userId,
+                    actorName,
+                    new PlacementContext
+                    {
+                        CampaignId = participation.CampaignId,
+                        CampaignName = participation.Campaign.Name,
+                        PlayerCampaignAssignmentId = participation.PlayerCampaignAssignmentId,
+                        PlayerDisplayName = participation.Player.FullName,
+                        PreviousOutcome = previousOutcome == PlacementOutcome.Undecided ? null : previousOutcome,
+                        Outcome = input.Outcome,
+                        PreviousTeamName = previousTeamName,
+                        TeamName = team?.Name,
+                    });
+            }
 
             try
             {

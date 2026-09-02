@@ -1,8 +1,11 @@
 ﻿using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
+using Nova.Shared.Features.Attention;
 using Nova.Shared.Features.Dashboard;
 using Shouldly;
 
@@ -23,9 +26,9 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>
     /// Verifies the summary returns authoritative, tenant-scoped counts: two active campaign cards in
-    /// deterministic order, per-card participant/unresolved counts and workspace links, roster and
-    /// team counts, and administrator attention matching the seeded pending request and the total
-    /// undecided participants across campaigns.
+    /// deterministic order, per-card participant/unresolved counts and workspace links, and roster and
+    /// team counts. The separate attention projection verifies the administrator counts matching the
+    /// seeded pending request and the newest campaign's undecided participants.
     /// </summary>
     [Fact]
     public async Task GetSummary_ReturnsAuthoritativeTenantScopedCounts()
@@ -124,17 +127,25 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             dashboard.Roster.ArchivedPlayers.ShouldBe(1);
             dashboard.Teams.ActiveTeams.ShouldBe(2);
             dashboard.Teams.ArchivedTeams.ShouldBe(1);
+        }
 
-            dashboard.AdminAttention.ShouldNotBeNull();
-            dashboard.AdminAttention!.PendingJoinRequestCount.ShouldBe(1);
-            dashboard.AdminAttention.UnresolvedPlacementCount.ShouldBe(3);
-            dashboard.AdminAttention.FirstUnresolvedCampaignId.ShouldBe(manual.CampaignId);
+        using (var attentionResponse = await adminClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        {
+            attentionResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var attention = await attentionResponse.Content.ReadFromJsonAsync<ClubAttentionResult>(cancellationToken);
+            attention.ShouldNotBeNull();
+            attention.PendingJoinRequests.Status.ShouldBe(AttentionRegionStatus.Loaded);
+            attention.PendingJoinRequests.Count.ShouldBe(1);
+            attention.NeedsPlacement.Status.ShouldBe(AttentionRegionStatus.Loaded);
+            attention.NeedsPlacement.Count.ShouldBe(1);
+            attention.NeedsPlacement.CampaignId.ShouldBe(manual.CampaignId);
+            attention.NeedsPlacement.CampaignName.ShouldBe(manual.Name);
         }
     }
 
     /// <summary>
     /// Verifies an administrator of a club with no campaigns, players, or teams receives an empty
-    /// summary contract with zero counts and a present-but-zeroed attention card (never an error).
+    /// summary contract with zero counts, and the attention projection reports loaded zero counts.
     /// </summary>
     [Fact]
     public async Task GetSummary_EmptyClub_ReturnsZeroCountsAndEmptyContracts()
@@ -159,17 +170,24 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             dashboard.Roster.ArchivedPlayers.ShouldBe(0);
             dashboard.Teams.ActiveTeams.ShouldBe(0);
             dashboard.Teams.ArchivedTeams.ShouldBe(0);
+        }
 
-            dashboard.AdminAttention.ShouldNotBeNull();
-            dashboard.AdminAttention!.PendingJoinRequestCount.ShouldBe(0);
-            dashboard.AdminAttention.UnresolvedPlacementCount.ShouldBe(0);
-            dashboard.AdminAttention.FirstUnresolvedCampaignId.ShouldBeNull();
+        using (var attentionResponse = await adminClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        {
+            attentionResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var attention = await attentionResponse.Content.ReadFromJsonAsync<ClubAttentionResult>(cancellationToken);
+            attention.ShouldNotBeNull();
+            attention.PendingJoinRequests.Status.ShouldBe(AttentionRegionStatus.Loaded);
+            attention.PendingJoinRequests.Count.ShouldBe(0);
+            attention.NeedsPlacement.Status.ShouldBe(AttentionRegionStatus.Loaded);
+            attention.NeedsPlacement.Count.ShouldBe(0);
+            attention.NeedsPlacement.CampaignId.ShouldBeNull();
         }
     }
 
     /// <summary>
-    /// Verifies an evaluator of an empty club receives zero counts and a null attention contract,
-    /// proving administrator-only attention is omitted even when the club has no data.
+    /// Verifies an evaluator of an empty club receives zero counts from the summary, and is
+    /// forbidden from the administrator-only attention projection even when the club has no data.
     /// </summary>
     [Fact]
     public async Task GetSummary_EmptyClub_EvaluatorOmitsAttention()
@@ -200,14 +218,18 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             dashboard.Roster.ArchivedPlayers.ShouldBe(0);
             dashboard.Teams.ActiveTeams.ShouldBe(0);
             dashboard.Teams.ArchivedTeams.ShouldBe(0);
-            dashboard.AdminAttention.ShouldBeNull();
+        }
+
+        using (var attentionResponse = await evaluatorClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        {
+            attentionResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
     }
 
     /// <summary>
-    /// Verifies the summary and activity reads are tenant-isolated: decoy rows in a second club are
-    /// never surfaced to the first club's administrator in card names, roster/team counts, attention
-    /// counts, or activity results.
+    /// Verifies the summary, attention, and activity reads are tenant-isolated: decoy rows in a second
+    /// club are never surfaced to the first club's administrator in card names, roster/team counts,
+    /// attention counts, or activity results.
     /// </summary>
     [Fact]
     public async Task GetSummary_IsTenantIsolated()
@@ -249,6 +271,22 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             context.Add(assignmentA);
             await context.SaveChangesAsync(cancellationToken);
             context.Add(new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Club A note", PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId, ClubId = clubA.ClubId, CreatedById = adminAUserId });
+            context.Add(new ActivityEventEntity
+            {
+                ClubId = clubA.ClubId,
+                EventKind = ActivityEventKind.CampaignOpened,
+                CampaignId = campaignA.CampaignId,
+                ActorUserId = adminAUserId,
+                ActorDisplayName = "Club A Admin",
+                PayloadJson = JsonSerializer.Serialize(
+                    new CampaignLifecycleContext
+                    {
+                        CampaignId = campaignA.CampaignId,
+                        CampaignName = clubACampaignName
+                    },
+                    typeof(ClubActivityContext)),
+                CreatedById = adminAUserId
+            });
 
             // Club B: decoy campaign, players, archived team, and a pending join request.
             var seasonB = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Club B Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = adminBUserId };
@@ -269,7 +307,23 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
                     ClubId = clubB.ClubId,
                     CreatedById = adminBUserId
                 },
-                new ClubJoinRequestEntity { ClubId = clubB.ClubId, RequestingUserId = adminAUserId, CreatedById = adminAUserId, Status = RequestStatus.Pending });
+                new ClubJoinRequestEntity { ClubId = clubB.ClubId, RequestingUserId = adminAUserId, CreatedById = adminAUserId, Status = RequestStatus.Pending },
+                new ActivityEventEntity
+                {
+                    ClubId = clubB.ClubId,
+                    EventKind = ActivityEventKind.CampaignOpened,
+                    CampaignId = campaignB.CampaignId,
+                    ActorUserId = adminBUserId,
+                    ActorDisplayName = "Club B Admin",
+                    PayloadJson = JsonSerializer.Serialize(
+                        new CampaignLifecycleContext
+                        {
+                            CampaignId = campaignB.CampaignId,
+                            CampaignName = clubBCampaignName
+                        },
+                        typeof(ClubActivityContext)),
+                    CreatedById = adminBUserId
+                });
             await context.SaveChangesAsync(cancellationToken);
         }
 
@@ -284,20 +338,32 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             dashboard.Roster.ArchivedPlayers.ShouldBe(0);
             dashboard.Teams.ActiveTeams.ShouldBe(1);
             dashboard.Teams.ArchivedTeams.ShouldBe(0);
-            dashboard.AdminAttention.ShouldNotBeNull();
-            dashboard.AdminAttention!.PendingJoinRequestCount.ShouldBe(0);
-            dashboard.AdminAttention.UnresolvedPlacementCount.ShouldBe(0);
         }
 
-        using (var activityResponse = await adminAClient.GetAsync(DashboardEndpoints.GetActivity, cancellationToken))
+        using (var attentionResponse = await adminAClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        {
+            attentionResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var attention = await attentionResponse.Content.ReadFromJsonAsync<ClubAttentionResult>(cancellationToken);
+            attention.ShouldNotBeNull();
+            attention.PendingJoinRequests.Status.ShouldBe(AttentionRegionStatus.Loaded);
+            attention.PendingJoinRequests.Count.ShouldBe(0);
+            attention.NeedsPlacement.Status.ShouldBe(AttentionRegionStatus.Loaded);
+            attention.NeedsPlacement.Count.ShouldBe(0);
+        }
+
+        using (var activityResponse = await adminAClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken))
         {
             activityResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-            var activity = await activityResponse.Content.ReadFromJsonAsync<DashboardActivityResult>(cancellationToken);
+            var activity = await activityResponse.Content.ReadFromJsonAsync<ClubActivityResult>(cancellationToken);
             activity.ShouldNotBeNull();
 
             activity.Events.ShouldNotBeEmpty();
-            activity.Events.ShouldContain(item => item.CampaignName == clubACampaignName);
-            activity.Events.ShouldNotContain(item => item.CampaignName == clubBCampaignName);
+            activity.Events.Select(item => item.Context).OfType<CampaignLifecycleContext>()
+                .Select(context => context.CampaignName)
+                .ShouldContain(clubACampaignName);
+            activity.Events.Select(item => item.Context).OfType<CampaignLifecycleContext>()
+                .Select(context => context.CampaignName)
+                .ShouldNotContain(clubBCampaignName);
         }
     }
 

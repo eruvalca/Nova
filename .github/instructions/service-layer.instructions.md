@@ -77,6 +77,14 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
 
 Consider a feature-local pure policy when a service contains a non-trivial deterministic rule matrix. The service remains the imperative shell: validate, authorize, query tenant-safe facts, acquire locks, reload freshness-sensitive state, call the policy once, then apply effects, persist, handle concurrency, and log. Do not introduce a policy for simple guards or move EF, authorization, locking, persistence, or logging into the policy. See `.github/instructions/functional-core.instructions.md`.
 
+## Projections with partial failures
+
+- When a projection combines independent regions (e.g. the pending-request and needs-placement
+  attention counts), keep each region's result/error state separate: a transient failure in one
+  region must report an explicit unavailable status for that region — never a misleading zero — and
+  must not hide or zero the other region. Re-throw on cancellation; mark the region unavailable
+  otherwise.
+
 ## Logging
 
 Follow source-generated `[LoggerMessage]` conventions from `.github/instructions/csharp-conventions.instructions.md`. In services: log `Warning` for expected-but-noteworthy failures (validation errors, conflicts), `Error` for unexpected exceptions (database/network). Always include user id, resource id, and operation in context. Never log sensitive data.

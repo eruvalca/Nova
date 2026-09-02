@@ -62,11 +62,6 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     public ICollection<PlayerCampaignAssignmentEntity> PlayerAssignments { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets the append-only lifecycle events for this campaign.
-    /// </summary>
-    public ICollection<CampaignLifecycleEventEntity> LifecycleEvents { get; set; } = [];
-
-    /// <summary>
     /// Gets or sets the Club Id.
     /// </summary>
     public required long ClubId { get; set; }

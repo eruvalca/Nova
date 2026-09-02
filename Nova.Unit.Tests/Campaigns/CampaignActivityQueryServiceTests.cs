@@ -1,8 +1,14 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿using System.Data.Common;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
+using Nova.Features.Activity;
 using Nova.Features.Campaigns;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.Unit.Tests.Account;
@@ -134,7 +140,7 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
         SeedEvents(
             _closedCampaignId,
             ClubAId,
-            [(CampaignLifecycleEventType.Closed, createdAt, actorUserId)]);
+            [(CampaignLifecycleEventType.Closed, createdAt, actorUserId, "Admin A")]);
 
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -159,7 +165,8 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
             .Select(index => (
                 EventType: index % 2 == 0 ? CampaignLifecycleEventType.Closed : CampaignLifecycleEventType.Reopened,
                 CreatedAt: baseTime.AddMinutes(index),
-                ActorUserId: ClubAAdminId))
+                ActorUserId: ClubAAdminId,
+                ActorDisplayName: "Admin A"))
             .ToList();
         var entities = SeedEvents(_activeCampaignId, ClubAId, specs);
 
@@ -175,9 +182,9 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
 
         var expectedIds = entities
             .OrderByDescending(entity => entity.CreatedAt)
-            .ThenByDescending(entity => entity.CampaignLifecycleEventId)
+            .ThenByDescending(entity => entity.ActivityEventId)
             .Take(GetCampaignActivityInput.MaxEventCount)
-            .Select(entity => entity.CampaignLifecycleEventId)
+            .Select(entity => entity.ActivityEventId)
             .ToList();
         result.Value.Events.Select(item => item.CampaignLifecycleEventId).ShouldBe(expectedIds);
     }
@@ -191,8 +198,8 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
             _activeCampaignId,
             ClubAId,
             [
-                (CampaignLifecycleEventType.Closed, equalTime, ClubAAdminId),
-                (CampaignLifecycleEventType.Reopened, equalTime, ClubAAdminId)
+                (CampaignLifecycleEventType.Closed, equalTime, ClubAAdminId, "Admin A"),
+                (CampaignLifecycleEventType.Reopened, equalTime, ClubAAdminId, "Admin A")
             ]);
 
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -205,22 +212,22 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
         result.IsSuccess.ShouldBeTrue();
         result.Value.Events.Count.ShouldBe(2);
         var expectedIds = entities
-            .OrderByDescending(entity => entity.CampaignLifecycleEventId)
-            .Select(entity => entity.CampaignLifecycleEventId)
+            .OrderByDescending(entity => entity.ActivityEventId)
+            .Select(entity => entity.ActivityEventId)
             .ToList();
         result.Value.Events.Select(item => item.CampaignLifecycleEventId).ShouldBe(expectedIds);
     }
 
-    /// <summary>Verifies actor display names are resolved and missing actors fall back to the "Former member" text.</summary>
+    /// <summary>Verifies stored actor name snapshots are returned verbatim, even for removed users.</summary>
     [Fact]
-    public async Task GetActivity_ResolvesActorDisplayNames_WithMissingActorFallback()
+    public async Task GetActivity_ReturnsStoredActorSnapshots_ForRemovedUsers()
     {
         SeedEvents(
             _activeCampaignId,
             ClubAId,
             [
-                (CampaignLifecycleEventType.Closed, new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero), ClubAAdminId),
-                (CampaignLifecycleEventType.Reopened, new DateTimeOffset(2026, 10, 2, 8, 0, 0, TimeSpan.Zero), MissingActorUserId)
+                (CampaignLifecycleEventType.Closed, new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero), ClubAAdminId, "Admin A"),
+                (CampaignLifecycleEventType.Reopened, new DateTimeOffset(2026, 10, 2, 8, 0, 0, TimeSpan.Zero), MissingActorUserId, "Former member")
             ]);
 
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -246,7 +253,8 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
             .Select(index => (
                 EventType: CampaignLifecycleEventType.Closed,
                 CreatedAt: baseTime.AddMinutes(index),
-                ActorUserId: ClubAAdminId))
+                ActorUserId: ClubAAdminId,
+                ActorDisplayName: "Admin A"))
             .ToList();
         SeedEvents(_activeCampaignId, ClubAId, specs);
 
@@ -276,32 +284,64 @@ public sealed class CampaignActivityQueryServiceTests : IDisposable
     /// <summary>Seeds lifecycle events and returns the persisted entities for ordering assertions.</summary>
     /// <param name="campaignId">The owning campaign identifier.</param>
     /// <param name="clubId">The owning club identifier.</param>
-    /// <param name="specs">The event type, timestamp, and actor for each event.</param>
+    /// <param name="specs">The event type, timestamp, actor, and stored name snapshot for each event.</param>
     /// <returns>The persisted event entities in seed order.</returns>
-    private IReadOnlyList<CampaignLifecycleEventEntity> SeedEvents(
+    private IReadOnlyList<ActivityEventEntity> SeedEvents(
         long campaignId,
         long clubId,
-        IReadOnlyList<(CampaignLifecycleEventType EventType, DateTimeOffset CreatedAt, long ActorUserId)> specs)
+        IReadOnlyList<(CampaignLifecycleEventType EventType, DateTimeOffset CreatedAt, long ActorUserId, string ActorDisplayName)> specs)
     {
         using var admin = _harness.CreateAdminContext();
-        var entities = specs.Select(spec => new CampaignLifecycleEventEntity
-        {
-            CampaignId = campaignId,
-            ClubId = clubId,
-            EventType = spec.EventType,
-            CreatedById = spec.ActorUserId
-        }).ToList();
-        admin.CampaignLifecycleEvents.AddRange(entities);
-        admin.SaveChanges();
 
-        // Re-stamp deterministic timestamps after the audit interceptor set a uniform CreatedAt.
-        for (var index = 0; index < entities.Count; index++)
+        // Straight SQL because the tenant interceptor re-stamps CreatedAt to now on Added, which
+        // would discard the caller-supplied occurrence time the ordering assertions rely on.
+        var connection = admin.Database.GetDbConnection();
+        foreach (var spec in specs)
         {
-            entities[index].CreatedAt = specs[index].CreatedAt;
+            var eventKind = spec.EventType == CampaignLifecycleEventType.Closed
+                ? ActivityEventKind.CampaignClosed
+                : ActivityEventKind.CampaignReopened;
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                INSERT INTO "ActivityEvents"
+                    ("ClubId", "CampaignId", "EventKind", "IsAdminOnly", "ActorUserId",
+                     "ActorDisplayName", "PayloadJson", "CreatedAt", "CreatedById")
+                VALUES
+                    (@clubId, @campaignId, @eventKind, @isAdminOnly, @actorUserId,
+                     @actorDisplayName, @payloadJson, @createdAt, @createdById)
+                """;
+            AddParameter(command, "@clubId", clubId);
+            AddParameter(command, "@campaignId", campaignId);
+            AddParameter(command, "@eventKind", (int)eventKind);
+            AddParameter(command, "@isAdminOnly", ActivityEventPolicy.IsAdminOnly(eventKind) ? 1 : 0);
+            AddParameter(command, "@actorUserId", spec.ActorUserId);
+            AddParameter(command, "@actorDisplayName", spec.ActorDisplayName);
+            AddParameter(command, "@payloadJson", JsonSerializer.Serialize(
+                new CampaignLifecycleContext
+                {
+                    CampaignId = campaignId,
+                    CampaignName = "Active A",
+                },
+                typeof(ClubActivityContext),
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+            AddParameter(command, "@createdAt", spec.CreatedAt);
+            AddParameter(command, "@createdById", spec.ActorUserId);
+            command.ExecuteNonQuery();
         }
 
-        admin.SaveChanges();
-        return entities;
+        return admin.ActivityEvents
+            .AsNoTracking()
+            .OrderBy(entity => entity.ActivityEventId)
+            .ToList();
+    }
+
+    private static void AddParameter(DbCommand command, string name, object? value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value ?? DBNull.Value;
+        command.Parameters.Add(parameter);
     }
 
     /// <summary>Seeds clubs, users, seasons, and campaigns for two clubs.</summary>

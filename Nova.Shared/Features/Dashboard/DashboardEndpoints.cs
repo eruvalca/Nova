@@ -28,42 +28,10 @@ public static class DashboardEndpoints
     public const string GetSummaryRouteName = "GetClubDashboard";
 
     /// <summary>
-    /// Gets the bounded recent-activity route (GET).
-    /// </summary>
-    public const string GetActivity = $"{GroupPrefix}/activity";
-
-    /// <summary>
-    /// Gets the recent-activity route relative to the dashboard group.
-    /// </summary>
-    public const string GetActivityRelative = "activity";
-
-    /// <summary>
-    /// Gets the route name assigned to the bounded recent-activity query.
-    /// </summary>
-    public const string GetActivityRouteName = "GetClubDashboardActivity";
-
-    /// <summary>
     /// The route prefix of the campaign workspace page (the #10 read surface), used to build the
     /// prebuilt workspace link carried by each active campaign card.
     /// </summary>
     public const string CampaignWorkspaceRoutePrefix = "/campaigns";
-
-    /// <summary>
-    /// The route of the campaign list page, used as the administrator attention fallback target when
-    /// no active campaign has an unresolved placement.
-    /// </summary>
-    public const string CampaignListRoute = "/campaigns";
-
-    /// <summary>
-    /// Builds the bounded recent-activity URL, omitting the optional limit when it is not supplied
-    /// or would not be accepted by the input contract.
-    /// </summary>
-    /// <param name="limit">The optional bound on returned activity events.</param>
-    /// <returns>The recent-activity URL.</returns>
-    public static string GetActivityUrl(int? limit)
-        => limit is int value and >= 1 and <= GetDashboardActivityInput.MaxEventCount
-            ? $"{GetActivity}?limit={value}"
-            : GetActivity;
 
     /// <summary>
     /// Builds the prebuilt workspace URL for an active campaign card, pointing at the campaign

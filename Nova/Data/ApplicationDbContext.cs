@@ -97,9 +97,9 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// </summary>
     public DbSet<CampaignTagApplicationRemovalReceiptEntity> CampaignTagApplicationRemovalReceipts => Set<CampaignTagApplicationRemovalReceiptEntity>();
     /// <summary>
-    /// Gets the Campaign Lifecycle Events.
+    /// Gets the Activity Events.
     /// </summary>
-    public DbSet<CampaignLifecycleEventEntity> CampaignLifecycleEvents => Set<CampaignLifecycleEventEntity>();
+    public DbSet<ActivityEventEntity> ActivityEvents => Set<ActivityEventEntity>();
     /// <summary>
     /// Gets the Nova User Photos.
     /// </summary>
