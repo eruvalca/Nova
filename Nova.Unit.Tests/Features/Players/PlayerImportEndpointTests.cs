@@ -42,7 +42,7 @@ public sealed class PlayerImportEndpointTests
 
         /// <inheritdoc />
         public Task<ServiceResult<PlayerImportPreview>> PreviewAsync(
-            PlayerImportUpload upload,
+            PlayerImportUploadInput upload,
             CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

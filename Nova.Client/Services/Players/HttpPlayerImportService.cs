@@ -45,7 +45,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
 
     /// <inheritdoc />
     public async Task<ServiceResult<PlayerImportPreview>> PreviewAsync(
-        PlayerImportUpload upload,
+        PlayerImportUploadInput upload,
         CancellationToken cancellationToken = default)
     {
         var validationProblem = ValidateUpload(upload);
@@ -77,7 +77,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
             cancellationToken);
     }
 
-    private static ServiceProblem? ValidateUpload(PlayerImportUpload upload)
+    private static ServiceProblem? ValidateUpload(PlayerImportUploadInput upload)
     {
         if (upload is null || upload.Content is null || upload.Content.Length == 0)
         {
@@ -110,6 +110,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
     private static bool IsValidPreview(PlayerImportPreview preview)
     {
         if (preview.OperationId == Guid.Empty
+            || preview.OperationId.Version != 7
             || string.IsNullOrWhiteSpace(preview.ConfirmationToken)
             || preview.ExpiresAt == default
             || preview.TotalRows is < 1 or > PlayerImportConstraints.MaxDataRows
@@ -132,6 +133,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
             if (row is null
                 || row.SourceRowNumber != expectedSourceRow
                 || row.Values is null
+                || !IsValidValues(row.Values)
                 || row.Errors is null
                 || !Enum.IsDefined(row.Status)
                 || row.Errors.Any(error => error is null || !Enum.IsDefined(error.Field) || string.IsNullOrWhiteSpace(error.Message)))
@@ -193,6 +195,14 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
         candidate is not null
         && InputValidator.Validate(candidate).Count == 0
         && (candidate.Gender is null || Enum.IsDefined(candidate.Gender.Value));
+
+    private static bool IsValidValues(PlayerImportRowValues values) =>
+        values.FirstName is not null
+        && values.LastName is not null
+        && values.DateOfBirth is not null
+        && values.Gender is not null
+        && values.JerseyNumber is not null
+        && values.GraduationYear is not null;
 
     private static byte[] CreateExpectedTemplateContent()
     {

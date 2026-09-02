@@ -86,7 +86,7 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
         }
 
         var result = await playerImportService.PreviewAsync(
-            new PlayerImportUpload(content, file.FileName, file.ContentType),
+            new PlayerImportUploadInput(content, file.FileName, file.ContentType),
             cancellationToken);
         return result.ToHttpResult();
     }

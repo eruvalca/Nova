@@ -44,7 +44,7 @@ internal sealed partial class PlayerImportService(
 
     /// <inheritdoc />
     public async Task<ServiceResult<PlayerImportPreview>> PreviewAsync(
-        PlayerImportUpload upload,
+        PlayerImportUploadInput upload,
         CancellationToken cancellationToken = default)
     {
         var uploadProblem = ValidateUpload(upload);
@@ -211,7 +211,7 @@ internal sealed partial class PlayerImportService(
         return actorUserId > 0 && clubId > 0 && currentUserProvider.IsClubAdmin;
     }
 
-    private static ServiceProblem? ValidateUpload(PlayerImportUpload upload)
+    private static ServiceProblem? ValidateUpload(PlayerImportUploadInput upload)
     {
         if (upload is null)
         {

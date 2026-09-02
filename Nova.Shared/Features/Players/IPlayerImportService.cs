@@ -12,6 +12,6 @@ public interface IPlayerImportService
 
     /// <summary>Parses and validates an uploaded CSV without persisting any rows.</summary>
     Task<ServiceResult<PlayerImportPreview>> PreviewAsync(
-        PlayerImportUpload upload,
+        PlayerImportUploadInput upload,
         CancellationToken cancellationToken = default);
 }

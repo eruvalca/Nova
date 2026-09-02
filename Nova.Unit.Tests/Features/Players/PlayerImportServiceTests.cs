@@ -307,6 +307,18 @@ public sealed class PlayerImportServiceTests : IDisposable
                 out var rejectedPayload)
             .ShouldBeFalse();
         rejectedPayload.ShouldBeNull();
+
+        var nullHashPayload = TokenPayload() with { FileSha256 = null! };
+        var nullHash = _tokenProtector.Protect(nullHashPayload, TimeSpan.FromHours(1));
+        _tokenProtector.TryValidate(
+                nullHash,
+                nullHashPayload.OperationId,
+                nullHashPayload.ClubId,
+                nullHashPayload.ActorUserId,
+                new byte[nullHashPayload.FileLength],
+                out var nullHashResult)
+            .ShouldBeFalse();
+        nullHashResult.ShouldBeNull();
     }
 
     private PlayerImportService CreateService(PlayerImportReadContextFactory? factory = null) => new(
@@ -317,7 +329,7 @@ public sealed class PlayerImportServiceTests : IDisposable
         TimeProvider.System,
         NullLogger<PlayerImportService>.Instance);
 
-    private static PlayerImportUpload Upload(string rows)
+    private static PlayerImportUploadInput Upload(string rows)
     {
         const string header = "First name,Last name,Date of birth,Gender,Jersey number,Graduation year\r\n";
         return new(Encoding.UTF8.GetBytes(header + rows), "players.csv", "text/csv");

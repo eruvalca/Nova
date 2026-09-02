@@ -88,8 +88,5 @@ public sealed record PlayerImportPreview(
     int DuplicateRows,
     IReadOnlyList<PlayerImportPreviewRow> Rows);
 
-/// <summary>Represents a raw player CSV upload.</summary>
-public sealed record PlayerImportUpload(byte[] Content, string FileName, string ContentType);
-
 /// <summary>Represents the generated player import template.</summary>
 public sealed record PlayerImportTemplate(byte[] Content, string ContentType, string DownloadFileName);

@@ -23,7 +23,7 @@ public sealed class HttpPlayerImportServiceTests
         var content = Encoding.UTF8.GetBytes("csv-content");
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
-            new PlayerImportUpload(content, "custom-player-list.csv", "text/csv"),
+            new PlayerImportUploadInput(content, "custom-player-list.csv", "text/csv"),
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -42,7 +42,7 @@ public sealed class HttpPlayerImportServiceTests
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
-            new PlayerImportUpload(new byte[PlayerImportConstraints.MaxFileBytes + 1], "players.csv", "text/csv"),
+            new PlayerImportUploadInput(new byte[PlayerImportConstraints.MaxFileBytes + 1], "players.csv", "text/csv"),
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
@@ -108,6 +108,52 @@ public sealed class HttpPlayerImportServiceTests
         var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(ValidPreview() with { ReadyRows = 0 })
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerImportService(http).PreviewAsync(
+            ValidUpload(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task PreviewAsync_ReturnsServerError_WhenOperationIdIsNotUuidVersion7()
+    {
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(ValidPreview() with { OperationId = Guid.NewGuid() })
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerImportService(http).PreviewAsync(
+            ValidUpload(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task PreviewAsync_ReturnsServerError_WhenNestedRowValueIsNull()
+    {
+        var invalidRow = new PlayerImportPreviewRow(
+            2,
+            new(null!, "Archer", "invalid", "", "", "2030"),
+            Candidate: null,
+            PlayerImportRowStatus.Invalid,
+            [new(PlayerImportField.FirstName, "First name is required.")],
+            Duplicate: null);
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(ValidPreview() with
+            {
+                ReadyRows = 0,
+                InvalidRows = 1,
+                Rows = [invalidRow]
+            })
         });
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
@@ -309,7 +355,7 @@ public sealed class HttpPlayerImportServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
-    private static PlayerImportUpload ValidUpload() => new(
+    private static PlayerImportUploadInput ValidUpload() => new(
         Encoding.UTF8.GetBytes("content"),
         "players.csv",
         "text/csv");

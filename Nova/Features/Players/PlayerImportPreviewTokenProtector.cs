@@ -68,6 +68,11 @@ internal sealed class PlayerImportPreviewTokenProtector(IDataProtectionProvider 
             return false;
         }
 
+        if (string.IsNullOrEmpty(candidate.FileSha256))
+        {
+            return false;
+        }
+
         byte[] protectedHash;
         try
         {

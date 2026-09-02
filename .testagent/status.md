@@ -12,7 +12,7 @@ Strong: the generated suite protects the import contract's security denials, fil
 
 ## Assertion-quality review
 
-- Reviewed 53 test methods across the parser, service/token, endpoint metadata, WASM client, and Aspire HTTP files.
+- Reviewed 55 test methods across the parser, service/token, endpoint metadata, WASM client, and Aspire HTTP files.
 - No assertion-free, always-true, self-referential, or null-only tests were found.
 - Assertions cover equality/boolean results, nullability, strings, collections and ordering, exceptions/cancellation, comparisons/bounds, negative behavior, database side effects, HTTP request metadata, and nested response structure.
 - Smoke-style authorization tests intentionally assert only their exact HTTP status; broader response-shape assertions are exercised by the validation tests.
@@ -22,7 +22,7 @@ Strong: the generated suite protects the import contract's security denials, fil
 - Focused player-import unit tests: 45 passed before the final four gap-closing cases; the final full unit run includes all additions.
 - Focused Aspire player-import HTTP tests: 9 passed.
 - `dotnet build Nova.slnx --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,074 passed.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,076 passed.
 - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`: 412 passed.
 - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`: 111 passed, 7 expected opt-in accessibility evidence tests skipped.
 - `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`: formatted 0 of 777 files.
@@ -34,3 +34,4 @@ Strong: the generated suite protects the import contract's security denials, fil
 - CSV parsing now rejects numeric gender spellings and all-empty wrong-width rows.
 - Token `Try*` methods return safe null out values for unsupported versions, malformed hashes, and every binding mismatch.
 - Both routes advertise 401 responses, and the transport-level request limit has an end-to-end 413 ProblemDetails regression.
+- Suppressed-review follow-up validates UUIDv7 response IDs, rejects null nested row strings and null token hashes, and names the operation input `PlayerImportUploadInput` in its dedicated contract file.
