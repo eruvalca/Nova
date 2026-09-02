@@ -87,16 +87,18 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(null, "text/csv")]
+    [InlineData("", "text/csv")]
     [InlineData("players.txt", "text/csv")]
     [InlineData("players\r\n.csv", "text/csv")]
     [InlineData("players.csv", "image/png")]
-    public async Task PreviewAsync_RejectsUnsupportedUploadMetadata(string fileName, string contentType)
+    public async Task PreviewAsync_RejectsUnsupportedUploadMetadata(string? fileName, string contentType)
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
         var valid = Upload(ValidRows());
 
         var result = await CreateService().PreviewAsync(
-            valid with { FileName = fileName, ContentType = contentType },
+            valid with { FileName = fileName!, ContentType = contentType },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
@@ -192,6 +194,27 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task PreviewAsync_DoesNotLetInvalidRowReserveDuplicateIdentity()
+    {
+        ActAs(AdminId, ClubAId, isAdmin: true);
+        var rows = "Taylor,Stone,2013-02-03,,10000,2031\r\n"
+            + "Taylor,Stone,2013-02-03,,,2031\r\n";
+
+        var result = await CreateService().PreviewAsync(
+            Upload(rows),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ReadyRows.ShouldBe(1);
+        result.Value.InvalidRows.ShouldBe(1);
+        result.Value.DuplicateRows.ShouldBe(0);
+        result.Value.Rows.Select(row => row.Status).ShouldBe([
+            PlayerImportRowStatus.Invalid,
+            PlayerImportRowStatus.Ready
+        ]);
+    }
+
+    [Fact]
     public async Task PreviewAsync_DoesNotLeakOtherClubDuplicate()
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
@@ -245,6 +268,16 @@ public sealed class PlayerImportServiceTests : IDisposable
         Thread.Sleep(25);
 
         _tokenProtector.TryUnprotect(token, out var payload).ShouldBeFalse();
+        payload.ShouldBeNull();
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void TokenProtector_ReturnsSafeOut_ForMissingToken(string? token)
+    {
+        _tokenProtector.TryUnprotect(token!, out var payload).ShouldBeFalse();
         payload.ShouldBeNull();
     }
 
@@ -332,7 +365,12 @@ public sealed class PlayerImportServiceTests : IDisposable
     private static PlayerImportUploadInput Upload(string rows)
     {
         const string header = "First name,Last name,Date of birth,Gender,Jersey number,Graduation year\r\n";
-        return new(Encoding.UTF8.GetBytes(header + rows), "players.csv", "text/csv");
+        return new()
+        {
+            Content = Encoding.UTF8.GetBytes(header + rows),
+            FileName = "players.csv",
+            ContentType = "text/csv"
+        };
     }
 
     private static string ValidRows() => "Taylor,Stone,2013-02-03,,,2031\r\n";

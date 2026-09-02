@@ -23,7 +23,12 @@ public sealed class HttpPlayerImportServiceTests
         var content = Encoding.UTF8.GetBytes("csv-content");
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
-            new PlayerImportUploadInput(content, "custom-player-list.csv", "text/csv"),
+            new PlayerImportUploadInput
+            {
+                Content = content,
+                FileName = "custom-player-list.csv",
+                ContentType = "text/csv"
+            },
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -42,7 +47,12 @@ public sealed class HttpPlayerImportServiceTests
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
-            new PlayerImportUploadInput(new byte[PlayerImportConstraints.MaxFileBytes + 1], "players.csv", "text/csv"),
+            new PlayerImportUploadInput
+            {
+                Content = new byte[PlayerImportConstraints.MaxFileBytes + 1],
+                FileName = "players.csv",
+                ContentType = "text/csv"
+            },
             TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
@@ -355,10 +365,12 @@ public sealed class HttpPlayerImportServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
-    private static PlayerImportUploadInput ValidUpload() => new(
-        Encoding.UTF8.GetBytes("content"),
-        "players.csv",
-        "text/csv");
+    private static PlayerImportUploadInput ValidUpload() => new()
+    {
+        Content = Encoding.UTF8.GetBytes("content"),
+        FileName = "players.csv",
+        ContentType = "text/csv"
+    };
 
     private static byte[] TemplateBytes()
     {

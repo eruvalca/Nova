@@ -31,6 +31,11 @@ internal sealed class PlayerImportPreviewTokenProtector(IDataProtectionProvider 
     public bool TryUnprotect(string token, out PlayerImportPreviewTokenPayload? payload)
     {
         payload = null;
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
         try
         {
             var json = _protector.Unprotect(token, out _);

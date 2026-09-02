@@ -12,20 +12,20 @@ Strong: the generated suite protects the import contract's security denials, fil
 
 ## Assertion-quality review
 
-- Reviewed 55 test methods across the parser, service/token, endpoint metadata, WASM client, and Aspire HTTP files.
+- Reviewed 57 test methods across the parser, service/token, endpoint metadata, WASM client, and Aspire HTTP files.
 - No assertion-free, always-true, self-referential, or null-only tests were found.
 - Assertions cover equality/boolean results, nullability, strings, collections and ordering, exceptions/cancellation, comparisons/bounds, negative behavior, database side effects, HTTP request metadata, and nested response structure.
 - Smoke-style authorization tests intentionally assert only their exact HTTP status; broader response-shape assertions are exercised by the validation tests.
 
 ## Validation evidence
 
-- Focused player-import unit tests: 45 passed before the final four gap-closing cases; the final full unit run includes all additions.
+- Focused player-import service and client review tests: 40 passed.
 - Focused Aspire player-import HTTP tests: 9 passed.
 - `dotnet build Nova.slnx --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,077 passed.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,083 passed.
 - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`: 412 passed.
 - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`: 111 passed, 7 expected opt-in accessibility evidence tests skipped.
-- `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`: formatted 0 of 777 files.
+- `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`: formatted 0 of 778 files.
 
 ## PR review follow-up
 
@@ -36,3 +36,6 @@ Strong: the generated suite protects the import contract's security denials, fil
 - Both routes advertise 401 responses, and the transport-level request limit has an end-to-end 413 ProblemDetails regression.
 - Suppressed-review follow-up validates UUIDv7 response IDs, rejects null nested row strings and null token hashes, and names the operation input `PlayerImportUploadInput` in its dedicated contract file.
 - Later suppressed-review follow-up closes mixed space/control formula-prefix bypasses and documents every public positional import contract parameter.
+- The upload operation input now uses explicit required init-only properties so reflection-based validation can inspect the contract consistently.
+- Missing filenames and null or blank protected tokens now return structured validation or safe `Try*` failure results instead of throwing.
+- Invalid rows intentionally do not reserve duplicate identities; `PreviewAsync_DoesNotLetInvalidRowReserveDuplicateIdentity` pins the issue contract that duplicate keys are built from valid rows only.
