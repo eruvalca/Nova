@@ -59,7 +59,6 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
         var service = new ClubMemberService(
             new PostgresReadContextFactory(fixture),
             factory,
-            userManager,
             fixture.CurrentUser,
             new ClubMembershipClaimRefresher(userManager, signInManager),
             NullLogger<ClubMemberService>.Instance);
@@ -82,6 +81,7 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
         var member = await verify.Users.SingleAsync(user => user.Id == seed.MemberUserId, cancellationToken);
         member.ClubId.ShouldBe(seed.ClubId);
         member.SecurityStamp.ShouldNotBe(seed.OriginalSecurityStamp);
+        member.ConcurrencyStamp.ShouldNotBe(seed.OriginalConcurrencyStamp);
 
         var events = await verify.ActivityEvents
             .Where(activity => activity.ClubId == seed.ClubId
@@ -142,7 +142,7 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
         db.UserRoles.Add(new IdentityUserRole<long> { UserId = admin.Id, RoleId = administratorRoleId });
         await db.SaveChangesAsync(cancellationToken);
 
-        return new Seed(club.ClubId, admin.Id, member.Id, member.SecurityStamp!);
+        return new Seed(club.ClubId, admin.Id, member.Id, member.SecurityStamp!, member.ConcurrencyStamp!);
     }
 
     /// <summary>Creates substituted Identity managers required by the service constructor.</summary>
@@ -175,5 +175,11 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
     /// <param name="AdminUserId">The acting administrator identifier.</param>
     /// <param name="MemberUserId">The promoted member identifier.</param>
     /// <param name="OriginalSecurityStamp">The member's stamp before promotion.</param>
-    private readonly record struct Seed(long ClubId, long AdminUserId, long MemberUserId, string OriginalSecurityStamp);
+    /// <param name="OriginalConcurrencyStamp">The member's Identity concurrency stamp before promotion.</param>
+    private readonly record struct Seed(
+        long ClubId,
+        long AdminUserId,
+        long MemberUserId,
+        string OriginalSecurityStamp,
+        string OriginalConcurrencyStamp);
 }

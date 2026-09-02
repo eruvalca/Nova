@@ -23,7 +23,6 @@ namespace Nova.Features.Account;
 public sealed partial class ClubMemberService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
-    UserManager<NovaUserEntity> userManager,
     ICurrentUserProvider currentUserProvider,
     ClubMembershipClaimRefresher clubMembershipClaimRefresher,
     ILogger<ClubMemberService> logger) : IClubMemberService
@@ -65,7 +64,14 @@ public sealed partial class ClubMemberService(
         }
 
         return await ExecuteAndRefreshAsync(
-            new MutationState(MutationKind.Leave, actorUserId, clubId, actorUserId, Guid.NewGuid(), NewSecurityStamp()),
+            new MutationState(
+                MutationKind.Leave,
+                actorUserId,
+                clubId,
+                actorUserId,
+                Guid.NewGuid(),
+                NewSecurityStamp(),
+                NewConcurrencyStamp()),
             cancellationToken);
     }
 
@@ -88,7 +94,14 @@ public sealed partial class ClubMemberService(
         }
 
         return await ExecuteAndRefreshAsync(
-            new MutationState(kind, actorUserId, clubId, input.MemberUserId, Guid.NewGuid(), NewSecurityStamp()),
+            new MutationState(
+                kind,
+                actorUserId,
+                clubId,
+                input.MemberUserId,
+                Guid.NewGuid(),
+                NewSecurityStamp(),
+                NewConcurrencyStamp()),
             cancellationToken);
     }
 
@@ -140,7 +153,10 @@ public sealed partial class ClubMemberService(
             return new Success();
         }
 
-        var currentUser = await userManager.FindByIdAsync(state.ActorUserId.ToString());
+        await using var refreshDb = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var currentUser = await refreshDb.Users
+            .AsNoTracking()
+            .SingleOrDefaultAsync(user => user.Id == state.ActorUserId, cancellationToken);
         if (currentUser is null)
         {
             return ServiceProblem.ServerError("The membership changed, but the current sign-in could not be refreshed.");
@@ -325,6 +341,7 @@ public sealed partial class ClubMemberService(
         }
 
         target.SecurityStamp = state.SecurityStamp;
+        target.ConcurrencyStamp = state.ConcurrencyStamp;
         await ClubMembershipMutationReceipts.PruneExpiredAsync(db, cancellationToken);
         db.ClubMembershipMutationReceipts.Add(new ClubMembershipMutationReceiptEntity
         {
@@ -370,17 +387,32 @@ public sealed partial class ClubMemberService(
             : new ExecutionResult<ServiceResult<MutationReceipt>>(successful: false, default!);
     }
 
+    /// <summary>Creates the logical mutation's durable claims-invalidation marker.</summary>
+    /// <returns>A new security stamp.</returns>
     private static string NewSecurityStamp() => Guid.NewGuid().ToString("N");
+
+    /// <summary>Creates the marker that rejects Identity writes tracked before the mutation.</summary>
+    /// <returns>A new Identity concurrency stamp.</returns>
+    private static string NewConcurrencyStamp() => Guid.NewGuid().ToString("N");
 
     private enum MutationKind { Promote, Demote, Remove, Leave }
 
+    /// <summary>Captures stable markers and identities for one retryable logical mutation.</summary>
+    /// <param name="Kind">The requested membership transition.</param>
+    /// <param name="ActorUserId">The acting identity user id.</param>
+    /// <param name="ClubId">The club scope captured from the request.</param>
+    /// <param name="TargetUserId">The targeted identity user id.</param>
+    /// <param name="OperationId">The marker used for durable ambiguous-commit verification.</param>
+    /// <param name="SecurityStamp">The marker that invalidates claims after commit.</param>
+    /// <param name="ConcurrencyStamp">The marker that rejects Identity writes tracked before commit.</param>
     private sealed record MutationState(
         MutationKind Kind,
         long ActorUserId,
         long ClubId,
         long TargetUserId,
         Guid OperationId,
-        string SecurityStamp);
+        string SecurityStamp,
+        string ConcurrencyStamp);
 
     private readonly record struct MutationReceipt(bool RefreshCurrentUser);
 

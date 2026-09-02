@@ -172,11 +172,11 @@ public static class ClubEndpoints
     public static string RejectJoinRequestUrl(long requestId) => $"/api/clubs/join-requests/{requestId}/reject";
 
     /// <summary>Builds the URL for promoting a member.</summary>
-    public static string PromoteMemberUrl(long memberUserId) => $"/api/clubs/members/{memberUserId}/promote";
+    public static string PromoteMemberUrl(long memberUserId) => $"{GroupPrefix}/members/{memberUserId}/promote";
 
     /// <summary>Builds the URL for demoting a member.</summary>
-    public static string DemoteMemberUrl(long memberUserId) => $"/api/clubs/members/{memberUserId}/demote";
+    public static string DemoteMemberUrl(long memberUserId) => $"{GroupPrefix}/members/{memberUserId}/demote";
 
     /// <summary>Builds the URL for removing a member.</summary>
-    public static string RemoveMemberUrl(long memberUserId) => $"/api/clubs/members/{memberUserId}";
+    public static string RemoveMemberUrl(long memberUserId) => $"{GroupPrefix}/members/{memberUserId}";
 }

@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Nova.Components.Account;
@@ -172,6 +173,29 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RemoveMemberAsync_RotatesConcurrencyStampAndRejectsStaleIdentityWrite()
+    {
+        using var staleDb = _harness.CreateAdminContext();
+        var staleMember = staleDb.Users.Single(user => user.Id == MemberId);
+        var originalConcurrencyStamp = staleMember.ConcurrencyStamp;
+
+        var result = await CreateService().RemoveMemberAsync(
+            MemberInput(MemberId),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        using (var verify = _harness.CreateAdminContext())
+        {
+            verify.Users.Single(user => user.Id == MemberId).ConcurrencyStamp
+                .ShouldNotBe(originalConcurrencyStamp);
+        }
+
+        staleMember.SecurityStamp = "stale-identity-write";
+        await Should.ThrowAsync<DbUpdateConcurrencyException>(
+            () => staleDb.SaveChangesAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task RemoveMemberAsync_UsesNonDisclosingNotFoundForCrossClubTarget()
     {
         var result = await CreateService().RemoveMemberAsync(MemberInput(OtherClubMemberId), TestContext.Current.CancellationToken);
@@ -230,10 +254,14 @@ public sealed class ClubMemberServiceTests : IDisposable
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
-        db.Users.Single(user => user.Id == MemberId).ClubId.ShouldBeNull();
+        var departedMember = db.Users.Single(user => user.Id == MemberId);
+        departedMember.ClubId.ShouldBeNull();
         db.ClubJoinRequests.ShouldNotContain(request => request.RequestingUserId == MemberId);
         db.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberLeft).ShouldBe(1);
-        await _signInManager.Received(1).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user => user.Id == MemberId));
+        await _signInManager.Received(1).RefreshSignInAsync(Arg.Is<NovaUserEntity>(user =>
+            user.Id == MemberId
+            && user.ClubId == null
+            && user.SecurityStamp == departedMember.SecurityStamp));
     }
 
     [Fact]
@@ -275,7 +303,6 @@ public sealed class ClubMemberServiceTests : IDisposable
         => new(
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
             new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),
-            _userManager,
             _harness.CurrentUser,
             new ClubMembershipClaimRefresher(_userManager, _signInManager),
             NullLogger<ClubMemberService>.Instance);

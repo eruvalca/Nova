@@ -242,6 +242,8 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         using var response = await memberClient.DeleteAsync(ClubEndpoints.LeaveClub, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        using var memberRouteResponse = await memberClient.GetAsync(ClubEndpoints.GetMembers, cancellationToken);
+        memberRouteResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         await using var db = fixture.CreateAdminContext();
         (await db.Users.SingleAsync(user => user.Id == member.UserId, cancellationToken)).ClubId.ShouldBeNull();
     }
@@ -398,8 +400,29 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         }
 
         await SeedingHelpers.RefreshClubMembershipCookieAsync(secondClient, cancellationToken);
+
+        await using var lockDb = fixture.CreateAdminContext();
+        await using var lockTransaction = await lockDb.Database.BeginTransactionAsync(cancellationToken);
+        foreach (var userId in new[] { first.UserId, second.UserId }.Order())
+        {
+            var userLockKey = (long.MinValue / 64) + userId;
+            await lockDb.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock({userLockKey})",
+                cancellationToken);
+        }
+
+        var clubLockKey = (long.MinValue / 32) + first.Club.ClubId;
+        await lockDb.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({clubLockKey})",
+            cancellationToken);
+        var lockHolderBackendPid = await lockDb.Database
+            .SqlQueryRaw<int>("SELECT pg_backend_pid() AS \"Value\"")
+            .SingleAsync(cancellationToken);
+
         var firstDemotion = firstClient.PostAsync(ClubEndpoints.DemoteMemberUrl(second.UserId), null, cancellationToken);
         var secondDemotion = secondClient.PostAsync(ClubEndpoints.DemoteMemberUrl(first.UserId), null, cancellationToken);
+        await WaitForBlockedRequestsAsync(lockHolderBackendPid, expectedCount: 2, cancellationToken);
+        await lockTransaction.CommitAsync(cancellationToken);
         using var firstResponse = await firstDemotion;
         using var secondResponse = await secondDemotion;
 
@@ -418,6 +441,33 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
                                         where user.ClubId == first.Club.ClubId && role.RoleId == administratorRoleId
                                         select user.Id).CountAsync(cancellationToken);
         administratorCount.ShouldBe(1);
+    }
+
+    /// <summary>Waits until the expected number of HTTP mutations are blocked behind one lock holder.</summary>
+    /// <param name="lockHolderBackendPid">The PostgreSQL backend process holding the membership locks.</param>
+    /// <param name="expectedCount">The number of competing requests that must be waiting.</param>
+    /// <param name="cancellationToken">A token that cancels the wait.</param>
+    /// <returns>A task that completes when every competing request is observably blocked.</returns>
+    private async Task WaitForBlockedRequestsAsync(
+        int lockHolderBackendPid,
+        int expectedCount,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            await using var observer = fixture.CreateAdminContext();
+            var blockedCount = await observer.Database.SqlQuery<int>(
+                $"""SELECT count(*)::integer AS "Value" FROM pg_stat_activity WHERE {lockHolderBackendPid} = ANY(pg_blocking_pids(pid))""")
+                .SingleAsync(cancellationToken);
+            if (blockedCount >= expectedCount)
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
+        }
+
+        throw new TimeoutException($"Expected {expectedCount} membership mutations to block behind PostgreSQL backend {lockHolderBackendPid}.");
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
