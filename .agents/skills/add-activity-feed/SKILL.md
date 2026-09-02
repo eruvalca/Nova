@@ -44,9 +44,9 @@ Canonical examples:
    `Append*` method to `ActivityEventWriter` only when the kind belongs to a **new** family; kinds in
    an existing family reuse its shared method.
 3. **Shared contracts** — add the cursor, the item/result DTOs, and the input record in
-   `Nova.Shared\Features\Activity\`. Add a `*Context` record (with `[JsonDerivedType]`) only when the
-   kind belongs to a **new** family; existing families reuse their context. Use `IValidatableObject`
-   for the cursor's both-or-neither rule (see
+   `Nova.Shared\Features\Activity\`. Add a `*Context` record only when the kind belongs to a **new**
+   family, registering it on the base `ClubActivityContext` via `[JsonDerivedType]`; existing families
+   reuse their context. Use `IValidatableObject` for the cursor's both-or-neither rule (see
    [add-api-endpoint validation](../add-api-endpoint/references/validation-and-problemdetails.md)).
 4. **Feed query service** — implement `IClubActivityQueryService` against `NovaReadDbContext`, then
    project role-shaped pages through `ClubActivityFeedPolicy`; follow

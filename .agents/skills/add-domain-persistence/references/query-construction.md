@@ -53,8 +53,8 @@ deterministic. `ClubActivityQueryService` and `ClubActivityFeedPolicy` are the c
 1. Order by `(OccurredAt DESC, Id DESC)` and probe `PageSize + 1` rows to detect whether another page
    exists.
 2. The cursor is the final raw page row's `(OccurredAt, Id)` — the page boundary, computed *before*
-   projection — not the oldest returned DTO or the newest row, because projection can skip invalid or
-   administrator-only rows.
+   projection — not the oldest returned DTO or the newest row, because projection can skip malformed or
+   kind/context-mismatched rows (role visibility filtering happens before paging).
 3. The continuation predicate is
    `OccurredAt < cursor.OccurredAt || (OccurredAt == cursor.OccurredAt && Id < cursor.Id)`.
 4. Emit `hasMore` from the `PageSize + 1` probe and a `NextCursor` only when more rows follow.

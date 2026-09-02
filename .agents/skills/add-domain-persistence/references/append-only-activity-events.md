@@ -16,7 +16,10 @@ The club activity feed is an append-only, tenant-owned event log. Each row recor
 subject display-name **snapshots**, a stored visibility flag, and a family-shaped structured payload.
 Application code never updates or deletes rows: `TenantSaveChangesInterceptor` throws on any
 modify/delete in every context (including admin contexts), so a correction is a new event, not an
-edit. The one removal path is database cascade delete when the owning club is deleted.
+edit. The interceptor is not a database-level guarantee — it does not run for EF bulk
+`ExecuteUpdate`/`ExecuteDelete`, which bypass the guard and can erase history, so those APIs must never
+target `ActivityEventEntity`. The one intended removal path is database cascade delete when the owning
+club is deleted.
 
 ## Writing events
 
@@ -54,7 +57,7 @@ A new lifecycle/placement/join/membership/role transition means:
 
 Only when the new kind belongs to a **new** family, additionally add:
 
-- A `*Context` record with a `[JsonDerivedType]` discriminator.
+- A `*Context` record registered on the base via `[JsonDerivedType]`.
 - An `Append*` method to `ActivityEventWriter` that validates the family and serializes the payload.
 
 ## Tenant carve-out
