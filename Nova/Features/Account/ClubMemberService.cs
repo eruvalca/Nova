@@ -165,6 +165,11 @@ public sealed partial class ClubMemberService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        foreach (var userId in new[] { state.ActorUserId, state.TargetUserId }.Distinct().Order())
+        {
+            await db.AcquireUserMembershipLockAsync(userId, cancellationToken);
+        }
+
         await db.AcquireClubMembershipLockAsync(state.ClubId, cancellationToken);
 
         var administratorRoleId = await db.Roles
@@ -236,7 +241,7 @@ public sealed partial class ClubMemberService(
             memberCount = await db.Users.CountAsync(user => user.ClubId == state.ClubId, cancellationToken);
         }
 
-        var decision = state.Kind switch
+        var outcome = state.Kind switch
         {
             MutationKind.Promote => ClubMembershipMutationPolicy.Promote(targetIsAdministrator),
             MutationKind.Demote => ClubMembershipMutationPolicy.Demote(targetIsAdministrator, administratorCount),
@@ -245,26 +250,22 @@ public sealed partial class ClubMemberService(
             _ => throw new UnreachableException(),
         };
 
-        if (decision == ClubMembershipMutationPolicy.Decision.NoOp)
+        var disposition = outcome.Match<ServiceResult<MutationDisposition>>(
+            _ => new MutationDisposition(Apply: true, RefreshCurrentUser: false),
+            _ => new MutationDisposition(
+                Apply: false,
+                RefreshCurrentUser: state.Kind == MutationKind.Demote && state.ActorUserId == state.TargetUserId),
+            _ => ServiceProblem.Conflict("The club must always have at least one administrator. Promote another member first."),
+            _ => ServiceProblem.Conflict("The final club member cannot leave. Delete the club instead."),
+            _ => ServiceProblem.Conflict("Use the leave-club action to remove yourself from the club."));
+        if (disposition.IsProblem)
         {
-            var refreshCurrentUser = state.Kind == MutationKind.Demote
-                && state.ActorUserId == state.TargetUserId;
-            return new MutationReceipt(refreshCurrentUser);
+            return disposition.Problem;
         }
 
-        if (decision == ClubMembershipMutationPolicy.Decision.SoleAdministrator)
+        if (!disposition.Value.Apply)
         {
-            return ServiceProblem.Conflict("The club must always have at least one administrator. Promote another member first.");
-        }
-
-        if (decision == ClubMembershipMutationPolicy.Decision.FinalMember)
-        {
-            return ServiceProblem.Conflict("The final club member cannot leave. Delete the club instead.");
-        }
-
-        if (decision == ClubMembershipMutationPolicy.Decision.UseLeaveEndpoint)
-        {
-            return ServiceProblem.Conflict("Use the leave-club action to remove yourself from the club.");
+            return new MutationReceipt(disposition.Value.RefreshCurrentUser);
         }
 
         var actorDisplayName = actor.FullName;
@@ -372,6 +373,11 @@ public sealed partial class ClubMemberService(
         string SecurityStamp);
 
     private readonly record struct MutationReceipt(bool RefreshCurrentUser);
+
+    /// <summary>Describes whether the service shell should apply effects for a policy outcome.</summary>
+    /// <param name="Apply">Whether the mutation effects should be persisted.</param>
+    /// <param name="RefreshCurrentUser">Whether the acting user's cookie should be refreshed.</param>
+    private readonly record struct MutationDisposition(bool Apply, bool RefreshCurrentUser);
 
     private sealed class CommitAttemptTracker
     {

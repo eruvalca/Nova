@@ -6,23 +6,32 @@ namespace Nova.Unit.Tests.Account;
 public class ClubMembershipMutationPolicyTests
 {
     [Theory]
-    [InlineData(false, "Apply")]
-    [InlineData(true, "NoOp")]
-    public void Promote_ReturnsExpectedDecision(bool isAdministrator, string expected)
-        => ClubMembershipMutationPolicy.Promote(isAdministrator).ToString().ShouldBe(expected);
+    [InlineData(false, typeof(MembershipMutationMayApply))]
+    [InlineData(true, typeof(MembershipMutationNoOp))]
+    public void Promote_ReturnsExpectedDecision(bool isAdministrator, Type expected)
+        => OutcomeType(ClubMembershipMutationPolicy.Promote(isAdministrator)).ShouldBe(expected);
 
     [Theory]
-    [InlineData(false, 1, "NoOp")]
-    [InlineData(true, 1, "SoleAdministrator")]
-    [InlineData(true, 2, "Apply")]
-    public void Demote_ReturnsExpectedDecision(bool isAdministrator, int count, string expected)
-        => ClubMembershipMutationPolicy.Demote(isAdministrator, count).ToString().ShouldBe(expected);
+    [InlineData(false, 1, typeof(MembershipMutationNoOp))]
+    [InlineData(true, 1, typeof(SoleAdministratorConflict))]
+    [InlineData(true, 2, typeof(MembershipMutationMayApply))]
+    public void Demote_ReturnsExpectedDecision(bool isAdministrator, int count, Type expected)
+        => OutcomeType(ClubMembershipMutationPolicy.Demote(isAdministrator, count)).ShouldBe(expected);
 
     [Theory]
-    [InlineData(false, 0, 1, "FinalMember")]
-    [InlineData(true, 1, 2, "SoleAdministrator")]
-    [InlineData(true, 2, 2, "Apply")]
-    [InlineData(false, 1, 2, "Apply")]
-    public void Leave_ReturnsExpectedDecision(bool isAdministrator, int admins, int members, string expected)
-        => ClubMembershipMutationPolicy.Leave(isAdministrator, admins, members).ToString().ShouldBe(expected);
+    [InlineData(false, 0, 1, typeof(FinalMemberConflict))]
+    [InlineData(true, 1, 2, typeof(SoleAdministratorConflict))]
+    [InlineData(true, 2, 2, typeof(MembershipMutationMayApply))]
+    [InlineData(false, 1, 2, typeof(MembershipMutationMayApply))]
+    public void Leave_ReturnsExpectedDecision(bool isAdministrator, int admins, int members, Type expected)
+        => OutcomeType(ClubMembershipMutationPolicy.Leave(isAdministrator, admins, members)).ShouldBe(expected);
+
+    private static Type OutcomeType(
+        OneOf.OneOf<MembershipMutationMayApply, MembershipMutationNoOp, SoleAdministratorConflict, FinalMemberConflict, UseLeaveEndpointConflict> outcome)
+        => outcome.Match(
+            mayApply => mayApply.GetType(),
+            noOp => noOp.GetType(),
+            soleAdministrator => soleAdministrator.GetType(),
+            finalMember => finalMember.GetType(),
+            useLeaveEndpoint => useLeaveEndpoint.GetType());
 }

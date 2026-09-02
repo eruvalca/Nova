@@ -139,6 +139,25 @@ public class TenancyTests : IDisposable
 
         context.SaveChanges();
 
+        context.ClubMembershipMutationReceipts.AddRange(
+            new ClubMembershipMutationReceiptEntity
+            {
+                OperationId = Guid.NewGuid(),
+                MemberUserId = ClubAMember2Id,
+                MutationKind = "Promote",
+                ClubId = ClubAId,
+                CreatedById = ClubAMember1Id,
+            },
+            new ClubMembershipMutationReceiptEntity
+            {
+                OperationId = Guid.NewGuid(),
+                MemberUserId = ClubBMemberId,
+                MutationKind = "Demote",
+                ClubId = ClubBId,
+                CreatedById = ClubBMemberId,
+            });
+        context.SaveChanges();
+
         // Seed seasons, campaigns, and participations so notes can be associated per-club.
         var seasonA = new SeasonEntity
         {
@@ -244,6 +263,48 @@ public class TenancyTests : IDisposable
         using var context = _harness.CreateTenantContext();
 
         context.Clubs.Count().ShouldBe(2);
+    }
+
+    [Fact]
+    public void ClubMembershipMutationReceipts_VisibleOnlyToOwningClub()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using var context = _harness.CreateTenantContext();
+
+        var receipts = context.ClubMembershipMutationReceipts.ToList();
+
+        receipts.Count.ShouldBe(1);
+        receipts[0].ClubId.ShouldBe(ClubAId);
+    }
+
+    [Fact]
+    public void ClubMembershipMutationReceipts_HiddenFromOtherClub()
+    {
+        ActAs(ClubBMemberId, ClubBId);
+        using var context = _harness.CreateTenantContext();
+
+        var receipts = context.ClubMembershipMutationReceipts.ToList();
+
+        receipts.Count.ShouldBe(1);
+        receipts[0].ClubId.ShouldBe(ClubBId);
+    }
+
+    [Fact]
+    public void Interceptor_Throws_OnCrossTenantClubMembershipMutationReceiptAdd()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using var context = _harness.CreateTenantContext();
+        context.ClubMembershipMutationReceipts.Add(new ClubMembershipMutationReceiptEntity
+        {
+            OperationId = Guid.NewGuid(),
+            MemberUserId = ClubBMemberId,
+            MutationKind = "Remove",
+            ClubId = ClubBId,
+            CreatedById = ClubAMember1Id,
+        });
+
+        Should.Throw<InvalidOperationException>(() => context.SaveChanges())
+            .Message.ShouldContain("Cross-tenant");
     }
 
     [Fact]

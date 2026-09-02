@@ -509,6 +509,11 @@ public sealed partial class ClubJoinRequestService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        foreach (var userId in new[] { state.AdminUserId, state.RequestingUserId }.Distinct().Order())
+        {
+            await db.AcquireUserMembershipLockAsync(userId, cancellationToken);
+        }
+
         await db.AcquireClubMembershipLockAsync(state.ClubId, cancellationToken);
         await db.AcquireJoinRequestLockAsync(state.RequestId, cancellationToken);
 
@@ -550,6 +555,11 @@ public sealed partial class ClubJoinRequestService(
         {
             LogApproveRequestingUserMissing(request.RequestingUserId, request.ClubJoinRequestId);
             return ServiceProblem.ServerError("The requesting user account could not be found.");
+        }
+
+        if (requestingUser.ClubId is not null)
+        {
+            return ServiceProblem.Conflict("The requesting user already belongs to a club.");
         }
 
         var memberName = requestingUser.FullName;

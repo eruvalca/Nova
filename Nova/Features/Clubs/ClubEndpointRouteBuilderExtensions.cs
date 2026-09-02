@@ -1,4 +1,5 @@
-﻿using Azure;
+﻿using System.ComponentModel.DataAnnotations;
+using Azure;
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -522,7 +523,7 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// Handles promotion of a club member.
     /// </summary>
     private static async Task<IResult> PromoteMemberHandler(
-        long memberUserId,
+        [Range(1, long.MaxValue)] long memberUserId,
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
     {
@@ -531,14 +532,14 @@ internal static class ClubEndpointRouteBuilderExtensions
     }
 
     private static async Task<IResult> DemoteMemberHandler(
-        long memberUserId,
+        [Range(1, long.MaxValue)] long memberUserId,
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
         => (await clubMemberService.DemoteMemberAsync(memberUserId, cancellationToken))
             .ToHttpResult(_ => TypedResults.NoContent());
 
     private static async Task<IResult> RemoveMemberHandler(
-        long memberUserId,
+        [Range(1, long.MaxValue)] long memberUserId,
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
         => (await clubMemberService.RemoveMemberAsync(memberUserId, cancellationToken))

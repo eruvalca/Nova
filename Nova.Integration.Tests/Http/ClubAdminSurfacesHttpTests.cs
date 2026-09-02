@@ -282,6 +282,30 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         problem.Detail.ShouldBe("The final club member cannot leave. Delete the club instead.");
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task MemberMutationRoutes_ReturnBadRequest_ForInvalidMemberUserId(long memberUserId)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        _ = await RegisterClubAdminAsync(client, "member-id-validation", "Member Id Validation", cancellationToken);
+        var urls = new[]
+        {
+            ClubEndpoints.PromoteMemberUrl(memberUserId),
+            ClubEndpoints.DemoteMemberUrl(memberUserId),
+            ClubEndpoints.RemoveMemberUrl(memberUserId),
+        };
+
+        using var promoteResponse = await client.PostAsync(urls[0], content: null, cancellationToken);
+        using var demoteResponse = await client.PostAsync(urls[1], content: null, cancellationToken);
+        using var removeResponse = await client.DeleteAsync(urls[2], cancellationToken);
+
+        promoteResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        demoteResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        removeResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
     // ── Cancel join request ─────────────────────────────────────────────────────
 
     /// <summary>

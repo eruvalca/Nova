@@ -682,6 +682,39 @@ public class ClubJoinRequestServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ApproveJoinRequestAsync_ReturnsConflict_WhenRequesterAlreadyJoinedAnotherClub()
+    {
+        _harness.CurrentUser.UserId = AdminUserId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+
+        long requestId;
+        using (var context = _harness.CreateAdminContext())
+        {
+            var request = new ClubJoinRequestEntity
+            {
+                ClubId = ClubAId,
+                RequestingUserId = RequestingUserId,
+                Status = RequestStatus.Pending,
+                CreatedById = RequestingUserId,
+            };
+            context.ClubJoinRequests.Add(request);
+            context.Users.Single(user => user.Id == RequestingUserId).ClubId = ClubBId;
+            context.SaveChanges();
+            requestId = request.ClubJoinRequestId;
+        }
+
+        var result = await CreateService().ApproveJoinRequestAsync(requestId, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        using var verify = _harness.CreateAdminContext();
+        verify.Users.Single(user => user.Id == RequestingUserId).ClubId.ShouldBe(ClubBId);
+        verify.ClubJoinRequests.Single(request => request.ClubJoinRequestId == requestId).Status.ShouldBe(RequestStatus.Pending);
+        verify.ActivityEvents.ShouldNotContain(activity => activity.EventKind == ActivityEventKind.MemberJoined);
+    }
+
+    [Fact]
     public async Task ApproveJoinRequestAsync_ApprovesRequest_WhenRequestIsPending()
     {
         // Arrange

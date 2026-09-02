@@ -238,12 +238,23 @@ public sealed partial class ClubService(
         CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
-        // Load user (fresh context per attempt)
+        // NpgsqlRetryingExecutionStrategy requires wrapping user-initiated transactions in
+        // CreateExecutionStrategy().ExecuteAsync() so the whole unit can be retried on transient failures.
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireUserMembershipLockAsync(userId, cancellationToken);
+
+        // Re-read membership after taking the user lock so club creation cannot overwrite a
+        // membership concurrently assigned by join approval or another membership mutation.
         var user = await db.Users.FindAsync([userId], cancellationToken);
         if (user is null)
         {
             // The club could not be created, so the uploaded blobs must be cleaned up by the caller.
             return ServiceProblem.ServerError("The current user could not be found.");
+        }
+
+        if (user.ClubId is not null)
+        {
+            return ServiceProblem.Conflict("You already belong to a club.");
         }
 
         // Create club
@@ -255,10 +266,6 @@ public sealed partial class ClubService(
             CreatedById = userId,
             CreationOperationId = creationOperationId
         };
-
-        // NpgsqlRetryingExecutionStrategy requires wrapping user-initiated transactions in
-        // CreateExecutionStrategy().ExecuteAsync() so the whole unit can be retried on transient failures.
-        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
 
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
