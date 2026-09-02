@@ -23,7 +23,7 @@ public sealed class HttpPlayerImportServiceTests
         var content = Encoding.UTF8.GetBytes("csv-content");
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
-            new PlayerImportUpload(content, "players.csv", "text/csv"),
+            new PlayerImportUpload(content, "players\r\n.csv", "text/csv"),
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -31,7 +31,7 @@ public sealed class HttpPlayerImportServiceTests
         handler.PathAndQuery.ShouldBe(PlayerEndpoints.ImportPreview);
         handler.MediaType.ShouldBe("multipart/form-data");
         handler.Body.ShouldContain("name=file");
-        handler.Body.ShouldContain("filename=players.csv");
+        handler.Body.ShouldContain($"filename={PlayerImportConstraints.TemplateFileName}");
         handler.Body.ShouldContain("csv-content");
     }
 

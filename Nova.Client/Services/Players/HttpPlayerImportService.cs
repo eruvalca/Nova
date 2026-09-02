@@ -61,7 +61,10 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
             fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(upload.ContentType);
         }
 
-        form.Add(fileContent, PlayerImportConstraints.FileFormFieldName, upload.FileName);
+        form.Add(
+            fileContent,
+            PlayerImportConstraints.FileFormFieldName,
+            PlayerImportConstraints.TemplateFileName);
         using var response = await httpClient.PostAsync(PlayerEndpoints.ImportPreview, form, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
