@@ -317,7 +317,9 @@ public sealed partial class ClubMemberService(
             case MutationKind.Remove:
             case MutationKind.Leave:
                 var resolvedJoinRequest = await db.ClubJoinRequests.SingleOrDefaultAsync(
-                    request => request.RequestingUserId == target.Id && request.Status != RequestStatus.Pending,
+                    request => request.RequestingUserId == target.Id
+                        && request.Status != RequestStatus.Pending
+                        && (state.Kind == MutationKind.Leave || request.ClubId == state.ClubId),
                     cancellationToken);
                 if (resolvedJoinRequest is not null)
                 {

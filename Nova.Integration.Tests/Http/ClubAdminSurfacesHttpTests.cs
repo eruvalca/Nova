@@ -230,6 +230,24 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
+    /// <summary>Verifies administrator middleware rejects a regular member on the demotion route.</summary>
+    [Fact]
+    public async Task DemoteMember_ReturnsForbidden_ForRegularMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var admin = await RegisterClubAdminAsync(adminClient, "demote-forbid-admin", "Demote Forbidden", cancellationToken);
+        _ = await RegisterUserAsync(memberClient, "demote-forbid-member", "Regular", "Member", admin.Club.ClubId, cancellationToken);
+
+        using var response = await memberClient.PostAsync(
+            ClubEndpoints.DemoteMemberUrl(admin.UserId),
+            content: null,
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
     [Fact]
     public async Task LeaveClub_ReturnsNoContentAndClearsMembership_ForRegularMember()
     {

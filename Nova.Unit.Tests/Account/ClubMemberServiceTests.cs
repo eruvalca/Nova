@@ -196,6 +196,33 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RemoveMemberAsync_PreservesResolvedJoinRequestOwnedByAnotherClub()
+    {
+        long joinRequestId;
+        using (var setup = _harness.CreateAdminContext())
+        {
+            var request = new ClubJoinRequestEntity
+            {
+                ClubId = OtherClubId,
+                RequestingUserId = MemberId,
+                Status = RequestStatus.Rejected,
+                CreatedById = MemberId,
+            };
+            setup.ClubJoinRequests.Add(request);
+            setup.SaveChanges();
+            joinRequestId = request.ClubJoinRequestId;
+        }
+
+        var result = await CreateService().RemoveMemberAsync(
+            MemberInput(MemberId),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        using var verify = _harness.CreateAdminContext();
+        verify.ClubJoinRequests.ShouldContain(request => request.ClubJoinRequestId == joinRequestId);
+    }
+
+    [Fact]
     public async Task RemoveMemberAsync_UsesNonDisclosingNotFoundForCrossClubTarget()
     {
         var result = await CreateService().RemoveMemberAsync(MemberInput(OtherClubMemberId), TestContext.Current.CancellationToken);
