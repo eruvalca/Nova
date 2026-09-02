@@ -34,6 +34,26 @@ public sealed class PlayerImportEndpointTests
             .Contains(StatusCodes.Status401Unauthorized));
     }
 
+    /// <summary>Verifies the multipart preview route advertises framework media-type rejection.</summary>
+    [Fact]
+    public async Task PreviewEndpoint_AdvertisesUnsupportedMediaType()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<IPlayerImportService, FakePlayerImportService>();
+        await using var app = builder.Build();
+
+        app.MapPlayerImportEndpoints();
+
+        var previewEndpoint = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(endpoint => endpoint.RoutePattern.RawText == PlayerEndpoints.ImportPreview);
+        previewEndpoint.Metadata
+            .GetOrderedMetadata<IProducesResponseTypeMetadata>()
+            .Select(metadata => metadata.StatusCode)
+            .ShouldContain(StatusCodes.Status415UnsupportedMediaType);
+    }
+
     private sealed class FakePlayerImportService : IPlayerImportService
     {
         /// <inheritdoc />

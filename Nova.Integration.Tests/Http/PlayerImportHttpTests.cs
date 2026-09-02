@@ -217,6 +217,22 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
         document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
     }
 
+    [Fact]
+    public async Task Preview_ReturnsUnsupportedMediaType_WithTraceId_ForNonMultipartRequest()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        _ = await CreateAdministratorClubAsync(client, "unsupported-request-media", cancellationToken);
+        using var content = JsonContent.Create(new { file = "not-multipart" });
+
+        using var response = await client.PostAsync(PlayerEndpoints.ImportPreview, content, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.UnsupportedMediaType);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        document.RootElement.GetProperty("status").GetInt32().ShouldBe(415);
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+    }
+
     private static MultipartFormDataContent CsvForm(string rows)
     {
         const string header = "First name,Last name,Date of birth,Gender,Jersey number,Graduation year\r\n";

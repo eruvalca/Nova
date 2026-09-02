@@ -12,17 +12,17 @@ Strong: the generated suite protects the import contract's security denials, fil
 
 ## Assertion-quality review
 
-- Reviewed 59 test methods across the parser, service/token, endpoint metadata, WASM client, and Aspire HTTP files.
+- Reviewed 61 test methods across the parser, service/token, endpoint metadata, WASM client, and Aspire HTTP files.
 - No assertion-free, always-true, self-referential, or null-only tests were found.
 - Assertions cover equality/boolean results, nullability, strings, collections and ordering, exceptions/cancellation, comparisons/bounds, negative behavior, database side effects, HTTP request metadata, and nested response structure.
 - Smoke-style authorization tests intentionally assert only their exact HTTP status; broader response-shape assertions are exercised by the validation tests.
 
 ## Validation evidence
 
-- Focused strict-client and endpoint review tests: 23 passed.
-- Focused Aspire player-import HTTP tests: 10 passed.
+- Focused strict-client and endpoint review tests: 24 passed.
+- Focused Aspire player-import HTTP tests: 11 passed.
 - `dotnet build Nova.slnx --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,087 passed.
+- `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`: 2,088 passed.
 - `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj --no-build`: 412 passed.
 - `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --no-build`: 111 passed, 7 expected opt-in accessibility evidence tests skipped.
 - `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`: formatted 0 of 778 files.
@@ -42,3 +42,4 @@ Strong: the generated suite protects the import contract's security denials, fil
 - The strict client now reconstructs every Ready and Duplicate candidate from its raw cells and rejects candidate/value drift.
 - Earlier-upload duplicate references must resolve to a prior Ready row with the same normalized duplicate key.
 - The multipart endpoint now rejects unsafe filenames and unsupported media types before opening or buffering the upload stream.
+- The preview route advertises its framework-generated 415 response, with authenticated non-multipart HTTP coverage and trace-ID assertions.

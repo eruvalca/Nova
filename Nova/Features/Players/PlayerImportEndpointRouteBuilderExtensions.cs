@@ -34,6 +34,7 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
+                .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithMetadata(
                     new RequestSizeLimitAttribute(PlayerImportConstraints.MaxRequestBytes),
