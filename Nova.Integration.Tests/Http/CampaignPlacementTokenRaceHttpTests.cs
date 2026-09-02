@@ -57,12 +57,10 @@ public sealed class CampaignPlacementTokenRaceHttpTests(NovaAppHostFixture fixtu
                 .SingleAsync(cancellationToken);
         }
 
-        using (var promotion = await firstClient.PostAsJsonAsync(
-                   ClubEndpoints.AssignAdmin,
-                   new AssignAdminInput { TargetUserId = secondUserId },
-                   cancellationToken))
+        using (var promotion = await firstClient.PostAsync(
+                   ClubEndpoints.PromoteMemberUrl(secondUserId), null, cancellationToken))
         {
-            promotion.StatusCode.ShouldBe(HttpStatusCode.OK);
+            promotion.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
         await SeedingHelpers.RefreshClubMembershipCookieAsync(secondClient, cancellationToken);

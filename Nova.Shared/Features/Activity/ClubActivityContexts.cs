@@ -127,6 +127,11 @@ public sealed record MembershipContext : ClubActivityContext
 public sealed record MemberRoleContext : ClubActivityContext
 {
     /// <summary>
+    /// Gets or sets the member user's stable identifier.
+    /// </summary>
+    public required long MemberUserId { get; init; }
+
+    /// <summary>
     /// Gets or sets the member display-name snapshot.
     /// </summary>
     public required string MemberDisplayName { get; init; }

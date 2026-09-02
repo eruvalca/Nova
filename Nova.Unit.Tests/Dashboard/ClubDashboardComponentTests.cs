@@ -530,7 +530,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
             OccurredAt = ActivityAt,
             ActorUserId = 300,
             ActorDisplayName = "Admin A",
-            Context = new MemberRoleContext { MemberDisplayName = "Noter", Role = "Team Lead" }
+            Context = new MemberRoleContext { MemberUserId = 1, MemberDisplayName = "Noter", Role = "Team Lead" }
         };
 
     private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, string? clubId = "42")

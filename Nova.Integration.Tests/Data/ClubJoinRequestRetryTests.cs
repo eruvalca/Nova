@@ -305,6 +305,73 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies approval shares the requester-scoped membership lock with competing membership
+    /// assignments and re-reads the requester after waiting, preserving the competing club.
+    /// </summary>
+    [Fact]
+    public async Task ApproveJoinRequest_ReturnsConflict_WhenRequesterJoinsAnotherClubWhileWaiting()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedApprovalDataAsync(cancellationToken);
+        ActAsAdmin(seed.AdminUserId, seed.ClubId);
+        long otherClubId;
+        await using (var setup = fixture.CreateAdminContext())
+        {
+            var otherClub = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Competing Membership Club {Guid.NewGuid():N}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = seed.RequesterUserId,
+            };
+            setup.Clubs.Add(otherClub);
+            await setup.SaveChangesAsync(cancellationToken);
+            otherClubId = otherClub.ClubId;
+        }
+
+        var service = CreateService(
+            new RetryingTenantDbContextFactory(
+                fixture.ConnectionString,
+                fixture.CurrentUser,
+                new NoOpInterceptor()),
+            seed.RequesterUserId);
+        var lockKey = (long.MinValue / 64) + seed.RequesterUserId;
+        await using var holdDb = fixture.CreateAdminContext();
+        await using var holdTransaction = await holdDb.Database.BeginTransactionAsync(cancellationToken);
+        await holdDb.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({lockKey})",
+            cancellationToken);
+
+        var approveTask = service.ApproveJoinRequestAsync(seed.RequestId, cancellationToken);
+        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+            holdDb,
+            lockKey,
+            cancellationToken);
+        var requester = await holdDb.Users.SingleAsync(
+            user => user.Id == seed.RequesterUserId,
+            cancellationToken);
+        requester.ClubId = otherClubId;
+        await holdDb.SaveChangesAsync(cancellationToken);
+        await holdTransaction.CommitAsync(cancellationToken);
+
+        var result = await approveTask;
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        await using var verify = fixture.CreateAdminContext();
+        (await verify.Users.SingleAsync(user => user.Id == seed.RequesterUserId, cancellationToken))
+            .ClubId.ShouldBe(otherClubId);
+        (await verify.ClubJoinRequests.SingleAsync(
+            request => request.ClubJoinRequestId == seed.RequestId,
+            cancellationToken)).Status.ShouldBe(RequestStatus.Pending);
+        (await verify.ActivityEvents.CountAsync(
+            activity => activity.ClubId == seed.ClubId
+                && activity.EventKind == ActivityEventKind.MemberJoined,
+            cancellationToken)).ShouldBe(0);
+    }
+
+    /// <summary>
     /// Verifies a join-request create whose insert violates the one-to-one RequestingUserId unique
     /// constraint (a concurrent submission won the probe/write race, or a non-pending request still
     /// occupies the slot) is classified as Conflict rather than a server error.
@@ -501,6 +568,11 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
         await db.SaveChangesAsync(cancellationToken);
 
         admin.ClubId = club.ClubId;
+        var administratorRoleId = await db.Roles
+            .Where(role => role.NormalizedName == Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant())
+            .Select(role => role.Id)
+            .SingleAsync(cancellationToken);
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = admin.Id, RoleId = administratorRoleId });
         await db.SaveChangesAsync(cancellationToken);
 
         var request = new ClubJoinRequestEntity

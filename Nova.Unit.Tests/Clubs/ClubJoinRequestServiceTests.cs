@@ -64,6 +64,16 @@ public class ClubJoinRequestServiceTests : IDisposable
             new NovaUserEntity { Id = RequestingUserId, FirstName = "Requester", LastName = "R", ClubId = null },
             new NovaUserEntity { Id = OtherClubAdminId, FirstName = "Admin", LastName = "B", ClubId = ClubBId });
 
+        var administratorRole = new IdentityRole<long>(Nova.Shared.Security.Roles.ClubAdmin)
+        {
+            Id = 10,
+            NormalizedName = Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant(),
+        };
+        context.Roles.Add(administratorRole);
+        context.UserRoles.AddRange(
+            new IdentityUserRole<long> { UserId = AdminUserId, RoleId = administratorRole.Id },
+            new IdentityUserRole<long> { UserId = OtherClubAdminId, RoleId = administratorRole.Id });
+
         context.SaveChanges();
     }
 
@@ -669,6 +679,39 @@ public class ClubJoinRequestServiceTests : IDisposable
         // Assert
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+    }
+
+    [Fact]
+    public async Task ApproveJoinRequestAsync_ReturnsConflict_WhenRequesterAlreadyJoinedAnotherClub()
+    {
+        _harness.CurrentUser.UserId = AdminUserId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+
+        long requestId;
+        using (var context = _harness.CreateAdminContext())
+        {
+            var request = new ClubJoinRequestEntity
+            {
+                ClubId = ClubAId,
+                RequestingUserId = RequestingUserId,
+                Status = RequestStatus.Pending,
+                CreatedById = RequestingUserId,
+            };
+            context.ClubJoinRequests.Add(request);
+            context.Users.Single(user => user.Id == RequestingUserId).ClubId = ClubBId;
+            context.SaveChanges();
+            requestId = request.ClubJoinRequestId;
+        }
+
+        var result = await CreateService().ApproveJoinRequestAsync(requestId, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        using var verify = _harness.CreateAdminContext();
+        verify.Users.Single(user => user.Id == RequestingUserId).ClubId.ShouldBe(ClubBId);
+        verify.ClubJoinRequests.Single(request => request.ClubJoinRequestId == requestId).Status.ShouldBe(RequestStatus.Pending);
+        verify.ActivityEvents.ShouldNotContain(activity => activity.EventKind == ActivityEventKind.MemberJoined);
     }
 
     [Fact]

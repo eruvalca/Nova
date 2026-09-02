@@ -196,6 +196,7 @@ public sealed class ActivityEventPolicyTests
             },
             ActivityEventKind.MemberPromoted => new MemberRoleContext
             {
+                MemberUserId = 1,
                 MemberDisplayName = "M",
                 Role = "ClubAdmin",
             },

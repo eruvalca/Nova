@@ -18,11 +18,16 @@ public class HttpClubMemberServiceTests
     /// </summary>
     private sealed class FakeHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
     {
+        public HttpRequestMessage? LastRequest { get; private set; }
+
         /// <inheritdoc />
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(response);
+            CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            return Task.FromResult(response);
+        }
     }
 
     /// <summary>
@@ -120,75 +125,28 @@ public class HttpClubMemberServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
-    /// <summary>
-    /// AssignClubAdminAsync rejects JSON false because success requires an affirmative acknowledgement.
-    /// </summary>
-    [Fact]
-    public async Task AssignClubAdminAsync_ReturnsServerError_WhenSuccessBodyIsFalse()
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("promote", "POST", "/api/clubs/members/99/promote")]
+    [InlineData("demote", "POST", "/api/clubs/members/99/demote")]
+    [InlineData("remove", "DELETE", "/api/clubs/members/99")]
+    [InlineData("leave", "DELETE", "/api/clubs/membership")]
+    public async Task MembershipMutation_UsesExpectedMethodAndRoute(string operation, string method, string path)
     {
-        // Arrange
-        using var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent("false", Encoding.UTF8, "application/json")
-        };
+        using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
         var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubMemberService(httpClient);
-        var input = new AssignAdminInput { TargetUserId = 99 };
 
-        // Act
-        var result = await service.AssignClubAdminAsync(input, TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-    }
-
-    /// <summary>
-    /// AssignClubAdminAsync accepts an affirmative successful acknowledgement.
-    /// </summary>
-    [Fact]
-    public async Task AssignClubAdminAsync_ReturnsTrue_WhenSuccessBodyIsTrue()
-    {
-        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        var result = operation switch
         {
-            Content = new StringContent("true", Encoding.UTF8, "application/json")
+            "promote" => await service.PromoteMemberAsync(new ClubMemberMutationInput { MemberUserId = 99 }, TestContext.Current.CancellationToken),
+            "demote" => await service.DemoteMemberAsync(new ClubMemberMutationInput { MemberUserId = 99 }, TestContext.Current.CancellationToken),
+            "remove" => await service.RemoveMemberAsync(new ClubMemberMutationInput { MemberUserId = 99 }, TestContext.Current.CancellationToken),
+            _ => await service.LeaveClubAsync(TestContext.Current.CancellationToken),
         };
-        var handler = new FakeHttpMessageHandler(response);
-        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
-        var input = new AssignAdminInput { TargetUserId = 99 };
-
-        var result = await new HttpClubMemberService(httpClient)
-            .AssignClubAdminAsync(input, TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBeTrue();
-    }
-
-    /// <summary>
-    /// AssignClubAdminAsync returns a server error when a successful response has an invalid body.
-    /// </summary>
-    [Theory(IncludeTestCaseIndex = true)]
-    [InlineData("null")]
-    [InlineData("")]
-    [InlineData("{not-json")]
-    public async Task AssignClubAdminAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
-    {
-        // Arrange
-        using var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(body, Encoding.UTF8, "application/json")
-        };
-        var handler = new FakeHttpMessageHandler(response);
-        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
-        var service = new HttpClubMemberService(httpClient);
-        var input = new AssignAdminInput { TargetUserId = 99 };
-
-        // Act
-        var result = await service.AssignClubAdminAsync(input, TestContext.Current.CancellationToken);
-
-        // Assert
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        handler.LastRequest!.Method.Method.ShouldBe(method);
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(path);
     }
 }

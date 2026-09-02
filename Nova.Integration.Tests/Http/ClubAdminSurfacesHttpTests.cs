@@ -12,7 +12,7 @@ namespace Nova.Integration.Tests.Http;
 
 /// <summary>
 /// End-to-end HTTP coverage for the club-administration mutation boundaries: join-request
-/// approve/reject, assign-admin, cancel-join-request, and the admin join-requests listing.
+/// approve/reject, member lifecycle, cancel-join-request, and the admin join-requests listing.
 /// </summary>
 /// <param name="fixture">The shared AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
@@ -139,10 +139,7 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
 
-        using var response = await client.PostAsJsonAsync(
-            ClubEndpoints.AssignAdmin,
-            new AssignAdminInput { TargetUserId = 1 },
-            cancellationToken);
+        using var response = await client.PostAsync(ClubEndpoints.PromoteMemberUrl(1), null, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -160,10 +157,7 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         var admin = await RegisterClubAdminAsync(adminClient, "assign-member-admin", "Member Assign Club", cancellationToken);
         await RegisterUserAsync(memberClient, "assign-member", "Member", "Assigner", admin.Club.ClubId, cancellationToken);
 
-        using var response = await memberClient.PostAsJsonAsync(
-            ClubEndpoints.AssignAdmin,
-            new AssignAdminInput { TargetUserId = admin.UserId },
-            cancellationToken);
+        using var response = await memberClient.PostAsync(ClubEndpoints.PromoteMemberUrl(admin.UserId), null, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
@@ -181,10 +175,7 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         _ = await RegisterClubAdminAsync(clubAClient, "assign-xclub-a", "Cross Assign A", cancellationToken);
         var clubB = await RegisterClubAdminAsync(clubBClient, "assign-xclub-b", "Cross Assign B", cancellationToken);
 
-        using var response = await clubAClient.PostAsJsonAsync(
-            ClubEndpoints.AssignAdmin,
-            new AssignAdminInput { TargetUserId = clubB.UserId },
-            cancellationToken);
+        using var response = await clubAClient.PostAsync(ClubEndpoints.PromoteMemberUrl(clubB.UserId), null, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         var problem = await response.ToServiceProblemAsync(cancellationToken);
@@ -204,14 +195,135 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         var admin = await RegisterClubAdminAsync(adminClient, "assign-ok-admin", "Ok Assign Club", cancellationToken);
         var member = await RegisterUserAsync(memberClient, "assign-ok-member", "Member", "Promotee", admin.Club.ClubId, cancellationToken);
 
-        using var response = await adminClient.PostAsJsonAsync(
-            ClubEndpoints.AssignAdmin,
-            new AssignAdminInput { TargetUserId = member.UserId },
+        using var response = await adminClient.PostAsync(ClubEndpoints.PromoteMemberUrl(member.UserId), null, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
+    [Fact]
+    public async Task RemoveMember_ReturnsNoContentAndClearsMembership_ForClubAdministrator()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var admin = await RegisterClubAdminAsync(adminClient, "remove-admin", "Remove Member", cancellationToken);
+        var member = await RegisterUserAsync(memberClient, "remove-member", "Removed", "Member", admin.Club.ClubId, cancellationToken);
+
+        using var response = await adminClient.DeleteAsync(ClubEndpoints.RemoveMemberUrl(member.UserId), cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await using var db = fixture.CreateAdminContext();
+        (await db.Users.SingleAsync(user => user.Id == member.UserId, cancellationToken)).ClubId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RemoveMember_ReturnsForbidden_ForRegularMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var admin = await RegisterClubAdminAsync(adminClient, "remove-forbid-admin", "Remove Forbidden", cancellationToken);
+        var member = await RegisterUserAsync(memberClient, "remove-forbid-member", "Regular", "Member", admin.Club.ClubId, cancellationToken);
+
+        using var response = await memberClient.DeleteAsync(ClubEndpoints.RemoveMemberUrl(admin.UserId), cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>Verifies administrator middleware rejects a regular member on the demotion route.</summary>
+    [Fact]
+    public async Task DemoteMember_ReturnsForbidden_ForRegularMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var admin = await RegisterClubAdminAsync(adminClient, "demote-forbid-admin", "Demote Forbidden", cancellationToken);
+        _ = await RegisterUserAsync(memberClient, "demote-forbid-member", "Regular", "Member", admin.Club.ClubId, cancellationToken);
+
+        using var response = await memberClient.PostAsync(
+            ClubEndpoints.DemoteMemberUrl(admin.UserId),
+            content: null,
             cancellationToken);
 
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var promoted = await response.Content.ReadFromJsonAsync<bool>(cancellationToken);
-        promoted.ShouldBeTrue();
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task LeaveClub_ReturnsNoContentAndClearsMembership_ForRegularMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var admin = await RegisterClubAdminAsync(adminClient, "leave-admin", "Leave Club", cancellationToken);
+        var member = await RegisterUserAsync(memberClient, "leave-member", "Leaving", "Member", admin.Club.ClubId, cancellationToken);
+
+        using var response = await memberClient.DeleteAsync(ClubEndpoints.LeaveClub, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        using var memberRouteResponse = await memberClient.GetAsync(ClubEndpoints.GetMembers, cancellationToken);
+        memberRouteResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        await using var db = fixture.CreateAdminContext();
+        (await db.Users.SingleAsync(user => user.Id == member.UserId, cancellationToken)).ClubId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task LeaveClub_ReturnsUnauthorized_ForAnonymousCaller()
+    {
+        using var client = fixture.CreateNovaHttpClient();
+
+        using var response = await client.DeleteAsync(ClubEndpoints.LeaveClub, TestContext.Current.CancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task LeaveClub_ReturnsForbidden_ForUserWithoutClub()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        await RegisterUserAsync(client, "leave-no-club", "No", "Club", clubId: null, cancellationToken);
+
+        using var response = await client.DeleteAsync(ClubEndpoints.LeaveClub, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task LeaveClub_ReturnsConflict_ForFinalMember()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        _ = await RegisterClubAdminAsync(client, "leave-final", "Final Member", cancellationToken);
+
+        using var response = await client.DeleteAsync(ClubEndpoints.LeaveClub, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        var problem = await response.ToServiceProblemAsync(cancellationToken);
+        problem.Detail.ShouldBe("The final club member cannot leave. Delete the club instead.");
+    }
+
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task MemberMutationRoutes_ReturnBadRequest_ForInvalidMemberUserId(long memberUserId)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        _ = await RegisterClubAdminAsync(client, "member-id-validation", "Member Id Validation", cancellationToken);
+        var urls = new[]
+        {
+            ClubEndpoints.PromoteMemberUrl(memberUserId),
+            ClubEndpoints.DemoteMemberUrl(memberUserId),
+            ClubEndpoints.RemoveMemberUrl(memberUserId),
+        };
+
+        using var promoteResponse = await client.PostAsync(urls[0], content: null, cancellationToken);
+        using var demoteResponse = await client.PostAsync(urls[1], content: null, cancellationToken);
+        using var removeResponse = await client.DeleteAsync(urls[2], cancellationToken);
+
+        promoteResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        demoteResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        removeResponse.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     // ── Cancel join request ─────────────────────────────────────────────────────
@@ -285,6 +397,95 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         using var response = await memberClient.GetAsync(ClubEndpoints.AdminJoinRequestsUrl(admin.Club.ClubId), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>
+    /// Verifies concurrent demotions serialize and cannot leave a club without an administrator.
+    /// </summary>
+    [Fact]
+    public async Task DemoteMember_ConcurrentAdministrators_PreservesOneAdministrator()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var firstClient = fixture.CreateNovaHttpClient();
+        using var secondClient = fixture.CreateNovaHttpClient();
+
+        var first = await RegisterClubAdminAsync(firstClient, "demote-race-first", "Demote Race", cancellationToken);
+        var second = await RegisterUserAsync(secondClient, "demote-race-second", "Second", "Admin", first.Club.ClubId, cancellationToken);
+        using (var promotion = await firstClient.PostAsync(
+                   ClubEndpoints.PromoteMemberUrl(second.UserId), null, cancellationToken))
+        {
+            promotion.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(secondClient, cancellationToken);
+
+        await using var lockDb = fixture.CreateAdminContext();
+        await using var lockTransaction = await lockDb.Database.BeginTransactionAsync(cancellationToken);
+        foreach (var userId in new[] { first.UserId, second.UserId }.Order())
+        {
+            var userLockKey = (long.MinValue / 64) + userId;
+            await lockDb.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock({userLockKey})",
+                cancellationToken);
+        }
+
+        var clubLockKey = (long.MinValue / 32) + first.Club.ClubId;
+        await lockDb.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({clubLockKey})",
+            cancellationToken);
+        var lockHolderBackendPid = await lockDb.Database
+            .SqlQueryRaw<int>("SELECT pg_backend_pid() AS \"Value\"")
+            .SingleAsync(cancellationToken);
+
+        var firstDemotion = firstClient.PostAsync(ClubEndpoints.DemoteMemberUrl(second.UserId), null, cancellationToken);
+        var secondDemotion = secondClient.PostAsync(ClubEndpoints.DemoteMemberUrl(first.UserId), null, cancellationToken);
+        await WaitForBlockedRequestsAsync(lockHolderBackendPid, expectedCount: 2, cancellationToken);
+        await lockTransaction.CommitAsync(cancellationToken);
+        using var firstResponse = await firstDemotion;
+        using var secondResponse = await secondDemotion;
+
+        new[] { firstResponse.StatusCode, secondResponse.StatusCode }
+            .ShouldContain(HttpStatusCode.NoContent);
+        new[] { firstResponse.StatusCode, secondResponse.StatusCode }
+            .ShouldContain(HttpStatusCode.Forbidden);
+
+        await using var db = fixture.CreateAdminContext();
+        var administratorRoleId = await db.Roles
+            .Where(role => role.NormalizedName == Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant())
+            .Select(role => role.Id)
+            .SingleAsync(cancellationToken);
+        var administratorCount = await (from user in db.Users
+                                        join role in db.UserRoles on user.Id equals role.UserId
+                                        where user.ClubId == first.Club.ClubId && role.RoleId == administratorRoleId
+                                        select user.Id).CountAsync(cancellationToken);
+        administratorCount.ShouldBe(1);
+    }
+
+    /// <summary>Waits until the expected number of HTTP mutations are blocked behind one lock holder.</summary>
+    /// <param name="lockHolderBackendPid">The PostgreSQL backend process holding the membership locks.</param>
+    /// <param name="expectedCount">The number of competing requests that must be waiting.</param>
+    /// <param name="cancellationToken">A token that cancels the wait.</param>
+    /// <returns>A task that completes when every competing request is observably blocked.</returns>
+    private async Task WaitForBlockedRequestsAsync(
+        int lockHolderBackendPid,
+        int expectedCount,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            await using var observer = fixture.CreateAdminContext();
+            var blockedCount = await observer.Database.SqlQuery<int>(
+                $"""SELECT count(*)::integer AS "Value" FROM pg_stat_activity WHERE {lockHolderBackendPid} = ANY(pg_blocking_pids(pid))""")
+                .SingleAsync(cancellationToken);
+            if (blockedCount >= expectedCount)
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
+        }
+
+        throw new TimeoutException($"Expected {expectedCount} membership mutations to block behind PostgreSQL backend {lockHolderBackendPid}.");
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────

@@ -509,7 +509,27 @@ public sealed partial class ClubJoinRequestService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        foreach (var userId in new[] { state.AdminUserId, state.RequestingUserId }.Distinct().Order())
+        {
+            await db.AcquireUserMembershipLockAsync(userId, cancellationToken);
+        }
+
+        await db.AcquireClubMembershipLockAsync(state.ClubId, cancellationToken);
         await db.AcquireJoinRequestLockAsync(state.RequestId, cancellationToken);
+
+        var administratorRoleId = await db.Roles
+            .Where(role => role.NormalizedName == Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant())
+            .Select(role => (long?)role.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        var administratorIsCurrent = administratorRoleId is not null
+            && await db.Users.AnyAsync(user => user.Id == state.AdminUserId && user.ClubId == state.ClubId, cancellationToken)
+            && await db.UserRoles.AnyAsync(
+                role => role.UserId == state.AdminUserId && role.RoleId == administratorRoleId.Value,
+                cancellationToken);
+        if (!administratorIsCurrent)
+        {
+            return ServiceProblem.Forbidden("You must be a club administrator to approve join requests.");
+        }
 
         var request = await db.ClubJoinRequests
             .FirstOrDefaultAsync(
@@ -535,6 +555,11 @@ public sealed partial class ClubJoinRequestService(
         {
             LogApproveRequestingUserMissing(request.RequestingUserId, request.ClubJoinRequestId);
             return ServiceProblem.ServerError("The requesting user account could not be found.");
+        }
+
+        if (requestingUser.ClubId is not null)
+        {
+            return ServiceProblem.Conflict("The requesting user already belongs to a club.");
         }
 
         var memberName = requestingUser.FullName;

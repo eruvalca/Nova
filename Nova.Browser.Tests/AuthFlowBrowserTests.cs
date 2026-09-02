@@ -1,5 +1,7 @@
 ﻿using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Http;
+using Nova.Shared.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -165,6 +167,96 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
             .ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Navigation, new() { Name = "Account areas" })).ToBeVisibleAsync();
     }
+
+    /// <summary>
+    /// Verifies the static-SSR administrator form refreshes the actor's cookie from committed
+    /// database state after self-demotion.
+    /// </summary>
+    [Fact]
+    public async Task ClubAdmin_SelfDemotion_ImmediatelyLosesAdministratorAccessButRetainsMembership()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedTwoAdministratorsAsync(cancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.ActorEmail, Password);
+        var page = context.Pages[0];
+        var adminUrl = new Uri(fixture.BaseUri, $"/Clubs/{seed.Club.ClubId}/admin").ToString();
+
+        await page.GotoAsync(adminUrl);
+        var selfDemotionForm = page.Locator(
+            $"form:has(input[name='MemberUserId'][value='{seed.ActorUserId}'])");
+        await selfDemotionForm.GetByRole(AriaRole.Button, new() { Name = "Demote", Exact = true }).ClickAsync();
+        await page.WaitForURLAsync(
+            url => url.Contains("/Account/AccessDenied", StringComparison.OrdinalIgnoreCase),
+            new() { WaitUntil = WaitUntilState.Commit });
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access denied", Exact = true }))
+            .ToBeVisibleAsync();
+
+        await page.GotoAsync(adminUrl);
+        await page.WaitForURLAsync(
+            url => url.Contains("/Account/AccessDenied", StringComparison.OrdinalIgnoreCase),
+            new() { WaitUntil = WaitUntilState.Commit });
+
+        await page.GotoAsync(new Uri(fixture.BaseUri, $"/Clubs/{seed.Club.ClubId}").ToString());
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = seed.Club.Name, Exact = true }))
+            .ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Admin", Exact = true }))
+            .ToHaveCountAsync(0);
+    }
+
+    /// <summary>Seeds two administrators in one club through the real Identity and membership endpoints.</summary>
+    /// <param name="cancellationToken">A token that cancels setup.</param>
+    /// <returns>The actor identity and club used by the static-SSR self-demotion scenario.</returns>
+    private async Task<SelfDemotionSeed> SeedTwoAdministratorsAsync(CancellationToken cancellationToken)
+    {
+        using var actorClient = fixture.AppHost.CreateNovaHttpClient();
+        using var secondAdministratorClient = fixture.AppHost.CreateNovaHttpClient();
+        var actorEmail = SeedingHelpers.UniqueEmail("self-demote-actor");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
+            actorClient,
+            actorEmail,
+            Password,
+            cancellationToken);
+        var club = await SeedingHelpers.CreateClubAsync(actorClient, cancellationToken);
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(actorClient, cancellationToken);
+
+        var secondAdministratorEmail = SeedingHelpers.UniqueEmail("self-demote-second-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
+            secondAdministratorClient,
+            secondAdministratorEmail,
+            Password,
+            cancellationToken);
+        await SeedingHelpers.UpdateUserAsync(
+            fixture.AppHost,
+            secondAdministratorEmail,
+            club.ClubId,
+            cancellationToken);
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(secondAdministratorClient, cancellationToken);
+
+        await using var db = fixture.AppHost.CreateAdminContext();
+        var normalizedActorEmail = actorEmail.ToUpperInvariant();
+        var normalizedSecondAdministratorEmail = secondAdministratorEmail.ToUpperInvariant();
+        var actorUserId = await db.Users
+            .Where(user => user.NormalizedEmail == normalizedActorEmail)
+            .Select(user => user.Id)
+            .SingleAsync(cancellationToken);
+        var secondAdministratorUserId = await db.Users
+            .Where(user => user.NormalizedEmail == normalizedSecondAdministratorEmail)
+            .Select(user => user.Id)
+            .SingleAsync(cancellationToken);
+
+        using var promotion = await actorClient.PostAsync(
+            ClubEndpoints.PromoteMemberUrl(secondAdministratorUserId),
+            content: null,
+            cancellationToken);
+        promotion.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        return new SelfDemotionSeed(actorEmail, actorUserId, club);
+    }
+
+    /// <summary>Identifies the actor and club for the static-SSR self-demotion browser scenario.</summary>
+    /// <param name="ActorEmail">The actor's login email.</param>
+    /// <param name="ActorUserId">The actor's identity user id.</param>
+    /// <param name="Club">The club containing both administrators.</param>
+    private sealed record SelfDemotionSeed(string ActorEmail, long ActorUserId, ClubDto Club);
 
     /// <summary>
     /// Registers a unique user through the HTTP Identity helper without using UI registration as test setup.
