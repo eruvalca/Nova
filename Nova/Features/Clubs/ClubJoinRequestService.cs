@@ -418,7 +418,7 @@ public sealed partial class ClubJoinRequestService(
             }
             catch (Exception exception)
             {
-                LogApproveClaimsStaleFailed(state.RequestingUserId, state.RequestId, exception.Message);
+                LogApproveClaimsStaleRefreshFailed(exception, state.RequestingUserId, state.RequestId);
             }
         }
 
@@ -795,6 +795,9 @@ public sealed partial class ClubJoinRequestService(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but failed to mark the member's claims stale: RequestingUserId={RequestingUserId}, RequestId={RequestId}, Errors={Errors}.")]
     private partial void LogApproveClaimsStaleFailed(long requestingUserId, long requestId, string errors);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but the claims-stale refresh threw: RequestingUserId={RequestingUserId}, RequestId={RequestId}.")]
+    private partial void LogApproveClaimsStaleRefreshFailed(Exception exception, long requestingUserId, long requestId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Join request created: RequestId={RequestId} for UserId={UserId} to ClubId={ClubId}.")]
     private partial void LogJoinRequestCreated(long userId, long clubId, long requestId);
