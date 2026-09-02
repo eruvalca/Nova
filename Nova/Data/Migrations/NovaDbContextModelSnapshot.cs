@@ -1010,6 +1010,9 @@ namespace Nova.Data.Migrations
                     b.Property<long>("CreatedById")
                         .HasColumnType("bigint");
 
+                    b.Property<int>("CreationKind")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("CreationOperationId")
                         .HasColumnType("uuid");
 

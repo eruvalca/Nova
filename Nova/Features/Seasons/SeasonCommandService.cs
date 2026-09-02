@@ -216,6 +216,7 @@ public sealed partial class SeasonCommandService(
 
         var season = NewSeason(
             input.OperationId,
+            SeasonCreationKind.Standalone,
             creationPreviousSeasonId: null,
             input.Name,
             input.StartDate,
@@ -410,6 +411,7 @@ public sealed partial class SeasonCommandService(
 
         var season = NewSeason(
             input.OperationId,
+            SeasonCreationKind.Advancement,
             currentSeasonId,
             input.Name,
             input.StartDate,
@@ -459,6 +461,7 @@ public sealed partial class SeasonCommandService(
     /// <summary>Creates a new tracked season entity.</summary>
     private static SeasonEntity NewSeason(
         Guid operationId,
+        SeasonCreationKind creationKind,
         long? creationPreviousSeasonId,
         string name,
         DateOnly startDate,
@@ -468,6 +471,7 @@ public sealed partial class SeasonCommandService(
         => new()
         {
             CreationOperationId = operationId,
+            CreationKind = creationKind,
             CreationPreviousSeasonId = creationPreviousSeasonId,
             Name = name,
             StartDate = startDate,
@@ -495,13 +499,15 @@ public sealed partial class SeasonCommandService(
                 StartDate = season.StartDate,
                 EndDate = season.EndDate,
                 ConcurrencyToken = season.ConcurrencyToken,
+                CreationKind = season.CreationKind,
                 CreationPreviousSeasonId = season.CreationPreviousSeasonId
             })
             .SingleOrDefaultAsync(cancellationToken);
 
     /// <summary>Reconstructs a valid standalone-creation replay or rejects an operation-kind collision.</summary>
     private static ServiceResult<SeasonSummary> ToCreateReplayResult(CommittedSeason committed)
-        => committed.CreationPreviousSeasonId is null
+        => committed.CreationKind == SeasonCreationKind.Standalone
+            && committed.CreationPreviousSeasonId is null
             ? ToSummary(committed)
             : ServiceProblem.Conflict(
                 "The operation identifier was already used for a different season transition.");
@@ -513,7 +519,8 @@ public sealed partial class SeasonCommandService(
     private static ServiceResult<StartNextSeasonResult> ToStartNextReplayResult(
         CommittedSeason committed,
         long expectedCurrentSeasonId)
-        => committed.CreationPreviousSeasonId != expectedCurrentSeasonId
+        => committed.CreationKind != SeasonCreationKind.Advancement
+            || committed.CreationPreviousSeasonId != expectedCurrentSeasonId
             ? ServiceProblem.Conflict(
                 "The operation identifier was already used for a different season transition.")
             : new StartNextSeasonResult
@@ -703,6 +710,8 @@ public sealed partial class SeasonCommandService(
         public DateOnly? EndDate { get; init; }
         /// <summary>Gets the metadata concurrency token.</summary>
         public Guid ConcurrencyToken { get; init; }
+        /// <summary>Gets the command path that originally created the season.</summary>
+        public SeasonCreationKind CreationKind { get; init; }
         /// <summary>Gets the exact predecessor recorded for an advancement operation.</summary>
         public long? CreationPreviousSeasonId { get; init; }
     }

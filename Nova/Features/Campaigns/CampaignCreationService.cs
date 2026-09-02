@@ -267,6 +267,7 @@ public sealed partial class CampaignCreationService(
         var season = new SeasonEntity
         {
             CreationOperationId = input.OperationId,
+            CreationKind = SeasonCreationKind.InlineCampaign,
             Name = inlineSeason.Name,
             StartDate = inlineSeason.StartDate,
             EndDate = inlineSeason.EndDate,

@@ -139,6 +139,7 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
         var committed = await verify.Seasons.SingleAsync(
             season => season.ClubId == club.ClubId && season.CreationOperationId == operationId,
             cancellationToken);
+        committed.CreationKind.ShouldBe(SeasonCreationKind.Standalone);
         committed.CreationPreviousSeasonId.ShouldBeNull();
         (await verify.Clubs.SingleAsync(
             candidate => candidate.ClubId == club.ClubId,
@@ -189,6 +190,7 @@ public sealed class SeasonFoundationPostgresTests(NovaAppHostFixture fixture)
         var committed = await verify.Seasons.SingleAsync(
             season => season.ClubId == club.ClubId && season.CreationOperationId == operationId,
             cancellationToken);
+        committed.CreationKind.ShouldBe(SeasonCreationKind.Advancement);
         committed.CreationPreviousSeasonId.ShouldBe(current.SeasonId);
         (await verify.Clubs.SingleAsync(
             candidate => candidate.ClubId == club.ClubId,

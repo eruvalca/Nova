@@ -25,5 +25,7 @@
 | Strict ordering and advancement payloads | Add HTTP-client regressions for current-first/history ordering, campaign history ordering, page-2 current rows, and equal previous/current advancement IDs |
 | Strict update/detail payloads and shared routes | Add HTTP-client regressions for unchanged metadata tokens, undefined campaign statuses, and shared list/detail/start-next route consumption |
 | Season observability | Add typed source-generated command lifecycle logs for validation, authorization, conflicts, success/replay/recovery and query logs for forbidden reads |
+| Cross-command season operation identity | Persist inline-campaign, standalone, and advancement creation kinds; reject replay unless both kind and predecessor match the requested command |
+| Least-privilege season HTTP coverage | Verify an approved member can read detail and that member/anonymous callers receive 403/401 from start-next |
 
 Implementation proceeds production-first, then the narrow unit and PostgreSQL/HTTP suites, followed by solution validation. Final assertion and pseudo-mutation reviews will be recorded in `.testagent/status.md`.

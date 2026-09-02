@@ -3,8 +3,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
+using Nova.Features.Seasons;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Features.Seasons;
 using Nova.Shared.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -89,12 +91,30 @@ public sealed class CampaignCreationServiceTests : IDisposable
         result.Value.SeasonCreatedInline.ShouldBeTrue();
         result.Value.SeasonName.ShouldBe(input.InlineSeason!.Name);
 
-        using var db = _harness.CreateAdminContext();
-        var season = db.Seasons.Single(candidate => candidate.SeasonId == result.Value.SeasonId);
-        season.CreationOperationId.ShouldBe(input.OperationId);
-        var campaign = db.Campaigns.Single(candidate => candidate.CampaignId == result.Value.CampaignId);
-        campaign.CreationOperationId.ShouldBe(input.OperationId);
-        campaign.SeasonCreatedInline.ShouldBeTrue();
+        using (var db = _harness.CreateAdminContext())
+        {
+            var season = db.Seasons.Single(candidate => candidate.SeasonId == result.Value.SeasonId);
+            season.CreationOperationId.ShouldBe(input.OperationId);
+            season.CreationKind.ShouldBe(SeasonCreationKind.InlineCampaign);
+            var campaign = db.Campaigns.Single(candidate => candidate.CampaignId == result.Value.CampaignId);
+            campaign.CreationOperationId.ShouldBe(input.OperationId);
+            campaign.SeasonCreatedInline.ShouldBeTrue();
+        }
+
+        var crossCommandReplay = await new SeasonCommandService(
+            new CampaignHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<SeasonCommandService>.Instance).CreateAsync(
+            new CreateSeasonInput
+            {
+                OperationId = input.OperationId,
+                Name = "Not a standalone replay",
+                StartDate = input.InlineSeason!.StartDate
+            },
+            TestContext.Current.CancellationToken);
+
+        crossCommandReplay.IsProblem.ShouldBeTrue();
+        crossCommandReplay.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
     }
 
     /// <summary>

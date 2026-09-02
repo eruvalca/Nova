@@ -40,6 +40,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
         {
             SeasonId = CurrentSeasonId,
             CreationOperationId = Guid.NewGuid(),
+            CreationKind = SeasonCreationKind.Standalone,
             Name = "Current",
             StartDate = new DateOnly(2026, 1, 1),
             ConcurrencyToken = Guid.NewGuid(),
@@ -140,9 +141,11 @@ public sealed class SeasonCommandServiceTests : IDisposable
         (await verify.Seasons.CountAsync(
             season => season.CreationOperationId == input.OperationId,
             TestContext.Current.CancellationToken)).ShouldBe(1);
-        (await verify.Seasons.SingleAsync(
+        var createdSeason = await verify.Seasons.SingleAsync(
             season => season.CreationOperationId == input.OperationId,
-            TestContext.Current.CancellationToken)).CreationPreviousSeasonId.ShouldBeNull();
+            TestContext.Current.CancellationToken);
+        createdSeason.CreationKind.ShouldBe(SeasonCreationKind.Standalone);
+        createdSeason.CreationPreviousSeasonId.ShouldBeNull();
     }
 
     /// <summary>Verifies exact stored names remain unique across every season command.</summary>
@@ -664,9 +667,11 @@ public sealed class SeasonCommandServiceTests : IDisposable
         await using var verify = _harness.CreateAdminContext();
         (await verify.Clubs.SingleAsync(TestContext.Current.CancellationToken))
             .CurrentSeasonId.ShouldBe(first.Value.CurrentSeason.SeasonId);
-        (await verify.Seasons.SingleAsync(
+        var advancedSeason = await verify.Seasons.SingleAsync(
             season => season.SeasonId == first.Value.CurrentSeason.SeasonId,
-            TestContext.Current.CancellationToken)).CreationPreviousSeasonId.ShouldBe(CurrentSeasonId);
+            TestContext.Current.CancellationToken);
+        advancedSeason.CreationKind.ShouldBe(SeasonCreationKind.Advancement);
+        advancedSeason.CreationPreviousSeasonId.ShouldBe(CurrentSeasonId);
         (await verify.Campaigns.SingleAsync(
             campaign => campaign.CampaignId == campaignId,
             TestContext.Current.CancellationToken)).SeasonId.ShouldBe(CurrentSeasonId);

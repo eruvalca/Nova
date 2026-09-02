@@ -32,6 +32,13 @@ public partial class AddCurrentSeasonFoundation : Migration
             oldType: "uuid",
             oldNullable: true);
 
+        migrationBuilder.AddColumn<int>(
+            name: "CreationKind",
+            table: "Seasons",
+            type: "integer",
+            nullable: false,
+            defaultValue: 0);
+
         migrationBuilder.AddColumn<long>(
             name: "CreationPreviousSeasonId",
             table: "Seasons",
@@ -107,6 +114,10 @@ public partial class AddCurrentSeasonFoundation : Migration
 
         migrationBuilder.DropColumn(
             name: "ConcurrencyToken",
+            table: "Seasons");
+
+        migrationBuilder.DropColumn(
+            name: "CreationKind",
             table: "Seasons");
 
         migrationBuilder.DropColumn(

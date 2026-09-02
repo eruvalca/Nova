@@ -104,13 +104,42 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
         var club = await RegisterClubAdminAsync(adminClient, "season-policy-admin", cancellationToken);
         await RegisterClubMemberAsync(memberClient, "season-policy-member", club.ClubId, cancellationToken);
 
+        using var createdResponse = await adminClient.PostAsJsonAsync(
+            SeasonEndpoints.GroupPrefix,
+            ValidCreateInput("Member-readable season"),
+            cancellationToken);
+        createdResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var created = await createdResponse.Content.ReadFromJsonAsync<SeasonSummary>(cancellationToken);
+        created.ShouldNotBeNull();
+
         using var memberRead = await memberClient.GetAsync(SeasonEndpoints.GroupPrefix, cancellationToken);
         memberRead.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var memberDetail = await memberClient.GetAsync(
+            SeasonEndpoints.Detail(created.SeasonId),
+            cancellationToken);
+        memberDetail.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var detail = await memberDetail.Content.ReadFromJsonAsync<SeasonDetailResult>(cancellationToken);
+        detail.ShouldNotBeNull();
+        detail.Season.SeasonId.ShouldBe(created.SeasonId);
+        detail.Season.Name.ShouldBe(created.Name);
+        detail.Campaigns.ShouldBeEmpty();
+
         using var memberWrite = await memberClient.PostAsJsonAsync(
             SeasonEndpoints.GroupPrefix,
             ValidCreateInput("Member Attempt"),
             cancellationToken);
         memberWrite.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        var advancementInput = ValidStartNextInput(created.SeasonId, "Unauthorized next season");
+        using var memberAdvance = await memberClient.PostAsJsonAsync(
+            SeasonEndpoints.StartNext,
+            advancementInput,
+            cancellationToken);
+        memberAdvance.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        using var anonymousAdvance = await anonymous.PostAsJsonAsync(
+            SeasonEndpoints.StartNext,
+            advancementInput,
+            cancellationToken);
+        anonymousAdvance.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     /// <summary>Verifies invalid paging and cross-tenant detail reads use traced ProblemDetails.</summary>

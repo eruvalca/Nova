@@ -19,8 +19,13 @@ public class SeasonEntity : BaseEntity, ITenantOwnedEntity
     public required Guid CreationOperationId { get; set; }
 
     /// <summary>
+    /// Gets or sets the command path that originally created this season.
+    /// </summary>
+    public SeasonCreationKind CreationKind { get; set; } = SeasonCreationKind.InlineCampaign;
+
+    /// <summary>
     /// Gets or sets the season that was current when this season was created by an advancement
-    /// operation. A null value identifies standalone first-season creation.
+    /// operation. Other creation kinds leave this value null.
     /// </summary>
     public long? CreationPreviousSeasonId { get; set; }
 

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations
 {
     [DbContext(typeof(NovaDbContext))]
-    [Migration("20260902161021_AddCurrentSeasonFoundation")]
+    [Migration("20260902171202_AddCurrentSeasonFoundation")]
     partial class AddCurrentSeasonFoundation
     {
         /// <inheritdoc />
@@ -1012,6 +1012,9 @@ namespace Nova.Data.Migrations
 
                     b.Property<long>("CreatedById")
                         .HasColumnType("bigint");
+
+                    b.Property<int>("CreationKind")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("CreationOperationId")
                         .HasColumnType("uuid");
