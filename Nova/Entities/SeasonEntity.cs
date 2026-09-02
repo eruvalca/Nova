@@ -19,12 +19,6 @@ public class SeasonEntity : BaseEntity, ITenantOwnedEntity
     public required Guid CreationOperationId { get; set; }
 
     /// <summary>
-    /// Gets or sets the application-managed token used to detect concurrent season metadata
-    /// corrections.
-    /// </summary>
-    public Guid ConcurrencyToken { get; set; } = Guid.NewGuid();
-
-    /// <summary>
     /// Gets or sets the Name.
     /// </summary>
     public required string Name { get; set; }
@@ -51,4 +45,8 @@ public class SeasonEntity : BaseEntity, ITenantOwnedEntity
     /// </summary>
     public ClubEntity Club { get; set; } = null!;
 
+    /// <summary>
+    /// Gets the Is Complete.
+    /// </summary>
+    public bool IsComplete => EndDate.HasValue && EndDate.Value < DateOnly.FromDateTime(DateTime.UtcNow);
 }

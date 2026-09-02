@@ -228,15 +228,13 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
     /// <param name="result">The deserialized setup payload.</param>
     /// <returns><see langword="true"/> when the payload satisfies the client contract.</returns>
     private static bool IsValidCreationSetup(CampaignCreationSetupResult result)
-        => result is not null
+        => result.Seasons is not null
+            && result.Seasons.All(season => season is not null)
+            && result.TotalSeasonCount >= 0
+            && result.Seasons.Count <= CampaignCreationSetupResult.MaxSeasonChoices
             && result.ActivePlayerCount >= 0
             && result.ActiveTeamCount >= 0
-            && (result.CurrentSeason is null
-                || (result.CurrentSeason.SeasonId > 0
-                    && !string.IsNullOrWhiteSpace(result.CurrentSeason.Name)
-                    && result.CurrentSeason.StartDate != default
-                    && (result.CurrentSeason.EndDate is null
-                        || result.CurrentSeason.EndDate >= result.CurrentSeason.StartDate)));
+            && IsOrderedAndValidSeasons(result.Seasons);
 
     /// <summary>
     /// Validates season choices and their descending start-date and identifier order.

@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Seasons;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Features.Campaigns.Components;
@@ -251,17 +250,10 @@ public sealed class CampaignComponentsTests : BunitContext
     [Fact]
     public void Campaigns_ShowsSuccessMessage_AfterSeasonMetadataUpdate()
     {
-        var seasonMetadataService = Substitute.For<ISeasonCommandService>();
-        seasonMetadataService.UpdateAsync(Arg.Any<long>(), Arg.Any<UpdateSeasonInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<SeasonSummary>(new SeasonSummary
-            {
-                SeasonId = 5,
-                Name = "Summer 2026 Updated",
-                StartDate = new DateOnly(2026, 6, 1),
-                EndDate = new DateOnly(2026, 8, 31),
-                IsCurrent = true,
-                ConcurrencyToken = Guid.NewGuid()
-            })));
+        var seasonMetadataService = Substitute.For<ISeasonMetadataService>();
+        seasonMetadataService.UpdateAsync(Arg.Any<UpdateSeasonMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<UpdateSeasonMetadataResult>(
+                new UpdateSeasonMetadataResult(5, "Summer 2026 Updated", new DateOnly(2026, 6, 1), new DateOnly(2026, 8, 31)))));
 
         RegisterServices(isClubAdmin: true, seasonMetadataService: seasonMetadataService);
 
@@ -508,17 +500,10 @@ public sealed class CampaignComponentsTests : BunitContext
         queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessSetupResult()));
 
-        var seasonMetadataService = Substitute.For<ISeasonCommandService>();
-        seasonMetadataService.UpdateAsync(Arg.Any<long>(), Arg.Any<UpdateSeasonInput>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<SeasonSummary>(new SeasonSummary
-            {
-                SeasonId = 5,
-                Name = "Summer 2026 Updated",
-                StartDate = new DateOnly(2026, 6, 1),
-                EndDate = new DateOnly(2026, 8, 31),
-                IsCurrent = true,
-                ConcurrencyToken = Guid.NewGuid()
-            })));
+        var seasonMetadataService = Substitute.For<ISeasonMetadataService>();
+        seasonMetadataService.UpdateAsync(Arg.Any<UpdateSeasonMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<UpdateSeasonMetadataResult>(
+                new UpdateSeasonMetadataResult(5, "Summer 2026 Updated", new DateOnly(2026, 6, 1), new DateOnly(2026, 8, 31)))));
 
         RegisterServices(isClubAdmin: true, queryService: queryService, seasonMetadataService: seasonMetadataService);
 
@@ -629,6 +614,31 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Campaigns_NotesSeasonTruncation_InEditForm()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessListResult(CreateSeasonGroups())));
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
+            {
+                Seasons = CreateSeasonChoices(),
+                TotalSeasonCount = 150,
+                ActivePlayerCount = 34,
+                ActiveTeamCount = 6
+            })));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() =>
+            cut.Markup.ShouldContain("Only the newest 1 of 150 seasons are available for selection."));
+    }
+
+    [Fact]
     public void Campaigns_KeepsFresherSeasonChoices_WhenStaleSetupCompletesLate()
     {
         var staleSetup = new TaskCompletionSource<ServiceResult<CampaignCreationSetupResult>>();
@@ -652,13 +662,17 @@ public sealed class CampaignComponentsTests : BunitContext
         // The stale completion must not publish its payload or clear state.
         staleSetup.SetResult(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
         {
-            CurrentSeason = new CampaignSeasonChoice
-            {
-                SeasonId = 99,
-                Name = "Stale Season",
-                StartDate = new DateOnly(2020, 1, 1),
-                EndDate = null
-            },
+            Seasons =
+            [
+                new CampaignSeasonChoice
+                {
+                    SeasonId = 99,
+                    Name = "Stale Season",
+                    StartDate = new DateOnly(2020, 1, 1),
+                    EndDate = null
+                }
+            ],
+            TotalSeasonCount = 1,
             ActivePlayerCount = 0,
             ActiveTeamCount = 0
         }));
@@ -743,7 +757,6 @@ public sealed class CampaignComponentsTests : BunitContext
                 Name = "Summer 2026",
                 StartDate = new DateOnly(2026, 6, 1),
                 EndDate = new DateOnly(2026, 8, 31),
-                ConcurrencyToken = Guid.NewGuid(),
                 Campaigns =
                 [
                     new CampaignListItem
@@ -764,7 +777,6 @@ public sealed class CampaignComponentsTests : BunitContext
                 Name = "Old 2020",
                 StartDate = new DateOnly(2020, 1, 1),
                 EndDate = new DateOnly(2020, 6, 30),
-                ConcurrencyToken = Guid.NewGuid(),
                 Campaigns =
                 [
                     new CampaignListItem
@@ -1177,6 +1189,25 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
+    public void NewCampaign_NotesSeasonTruncation_WhenMoreSeasonsExist()
+    {
+        var queryService = Substitute.For<ICampaignQueryService>();
+        queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
+            {
+                Seasons = CreateSeasonChoices(),
+                TotalSeasonCount = 150,
+                ActivePlayerCount = 34,
+                ActiveTeamCount = 6
+            })));
+
+        RegisterServices(isClubAdmin: true, queryService: queryService);
+
+        var cut = Render<NewCampaignPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Only the newest 1 of 150 seasons are available for"));
+    }
+
+    [Fact]
     public void NewCampaign_AllowsInlineSeason_WhenNoSeasonsExist()
     {
         var queryService = Substitute.For<ICampaignQueryService>();
@@ -1196,7 +1227,7 @@ public sealed class CampaignComponentsTests : BunitContext
         ICampaignQueryService? queryService = null,
         ICampaignCreationService? creationService = null,
         ICampaignMetadataService? metadataService = null,
-        ISeasonCommandService? seasonMetadataService = null,
+        ISeasonMetadataService? seasonMetadataService = null,
         IReadOnlyList<CampaignSeasonGroup>? seasonGroups = null,
         int? totalCount = null)
     {
@@ -1211,7 +1242,7 @@ public sealed class CampaignComponentsTests : BunitContext
 
         creationService ??= Substitute.For<ICampaignCreationService>();
         metadataService ??= Substitute.For<ICampaignMetadataService>();
-        seasonMetadataService ??= Substitute.For<ISeasonCommandService>();
+        seasonMetadataService ??= Substitute.For<ISeasonMetadataService>();
 
         Services.AddSingleton(queryService);
         Services.AddSingleton(creationService);
@@ -1233,7 +1264,8 @@ public sealed class CampaignComponentsTests : BunitContext
         IReadOnlyList<CampaignSeasonChoice>? seasons = null)
         => new(new CampaignCreationSetupResult
         {
-            CurrentSeason = (seasons ?? CreateSeasonChoices()).FirstOrDefault(),
+            Seasons = seasons ?? CreateSeasonChoices(),
+            TotalSeasonCount = (seasons ?? CreateSeasonChoices()).Count,
             ActivePlayerCount = 34,
             ActiveTeamCount = 6
         });
@@ -1257,7 +1289,6 @@ public sealed class CampaignComponentsTests : BunitContext
             Name = "Summer 2026",
             StartDate = new DateOnly(2026, 6, 1),
             EndDate = new DateOnly(2026, 8, 31),
-            ConcurrencyToken = Guid.NewGuid(),
             Campaigns =
             [
                 new CampaignListItem
@@ -1282,7 +1313,6 @@ public sealed class CampaignComponentsTests : BunitContext
             Name = "Spring 2026",
             StartDate = new DateOnly(2026, 3, 1),
             EndDate = new DateOnly(2026, 5, 31),
-            ConcurrencyToken = Guid.NewGuid(),
             Campaigns =
             [
                 new CampaignListItem
@@ -1349,7 +1379,7 @@ public sealed class CampaignComponentsTests : BunitContext
     private sealed class PersistedStateCampaigns(
         ICampaignQueryService campaignQueryService,
         ICampaignMetadataService campaignMetadataService,
-        ISeasonCommandService seasonMetadataService,
+        ISeasonMetadataService seasonMetadataService,
         AuthenticationStateProvider authenticationStateProvider,
         NavigationManager navigationManager)
         : CampaignsPage(campaignQueryService, campaignMetadataService, seasonMetadataService, authenticationStateProvider, navigationManager)

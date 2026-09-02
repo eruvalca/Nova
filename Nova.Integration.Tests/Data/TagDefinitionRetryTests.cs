@@ -712,9 +712,9 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
     /// and the club never exceeds the cap.
     /// </summary>
     /// <remarks>
-    /// Creation and restore both acquire the club-roster lock before their active-count probes. Restore
-    /// then acquires its tag lock in the documented global order. The gate pauses creation after it has
-    /// acquired the club lock, so restore is deterministically queued behind it and observes the
+    /// Creation acquires the club-roster lock before its active-count probe; restore acquires its tag
+    /// lock first and then the same club-roster lock before its probe. The gate pauses creation after it
+    /// has acquired the club lock, so the restore is deterministically queued behind it and observes the
     /// post-create active count of exactly the cap, returning a conflict instead of overflowing.
     /// </remarks>
     [Fact]
@@ -756,11 +756,10 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
             fixture.ConnectionString,
             fixture.CurrentUser,
             gate);
-        var restoreLocks = new AdvisoryLockRecordingInterceptor();
         var restoreFactory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
             fixture.CurrentUser,
-            restoreLocks);
+            new NoOpInterceptor());
         var createService = new TagDefinitionService(
             createFactory,
             fixture.CurrentUser,
@@ -780,7 +779,8 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
                 cancellationToken);
             await gate.WaitForAcquiredAsync(cancellationToken);
 
-            // Restore queues behind creation on the shared club-roster lock before taking its tag lock.
+            // Restore acquires its tag lock (a different key) and then queues behind creation on the
+            // shared club-roster lock.
             restore = restoreService.RestoreAsync(archivedTagId, cancellationToken);
 
             gate.Release();
@@ -798,9 +798,6 @@ public sealed class TagDefinitionRetryTests(NovaAppHostFixture fixture)
         restoreResult.IsProblem.ShouldBeTrue(
             "restore is serialized behind creation and must observe the cap already reached");
         restoreResult.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
-        restoreLocks.AcquiredKeys.ShouldBe(
-            [(long.MinValue / 4) + clubId, (long.MinValue / 2) + archivedTagId],
-            "restore must acquire the club-roster lock before the tag lock");
 
         await using var verify = fixture.CreateAdminContext();
         var activeCount = await verify.PlayerTags

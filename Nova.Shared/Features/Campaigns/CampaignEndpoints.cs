@@ -306,6 +306,16 @@ public static class CampaignEndpoints
     public const string DeleteEvaluationNoteRouteName = "DeleteEvaluationNote";
 
     /// <summary>
+    /// Updates a season's metadata (PUT).
+    /// </summary>
+    public const string UpdateSeasonMetadata = $"{GroupPrefix}/seasons/metadata";
+
+    /// <summary>
+    /// The relative season metadata-update path within <see cref="GroupPrefix"/>.
+    /// </summary>
+    public const string UpdateSeasonMetadataRelative = "seasons/metadata";
+
+    /// <summary>
     /// Builds a campaign-list URL from the accepted optional filters.
     /// </summary>
     /// <param name="status">The optional campaign status filter.</param>

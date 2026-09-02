@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Seasons;
 using Nova.Shared.Results;
 using Shouldly;
 
@@ -130,8 +129,8 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
         using var client = fixture.CreateNovaHttpClient();
 
         using var response = await client.PutAsJsonAsync(
-            SeasonEndpoints.Detail(1),
-            ValidSeasonMetadataInput(Guid.NewGuid()),
+            CampaignEndpoints.UpdateSeasonMetadata,
+            ValidSeasonMetadataInput(seasonId: 1),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -153,8 +152,8 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
         await RegisterClubMemberAsync(memberClient, "season-member", admin.Club.ClubId, cancellationToken);
 
         using var response = await memberClient.PutAsJsonAsync(
-            SeasonEndpoints.Detail(seed.SeasonId),
-            ValidSeasonMetadataInput(await ReadSeasonTokenAsync(seed.SeasonId, cancellationToken)),
+            CampaignEndpoints.UpdateSeasonMetadata,
+            ValidSeasonMetadataInput(seed.SeasonId),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -172,15 +171,15 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
         var admin = await RegisterClubAdminAsync(client, "season-ok-admin", cancellationToken);
         var seed = await SeedingHelpers.SeedSeasonAndCampaignAsync(
             fixture, admin.Club.ClubId, admin.Email, "Season Ok", cancellationToken);
-        var input = ValidSeasonMetadataInput(await ReadSeasonTokenAsync(seed.SeasonId, cancellationToken));
+        var input = ValidSeasonMetadataInput(seed.SeasonId);
 
         using var response = await client.PutAsJsonAsync(
-            SeasonEndpoints.Detail(seed.SeasonId),
+            CampaignEndpoints.UpdateSeasonMetadata,
             input,
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var updated = await response.Content.ReadFromJsonAsync<SeasonSummary>(cancellationToken);
+        var updated = await response.Content.ReadFromJsonAsync<UpdateSeasonMetadataResult>(cancellationToken);
         updated.ShouldNotBeNull();
         updated.SeasonId.ShouldBe(seed.SeasonId);
         updated.Name.ShouldBe(input.Name);
@@ -204,8 +203,8 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
         _ = await RegisterClubAdminAsync(clubBClient, "season-xclub-b", cancellationToken);
 
         using var response = await clubBClient.PutAsJsonAsync(
-            SeasonEndpoints.Detail(seed.SeasonId),
-            ValidSeasonMetadataInput(await ReadSeasonTokenAsync(seed.SeasonId, cancellationToken)),
+            CampaignEndpoints.UpdateSeasonMetadata,
+            ValidSeasonMetadataInput(seed.SeasonId),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -226,12 +225,12 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
         PlannedEndDate = new DateOnly(2026, 6, 30)
     };
 
-    private static UpdateSeasonInput ValidSeasonMetadataInput(Guid concurrencyToken) => new()
+    private static UpdateSeasonMetadataInput ValidSeasonMetadataInput(long seasonId) => new()
     {
-        ExpectedConcurrencyToken = concurrencyToken,
+        SeasonId = seasonId,
         Name = $"Updated Season {Guid.CreateVersion7():N}",
         StartDate = new DateOnly(2026, 1, 1),
-        EndDate = null
+        EndDate = new DateOnly(2026, 12, 31)
     };
 
     private async Task<(ClubDto Club, string Email)> RegisterClubAdminAsync(
@@ -274,15 +273,6 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
         return await context.Seasons
             .Where(season => season.SeasonId == seasonId)
             .Select(season => season.Name)
-            .SingleAsync(cancellationToken);
-    }
-
-    private async Task<Guid> ReadSeasonTokenAsync(long seasonId, CancellationToken cancellationToken)
-    {
-        await using var context = fixture.CreateAdminContext();
-        return await context.Seasons
-            .Where(season => season.SeasonId == seasonId)
-            .Select(season => season.ConcurrencyToken)
             .SingleAsync(cancellationToken);
     }
 }

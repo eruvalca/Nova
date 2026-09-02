@@ -17,26 +17,13 @@ public class ClubEntityConfiguration : IEntityTypeConfiguration<ClubEntity>
     public void Configure(EntityTypeBuilder<ClubEntity> builder)
     {
         builder.HasKey(e => e.ClubId);
-        builder.Property(e => e.CurrentSeasonId)
-            .IsConcurrencyToken();
+        builder.Property(e => e.ClubId)
+            .ValueGeneratedOnAdd();
 
         // Unique per creator per logical operation so an ambiguous-commit retry can find (and
         // verify, not replay) the club created by the exact operation, even if a retry attempt
         // would otherwise insert a second club for the same user.
         builder.HasIndex(e => new { e.CreatedById, e.CreationOperationId })
             .IsUnique();
-
-        builder
-            .HasOne(e => e.CurrentSeason)
-            .WithOne()
-            .HasPrincipalKey<SeasonEntity>(e => new { e.SeasonId, e.ClubId })
-            .HasForeignKey<ClubEntity>(e => new { e.CurrentSeasonId, e.ClubId })
-            .OnDelete(DeleteBehavior.NoAction);
-
-        // Configure generated-key behavior after the identifying composite relationship so the
-        // relationship conventions cannot suppress temporary keys in SQLite or identity values
-        // in PostgreSQL.
-        builder.Property(e => e.ClubId)
-            .UseIdentityByDefaultColumn();
     }
 }

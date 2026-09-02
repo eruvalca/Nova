@@ -18,8 +18,6 @@ public class SeasonEntityConfiguration : IEntityTypeConfiguration<SeasonEntity>
         builder.HasKey(e => e.SeasonId);
         builder.Property(e => e.SeasonId)
             .ValueGeneratedOnAdd();
-        builder.Property(e => e.ConcurrencyToken)
-            .IsConcurrencyToken();
         builder.HasAlternateKey(e => new { e.SeasonId, e.ClubId });
 
         builder

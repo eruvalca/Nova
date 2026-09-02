@@ -50,14 +50,13 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
 
 ## Lifecycle-sensitive mutations
 
-- When a mutation depends on current-season identity, shared roster state, or campaign, player,
-  team, or tag lifecycle state, start a transaction, acquire the matching
-  `LifecycleMutationLock`, then read the guarded state—or reload it if already tracked—and
-  re-check the guard before writing.
+- When a mutation depends on campaign, player, team, or tag lifecycle state, start a transaction,
+  acquire the matching `LifecycleMutationLock`, then read the lifecycle entity—or reload it if
+  already tracked—and re-check the guard before writing.
 - Every writer of a shared invariant must follow the global entity-type lock order:
-  club-season → club-roster → campaign → player → team → tag. When acquiring multiple locks of the
-  same type, sort their identifiers ascending before locking. A writer may take a subsequence of
-  the global order, but it must never reverse that order.
+  campaign → player → team → tag. When acquiring multiple locks of the same type, sort their
+  identifiers ascending before locking. A writer may take a subsequence of the global order, but it
+  must never reverse that order.
 - When the required lock set comes from mutable relationships, compute the candidates, acquire locks in global order, reload guarded state, and detect relationships that appeared outside the locked set. Fail with a retryable conflict rather than evaluating an invariant against an unlocked row. (`TeamManagementService.UpdateTeamAsync` is the canonical example.)
 - The lock is intentionally a no-op under SQLite. Add a PostgreSQL integration test for lifecycle
   races such as close-versus-write or archive-versus-placement.
@@ -97,4 +96,3 @@ Follow source-generated `[LoggerMessage]` conventions from `.github/instructions
 - `Nova/Features/Shared/ServiceResultExtensions.cs`.
 - `.github/instructions/api-endpoints.instructions.md`, `.github/instructions/validation.instructions.md`.
 - `.github/instructions/functional-core.instructions.md`.
-- `.github/instructions/season-lifecycle.instructions.md`.
