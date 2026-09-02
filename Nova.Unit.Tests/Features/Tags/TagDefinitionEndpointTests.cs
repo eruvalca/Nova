@@ -47,6 +47,9 @@ public sealed class TagDefinitionEndpointTests
     /// <summary>
     /// Asserts the endpoint registered under the given route name carries the expected policy.
     /// </summary>
+    /// <param name="endpoints">The registered route endpoints to inspect.</param>
+    /// <param name="endpointName">The route name of the endpoint to assert on.</param>
+    /// <param name="expectedPolicy">The authorization policy the endpoint must carry.</param>
     private static void AssertPolicy(
         IReadOnlyList<RouteEndpoint> endpoints,
         string endpointName,

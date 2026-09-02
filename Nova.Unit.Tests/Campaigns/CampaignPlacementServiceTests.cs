@@ -223,7 +223,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
     /// Verifies a regular club member can mutate placement decisions.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_AssignsPlacement_ForClubMember()
+    public async Task UpdatePlacementAsync_UpdatesPlacement_ForClubMember()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
