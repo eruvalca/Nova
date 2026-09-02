@@ -261,6 +261,12 @@ internal static class SeedingHelpers
         };
         context.AddRange(season, campaign);
         await context.SaveChangesAsync(cancellationToken);
+        var club = await context.Clubs.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
+        if (club.CurrentSeasonId is null)
+        {
+            club.CurrentSeasonId = season.SeasonId;
+            await context.SaveChangesAsync(cancellationToken);
+        }
 
         return new SeededSeasonAndCampaign(season.SeasonId, campaign.CampaignId);
     }

@@ -79,12 +79,12 @@ public sealed class ClubServiceTests : IDisposable
         await using (var seed = _harness.CreateAdminContext())
         {
             seed.Clubs.AddRange(
-                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "50% Wins", City = "Dallas", State = "TX", CreatedById = ExistingClubUserId },
-                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "50 Losses", City = "Erie", State = "PA", CreatedById = ExistingClubUserId },
-                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "a_b Squad", City = "Fargo", State = "ND", CreatedById = ExistingClubUserId },
-                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "axb Squad", City = "Tulsa", State = "OK", CreatedById = ExistingClubUserId },
-                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = @"Path\Team", City = "Boise", State = "ID", CreatedById = ExistingClubUserId },
-                new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = "PathTeam", City = "Reno", State = "NV", CreatedById = ExistingClubUserId });
+                new ClubEntity { ClubId = 9_001, CreationOperationId = Guid.NewGuid(), Name = "50% Wins", City = "Dallas", State = "TX", CreatedById = ExistingClubUserId },
+                new ClubEntity { ClubId = 9_002, CreationOperationId = Guid.NewGuid(), Name = "50 Losses", City = "Erie", State = "PA", CreatedById = ExistingClubUserId },
+                new ClubEntity { ClubId = 9_003, CreationOperationId = Guid.NewGuid(), Name = "a_b Squad", City = "Fargo", State = "ND", CreatedById = ExistingClubUserId },
+                new ClubEntity { ClubId = 9_004, CreationOperationId = Guid.NewGuid(), Name = "axb Squad", City = "Tulsa", State = "OK", CreatedById = ExistingClubUserId },
+                new ClubEntity { ClubId = 9_005, CreationOperationId = Guid.NewGuid(), Name = @"Path\Team", City = "Boise", State = "ID", CreatedById = ExistingClubUserId },
+                new ClubEntity { ClubId = 9_006, CreationOperationId = Guid.NewGuid(), Name = "PathTeam", City = "Reno", State = "NV", CreatedById = ExistingClubUserId });
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 

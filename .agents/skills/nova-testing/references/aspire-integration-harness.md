@@ -6,6 +6,8 @@ Canonical files:
 - `Nova.Integration.Tests\Data\PostgresTenancyTests.cs` shows provider-specific database tests for migrations, `timestamptz`, `DateOnly`, and query-filter SQL translation.
 - `Nova.Integration.Tests\Data\CampaignParticipationPostgresTests.cs` shows database-constraint and optimistic-concurrency coverage.
 - `Nova.Integration.Tests\Data\CampaignLifecyclePostgresTests.cs` shows advisory-lock and competing-transaction race coverage.
+- `Nova.Integration.Tests\Data\SeasonFoundationPostgresTests.cs` shows current-season pointer
+  constraints, metadata concurrency, retry recovery, and advancement races.
 - `Nova.Integration.Tests\Data\ExecutionStrategyRetryTestSupport.cs` provides before-commit rollback
   and lost-commit-acknowledgement fault injection.
 - `Nova.Integration.Tests\Data\PlayerManagementRetryTests.cs` shows fresh-context retries,
@@ -18,6 +20,8 @@ Canonical files:
   a relationship appearing outside a computed lock set.
 - `Nova.Integration.Tests\Http\ProfilePhotoHttpTests.cs` shows HTTP-layer e2e tests against the running app.
 - `Nova.Integration.Tests\Http\TeamManagementHttpTests.cs` shows `201` + `Location` + follow coverage.
+- `Nova.Integration.Tests\Http\SeasonHttpTests.cs` shows season authorization, paging,
+  ProblemDetails, `Location` follow, and idempotent advancement retries.
 - `Nova.Integration.Tests\Http\IdentityHttpClientHelper.cs` shows HTTP auth bootstrap for tests.
 
 ## Retrying mutation fault injection
@@ -35,6 +39,10 @@ Use the shared helpers in
 `Nova.Integration.Tests\Data\ExecutionStrategyRetryTestSupport.cs`. Assert that the intended fault
 was injected and that exactly one aggregate with its complete dependent set persisted. SQLite
 cannot validate provider execution strategies or ambiguous-commit behavior.
+
+When a race test must pause an advisory lock that is not first in the documented global order,
+construct `AdvisoryLockGateInterceptor` with `advisoryLocksToSkip` set to the number of earlier lock
+commands. This gates the intended lock instead of accidentally pausing club-season or club-roster.
 
 ## Probe-then-write uniqueness races
 

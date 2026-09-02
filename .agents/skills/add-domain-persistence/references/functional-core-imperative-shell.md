@@ -24,7 +24,7 @@ by the decision. Never pass a `DbContext`, service, tracked entity, or navigatio
 For freshness-sensitive decisions, use this order:
 
 1. begin the transaction;
-2. acquire locks in the shared campaign → player → team → tag order;
+2. acquire locks in the shared club-season → club-roster → campaign → player → team → tag order;
 3. read or reload current state;
 4. project the decision snapshot;
 5. evaluate once;

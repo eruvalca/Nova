@@ -61,6 +61,11 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
             campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "C", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = userId };
             context.AddRange(season, campaign);
             await context.SaveChangesAsync(cancellationToken);
+            var trackedClub = await context.Clubs.SingleAsync(
+                candidate => candidate.ClubId == club.ClubId,
+                cancellationToken);
+            trackedClub.CurrentSeasonId = season.SeasonId;
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         using var resp = await client.GetAsync(CampaignEndpoints.GetCampaignList, cancellationToken);
@@ -70,9 +75,8 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         setupResp.StatusCode.ShouldBe(HttpStatusCode.OK);
         var setup = await setupResp.Content.ReadFromJsonAsync<CampaignCreationSetupResult>(cancellationToken);
         setup.ShouldNotBeNull();
-        setup.TotalSeasonCount.ShouldBe(1);
-        setup.Seasons.Count.ShouldBe(1);
-        setup.Seasons[0].Name.ShouldBe("S");
+        setup.CurrentSeason.ShouldNotBeNull();
+        setup.CurrentSeason.Name.ShouldBe("S");
         setup.ActivePlayerCount.ShouldBe(0);
         setup.ActiveTeamCount.ShouldBe(0);
 
@@ -183,6 +187,11 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
             var teamB = new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = "B Team", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubB.ClubId, CreatedById = memberUserId };
             context.AddRange(seasonA, seasonB, campaignA, campaignB, playerA, playerB, teamA, teamB);
             await context.SaveChangesAsync(cancellationToken);
+            (await context.Clubs.SingleAsync(club => club.ClubId == clubA.ClubId, cancellationToken))
+                .CurrentSeasonId = seasonA.SeasonId;
+            (await context.Clubs.SingleAsync(club => club.ClubId == clubB.ClubId, cancellationToken))
+                .CurrentSeasonId = seasonB.SeasonId;
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         // MemberClient should only see clubB campaigns
@@ -198,8 +207,8 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         setupResp.StatusCode.ShouldBe(HttpStatusCode.OK);
         var setup = await setupResp.Content.ReadFromJsonAsync<CampaignCreationSetupResult>(cancellationToken);
         setup.ShouldNotBeNull();
-        setup.Seasons.Select(season => season.Name).ShouldNotContain("SA");
-        setup.Seasons.Select(season => season.Name).ShouldContain("SB");
+        setup.CurrentSeason.ShouldNotBeNull();
+        setup.CurrentSeason.Name.ShouldBe("SB");
         setup.ActivePlayerCount.ShouldBe(1);
         setup.ActiveTeamCount.ShouldBe(1);
     }

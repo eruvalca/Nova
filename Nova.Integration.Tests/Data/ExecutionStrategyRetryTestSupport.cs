@@ -513,12 +513,25 @@ internal sealed class AdvisoryLockRecordingInterceptor : DbCommandInterceptor
 /// </summary>
 internal sealed class AdvisoryLockGateInterceptor : DbCommandInterceptor
 {
+    private readonly int _advisoryLocksToSkip;
     private readonly TaskCompletionSource _attempted =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _acquired =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _release =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private DbCommand? _gatedCommand;
+    private int _advisoryLockAttemptCount;
+
+    /// <summary>
+    /// Initializes a gate that can ignore advisory locks acquired earlier in the documented lock order.
+    /// </summary>
+    /// <param name="advisoryLocksToSkip">The number of advisory-lock commands to allow through before gating.</param>
+    public AdvisoryLockGateInterceptor(int advisoryLocksToSkip = 0)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(advisoryLocksToSkip);
+        _advisoryLocksToSkip = advisoryLocksToSkip;
+    }
 
     /// <summary>Waits until the advisory-lock command is about to execute.</summary>
     public Task WaitForAttemptAsync(CancellationToken cancellationToken) =>
@@ -549,7 +562,7 @@ internal sealed class AdvisoryLockGateInterceptor : DbCommandInterceptor
         int result,
         CancellationToken cancellationToken = default)
     {
-        if (IsAdvisoryLock(command))
+        if (ReferenceEquals(command, _gatedCommand))
         {
             _acquired.TrySetResult();
             await _release.Task.WaitAsync(cancellationToken);
@@ -580,7 +593,7 @@ internal sealed class AdvisoryLockGateInterceptor : DbCommandInterceptor
         DbDataReader result,
         CancellationToken cancellationToken = default)
     {
-        if (IsAdvisoryLock(command))
+        if (ReferenceEquals(command, _gatedCommand))
         {
             _acquired.TrySetResult();
             await _release.Task.WaitAsync(cancellationToken);
@@ -595,7 +608,13 @@ internal sealed class AdvisoryLockGateInterceptor : DbCommandInterceptor
 
     private void RecordAttempt(DbCommand command)
     {
-        if (IsAdvisoryLock(command))
+        if (!IsAdvisoryLock(command))
+        {
+            return;
+        }
+
+        if (Interlocked.Increment(ref _advisoryLockAttemptCount) > _advisoryLocksToSkip
+            && Interlocked.CompareExchange(ref _gatedCommand, command, null) is null)
         {
             _attempted.TrySetResult();
         }
