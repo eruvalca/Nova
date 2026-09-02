@@ -27,5 +27,6 @@
 | Season observability | Add typed source-generated command lifecycle logs for validation, authorization, conflicts, success/replay/recovery and query logs for forbidden reads |
 | Cross-command season operation identity | Persist inline-campaign, standalone, and advancement creation kinds; reject replay unless both kind and predecessor match the requested command |
 | Least-privilege season HTTP coverage | Verify an approved member can read detail and that member/anonymous callers receive 403/401 from start-next |
+| Season contract organization | Split every request record and the shared date validator into dedicated convention-named files; remove the obsolete campaign season-list validator |
 
 Implementation proceeds production-first, then the narrow unit and PostgreSQL/HTTP suites, followed by solution validation. Final assertion and pseudo-mutation reviews will be recorded in `.testagent/status.md`.

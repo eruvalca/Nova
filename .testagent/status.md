@@ -23,6 +23,7 @@
 - Follow-up regressions pin exact persisted replay predecessors, standalone-versus-advancement operation identity, one-statement currentness projections, current-first and page-boundary season ordering, campaign tie-break ordering, and non-no-op advancement payloads.
 - Second follow-up regressions pin metadata-token rotation, defined campaign lifecycle values, and shared start-next/list/detail route construction.
 - Third follow-up regressions pin explicit inline/standalone/advancement creation identity, cross-command replay rejection, least-privilege detail reads, and start-next 401/403 behavior.
+- Fourth follow-up hygiene keeps each season request contract independently discoverable and removes the dead historical season-choice validator; the unchanged shapes remain covered by the existing validation and client suites.
 - The strongest state assertions compare the durable campaign/team/assignment fields before and after advancement, prove the new season has no inherited campaigns or placements, and prove competing metadata/reopen operations cannot leave an out-of-window or Active historical campaign.
 
 ## Pseudo-mutation gap review
