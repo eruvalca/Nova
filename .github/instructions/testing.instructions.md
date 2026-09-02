@@ -36,7 +36,7 @@ semantics, or SQL-translation limits.
 - Bare invocation such as `dotnet test <project>.csproj` can fail to discover tests in this xUnit v4/MTP setup, so avoid it in repo instructions and scripts.
 - **Do NOT pass VSTest-only flags** (`--nologo`, `--collect`, `--logger`) — MTP rejects them.
 - Filter by class with `--filter-class "*Name"`.
-- **CI runs build and unit tests only.** Run the integration and browser suites locally before merge.
+- **CI runs build and unit tests only.** Run the integration and browser suites locally before opening a PR and again before merge; on intermediate pushes, re-run them only when the change affects the provider/HTTP boundary or interactive UI. A green CI run is not proof the full suite is green.
 - **Before commit or PR, ensure the relevant integration tests pass; for provider-sensitive or HTTP-boundary changes, do not rely on unit tests alone.**
 
 ## Local Aspire workflow

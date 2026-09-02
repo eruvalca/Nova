@@ -170,4 +170,4 @@ dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --filter-clas
 NOVA_BROWSER_RETRY_MAX_ATTEMPTS=80 NOVA_BROWSER_RETRY_DELAY_MS=500 dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --filter-class "*CampaignEvaluationBrowserTests"
 ```
 
-Local-only: CI runs build and unit tests only, so run the suite locally before merge.
+Local-only: CI runs build and unit tests only, so run the suite locally before opening a PR, before merge, and on pushes that change UI markup, styles, or JS interop.

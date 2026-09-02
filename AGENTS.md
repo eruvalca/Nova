@@ -22,8 +22,9 @@
 - Format check (required before commit): `dotnet format Nova.slnx --verify-no-changes`; apply fixes with `dotnet format Nova.slnx`
 - Bootstrap theme: `npm ci` then `npm run build:css` (from `Nova/`) compiles the Sass theme to `Nova/wwwroot/css/bootstrap-theme.css`; `npm run check:contrast` validates WCAG contrast and asserts no Bootstrap-blue literals. Run both from `Nova/` after any `scss/` or `package.json` change.
 - Unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`
-- Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — CI runs build and unit tests only, so run these locally before merge.
+- Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — CI runs build and unit tests only, so run these locally before opening a PR and before merge (see the pull request test gate below).
 - Browser tests (Playwright against the Aspire AppHost, local-only): `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — requires a one-time browser download per machine: `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`.
+- **Pull request test gate**: before opening a PR, run all three suites locally — unit, integration, and browser — and ensure they pass. On pushes to an open PR, re-run the suites the change can affect: unit always (cheap, and CI runs them); integration for provider/HTTP-boundary or EF changes; browser for interactive UI, markup, CSS, or JS-interop changes. When in doubt, run all three. Re-run all three before merge. CI only builds and runs unit tests (the Aspire-dependent suites are local-only), so a green CI run is not proof the full suite is green. The PR template checklist in `.github/pull_request_template.md` restates this gate.
 
 ## Repository decisions
 

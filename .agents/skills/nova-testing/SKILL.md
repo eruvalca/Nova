@@ -55,7 +55,7 @@ Do not pass VSTest-only flags (`--nologo`, `--collect`, `--logger`); MTP rejects
 Filter by class with `--filter-class "*Name"`.
 The browser suite needs a one-time browser download per machine before its first run:
 `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`. CI runs build and unit
-tests only; run the integration and browser suites locally before merge. Browser tests locate
+tests only; run the integration and browser suites locally before opening a PR, before merge, and on intermediate pushes that affect them. Browser tests locate
 controls by role/label (see `references/browser-suite.md`); when a redesign changes markup, update
 the locators — never weaken the assertion to make it pass.
 
