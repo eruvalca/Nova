@@ -34,8 +34,14 @@ internal sealed class PlayerImportPreviewTokenProtector(IDataProtectionProvider 
         try
         {
             var json = _protector.Unprotect(token, out _);
-            payload = JsonSerializer.Deserialize<PlayerImportPreviewTokenPayload>(json);
-            return payload is { Version: 1 };
+            var candidate = JsonSerializer.Deserialize<PlayerImportPreviewTokenPayload>(json);
+            if (candidate is not { Version: 1 })
+            {
+                return false;
+            }
+
+            payload = candidate;
+            return true;
         }
         catch (CryptographicException)
         {
@@ -56,18 +62,38 @@ internal sealed class PlayerImportPreviewTokenProtector(IDataProtectionProvider 
         ReadOnlySpan<byte> content,
         out PlayerImportPreviewTokenPayload? payload)
     {
-        if (!TryUnprotect(token, out payload) || payload is null)
+        payload = null;
+        if (!TryUnprotect(token, out var candidate) || candidate is null)
+        {
+            return false;
+        }
+
+        byte[] protectedHash;
+        try
+        {
+            protectedHash = Convert.FromHexString(candidate.FileSha256);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+
+        if (protectedHash.Length != SHA256.HashSizeInBytes)
         {
             return false;
         }
 
         var expectedHash = SHA256.HashData(content);
-        return payload.OperationId == operationId
-            && payload.ClubId == clubId
-            && payload.ActorUserId == actorUserId
-            && payload.FileLength == content.Length
-            && CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(payload.FileSha256),
-                expectedHash);
+        if (candidate.OperationId != operationId
+            || candidate.ClubId != clubId
+            || candidate.ActorUserId != actorUserId
+            || candidate.FileLength != content.Length
+            || !CryptographicOperations.FixedTimeEquals(protectedHash, expectedHash))
+        {
+            return false;
+        }
+
+        payload = candidate;
+        return true;
     }
 }

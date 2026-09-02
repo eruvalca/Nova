@@ -194,6 +194,29 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
         }
     }
 
+    [Fact]
+    public async Task Preview_ReturnsPayloadTooLarge_WithTraceId_WhenRequestExceedsTransportLimit()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        _ = await CreateAdministratorClubAsync(client, "transport-limit", cancellationToken);
+        using var form = CsvForm(
+            new byte[PlayerImportConstraints.MaxRequestBytes + 1],
+            "players.csv",
+            "text/csv");
+        using var request = new HttpRequestMessage(HttpMethod.Post, PlayerEndpoints.ImportPreview)
+        {
+            Content = form
+        };
+        request.Headers.ExpectContinue = true;
+
+        using var response = await client.SendAsync(request, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        document.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
+    }
+
     private static MultipartFormDataContent CsvForm(string rows)
     {
         const string header = "First name,Last name,Date of birth,Gender,Jersey number,Graduation year\r\n";

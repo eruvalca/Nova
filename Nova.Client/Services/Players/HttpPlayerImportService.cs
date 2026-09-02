@@ -1,6 +1,8 @@
 ﻿using System.Net.Http.Headers;
+using System.Text;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
+using Nova.Shared.Validation;
 
 namespace Nova.Client.Services.Players;
 
@@ -22,8 +24,15 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
             ?? response.Content.Headers.ContentDisposition?.FileName?.Trim('"');
         var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         if (!string.Equals(mediaType, "text/csv", StringComparison.OrdinalIgnoreCase)
-            || string.IsNullOrWhiteSpace(downloadFileName)
-            || content.Length is 0 or > PlayerImportConstraints.MaxFileBytes)
+            || !string.Equals(
+                response.Content.Headers.ContentType?.CharSet,
+                "utf-8",
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                downloadFileName,
+                PlayerImportConstraints.TemplateFileName,
+                StringComparison.Ordinal)
+            || !content.AsSpan().SequenceEqual(CreateExpectedTemplateContent()))
         {
             return ServiceProblem.ServerError("The server returned an invalid player import template.");
         }
@@ -31,7 +40,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
         return new PlayerImportTemplate(
             content,
             response.Content.Headers.ContentType!.ToString(),
-            downloadFileName);
+            PlayerImportConstraints.TemplateFileName);
     }
 
     /// <inheritdoc />
@@ -99,7 +108,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
     {
         if (preview.OperationId == Guid.Empty
             || string.IsNullOrWhiteSpace(preview.ConfirmationToken)
-            || preview.ExpiresAt <= DateTimeOffset.UtcNow
+            || preview.ExpiresAt == default
             || preview.TotalRows is < 1 or > PlayerImportConstraints.MaxDataRows
             || preview.ReadyRows < 0
             || preview.InvalidRows < 0
@@ -111,14 +120,14 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
             return false;
         }
 
-        var previousSourceRow = 1;
+        var expectedSourceRow = 2;
         var readyRows = 0;
         var invalidRows = 0;
         var duplicateRows = 0;
         foreach (var row in preview.Rows)
         {
             if (row is null
-                || row.SourceRowNumber <= previousSourceRow
+                || row.SourceRowNumber != expectedSourceRow
                 || row.Values is null
                 || row.Errors is null
                 || !Enum.IsDefined(row.Status)
@@ -127,12 +136,12 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
                 return false;
             }
 
-            previousSourceRow = row.SourceRowNumber;
+            expectedSourceRow++;
             switch (row.Status)
             {
                 case PlayerImportRowStatus.Ready:
                     readyRows++;
-                    if (row.Candidate is null || row.Errors.Count != 0 || row.Duplicate is not null)
+                    if (!IsValidCandidate(row.Candidate) || row.Errors.Count != 0 || row.Duplicate is not null)
                     {
                         return false;
                     }
@@ -146,7 +155,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
                     break;
                 case PlayerImportRowStatus.Duplicate:
                     duplicateRows++;
-                    if (row.Candidate is null
+                    if (!IsValidCandidate(row.Candidate)
                         || row.Errors.Count != 0
                         || row.Duplicate is null
                         || !IsValidDuplicate(row.Duplicate, row.SourceRowNumber))
@@ -176,4 +185,15 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
                 && duplicate.EarlierSourceRowNumber < sourceRowNumber,
             _ => false
         };
+
+    private static bool IsValidCandidate(CreatePlayerInput? candidate) =>
+        candidate is not null
+        && InputValidator.Validate(candidate).Count == 0
+        && (candidate.Gender is null || Enum.IsDefined(candidate.Gender.Value));
+
+    private static byte[] CreateExpectedTemplateContent()
+    {
+        var header = string.Join(',', PlayerImportConstraints.Headers) + "\r\n";
+        return [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(header)];
+    }
 }

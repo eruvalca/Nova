@@ -22,6 +22,7 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
 
             group.MapGet(PlayerEndpoints.ImportTemplateRelative, GetTemplateHandler)
                 .Produces(StatusCodes.Status200OK, contentType: PlayerImportConstraints.CsvContentType)
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName("GetPlayerImportTemplate");
@@ -29,6 +30,7 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
             group.MapPost(PlayerEndpoints.ImportPreviewRelative, PreviewHandler)
                 .Produces<PlayerImportPreview>()
                 .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)

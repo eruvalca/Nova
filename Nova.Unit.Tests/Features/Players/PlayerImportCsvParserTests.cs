@@ -61,6 +61,7 @@ public sealed class PlayerImportCsvParserTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("01/02/2012", "", "12", "2030", PlayerImportField.DateOfBirth)]
     [InlineData("2012-01-02", "unknown", "12", "2030", PlayerImportField.Gender)]
+    [InlineData("2012-01-02", "0", "12", "2030", PlayerImportField.Gender)]
     [InlineData("2012-01-02", "", "+12", "2030", PlayerImportField.JerseyNumber)]
     [InlineData("2012-01-02", "", "12", "\"2,030\"", PlayerImportField.GraduationYear)]
     public void Parse_RejectsLocaleOrNonContractValues(
@@ -140,6 +141,15 @@ public sealed class PlayerImportCsvParserTests
     public void Parse_RejectsInconsistentColumnCount()
     {
         var result = Parse("Alex,Archer,2012-01-01,2030\r\n");
+
+        result.IsT1.ShouldBeTrue();
+        result.AsT1.Message.ShouldContain("exactly 6 columns");
+    }
+
+    [Fact]
+    public void Parse_RejectsAllEmptyWrongWidthRecord()
+    {
+        var result = Parse(",,,,,,\r\n");
 
         result.IsT1.ShouldBeTrue();
         result.AsT1.Message.ShouldContain("exactly 6 columns");

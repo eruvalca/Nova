@@ -215,6 +215,7 @@ public sealed class PlayerImportServiceTests : IDisposable
         var second = await sut.PreviewAsync(upload, TestContext.Current.CancellationToken);
 
         first.Value.OperationId.ShouldNotBe(second.Value.OperationId);
+        first.Value.OperationId.Version.ShouldBe(7);
         _tokenProtector.TryUnprotect(first.Value.ConfirmationToken, out var payload).ShouldBeTrue();
         payload.ShouldNotBeNull();
         payload.OperationId.ShouldBe(first.Value.OperationId);
@@ -223,6 +224,7 @@ public sealed class PlayerImportServiceTests : IDisposable
         payload.FileLength.ShouldBe(upload.Content.Length);
         payload.FileSha256.ShouldNotBeNullOrWhiteSpace();
         payload.ExpiresAt.ShouldBe(first.Value.ExpiresAt);
+        (payload.ExpiresAt - payload.IssuedAt).ShouldBe(TimeSpan.FromMinutes(60));
     }
 
     [Fact]
@@ -262,11 +264,48 @@ public sealed class PlayerImportServiceTests : IDisposable
             now.AddHours(1));
         var token = _tokenProtector.Protect(payload, TimeSpan.FromHours(1));
 
-        _tokenProtector.TryValidate(token, operationId, ClubAId, AdminId, content, out _).ShouldBeTrue();
-        _tokenProtector.TryValidate(token, Guid.CreateVersion7(), ClubAId, AdminId, content, out _).ShouldBeFalse();
-        _tokenProtector.TryValidate(token, operationId, ClubBId, AdminId, content, out _).ShouldBeFalse();
-        _tokenProtector.TryValidate(token, operationId, ClubAId, AdminId + 1, content, out _).ShouldBeFalse();
-        _tokenProtector.TryValidate(token, operationId, ClubAId, AdminId, [.. content, (byte)'!'], out _).ShouldBeFalse();
+        _tokenProtector.TryValidate(token, operationId, ClubAId, AdminId, content, out var valid).ShouldBeTrue();
+        valid.ShouldNotBeNull();
+
+        _tokenProtector.TryValidate(token, Guid.CreateVersion7(), ClubAId, AdminId, content, out var wrongOperation)
+            .ShouldBeFalse();
+        wrongOperation.ShouldBeNull();
+        _tokenProtector.TryValidate(token, operationId, ClubBId, AdminId, content, out var wrongClub)
+            .ShouldBeFalse();
+        wrongClub.ShouldBeNull();
+        _tokenProtector.TryValidate(token, operationId, ClubAId, AdminId + 1, content, out var wrongActor)
+            .ShouldBeFalse();
+        wrongActor.ShouldBeNull();
+        _tokenProtector.TryValidate(
+                token,
+                operationId,
+                ClubAId,
+                AdminId,
+                [.. content, (byte)'!'],
+                out var wrongContent)
+            .ShouldBeFalse();
+        wrongContent.ShouldBeNull();
+    }
+
+    [Fact]
+    public void TokenProtector_ReturnsSafeOut_ForUnsupportedVersionAndMalformedHash()
+    {
+        var unsupported = _tokenProtector.Protect(TokenPayload() with { Version = 2 }, TimeSpan.FromHours(1));
+
+        _tokenProtector.TryUnprotect(unsupported, out var unsupportedPayload).ShouldBeFalse();
+        unsupportedPayload.ShouldBeNull();
+
+        var malformedHashPayload = TokenPayload() with { FileSha256 = "not-hex" };
+        var malformedHash = _tokenProtector.Protect(malformedHashPayload, TimeSpan.FromHours(1));
+        _tokenProtector.TryValidate(
+                malformedHash,
+                malformedHashPayload.OperationId,
+                malformedHashPayload.ClubId,
+                malformedHashPayload.ActorUserId,
+                new byte[malformedHashPayload.FileLength],
+                out var rejectedPayload)
+            .ShouldBeFalse();
+        rejectedPayload.ShouldBeNull();
     }
 
     private PlayerImportService CreateService(PlayerImportReadContextFactory? factory = null) => new(

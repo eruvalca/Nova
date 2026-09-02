@@ -88,7 +88,7 @@ internal sealed class PlayerImportCsvParser
                     .ToArray();
                 if (record.Length != PlayerImportConstraints.Headers.Count)
                 {
-                    if (record.All(string.IsNullOrEmpty))
+                    if (record.Length == 1 && record[0].Length == 0)
                     {
                         record = Enumerable
                             .Repeat(string.Empty, PlayerImportConstraints.Headers.Count)
@@ -160,7 +160,11 @@ internal sealed class PlayerImportCsvParser
             && !HasError(errors, PlayerImportField.Gender))
         {
             if (Enum.TryParse<Gender>(values.Gender, ignoreCase: true, out var parsedGender)
-                && Enum.IsDefined(parsedGender))
+                && Enum.IsDefined(parsedGender)
+                && string.Equals(
+                    Enum.GetName(parsedGender),
+                    values.Gender,
+                    StringComparison.OrdinalIgnoreCase))
             {
                 gender = parsedGender;
             }

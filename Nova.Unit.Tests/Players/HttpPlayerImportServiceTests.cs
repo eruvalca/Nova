@@ -125,6 +125,84 @@ public sealed class HttpPlayerImportServiceTests
     }
 
     [Fact]
+    public async Task PreviewAsync_ReturnsServerError_WhenSourceRowsContainGap()
+    {
+        var first = ValidPreview().Rows[0];
+        var preview = ValidPreview() with
+        {
+            TotalRows = 2,
+            ReadyRows = 2,
+            Rows = [first, first with { SourceRowNumber = 4 }]
+        };
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(preview)
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerImportService(http).PreviewAsync(
+            ValidUpload(),
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    [Fact]
+    public async Task PreviewAsync_ReturnsServerError_WhenReadyOrDuplicateCandidateIsInvalid()
+    {
+        var invalidInputs = new[]
+        {
+            ValidPreview().Rows[0].Candidate! with { FirstName = " " },
+            ValidPreview().Rows[0].Candidate! with { Gender = (Nova.Shared.Enums.Gender)999 }
+        };
+
+        foreach (var invalidInput in invalidInputs)
+        {
+            foreach (var status in new[] { PlayerImportRowStatus.Ready, PlayerImportRowStatus.Duplicate })
+            {
+                var duplicate = status == PlayerImportRowStatus.Duplicate
+                    ? new PlayerImportDuplicate(PlayerImportDuplicateKind.ExistingActivePlayer, 1, null)
+                    : null;
+                var preview = ValidPreview() with
+                {
+                    ReadyRows = status == PlayerImportRowStatus.Ready ? 1 : 0,
+                    DuplicateRows = status == PlayerImportRowStatus.Duplicate ? 1 : 0,
+                    Rows = [ValidPreview().Rows[0] with { Candidate = invalidInput, Status = status, Duplicate = duplicate }]
+                };
+                var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = JsonContent.Create(preview)
+                });
+                using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+                var result = await new HttpPlayerImportService(http).PreviewAsync(
+                    ValidUpload(),
+                    TestContext.Current.CancellationToken);
+
+                result.IsProblem.ShouldBeTrue();
+                result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task PreviewAsync_AcceptsNonDefaultExpiry_WithoutUsingClientClock()
+    {
+        var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(ValidPreview() with { ExpiresAt = DateTimeOffset.UnixEpoch })
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerImportService(http).PreviewAsync(
+            ValidUpload(),
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task PreviewAsync_ReturnsServerError_WhenSuccessfulPreviewExceedsSharedRowBound()
     {
         var preview = ValidPreview() with
@@ -151,18 +229,46 @@ public sealed class HttpPlayerImportServiceTests
     {
         var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new ByteArrayContent([0xEF, 0xBB, 0xBF, (byte)'a'])
+            Content = new ByteArrayContent(TemplateBytes())
         };
         response.Content.Headers.ContentType = new("text/csv") { CharSet = "utf-8" };
-        response.Content.Headers.ContentDisposition = new("attachment") { FileName = "template.csv" };
+        response.Content.Headers.ContentDisposition = new("attachment")
+        {
+            FileName = PlayerImportConstraints.TemplateFileName
+        };
         var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerImportService(http).GetTemplateAsync(TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.DownloadFileName.ShouldBe("template.csv");
+        result.Value.DownloadFileName.ShouldBe(PlayerImportConstraints.TemplateFileName);
+        result.Value.Content.ShouldBe(TemplateBytes());
         handler.PathAndQuery.ShouldBe(PlayerEndpoints.ImportTemplate);
+    }
+
+    [Fact]
+    public async Task GetTemplateAsync_ReturnsServerError_WhenTemplateContractDrifts()
+    {
+        var cases = new[]
+        {
+            TemplateResponse(TemplateBytes(), "text/csv", null, PlayerImportConstraints.TemplateFileName),
+            TemplateResponse(TemplateBytes(), "text/csv", "utf-8", "unsafe.csv"),
+            TemplateResponse([0xEF, 0xBB, 0xBF, (byte)'a'], "text/csv", "utf-8", PlayerImportConstraints.TemplateFileName),
+            TemplateResponse(TemplateBytes(), "application/octet-stream", "utf-8", PlayerImportConstraints.TemplateFileName)
+        };
+
+        foreach (var response in cases)
+        {
+            using var handler = new CapturingHandler(response);
+            using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+            var result = await new HttpPlayerImportService(http).GetTemplateAsync(
+                TestContext.Current.CancellationToken);
+
+            result.IsProblem.ShouldBeTrue();
+            result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        }
     }
 
     [Theory(IncludeTestCaseIndex = true)]
@@ -189,6 +295,27 @@ public sealed class HttpPlayerImportServiceTests
         Encoding.UTF8.GetBytes("content"),
         "players.csv",
         "text/csv");
+
+    private static byte[] TemplateBytes()
+    {
+        var header = string.Join(',', PlayerImportConstraints.Headers) + "\r\n";
+        return [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(header)];
+    }
+
+    private static HttpResponseMessage TemplateResponse(
+        byte[] content,
+        string mediaType,
+        string? charset,
+        string fileName)
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(content)
+        };
+        response.Content.Headers.ContentType = new(mediaType) { CharSet = charset };
+        response.Content.Headers.ContentDisposition = new("attachment") { FileName = fileName };
+        return response;
+    }
 
     private static PlayerImportPreview ValidPreview()
     {
