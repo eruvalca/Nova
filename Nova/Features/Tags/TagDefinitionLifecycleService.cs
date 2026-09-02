@@ -182,17 +182,16 @@ public sealed partial class TagDefinitionLifecycleService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.AcquireTagMutationLockAsync(tagDefinitionId, cancellationToken);
 
         // Restoring increases the club's active-definition count, so serialize with creation and other
-        // restores on the club-level lock before the active-count probe below. Restore already holds the
-        // tag lock here, so it waits on the club lock while holding a tag lock; this is deadlock-free
-        // because no path holds the club lock while waiting on a tag lock (creation, the only other club
-        // lock holder, never takes a tag lock).
+        // restores on the club-level lock before the active-count probe below. The global lock order
+        // requires the club-roster lock before the tag-specific lock.
         if (targetStatus == LifecycleStatus.Active)
         {
             await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
         }
+
+        await db.AcquireTagMutationLockAsync(tagDefinitionId, cancellationToken);
 
         var tagDefinition = await db.PlayerTags
             .SingleOrDefaultAsync(candidate => candidate.PlayerTagId == tagDefinitionId, cancellationToken);
