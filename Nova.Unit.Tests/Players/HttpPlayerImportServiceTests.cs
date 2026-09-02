@@ -23,7 +23,7 @@ public sealed class HttpPlayerImportServiceTests
         var content = Encoding.UTF8.GetBytes("csv-content");
 
         var result = await new HttpPlayerImportService(http).PreviewAsync(
-            new PlayerImportUpload(content, "players\r\n.csv", "text/csv"),
+            new PlayerImportUpload(content, "custom-player-list.csv", "text/csv"),
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
