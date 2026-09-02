@@ -14,6 +14,7 @@ using Nova.Shared.Features.Account;
 using Nova.Shared.Features.Activity;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
+using Nova.Shared.Validation;
 using OneOf.Types;
 
 namespace Nova.Features.Account;
@@ -44,16 +45,16 @@ public sealed partial class ClubMemberService(
     }
 
     /// <inheritdoc />
-    public Task<ServiceResult<Success>> PromoteMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
-        => ExecuteForAdminAsync(MutationKind.Promote, memberUserId, cancellationToken);
+    public Task<ServiceResult<Success>> PromoteMemberAsync(ClubMemberMutationInput input, CancellationToken cancellationToken = default)
+        => ExecuteForAdminAsync(MutationKind.Promote, input, cancellationToken);
 
     /// <inheritdoc />
-    public Task<ServiceResult<Success>> DemoteMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
-        => ExecuteForAdminAsync(MutationKind.Demote, memberUserId, cancellationToken);
+    public Task<ServiceResult<Success>> DemoteMemberAsync(ClubMemberMutationInput input, CancellationToken cancellationToken = default)
+        => ExecuteForAdminAsync(MutationKind.Demote, input, cancellationToken);
 
     /// <inheritdoc />
-    public Task<ServiceResult<Success>> RemoveMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
-        => ExecuteForAdminAsync(MutationKind.Remove, memberUserId, cancellationToken);
+    public Task<ServiceResult<Success>> RemoveMemberAsync(ClubMemberMutationInput input, CancellationToken cancellationToken = default)
+        => ExecuteForAdminAsync(MutationKind.Remove, input, cancellationToken);
 
     /// <inheritdoc />
     public async Task<ServiceResult<Success>> LeaveClubAsync(CancellationToken cancellationToken = default)
@@ -70,12 +71,13 @@ public sealed partial class ClubMemberService(
 
     private async Task<ServiceResult<Success>> ExecuteForAdminAsync(
         MutationKind kind,
-        long memberUserId,
+        ClubMemberMutationInput input,
         CancellationToken cancellationToken)
     {
-        if (memberUserId <= 0)
+        var validationErrors = InputValidator.Validate(input);
+        if (validationErrors.Count > 0)
         {
-            return ServiceProblem.Validation(nameof(memberUserId), "The member user id must be greater than zero.");
+            return ServiceProblem.Validation(validationErrors);
         }
 
         if (currentUserProvider.UserId is not long actorUserId
@@ -86,7 +88,7 @@ public sealed partial class ClubMemberService(
         }
 
         return await ExecuteAndRefreshAsync(
-            new MutationState(kind, actorUserId, clubId, memberUserId, Guid.NewGuid(), NewSecurityStamp()),
+            new MutationState(kind, actorUserId, clubId, input.MemberUserId, Guid.NewGuid(), NewSecurityStamp()),
             cancellationToken);
     }
 

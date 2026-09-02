@@ -9,6 +9,7 @@ using Nova.Components.Account;
 using Nova.Entities;
 using Nova.Features.Account;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Account;
 using Nova.Shared.Features.Activity;
 using Nova.Shared.Security;
 using NSubstitute;
@@ -63,7 +64,9 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
             new ClubMembershipClaimRefresher(userManager, signInManager),
             NullLogger<ClubMemberService>.Instance);
 
-        var result = await service.PromoteMemberAsync(seed.MemberUserId, cancellationToken);
+        var result = await service.PromoteMemberAsync(
+            new ClubMemberMutationInput { MemberUserId = seed.MemberUserId },
+            cancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         failureCount().ShouldBe(1);

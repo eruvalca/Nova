@@ -1,10 +1,13 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using System.Text.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Account;
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Account;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Security;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
@@ -464,6 +467,17 @@ public class AccountDeletionServiceTests : IDisposable
         finalContext.Users.ShouldNotContain(user => user.Id == NonAdminUserId);
         var club = await finalContext.Clubs.FindAsync([ClubAId], cancellationToken: TestContext.Current.CancellationToken);
         club.ShouldNotBeNull();
+        var activity = finalContext.ActivityEvents.Single();
+        activity.ClubId.ShouldBe(ClubAId);
+        activity.EventKind.ShouldBe(ActivityEventKind.MemberLeft);
+        activity.ActorUserId.ShouldBe(NonAdminUserId);
+        activity.ActorDisplayName.ShouldBe("Member User");
+        var context = JsonSerializer.Deserialize<MembershipContext>(
+            activity.PayloadJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        context.ShouldNotBeNull();
+        context.MemberUserId.ShouldBe(NonAdminUserId);
+        context.MemberDisplayName.ShouldBe("Member User");
     }
 
     #endregion

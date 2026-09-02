@@ -205,7 +205,9 @@ public partial class ClubAdmin(
         _status = null;
 
         var shouldReturn = false;
-        var result = await clubMemberService.PromoteMemberAsync(MemberUserId.Value, ComponentCancellationToken);
+        var result = await clubMemberService.PromoteMemberAsync(
+            new ClubMemberMutationInput { MemberUserId = MemberUserId.Value },
+            ComponentCancellationToken);
         result.Switch(
             _ => _status = "Member promoted to admin.",
             problem =>
@@ -243,7 +245,9 @@ public partial class ClubAdmin(
         _status = null;
 
         var shouldReturn = false;
-        var result = await clubMemberService.DemoteMemberAsync(MemberUserId.Value, ComponentCancellationToken);
+        var result = await clubMemberService.DemoteMemberAsync(
+            new ClubMemberMutationInput { MemberUserId = MemberUserId.Value },
+            ComponentCancellationToken);
         result.Switch(
             _ => _status = "Member demoted from admin.",
             problem =>

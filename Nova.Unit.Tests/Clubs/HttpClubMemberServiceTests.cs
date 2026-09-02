@@ -125,7 +125,7 @@ public class HttpClubMemberServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("promote", "POST", "/api/clubs/members/99/promote")]
     [InlineData("demote", "POST", "/api/clubs/members/99/demote")]
     [InlineData("remove", "DELETE", "/api/clubs/members/99")]
@@ -139,9 +139,9 @@ public class HttpClubMemberServiceTests
 
         var result = operation switch
         {
-            "promote" => await service.PromoteMemberAsync(99, TestContext.Current.CancellationToken),
-            "demote" => await service.DemoteMemberAsync(99, TestContext.Current.CancellationToken),
-            "remove" => await service.RemoveMemberAsync(99, TestContext.Current.CancellationToken),
+            "promote" => await service.PromoteMemberAsync(new ClubMemberMutationInput { MemberUserId = 99 }, TestContext.Current.CancellationToken),
+            "demote" => await service.DemoteMemberAsync(new ClubMemberMutationInput { MemberUserId = 99 }, TestContext.Current.CancellationToken),
+            "remove" => await service.RemoveMemberAsync(new ClubMemberMutationInput { MemberUserId = 99 }, TestContext.Current.CancellationToken),
             _ => await service.LeaveClubAsync(TestContext.Current.CancellationToken),
         };
 

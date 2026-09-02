@@ -32,16 +32,16 @@ public sealed class HttpClubMemberService(HttpClient http) : IClubMemberService
     }
 
     /// <inheritdoc />
-    public Task<ServiceResult<OneOf.Types.Success>> PromoteMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
-        => SendMutationAsync(HttpMethod.Post, ClubEndpoints.PromoteMemberUrl(memberUserId), cancellationToken);
+    public Task<ServiceResult<OneOf.Types.Success>> PromoteMemberAsync(ClubMemberMutationInput input, CancellationToken cancellationToken = default)
+        => SendMutationAsync(HttpMethod.Post, ClubEndpoints.PromoteMemberUrl(input.MemberUserId), cancellationToken);
 
     /// <inheritdoc />
-    public Task<ServiceResult<OneOf.Types.Success>> DemoteMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
-        => SendMutationAsync(HttpMethod.Post, ClubEndpoints.DemoteMemberUrl(memberUserId), cancellationToken);
+    public Task<ServiceResult<OneOf.Types.Success>> DemoteMemberAsync(ClubMemberMutationInput input, CancellationToken cancellationToken = default)
+        => SendMutationAsync(HttpMethod.Post, ClubEndpoints.DemoteMemberUrl(input.MemberUserId), cancellationToken);
 
     /// <inheritdoc />
-    public Task<ServiceResult<OneOf.Types.Success>> RemoveMemberAsync(long memberUserId, CancellationToken cancellationToken = default)
-        => SendMutationAsync(HttpMethod.Delete, ClubEndpoints.RemoveMemberUrl(memberUserId), cancellationToken);
+    public Task<ServiceResult<OneOf.Types.Success>> RemoveMemberAsync(ClubMemberMutationInput input, CancellationToken cancellationToken = default)
+        => SendMutationAsync(HttpMethod.Delete, ClubEndpoints.RemoveMemberUrl(input.MemberUserId), cancellationToken);
 
     /// <inheritdoc />
     public Task<ServiceResult<OneOf.Types.Success>> LeaveClubAsync(CancellationToken cancellationToken = default)

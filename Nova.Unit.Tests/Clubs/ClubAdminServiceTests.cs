@@ -42,6 +42,26 @@ public sealed class ClubAdminServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
+    public async Task GetClubAdminSummaryAsync_ReturnsCountsMetadataAndSoleAdminProjection()
+    {
+        var service = CreateService([new NovaUserEntity { Id = 10, FirstName = "Alice", LastName = "Admin", ClubId = 1 }]);
+
+        var result = await service.GetClubAdminSummaryAsync(1, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ClubId.ShouldBe(1);
+        result.Value.Name.ShouldBe("Club");
+        result.Value.City.ShouldBe("Austin");
+        result.Value.State.ShouldBe("TX");
+        result.Value.MemberCount.ShouldBe(2);
+        result.Value.AdminCount.ShouldBe(1);
+        result.Value.PendingJoinRequestCount.ShouldBe(0);
+        result.Value.PlayerCount.ShouldBe(0);
+        result.Value.IsCurrentUserSoleAdmin.ShouldBeTrue();
+        result.Value.HasCrest.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task GetClubRosterAsync_ReturnsClubMembers()
     {
         var service = CreateService([new NovaUserEntity { Id = 10, FirstName = "Alice", LastName = "Admin", ClubId = 1 }]);

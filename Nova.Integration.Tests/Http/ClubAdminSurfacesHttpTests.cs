@@ -282,7 +282,7 @@ public sealed class ClubAdminSurfacesHttpTests(NovaAppHostFixture fixture)
         problem.Detail.ShouldBe("The final club member cannot leave. Delete the club instead.");
     }
 
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(-1)]
     public async Task MemberMutationRoutes_ReturnBadRequest_ForInvalidMemberUserId(long memberUserId)

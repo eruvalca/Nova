@@ -11,13 +11,13 @@ public interface IClubMemberService
     Task<ServiceResult<IReadOnlyList<ClubMemberDto>>> GetClubMembersAsync(CancellationToken cancellationToken);
 
     /// <summary>Promotes a member of the current user's club to ClubAdmin.</summary>
-    Task<ServiceResult<OneOf.Types.Success>> PromoteMemberAsync(long memberUserId, CancellationToken cancellationToken = default);
+    Task<ServiceResult<OneOf.Types.Success>> PromoteMemberAsync(ClubMemberMutationInput input, CancellationToken cancellationToken = default);
 
     /// <summary>Demotes a ClubAdmin in the current user's club.</summary>
-    Task<ServiceResult<OneOf.Types.Success>> DemoteMemberAsync(long memberUserId, CancellationToken cancellationToken = default);
+    Task<ServiceResult<OneOf.Types.Success>> DemoteMemberAsync(ClubMemberMutationInput input, CancellationToken cancellationToken = default);
 
     /// <summary>Removes another member from the current user's club.</summary>
-    Task<ServiceResult<OneOf.Types.Success>> RemoveMemberAsync(long memberUserId, CancellationToken cancellationToken = default);
+    Task<ServiceResult<OneOf.Types.Success>> RemoveMemberAsync(ClubMemberMutationInput input, CancellationToken cancellationToken = default);
 
     /// <summary>Leaves the current user's club.</summary>
     Task<ServiceResult<OneOf.Types.Success>> LeaveClubAsync(CancellationToken cancellationToken = default);

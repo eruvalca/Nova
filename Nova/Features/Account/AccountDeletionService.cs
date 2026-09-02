@@ -4,8 +4,11 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Activity;
 using Nova.Features.Shared;
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Account;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Security;
 using OneOf;
 using OneOf.Types;
@@ -134,6 +137,20 @@ public sealed partial class AccountDeletionService(
                 {
                     db.Clubs.Remove(club);
                 }
+            }
+            else
+            {
+                ActivityEventWriter.AppendMembership(
+                    db,
+                    currentClubId,
+                    ActivityEventKind.MemberLeft,
+                    user.Id,
+                    user.FullName,
+                    new MembershipContext
+                    {
+                        MemberUserId = user.Id,
+                        MemberDisplayName = user.FullName,
+                    });
             }
         }
 

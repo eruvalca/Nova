@@ -523,26 +523,26 @@ internal static class ClubEndpointRouteBuilderExtensions
     /// Handles promotion of a club member.
     /// </summary>
     private static async Task<IResult> PromoteMemberHandler(
-        [Range(1, long.MaxValue)] long memberUserId,
+        [AsParameters] ClubMemberMutationInput input,
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
     {
-        var result = await clubMemberService.PromoteMemberAsync(memberUserId, cancellationToken);
+        var result = await clubMemberService.PromoteMemberAsync(input, cancellationToken);
         return result.ToHttpResult(_ => TypedResults.NoContent());
     }
 
     private static async Task<IResult> DemoteMemberHandler(
-        [Range(1, long.MaxValue)] long memberUserId,
+        [AsParameters] ClubMemberMutationInput input,
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
-        => (await clubMemberService.DemoteMemberAsync(memberUserId, cancellationToken))
+        => (await clubMemberService.DemoteMemberAsync(input, cancellationToken))
             .ToHttpResult(_ => TypedResults.NoContent());
 
     private static async Task<IResult> RemoveMemberHandler(
-        [Range(1, long.MaxValue)] long memberUserId,
+        [AsParameters] ClubMemberMutationInput input,
         IClubMemberService clubMemberService,
         CancellationToken cancellationToken)
-        => (await clubMemberService.RemoveMemberAsync(memberUserId, cancellationToken))
+        => (await clubMemberService.RemoveMemberAsync(input, cancellationToken))
             .ToHttpResult(_ => TypedResults.NoContent());
 
     private static async Task<IResult> LeaveClubHandler(

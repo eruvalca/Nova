@@ -8,6 +8,7 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Account;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Account;
 using Nova.Shared.Features.Activity;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
@@ -59,7 +60,7 @@ public sealed class ClubMemberServiceTests : IDisposable
             oldStamp = before.Users.Single(user => user.Id == MemberId).SecurityStamp;
         }
 
-        var result = await CreateService().PromoteMemberAsync(MemberId, TestContext.Current.CancellationToken);
+        var result = await CreateService().PromoteMemberAsync(MemberInput(MemberId), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
@@ -74,16 +75,27 @@ public sealed class ClubMemberServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task PromoteMemberAsync_ReturnsValidationForInvalidMemberId()
+    {
+        var result = await CreateService().PromoteMemberAsync(MemberInput(0), TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        result.Problem.Errors.ShouldNotBeNull()
+            .ShouldContainKey(nameof(ClubMemberMutationInput.MemberUserId));
+    }
+
+    [Fact]
     public async Task PromoteMemberAsync_IsIdempotentWithoutAnotherEventOrStampChange()
     {
-        await CreateService().PromoteMemberAsync(MemberId, TestContext.Current.CancellationToken);
+        await CreateService().PromoteMemberAsync(MemberInput(MemberId), TestContext.Current.CancellationToken);
         string? stamp;
         using (var db = _harness.CreateAdminContext())
         {
             stamp = db.Users.Single(user => user.Id == MemberId).SecurityStamp;
         }
 
-        var result = await CreateService().PromoteMemberAsync(MemberId, TestContext.Current.CancellationToken);
+        var result = await CreateService().PromoteMemberAsync(MemberInput(MemberId), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var after = _harness.CreateAdminContext();
@@ -101,7 +113,7 @@ public sealed class ClubMemberServiceTests : IDisposable
             db.SaveChanges();
         }
 
-        var result = await CreateService().DemoteMemberAsync(AdminId, TestContext.Current.CancellationToken);
+        var result = await CreateService().DemoteMemberAsync(MemberInput(AdminId), TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
@@ -110,7 +122,7 @@ public sealed class ClubMemberServiceTests : IDisposable
     [Fact]
     public async Task DemoteMemberAsync_AllowsSelfDemotionAndRefreshesSignIn()
     {
-        var result = await CreateService().DemoteMemberAsync(AdminId, TestContext.Current.CancellationToken);
+        var result = await CreateService().DemoteMemberAsync(MemberInput(AdminId), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
@@ -123,9 +135,9 @@ public sealed class ClubMemberServiceTests : IDisposable
     public async Task DemoteMemberAsync_IdempotentSelfRetryRefreshesSignInWithoutDuplicateEvent()
     {
         var service = CreateService();
-        await service.DemoteMemberAsync(AdminId, TestContext.Current.CancellationToken);
+        await service.DemoteMemberAsync(MemberInput(AdminId), TestContext.Current.CancellationToken);
 
-        var retry = await service.DemoteMemberAsync(AdminId, TestContext.Current.CancellationToken);
+        var retry = await service.DemoteMemberAsync(MemberInput(AdminId), TestContext.Current.CancellationToken);
 
         retry.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
@@ -148,7 +160,7 @@ public sealed class ClubMemberServiceTests : IDisposable
             setup.SaveChanges();
         }
 
-        var result = await CreateService().RemoveMemberAsync(SecondAdminId, TestContext.Current.CancellationToken);
+        var result = await CreateService().RemoveMemberAsync(MemberInput(SecondAdminId), TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
@@ -162,7 +174,7 @@ public sealed class ClubMemberServiceTests : IDisposable
     [Fact]
     public async Task RemoveMemberAsync_UsesNonDisclosingNotFoundForCrossClubTarget()
     {
-        var result = await CreateService().RemoveMemberAsync(OtherClubMemberId, TestContext.Current.CancellationToken);
+        var result = await CreateService().RemoveMemberAsync(MemberInput(OtherClubMemberId), TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
@@ -171,7 +183,7 @@ public sealed class ClubMemberServiceTests : IDisposable
     [Fact]
     public async Task RemoveMemberAsync_RejectsSelfRemoval()
     {
-        var result = await CreateService().RemoveMemberAsync(AdminId, TestContext.Current.CancellationToken);
+        var result = await CreateService().RemoveMemberAsync(MemberInput(AdminId), TestContext.Current.CancellationToken);
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
@@ -255,6 +267,9 @@ public sealed class ClubMemberServiceTests : IDisposable
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
     }
+
+    /// <summary>Creates a valid member-mutation input for the specified identity user.</summary>
+    private static ClubMemberMutationInput MemberInput(long memberUserId) => new() { MemberUserId = memberUserId };
 
     private ClubMemberService CreateService()
         => new(

@@ -124,7 +124,7 @@ public class AssignClubAdminPanelTests
         };
         var service = Substitute.For<IClubMemberService>();
         service
-            .PromoteMemberAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .PromoteMemberAsync(Arg.Any<ClubMemberMutationInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((ServiceResult<OneOf.Types.Success>)new OneOf.Types.Success()));
 
         var navigationManager = Substitute.For<NavigationManager>();
@@ -145,7 +145,7 @@ public class AssignClubAdminPanelTests
 
         // Assert
         await service.Received(1).PromoteMemberAsync(
-            1L,
+            Arg.Is<ClubMemberMutationInput>(input => input.MemberUserId == 1),
             Arg.Any<CancellationToken>());
         navigationManager.Received(1).Refresh(forceReload: true);
     }
@@ -163,7 +163,7 @@ public class AssignClubAdminPanelTests
             "Persisted-state submit failure");
         var service = Substitute.For<IClubMemberService>();
         service
-            .PromoteMemberAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .PromoteMemberAsync(Arg.Any<ClubMemberMutationInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((ServiceResult<OneOf.Types.Success>)submissionProblem));
 
         var navigationManager = Substitute.For<NavigationManager>();
@@ -194,7 +194,7 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         await service.Received(2).PromoteMemberAsync(
-            1L,
+            Arg.Is<ClubMemberMutationInput>(input => input.MemberUserId == 1),
             Arg.Any<CancellationToken>());
         navigationManager.DidNotReceive().Refresh(forceReload: Arg.Any<bool>());
     }
@@ -360,7 +360,7 @@ public class AssignClubAdminPanelTests
             .GetClubMembersAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((ServiceResult<IReadOnlyList<ClubMemberDto>>)members.ToList()));
         service
-            .PromoteMemberAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .PromoteMemberAsync(Arg.Any<ClubMemberMutationInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((ServiceResult<OneOf.Types.Success>)new OneOf.Types.Success()));
 
         var navigationManager = Substitute.For<NavigationManager>();
@@ -382,7 +382,9 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         // Assert
-        await service.Received(1).PromoteMemberAsync(1L, Arg.Any<CancellationToken>());
+        await service.Received(1).PromoteMemberAsync(
+            Arg.Is<ClubMemberMutationInput>(input => input.MemberUserId == 1),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -398,7 +400,7 @@ public class AssignClubAdminPanelTests
             .GetClubMembersAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((ServiceResult<IReadOnlyList<ClubMemberDto>>)members.ToList()));
         service
-            .PromoteMemberAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .PromoteMemberAsync(Arg.Any<ClubMemberMutationInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((ServiceResult<OneOf.Types.Success>)new OneOf.Types.Success()));
 
         var navigationManager = Substitute.For<NavigationManager>();
@@ -441,7 +443,7 @@ public class AssignClubAdminPanelTests
             "This user is already a club admin"
         );
         service
-            .PromoteMemberAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .PromoteMemberAsync(Arg.Any<ClubMemberMutationInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((ServiceResult<OneOf.Types.Success>)problem));
 
         var navigationManager = Substitute.For<NavigationManager>();
@@ -474,7 +476,7 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         await service.Received(2).PromoteMemberAsync(
-            1L,
+            Arg.Is<ClubMemberMutationInput>(input => input.MemberUserId == 1),
             Arg.Any<CancellationToken>());
         navigationManager.DidNotReceive().Refresh(forceReload: Arg.Any<bool>());
     }
