@@ -56,7 +56,7 @@ See [detection.md](references/detection.md) for detailed fingerprinting.
 | Code changed in a resource | Prefer resource commands, runtime watch/HMR, dashboard actions, or IDE-managed debugging | `dotnet build` against locked files |
 | Task complete | `aspire stop` | Leave processes running |
 | Check resource status | `aspire describe` / `aspire ps` | Manual process inspection |
-| Working in git worktree | `aspire start --isolated` | `aspire start` without isolation |
+| Working in git worktree | `aspire start --isolated` (plus a worktree-local `ASPIRE_HOME`, except on `script`/`pr`/`localhive` installs) | `aspire start` without isolation |
 | Running from AI agent | Add `--non-interactive` to all commands | Assuming interactive terminal |
 | Editing unfamiliar API | `aspire docs search <topic>` then `aspire docs api search <query>` for API reference | Guessing API shape |
 | C# AppHost API inspection | Use `dotnet-inspect` skill (if available) for local symbols | Guessing overloads or builder chains |
@@ -163,6 +163,8 @@ The same rule applies to any "file in use", "cannot access the file", or
 | `ASPIRE_ENVIRONMENT` | unset | Selects the environment-specific config profile — controls which `appsettings.{environment}.json` is loaded and which environment is reported in dashboard telemetry. |
 | `ASPIRE_DCP_USE_DEVELOPER_CERTIFICATE` | `true` | The Aspire trusted developer certificate is used by DCP on Windows. Set to `false` to opt out. |
 | `features.defaultWatchEnabled` | false unless configured | Enables Aspire default watch for supported C# and TypeScript AppHosts. Do not treat this as per-resource rebuild, restart, or hot reload for resource source changes. |
+| `ASPIRE_HOME` | `~/.aspire` | Overrides the Aspire user home (logs, cache, dev certs). Only the `script`/`pr`/`localhive` install routes pin their home to the install prefix and ignore it; sidecar-less and package-manager installs (WinGet, Homebrew, `dotnet-tool`, Nix) honor it. Set it to a worktree-local directory so concurrent sessions do not contend on shared CLI state. |
+| `ASPIRE_DCP_PATH` | bundle-provided DCP | Explicit override for a custom DCP binary — not needed for worktree isolation. Bundle extraction follows the install route: under `ASPIRE_HOME` for sidecar-less/Nix, beside the binary for WinGet/Homebrew/`dotnet-tool`, under the install prefix for `script`/`pr`/`localhive`. |
 
 ## TypeScript AppHost Note
 
