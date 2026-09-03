@@ -89,4 +89,4 @@ semantics are needed. Never introduce static mutable test state.
     permitted role and exact counts for lifecycle or tenancy exclusions.
 13. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
     Repeat `--filter-class` for multiple classes; do not combine class names with `|`.
-14. Before commit or PR, run the relevant integration tests for provider/HTTP changes and the relevant browser tests for interactive UI-flow changes; confirm they pass locally (CI does not run them).
+14. During implementation and before a local commit, run the smallest relevant test set. Before opening a PR and before merge, run all three suites locally. On intermediate PR pushes, run unit tests plus the integration or browser suites the change can affect; CI does not run the Aspire-dependent suites.
