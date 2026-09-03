@@ -56,7 +56,7 @@ See [detection.md](references/detection.md) for detailed fingerprinting.
 | Code changed in a resource | Prefer resource commands, runtime watch/HMR, dashboard actions, or IDE-managed debugging | `dotnet build` against locked files |
 | Task complete | `aspire stop` | Leave processes running |
 | Check resource status | `aspire describe` / `aspire ps` | Manual process inspection |
-| Working in git worktree | `aspire start --isolated`, plus a worktree-local `ASPIRE_HOME` | `aspire start` without isolation |
+| Working in git worktree | `aspire start --isolated` (plus a worktree-local `ASPIRE_HOME` on sidecar-free installs) | `aspire start` without isolation |
 | Running from AI agent | Add `--non-interactive` to all commands | Assuming interactive terminal |
 | Editing unfamiliar API | `aspire docs search <topic>` then `aspire docs api search <query>` for API reference | Guessing API shape |
 | C# AppHost API inspection | Use `dotnet-inspect` skill (if available) for local symbols | Guessing overloads or builder chains |
