@@ -108,10 +108,9 @@ aspire describe --apphost ./src/MyApp.AppHost/
 | Issue | Symptom | Workaround |
 |-------|---------|-----------|
 | TS AppHost DNS failure ([#15782](https://github.com/microsoft/aspire/issues/15782)) | `aspire otel` "No such host" for `*.dev.localhost` | Use `--dashboard-url localhost:PORT` |
-| `--isolated` mode telemetry ([#16107](https://github.com/microsoft/aspire/issues/16107)) | OTEL port not randomized in isolated mode | Avoid `--isolated` if telemetry is needed |
 | Resource missing from `aspire ps` / `aspire describe` | Hidden-by-default resources such as proxies, helpers, or migrations | Re-run with `--include-hidden` |
 
-> **Resolved in 13.3**: The standalone-dashboard workaround for [#16236](https://github.com/microsoft/aspire/issues/16236) is obsolete — use `aspire dashboard run` (see below).
+> **Resolved in 13.3**: The standalone-dashboard workaround for [#16236](https://github.com/microsoft/aspire/issues/16236) is obsolete — use `aspire dashboard run` (see below). `--isolated` telemetry ([#16107](https://github.com/microsoft/aspire/issues/16107)) is also fixed in 13.3: the OTLP exporter endpoint follows the randomized dashboard port, so no workaround is needed.
 
 ## Standalone Dashboard (`aspire dashboard run`)
 

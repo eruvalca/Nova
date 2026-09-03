@@ -163,9 +163,8 @@ The same rule applies to any "file in use", "cannot access the file", or
 | `ASPIRE_ENVIRONMENT` | unset | Selects the environment-specific config profile — controls which `appsettings.{environment}.json` is loaded and which environment is reported in dashboard telemetry. |
 | `ASPIRE_DCP_USE_DEVELOPER_CERTIFICATE` | `true` | The Aspire trusted developer certificate is used by DCP on Windows. Set to `false` to opt out. |
 | `features.defaultWatchEnabled` | false unless configured | Enables Aspire default watch for supported C# and TypeScript AppHosts. Do not treat this as per-resource rebuild, restart, or hot reload for resource source changes. |
-| `ASPIRE_HOME` | `~/.aspire` | Overrides the Aspire CLI home (bundle, DCP binaries, dev certs, logs). Set it to a worktree-local directory so concurrent sessions do not contend on shared CLI state. |
-| `ASPIRE_DCP_PATH` | bundled DCP | Overrides the DCP binary path; pair with `ASPIRE_HOME` when fully separating worktree environments. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Aspire dashboard OTLP endpoint | `--isolated` randomizes ports and user secrets but not the OTLP exporter port ([#16107](https://github.com/microsoft/aspire/issues/16107)); give each concurrent worktree a distinct endpoint or disable telemetry for one. |
+| `ASPIRE_HOME` | `~/.aspire` (fallback for unmanaged installs) | Overrides the Aspire user home (logs, cache, dev certs) when no `.aspire-install.json` sidecar pins an install prefix. Set it to a worktree-local directory so concurrent sessions do not contend on shared CLI state. |
+| `ASPIRE_DCP_PATH` | install-located DCP | Overrides the DCP binary path. The bundle and DCP binaries are located by the install, not by `ASPIRE_HOME` — pair the two when fully separating worktree environments. |
 
 ## TypeScript AppHost Note
 
