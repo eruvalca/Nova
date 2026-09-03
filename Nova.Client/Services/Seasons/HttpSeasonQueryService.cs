@@ -66,7 +66,7 @@ public sealed class HttpSeasonQueryService(HttpClient http) : ISeasonQueryServic
                 && result.Campaigns.Count <= result.CampaignPageSize
                 && result.Campaigns.All(campaign => campaign.CampaignId > 0
                     && !string.IsNullOrWhiteSpace(campaign.Name)
-                    && campaign.Status is CampaignStatus.Active or CampaignStatus.Draft or CampaignStatus.Closed
+                    && campaign.Status is CampaignStatus.Active or CampaignStatus.Closed
                     && campaign.StartDate != default
                     && (campaign.EndDate is null || campaign.EndDate >= campaign.StartDate)
                     && campaign.ParticipantCount >= 0)

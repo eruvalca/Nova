@@ -16,8 +16,7 @@ namespace Nova.Shared.Features.Campaigns;
 /// <param name="SeasonStartDate">The selected or created season start date.</param>
 /// <param name="SeasonEndDate">The optional selected or created season end date.</param>
 /// <param name="SeasonCreatedInline">Whether the request created the season atomically.</param>
-[System.Text.Json.Serialization.JsonUnmappedMemberHandling(
-    System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow)]
+/// <param name="EnrolledPlayerCount">The number of Active players enrolled in the campaign.</param>
 public sealed record CreateCampaignResult(
     Guid OperationId,
     long CampaignId,
@@ -29,4 +28,5 @@ public sealed record CreateCampaignResult(
     string SeasonName,
     DateOnly SeasonStartDate,
     DateOnly? SeasonEndDate,
-    bool SeasonCreatedInline);
+    bool SeasonCreatedInline,
+    int EnrolledPlayerCount);

@@ -25,8 +25,8 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
     private const string Password = "Test#Passw0rd!";
 
     /// <summary>
-    /// Verifies the summary returns authoritative, tenant-scoped counts for the sole Active campaign,
-    /// including participant/unresolved counts and the workspace link, plus roster and
+    /// Verifies the summary returns authoritative, tenant-scoped counts: two active campaign cards in
+    /// deterministic order, per-card participant/unresolved counts and workspace links, and roster and
     /// team counts. The separate attention projection verifies the administrator counts matching the
     /// seeded pending request and the newest campaign's undecided participants.
     /// </summary>
@@ -113,11 +113,15 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             var dashboard = await response.Content.ReadFromJsonAsync<ClubDashboardResult>(cancellationToken);
             dashboard.ShouldNotBeNull();
 
-            dashboard.ActiveCampaigns.Count.ShouldBe(1);
-            dashboard.ActiveCampaigns[0].Name.ShouldBe(undecided.CampaignName);
-            dashboard.ActiveCampaigns[0].ParticipantCount.ShouldBe(2);
-            dashboard.ActiveCampaigns[0].UnresolvedCount.ShouldBe(2);
-            dashboard.ActiveCampaigns[0].WorkspaceUrl.ShouldBe(DashboardEndpoints.CampaignWorkspaceUrl(undecided.CampaignId));
+            dashboard.ActiveCampaigns.Count.ShouldBe(2);
+            dashboard.ActiveCampaigns[0].Name.ShouldBe(manual.Name);
+            dashboard.ActiveCampaigns[0].ParticipantCount.ShouldBe(1);
+            dashboard.ActiveCampaigns[0].UnresolvedCount.ShouldBe(1);
+            dashboard.ActiveCampaigns[0].WorkspaceUrl.ShouldBe(DashboardEndpoints.CampaignWorkspaceUrl(manual.CampaignId));
+            dashboard.ActiveCampaigns[1].Name.ShouldBe(undecided.CampaignName);
+            dashboard.ActiveCampaigns[1].ParticipantCount.ShouldBe(2);
+            dashboard.ActiveCampaigns[1].UnresolvedCount.ShouldBe(2);
+            dashboard.ActiveCampaigns[1].WorkspaceUrl.ShouldBe(DashboardEndpoints.CampaignWorkspaceUrl(undecided.CampaignId));
 
             dashboard.Roster.ActivePlayers.ShouldBe(4);
             dashboard.Roster.ArchivedPlayers.ShouldBe(1);
@@ -133,9 +137,9 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             attention.PendingJoinRequests.Status.ShouldBe(AttentionRegionStatus.Loaded);
             attention.PendingJoinRequests.Count.ShouldBe(1);
             attention.NeedsPlacement.Status.ShouldBe(AttentionRegionStatus.Loaded);
-            attention.NeedsPlacement.Count.ShouldBe(2);
-            attention.NeedsPlacement.CampaignId.ShouldBe(undecided.CampaignId);
-            attention.NeedsPlacement.CampaignName.ShouldBe(undecided.CampaignName);
+            attention.NeedsPlacement.Count.ShouldBe(1);
+            attention.NeedsPlacement.CampaignId.ShouldBe(manual.CampaignId);
+            attention.NeedsPlacement.CampaignName.ShouldBe(manual.Name);
         }
     }
 

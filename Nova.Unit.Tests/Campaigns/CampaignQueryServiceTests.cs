@@ -141,7 +141,6 @@ public sealed class CampaignQueryServiceTests : IDisposable
         // Act as club A member
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
 
         var service = new CampaignQueryService(
             new CampaignReadHarnessDbContextFactory(_harness),
@@ -157,25 +156,18 @@ public sealed class CampaignQueryServiceTests : IDisposable
         rows[0].UnresolvedCount.ShouldBe(1);
     }
 
-    /// <summary>Verifies all supported status filters are case-insensitive.</summary>
+    /// <summary>Verifies both supported status filters are case-insensitive.</summary>
     /// <param name="status">The status spelling supplied to the service.</param>
     /// <param name="expectedStatus">The expected campaign status.</param>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("ACTIVE", CampaignStatus.Active)]
-    [InlineData("DRAFT", CampaignStatus.Draft)]
     [InlineData("CLOSED", CampaignStatus.Closed)]
     public async Task GetCampaignList_StatusFiltering_IsCaseInsensitive(
         string status,
         CampaignStatus expectedStatus)
     {
-        if (expectedStatus == CampaignStatus.Draft)
-        {
-            _ = AddDraftCampaign();
-        }
-
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
 
         var service = new CampaignQueryService(
             new CampaignReadHarnessDbContextFactory(_harness),
@@ -192,61 +184,12 @@ public sealed class CampaignQueryServiceTests : IDisposable
         rows.ShouldAllBe(campaign => campaign.Status == expectedStatus);
     }
 
-    /// <summary>Verifies a member explicitly requesting Drafts receives an empty successful list.</summary>
-    [Fact]
-    public async Task GetCampaignList_DraftFilterReturnsEmpty_ForMember()
-    {
-        _ = AddDraftCampaign();
-        _harness.CurrentUser.UserId = ClubAMemberId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = false;
-
-        var result = await new CampaignQueryService(
-            new CampaignReadHarnessDbContextFactory(_harness),
-            _harness.CurrentUser,
-            NullLogger<CampaignQueryService>.Instance).GetCampaignListAsync(
-                new GetCampaignListInput { Status = "draft" },
-                TestContext.Current.CancellationToken);
-
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.TotalCount.ShouldBe(0);
-        result.Value.Seasons.ShouldBeEmpty();
-    }
-
-    /// <summary>Verifies Draft detail is visible to administrators and concealed from members.</summary>
-    [Fact]
-    public async Task GetCampaignDetail_EnforcesDraftVisibility()
-    {
-        var campaignId = AddDraftCampaign();
-        var service = new CampaignQueryService(
-            new CampaignReadHarnessDbContextFactory(_harness),
-            _harness.CurrentUser,
-            NullLogger<CampaignQueryService>.Instance);
-
-        _harness.CurrentUser.UserId = ClubAMemberId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = false;
-        var member = await service.GetCampaignDetailAsync(
-            new GetCampaignDetailInput { CampaignId = campaignId },
-            TestContext.Current.CancellationToken);
-        member.IsProblem.ShouldBeTrue();
-        member.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
-
-        _harness.CurrentUser.IsClubAdmin = true;
-        var admin = await service.GetCampaignDetailAsync(
-            new GetCampaignDetailInput { CampaignId = campaignId },
-            TestContext.Current.CancellationToken);
-        admin.IsSuccess.ShouldBeTrue();
-        admin.Value.Status.ShouldBe(CampaignStatus.Draft);
-    }
-
     /// <summary>Verifies setup returns tenant seasons and active lifecycle counts.</summary>
     [Fact]
     public async Task GetCreationSetup_ReturnsSeasonAndActiveCounts()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
 
         var service = new CampaignQueryService(
             new CampaignReadHarnessDbContextFactory(_harness),
@@ -267,7 +210,6 @@ public sealed class CampaignQueryServiceTests : IDisposable
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
         var interceptor = new CountingCommandInterceptor();
         var service = new CampaignQueryService(
             new CampaignReadHarnessDbContextFactory(_harness, interceptor),
@@ -286,7 +228,6 @@ public sealed class CampaignQueryServiceTests : IDisposable
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
 
         using (var admin = _harness.CreateAdminContext())
         {
@@ -319,12 +260,9 @@ public sealed class CampaignQueryServiceTests : IDisposable
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
 
         using (var admin = _harness.CreateAdminContext())
         {
-            admin.Campaigns.Single(campaign => campaign.ClubId == ClubAId
-                && campaign.Status == CampaignStatus.Active).Status = CampaignStatus.Draft;
             var season = new SeasonEntity
             {
                 CreationOperationId = Guid.NewGuid(),
@@ -344,7 +282,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                     CreationOperationId = Guid.NewGuid(),
                     Name = "Later",
                     StartDate = new DateOnly(2027, 6, 2),
-                    Status = CampaignStatus.Draft,
+                    Status = CampaignStatus.Active,
                     SeasonId = season.SeasonId,
                     ClubId = ClubAId,
                     CreatedById = ClubAMemberId
@@ -355,7 +293,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                     Name = "Z",
                     StartDate = sameDate,
                     EndDate = sameEnd,
-                    Status = CampaignStatus.Draft,
+                    Status = CampaignStatus.Active,
                     SeasonId = season.SeasonId,
                     ClubId = ClubAId,
                     CreatedById = ClubAMemberId
@@ -366,7 +304,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                     Name = "Earlier End",
                     StartDate = sameDate,
                     EndDate = sameEnd.AddDays(-1),
-                    Status = CampaignStatus.Draft,
+                    Status = CampaignStatus.Active,
                     SeasonId = season.SeasonId,
                     ClubId = ClubAId,
                     CreatedById = ClubAMemberId
@@ -377,7 +315,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                     Name = "A",
                     StartDate = sameDate,
                     EndDate = sameEnd,
-                    Status = CampaignStatus.Draft,
+                    Status = CampaignStatus.Active,
                     SeasonId = season.SeasonId,
                     ClubId = ClubAId,
                     CreatedById = ClubAMemberId
@@ -421,7 +359,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
             .Single(season => season.Name == "Ordering Season")
             .Campaigns;
         rows.Select(campaign => campaign.Name).Take(6)
-            .ShouldBe(["Open", "Later", "A", "Z", "Earlier End", "Closed"]);
+            .ShouldBe(["Later", "A", "Z", "Earlier End", "Open", "Closed"]);
     }
 
     /// <summary>Verifies the detail query returns the club's campaign header payload.</summary>
@@ -604,27 +542,5 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
-    }
-
-    /// <summary>Adds one Draft campaign to Club A and returns its generated identifier.</summary>
-    private long AddDraftCampaign()
-    {
-        using var db = _harness.CreateAdminContext();
-        var seasonId = db.Seasons.Where(season => season.ClubId == ClubAId)
-            .Select(season => season.SeasonId)
-            .First();
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Draft {Guid.NewGuid():N}",
-            StartDate = new DateOnly(2026, 7, 1),
-            Status = CampaignStatus.Draft,
-            SeasonId = seasonId,
-            ClubId = ClubAId,
-            CreatedById = ClubAMemberId
-        };
-        db.Campaigns.Add(campaign);
-        db.SaveChanges();
-        return campaign.CampaignId;
     }
 }

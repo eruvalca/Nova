@@ -175,24 +175,6 @@ public sealed class HttpCampaignQueryServiceTests
         result.IsSuccess.ShouldBeTrue();
     }
 
-    /// <summary>Verifies Draft rows are accepted in Active, Draft, Closed lifecycle order.</summary>
-    [Fact]
-    public async Task GetCampaignListAsync_AcceptsDraftLifecycleOrder()
-    {
-        const string payload = """
-            {"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01",
-            "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
-            {"campaignId":1,"name":"Active","startDate":"2026-06-01","status":0,"participantCount":1,"unresolvedCount":0},
-            {"campaignId":2,"name":"Draft","startDate":"2026-06-01","status":2,"participantCount":0,"unresolvedCount":0},
-            {"campaignId":3,"name":"Closed","startDate":"2026-06-01","status":1,"participantCount":1,"unresolvedCount":0}
-            ]}],"totalCount":3}
-            """;
-
-        var result = await GetCampaignListFromJsonAsync(payload);
-
-        result.IsSuccess.ShouldBeTrue();
-    }
-
     /// <summary>Verifies an empty season metadata token is rejected as a malformed success payload.</summary>
     [Fact]
     public async Task GetCampaignListAsync_ReturnsServerError_ForEmptySeasonConcurrencyToken()
@@ -352,20 +334,6 @@ public sealed class HttpCampaignQueryServiceTests
             {"campaignId":2,"name":"Campaign","status":1,"startDate":"2026-06-01",
             "plannedEndDate":"2026-08-01","participantCount":3,"seasonId":1,"seasonName":"Season 2026",
             "closedAt":"2026-08-01T00:00:00+00:00","closedByUserId":5,"closedByDisplayName":"Admin A"}
-            """;
-
-        var result = await GetCampaignDetailFromJsonAsync(payload);
-
-        result.IsSuccess.ShouldBeTrue();
-    }
-
-    /// <summary>Verifies a Draft detail without closure metadata is accepted.</summary>
-    [Fact]
-    public async Task GetCampaignDetailAsync_AcceptsDraftPayload()
-    {
-        const string payload = """
-            {"campaignId":2,"name":"Draft Campaign","status":2,"startDate":"2026-06-01",
-            "plannedEndDate":"2026-08-01","participantCount":0,"seasonId":1,"seasonName":"Season 2026"}
             """;
 
         var result = await GetCampaignDetailFromJsonAsync(payload);

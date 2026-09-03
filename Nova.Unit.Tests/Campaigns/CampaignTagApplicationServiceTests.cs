@@ -315,7 +315,6 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
                 Name = "Active Campaign A",
                 SeasonId = 600,
                 ClubId = ClubAId,
-                Status = CampaignStatus.Active,
                 CreatedById = ClubAAdminId
             },
             new CampaignEntity
@@ -337,7 +336,6 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
                 Name = "Active Campaign B",
                 SeasonId = 601,
                 ClubId = ClubBId,
-                Status = CampaignStatus.Active,
                 CreatedById = ClubBMemberId
             });
 

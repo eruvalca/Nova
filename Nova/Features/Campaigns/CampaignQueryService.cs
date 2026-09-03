@@ -42,7 +42,6 @@ public sealed partial class CampaignQueryService(
         var status = input.Status?.Trim().ToLowerInvariant() switch
         {
             "active" => CampaignStatus.Active,
-            "draft" => CampaignStatus.Draft,
             "closed" => CampaignStatus.Closed,
             _ => (CampaignStatus?)null
         };
@@ -58,9 +57,7 @@ public sealed partial class CampaignQueryService(
         var rows = await query
             .OrderByDescending(campaign => campaign.Season.StartDate)
             .ThenByDescending(campaign => campaign.SeasonId)
-            .ThenBy(campaign => campaign.Status == CampaignStatus.Active
-                ? 0
-                : campaign.Status == CampaignStatus.Draft ? 1 : 2)
+            .ThenBy(campaign => campaign.Status)
             .ThenByDescending(campaign => campaign.StartDate)
             .ThenByDescending(campaign => campaign.EndDate.HasValue)
             .ThenByDescending(campaign => campaign.EndDate)
@@ -206,10 +203,10 @@ public sealed partial class CampaignQueryService(
     public async Task<ServiceResult<CampaignCreationSetupResult>> GetCreationSetupAsync(
         CancellationToken cancellationToken = default)
     {
-        if (!TryGetClubId(out var clubId) || !currentUserProvider.IsClubAdmin)
+        if (!TryGetClubId(out var clubId))
         {
             LogCreationSetupForbidden(currentUserProvider.UserId ?? 0);
-            return ServiceProblem.Forbidden("You must be a club administrator to view campaign setup.");
+            return ServiceProblem.Forbidden("You must be an approved club member to view campaign setup.");
         }
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);

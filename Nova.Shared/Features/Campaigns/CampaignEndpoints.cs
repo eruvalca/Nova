@@ -11,7 +11,7 @@ public static class CampaignEndpoints
     public const string GroupPrefix = "/api/campaigns";
 
     /// <summary>
-    /// Creates an administrator-only Draft campaign without enrolling players (POST).
+    /// Creates an Active campaign and its initial participation snapshot (POST).
     /// </summary>
     public const string Create = GroupPrefix;
 
@@ -251,7 +251,7 @@ public static class CampaignEndpoints
     public const string RemoveCampaignTagApplicationRouteName = "RemoveCampaignTagApplication";
 
     /// <summary>
-    /// Updates a Draft or Active campaign's metadata (PUT).
+    /// Updates an Active campaign's metadata (PUT).
     /// </summary>
     public const string UpdateCampaignMetadata = $"{GroupPrefix}/metadata";
 
@@ -317,7 +317,6 @@ public static class CampaignEndpoints
         var normalizedStatus = status?.Trim().ToLowerInvariant() switch
         {
             "active" => "active",
-            "draft" => "draft",
             "closed" => "closed",
             _ => null
         };

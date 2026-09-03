@@ -38,7 +38,7 @@ internal static class CampaignMetadataEndpointRouteBuilderExtensions
     }
 
     /// <summary>
-    /// Updates a Draft or Active campaign's name, season, start date, and planned end date.
+    /// Updates an Active campaign's name, season, start date, and planned end date.
     /// </summary>
     /// <param name="input">The campaign metadata correction request.</param>
     /// <param name="campaignMetadataService">The campaign metadata service.</param>

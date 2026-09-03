@@ -130,9 +130,7 @@ public sealed class ClubAttentionPostgresTests(NovaAppHostFixture fixture)
             CreationOperationId = Guid.NewGuid(),
             Name = $"Older Campaign {suffix}",
             StartDate = new DateOnly(2026, 5, 1),
-            Status = CampaignStatus.Closed,
-            ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
-            ClosedById = actorUserId,
+            Status = CampaignStatus.Active,
             SeasonId = season.SeasonId,
             ClubId = club.ClubId,
             CreatedById = actorUserId

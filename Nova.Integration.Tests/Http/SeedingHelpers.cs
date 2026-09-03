@@ -172,22 +172,6 @@ internal static class SeedingHelpers
                 ClubId = clubId,
                 CreatedById = user.Id
             };
-        var previousActiveCampaigns = await context.Campaigns
-            .Where(candidate => candidate.ClubId == clubId
-                && candidate.Status == CampaignStatus.Active)
-            .ToListAsync(cancellationToken);
-        foreach (var previousCampaign in previousActiveCampaigns)
-        {
-            previousCampaign.Status = CampaignStatus.Closed;
-            previousCampaign.ClosedAt = DateTimeOffset.UtcNow;
-            previousCampaign.ClosedById = user.Id;
-        }
-
-        if (previousActiveCampaigns.Count > 0)
-        {
-            await context.SaveChangesAsync(cancellationToken);
-        }
-
         var campaign = new CampaignEntity
         {
             CreationOperationId = Guid.NewGuid(),
