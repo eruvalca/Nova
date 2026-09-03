@@ -1,8 +1,5 @@
 ﻿using Azure.Storage.Blobs;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Nova.Entities;
 using Nova.Features.Clubs;
 using Nova.Shared.Features.Clubs;
@@ -44,7 +41,6 @@ public sealed class ClubSearchEscapingPostgresTests(NovaAppHostFixture fixture)
         var service = new ClubService(
             new PostgresAdminContextFactory(fixture),
             new PostgresReadContextFactory(fixture),
-            CreateUserManager(),
             fixture.CurrentUser,
             Substitute.For<BlobContainerClient>(),
             NullLogger<ClubService>.Instance);
@@ -71,15 +67,4 @@ public sealed class ClubSearchEscapingPostgresTests(NovaAppHostFixture fixture)
         CreatedById = actorUserId
     };
 
-    private static UserManager<NovaUserEntity> CreateUserManager()
-        => Substitute.For<UserManager<NovaUserEntity>>(
-            Substitute.For<IUserStore<NovaUserEntity>>(),
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<IPasswordHasher<NovaUserEntity>>(),
-            new List<IUserValidator<NovaUserEntity>>(),
-            new List<IPasswordValidator<NovaUserEntity>>(),
-            Substitute.For<ILookupNormalizer>(),
-            Substitute.For<IdentityErrorDescriber>(),
-            Substitute.For<IServiceProvider>(),
-            Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
 }

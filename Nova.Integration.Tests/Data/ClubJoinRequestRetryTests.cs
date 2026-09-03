@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
@@ -142,6 +141,8 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
         var requester = await verify.Users
             .SingleAsync(u => u.Id == seed.RequesterUserId, cancellationToken);
         requester.ClubId.ShouldBe(seed.ClubId);
+        requester.SecurityStamp.ShouldNotBe(seed.SecurityStamp);
+        requester.ConcurrencyStamp.ShouldNotBe(seed.ConcurrencyStamp);
 
         var events = await verify.ActivityEvents
             .Where(activity => activity.ClubId == seed.ClubId
@@ -480,24 +481,11 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
                     ClubId = null
                 }));
 
-        userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
-            .Returns(Task.FromResult(IdentityResult.Success));
-
-        var signInManager = Substitute.For<SignInManager<NovaUserEntity>>(
-            userManager,
-            Substitute.For<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
-            Substitute.For<IUserClaimsPrincipalFactory<NovaUserEntity>>(),
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<SignInManager<NovaUserEntity>>>(),
-            Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>(),
-            Substitute.For<IUserConfirmation<NovaUserEntity>>());
-
         return new ClubJoinRequestService(
             writeFactory,
             new PostgresReadContextFactory(fixture),
             adminFactory ?? new PostgresAdminContextFactory(fixture),
             fixture.CurrentUser,
-            new ClubMembershipClaimRefresher(userManager, signInManager),
             userManager,
             NullLogger<ClubJoinRequestService>.Instance);
     }
@@ -537,12 +525,16 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
         ActAs(userId: null, clubId: null);
         await using var db = fixture.CreateAdminContext();
         var suffix = Guid.NewGuid().ToString("N");
+        var securityStamp = Guid.NewGuid().ToString("N");
+        var concurrencyStamp = Guid.NewGuid().ToString("N");
 
         var requester = new NovaUserEntity
         {
             FirstName = "Requester",
             LastName = "R",
-            ClubId = null
+            ClubId = null,
+            SecurityStamp = securityStamp,
+            ConcurrencyStamp = concurrencyStamp,
         };
         db.Users.Add(requester);
         await db.SaveChangesAsync(cancellationToken);
@@ -585,7 +577,13 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
         db.ClubJoinRequests.Add(request);
         await db.SaveChangesAsync(cancellationToken);
 
-        return new ApprovalSeed(club.ClubId, admin.Id, requester.Id, request.ClubJoinRequestId);
+        return new ApprovalSeed(
+            club.ClubId,
+            admin.Id,
+            requester.Id,
+            request.ClubJoinRequestId,
+            securityStamp,
+            concurrencyStamp);
     }
 
     /// <summary>
@@ -602,5 +600,13 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
     /// <param name="AdminUserId">The seeded club-member administrator identifier.</param>
     /// <param name="RequesterUserId">The seeded club-less requester identifier.</param>
     /// <param name="RequestId">The seeded pending join-request identifier.</param>
-    private sealed record ApprovalSeed(long ClubId, long AdminUserId, long RequesterUserId, long RequestId);
+    /// <param name="SecurityStamp">The requester's security stamp before approval.</param>
+    /// <param name="ConcurrencyStamp">The requester's concurrency stamp before approval.</param>
+    private sealed record ApprovalSeed(
+        long ClubId,
+        long AdminUserId,
+        long RequesterUserId,
+        long RequestId,
+        string SecurityStamp,
+        string ConcurrencyStamp);
 }

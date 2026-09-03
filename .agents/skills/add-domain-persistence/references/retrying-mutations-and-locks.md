@@ -76,8 +76,9 @@ Add PostgreSQL tests that assert:
 - A related row appearing outside the computed lock set reaches the fail-safe conflict.
 
 Prove actual contention rather than starting operations back-to-back: hold or intercept the target
-advisory lock, start every competitor, wait until each has reached the blocked lock acquisition, and
-only then release the gate. A test that can pass through sequential execution does not validate the
-lock.
+advisory lock, start every competitor, use a count-aware provider observation to prove the expected
+number of distinct waiters reached the blocked lock acquisition, and only then release the gate.
+Repeated existence checks can observe the same waiter and are not count evidence. A test that can
+pass through sequential execution does not validate the lock.
 
 SQLite cannot validate advisory-lock serialization.

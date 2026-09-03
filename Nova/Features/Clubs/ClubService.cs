@@ -26,14 +26,12 @@ namespace Nova.Features.Clubs;
 /// </summary>
 /// <param name="adminDbContextFactory">The factory for the unfiltered admin write context.</param>
 /// <param name="readDbContextFactory">The factory for the read-only context.</param>
-/// <param name="userManager">The identity user manager used to assign the ClubAdmin role.</param>
 /// <param name="currentUserProvider">The provider for the current user's identity.</param>
 /// <param name="crestContainerClient">The blob container client for the club crest container.</param>
 /// <param name="logger">The logger.</param>
 public sealed partial class ClubService(
     IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
-    UserManager<NovaUserEntity> userManager,
     ICurrentUserProvider currentUserProvider,
     [FromKeyedServices("club-crests")] BlobContainerClient crestContainerClient,
     ILogger<ClubService> logger) : IClubService
@@ -96,6 +94,8 @@ public sealed partial class ClubService(
         // club id: Postgres identity sequences do not roll back, so a retried insert can receive a
         // different ClubId and the blob names must remain stable across attempts.
         var creationOperationId = Guid.CreateVersion7();
+        var securityStamp = NewSecurityStamp();
+        var concurrencyStamp = NewConcurrencyStamp();
         var batchId = creationOperationId.ToString("N");
         var originalExtension = ImageVariantProcessor.GetExtension(crestContentType);
         var prefix = $"clubs/{userId}/{batchId}";
@@ -147,6 +147,8 @@ public sealed partial class ClubService(
                     input,
                     userId,
                     creationOperationId,
+                    securityStamp,
+                    concurrencyStamp,
                     originalBlobName,
                     smallBlobName,
                     mediumBlobName,
@@ -193,30 +195,6 @@ public sealed partial class ClubService(
 
         var clubDto = result.Value;
 
-        // Add ClubAdmin role outside the transaction. UserManager uses the DI-scoped Identity
-        // context, which may already track a NovaUserEntity for this request — passing our
-        // factory-context instance would cause an identity-map conflict on Attach. Re-fetch
-        // the user through UserManager so the role update uses its own tracked instance.
-        var identityUser = await userManager.FindByIdAsync(userId.ToString());
-        if (identityUser is null)
-        {
-            LogClubAdminRoleAssignmentFailed(userId, clubDto.ClubId);
-        }
-        else
-        {
-            // If the Identity context tracked a stale copy of the user (loaded before our
-            // ClubId update), UserManager's UpdateAsync would persist all of its properties
-            // and clobber ClubId back to null — stamp the new value on its instance first.
-            identityUser.ClubId = clubDto.ClubId;
-
-            var roleResult = await userManager.AddToRoleAsync(identityUser, Roles.ClubAdmin);
-            if (!roleResult.Succeeded)
-            {
-                LogClubAdminRoleAssignmentFailed(userId, clubDto.ClubId);
-                // Club is created and user is a member; role failure is logged but not fatal for the user
-            }
-        }
-
         LogClubCreated(userId, clubDto.ClubId);
         return clubDto;
     }
@@ -225,11 +203,27 @@ public sealed partial class ClubService(
     /// Creates the club, assigns membership, and persists the crest row in a single transaction
     /// using one execution attempt with a fresh context.
     /// </summary>
+    /// <param name="db">The fresh admin context for this execution attempt.</param>
+    /// <param name="input">The validated club and crest input.</param>
+    /// <param name="userId">The creator's user identifier.</param>
+    /// <param name="creationOperationId">The stable logical creation identifier.</param>
+    /// <param name="securityStamp">The claims-invalidation marker shared by retry attempts.</param>
+    /// <param name="concurrencyStamp">The Identity concurrency marker shared by retry attempts.</param>
+    /// <param name="originalBlobName">The uploaded original crest blob name.</param>
+    /// <param name="smallBlobName">The uploaded small crest blob name.</param>
+    /// <param name="mediumBlobName">The uploaded medium crest blob name.</param>
+    /// <param name="largeBlobName">The uploaded large crest blob name.</param>
+    /// <param name="crestContentType">The validated original crest content type.</param>
+    /// <param name="commitAttempted">Tracks whether this attempt reached its commit.</param>
+    /// <param name="cancellationToken">A token that cancels database work.</param>
+    /// <returns>The created club or a known service problem.</returns>
     private async Task<ServiceResult<ClubDto>> CreateClubAsync(
         NovaAdminDbContext db,
         CreateClubInput input,
         long userId,
         Guid creationOperationId,
+        string securityStamp,
+        string concurrencyStamp,
         string originalBlobName,
         string smallBlobName,
         string mediumBlobName,
@@ -270,10 +264,36 @@ public sealed partial class ClubService(
         db.Clubs.Add(club);
         await db.SaveChangesAsync(cancellationToken);
 
-        // Now club.ClubId is set, assign it to the user
+        // The generated club id is now available. Take the club lock after the already-held user
+        // lock, then reload the user before applying membership-sensitive effects.
+        await db.AcquireClubMembershipLockAsync(club.ClubId, cancellationToken);
+        await db.Entry(user).ReloadAsync(cancellationToken);
+        if (user.ClubId is not null)
+        {
+            return ServiceProblem.Conflict("You already belong to a club.");
+        }
+
+        var administratorRoleId = await db.Roles
+            .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+            .Select(role => (long?)role.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (administratorRoleId is null)
+        {
+            return ServiceProblem.ServerError("The club administrator role is not configured.");
+        }
+
+        // Assign membership, administrator role, and claims-invalidating stamps atomically with
+        // the club and crest rows. The completion endpoint only reissues the acting user's cookie.
         user.ClubId = club.ClubId;
-        db.Users.Update(user);
-        await db.SaveChangesAsync(cancellationToken);
+        user.SecurityStamp = securityStamp;
+        user.ConcurrencyStamp = concurrencyStamp;
+        var alreadyAdministrator = await db.UserRoles.AnyAsync(
+            userRole => userRole.UserId == user.Id && userRole.RoleId == administratorRoleId.Value,
+            cancellationToken);
+        if (!alreadyAdministrator)
+        {
+            db.UserRoles.Add(new IdentityUserRole<long> { UserId = user.Id, RoleId = administratorRoleId.Value });
+        }
 
         // Persist the crest row inside the same transaction so a rollback never leaves a database
         // record without blobs (or vice versa). The .NET IDs generated above must be identical to
@@ -298,6 +318,14 @@ public sealed partial class ClubService(
 
         return club.ToClubDto();
     }
+
+    /// <summary>Creates the logical club creation's durable claims-invalidation marker.</summary>
+    /// <returns>A new security stamp.</returns>
+    private static string NewSecurityStamp() => Guid.NewGuid().ToString("N");
+
+    /// <summary>Creates the marker that rejects Identity writes tracked before club creation.</summary>
+    /// <returns>A new Identity concurrency stamp.</returns>
+    private static string NewConcurrencyStamp() => Guid.NewGuid().ToString("N");
 
     /// <summary>
     /// Checks whether a club-creation transaction with an uncertain commit outcome was committed
@@ -462,6 +490,4 @@ public sealed partial class ClubService(
     [LoggerMessage(Level = LogLevel.Error, Message = "Failed to create club for UserId={UserId}.")]
     private partial void LogClubCreationFailed(Exception exception, long userId);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to assign ClubAdmin role to UserId={UserId} for ClubId={ClubId}.")]
-    private partial void LogClubAdminRoleAssignmentFailed(long userId, long clubId);
 }

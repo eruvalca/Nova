@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using Nova.Components.Account;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
@@ -24,7 +23,6 @@ public sealed partial class ClubJoinRequestService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
     ICurrentUserProvider currentUserProvider,
-    ClubMembershipClaimRefresher clubMembershipClaimRefresher,
     UserManager<NovaUserEntity> userManager,
     ILogger<ClubJoinRequestService> logger) : IClubJoinRequestService
 {
@@ -336,7 +334,8 @@ public sealed partial class ClubJoinRequestService(
 
         // The requester is club-less, so the tenant query filters hide the row from the write
         // context. Approval runs on the admin context (filters bypassed) so the membership
-        // assignment and the approved request + MemberJoined event land in ONE SaveChanges,
+        // assignment, Identity stamp rotation, and the approved request + MemberJoined event land
+        // in ONE SaveChanges,
         // atomically (the previous UserManager-first path could commit ClubId without the request
         // evidence and vice versa); the club constraint is applied explicitly because the admin
         // context has no tenant filter. The probe resolves the request identity and validates it up
@@ -365,7 +364,9 @@ public sealed partial class ClubJoinRequestService(
             requestId,
             request.ClubId,
             currentUserProvider.UserId ?? 0,
-            request.RequestingUserId);
+            request.RequestingUserId,
+            NewSecurityStamp(),
+            NewConcurrencyStamp());
         var strategy = probeDb.Database.CreateExecutionStrategy();
         var commitAttempted = new CommitAttemptTracker();
 
@@ -388,39 +389,6 @@ public sealed partial class ClubJoinRequestService(
                 return await VerifyApprovalCommittedAsync(verifyDb, operationState.State, token);
             },
             cancellationToken);
-
-        // Best-effort security-stamp refresh so the newly assigned member's claims are regenerated
-        // after the committed approval; a refresh failure must not fail an already-committed
-        // approval. Reload the requester through UserManager so the instance belongs to the
-        // Identity store's context, then Match the refresh result so a stale-mark failure is
-        // diagnosed instead of silently leaving the member stuck behind the onboarding gate. The
-        // whole block is exception-guarded so an Identity operation that throws (rather than
-        // returning a failed result) also preserves the committed success.
-        if (result.IsSuccess)
-        {
-            try
-            {
-                var identityUser = await userManager.FindByIdAsync(state.RequestingUserId.ToString());
-                if (identityUser is null)
-                {
-                    LogApproveRequestingUserMissing(state.RequestingUserId, state.RequestId);
-                }
-                else
-                {
-                    var refreshResult = await clubMembershipClaimRefresher.MarkUserClaimsStaleAsync(identityUser);
-                    refreshResult.Switch(
-                        _ => { },
-                        error => LogApproveClaimsStaleFailed(
-                            state.RequestingUserId,
-                            state.RequestId,
-                            string.Join(", ", error.Value)));
-                }
-            }
-            catch (Exception exception)
-            {
-                LogApproveClaimsStaleRefreshFailed(exception, state.RequestingUserId, state.RequestId);
-            }
-        }
 
         return result;
     }
@@ -493,9 +461,9 @@ public sealed partial class ClubJoinRequestService(
     }
 
     /// <summary>
-    /// Persists an approval (request status, requester membership, and the member-joined event) in
-    /// one transaction on the provided fresh admin context, after acquiring the request lock so
-    /// concurrent terminal transitions serialize and the loser observes the winner's status.
+    /// Persists an approval (request status, requester membership and stamps, and the member-joined
+    /// event) in one transaction on the provided fresh admin context, after acquiring the request
+    /// lock so concurrent terminal transitions serialize and the loser observes the winner's status.
     /// </summary>
     /// <param name="db">The fresh admin context for this execution attempt.</param>
     /// <param name="state">The logical approval state captured before the strategy started.</param>
@@ -570,6 +538,8 @@ public sealed partial class ClubJoinRequestService(
 
         request.Status = RequestStatus.Approved;
         requestingUser.ClubId = request.ClubId;
+        requestingUser.SecurityStamp = state.SecurityStamp;
+        requestingUser.ConcurrencyStamp = state.ConcurrencyStamp;
 
         ActivityEventWriter.AppendMembership(
             db,
@@ -594,7 +564,8 @@ public sealed partial class ClubJoinRequestService(
 
     /// <summary>
     /// Verifies whether an approval with an uncertain commit outcome actually committed by
-    /// re-reading the request status and the requester's membership without replaying the write.
+    /// re-reading the request status, requester membership, and logical operation stamp without
+    /// replaying the write.
     /// </summary>
     /// <param name="db">The fresh admin context used for commit verification.</param>
     /// <param name="state">The logical approval state captured before the strategy started.</param>
@@ -609,15 +580,16 @@ public sealed partial class ClubJoinRequestService(
             .AsNoTracking()
             .SingleOrDefaultAsync(e => e.ClubJoinRequestId == state.RequestId, cancellationToken);
 
-        var requesterClubId = await db.Users
+        var requesterState = await db.Users
             .AsNoTracking()
             .Where(user => user.Id == state.RequestingUserId)
-            .Select(user => user.ClubId)
+            .Select(user => new { user.ClubId, user.SecurityStamp })
             .SingleOrDefaultAsync(cancellationToken);
 
         if (request is { Status: RequestStatus.Approved }
-            && requesterClubId is long assignedClubId
-            && assignedClubId == state.ClubId)
+            && requesterState?.ClubId is long assignedClubId
+            && assignedClubId == state.ClubId
+            && requesterState.SecurityStamp == state.SecurityStamp)
         {
             LogJoinRequestApproved(state.AdminUserId, state.RequestId, state.RequestingUserId, state.ClubId);
             return new ExecutionResult<ServiceResult<Success>>(successful: true, new Success());
@@ -804,7 +776,21 @@ public sealed partial class ClubJoinRequestService(
     private readonly record struct CancellationState(long RequestId, long UserId, string RequesterName);
 
     /// <summary>Captured, immutable state for one approval attempt.</summary>
-    private readonly record struct ApprovalState(long RequestId, long ClubId, long AdminUserId, long RequestingUserId);
+    private readonly record struct ApprovalState(
+        long RequestId,
+        long ClubId,
+        long AdminUserId,
+        long RequestingUserId,
+        string SecurityStamp,
+        string ConcurrencyStamp);
+
+    /// <summary>Creates the logical approval's durable claims-invalidation marker.</summary>
+    /// <returns>A new security stamp.</returns>
+    private static string NewSecurityStamp() => Guid.NewGuid().ToString("N");
+
+    /// <summary>Creates the marker that rejects Identity writes tracked before approval.</summary>
+    /// <returns>A new Identity concurrency stamp.</returns>
+    private static string NewConcurrencyStamp() => Guid.NewGuid().ToString("N");
 
     /// <summary>Captured, immutable state for one rejection attempt.</summary>
     private readonly record struct RejectionState(long RequestId, long ClubId, long AdminUserId, string AdminName, string RequesterName);
@@ -817,12 +803,6 @@ public sealed partial class ClubJoinRequestService(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but requesting user not found: RequestingUserId={RequestingUserId}, RequestId={RequestId}.")]
     private partial void LogApproveRequestingUserMissing(long requestingUserId, long requestId);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but failed to mark the member's claims stale: RequestingUserId={RequestingUserId}, RequestId={RequestId}, Errors={Errors}.")]
-    private partial void LogApproveClaimsStaleFailed(long requestingUserId, long requestId, string errors);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Approved join request but the claims-stale refresh threw: RequestingUserId={RequestingUserId}, RequestId={RequestId}.")]
-    private partial void LogApproveClaimsStaleRefreshFailed(Exception exception, long requestingUserId, long requestId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Join request created: RequestId={RequestId} for UserId={UserId} to ClubId={ClubId}.")]
     private partial void LogJoinRequestCreated(long userId, long clubId, long requestId);

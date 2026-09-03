@@ -15,6 +15,8 @@ namespace Nova.Components.Account;
 public sealed class ClubMembershipClaimRefresher(UserManager<NovaUserEntity> userManager, SignInManager<NovaUserEntity> signInManager)
 {
     /// <summary>Reissues the current user's cookie after its stamp was changed transactionally.</summary>
+    /// <param name="user">A fresh, no-tracking snapshot of the acting user after commit.</param>
+    /// <returns>A successful refresh result.</returns>
     public async Task<OneOf<Success, Error<string[]>>> RefreshCurrentUserSignInAsync(NovaUserEntity user)
     {
         await signInManager.RefreshSignInAsync(user);
@@ -22,8 +24,9 @@ public sealed class ClubMembershipClaimRefresher(UserManager<NovaUserEntity> use
     }
 
     /// <summary>
-    /// Refreshes claims after the CURRENT user's club membership changed (e.g. they created a
-    /// club or left one). Bumps the security stamp and reissues the sign-in cookie.
+    /// Refreshes claims after the CURRENT user's club membership changed through a path that did
+    /// not already rotate the security stamp transactionally. Bumps the stamp and reissues the
+    /// sign-in cookie.
     /// </summary>
     /// <param name="user">The user.</param>
     /// <returns>
@@ -44,10 +47,10 @@ public sealed class ClubMembershipClaimRefresher(UserManager<NovaUserEntity> use
     }
 
     /// <summary>
-    /// Marks ANOTHER user's claims as stale after their membership changed (e.g. an admin
-    /// approved their join request). Their cookie cannot be reissued from here; bumping the
-    /// security stamp causes <see cref="IdentityRevalidatingAuthenticationStateProvider"/>
-    /// to rebuild their principal at the next revalidation interval.
+    /// Marks ANOTHER user's claims as stale after a path that did not already rotate the security
+    /// stamp transactionally. Their cookie cannot be reissued from here; bumping the security stamp
+    /// causes <see cref="IdentityRevalidatingAuthenticationStateProvider"/> to rebuild their
+    /// principal at the next revalidation interval.
     /// </summary>
     /// <param name="user">The user.</param>
     /// <returns>

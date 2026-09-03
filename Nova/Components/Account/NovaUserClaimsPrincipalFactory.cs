@@ -12,11 +12,11 @@ namespace Nova.Components.Account;
 /// Adds the <see cref="NovaClaimTypes.ClubId"/>, <see cref="NovaClaimTypes.ClubName"/>,
 /// and <see cref="NovaClaimTypes.HasProfilePhoto"/> claims (and role claims via the base factory)
 /// to the user's principal at sign-in.
-/// IMPORTANT: when a user's club membership changes, the cookie must be refreshed for the new
-/// claim to take effect — call <c>UserManager.UpdateSecurityStampAsync(user)</c> and, for the
-/// current user, <c>SignInManager.RefreshSignInAsync(user)</c>. Other users' cookies are
-/// rebuilt by <see cref="IdentityRevalidatingAuthenticationStateProvider"/> on its
-/// revalidation interval. The same refresh is required when a club's display name changes.
+/// IMPORTANT: when a user's club membership changes, rotate the security stamp through the owning
+/// mutation. For the current user, reissue the cookie with
+/// <c>SignInManager.RefreshSignInAsync(user)</c>; other users' cookies are rebuilt by
+/// <see cref="IdentityRevalidatingAuthenticationStateProvider"/> on its revalidation interval.
+/// The same refresh is required when a club's display name changes.
 /// </summary>
 /// <param name="userManager">The user Manager.</param>
 /// <param name="roleManager">The role Manager.</param>

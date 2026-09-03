@@ -56,11 +56,18 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 - `ICurrentUserProvider` (`Nova/Data/Tenancy/`) resolves the user from `IHttpContextAccessor`
   first, then the Blazor `AuthenticationStateProvider`. `NullCurrentUserProvider` is for design
   time and tests.
-- The club id travels as the `NovaClaimTypes.ClubId` claim, added by `NovaUserClaimsPrincipalFactory`. When membership changes, call `ClubMembershipClaimRefresher` (`RefreshCurrentUserAsync` for the acting user or `MarkUserClaimsStaleAsync` for another) and `Match` its `OneOf<Success, Error<string[]>>` — do not ignore it.
+- The club id travels as the `NovaClaimTypes.ClubId` claim, added by
+  `NovaUserClaimsPrincipalFactory`. A membership mutation owns exactly one claims-invalidation path:
+  either the direct-EF transactional path below, or `ClubMembershipClaimRefresher`
+  (`RefreshCurrentUserAsync` for the acting user or `MarkUserClaimsStaleAsync` for another) when
+  Identity owns the stamp update. `Match` the helper's `OneOf<Success, Error<string[]>>`; do not
+  ignore it or combine it with an already-transactional stamp write.
 - When membership or Identity roles change through EF so they can share a domain transaction,
-  rotate both `SecurityStamp` and `ConcurrencyStamp` through that same context. After commit, load
-  the acting user from a fresh `NovaAdminDbContext` with `AsNoTracking` before refreshing the cookie;
-  do not refresh from a possibly stale entity tracked by the scoped `UserManager`.
+  rotate both `SecurityStamp` and `ConcurrencyStamp` through that same context. For the acting
+  user's own change, load them after commit from a fresh `NovaAdminDbContext` with `AsNoTracking`
+  and call the refresh-only `RefreshCurrentUserSignInAsync`; do not refresh from a possibly stale
+  entity tracked by the scoped `UserManager`. A remote user's transactional `SecurityStamp` is the
+  invalidation marker—do not call the stamp-mutating `MarkUserClaimsStaleAsync` after commit.
 - New users get `Roles.StandardUser` at registration (see `Register.razor` / `ExternalLogin.razor`).
 
 ## Entities, configurations, relationships
