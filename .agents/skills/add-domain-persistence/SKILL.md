@@ -31,6 +31,12 @@ Canonical examples:
 
 1. **Define invariants first** — identify tenant ownership, lifecycle states, history requirements,
    authorization, uniqueness, delete behavior, and concurrency/race boundaries.
+   When adding a lifecycle state, search the enum symbol repository-wide and explicitly classify
+   the new state across mutation guards, capabilities, query filters, projections, endpoint/query
+   binding, strict WASM validators, presentation ordering, and tests. Persisted numeric enum values
+   are identity, not presentation order; use explicit allowlists and sort ranks unless numeric
+   ordering or contiguity is contractual. When the state crosses HTTP/WASM, use `add-feature-slice`
+   or `add-api-endpoint` for the affected boundary instead of stopping at persistence.
 2. **Choose the decision boundary** — when rules form a non-trivial deterministic matrix, follow
    [functional-core-imperative-shell.md](references/functional-core-imperative-shell.md). Keep simple
    guards inline or on the entity. Logic-only policy work may skip every persistence-specific step.

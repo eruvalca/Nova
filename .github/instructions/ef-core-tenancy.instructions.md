@@ -37,6 +37,9 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   `NovaUserEntity` (bespoke filter: clubmates or self), `NovaUserPhotoEntity` (mirrors the user
   filter via `e.NovaUser.ClubId` — required dependents of a filtered principal must mirror the
   principal's filter or EF warns at startup).
+- A principal query filter does not protect rows queried directly from a dependent `DbSet`. When
+  role or lifecycle visibility hides the principal, mirror that boundary on every dependent that
+  can disclose it, and test principal, dependent, and `NovaAdminDbContext` bypass reads.
 - Query filters may only reference fields/properties on the context instance (`_bypassTenantFilter`, `_currentUser.ClubId`, `_currentUser.UserId`, `_currentUser.IsClubAdmin`) so EF parameterizes them per instance. Keep `ICurrentUserProvider` members flat primitives; `GetCurrentUserState()` (a OneOf union) is for application/UI logic only.
 - EF allows ONE query filter per entity (`HasQueryFilter` replaces). Bespoke filters live in
   `ApplicationDbContext` after the generic loop — never add filters in entity configurations.
