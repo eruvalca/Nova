@@ -112,6 +112,7 @@ Conventions:
   through a bounded hard-coded window before failing fast; `IdentityHttpClientHelper` retries the
   profile-photo upload on transient failures (transport errors / 5xx) with a fresh multipart payload
   per attempt.
+- **Machine-scoped serialization**: Aspire-backed integration and browser runs share the machine's single Docker engine, so a concurrent run from another worktree can push this suite's bounded retry windows (`BrowserRetryPolicy`, the fixture's Azurite probe) into flaky timeouts — wait for the other run instead. The runs' identities are already isolated: the testing builder randomizes host ports (`DcpPublisher:RandomizePorts=true` default), DCP appends per-run random suffixes to container and session-network names, the fixture strips all data volumes (`RemoveDataVolumes`), and dev-run volumes hash the checkout path — so the shared piece is capacity, not names or ports.
 - The full step-by-step recipe lives in `.agents/skills/nova-testing/references/browser-suite.md`.
 
 ## Aspire + Playwright validation (manual browser pass)

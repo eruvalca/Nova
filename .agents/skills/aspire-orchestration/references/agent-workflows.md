@@ -20,6 +20,8 @@ aspire wait myapi
 Keep these points in mind:
 
 - In a git worktree, rerun `aspire start --isolated` whenever AppHost changes need to be picked up.
+- Set `ASPIRE_HOME` to a worktree-local directory (e.g. `<worktree>\.aspire-home` or a hashed temp dir) before starting, so the CLI home (`~/.aspire`: bundle, DCP binaries, dev certs, logs) is not shared between concurrent worktree sessions. Docker containers, networks, ports, and data volumes are already isolated per run or per checkout path — the CLI home is the one machine-state directory worth splitting.
+- `--isolated` randomizes ports and user secrets but not the OTLP exporter port ([#16107](https://github.com/microsoft/aspire/issues/16107)); if two worktrees need telemetry at once, point each at a distinct `OTEL_EXPORTER_OTLP_ENDPOINT` or disable telemetry for one.
 - Outside worktrees, rerun `aspire start`.
 - Avoid `aspire run` in normal agent workflows because it blocks the terminal.
 

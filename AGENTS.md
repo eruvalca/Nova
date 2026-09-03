@@ -17,7 +17,8 @@
 ## Build & validation
 
 - Build: `dotnet build Nova.slnx`
-- Within one worktree, do not run build-capable `dotnet build` or `dotnet test` commands concurrently: building `Nova/Nova.csproj` may execute `npm ci`, which replaces the shared `Nova/node_modules` tree. Run `dotnet build Nova.slnx` first, then use `--no-build` for tests. Keep the Aspire-backed integration and browser suites serial because their AppHost/Docker resources can interfere with each other.
+- Within one worktree, do not run build-capable `dotnet build` or `dotnet test` commands concurrently: building `Nova/Nova.csproj` may execute `npm ci`, which replaces the shared `Nova/node_modules` tree. Run `dotnet build Nova.slnx` first, then use `--no-build` for tests.
+- Keep the Aspire-backed integration and browser suites serial. Within one worktree, two live AppHosts at once can exhaust the shared Postgres connection pool; across worktrees, every run shares the machine's single Docker engine, so a concurrent suite's load can push the browser suite's bounded hydration/Azurite retry windows into flaky timeouts. Only the capacity is shared — container names, session networks, host ports, and Postgres/Azurite data volumes are already randomized per run or hashed per checkout path (`aspire start --isolated` covers dev-run ports and user secrets) — so treat this as a per-machine mutex, not a name-collision guard.
 - Run: `dotnet run --project Nova.AppHost` (delegates through the Aspire 13.5 CLI bundle; Aspire provisions PostgreSQL 18 and the Azurite blob emulator for `profile-photos`, and exposes the dashboard plus `/health`/`/alive`). `Nova` has no usable connection string or blob client without the AppHost.
 - OpenAPI document: `/openapi` (Development only).
 - Format check (required before commit): `dotnet format Nova.slnx --verify-no-changes`; apply fixes with `dotnet format Nova.slnx`
