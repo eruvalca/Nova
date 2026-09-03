@@ -153,52 +153,6 @@ public sealed class HttpCampaignCreationServiceTests
         result.Problem.Detail.ShouldBe("The server returned an invalid campaign creation response.");
     }
 
-    /// <summary>Verifies stale Active creation responses are rejected.</summary>
-    [Fact]
-    public async Task CreateAsync_ReturnsServerError_ForActiveSuccessPayload()
-    {
-        var input = ValidInput();
-        using var response = new HttpResponseMessage(HttpStatusCode.Created)
-        {
-            Content = JsonContent.Create(CreatedResult(input.OperationId) with { Status = CampaignStatus.Active })
-        };
-        var handler = new FakeHttpMessageHandler(response);
-        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
-
-        var result = await new HttpCampaignCreationService(http).CreateAsync(
-            input,
-            TestContext.Current.CancellationToken);
-
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-    }
-
-    /// <summary>Verifies the removed enrollment-count response shape is rejected.</summary>
-    [Fact]
-    public async Task CreateAsync_ReturnsServerError_ForRemovedEnrollmentField()
-    {
-        var input = ValidInput();
-        var payload = $$"""
-            {"operationId":"{{input.OperationId}}","campaignId":100,"campaignName":"Summer Tryouts",
-            "campaignStartDate":"2026-06-01","campaignPlannedEndDate":"2026-06-30","status":2,
-            "seasonId":42,"seasonName":"2026","seasonStartDate":"2026-01-01","seasonEndDate":"2026-12-31",
-            "seasonCreatedInline":false,"enrolledPlayerCount":12}
-            """;
-        using var response = new HttpResponseMessage(HttpStatusCode.Created)
-        {
-            Content = new StringContent(payload, Encoding.UTF8, "application/json")
-        };
-        var handler = new FakeHttpMessageHandler(response);
-        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
-
-        var result = await new HttpCampaignCreationService(http).CreateAsync(
-            input,
-            TestContext.Current.CancellationToken);
-
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
-    }
-
     /// <summary>
     /// Verifies malformed success JSON becomes an explicit server error.
     /// </summary>
@@ -243,10 +197,11 @@ public sealed class HttpCampaignCreationServiceTests
         "Summer Tryouts",
         new DateOnly(2026, 6, 1),
         new DateOnly(2026, 6, 30),
-        CampaignStatus.Draft,
+        CampaignStatus.Active,
         42,
         "2026",
         new DateOnly(2026, 1, 1),
         new DateOnly(2026, 12, 31),
-        false);
+        false,
+        12);
 }

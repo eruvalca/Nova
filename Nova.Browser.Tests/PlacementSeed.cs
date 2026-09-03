@@ -16,7 +16,7 @@ namespace Nova.Browser.Tests;
 /// <param name="ClubId">The owning club identifier.</param>
 /// <param name="CampaignId">The active campaign identifier.</param>
 /// <param name="ClosedCampaignId">The closed campaign identifier.</param>
-/// <param name="AllResolvedCampaignId">The historical campaign identifier whose placements are all resolved.</param>
+/// <param name="AllResolvedCampaignId">The active campaign identifier whose placements are all resolved.</param>
 /// <param name="AdminUserId">The club administrator's user identifier.</param>
 /// <param name="AdminEmail">The club administrator's login e-mail.</param>
 /// <param name="SecondAdminUserId">The second club administrator's user identifier.</param>
@@ -144,28 +144,10 @@ public static class PlacementSeed
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        // All-resolved historical campaign: every participant already has a final outcome, so the
+        // All-resolved active campaign: every participant already has a final outcome, so the
         // unresolved-only placements view is empty while the summary reports zero undecided.
         var allResolved = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
             fixture, club.ClubId, adminEmail, "Resolved", 3, PlacementOutcome.NotSelected, cancellationToken);
-        await using (var context = fixture.CreateAdminContext())
-        {
-            var allResolvedCampaign = await context.Campaigns.SingleAsync(
-                candidate => candidate.CampaignId == allResolved.CampaignId,
-                cancellationToken);
-            allResolvedCampaign.Status = CampaignStatus.Closed;
-            allResolvedCampaign.ClosedAt = DateTimeOffset.UtcNow.AddDays(-1);
-            allResolvedCampaign.ClosedById = adminUserId;
-            await context.SaveChangesAsync(cancellationToken);
-
-            var activeCampaign = await context.Campaigns.SingleAsync(
-                candidate => candidate.CampaignId == active.CampaignId,
-                cancellationToken);
-            activeCampaign.Status = CampaignStatus.Active;
-            activeCampaign.ClosedAt = null;
-            activeCampaign.ClosedById = null;
-            await context.SaveChangesAsync(cancellationToken);
-        }
 
         return new SeededPlacementWorkspace(
             club.ClubId,

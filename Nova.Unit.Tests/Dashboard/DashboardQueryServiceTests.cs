@@ -100,9 +100,9 @@ public sealed class DashboardQueryServiceTests : IDisposable
         dashboard.Teams.ArchivedTeams.ShouldBe(0);
     }
 
-    /// <summary>Verifies administrator-only Draft campaigns do not appear on the member dashboard.</summary>
+    /// <summary>Verifies the active campaign cards are bounded to the dashboard maximum.</summary>
     [Fact]
-    public async Task GetDashboard_ExcludesDraftCampaignsForMembers()
+    public async Task GetDashboard_CapsActiveCampaignsAtMaxCount()
     {
         using (var admin = _harness.CreateAdminContext())
         {
@@ -114,7 +114,7 @@ public sealed class DashboardQueryServiceTests : IDisposable
                     CreationOperationId = Guid.NewGuid(),
                     Name = $"Extra {index:D2}",
                     StartDate = new DateOnly(2026, 7, 1),
-                    Status = CampaignStatus.Draft,
+                    Status = CampaignStatus.Active,
                     SeasonId = season.SeasonId,
                     ClubId = ClubAId,
                     CreatedById = ClubAMemberId
@@ -131,7 +131,7 @@ public sealed class DashboardQueryServiceTests : IDisposable
         var result = await CreateService().GetDashboardAsync(TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.ActiveCampaigns.Count.ShouldBe(1);
+        result.Value.ActiveCampaigns.Count.ShouldBe(ClubDashboardResult.ActiveCampaignMaxCount);
     }
 
     /// <summary>Seeds clubs, users, seasons, campaigns, players, teams, and assignments.</summary>

@@ -482,9 +482,6 @@ public sealed class CampaignParticipantQueryServiceTests : IDisposable
         long emptyCampaignId;
         using (var admin = _harness.CreateAdminContext())
         {
-            admin.Campaigns.Single(campaign => campaign.ClubId == ClubAId
-                && campaign.Status == CampaignStatus.Active).Status = CampaignStatus.Draft;
-            admin.SaveChanges();
             var season = admin.Seasons.Single(season => season.ClubId == ClubAId);
             var campaign = new CampaignEntity
             {

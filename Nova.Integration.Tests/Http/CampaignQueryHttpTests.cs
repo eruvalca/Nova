@@ -20,7 +20,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
     /// <summary>Provides the password used by registered integration-test users.</summary>
     private const string Password = "Test#Passw0rd!";
 
-    /// <summary>Verifies anonymous rejection, member reads, and administrator-only creation setup.</summary>
+    /// <summary>Verifies anonymous rejection and approved-member access for both routes.</summary>
     [Fact]
     public async Task GetEndpoints_RejectAnonymous_AndAllowApprovedMember()
     {
@@ -54,14 +54,12 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
 
         // Seed a season and campaign
         CampaignEntity campaign;
-        CampaignEntity draft;
         await using (var context = fixture.CreateAdminContext())
         {
             var userId = await context.Users.Where(u => u.NormalizedEmail == email.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
             var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "S", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = userId };
             campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "C", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = userId };
-            draft = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Draft C", StartDate = new DateOnly(2026, 7, 1), Status = CampaignStatus.Draft, Season = season, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = userId };
-            context.AddRange(season, campaign, draft);
+            context.AddRange(season, campaign);
             await context.SaveChangesAsync(cancellationToken);
             var trackedClub = await context.Clubs.SingleAsync(
                 candidate => candidate.ClubId == club.ClubId,
@@ -74,14 +72,13 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         resp.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         using var setupResp = await client.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
-        setupResp.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-
-        using var adminSetupResp = await adminClient.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
-        adminSetupResp.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var setup = await adminSetupResp.Content.ReadFromJsonAsync<CampaignCreationSetupResult>(cancellationToken);
+        setupResp.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var setup = await setupResp.Content.ReadFromJsonAsync<CampaignCreationSetupResult>(cancellationToken);
         setup.ShouldNotBeNull();
         setup.CurrentSeason.ShouldNotBeNull();
         setup.CurrentSeason.Name.ShouldBe("S");
+        setup.ActivePlayerCount.ShouldBe(0);
+        setup.ActiveTeamCount.ShouldBe(0);
 
         using var detailResp = await client.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(campaign.CampaignId), cancellationToken);
         detailResp.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -91,27 +88,6 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         detail.Name.ShouldBe("C");
         detail.Status.ShouldBe(CampaignStatus.Active);
         detail.SeasonName.ShouldBe("S");
-
-        using var memberDraftList = await client.GetAsync(
-            CampaignEndpoints.GetCampaignListUrl("draft"),
-            cancellationToken);
-        memberDraftList.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var memberDrafts = await memberDraftList.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
-        memberDrafts.ShouldNotBeNull();
-        memberDrafts.TotalCount.ShouldBe(0);
-
-        using var memberDraftDetail = await client.GetAsync(
-            CampaignEndpoints.GetCampaignDetailUrl(draft.CampaignId),
-            cancellationToken);
-        memberDraftDetail.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-
-        using var adminDraftList = await adminClient.GetAsync(
-            CampaignEndpoints.GetCampaignListUrl("draft"),
-            cancellationToken);
-        adminDraftList.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var adminDrafts = await adminDraftList.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
-        adminDrafts.ShouldNotBeNull();
-        adminDrafts.TotalCount.ShouldBe(1);
     }
 
     /// <summary>Verifies authenticated callers without a club receive forbidden responses.</summary>

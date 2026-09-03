@@ -34,13 +34,13 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>
     /// Creates two players concurrently for the same club and asserts both are persisted
-    /// and both are enrolled in the club's sole Active campaign exactly once.
+    /// and both are enrolled in every Active campaign exactly once.
     /// </summary>
     [Fact]
     public async Task ConcurrentPlayerCreation_SameClub_BothPersistWithCorrectEnrollments()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var seed = await SeedAsync(activeCampaignCount: 1, cancellationToken);
+        var seed = await SeedAsync(activeCampaignCount: 2, cancellationToken);
 
         ActAs(seed.ActorUserId, seed.ClubId, isAdmin: true);
 
@@ -80,8 +80,8 @@ public sealed class PlayerEnrollmentPostgresTests(NovaAppHostFixture fixture)
             .Where(a => a.PlayerId == id2)
             .ToListAsync(cancellationToken);
 
-        assignments1.Count.ShouldBe(1, "Player One should be enrolled in the Active campaign");
-        assignments2.Count.ShouldBe(1, "Player Two should be enrolled in the Active campaign");
+        assignments1.Count.ShouldBe(2, "Player One should be enrolled in both Active campaigns");
+        assignments2.Count.ShouldBe(2, "Player Two should be enrolled in both Active campaigns");
 
         assignments1.Select(a => a.CampaignId).ShouldBeUnique("no duplicate enrollments for Player One");
         assignments2.Select(a => a.CampaignId).ShouldBeUnique("no duplicate enrollments for Player Two");

@@ -256,6 +256,9 @@ namespace Nova.Data.Migrations
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("date");
 
+                    b.Property<int>("InitialEnrolledPlayerCount")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset?>("ModifiedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -283,11 +286,6 @@ namespace Nova.Data.Migrations
 
                     b.HasAlternateKey("CampaignId", "ClubId");
 
-                    b.HasIndex("ClubId")
-                        .IsUnique()
-                        .HasDatabaseName("UX_Campaigns_ClubId_Active")
-                        .HasFilter("\"Status\" = 0");
-
                     b.HasIndex("SeasonId");
 
                     b.HasIndex("ClubId", "CreationOperationId")
@@ -300,7 +298,7 @@ namespace Nova.Data.Migrations
 
                     b.ToTable("Campaigns", t =>
                         {
-                            t.HasCheckConstraint("CK_Campaigns_StatusClosureMetadata", "(\"Status\" IN (0, 2) AND \"ClosedAt\" IS NULL AND \"ClosedById\" IS NULL) OR (\"Status\" = 1 AND \"ClosedAt\" IS NOT NULL AND \"ClosedById\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_Campaigns_StatusClosureMetadata", "(\"Status\" = 0 AND \"ClosedAt\" IS NULL AND \"ClosedById\" IS NULL) OR (\"Status\" = 1 AND \"ClosedAt\" IS NOT NULL AND \"ClosedById\" IS NOT NULL)");
                         });
                 });
 

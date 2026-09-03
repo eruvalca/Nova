@@ -167,7 +167,6 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
     [Fact]
     public async Task GetCloseoutReadiness_ReturnsUndecidedBlocker_WithIds()
     {
-        SetOnlyActiveCampaign(_undecidedCampaignId);
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
 
@@ -188,7 +187,6 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
     [Fact]
     public async Task GetCloseoutReadiness_ReturnsEligibilityBlocker_WithIds()
     {
-        SetOnlyActiveCampaign(_ineligibleCampaignId);
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
 
@@ -208,7 +206,6 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
     [Fact]
     public async Task GetCloseoutReadiness_ReturnsArchivedTeamBlocker_WithIds()
     {
-        SetOnlyActiveCampaign(_archivedCampaignId);
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
 
@@ -228,7 +225,6 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
     [Fact]
     public async Task GetCloseoutReadiness_ReturnsAllBlockers_InStableOrder()
     {
-        SetOnlyActiveCampaign(_multiCampaignId);
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
 
@@ -318,10 +314,10 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
         var readyCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Ready", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
         var closedCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Closed", StartDate = new DateOnly(2026, 5, 1), Status = CampaignStatus.Closed, ClosedAt = DateTimeOffset.UtcNow, ClosedById = ClubAAdminId, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var undecidedCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Undecided", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Draft, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var ineligibleCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Ineligible", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Draft, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var archivedCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "ArchivedTeam", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Draft, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var multiCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Multi", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Draft, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var undecidedCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Undecided", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var ineligibleCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Ineligible", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var archivedCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "ArchivedTeam", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var multiCampaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Multi", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
         var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "ClubB", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = 501, ClubId = ClubBId, CreatedById = ClubBMemberId };
         admin.Campaigns.AddRange(readyCampaign, closedCampaign, undecidedCampaign, ineligibleCampaign, archivedCampaign, multiCampaign, campaignB);
         admin.SaveChanges();
@@ -390,19 +386,6 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
         _multiUndecidedId = multiUndecidedAssignment.PlayerCampaignAssignmentId;
         _multiIneligibleId = multiIneligibleAssignment.PlayerCampaignAssignmentId;
         _multiArchivedId = multiArchivedAssignment.PlayerCampaignAssignmentId;
-    }
-
-    /// <summary>Chooses the sole Active campaign for a readiness scenario.</summary>
-    /// <param name="campaignId">The campaign to activate.</param>
-    private void SetOnlyActiveCampaign(long campaignId)
-    {
-        using var db = _harness.CreateAdminContext();
-        var current = db.Campaigns.Single(campaign => campaign.ClubId == ClubAId
-            && campaign.Status == CampaignStatus.Active);
-        current.Status = CampaignStatus.Draft;
-        db.SaveChanges();
-        db.Campaigns.Single(campaign => campaign.CampaignId == campaignId).Status = CampaignStatus.Active;
-        db.SaveChanges();
     }
 
     /// <summary>Creates one seeded player.</summary>

@@ -24,6 +24,11 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     public bool SeasonCreatedInline { get; set; }
 
     /// <summary>
+    /// Gets or sets the Active-player count returned when the campaign was originally created.
+    /// </summary>
+    public int InitialEnrolledPlayerCount { get; set; }
+
+    /// <summary>
     /// Gets or sets the Name.
     /// </summary>
     public required string Name { get; set; }
@@ -37,9 +42,9 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     public DateOnly? EndDate { get; set; } = null;
 
     /// <summary>
-    /// Gets or sets the campaign lifecycle status.
+    /// Gets or sets whether the campaign is active or closed.
     /// </summary>
-    public CampaignStatus Status { get; set; } = CampaignStatus.Draft;
+    public CampaignStatus Status { get; set; } = CampaignStatus.Active;
 
     /// <summary>
     /// Gets or sets when the campaign was closed.

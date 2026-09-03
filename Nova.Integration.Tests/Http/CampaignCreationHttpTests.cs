@@ -197,12 +197,13 @@ public sealed class CampaignCreationHttpTests(NovaAppHostFixture fixture)
         created.CampaignName.ShouldBe(input.Name);
         created.CampaignStartDate.ShouldBe(input.StartDate);
         created.CampaignPlannedEndDate.ShouldBe(input.PlannedEndDate);
-        created.Status.ShouldBe(CampaignStatus.Draft);
+        created.Status.ShouldBe(CampaignStatus.Active);
         created.SeasonId.ShouldBeGreaterThan(0);
         created.SeasonName.ShouldBe(input.InlineSeason!.Name);
         created.SeasonStartDate.ShouldBe(input.InlineSeason.StartDate);
         created.SeasonEndDate.ShouldBe(input.InlineSeason.EndDate);
         created.SeasonCreatedInline.ShouldBeTrue();
+        created.EnrolledPlayerCount.ShouldBe(0);
     }
 
     private static CreateCampaignInput ValidInlineInput() => new()

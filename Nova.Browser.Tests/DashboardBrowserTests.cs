@@ -24,12 +24,15 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
 
-        // The sole Active campaign row includes both unresolved and decided participants.
+        // Two campaign rows with the seeded participant/unresolved counts.
         var rows = page.Locator("tbody tr");
-        await Expect(rows).ToHaveCountAsync(1);
+        await Expect(rows).ToHaveCountAsync(2);
         var undecidedRow = rows.Filter(new() { HasText = seed.UndecidedCampaignName });
-        await Expect(undecidedRow.Locator("td").Nth(1)).ToHaveTextAsync("3");
+        await Expect(undecidedRow.Locator("td").Nth(1)).ToHaveTextAsync("2");
         await Expect(undecidedRow.Locator("td").Nth(2)).ToHaveTextAsync("2");
+        var decidedRow = rows.Filter(new() { HasText = seed.DecidedCampaignName });
+        await Expect(decidedRow.Locator("td").Nth(1)).ToHaveTextAsync("1");
+        await Expect(decidedRow.Locator("td").Nth(2)).ToHaveTextAsync("0");
 
         // The workspace link is a plain <a> that performs a full navigation.
         await page.GetByRole(AriaRole.Link, new() { Name = $"Open workspace for {seed.UndecidedCampaignName}" }).ClickAsync();
@@ -68,7 +71,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         var page = context.Pages[0];
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
-        await Expect(page.Locator("tbody tr")).ToHaveCountAsync(1);
+        await Expect(page.Locator("tbody tr")).ToHaveCountAsync(2);
 
         // Recent activity includes the seeded member-visible event and resolves the evaluator actor's
         // display name.
@@ -148,14 +151,14 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/dashboard").ToString());
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
-        await Expect(page.Locator("tbody tr")).ToHaveCountAsync(1);
+        await Expect(page.Locator("tbody tr")).ToHaveCountAsync(2);
 
         await page.GetByRole(AriaRole.Link, new() { Name = $"Open workspace for {seed.UndecidedCampaignName}" }).ClickAsync();
         await page.WaitForURLAsync(url => url.Contains($"/campaigns/{seed.UndecidedCampaignId}", StringComparison.OrdinalIgnoreCase));
         await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
-        await Expect(page.Locator("tbody tr")).ToHaveCountAsync(1);
+        await Expect(page.Locator("tbody tr")).ToHaveCountAsync(2);
     }
 
     /// <summary>
