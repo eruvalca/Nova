@@ -13,10 +13,18 @@ group.MapPost("", CreateUserHandler)
     .Produces<UserDto>(StatusCodes.Status201Created)
     .ProducesProblem(StatusCodes.Status400BadRequest)  // Validation
     .ProducesProblem(StatusCodes.Status409Conflict)    // Email conflict
-    .ProducesProblem(StatusCodes.Status403Forbidden)   // User not authorized
+    .ProducesProblem(StatusCodes.Status401Unauthorized) // Anonymous caller
+    .ProducesProblem(StatusCodes.Status403Forbidden)    // Authenticated but not authorized
     .ProducesProblem(StatusCodes.Status500InternalServerError)  // Unexpected error
     .WithName("CreateUser");
 ```
+
+Authorization middleware returns `401` for an anonymous caller and `403` when an authenticated
+caller fails the selected policy; advertise each status that the policy can reach. For a form-bound
+multipart endpoint, also declare `415` because model binding can reject a non-form content type before
+the handler runs. Declare `413` when request-size middleware is configured for the route. Exercise
+these framework-generated paths through real HTTP tests so metadata, middleware, and trace-correlated
+ProblemDetails stay aligned.
 
 ## Antiforgery Handling
 

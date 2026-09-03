@@ -370,6 +370,9 @@ __blobstorage__/
 .playwright-cli/page-*.yml
 .playwright-mcp/
 
+# Test-generation agent scratch state
+.testagent/
+
 # Sass-compiled Bootstrap theme (built by the BuildBootstrapTheme MSBuild target)
 Nova/wwwroot/css/
 

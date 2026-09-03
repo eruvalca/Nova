@@ -67,6 +67,10 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 
 - Declare possible problem responses with `ProducesProblem`; use `WithName` for routes referenced in
   redirection/OpenAPI.
+- For policy-protected endpoints, advertise `401` for anonymous callers and `403` when an
+  authenticated caller can fail the policy. A form-bound multipart endpoint can return `415` before
+  its handler for a non-form content type, and configured request-size middleware can return `413`;
+  declare and HTTP-test those framework responses when reachable.
 - Apply the narrowest required authorization policy at the group or handler level. If an operation is
   administrator-only, middleware must require the administrator policy even when the service repeats
   the check as defense in depth; authentication-only metadata is insufficient.
@@ -79,6 +83,9 @@ Remove dead endpoints end to end in one change: route constants/builders, input/
 - `builder.Services.AddValidation()` (global in `Program.cs`) makes parameter validation automatic and opt-out. Use `DisableValidation()` on endpoints where model binding does not apply (streaming/multipart).
 - Annotate input records in `Nova.Shared` with DataAnnotations (see `.github/instructions/validation.instructions.md`). On body endpoints declare `.ProducesValidationProblem()` (not `.ProducesProblem(400)`); the single-400 rationale is in **ProblemDetails and trace IDs**.
 - For inputs not expressible as DataAnnotations (file size, content-type, streaming), validate manually in the handler and return `ServiceProblem.Validation(...).ToHttpResult()`.
+- Treat multipart filenames and content types as untrusted metadata and validate them before opening
+  or buffering the stream. When the original filename is not part of the contract, have the WASM
+  client send a fixed safe filename; keep the server and WASM metadata-acceptance rules identical.
 
 ## Optional `[AsParameters]` query properties
 

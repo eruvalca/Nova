@@ -37,6 +37,9 @@ semantics, or SQL-translation limits.
 - **Do NOT pass VSTest-only flags** (`--nologo`, `--collect`, `--logger`) — MTP rejects them.
 - Filter by class with `--filter-class "*Name"`.
 - **CI runs build and unit tests only.** Run the integration and browser suites locally before opening a PR and again before merge; on intermediate pushes, re-run them only when the change affects the provider/HTTP boundary or interactive UI. A green CI run is not proof the full suite is green.
+- Broad test-generation workflows may create `.testagent/` as temporary local state. The directory is
+  gitignored and must not be committed; durable evidence belongs in the tests and the PR validation
+  summary.
 
 ## Local Aspire workflow
 
@@ -137,6 +140,10 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 - Never assert on global, unfiltered counts in integration tests (the database is shared across the
   collection — each test seeds its own data with database-generated ids).
 - For every new HTTP endpoint, add boundary coverage for route registration, auth policy behavior, success serialization, and each declared ProblemDetails shape that cannot be proven by service or client unit tests. Keep provider-specific assertions separate.
+- When a query requirement promises an exact asynchronous relational reader count or no N+1 reader
+  queries, assert `ReaderExecutionCount` with `CountingCommandInterceptor`; context-factory
+  invocations are not reader-command evidence. The interceptor does not observe synchronous,
+  scalar, or non-query commands, so do not use it to claim an exact total SQL-command count.
 - Exercise every route independently; prove the least-privileged role (a creator or admin does not establish ordinary-member access). Test independent query-validation paths separately.
 - For clients validating success bodies: cover a populated payload, explicit nested nulls, malformed JSON, invalid ID/date/count relationships, shared-bound violations, and incorrect ordering. Use exact expected counts when proving lifecycle or tenant exclusion.
 - For `CreatedAtRoute`, assert `201 Created`, the exact `Location`, and a successful GET after
