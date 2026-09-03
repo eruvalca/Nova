@@ -93,9 +93,10 @@ validation summary.
     payloads, including nested nulls, invalid relationships, bounds, and portable ordering.
 12. Exercise each endpoint and query-validation path independently, using the least-privileged
     permitted role and exact counts for lifecycle or tenancy exclusions.
-13. When a performance contract promises an exact SQL-command count or no N+1 behavior, assert
-    executed commands with `CountingCommandInterceptor`; context-factory invocations are not
-    command-count evidence.
+13. When a query contract promises an exact asynchronous relational reader count or no N+1 reader
+    queries, assert `ReaderExecutionCount` with `CountingCommandInterceptor`; context-factory
+    invocations are not reader-command evidence. The interceptor does not observe synchronous,
+    scalar, or non-query commands, so do not use it to claim an exact total SQL-command count.
 14. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
     Repeat `--filter-class` for multiple classes; do not combine class names with `|`.
 15. During implementation and before a local commit, run the smallest relevant test set. Before opening a PR and before merge, run all three suites locally. On intermediate PR pushes, run unit tests plus the integration or browser suites the change can affect; CI does not run the Aspire-dependent suites.

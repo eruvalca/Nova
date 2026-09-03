@@ -140,8 +140,10 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 - Never assert on global, unfiltered counts in integration tests (the database is shared across the
   collection — each test seeds its own data with database-generated ids).
 - For every new HTTP endpoint, add boundary coverage for route registration, auth policy behavior, success serialization, and each declared ProblemDetails shape that cannot be proven by service or client unit tests. Keep provider-specific assertions separate.
-- When a requirement promises an exact SQL-command count or no N+1 behavior, assert executed commands
-  with `CountingCommandInterceptor`; context-factory invocations are not command-count evidence.
+- When a query requirement promises an exact asynchronous relational reader count or no N+1 reader
+  queries, assert `ReaderExecutionCount` with `CountingCommandInterceptor`; context-factory
+  invocations are not reader-command evidence. The interceptor does not observe synchronous,
+  scalar, or non-query commands, so do not use it to claim an exact total SQL-command count.
 - Exercise every route independently; prove the least-privileged role (a creator or admin does not establish ordinary-member access). Test independent query-validation paths separately.
 - For clients validating success bodies: cover a populated payload, explicit nested nulls, malformed JSON, invalid ID/date/count relationships, shared-bound violations, and incorrect ordering. Use exact expected counts when proving lifecycle or tenant exclusion.
 - For `CreatedAtRoute`, assert `201 Created`, the exact `Location`, and a successful GET after
