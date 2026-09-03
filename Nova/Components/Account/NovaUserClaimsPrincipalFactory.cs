@@ -14,8 +14,9 @@ namespace Nova.Components.Account;
 /// to the user's principal at sign-in.
 /// IMPORTANT: when a user's club membership changes, rotate the security stamp through the owning
 /// mutation. For the current user, reissue the cookie with
-/// <c>SignInManager.RefreshSignInAsync(user)</c>; other users' cookies are rebuilt by
-/// <see cref="IdentityRevalidatingAuthenticationStateProvider"/> on its revalidation interval.
+/// <c>SignInManager.RefreshSignInAsync(user)</c>; for other users, the
+/// <see cref="IdentityRevalidatingAuthenticationStateProvider"/> invalidates authentication state
+/// when it detects a stamp mismatch, and reauthentication issues the updated principal.
 /// The same refresh is required when a club's display name changes.
 /// </summary>
 /// <param name="userManager">The user Manager.</param>

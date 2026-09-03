@@ -15,9 +15,5 @@ public class ClubMembershipMutationReceiptEntityConfiguration : IEntityTypeConfi
         builder.Property(receipt => receipt.MutationKind).HasMaxLength(32);
         builder.HasIndex(receipt => new { receipt.ClubId, receipt.CreatedAt });
         builder.HasIndex(receipt => receipt.OperationId).IsUnique();
-        builder.HasOne(receipt => receipt.Club)
-            .WithMany()
-            .HasForeignKey(receipt => receipt.ClubId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 }

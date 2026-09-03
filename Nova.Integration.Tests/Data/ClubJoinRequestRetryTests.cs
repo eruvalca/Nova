@@ -167,11 +167,12 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies approval recovery remains successful when a later membership mutation clears the
-    /// mutable request and user state before ambiguous-commit verification executes.
+    /// Verifies approval recovery remains successful when the club aggregate is deleted after the
+    /// commit but before ambiguous-commit verification executes. The immutable receipt deliberately
+    /// survives that cascade so the committed approval is not replayed.
     /// </summary>
     [Fact]
-    public async Task ApproveJoinRequest_AmbiguousCommitThenMembershipRemoval_VerifiesImmutableReceipt()
+    public async Task ApproveJoinRequest_AmbiguousCommitThenClubDeletion_VerifiesIndependentReceipt()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedApprovalDataAsync(cancellationToken);
@@ -197,24 +198,18 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
             approvalTask = service.ApproveJoinRequestAsync(seed.RequestId, cancellationToken);
             await gateInterceptor.WaitForVerificationAttemptAsync(cancellationToken);
 
-            await using (var remove = fixture.CreateAdminContext())
+            await using (var delete = fixture.CreateAdminContext())
             {
-                var requester = await remove.Users.SingleAsync(
-                    user => user.Id == seed.RequesterUserId,
-                    cancellationToken);
-                requester.ClubId = null;
-                requester.SecurityStamp = Guid.NewGuid().ToString("N");
-                requester.ConcurrencyStamp = Guid.NewGuid().ToString("N");
-                remove.ClubJoinRequests.Remove(await remove.ClubJoinRequests.SingleAsync(
-                    request => request.ClubJoinRequestId == seed.RequestId,
+                delete.Clubs.Remove(await delete.Clubs.SingleAsync(
+                    club => club.ClubId == seed.ClubId,
                     cancellationToken));
-                await remove.SaveChangesAsync(cancellationToken);
+                await delete.SaveChangesAsync(cancellationToken);
             }
 
             gateInterceptor.Release();
             var result = await approvalTask;
             result.IsSuccess.ShouldBeTrue(
-                "approval must verify its immutable receipt instead of replaying mutable state");
+                "approval must verify its independent receipt after the club aggregate is deleted");
         }
         finally
         {
@@ -229,14 +224,16 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
         (await verify.ClubJoinRequests.AnyAsync(
             request => request.ClubJoinRequestId == seed.RequestId,
             cancellationToken)).ShouldBeFalse();
-        (await verify.ActivityEvents.CountAsync(
-            activity => activity.ClubId == seed.ClubId
-                && activity.EventKind == ActivityEventKind.MemberJoined,
-            cancellationToken)).ShouldBe(1);
-        (await verify.ClubMembershipMutationReceipts.CountAsync(
+        (await verify.Clubs.AnyAsync(
+            club => club.ClubId == seed.ClubId,
+            cancellationToken)).ShouldBeFalse();
+        var receipt = await verify.ClubMembershipMutationReceipts.SingleAsync(
             receipt => receipt.MemberUserId == seed.RequesterUserId
                 && receipt.MutationKind == "JoinApproval",
-            cancellationToken)).ShouldBe(1);
+            cancellationToken);
+        receipt.OperationId.ShouldNotBe(Guid.Empty);
+        receipt.ClubId.ShouldBe(seed.ClubId);
+        receipt.CreatedById.ShouldBe(seed.AdminUserId);
     }
 
     /// <summary>

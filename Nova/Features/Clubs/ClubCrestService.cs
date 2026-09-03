@@ -147,7 +147,8 @@ public sealed partial class ClubCrestService(
         }
 
         // The crest changed, so HasClubCrest is now (possibly) true for every member; bump
-        // each member's security stamp and let the next revalidation rebuild their claims.
+        // each member's security stamp so the next revalidation invalidates their stale
+        // authentication state; reauthentication then issues the updated claims.
         var staleResult = await clubMembershipClaimRefresher.MarkClubUsersClaimsStaleAsync(clubId);
         if (staleResult.IsT1)
         {
@@ -192,7 +193,8 @@ public sealed partial class ClubCrestService(
         await DeleteBlobsBestEffortAsync(blobNames, clubId);
 
         // The crest is gone, so HasClubCrest is now false for every member; bump each
-        // member's security stamp and let the next revalidation rebuild their claims.
+        // member's security stamp so the next revalidation invalidates their stale
+        // authentication state; reauthentication then issues the updated claims.
         var staleResult = await clubMembershipClaimRefresher.MarkClubUsersClaimsStaleAsync(clubId);
         if (staleResult.IsT1)
         {

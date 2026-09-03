@@ -49,8 +49,9 @@ public sealed class ClubMembershipClaimRefresher(UserManager<NovaUserEntity> use
     /// <summary>
     /// Marks ANOTHER user's claims as stale after a path that did not already rotate the security
     /// stamp transactionally. Their cookie cannot be reissued from here; bumping the security stamp
-    /// causes <see cref="IdentityRevalidatingAuthenticationStateProvider"/> to rebuild their
-    /// principal at the next revalidation interval.
+    /// causes <see cref="IdentityRevalidatingAuthenticationStateProvider"/> to invalidate their
+    /// active authentication state at the next revalidation interval. They must authenticate
+    /// again before a principal with the updated claims is issued.
     /// </summary>
     /// <param name="user">The user.</param>
     /// <returns>
@@ -69,7 +70,8 @@ public sealed class ClubMembershipClaimRefresher(UserManager<NovaUserEntity> use
     /// Marks ALL members of the given club as stale after a club-wide change that affects
     /// every member's claims (e.g. the club crest was changed/removed). Bumping each member's
     /// security stamp causes <see cref="IdentityRevalidatingAuthenticationStateProvider"/>
-    /// to rebuild their principal at the next revalidation interval.
+    /// to invalidate their active authentication state at the next revalidation interval. Each
+    /// member must authenticate again before a principal with updated claims is issued.
     /// </summary>
     /// <param name="clubId">The club whose members should be marked stale.</param>
     /// <returns>

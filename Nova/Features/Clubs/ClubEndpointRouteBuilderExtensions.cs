@@ -4,6 +4,7 @@ using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Nova.Components.Account;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
@@ -19,7 +20,7 @@ namespace Nova.Features.Clubs;
 /// <summary>
 /// Maps the minimal API endpoints for club creation, search, and club join request management.
 /// </summary>
-internal static class ClubEndpointRouteBuilderExtensions
+internal static partial class ClubEndpointRouteBuilderExtensions
 {
     extension(IEndpointRouteBuilder endpoints)
     {
@@ -213,6 +214,10 @@ internal static class ClubEndpointRouteBuilderExtensions
         [FromForm] string state,
         HttpContext context,
         IClubService clubService,
+        IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
+        ICurrentUserProvider currentUserProvider,
+        ClubMembershipClaimRefresher claimRefresher,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         // Read the crest from the form instead of binding a required IFormFile parameter: a
@@ -244,9 +249,65 @@ internal static class ClubEndpointRouteBuilderExtensions
         };
 
         var result = await clubService.CreateClubAsync(input, cancellationToken);
-        // No GET-club-by-id endpoint exists yet, so return 201 without a Location header.
-        return result.ToHttpResult(club => TypedResults.Created((string?)null, club));
+        if (result.IsProblem)
+        {
+            return result.ToHttpResult(club => TypedResults.Created((string?)null, club));
+        }
+
+        // Club creation rotates the acting user's stamps in the same transaction as membership
+        // and role assignment. Reissue the cookie before this authenticated request completes so
+        // the next request cannot reach stamp validation with the now-stale onboarding cookie.
+        try
+        {
+            if (currentUserProvider.UserId is not long actorUserId)
+            {
+                return ServiceProblem.ServerError(
+                    "The club was created, but your sign-in could not be refreshed. Sign in again to continue.")
+                    .ToHttpResult();
+            }
+
+            await using var refreshDb = await adminDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var currentUser = await refreshDb.Users
+                .AsNoTracking()
+                .SingleOrDefaultAsync(user => user.Id == actorUserId, cancellationToken);
+            if (currentUser is null)
+            {
+                return ServiceProblem.ServerError(
+                    "The club was created, but your sign-in could not be refreshed. Sign in again to continue.")
+                    .ToHttpResult();
+            }
+
+            var refreshResult = await claimRefresher.RefreshCurrentUserSignInAsync(currentUser);
+            var refreshedResult = refreshResult.Match<ServiceResult<ClubDto>>(
+                _ => result.Value,
+                _ => ServiceProblem.ServerError(
+                    "The club was created, but your sign-in could not be refreshed. Sign in again to continue."));
+
+            // No GET-club-by-id endpoint exists yet, so return 201 without a Location header.
+            return refreshedResult.ToHttpResult(club => TypedResults.Created((string?)null, club));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            var logger = loggerFactory.CreateLogger(typeof(ClubEndpointRouteBuilderExtensions).FullName!);
+            LogClubCreationCookieRefreshFailed(logger, exception, currentUserProvider.UserId);
+            return ServiceProblem.ServerError(
+                "The club was created, but your sign-in could not be refreshed. Sign in again to continue.")
+                .ToHttpResult();
+        }
     }
+
+    [LoggerMessage(
+        EventId = 3010,
+        Level = LogLevel.Error,
+        Message = "Club creation committed, but the authentication cookie could not be refreshed for user {UserId}.")]
+    private static partial void LogClubCreationCookieRefreshFailed(
+        ILogger logger,
+        Exception exception,
+        long? userId);
 
     /// <summary>
     /// Handles retrieval of a club crest by club ID and size, with ETag caching.
