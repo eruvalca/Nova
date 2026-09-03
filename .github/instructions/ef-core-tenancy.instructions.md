@@ -29,9 +29,14 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 
 ## Tenancy rules
 
-- Every club-scoped entity implements `ITenantOwnedEntity` (`long ClubId`) and keeps a real
-  `ClubId` FK + `Club` navigation. The generic filter loop in `ApplicationDbContext.OnModelCreating`
-  picks it up automatically — adding the interface is all that's needed for filtering.
+- Every club-scoped entity implements `ITenantOwnedEntity` (`long ClubId`). Ordinary club-owned
+  entities keep a real `ClubId` FK + `Club` navigation. Immutable operation receipts that prove an
+  ambiguous commit are the deliberate exception: they retain a `ClubId` snapshot without an FK so
+  verification survives later deletion of the club aggregate. Those FK-less receipts must have a
+  global age-based cleanup path and a `CreatedAt`-leading index so rows for deleted clubs do not
+  accumulate indefinitely. The generic filter loop in
+  `ApplicationDbContext.OnModelCreating` picks both shapes up automatically — adding the interface
+  is all that's needed for filtering.
 - Deliberately NOT tenant-owned: `ClubEntity` (globally visible so users can find clubs to join),
   `ClubJoinRequestEntity` (bespoke filter: requester sees own; ClubAdmin sees their club's),
   `NovaUserEntity` (bespoke filter: clubmates or self), `NovaUserPhotoEntity` (mirrors the user
@@ -56,7 +61,20 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 - `ICurrentUserProvider` (`Nova/Data/Tenancy/`) resolves the user from `IHttpContextAccessor`
   first, then the Blazor `AuthenticationStateProvider`. `NullCurrentUserProvider` is for design
   time and tests.
-- The club id travels as the `NovaClaimTypes.ClubId` claim, added by `NovaUserClaimsPrincipalFactory`. When membership changes, call `ClubMembershipClaimRefresher` (`RefreshCurrentUserAsync` for the acting user or `MarkUserClaimsStaleAsync` for another) and `Match` its `OneOf<Success, Error<string[]>>` — do not ignore it.
+- The club id travels as the `NovaClaimTypes.ClubId` claim, added by
+  `NovaUserClaimsPrincipalFactory`. A membership mutation owns exactly one claims-invalidation path:
+  either the direct-EF transactional path below, or `ClubMembershipClaimRefresher`
+  (`RefreshCurrentUserAsync` for the acting user or `MarkUserClaimsStaleAsync` for another) when
+  Identity owns the stamp update. `Match` the helper's `OneOf<Success, Error<string[]>>`; do not
+  ignore it or combine it with an already-transactional stamp write.
+- When membership or Identity roles change through EF so they can share a domain transaction,
+  rotate both `SecurityStamp` and `ConcurrencyStamp` through that same context. For the acting
+  user's own change, load them after commit from a fresh `NovaAdminDbContext` with `AsNoTracking`
+  and call the refresh-only `RefreshCurrentUserSignInAsync`; do not refresh from a possibly stale
+  entity tracked by the scoped `UserManager`. A remote user's transactional `SecurityStamp` is the
+  invalidation marker—do not call the stamp-mutating `MarkUserClaimsStaleAsync` after commit. A
+  remote stamp mismatch invalidates the active authentication state at revalidation; it does not
+  rebuild the principal, so the user must authenticate again to receive updated claims.
 - New users get `Roles.StandardUser` at registration (see `Register.razor` / `ExternalLogin.razor`).
 
 ## Entities, configurations, relationships

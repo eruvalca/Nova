@@ -20,9 +20,9 @@ public class ClubMembershipMutationReceiptEntity : BaseEntity, ITenantOwnedEntit
     /// <summary>Gets or sets the mutation kind snapshot.</summary>
     public required string MutationKind { get; set; }
 
-    /// <summary>Gets or sets the owning club identifier.</summary>
+    /// <summary>
+    /// Gets or sets the affected club identifier snapshot. This deliberately has no foreign key:
+    /// ambiguous-commit verification must survive deletion of the club aggregate.
+    /// </summary>
     public required long ClubId { get; set; }
-
-    /// <summary>Gets or sets the owning club.</summary>
-    public ClubEntity Club { get; set; } = null!;
 }

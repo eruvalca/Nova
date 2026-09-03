@@ -1,14 +1,10 @@
 ﻿using Azure.Storage.Blobs;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
 using Nova.Shared.Features.Clubs;
-using NSubstitute;
 using Shouldly;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -70,6 +66,7 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
         result.Value.Name.ShouldBe(input.Name);
         result.Value.City.ShouldBe(input.City);
         result.Value.State.ShouldBe(input.State);
+        await AssertMembershipIdentityEffectsAsync(verify, seed, club.ClubId, cancellationToken);
 
         // The commit happened, so the blobs the committed crest row references must still exist.
         var crest = await verify.ClubCrests.SingleAsync(
@@ -118,6 +115,7 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
         (await verify.ClubCrests.CountAsync(
             candidate => candidate.ClubId == club.ClubId,
             cancellationToken)).ShouldBe(1);
+        await AssertMembershipIdentityEffectsAsync(verify, seed, club.ClubId, cancellationToken);
 
         var crest = await verify.ClubCrests.SingleAsync(
             candidate => candidate.ClubId == club.ClubId,
@@ -154,7 +152,6 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
     private ClubService CreateClubService(IDbContextFactory<NovaAdminDbContext> factory) => new(
         factory,
         new PostgresReadContextFactory(fixture),
-        CreateUserManager(),
         fixture.CurrentUser,
         fixture.ClubCrestsContainer,
         NullLogger<ClubService>.Instance);
@@ -169,10 +166,18 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
         ActAs(userId: null, clubId: null);
         await using var db = fixture.CreateAdminContext();
         var suffix = Guid.NewGuid().ToString("N");
-        var user = new NovaUserEntity { FirstName = "Club", LastName = $"Creator {suffix}" };
+        var securityStamp = Guid.NewGuid().ToString("N");
+        var concurrencyStamp = Guid.NewGuid().ToString("N");
+        var user = new NovaUserEntity
+        {
+            FirstName = "Club",
+            LastName = $"Creator {suffix}",
+            SecurityStamp = securityStamp,
+            ConcurrencyStamp = concurrencyStamp,
+        };
         db.Users.Add(user);
         await db.SaveChangesAsync(cancellationToken);
-        return new ClubCreationSeed(user.Id, suffix);
+        return new ClubCreationSeed(user.Id, suffix, securityStamp, concurrencyStamp);
     }
 
     /// <summary>
@@ -250,22 +255,44 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
         }
     }
 
-    private static UserManager<NovaUserEntity> CreateUserManager()
-        => Substitute.For<UserManager<NovaUserEntity>>(
-            Substitute.For<IUserStore<NovaUserEntity>>(),
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<IPasswordHasher<NovaUserEntity>>(),
-            new List<IUserValidator<NovaUserEntity>>(),
-            new List<IPasswordValidator<NovaUserEntity>>(),
-            Substitute.For<ILookupNormalizer>(),
-            Substitute.For<IdentityErrorDescriber>(),
-            Substitute.For<IServiceProvider>(),
-            Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
+    /// <summary>
+    /// Asserts club creation atomically assigned membership, administrator role, and fresh Identity
+    /// stamps to the creator.
+    /// </summary>
+    /// <param name="db">The verification context.</param>
+    /// <param name="seed">The creator's original Identity state.</param>
+    /// <param name="clubId">The created club identifier.</param>
+    /// <param name="cancellationToken">A token that cancels verification.</param>
+    private static async Task AssertMembershipIdentityEffectsAsync(
+        NovaAdminDbContext db,
+        ClubCreationSeed seed,
+        long clubId,
+        CancellationToken cancellationToken)
+    {
+        var user = await db.Users.SingleAsync(candidate => candidate.Id == seed.UserId, cancellationToken);
+        user.ClubId.ShouldBe(clubId);
+        user.SecurityStamp.ShouldNotBe(seed.SecurityStamp);
+        user.ConcurrencyStamp.ShouldNotBe(seed.ConcurrencyStamp);
+
+        var administratorRoleId = await db.Roles
+            .Where(role => role.NormalizedName == Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant())
+            .Select(role => role.Id)
+            .SingleAsync(cancellationToken);
+        (await db.UserRoles.AnyAsync(
+            role => role.UserId == seed.UserId && role.RoleId == administratorRoleId,
+            cancellationToken)).ShouldBeTrue();
+    }
 
     /// <summary>
     /// Holds one test's user identity and unique data suffix.
     /// </summary>
     /// <param name="UserId">The seeded user identifier.</param>
     /// <param name="Suffix">The unique data suffix.</param>
-    private sealed record ClubCreationSeed(long UserId, string Suffix);
+    /// <param name="SecurityStamp">The creator's security stamp before club creation.</param>
+    /// <param name="ConcurrencyStamp">The creator's concurrency stamp before club creation.</param>
+    private sealed record ClubCreationSeed(
+        long UserId,
+        string Suffix,
+        string SecurityStamp,
+        string ConcurrencyStamp);
 }

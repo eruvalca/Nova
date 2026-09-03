@@ -3,9 +3,7 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
@@ -27,19 +25,17 @@ public sealed class ClubServiceTests : IDisposable
 {
     private const long NoClubUserId = 200;
     private const long ExistingClubUserId = 201;
+    private const long ClubAdminRoleId = 10;
+    private const string InitialSecurityStamp = "initial-security-stamp";
+    private const string InitialConcurrencyStamp = "initial-concurrency-stamp";
 
     private readonly TenancyTestHarness _harness = new();
     private readonly BlobContainerClient _crestContainer = CreateCrestContainer();
-    private UserManager<NovaUserEntity> _userManager = null!;
 
     /// <summary>
-    /// Initializes the mocked <see cref="UserManager{TUser}"/> and seeded club data.
+    /// Initializes the seeded club and Identity data.
     /// </summary>
-    public ClubServiceTests()
-    {
-        _userManager = CreateUserManagerMock();
-        Seed();
-    }
+    public ClubServiceTests() => Seed();
 
     /// <inheritdoc />
     public void Dispose() => _harness.Dispose();
@@ -165,7 +161,6 @@ public sealed class ClubServiceTests : IDisposable
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
-        _userManager.FindByIdAsync(NoClubUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)null));
         var service = CreateService();
 
         var result = await service.CreateClubAsync(
@@ -187,14 +182,10 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateClubAsync_AssignsClubAdminRole_WhenRoleAssignmentSucceeds()
+    public async Task CreateClubAsync_AssignsClubAdminRole_AndRotatesIdentityStamps()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
-        var user = await LoadUserAsync(NoClubUserId);
-        _userManager.FindByIdAsync(NoClubUserId.ToString()).Returns(Task.FromResult(user));
-        _userManager.AddToRoleAsync(Arg.Any<NovaUserEntity>(), Roles.ClubAdmin)
-            .Returns(Task.FromResult(IdentityResult.Success));
         var service = CreateService();
 
         var result = await service.CreateClubAsync(
@@ -202,7 +193,53 @@ public sealed class ClubServiceTests : IDisposable
             TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
-        await _userManager.Received().AddToRoleAsync(Arg.Any<NovaUserEntity>(), Roles.ClubAdmin);
+
+        await using var verify = _harness.CreateAdminContext();
+        var user = await verify.Users.SingleAsync(
+            candidate => candidate.Id == NoClubUserId,
+            TestContext.Current.CancellationToken);
+        user.ClubId.ShouldBe(result.Value.ClubId);
+        user.SecurityStamp.ShouldNotBe(InitialSecurityStamp);
+        user.ConcurrencyStamp.ShouldNotBe(InitialConcurrencyStamp);
+        (await verify.UserRoles.AnyAsync(
+            role => role.UserId == NoClubUserId && role.RoleId == ClubAdminRoleId,
+            TestContext.Current.CancellationToken)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task CreateClubAsync_RollsBackAllDatabaseChanges_WhenClubAdminRoleIsMissing()
+    {
+        _harness.CurrentUser.UserId = NoClubUserId;
+        _harness.CurrentUser.ClubId = null;
+        await using (var arrange = _harness.CreateAdminContext())
+        {
+            arrange.Roles.Remove(await arrange.Roles.SingleAsync(
+                role => role.Id == ClubAdminRoleId,
+                TestContext.Current.CancellationToken));
+            await arrange.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        var service = CreateService();
+
+        var result = await service.CreateClubAsync(
+            new CreateClubInput { Name = "Unconfigured Role Club", City = "Austin", State = "TX", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Clubs.AnyAsync(
+            club => club.Name == "Unconfigured Role Club",
+            TestContext.Current.CancellationToken)).ShouldBeFalse();
+        var user = await verify.Users.SingleAsync(
+            candidate => candidate.Id == NoClubUserId,
+            TestContext.Current.CancellationToken);
+        user.ClubId.ShouldBeNull();
+        user.SecurityStamp.ShouldBe(InitialSecurityStamp);
+        user.ConcurrencyStamp.ShouldBe(InitialConcurrencyStamp);
+        (await verify.UserRoles.AnyAsync(
+            role => role.UserId == NoClubUserId,
+            TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
     [Fact]
@@ -244,7 +281,6 @@ public sealed class ClubServiceTests : IDisposable
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
-        _userManager.FindByIdAsync(NoClubUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)null));
         var service = CreateService();
 
         var result = await service.CreateClubAsync(
@@ -273,7 +309,6 @@ public sealed class ClubServiceTests : IDisposable
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
-        _userManager.FindByIdAsync(NoClubUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)null));
 
         var blob = Substitute.For<BlobClient>();
         blob.UploadAsync(Arg.Any<BinaryData>(), Arg.Any<BlobUploadOptions>(), Arg.Any<CancellationToken>())
@@ -287,7 +322,6 @@ public sealed class ClubServiceTests : IDisposable
         var service = new ClubService(
             new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
-            _userManager,
             _harness.CurrentUser,
             container,
             NullLogger<ClubService>.Instance);
@@ -309,7 +343,6 @@ public sealed class ClubServiceTests : IDisposable
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
-        _userManager.FindByIdAsync(NoClubUserId.ToString()).Returns(Task.FromResult((NovaUserEntity?)null));
 
         var blob = Substitute.For<BlobClient>();
         blob.UploadAsync(Arg.Any<BinaryData>(), Arg.Any<BlobUploadOptions>(), Arg.Any<CancellationToken>())
@@ -323,7 +356,6 @@ public sealed class ClubServiceTests : IDisposable
         var service = new ClubService(
             new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
-            _userManager,
             _harness.CurrentUser,
             container,
             NullLogger<ClubService>.Instance);
@@ -348,7 +380,6 @@ public sealed class ClubServiceTests : IDisposable
         => new(
             new TestDbContextFactory<NovaAdminDbContext>(_harness.CreateAdminContext),
             new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext),
-            _userManager,
             _harness.CurrentUser,
             _crestContainer,
             NullLogger<ClubService>.Instance);
@@ -369,34 +400,6 @@ public sealed class ClubServiceTests : IDisposable
         return container;
     }
 
-    private async Task<NovaUserEntity?> LoadUserAsync(long userId)
-    {
-        await using var db = _harness.CreateAdminContext();
-        return await db.Users.SingleAsync(
-            candidate => candidate.Id == userId,
-            TestContext.Current.CancellationToken);
-    }
-
-    private static UserManager<NovaUserEntity> CreateUserManagerMock()
-    {
-        var store = Substitute.For<IUserStore<NovaUserEntity>>();
-        var userManager = Substitute.For<UserManager<NovaUserEntity>>(
-            store,
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<IPasswordHasher<NovaUserEntity>>(),
-            new List<IUserValidator<NovaUserEntity>>(),
-            new List<IPasswordValidator<NovaUserEntity>>(),
-            Substitute.For<ILookupNormalizer>(),
-            Substitute.For<IdentityErrorDescriber>(),
-            Substitute.For<IServiceProvider>(),
-            Substitute.For<ILogger<UserManager<NovaUserEntity>>>());
-
-        userManager.FindByIdAsync(Arg.Any<string>()).Returns(Task.FromResult((NovaUserEntity?)null));
-        userManager.AddToRoleAsync(Arg.Any<NovaUserEntity>(), Roles.ClubAdmin)
-            .Returns(Task.FromResult(IdentityResult.Success));
-        return userManager;
-    }
-
     private void Seed()
     {
         using var db = _harness.CreateAdminContext();
@@ -407,6 +410,12 @@ public sealed class ClubServiceTests : IDisposable
             new ClubEntity { CreationOperationId = Guid.NewGuid(), ClubId = 3, Name = "Gamma Club", City = "Denver", State = "CO", CreatedById = ExistingClubUserId });
         db.SaveChanges();
 
+        db.Roles.Add(new IdentityRole<long>(Roles.ClubAdmin)
+        {
+            Id = ClubAdminRoleId,
+            NormalizedName = Roles.ClubAdmin.ToUpperInvariant(),
+        });
+
         db.Users.AddRange(
             new NovaUserEntity
             {
@@ -415,6 +424,8 @@ public sealed class ClubServiceTests : IDisposable
                 Email = "noclub@example.com",
                 FirstName = "No",
                 LastName = "Club",
+                SecurityStamp = InitialSecurityStamp,
+                ConcurrencyStamp = InitialConcurrencyStamp,
                 ClubId = null
             },
             new NovaUserEntity

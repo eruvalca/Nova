@@ -39,6 +39,58 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
         await AssertPromotedExactlyOnceAsync(interceptor, () => interceptor.FailureCount);
     }
 
+    /// <summary>
+    /// Verifies any later membership mutation globally prunes an expired receipt whose club no
+    /// longer exists, so FK-less commit proof cannot accumulate indefinitely after club deletion.
+    /// </summary>
+    [Fact]
+    public async Task Promote_PrunesExpiredReceiptForDeletedClub()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(cancellationToken);
+        var expiredOperationId = Guid.CreateVersion7();
+        await using (var setup = fixture.CreateAdminContext())
+        {
+            var expiredReceipt = new ClubMembershipMutationReceiptEntity
+            {
+                OperationId = expiredOperationId,
+                MemberUserId = seed.MemberUserId,
+                MutationKind = "Promote",
+                ClubId = long.MaxValue,
+                CreatedById = seed.AdminUserId,
+            };
+            setup.ClubMembershipMutationReceipts.Add(expiredReceipt);
+            await setup.SaveChangesAsync(cancellationToken);
+            expiredReceipt.CreatedAt = DateTimeOffset.UtcNow.AddDays(-2);
+            await setup.SaveChangesAsync(cancellationToken);
+        }
+
+        fixture.CurrentUser.UserId = seed.AdminUserId;
+        fixture.CurrentUser.ClubId = seed.ClubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+        var factory = new RetryingAdminDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            new NoOpInterceptor());
+        var (userManager, signInManager) = CreateIdentityManagers();
+        var service = new ClubMemberService(
+            new PostgresReadContextFactory(fixture),
+            factory,
+            fixture.CurrentUser,
+            new ClubMembershipClaimRefresher(userManager, signInManager),
+            NullLogger<ClubMemberService>.Instance);
+
+        var result = await service.PromoteMemberAsync(
+            new ClubMemberMutationInput { MemberUserId = seed.MemberUserId },
+            cancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        await using var verify = fixture.CreateAdminContext();
+        (await verify.ClubMembershipMutationReceipts.AnyAsync(
+            receipt => receipt.OperationId == expiredOperationId,
+            cancellationToken)).ShouldBeFalse();
+    }
+
     /// <summary>Runs one fault-injected promotion and verifies its complete durable aggregate.</summary>
     /// <param name="interceptor">The transient failure interceptor applied to retry contexts.</param>
     /// <param name="failureCount">Returns the number of injected failures.</param>

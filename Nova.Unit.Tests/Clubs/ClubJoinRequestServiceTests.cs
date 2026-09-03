@@ -1,7 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
@@ -28,6 +26,8 @@ public class ClubJoinRequestServiceTests : IDisposable
     private const long AdminUserId = 200;
     private const long RequestingUserId = 201;
     private const long OtherClubAdminId = 202;
+    private const string RequesterSecurityStamp = "requester-security-stamp";
+    private const string RequesterConcurrencyStamp = "requester-concurrency-stamp";
 
     private readonly TenancyTestHarness _harness = new();
     private readonly UserManager<NovaUserEntity> _userManager;
@@ -61,7 +61,15 @@ public class ClubJoinRequestServiceTests : IDisposable
         // Create users
         context.Users.AddRange(
             new NovaUserEntity { Id = AdminUserId, FirstName = "Admin", LastName = "A", ClubId = ClubAId },
-            new NovaUserEntity { Id = RequestingUserId, FirstName = "Requester", LastName = "R", ClubId = null },
+            new NovaUserEntity
+            {
+                Id = RequestingUserId,
+                FirstName = "Requester",
+                LastName = "R",
+                ClubId = null,
+                SecurityStamp = RequesterSecurityStamp,
+                ConcurrencyStamp = RequesterConcurrencyStamp,
+            },
             new NovaUserEntity { Id = OtherClubAdminId, FirstName = "Admin", LastName = "B", ClubId = ClubBId });
 
         var administratorRole = new IdentityRole<long>(Nova.Shared.Security.Roles.ClubAdmin)
@@ -94,30 +102,11 @@ public class ClubJoinRequestServiceTests : IDisposable
         adminDbFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
             .Returns(x => Task.FromResult(_harness.CreateAdminContext()));
 
-        // Create a minimal ClubMembershipClaimRefresher with mocked dependencies
-        // Use _userManager so the test can verify UpdateSecurityStampAsync calls
-        _userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
-            .Returns(Task.FromResult(IdentityResult.Success));
-
-        var signInManager = Substitute.For<SignInManager<NovaUserEntity>>(
-            _userManager, Substitute.For<IHttpContextAccessor>(), Substitute.For<IUserClaimsPrincipalFactory<NovaUserEntity>>(),
-            Substitute.For<Microsoft.Extensions.Options.IOptions<IdentityOptions>>(),
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<SignInManager<NovaUserEntity>>>(),
-            Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>(),
-            Substitute.For<IUserConfirmation<NovaUserEntity>>());
-
-        // Mock RefreshSignInAsync to avoid null reference exceptions
-        signInManager.RefreshSignInAsync(Arg.Any<NovaUserEntity>())
-            .Returns(Task.CompletedTask);
-
-        var realClaimRefresher = new ClubMembershipClaimRefresher(_userManager, signInManager);
-
         return new ClubJoinRequestService(
             dbFactory,
             readDbFactory,
             adminDbFactory,
             _harness.CurrentUser,
-            realClaimRefresher,
             _userManager,
             logger);
     }
@@ -737,17 +726,6 @@ public class ClubJoinRequestServiceTests : IDisposable
             requestId = request.ClubJoinRequestId;
         }
 
-        // The service reloads the requester via UserManager (Identity store's admin context)
-        // before marking claims stale, so stub the reload to return the requester.
-        _userManager.FindByIdAsync(RequestingUserId.ToString())
-            .Returns(Task.FromResult<NovaUserEntity?>(new NovaUserEntity
-            {
-                Id = RequestingUserId,
-                FirstName = "Requester",
-                LastName = "R",
-                ClubId = ClubAId
-            }));
-
         var service = CreateService();
 
         // Act
@@ -764,70 +742,19 @@ public class ClubJoinRequestServiceTests : IDisposable
 
             var updatedUser = await context.Users.FirstAsync(u => u.Id == RequestingUserId, TestContext.Current.CancellationToken);
             updatedUser.ClubId.ShouldBe(ClubAId);
+            updatedUser.SecurityStamp.ShouldNotBe(RequesterSecurityStamp);
+            updatedUser.ConcurrencyStamp.ShouldNotBe(RequesterConcurrencyStamp);
+
+            var receipt = await context.ClubMembershipMutationReceipts.SingleAsync(
+                candidate => candidate.MemberUserId == RequestingUserId,
+                TestContext.Current.CancellationToken);
+            receipt.OperationId.ShouldNotBe(Guid.Empty);
+            receipt.ClubId.ShouldBe(ClubAId);
+            receipt.MutationKind.ShouldBe("JoinApproval");
+            receipt.CreatedById.ShouldBe(AdminUserId);
         }
 
-        // Verify UserManager.UpdateSecurityStampAsync was called (proxy for MarkUserClaimsStaleAsync)
-        await _userManager.Received().UpdateSecurityStampAsync(Arg.Is<NovaUserEntity>(u => u != null && u.Id == RequestingUserId));
-    }
-
-    /// <summary>
-    /// Verifies a committed approval still reports success when the post-commit claim refresh
-    /// fails: the membership and event are durable, and the stamp failure is logged rather than
-    /// turning the approval into a server error.
-    /// </summary>
-    [Fact]
-    public async Task ApproveJoinRequestAsync_StillSucceeds_WhenClaimsStaleMarkFails()
-    {
-        // Arrange
-        _harness.CurrentUser.UserId = AdminUserId;
-        _harness.CurrentUser.ClubId = ClubAId;
-        _harness.CurrentUser.IsClubAdmin = true;
-
-        long requestId = 0;
-        using (var context = _harness.CreateAdminContext())
-        {
-            var request = new ClubJoinRequestEntity
-            {
-                ClubId = ClubAId,
-                RequestingUserId = RequestingUserId,
-                Status = RequestStatus.Pending,
-                CreatedById = RequestingUserId
-            };
-            context.ClubJoinRequests.Add(request);
-            context.SaveChanges();
-            requestId = request.ClubJoinRequestId;
-        }
-
-        _userManager.FindByIdAsync(RequestingUserId.ToString())
-            .Returns(Task.FromResult<NovaUserEntity?>(new NovaUserEntity
-            {
-                Id = RequestingUserId,
-                FirstName = "Requester",
-                LastName = "R",
-                ClubId = ClubAId
-            }));
-
-        var service = CreateService();
-
-        // Override the harness's success stub so the security-stamp refresh fails.
-        _userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
-            .Returns(Task.FromResult(IdentityResult.Failed(
-                new IdentityError { Code = "StampFailed", Description = "Security stamp update failed." })));
-
-        // Act
-        var result = await service.ApproveJoinRequestAsync(requestId, TestContext.Current.CancellationToken);
-
-        // Assert: the approval is durable and successful despite the refresh failure.
-        result.IsSuccess.ShouldBeTrue();
-
-        using (var context = _harness.CreateAdminContext())
-        {
-            var updatedRequest = await context.ClubJoinRequests.FirstAsync(r => r.ClubJoinRequestId == requestId, TestContext.Current.CancellationToken);
-            updatedRequest.Status.ShouldBe(RequestStatus.Approved);
-
-            var updatedUser = await context.Users.FirstAsync(u => u.Id == RequestingUserId, TestContext.Current.CancellationToken);
-            updatedUser.ClubId.ShouldBe(ClubAId);
-        }
+        await _userManager.DidNotReceive().UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>());
     }
 
     #endregion

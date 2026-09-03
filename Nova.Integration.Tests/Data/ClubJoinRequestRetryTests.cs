@@ -3,15 +3,19 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Nova.Components.Account;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Activity;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Results;
 using NSubstitute;
+using OneOf.Types;
 using Shouldly;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Nova.Integration.Tests.Data;
 
@@ -142,6 +146,8 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
         var requester = await verify.Users
             .SingleAsync(u => u.Id == seed.RequesterUserId, cancellationToken);
         requester.ClubId.ShouldBe(seed.ClubId);
+        requester.SecurityStamp.ShouldNotBe(seed.SecurityStamp);
+        requester.ConcurrencyStamp.ShouldNotBe(seed.ConcurrencyStamp);
 
         var events = await verify.ActivityEvents
             .Where(activity => activity.ClubId == seed.ClubId
@@ -149,6 +155,85 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
             .ToListAsync(cancellationToken);
         events.Count.ShouldBe(1);
         events[0].ActorUserId.ShouldBe(seed.AdminUserId);
+
+        var receipts = await verify.ClubMembershipMutationReceipts
+            .Where(receipt => receipt.MemberUserId == seed.RequesterUserId
+                && receipt.MutationKind == "JoinApproval")
+            .ToListAsync(cancellationToken);
+        receipts.Count.ShouldBe(1);
+        receipts[0].OperationId.ShouldNotBe(Guid.Empty);
+        receipts[0].ClubId.ShouldBe(seed.ClubId);
+        receipts[0].CreatedById.ShouldBe(seed.AdminUserId);
+    }
+
+    /// <summary>
+    /// Verifies approval recovery remains successful when the club aggregate is deleted after the
+    /// commit but before ambiguous-commit verification executes. The immutable receipt deliberately
+    /// survives that cascade so the committed approval is not replayed.
+    /// </summary>
+    [Fact]
+    public async Task ApproveJoinRequest_AmbiguousCommitThenClubDeletion_VerifiesIndependentReceipt()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedApprovalDataAsync(cancellationToken);
+        ActAsAdmin(seed.AdminUserId, seed.ClubId);
+
+        var failureInterceptor = new FailFirstCommittedTransactionInterceptor();
+        var gateInterceptor = new GateReceiptVerificationInterceptor("\"ClubMembershipMutationReceipts\"");
+        var service = CreateService(
+            new RetryingTenantDbContextFactory(
+                fixture.ConnectionString,
+                fixture.CurrentUser,
+                new NoOpInterceptor()),
+            seed.RequesterUserId,
+            new RetryingAdminDbContextFactory(
+                fixture.ConnectionString,
+                fixture.CurrentUser,
+                failureInterceptor,
+                gateInterceptor));
+
+        Task<ServiceResult<Success>> approvalTask;
+        try
+        {
+            approvalTask = service.ApproveJoinRequestAsync(seed.RequestId, cancellationToken);
+            await gateInterceptor.WaitForVerificationAttemptAsync(cancellationToken);
+
+            await using (var delete = fixture.CreateAdminContext())
+            {
+                delete.Clubs.Remove(await delete.Clubs.SingleAsync(
+                    club => club.ClubId == seed.ClubId,
+                    cancellationToken));
+                await delete.SaveChangesAsync(cancellationToken);
+            }
+
+            gateInterceptor.Release();
+            var result = await approvalTask;
+            result.IsSuccess.ShouldBeTrue(
+                "approval must verify its independent receipt after the club aggregate is deleted");
+        }
+        finally
+        {
+            gateInterceptor.Release();
+        }
+
+        failureInterceptor.FailureCount.ShouldBe(1);
+        await using var verify = fixture.CreateAdminContext();
+        (await verify.Users.SingleAsync(
+            user => user.Id == seed.RequesterUserId,
+            cancellationToken)).ClubId.ShouldBeNull();
+        (await verify.ClubJoinRequests.AnyAsync(
+            request => request.ClubJoinRequestId == seed.RequestId,
+            cancellationToken)).ShouldBeFalse();
+        (await verify.Clubs.AnyAsync(
+            club => club.ClubId == seed.ClubId,
+            cancellationToken)).ShouldBeFalse();
+        var receipt = await verify.ClubMembershipMutationReceipts.SingleAsync(
+            receipt => receipt.MemberUserId == seed.RequesterUserId
+                && receipt.MutationKind == "JoinApproval",
+            cancellationToken);
+        receipt.OperationId.ShouldNotBe(Guid.Empty);
+        receipt.ClubId.ShouldBe(seed.ClubId);
+        receipt.CreatedById.ShouldBe(seed.AdminUserId);
     }
 
     /// <summary>
@@ -372,6 +457,108 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies club creation and join approval serialize on the requester's user-membership lock:
+    /// both operations visibly wait on the held PostgreSQL advisory lock, then exactly one assigns
+    /// membership while the loser observes the committed state and returns Conflict.
+    /// </summary>
+    [Fact]
+    public async Task ClubCreationAndJoinApproval_SerializeOnUserMembershipLock()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedApprovalDataAsync(cancellationToken);
+        var suffix = Guid.NewGuid().ToString("N");
+        var input = new CreateClubInput
+        {
+            Name = $"Creation Approval Race {suffix}",
+            City = "Austin",
+            State = "TX",
+            CrestContent = CreateJpeg(),
+            CrestContentType = "image/jpeg",
+        };
+        var approvalService = CreateService(
+            new RetryingTenantDbContextFactory(
+                fixture.ConnectionString,
+                fixture.CurrentUser,
+                new NoOpInterceptor()),
+            seed.RequesterUserId,
+            new RetryingAdminDbContextFactory(
+                fixture.ConnectionString,
+                fixture.CurrentUser,
+                new NoOpInterceptor()));
+        var creationService = new ClubService(
+            new RetryingAdminDbContextFactory(
+                fixture.ConnectionString,
+                fixture.CurrentUser,
+                new NoOpInterceptor()),
+            new PostgresReadContextFactory(fixture),
+            fixture.CurrentUser,
+            fixture.ClubCrestsContainer,
+            NullLogger<ClubService>.Instance);
+
+        var lockKey = (long.MinValue / 64) + seed.RequesterUserId;
+        await using var holdDb = fixture.CreateAdminContext();
+        await using var holdTransaction = await holdDb.Database.BeginTransactionAsync(cancellationToken);
+        await holdDb.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock({lockKey})",
+            cancellationToken);
+
+        var creationTask = Task.Run(async () =>
+        {
+            using var actor = fixture.UseUser(seed.RequesterUserId, clubId: null, isClubAdmin: false);
+            return await creationService.CreateClubAsync(input, cancellationToken);
+        });
+        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+            holdDb,
+            lockKey,
+            cancellationToken);
+
+        var approvalTask = Task.Run(async () =>
+        {
+            using var actor = fixture.UseUser(seed.AdminUserId, seed.ClubId, isClubAdmin: true);
+            return await approvalService.ApproveJoinRequestAsync(seed.RequestId, cancellationToken);
+        });
+
+        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+            holdDb,
+            lockKey,
+            expectedWaiterCount: 2,
+            cancellationToken);
+        await holdTransaction.CommitAsync(cancellationToken);
+
+        var approval = await approvalTask;
+        var creation = await creationTask;
+        (approval.IsSuccess ^ creation.IsSuccess).ShouldBeTrue(
+            "the shared user-membership lock must allow exactly one membership assignment");
+
+        await using var verify = fixture.CreateAdminContext();
+        var requester = await verify.Users.SingleAsync(
+            user => user.Id == seed.RequesterUserId,
+            cancellationToken);
+        var request = await verify.ClubJoinRequests.SingleAsync(
+            candidate => candidate.ClubJoinRequestId == seed.RequestId,
+            cancellationToken);
+
+        if (approval.IsSuccess)
+        {
+            creation.IsProblem.ShouldBeTrue();
+            creation.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+            requester.ClubId.ShouldBe(seed.ClubId);
+            request.Status.ShouldBe(RequestStatus.Approved);
+            (await verify.Clubs.AnyAsync(club => club.Name == input.Name, cancellationToken)).ShouldBeFalse();
+        }
+        else
+        {
+            approval.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+            creation.IsSuccess.ShouldBeTrue();
+            requester.ClubId.ShouldBe(creation.Value.ClubId);
+            request.Status.ShouldBe(RequestStatus.Pending);
+            (await verify.Clubs.AnyAsync(
+                club => club.ClubId == creation.Value.ClubId && club.Name == input.Name,
+                cancellationToken)).ShouldBeTrue();
+        }
+    }
+
+    /// <summary>
     /// Verifies a join-request create whose insert violates the one-to-one RequestingUserId unique
     /// constraint (a concurrent submission won the probe/write race, or a non-pending request still
     /// occupies the slot) is classified as Conflict rather than a server error.
@@ -480,24 +667,11 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
                     ClubId = null
                 }));
 
-        userManager.UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>())
-            .Returns(Task.FromResult(IdentityResult.Success));
-
-        var signInManager = Substitute.For<SignInManager<NovaUserEntity>>(
-            userManager,
-            Substitute.For<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
-            Substitute.For<IUserClaimsPrincipalFactory<NovaUserEntity>>(),
-            Substitute.For<IOptions<IdentityOptions>>(),
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<SignInManager<NovaUserEntity>>>(),
-            Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>(),
-            Substitute.For<IUserConfirmation<NovaUserEntity>>());
-
         return new ClubJoinRequestService(
             writeFactory,
             new PostgresReadContextFactory(fixture),
             adminFactory ?? new PostgresAdminContextFactory(fixture),
             fixture.CurrentUser,
-            new ClubMembershipClaimRefresher(userManager, signInManager),
             userManager,
             NullLogger<ClubJoinRequestService>.Instance);
     }
@@ -526,6 +700,16 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.IsClubAdmin = true;
     }
 
+    /// <summary>Creates a valid JPEG crest for club-creation contention tests.</summary>
+    /// <returns>JPEG-encoded image bytes.</returns>
+    private static byte[] CreateJpeg()
+    {
+        using var image = new Image<Rgba32>(128, 96, new Rgba32(120, 180, 240));
+        using var stream = new MemoryStream();
+        image.Save(stream, new JpegEncoder());
+        return stream.ToArray();
+    }
+
     /// <summary>
     /// Seeds one club, one club-less requester, one club-member administrator, and a pending join
     /// request, all fresh per test, so approval/rejection retry paths can be exercised.
@@ -537,12 +721,16 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
         ActAs(userId: null, clubId: null);
         await using var db = fixture.CreateAdminContext();
         var suffix = Guid.NewGuid().ToString("N");
+        var securityStamp = Guid.NewGuid().ToString("N");
+        var concurrencyStamp = Guid.NewGuid().ToString("N");
 
         var requester = new NovaUserEntity
         {
             FirstName = "Requester",
             LastName = "R",
-            ClubId = null
+            ClubId = null,
+            SecurityStamp = securityStamp,
+            ConcurrencyStamp = concurrencyStamp,
         };
         db.Users.Add(requester);
         await db.SaveChangesAsync(cancellationToken);
@@ -585,7 +773,13 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
         db.ClubJoinRequests.Add(request);
         await db.SaveChangesAsync(cancellationToken);
 
-        return new ApprovalSeed(club.ClubId, admin.Id, requester.Id, request.ClubJoinRequestId);
+        return new ApprovalSeed(
+            club.ClubId,
+            admin.Id,
+            requester.Id,
+            request.ClubJoinRequestId,
+            securityStamp,
+            concurrencyStamp);
     }
 
     /// <summary>
@@ -602,5 +796,13 @@ public sealed class ClubJoinRequestRetryTests(NovaAppHostFixture fixture)
     /// <param name="AdminUserId">The seeded club-member administrator identifier.</param>
     /// <param name="RequesterUserId">The seeded club-less requester identifier.</param>
     /// <param name="RequestId">The seeded pending join-request identifier.</param>
-    private sealed record ApprovalSeed(long ClubId, long AdminUserId, long RequesterUserId, long RequestId);
+    /// <param name="SecurityStamp">The requester's security stamp before approval.</param>
+    /// <param name="ConcurrencyStamp">The requester's concurrency stamp before approval.</param>
+    private sealed record ApprovalSeed(
+        long ClubId,
+        long AdminUserId,
+        long RequesterUserId,
+        long RequestId,
+        string SecurityStamp,
+        string ConcurrencyStamp);
 }

@@ -17,35 +17,56 @@ internal static class PostgresAdvisoryLockTestHelper
     /// <param name="lockKey">The 64-bit advisory lock key the test holds and its mutation must wait on.</param>
     /// <param name="cancellationToken">A token that cancels polling.</param>
     /// <returns>A task representing the polling operation.</returns>
-    public static async Task WaitForAdvisoryLockWaiterAsync(
+    public static Task WaitForAdvisoryLockWaiterAsync(
         DbContext db,
         long lockKey,
         CancellationToken cancellationToken)
+        => WaitForAdvisoryLockWaiterAsync(
+            db,
+            lockKey,
+            expectedWaiterCount: 1,
+            cancellationToken);
+
+    /// <summary>
+    /// Waits until PostgreSQL reports at least the expected number of sessions blocked on the
+    /// specific advisory lock key held by the calling test's transaction.
+    /// </summary>
+    /// <param name="db">The context holding the transaction-scoped advisory lock.</param>
+    /// <param name="lockKey">The 64-bit advisory lock key the test holds and its mutations must wait on.</param>
+    /// <param name="expectedWaiterCount">The minimum number of distinct blocked sessions required.</param>
+    /// <param name="cancellationToken">A token that cancels polling.</param>
+    /// <returns>A task representing the polling operation.</returns>
+    public static async Task WaitForAdvisoryLockWaiterAsync(
+        DbContext db,
+        long lockKey,
+        int expectedWaiterCount,
+        CancellationToken cancellationToken)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(expectedWaiterCount, 1);
+
         for (var attempt = 0; attempt < 100; attempt++)
         {
-            var hasWaiter = await db.Database
-                .SqlQueryRaw<bool>(
+            var waiterCount = await db.Database
+                .SqlQueryRaw<int>(
                     """
-                    SELECT EXISTS (
-                        SELECT 1
-                        FROM pg_locks
-                        WHERE locktype = 'advisory'
-                          AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
-                          AND classid::int8 = (({0}::bigint >> 32) & 4294967295)
-                          AND objid::int8 = ({0}::bigint & 4294967295)
-                          AND NOT granted
-                    ) AS "Value"
+                    SELECT count(*)::integer AS "Value"
+                    FROM pg_locks
+                    WHERE locktype = 'advisory'
+                      AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+                      AND classid::int8 = (({0}::bigint >> 32) & 4294967295)
+                      AND objid::int8 = ({0}::bigint & 4294967295)
+                      AND NOT granted
                     """,
                     lockKey)
                 .SingleAsync(cancellationToken);
-            if (hasWaiter)
+            if (waiterCount >= expectedWaiterCount)
             {
                 return;
             }
             await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
         }
 
-        throw new TimeoutException("The mutation did not wait for the advisory lock.");
+        throw new TimeoutException(
+            $"Expected {expectedWaiterCount} mutations to wait for advisory lock {lockKey}.");
     }
 }

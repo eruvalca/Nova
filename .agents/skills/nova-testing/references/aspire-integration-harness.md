@@ -40,6 +40,13 @@ Use the shared helpers in
 was injected and that exactly one aggregate with its complete dependent set persisted. SQLite
 cannot validate provider execution strategies or ambiguous-commit behavior.
 
+A race test must establish observable contention; back-to-back task starts alone do not prove the
+lock serialized the mutation. Hold or intercept the target advisory lock, start the competing
+operations, and only then release the lock. For one competitor, use
+`PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync`. For multiple competitors, pass the
+expected waiter count to its count-aware overload, or use an equivalent count-aware `pg_locks` or
+`pg_stat_activity` observation; repeated one-waiter checks can all observe the same session.
+
 When a race test must pause an advisory lock that is not first in the documented global order,
 construct `AdvisoryLockGateInterceptor` with `advisoryLocksToSkip` set to the number of earlier lock
 commands. This gates the intended lock instead of accidentally pausing club-season or club-roster.

@@ -52,6 +52,37 @@ public sealed class ClubCrestHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
+    /// Verifies club creation reissues the acting user's Identity cookie in the create response,
+    /// so the first administrator request succeeds without the separate completion hop.
+    /// </summary>
+    [Fact]
+    public async Task CreateClub_ReissuesCookieBeforeResponse_AndGrantsImmediateAdminAccess()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
+            client, SeedingHelpers.UniqueEmail("crest-cookie"), Password, cancellationToken);
+
+        using var response = await client.PostAsync(
+            ClubEndpoints.Create,
+            SeedingHelpers.CreateClubMultipartContent(
+                $"Immediate Claims Club {Guid.CreateVersion7():N}", "Austin", "TX"),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        response.Headers.TryGetValues("Set-Cookie", out var setCookieValues).ShouldBeTrue();
+        setCookieValues.ShouldContain(value =>
+            value.StartsWith(".AspNetCore.Identity.Application=", StringComparison.Ordinal));
+
+        var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
+        club.ShouldNotBeNull();
+
+        using var adminResponse = await client.GetAsync(
+            ClubEndpoints.AdminJoinRequestsUrl(club.ClubId), cancellationToken);
+        adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    /// <summary>
     /// Verifies the full create-with-crest flow: the club row, the crest row with four blob
     /// names, and the served small/medium/large WebP variants with ETag caching (304 on a
     /// conditional request).
