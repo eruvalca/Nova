@@ -24,9 +24,9 @@ public sealed record GetCampaignListInput
     public const int MaxLimit = 100;
 
     /// <summary>
-    /// Gets the optional status filter, accepting <c>active</c> or <c>closed</c>.
+    /// Gets the optional status filter, accepting <c>active</c>, <c>draft</c>, or <c>closed</c>.
     /// </summary>
-    [NotWhitespace, RegularExpression("(?i)^(active|closed)$")]
+    [NotWhitespace, RegularExpression("(?i)^(active|draft|closed)$")]
     public string? Status { get; init; }
 
     /// <summary>

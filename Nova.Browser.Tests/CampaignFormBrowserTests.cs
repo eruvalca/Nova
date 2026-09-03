@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
+using Nova.Shared.Enums;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -63,8 +64,9 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
             () => submit.ClickAsync(new() { Timeout = 3000 }),
             () => Task.FromResult(page.Url.Contains("/campaigns", StringComparison.OrdinalIgnoreCase) && !page.Url.Contains("/new", StringComparison.OrdinalIgnoreCase)));
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns" })).ToBeVisibleAsync();
-        await Expect(page.GetByText(campaignName)).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByText(campaignName)).ToHaveCountAsync(0);
+        await AssertDraftPersistedWithoutEnrollmentAsync(campaignName, cancellationToken);
     }
 
     [Fact]
@@ -112,8 +114,9 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await page.Keyboard.PressAsync("Enter");
 
         // A valid keyboard submission creates the campaign and redirects to the campaign list.
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns" })).ToBeVisibleAsync();
-        await Expect(page.GetByText(campaignName)).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByText(campaignName)).ToHaveCountAsync(0);
+        await AssertDraftPersistedWithoutEnrollmentAsync(campaignName, cancellationToken);
     }
 
     /// <summary>
@@ -184,8 +187,9 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await Expect(submit.Locator(".spinner-border")).ToBeVisibleAsync();
 
         release.TrySetResult(null);
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns" })).ToBeVisibleAsync();
-        await Expect(page.GetByText(campaignName)).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByText(campaignName)).ToHaveCountAsync(0);
+        await AssertDraftPersistedWithoutEnrollmentAsync(campaignName, cancellationToken);
         await page.UnrouteAsync(IsCampaignCreateUrl);
     }
 
@@ -221,8 +225,9 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await page.UnrouteAsync(IsCampaignCreateUrl);
         await submit.ClickAsync();
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns" })).ToBeVisibleAsync();
-        await Expect(page.GetByText(campaignName)).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByText(campaignName)).ToHaveCountAsync(0);
+        await AssertDraftPersistedWithoutEnrollmentAsync(campaignName, cancellationToken);
     }
 
     /// <summary>
@@ -233,6 +238,21 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
     private static bool IsCampaignCreateUrl(string url) =>
         url.Contains("/api/campaigns", StringComparison.Ordinal)
         && !url.Contains("/api/campaigns/", StringComparison.Ordinal);
+
+    /// <summary>Verifies that browser creation persisted preparation data without enrolling players.</summary>
+    private async Task AssertDraftPersistedWithoutEnrollmentAsync(
+        string campaignName,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.AppHost.CreateAdminContext();
+        var campaign = await context.Campaigns
+            .SingleAsync(candidate => candidate.Name == campaignName, cancellationToken);
+
+        campaign.Status.ShouldBe(CampaignStatus.Draft);
+        var hasAssignments = await context.PlayerCampaignAssignments
+            .AnyAsync(assignment => assignment.CampaignId == campaign.CampaignId, cancellationToken);
+        hasAssignments.ShouldBeFalse();
+    }
 
     /// <summary>Navigates to the campaign-creation page and waits for the form.</summary>
     private async Task OpenNewCampaignAsync(IPage page)

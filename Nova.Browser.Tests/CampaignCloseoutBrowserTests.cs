@@ -94,6 +94,12 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await CloseoutSeed.ActivateCampaignAsync(
+            fixture.AppHost,
+            seed.ClubId,
+            seed.ReadyCampaignId,
+            seed.AdminUserId,
+            cancellationToken);
         await using var adminContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
         await using var secondAdminContext = await fixture.NewSignedInContextAsync(seed.SecondAdminEmail, CloseoutSeed.Password);
         var adminPage = adminContext.Pages[0];
@@ -127,6 +133,11 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await CloseoutSeed.CloseActiveCampaignAsync(
+            fixture.AppHost,
+            seed.ClubId,
+            seed.AdminUserId,
+            cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
         var page = context.Pages[0];
 
@@ -237,6 +248,12 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
+        await CloseoutSeed.ActivateCampaignAsync(
+            fixture.AppHost,
+            seed.ClubId,
+            seed.ReadyCampaignId,
+            seed.AdminUserId,
+            cancellationToken);
 
         // Wide viewport: keyboard-only close and reopen with visible focus and announcements.
         await using var wideContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
@@ -291,6 +308,13 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             () => confirmGroup.IsVisibleAsync());
         await InteractionHelpers.ClickUntilAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Confirm reopen" }), () => page.GetByText("Campaign reopened.").IsVisibleAsync());
         await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Campaign reopened.");
+
+        await CloseoutSeed.ActivateCampaignAsync(
+            fixture.AppHost,
+            seed.ClubId,
+            seed.BlockedCampaignId,
+            seed.AdminUserId,
+            cancellationToken);
 
         // Narrow viewport: checklist renders, blocker rows are distinguishable by text, and the
         // close/reopen controls meet the WCAG 2.5.8 minimum target size (24×24 CSS px).

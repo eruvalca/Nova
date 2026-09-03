@@ -360,7 +360,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
             CreationOperationId = Guid.NewGuid(),
             Name = $"Tag Retry Campaign 2 {suffix}",
             StartDate = new DateOnly(2026, 7, 1),
-            Status = CampaignStatus.Active,
+            Status = CampaignStatus.Draft,
             Season = season,
             SeasonId = 0,
             ClubId = clubId,

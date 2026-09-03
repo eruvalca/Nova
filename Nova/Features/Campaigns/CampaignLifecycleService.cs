@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
+using Nova.Data.Configurations;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Activity;
@@ -8,6 +9,7 @@ using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
+using Npgsql;
 using OneOf;
 using OneOf.Types;
 
@@ -158,6 +160,12 @@ public sealed partial class CampaignLifecycleService(
         {
             LogCampaignLifecycleConflict(campaignId, CampaignStatus.Closed);
             return new LifecycleConflict("The campaign is already closed.");
+        }
+
+        if (campaign.Status != CampaignStatus.Active)
+        {
+            LogCampaignLifecycleConflict(campaignId, campaign.Status);
+            return new LifecycleConflict("Only an active campaign can be closed.");
         }
 
         var assignmentStates = await db.PlayerCampaignAssignments
@@ -360,6 +368,21 @@ public sealed partial class CampaignLifecycleService(
             return new LifecycleConflict("The campaign is already active.");
         }
 
+        if (campaign.Status != CampaignStatus.Closed)
+        {
+            LogCampaignLifecycleConflict(campaignId, campaign.Status);
+            return new LifecycleConflict("Only a closed campaign can be reopened.");
+        }
+
+        if (await db.Campaigns.AnyAsync(
+            candidate => candidate.CampaignId != campaignId
+                && candidate.Status == CampaignStatus.Active,
+            cancellationToken))
+        {
+            LogCampaignActiveConflict(campaignId, clubId);
+            return new LifecycleConflict("Another campaign is already active for this club.");
+        }
+
         campaign.Status = CampaignStatus.Active;
         campaign.ClosedAt = null;
         campaign.ClosedById = null;
@@ -390,6 +413,11 @@ public sealed partial class CampaignLifecycleService(
         {
             LogCampaignLifecycleConcurrencyConflict(campaignId);
             return new LifecycleConflict("The campaign changed. Reload it and try again.");
+        }
+        catch (DbUpdateException exception) when (IsOneActiveCampaignViolation(exception))
+        {
+            LogCampaignActiveConflict(campaignId, clubId);
+            return new LifecycleConflict("Another campaign is already active for this club.");
         }
 
         LogCampaignLifecycleChanged(campaignId, CampaignStatus.Active, actorUserId);
@@ -429,6 +457,18 @@ public sealed partial class CampaignLifecycleService(
             successful: false,
             default!);
     }
+
+    /// <summary>
+    /// Determines whether a persistence failure came from the one-Active-campaign unique index.
+    /// </summary>
+    /// <param name="exception">The persistence failure to inspect.</param>
+    /// <returns><see langword="true"/> when PostgreSQL reports the named unique-index violation.</returns>
+    private static bool IsOneActiveCampaignViolation(DbUpdateException exception)
+        => exception.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: CampaignEntityConfiguration.OneActiveCampaignPerClubIndexName
+        };
 
     /// <summary>
     /// Logs a lifecycle request rejected because the caller is not a club administrator.
@@ -475,6 +515,12 @@ public sealed partial class CampaignLifecycleService(
         long campaignId,
         long seasonId,
         long? currentSeasonId);
+
+    /// <summary>Logs a lifecycle transition rejected by the one-Active-campaign invariant.</summary>
+    /// <param name="campaignId">The campaign requested for activation.</param>
+    /// <param name="clubId">The owning club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "CampaignId={CampaignId} could not become Active because ClubId={ClubId} already has an Active campaign.")]
+    private partial void LogCampaignActiveConflict(long campaignId, long clubId);
 
     /// <summary>
     /// Logs a lifecycle transition rejected because the campaign changed concurrently.

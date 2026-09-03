@@ -537,6 +537,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 6, 1),
                 SeasonId = 500,
                 ClubId = ClubAId,
+                Status = CampaignStatus.Active,
                 CreatedById = ClubAAdminId
             },
             new CampaignEntity
@@ -547,6 +548,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 6, 1),
                 SeasonId = 501,
                 ClubId = ClubBId,
+                Status = CampaignStatus.Active,
                 CreatedById = ClubBAdminId
             },
             new CampaignEntity

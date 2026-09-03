@@ -203,7 +203,7 @@ public sealed partial class ClubAttentionQueryService(
                 // Select the target Active campaign first (the newest one with an unresolved
                 // assignment), then count only that campaign's assignments so the count and the
                 // resolution target always agree under one snapshot. One-Active enforcement is
-                // deferred to #178, so multiple Active campaigns can coexist for now.
+                // The persistence model guarantees at most one Active campaign per club.
                 var newest = await undecidedQuery
                     .OrderByDescending(assignment => assignment.Campaign.Season.StartDate)
                     .ThenByDescending(assignment => assignment.Campaign.SeasonId)

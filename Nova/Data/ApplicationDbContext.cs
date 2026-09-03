@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Entities.Base;
+using Nova.Shared.Enums;
 
 namespace Nova.Data;
 
@@ -128,6 +129,19 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
 
         // Bespoke filters (HasQueryFilter replaces any previous filter, so these win).
         // ClubEntity intentionally has NO filter: users must browse clubs to request joining.
+
+        // Draft campaigns are administrator-only preparation data. Keep this at the model boundary
+        // so navigations, aggregate counts, searches, and deep links cannot disclose them to members.
+        modelBuilder.Entity<CampaignEntity>().HasQueryFilter(e =>
+            _bypassTenantFilter
+            || (e.ClubId == _currentUser.ClubId
+                && (_currentUser.IsClubAdmin || e.Status != CampaignStatus.Draft)));
+
+        // Administrator-only activity follows the same visibility boundary as Draft campaigns.
+        modelBuilder.Entity<ActivityEventEntity>().HasQueryFilter(e =>
+            _bypassTenantFilter
+            || (e.ClubId == _currentUser.ClubId
+                && (_currentUser.IsClubAdmin || !e.IsAdminOnly)));
 
         // Join requests: visible to the requester, and to ClubAdmins of the target club.
         modelBuilder.Entity<ClubJoinRequestEntity>().HasQueryFilter(e =>

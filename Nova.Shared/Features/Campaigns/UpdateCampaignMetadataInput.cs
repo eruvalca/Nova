@@ -4,7 +4,7 @@ using Nova.Shared.Validation;
 namespace Nova.Shared.Features.Campaigns;
 
 /// <summary>
-/// Describes a request to correct an Active campaign's metadata without affecting roster enrollment.
+/// Describes a request to correct a Draft or Active campaign's metadata without affecting enrollment.
 /// </summary>
 public sealed record UpdateCampaignMetadataInput : IValidatableObject
 {
