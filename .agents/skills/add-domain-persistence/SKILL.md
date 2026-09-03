@@ -40,8 +40,12 @@ Canonical examples:
 2. **Choose the decision boundary** — when rules form a non-trivial deterministic matrix, follow
    [functional-core-imperative-shell.md](references/functional-core-imperative-shell.md). Keep simple
    guards inline or on the entity. Logic-only policy work may skip every persistence-specific step.
-3. **Model the entity, when needed** — add or update the entity under `Nova\Entities`; use a real `ClubId` FK plus
-   `Club` navigation and `ITenantOwnedEntity` for club-scoped rows. Put shared enums in `Nova.Shared`.
+3. **Model the entity, when needed** — add or update the entity under `Nova\Entities`; ordinarily
+   use a real `ClubId` FK plus `Club` navigation and `ITenantOwnedEntity` for club-scoped rows.
+   Immutable operation receipts that must survive aggregate deletion instead keep an FK-less
+   `ClubId` snapshot and follow the cleanup requirements in
+   [retrying-mutations-and-locks.md](references/retrying-mutations-and-locks.md). Put shared enums in
+   `Nova.Shared`.
 4. **Configure persistence, when needed** — use one `IEntityTypeConfiguration<T>` under
    `Nova\Data\Configurations`; define keys, tenant-consistent composite FKs, indexes, check
    constraints, delete behavior, and concurrency tokens there.

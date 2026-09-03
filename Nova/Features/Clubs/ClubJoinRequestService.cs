@@ -27,6 +27,7 @@ public sealed partial class ClubJoinRequestService(
     UserManager<NovaUserEntity> userManager,
     ILogger<ClubJoinRequestService> logger) : IClubJoinRequestService
 {
+    /// <summary>Identifies immutable receipts written by a committed join approval.</summary>
     private const string ApprovalMutationKind = "JoinApproval";
 
     /// <inheritdoc />

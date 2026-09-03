@@ -132,7 +132,7 @@ public static class ClubEndpoints
     /// Builds the URL for creating a join request for the specified club.
     /// </summary>
     /// <param name="clubId">The id of the club to request joining.</param>
-    /// <returns>The relative URL of the create join request endpoint.</returns>
+    /// <returns>The absolute application URL of the create join request endpoint.</returns>
     public static string CreateJoinRequestUrl(long clubId) => $"{GroupPrefix}/{clubId}/join-requests";
 
     /// <summary>
