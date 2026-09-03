@@ -107,6 +107,15 @@ private static async Task<IResult> UploadHandler(IFormFile file, ...)
 }
 ```
 
+### Multipart metadata and transport filenames
+
+Treat `IFormFile.FileName` and `ContentType` as untrusted metadata. Validate the accepted extension,
+control characters, and media type before `OpenReadStream` or buffering while retaining the same
+checks in the service for direct callers. If the original filename has no domain meaning, the WASM
+client should validate its input but place a fixed safe shared filename in multipart
+`Content-Disposition`; keep client and server acceptance rules identical so prerendered and attached
+calls cannot disagree.
+
 ## Optional `[AsParameters]` Query Properties
 
 A property initializer does not make a non-nullable scalar optional during minimal-API

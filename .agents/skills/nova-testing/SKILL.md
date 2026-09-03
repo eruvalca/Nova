@@ -59,11 +59,17 @@ tests only; run the integration and browser suites locally before opening a PR, 
 controls by role/label (see `references/browser-suite.md`); when a redesign changes markup, update
 the locators — never weaken the assertion to make it pass.
 
-All three projects run xUnit v4 `ParallelMode.All` (Conservative algorithm; browser capped at
-4 threads) via per-project `TestAssemblyParallelization.cs`. Tests share the AppHost/database,
-so keep data per-test unique and the simulated user flow-local: direct `fixture.CurrentUser.X = ...`
-assignment is parallel-safe (AsyncLocal-backed); use `fixture.UseUser(...)` only when restore-on-dispose
-semantics are needed. Never introduce static mutable test state.
+All three projects run xUnit v4 `ParallelMode.All` via per-project
+`TestAssemblyParallelization.cs`. Unit uses the Aggressive algorithm at the CPU-thread default;
+integration and browser use Conservative because they share the AppHost/database, and browser is
+capped at 4 threads. Keep data per-test unique and the simulated user flow-local: direct
+`fixture.CurrentUser.X = ...` assignment is parallel-safe (AsyncLocal-backed); use
+`fixture.UseUser(...)` only when restore-on-dispose semantics are needed. Never introduce static
+mutable test state.
+
+Broad test-generation workflows may create `.testagent/` as disposable local scratch state. The
+directory is gitignored and must not be committed; keep durable evidence in the tests and the PR
+validation summary.
 
 ## Checklist
 
@@ -87,6 +93,9 @@ semantics are needed. Never introduce static mutable test state.
     payloads, including nested nulls, invalid relationships, bounds, and portable ordering.
 12. Exercise each endpoint and query-validation path independently, using the least-privileged
     permitted role and exact counts for lifecycle or tenancy exclusions.
-13. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
+13. When a performance contract promises an exact SQL-command count or no N+1 behavior, assert
+    executed commands with `CountingCommandInterceptor`; context-factory invocations are not
+    command-count evidence.
+14. Run the smallest targeted command with `dotnet test --project <project> --filter-class "*Name"`.
     Repeat `--filter-class` for multiple classes; do not combine class names with `|`.
-14. During implementation and before a local commit, run the smallest relevant test set. Before opening a PR and before merge, run all three suites locally. On intermediate PR pushes, run unit tests plus the integration or browser suites the change can affect; CI does not run the Aspire-dependent suites.
+15. During implementation and before a local commit, run the smallest relevant test set. Before opening a PR and before merge, run all three suites locally. On intermediate PR pushes, run unit tests plus the integration or browser suites the change can affect; CI does not run the Aspire-dependent suites.
