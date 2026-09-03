@@ -5,6 +5,7 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Extensions.Clubs;
+using Nova.Features.Account;
 using Nova.Features.Activity;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
@@ -26,6 +27,8 @@ public sealed partial class ClubJoinRequestService(
     UserManager<NovaUserEntity> userManager,
     ILogger<ClubJoinRequestService> logger) : IClubJoinRequestService
 {
+    private const string ApprovalMutationKind = "JoinApproval";
+
     /// <inheritdoc />
     public async Task<ServiceResult<ClubJoinRequestDto>> GetCurrentUserPendingRequestAsync(CancellationToken cancellationToken = default)
     {
@@ -365,6 +368,7 @@ public sealed partial class ClubJoinRequestService(
             request.ClubId,
             currentUserProvider.UserId ?? 0,
             request.RequestingUserId,
+            Guid.CreateVersion7(),
             NewSecurityStamp(),
             NewConcurrencyStamp());
         var strategy = probeDb.Database.CreateExecutionStrategy();
@@ -541,6 +545,16 @@ public sealed partial class ClubJoinRequestService(
         requestingUser.SecurityStamp = state.SecurityStamp;
         requestingUser.ConcurrencyStamp = state.ConcurrencyStamp;
 
+        await ClubMembershipMutationReceipts.PruneExpiredAsync(db, state.ClubId, cancellationToken);
+        db.ClubMembershipMutationReceipts.Add(new ClubMembershipMutationReceiptEntity
+        {
+            OperationId = state.OperationId,
+            MemberUserId = state.RequestingUserId,
+            MutationKind = ApprovalMutationKind,
+            ClubId = state.ClubId,
+            CreatedById = state.AdminUserId,
+        });
+
         ActivityEventWriter.AppendMembership(
             db,
             request.ClubId,
@@ -564,8 +578,7 @@ public sealed partial class ClubJoinRequestService(
 
     /// <summary>
     /// Verifies whether an approval with an uncertain commit outcome actually committed by
-    /// re-reading the request status, requester membership, and logical operation stamp without
-    /// replaying the write.
+    /// reading the immutable logical-operation receipt without replaying the write.
     /// </summary>
     /// <param name="db">The fresh admin context used for commit verification.</param>
     /// <param name="state">The logical approval state captured before the strategy started.</param>
@@ -576,20 +589,16 @@ public sealed partial class ClubJoinRequestService(
         ApprovalState state,
         CancellationToken cancellationToken)
     {
-        var request = await db.ClubJoinRequests
+        var committed = await db.ClubMembershipMutationReceipts
             .AsNoTracking()
-            .SingleOrDefaultAsync(e => e.ClubJoinRequestId == state.RequestId, cancellationToken);
+            .AnyAsync(
+                receipt => receipt.OperationId == state.OperationId
+                    && receipt.ClubId == state.ClubId
+                    && receipt.MemberUserId == state.RequestingUserId
+                    && receipt.MutationKind == ApprovalMutationKind,
+                cancellationToken);
 
-        var requesterState = await db.Users
-            .AsNoTracking()
-            .Where(user => user.Id == state.RequestingUserId)
-            .Select(user => new { user.ClubId, user.SecurityStamp })
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (request is { Status: RequestStatus.Approved }
-            && requesterState?.ClubId is long assignedClubId
-            && assignedClubId == state.ClubId
-            && requesterState.SecurityStamp == state.SecurityStamp)
+        if (committed)
         {
             LogJoinRequestApproved(state.AdminUserId, state.RequestId, state.RequestingUserId, state.ClubId);
             return new ExecutionResult<ServiceResult<Success>>(successful: true, new Success());
@@ -781,6 +790,7 @@ public sealed partial class ClubJoinRequestService(
         long ClubId,
         long AdminUserId,
         long RequestingUserId,
+        Guid OperationId,
         string SecurityStamp,
         string ConcurrencyStamp);
 

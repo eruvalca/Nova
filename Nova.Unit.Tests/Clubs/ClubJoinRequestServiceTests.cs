@@ -744,6 +744,14 @@ public class ClubJoinRequestServiceTests : IDisposable
             updatedUser.ClubId.ShouldBe(ClubAId);
             updatedUser.SecurityStamp.ShouldNotBe(RequesterSecurityStamp);
             updatedUser.ConcurrencyStamp.ShouldNotBe(RequesterConcurrencyStamp);
+
+            var receipt = await context.ClubMembershipMutationReceipts.SingleAsync(
+                candidate => candidate.MemberUserId == RequestingUserId,
+                TestContext.Current.CancellationToken);
+            receipt.OperationId.ShouldNotBe(Guid.Empty);
+            receipt.ClubId.ShouldBe(ClubAId);
+            receipt.MutationKind.ShouldBe("JoinApproval");
+            receipt.CreatedById.ShouldBe(AdminUserId);
         }
 
         await _userManager.DidNotReceive().UpdateSecurityStampAsync(Arg.Any<NovaUserEntity>());
