@@ -41,6 +41,7 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
                 .WithName(CampaignEndpoints.GetCampaignDetailRouteName);
 
             group.MapGet(CampaignEndpoints.GetCreationSetupRelative, GetCreationSetupHandler)
+                .RequireAuthorization(Policies.RequireClubAdmin)
                 .Produces<CampaignCreationSetupResult>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)

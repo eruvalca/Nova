@@ -9,9 +9,9 @@ namespace Nova.Features.Campaigns;
 internal readonly record struct PlacementMayApply;
 
 /// <summary>
-/// Reports that the placement belongs to a closed campaign.
+/// Reports that the placement belongs to a campaign that is not active.
 /// </summary>
-internal readonly record struct PlacementCampaignClosed;
+internal readonly record struct PlacementCampaignNotActive;
 
 /// <summary>
 /// Reports that the placement belongs to an archived player.
@@ -64,15 +64,15 @@ internal static class CampaignPlacementPolicy
     /// <returns>An approval or the first rejection in existing placement precedence order.</returns>
     internal static OneOf<
         PlacementMayApply,
-        PlacementCampaignClosed,
+        PlacementCampaignNotActive,
         PlacementPlayerArchived,
         PlacementTeamUnavailable,
         PlacementTeamArchived,
         PlacementTeamIneligible> Evaluate(PlacementDecisionContext context)
     {
-        if (context.CampaignStatus == CampaignStatus.Closed)
+        if (context.CampaignStatus != CampaignStatus.Active)
         {
-            return new PlacementCampaignClosed();
+            return new PlacementCampaignNotActive();
         }
 
         if (context.PlayerLifecycleStatus == LifecycleStatus.Archived)

@@ -231,6 +231,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
             CreationOperationId = Guid.NewGuid(),
             Name = "Active History Campaign",
             StartDate = new DateOnly(2026, 6, 1),
+            Status = CampaignStatus.Active,
             SeasonId = season.SeasonId,
             ClubId = clubId,
             CreatedById = actorUserId
@@ -326,6 +327,7 @@ public sealed class PlayerLifecycleHttpTests(NovaAppHostFixture fixture)
             CreationOperationId = Guid.NewGuid(),
             Name = "Active Blocker Campaign",
             StartDate = new DateOnly(2026, 8, 1),
+            Status = CampaignStatus.Active,
             SeasonId = season.SeasonId,
             ClubId = clubId,
             CreatedById = actorUserId

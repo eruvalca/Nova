@@ -40,7 +40,7 @@ public sealed class HttpCampaignCreationService(HttpClient http) : ICampaignCrea
             && result.CampaignStartDate != default
             && (result.CampaignPlannedEndDate is null
                 || result.CampaignPlannedEndDate >= result.CampaignStartDate)
-            && result.Status == CampaignStatus.Active
+            && result.Status == CampaignStatus.Draft
             && result.SeasonId > 0
             && !string.IsNullOrWhiteSpace(result.SeasonName)
             && result.SeasonStartDate != default
@@ -48,6 +48,5 @@ public sealed class HttpCampaignCreationService(HttpClient http) : ICampaignCrea
                 || result.SeasonEndDate >= result.SeasonStartDate)
             && result.CampaignStartDate >= result.SeasonStartDate
             && (result.SeasonEndDate is null
-                || result.CampaignPlannedEndDate <= result.SeasonEndDate)
-            && result.EnrolledPlayerCount >= 0;
+                || result.CampaignPlannedEndDate <= result.SeasonEndDate);
 }

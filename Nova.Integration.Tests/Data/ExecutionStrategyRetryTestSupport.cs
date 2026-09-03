@@ -625,13 +625,14 @@ internal sealed class AdvisoryLockGateInterceptor : DbCommandInterceptor
 }
 
 /// <summary>
-/// Pauses the first removal-receipt prune so a competing removal in the same club can prune the same
-/// expired receipts concurrently, reproducing the overlapping-prune race between different campaigns.
+/// Pauses the first removal-receipt prune inside its transaction after the campaign and tag advisory
+/// locks have been acquired. Holding the prune keeps the campaign lock open so a test can prove that
+/// a competing removal from the same campaign queues behind it before the first mutation proceeds.
 /// The prune is either the set-based delete produced by ExecuteDeleteAsync (a single DELETE command)
 /// or, on providers that cannot translate the age filter to SQL, the load-and-remove fallback whose
 /// receipts SELECT has already buffered the expired rows when the reader is returned. Both hooks
-/// fire after the prune has decided which receipts to delete but before the delete reaches the
-/// database, so the paused removal replays a zero-row delete after the competing removal commits.
+/// pause the prune at a deterministic database-command boundary while those transaction-scoped locks
+/// remain held.
 /// </summary>
 internal sealed class GateReceiptDeleteInterceptor : DbCommandInterceptor
 {
@@ -708,6 +709,40 @@ internal sealed class InsertAfterTeamExistsProbeInterceptor(Func<Task> insertCon
     {
         if (command.CommandText.Contains("EXISTS", StringComparison.Ordinal)
             && command.CommandText.Contains("\"Teams\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _shouldInsert, 0) == 1)
+        {
+            await insertConflictAsync();
+            Interlocked.Increment(ref _insertCount);
+        }
+
+        return await base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Commits an independent write immediately after the Active-campaign existence probe runs,
+/// reproducing the window in which another campaign becomes Active between the probe and the save.
+/// </summary>
+/// <param name="insertConflictAsync">The independent write to commit once, after the first probe.</param>
+internal sealed class InsertAfterCampaignExistsProbeInterceptor(Func<Task> insertConflictAsync) : DbCommandInterceptor
+{
+    private int _shouldInsert = 1;
+    private int _insertCount;
+
+    /// <summary>
+    /// Gets the number of conflicting writes this interceptor committed.
+    /// </summary>
+    public int InsertCount => Volatile.Read(ref _insertCount);
+
+    /// <inheritdoc />
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.Contains("EXISTS", StringComparison.Ordinal)
+            && command.CommandText.Contains("\"Campaigns\"", StringComparison.Ordinal)
             && Interlocked.Exchange(ref _shouldInsert, 0) == 1)
         {
             await insertConflictAsync();

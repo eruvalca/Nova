@@ -142,6 +142,34 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         }, TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue(); // LifecycleConflict
+        result.AsT4.Detail.ShouldBe("Only active campaigns can accept new notes.");
+    }
+
+    /// <summary>
+    /// Verifies a Draft campaign rejects note creation without adding a note, mutation receipt, or activity event.
+    /// </summary>
+    [Fact]
+    public async Task Add_ReturnsConflictWithoutWritesOrActivity_ForDraftCampaign()
+    {
+        await MakeCampaignDraftAsync(_assignmentId);
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var sut = CreateService();
+
+        var result = await sut.AddAsync(new AddEvaluationNoteInput
+        {
+            PlayerCampaignAssignmentId = _assignmentId,
+            Content = "Draft campaign note."
+        }, TestContext.Current.CancellationToken);
+
+        result.IsT4.ShouldBeTrue();
+        result.AsT4.Detail.ShouldBe("Only active campaigns can accept new notes.");
+
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Notes.AnyAsync(
+            note => note.Content == "Draft campaign note.",
+            TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.EvaluationNoteMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
     /// <summary>Verifies that blank content fails validation.</summary>
@@ -237,6 +265,37 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         }, TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue(); // LifecycleConflict
+        result.AsT4.Detail.ShouldBe("Only active campaigns can accept note edits.");
+    }
+
+    /// <summary>
+    /// Verifies a Draft campaign rejects note edits without changing the note or recording side effects.
+    /// </summary>
+    [Fact]
+    public async Task Edit_ReturnsConflictWithoutWritesOrActivity_ForDraftCampaign()
+    {
+        await MakeCampaignDraftAsync(_assignmentId);
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var sut = CreateService();
+
+        var result = await sut.EditAsync(new EditEvaluationNoteInput
+        {
+            NoteId = _existingNoteId,
+            Content = "Draft campaign edit."
+        }, TestContext.Current.CancellationToken);
+
+        result.IsT4.ShouldBeTrue();
+        result.AsT4.Detail.ShouldBe("Only active campaigns can accept note edits.");
+
+        await using var verify = _harness.CreateAdminContext();
+        var note = await verify.Notes.SingleAsync(
+            candidate => candidate.NoteId == _existingNoteId,
+            TestContext.Current.CancellationToken);
+        note.Content.ShouldBe("Initial note.");
+        note.ModifiedAt.ShouldBeNull();
+        note.ModifiedById.ShouldBeNull();
+        (await verify.EvaluationNoteMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
     /// <summary>Verifies that a cross-tenant edit attempt returns NotFound, not an error exposing the note.</summary>
@@ -307,6 +366,30 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         var result = await sut.DeleteAsync(noteId, TestContext.Current.CancellationToken);
 
         result.IsT3.ShouldBeTrue(); // LifecycleConflict
+        result.AsT3.Detail.ShouldBe("Only active campaigns can accept note deletions.");
+    }
+
+    /// <summary>
+    /// Verifies a Draft campaign rejects note deletion without deleting the note or recording side effects.
+    /// </summary>
+    [Fact]
+    public async Task Delete_ReturnsConflictWithoutWritesOrActivity_ForDraftCampaign()
+    {
+        await MakeCampaignDraftAsync(_assignmentId);
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var sut = CreateService();
+
+        var result = await sut.DeleteAsync(_existingNoteId, TestContext.Current.CancellationToken);
+
+        result.IsT3.ShouldBeTrue();
+        result.AsT3.Detail.ShouldBe("Only active campaigns can accept note deletions.");
+
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Notes.AnyAsync(
+            note => note.NoteId == _existingNoteId,
+            TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await verify.EvaluationNoteMutationReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
     /// <summary>Verifies that a cross-tenant delete attempt returns NotFound.</summary>
@@ -334,6 +417,21 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     /// <summary>Creates the service under test using the shared harness.</summary>
     private EvaluationNoteService CreateService() =>
         new(new HarnessDbContextFactory(_harness), _harness.CurrentUser, NullLogger<EvaluationNoteService>.Instance);
+
+    /// <summary>
+    /// Changes the campaign for an existing assignment from Active to Draft for mutation rejection tests.
+    /// </summary>
+    /// <param name="assignmentId">The assignment whose campaign should become Draft.</param>
+    private async Task MakeCampaignDraftAsync(long assignmentId)
+    {
+        await using var db = _harness.CreateAdminContext();
+        var campaign = await db.PlayerCampaignAssignments
+            .Where(assignment => assignment.PlayerCampaignAssignmentId == assignmentId)
+            .Select(assignment => assignment.Campaign)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        campaign.Status = CampaignStatus.Draft;
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
 
     /// <summary>
     /// Seeds clubs, users, players, campaigns, and participations needed for the service tests.

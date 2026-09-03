@@ -154,10 +154,10 @@ public sealed partial class EvaluationNoteService(
         await db.AcquireCampaignMutationLockAsync(participation.CampaignId, cancellationToken);
         await db.Entry(participation.Campaign).ReloadAsync(cancellationToken);
 
-        if (participation.Campaign.Status == CampaignStatus.Closed)
+        if (participation.Campaign.Status != CampaignStatus.Active)
         {
-            LogNoteCampaignClosed(nameof(AddAsync), input.PlayerCampaignAssignmentId, participation.CampaignId);
-            return new LifecycleConflict("Closed campaigns are read-only and cannot accept new notes.");
+            LogNoteCampaignNotActive(nameof(AddAsync), input.PlayerCampaignAssignmentId, participation.CampaignId);
+            return new LifecycleConflict("Only active campaigns can accept new notes.");
         }
 
         var note = new NoteEntity
@@ -333,10 +333,10 @@ public sealed partial class EvaluationNoteService(
         await db.AcquireCampaignMutationLockAsync(note.PlayerCampaignAssignment.CampaignId, cancellationToken);
         await db.Entry(note.PlayerCampaignAssignment.Campaign).ReloadAsync(cancellationToken);
 
-        if (note.PlayerCampaignAssignment.Campaign.Status == CampaignStatus.Closed)
+        if (note.PlayerCampaignAssignment.Campaign.Status != CampaignStatus.Active)
         {
-            LogNoteCampaignClosed(nameof(EditAsync), input.NoteId, note.PlayerCampaignAssignment.CampaignId);
-            return new LifecycleConflict("Closed campaigns are read-only and cannot accept note edits.");
+            LogNoteCampaignNotActive(nameof(EditAsync), input.NoteId, note.PlayerCampaignAssignment.CampaignId);
+            return new LifecycleConflict("Only active campaigns can accept note edits.");
         }
 
         note.Content = input.Content;
@@ -525,10 +525,10 @@ public sealed partial class EvaluationNoteService(
         await db.AcquireCampaignMutationLockAsync(note.PlayerCampaignAssignment.CampaignId, cancellationToken);
         await db.Entry(note.PlayerCampaignAssignment.Campaign).ReloadAsync(cancellationToken);
 
-        if (note.PlayerCampaignAssignment.Campaign.Status == CampaignStatus.Closed)
+        if (note.PlayerCampaignAssignment.Campaign.Status != CampaignStatus.Active)
         {
-            LogNoteCampaignClosed(nameof(DeleteAsync), noteId, note.PlayerCampaignAssignment.CampaignId);
-            return new LifecycleConflict("Closed campaigns are read-only and cannot accept note deletions.");
+            LogNoteCampaignNotActive(nameof(DeleteAsync), noteId, note.PlayerCampaignAssignment.CampaignId);
+            return new LifecycleConflict("Only active campaigns can accept note deletions.");
         }
 
         db.Notes.Remove(note);
@@ -667,12 +667,12 @@ public sealed partial class EvaluationNoteService(
     [LoggerMessage(Level = LogLevel.Warning, Message = "Evaluation note {Operation} target SubjectId={SubjectId} was not found for ClubId={ClubId}.")]
     private partial void LogNoteNotFound(string operation, long subjectId, long clubId);
 
-    /// <summary>Logs a note mutation request rejected because its campaign is closed.</summary>
+    /// <summary>Logs a note mutation request rejected because its campaign is not active.</summary>
     /// <param name="operation">The operation name.</param>
     /// <param name="subjectId">The note or participation identifier provided in the request.</param>
-    /// <param name="campaignId">The closed campaign identifier.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Evaluation note {Operation} rejected for SubjectId={SubjectId} because CampaignId={CampaignId} is closed.")]
-    private partial void LogNoteCampaignClosed(string operation, long subjectId, long campaignId);
+    /// <param name="campaignId">The campaign identifier.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Evaluation note {Operation} rejected for SubjectId={SubjectId} because CampaignId={CampaignId} is not active.")]
+    private partial void LogNoteCampaignNotActive(string operation, long subjectId, long campaignId);
 
     /// <summary>Logs a successfully created evaluation note.</summary>
     /// <param name="noteId">The new note identifier.</param>

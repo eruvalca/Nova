@@ -84,6 +84,36 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies Draft campaigns reject tag applications without persisting an application or side effect.
+    /// </summary>
+    [Fact]
+    public async Task ApplyAsync_ReturnsConflictWithoutWritesOrActivity_ForDraftCampaign()
+    {
+        await MakeCampaignDraftAsync(ActiveAssignmentId);
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.ApplyAsync(
+            new ApplyCampaignTagApplicationInput
+            {
+                PlayerCampaignAssignmentId = ActiveAssignmentId,
+                PlayerTagId = SecondaryActiveTagId
+            },
+            TestContext.Current.CancellationToken);
+
+        result.IsT4.ShouldBeTrue();
+        result.AsT4.Detail.ShouldBe("Only active campaigns can accept tag applications.");
+
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.CampaignTagApplications.AnyAsync(
+            application => application.PlayerCampaignAssignmentId == ActiveAssignmentId
+                && application.PlayerTagId == SecondaryActiveTagId,
+            TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.CampaignTagApplicationRemovalReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+    }
+
+    /// <summary>
     /// Verifies archived tag definitions cannot be applied.
     /// </summary>
     [Fact]
@@ -113,6 +143,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
+        result.AsT4.Detail.ShouldBe("Only active campaigns can accept tag applications.");
     }
 
     /// <summary>
@@ -214,6 +245,32 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
+        result.AsT4.Detail.ShouldBe("Only active campaigns can remove tag applications.");
+    }
+
+    /// <summary>
+    /// Verifies Draft campaigns reject tag removal without deleting the application or recording side effects.
+    /// </summary>
+    [Fact]
+    public async Task RemoveAsync_ReturnsConflictWithoutWritesOrActivity_ForDraftCampaign()
+    {
+        await MakeCampaignDraftAsync(ActiveAssignmentId);
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.RemoveAsync(
+            new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = ExistingApplicationId },
+            TestContext.Current.CancellationToken);
+
+        result.IsT4.ShouldBeTrue();
+        result.AsT4.Detail.ShouldBe("Only active campaigns can remove tag applications.");
+
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.CampaignTagApplications.AnyAsync(
+            application => application.CampaignTagApplicationId == ExistingApplicationId,
+            TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await verify.CampaignTagApplicationRemovalReceipts.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
     /// <summary>
@@ -245,6 +302,21 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
             dbContextFactory,
             _harness.CurrentUser,
             NullLogger<CampaignTagApplicationService>.Instance);
+    }
+
+    /// <summary>
+    /// Changes the campaign for an existing assignment from Active to Draft for mutation rejection tests.
+    /// </summary>
+    /// <param name="assignmentId">The assignment whose campaign should become Draft.</param>
+    private async Task MakeCampaignDraftAsync(long assignmentId)
+    {
+        await using var db = _harness.CreateAdminContext();
+        var campaign = await db.PlayerCampaignAssignments
+            .Where(assignment => assignment.PlayerCampaignAssignmentId == assignmentId)
+            .Select(assignment => assignment.Campaign)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        campaign.Status = CampaignStatus.Draft;
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
     /// <summary>
@@ -315,6 +387,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
                 Name = "Active Campaign A",
                 SeasonId = 600,
                 ClubId = ClubAId,
+                Status = CampaignStatus.Active,
                 CreatedById = ClubAAdminId
             },
             new CampaignEntity
@@ -336,6 +409,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
                 Name = "Active Campaign B",
                 SeasonId = 601,
                 ClubId = ClubBId,
+                Status = CampaignStatus.Active,
                 CreatedById = ClubBMemberId
             });
 

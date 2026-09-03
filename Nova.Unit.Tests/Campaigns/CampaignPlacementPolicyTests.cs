@@ -10,19 +10,22 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class CampaignPlacementPolicyTests
 {
     /// <summary>
-    /// Verifies a closed campaign has the highest rejection precedence.
+    /// Verifies every non-active campaign has the highest rejection precedence.
     /// </summary>
-    [Fact]
-    public void Evaluate_ReturnsCampaignClosed_WhenMultipleFactsReject()
+    /// <param name="campaignStatus">The non-active campaign status.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(CampaignStatus.Draft)]
+    [InlineData(CampaignStatus.Closed)]
+    public void Evaluate_ReturnsCampaignNotActive_WhenMultipleFactsReject(CampaignStatus campaignStatus)
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
-                campaignStatus: CampaignStatus.Closed,
+                campaignStatus: campaignStatus,
                 playerStatus: LifecycleStatus.Archived,
                 teamRequested: true,
                 teamFound: false));
 
-        result.Value.ShouldBeOfType<PlacementCampaignClosed>();
+        result.Value.ShouldBeOfType<PlacementCampaignNotActive>();
     }
 
     /// <summary>
@@ -115,7 +118,7 @@ public sealed class CampaignPlacementPolicyTests
     /// Verifies a closed campaign is rejected before a requested team's archived state.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsCampaignClosed_WhenRequestedTeamWouldBeArchived()
+    public void Evaluate_ReturnsCampaignNotActive_WhenRequestedTeamWouldBeArchived()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
@@ -125,14 +128,14 @@ public sealed class CampaignPlacementPolicyTests
                 teamStatus: LifecycleStatus.Archived,
                 teamYear: 2029));
 
-        result.Value.ShouldBeOfType<PlacementCampaignClosed>();
+        result.Value.ShouldBeOfType<PlacementCampaignNotActive>();
     }
 
     /// <summary>
     /// Verifies a closed campaign is rejected before a requested team's eligibility check.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsCampaignClosed_WhenRequestedTeamWouldBeIneligible()
+    public void Evaluate_ReturnsCampaignNotActive_WhenRequestedTeamWouldBeIneligible()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
@@ -142,7 +145,7 @@ public sealed class CampaignPlacementPolicyTests
                 teamFound: true,
                 teamYear: 2030));
 
-        result.Value.ShouldBeOfType<PlacementCampaignClosed>();
+        result.Value.ShouldBeOfType<PlacementCampaignNotActive>();
     }
 
     /// <summary>

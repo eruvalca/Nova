@@ -29,7 +29,7 @@ file sealed class CampaignHarnessDbContextFactory(TenancyTestHarness harness)
 }
 
 /// <summary>
-/// Verifies campaign creation authorization, tenancy, date policies, initial enrollment, and idempotency.
+/// Verifies campaign creation authorization, tenancy, date policies, Draft persistence, and idempotency.
 /// </summary>
 public sealed class CampaignCreationServiceTests : IDisposable
 {
@@ -53,10 +53,10 @@ public sealed class CampaignCreationServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     /// <summary>
-    /// Verifies an administrator can create an Active campaign in an existing season.
+    /// Verifies an administrator can create a Draft campaign in an existing season.
     /// </summary>
     [Fact]
-    public async Task Create_ReturnsActiveCampaign_ForExistingSeason()
+    public async Task Create_ReturnsDraftCampaign_ForExistingSeason()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var input = ValidExistingSeasonInput();
@@ -68,9 +68,8 @@ public sealed class CampaignCreationServiceTests : IDisposable
         result.IsSuccess.ShouldBeTrue();
         result.Value.OperationId.ShouldBe(input.OperationId);
         result.Value.SeasonId.ShouldBe(_clubASeasonId);
-        result.Value.Status.ShouldBe(CampaignStatus.Active);
+        result.Value.Status.ShouldBe(CampaignStatus.Draft);
         result.Value.SeasonCreatedInline.ShouldBeFalse();
-        result.Value.EnrolledPlayerCount.ShouldBe(1);
     }
 
     /// <summary>
@@ -118,10 +117,10 @@ public sealed class CampaignCreationServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Verifies only Active players in the current club receive initial participation.
+    /// Verifies Draft creation does not enroll Active or Archived players.
     /// </summary>
     [Fact]
-    public async Task Create_EnrollsOnlyCurrentClubActivePlayers()
+    public async Task Create_DoesNotEnrollPlayers()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -134,11 +133,10 @@ public sealed class CampaignCreationServiceTests : IDisposable
         var assignments = db.PlayerCampaignAssignments
             .Where(assignment => assignment.CampaignId == result.Value.CampaignId)
             .ToList();
-        assignments.Count.ShouldBe(1);
-        assignments[0].PlayerId.ShouldBe(_activePlayerId);
-        assignments.ShouldNotContain(assignment => assignment.PlayerId == _archivedPlayerId);
-        assignments[0].PlacementOutcome.ShouldBe(PlacementOutcome.Undecided);
-        assignments[0].TeamId.ShouldBeNull();
+        assignments.ShouldBeEmpty();
+        db.ActivityEvents.Count(activity => activity.CampaignId == result.Value.CampaignId
+            && activity.EventKind == ActivityEventKind.CampaignDraftCreated
+            && activity.IsAdminOnly).ShouldBe(1);
     }
 
     /// <summary>
@@ -168,10 +166,36 @@ public sealed class CampaignCreationServiceTests : IDisposable
         using var db = _harness.CreateAdminContext();
         db.Campaigns.Count(candidate => candidate.CreationOperationId == input.OperationId).ShouldBe(1);
         db.Seasons.Count(candidate => candidate.CreationOperationId == input.OperationId).ShouldBe(1);
+        db.ActivityEvents.Count(activity => activity.CampaignId == first.Value.CampaignId
+            && activity.EventKind == ActivityEventKind.CampaignDraftCreated).ShouldBe(1);
+    }
+
+    /// <summary>Verifies differently named Drafts may coexist in one club and season.</summary>
+    [Fact]
+    public async Task Create_AllowsMultipleDraftsInSameSeason()
+    {
+        ActAs(ClubAAdminId, ClubAId, isAdmin: true);
+        var first = await CreateService().CreateAsync(
+            ValidExistingSeasonInput(),
+            TestContext.Current.CancellationToken);
+        var second = await CreateService().CreateAsync(
+            ValidExistingSeasonInput() with
+            {
+                OperationId = Guid.CreateVersion7(),
+                Name = "Second Draft"
+            },
+            TestContext.Current.CancellationToken);
+
+        first.IsSuccess.ShouldBeTrue();
+        second.IsSuccess.ShouldBeTrue();
+        using var db = _harness.CreateAdminContext();
+        db.Campaigns.Count(campaign => campaign.ClubId == ClubAId
+            && campaign.SeasonId == _clubASeasonId
+            && campaign.Status == CampaignStatus.Draft).ShouldBe(2);
     }
 
     /// <summary>
-    /// Verifies replay returns creation-time status and enrollment count after the aggregate changes.
+    /// Verifies replay reconstructs the creation-time Draft response without duplicating writes.
     /// </summary>
     [Fact]
     public async Task Create_ReturnsCreationSnapshot_AfterCampaignChanges()
@@ -216,8 +240,7 @@ public sealed class CampaignCreationServiceTests : IDisposable
         var replay = await service.CreateAsync(input, TestContext.Current.CancellationToken);
 
         replay.IsSuccess.ShouldBeTrue();
-        replay.Value.Status.ShouldBe(CampaignStatus.Active);
-        replay.Value.EnrolledPlayerCount.ShouldBe(first.Value.EnrolledPlayerCount);
+        replay.Value.Status.ShouldBe(CampaignStatus.Draft);
     }
 
     /// <summary>

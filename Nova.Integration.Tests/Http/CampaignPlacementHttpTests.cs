@@ -437,7 +437,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
         var (assignmentId, teamId, token) = await SeedPlacementDataAsync(
-            club.ClubId, email, cancellationToken, closedCampaign: true);
+            club.ClubId, email, cancellationToken, campaignStatus: CampaignStatus.Closed);
 
         using var response = await client.PutAsJsonAsync(
             CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
@@ -449,7 +449,51 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Closed campaigns are read-only and cannot accept placement changes.");
+            .ShouldBe("Only active campaigns can accept placement changes.");
+    }
+
+    /// <summary>
+    /// Verifies a Draft campaign rejects placement mutations without changing the assignment.
+    /// </summary>
+    [Fact]
+    public async Task CampaignPlacementUpdate_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("placement-draft");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (assignmentId, _, token) = await SeedPlacementDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Draft);
+
+        using var response = await client.PutAsJsonAsync(
+            CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.NotSelected, teamId: null, token),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("detail").GetString()
+            .ShouldBe("Only active campaigns can accept placement changes.");
+
+        await using var verify = fixture.CreateAdminContext();
+        var persisted = await verify.PlayerCampaignAssignments
+            .SingleAsync(
+                assignment => assignment.PlayerCampaignAssignmentId == assignmentId,
+                cancellationToken);
+        persisted.PlacementOutcome.ShouldBe(PlacementOutcome.Undecided);
+        persisted.TeamId.ShouldBeNull();
+        persisted.ConcurrencyToken.ShouldBe(token);
+        var activityCount = await verify.ActivityEvents
+            .CountAsync(activity => activity.CampaignId == persisted.CampaignId, cancellationToken);
+        activityCount.ShouldBe(0);
     }
 
     /// <summary>
@@ -928,7 +972,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// <param name="clubId">The owning club identifier.</param>
     /// <param name="adminEmail">A registered user email whose database row provides the created-by identifier.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
-    /// <param name="closedCampaign">Whether the campaign should be seeded as closed.</param>
+    /// <param name="campaignStatus">The lifecycle status assigned to the campaign.</param>
     /// <param name="archivedPlayer">Whether the player should be seeded as archived.</param>
     /// <param name="teamGraduationYear">The team graduation-year cutoff.</param>
     /// <returns>The seeded assignment id, team id, and assignment concurrency token.</returns>
@@ -936,7 +980,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         long clubId,
         string adminEmail,
         CancellationToken cancellationToken,
-        bool closedCampaign = false,
+        CampaignStatus campaignStatus = CampaignStatus.Active,
         bool archivedPlayer = false,
         int teamGraduationYear = 2029,
         bool archivedTeam = false,
@@ -959,9 +1003,9 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
             CreationOperationId = Guid.NewGuid(),
             Name = $"Placement Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
-            Status = closedCampaign ? CampaignStatus.Closed : CampaignStatus.Active,
-            ClosedAt = closedCampaign ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ClosedById = closedCampaign ? user.Id : null,
+            Status = campaignStatus,
+            ClosedAt = campaignStatus == CampaignStatus.Closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+            ClosedById = campaignStatus == CampaignStatus.Closed ? user.Id : null,
             Season = season,
             SeasonId = 0,
             ClubId = clubId,

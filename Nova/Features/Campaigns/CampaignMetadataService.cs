@@ -11,7 +11,7 @@ using Nova.Shared.Validation;
 namespace Nova.Features.Campaigns;
 
 /// <summary>
-/// Corrects Active campaign metadata with lifecycle-sensitive locking.
+/// Corrects Draft or Active campaign metadata with lifecycle-sensitive locking.
 /// Rejects corrections for Closed campaigns and never alters roster enrollment.
 /// </summary>
 /// <param name="dbContextFactory">The tenant-scoped context factory used for metadata mutations.</param>
@@ -134,7 +134,7 @@ public sealed partial class CampaignMetadataService(
         {
             LogCampaignMetadataHistoricalSeasonConflict(input.CampaignId, input.SeasonId, currentSeasonId);
             return ServiceProblem.Conflict(
-                "An active campaign must belong to the club's current season.");
+                "A campaign must belong to the club's current season to update its metadata.");
         }
 
         // Cross-field date validation against the target season

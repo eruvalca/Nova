@@ -175,7 +175,11 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
-        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(club.ClubId, email, cancellationToken, closedCampaign: true);
+        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Closed);
 
         using var response = await client.PostAsJsonAsync(
             CampaignEndpoints.AddEvaluationNote,
@@ -187,7 +191,47 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Closed campaigns are read-only and cannot accept new notes.");
+            .ShouldBe("Only active campaigns can accept new notes.");
+    }
+
+    /// <summary>
+    /// Verifies a club administrator cannot add a note to a Draft campaign and no note or receipt is persisted.
+    /// </summary>
+    [Fact]
+    public async Task AddEvaluationNote_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("note-add-draft");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Draft);
+
+        using var response = await client.PostAsJsonAsync(
+            CampaignEndpoints.AddEvaluationNote,
+            ValidAddInput(assignmentId, "Note on a Draft campaign."),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("detail").GetString()
+            .ShouldBe("Only active campaigns can accept new notes.");
+
+        await using var verify = fixture.CreateAdminContext();
+        var noteCount = await verify.Notes
+            .CountAsync(note => note.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
+        noteCount.ShouldBe(0);
+        var receiptCount = await verify.EvaluationNoteMutationReceipts
+            .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
+        receiptCount.ShouldBe(0);
     }
 
     /// <summary>
@@ -352,7 +396,11 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
-        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(club.ClubId, email, cancellationToken, closedCampaign: true);
+        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Closed);
         var noteId = await InsertNoteAsync(club.ClubId, assignmentId, email, "Pre-existing note.", cancellationToken);
 
         using var editResponse = await client.PutAsJsonAsync(
@@ -365,8 +413,47 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
             await editResponse.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Closed campaigns are read-only and cannot accept note edits.");
+            .ShouldBe("Only active campaigns can accept note edits.");
         await AssertNotePersistedAsync(noteId, "Pre-existing note.", cancellationToken);
+    }
+
+    /// <summary>
+    /// Verifies a club administrator cannot edit a note in a Draft campaign and no mutation receipt is persisted.
+    /// </summary>
+    [Fact]
+    public async Task EditEvaluationNote_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("note-edit-draft");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Draft);
+        var noteId = await InsertNoteAsync(club.ClubId, assignmentId, email, "Pre-existing note.", cancellationToken);
+
+        using var response = await client.PutAsJsonAsync(
+            CampaignEndpoints.EditEvaluationNoteUrl(noteId),
+            ValidEditInput("Attempted edit."),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("detail").GetString()
+            .ShouldBe("Only active campaigns can accept note edits.");
+        await AssertNotePersistedAsync(noteId, "Pre-existing note.", cancellationToken);
+
+        await using var verify = fixture.CreateAdminContext();
+        var receiptCount = await verify.EvaluationNoteMutationReceipts
+            .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
+        receiptCount.ShouldBe(0);
     }
 
     /// <summary>
@@ -573,7 +660,11 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
-        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(club.ClubId, email, cancellationToken, closedCampaign: true);
+        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Closed);
         var noteId = await InsertNoteAsync(club.ClubId, assignmentId, email, "Pre-existing note.", cancellationToken);
 
         using var deleteResponse = await client.DeleteAsync(
@@ -585,8 +676,46 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
             await deleteResponse.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Closed campaigns are read-only and cannot accept note deletions.");
+            .ShouldBe("Only active campaigns can accept note deletions.");
         await AssertNotePersistedAsync(noteId, "Pre-existing note.", cancellationToken);
+    }
+
+    /// <summary>
+    /// Verifies a club administrator cannot delete a note in a Draft campaign and no mutation receipt is persisted.
+    /// </summary>
+    [Fact]
+    public async Task DeleteEvaluationNote_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("note-delete-draft");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (_, assignmentId) = await SeedEvaluationNoteDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Draft);
+        var noteId = await InsertNoteAsync(club.ClubId, assignmentId, email, "Pre-existing note.", cancellationToken);
+
+        using var response = await client.DeleteAsync(
+            CampaignEndpoints.DeleteEvaluationNoteUrl(noteId),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("detail").GetString()
+            .ShouldBe("Only active campaigns can accept note deletions.");
+        await AssertNotePersistedAsync(noteId, "Pre-existing note.", cancellationToken);
+
+        await using var verify = fixture.CreateAdminContext();
+        var receiptCount = await verify.EvaluationNoteMutationReceipts
+            .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
+        receiptCount.ShouldBe(0);
     }
 
     /// <summary>
@@ -730,18 +859,18 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Seeds an active season, campaign, player, and participation for the given club.
+    /// Seeds a season, campaign, player, and participation for the given club.
     /// </summary>
     /// <param name="clubId">The owning club identifier.</param>
     /// <param name="email">A registered user email whose database row provides the created-by identifier.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
-    /// <param name="closedCampaign">Whether the campaign should be seeded as closed.</param>
+    /// <param name="campaignStatus">The lifecycle status assigned to the campaign.</param>
     /// <returns>The campaign and participation identifiers.</returns>
     private async Task<(long CampaignId, long AssignmentId)> SeedEvaluationNoteDataAsync(
         long clubId,
         string email,
         CancellationToken cancellationToken,
-        bool closedCampaign = false)
+        CampaignStatus campaignStatus = CampaignStatus.Active)
     {
         await using var context = fixture.CreateAdminContext();
         var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
@@ -752,9 +881,9 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
             CreationOperationId = Guid.NewGuid(),
             Name = $"Note Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
-            Status = closedCampaign ? CampaignStatus.Closed : CampaignStatus.Active,
-            ClosedAt = closedCampaign ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ClosedById = closedCampaign ? user.Id : null,
+            Status = campaignStatus,
+            ClosedAt = campaignStatus == CampaignStatus.Closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+            ClosedById = campaignStatus == CampaignStatus.Closed ? user.Id : null,
             Season = season,
             SeasonId = 0,
             ClubId = clubId,
@@ -792,7 +921,7 @@ public sealed class EvaluationNoteHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>
     /// Inserts an evaluation note row directly via the admin context, bypassing the add endpoint's
-    /// lifecycle guards so boundary tests can start from a closed campaign.
+    /// lifecycle guards so boundary tests can start from a Draft or Closed campaign.
     /// </summary>
     /// <param name="clubId">The owning club identifier.</param>
     /// <param name="assignmentId">The participation identifier.</param>

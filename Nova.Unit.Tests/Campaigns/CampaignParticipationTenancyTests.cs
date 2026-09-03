@@ -17,6 +17,8 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
     private const long ClubBId = 801;
     private const long ClubAUserId = 900;
     private const long ClubBUserId = 901;
+    private const long ClubAActiveAssignmentId = 1300;
+    private const long ClubADraftAssignmentId = 1302;
 
     private readonly TenancyTestHarness _harness = new();
 
@@ -41,6 +43,43 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
 
         assignments.Count.ShouldBe(1);
         assignments.ShouldAllBe(assignment => assignment.ClubId == ClubAId);
+    }
+
+    /// <summary>
+    /// Verifies a Draft campaign's participation is hidden from members, visible to its club administrators,
+    /// and visible across tenants only through the administrative context.
+    /// </summary>
+    [Fact]
+    public void TenantContext_ShapesDraftCampaignParticipationByRole()
+    {
+        ActAs(ClubAUserId, ClubAId);
+        using (var memberDb = _harness.CreateTenantContext())
+        {
+            var memberAssignmentIds = memberDb.PlayerCampaignAssignments
+                .OrderBy(assignment => assignment.PlayerCampaignAssignmentId)
+                .Select(assignment => assignment.PlayerCampaignAssignmentId)
+                .ToList();
+
+            memberAssignmentIds.ShouldBe([ClubAActiveAssignmentId]);
+        }
+
+        ActAs(ClubAUserId, ClubAId, isClubAdmin: true);
+        using (var clubAdminDb = _harness.CreateTenantContext())
+        {
+            var clubAdminAssignmentIds = clubAdminDb.PlayerCampaignAssignments
+                .OrderBy(assignment => assignment.PlayerCampaignAssignmentId)
+                .Select(assignment => assignment.PlayerCampaignAssignmentId)
+                .ToList();
+
+            clubAdminAssignmentIds.ShouldBe([ClubAActiveAssignmentId, ClubADraftAssignmentId]);
+        }
+
+        using var adminDb = _harness.CreateAdminContext();
+        var allAssignmentIds = adminDb.PlayerCampaignAssignments
+            .OrderBy(assignment => assignment.PlayerCampaignAssignmentId)
+            .Select(assignment => assignment.PlayerCampaignAssignmentId)
+            .ToList();
+        allAssignmentIds.ShouldBe([1300L, 1301L, 1302L]);
     }
 
     /// <summary>
@@ -107,14 +146,16 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
     /// </summary>
     /// <param name="userId">The current user identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
-    private void ActAs(long userId, long clubId)
+    /// <param name="isClubAdmin">Whether the current user is a club administrator.</param>
+    private void ActAs(long userId, long clubId, bool isClubAdmin = false)
     {
         _harness.CurrentUser.UserId = userId;
         _harness.CurrentUser.ClubId = clubId;
+        _harness.CurrentUser.IsClubAdmin = isClubAdmin;
     }
 
     /// <summary>
-    /// Seeds one participation for each of two clubs.
+    /// Seeds Active participation for each of two clubs plus Draft participation for club A.
     /// </summary>
     private void Seed()
     {
@@ -190,6 +231,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
                 CreationOperationId = Guid.NewGuid(),
                 CampaignId = 1200,
                 Name = "Campaign A",
+                Status = CampaignStatus.Active,
                 SeasonId = 1000,
                 ClubId = ClubAId,
                 CreatedById = ClubAUserId
@@ -199,15 +241,26 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
                 CreationOperationId = Guid.NewGuid(),
                 CampaignId = 1201,
                 Name = "Campaign B",
+                Status = CampaignStatus.Active,
                 SeasonId = 1001,
                 ClubId = ClubBId,
                 CreatedById = ClubBUserId
+            },
+            new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                CampaignId = 1202,
+                Name = "Campaign A Draft",
+                Status = CampaignStatus.Draft,
+                SeasonId = 1000,
+                ClubId = ClubAId,
+                CreatedById = ClubAUserId
             });
 
         db.PlayerCampaignAssignments.AddRange(
             new PlayerCampaignAssignmentEntity
             {
-                PlayerCampaignAssignmentId = 1300,
+                PlayerCampaignAssignmentId = ClubAActiveAssignmentId,
                 PlayerId = 1100,
                 CampaignId = 1200,
                 ClubId = ClubAId,
@@ -222,6 +275,15 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
                 ClubId = ClubBId,
                 PlacementOutcome = PlacementOutcome.Undecided,
                 CreatedById = ClubBUserId
+            },
+            new PlayerCampaignAssignmentEntity
+            {
+                PlayerCampaignAssignmentId = ClubADraftAssignmentId,
+                PlayerId = 1100,
+                CampaignId = 1202,
+                ClubId = ClubAId,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                CreatedById = ClubAUserId
             });
 
         db.SaveChanges();

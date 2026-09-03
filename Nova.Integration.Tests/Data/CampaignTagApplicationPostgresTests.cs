@@ -131,6 +131,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
             CreationOperationId = Guid.NewGuid(),
             Name = $"Campaign A {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
+            Status = CampaignStatus.Active,
             SeasonId = seasonA.SeasonId,
             ClubId = clubA.ClubId,
             CreatedById = actorUserId

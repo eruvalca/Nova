@@ -243,24 +243,27 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies two concurrent removals in the same club on different campaigns both succeed when
-    /// their prunes overlap the same expired receipts. Removals on different campaigns are not
-    /// serialized by the campaign advisory lock, so without a set-based prune the second delete would
-    /// affect zero rows and surface a DbUpdateConcurrencyException as a spurious not-found.
+    /// Verifies two concurrent removals in the same club and its sole Active campaign both succeed
+    /// while pruning an expired receipt. The campaign advisory lock serializes these valid mutations,
+    /// and each removal must preserve its own durable idempotency receipt.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ConcurrentSameClubPrunes_BothSucceed()
+    public async Task RemoveCampaignTagApplication_ConcurrentSameActiveCampaignPrunes_BothSucceed()
     {
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
         var suffix = Guid.NewGuid().ToString("N");
-        var (clubId, _, _, _, applicationId) = await SeedTagApplicationDataAsync(actorUserId, suffix, applied: true);
-        var (_, _, _, secondApplicationId) = await SeedSecondTagApplicationDataAsync(actorUserId, clubId, suffix);
+        var (clubId, campaignId, _, _, applicationId) = await SeedTagApplicationDataAsync(actorUserId, suffix, applied: true);
+        var (_, _, secondApplicationId) = await SeedSecondTagApplicationInCampaignAsync(
+            actorUserId,
+            clubId,
+            campaignId,
+            suffix);
 
         fixture.CurrentUser.UserId = actorUserId;
         fixture.CurrentUser.ClubId = clubId;
         fixture.CurrentUser.IsClubAdmin = true;
 
-        // Backdate a receipt so both removals race to prune it.
+        // Backdate a receipt so both removals would be eligible to prune it.
         var staleOperationId = Guid.CreateVersion7();
         await using (var seed = fixture.CreateAdminContext())
         {
@@ -277,11 +280,13 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        var firstGate = new GateReceiptDeleteInterceptor();
+        var firstLockGate = new AdvisoryLockGateInterceptor();
+        var firstPruneGate = new GateReceiptDeleteInterceptor();
         var firstFactory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
             fixture.CurrentUser,
-            firstGate);
+            firstLockGate,
+            firstPruneGate);
         var secondFactory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
             fixture.CurrentUser,
@@ -298,26 +303,36 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         Task<ServiceResult<Success>> firstRemove;
         try
         {
-            // The first removal pauses after its prune has decided which expired receipts to delete;
-            // the second removal then prunes the same expired receipt and commits, leaving zero rows
-            // for the paused delete to replay.
+            // First prove the removal acquired its campaign lock, then let it advance to the receipt
+            // prune gate. It remains paused there with the transaction-scoped campaign lock held.
             firstRemove = ((ICampaignTagApplicationService)firstService).RemoveAsync(
                 new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = applicationId },
                 TestContext.Current.CancellationToken);
-            await firstGate.WaitForDeleteAttemptAsync(TestContext.Current.CancellationToken);
+            await firstLockGate.WaitForAcquiredAsync(TestContext.Current.CancellationToken);
+            firstLockGate.Release();
+            await firstPruneGate.WaitForDeleteAttemptAsync(TestContext.Current.CancellationToken);
 
-            var secondResult = await ((ICampaignTagApplicationService)secondService).RemoveAsync(
+            var secondRemove = ((ICampaignTagApplicationService)secondService).RemoveAsync(
                 new RemoveCampaignTagApplicationInput { CampaignTagApplicationId = secondApplicationId },
                 TestContext.Current.CancellationToken);
-            secondResult.IsSuccess.ShouldBeTrue("the competing removal must not be blocked by the paused one");
 
-            firstGate.Release();
-            var firstResult = await firstRemove;
-            firstResult.IsSuccess.ShouldBeTrue("the paused removal must tolerate the expired receipt already being pruned");
+            // Do not release the first removal until PostgreSQL confirms that the second transaction
+            // has reached and is blocked on the same campaign advisory-lock key.
+            await using var lockProbe = fixture.CreateAdminContext();
+            await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+                lockProbe,
+                long.MinValue + campaignId,
+                TestContext.Current.CancellationToken);
+            secondRemove.IsCompleted.ShouldBeFalse();
+
+            firstPruneGate.Release();
+            var results = await Task.WhenAll(firstRemove, secondRemove);
+            results.ShouldAllBe(result => result.IsSuccess);
         }
         finally
         {
-            firstGate.Release();
+            firstLockGate.Release();
+            firstPruneGate.Release();
         }
 
         await using var verify = fixture.CreateAdminContext();
@@ -336,36 +351,18 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Seeds a second campaign, player, tag, participation, and application in the existing club so a
-    /// removal can race with one in a different campaign without sharing an advisory-lock key.
+    /// Seeds a second player, tag, participation, and application in the existing Active campaign so
+    /// both removal attempts remain valid under the one-Active-campaign-per-club invariant.
     /// </summary>
     /// <param name="actorUserId">The creating user identifier.</param>
     /// <param name="clubId">The club shared with the first seeded application.</param>
+    /// <param name="campaignId">The sole Active campaign shared with the first seeded application.</param>
     /// <param name="suffix">A unique suffix for generated names.</param>
-    /// <returns>The seeded campaign, tag, participation, and application identifiers.</returns>
-    private async Task<(long CampaignId, long TagId, long AssignmentId, long ApplicationId)>
-        SeedSecondTagApplicationDataAsync(long actorUserId, long clubId, string suffix)
+    /// <returns>The seeded tag, participation, and application identifiers.</returns>
+    private async Task<(long TagId, long AssignmentId, long ApplicationId)>
+        SeedSecondTagApplicationInCampaignAsync(long actorUserId, long clubId, long campaignId, string suffix)
     {
         await using var seed = fixture.CreateAdminContext();
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag Retry Season 2 {suffix}",
-            StartDate = new DateOnly(2026, 2, 1),
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag Retry Campaign 2 {suffix}",
-            StartDate = new DateOnly(2026, 7, 1),
-            Status = CampaignStatus.Active,
-            Season = season,
-            SeasonId = 0,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
         var player = new PlayerEntity
         {
             CreationOperationId = Guid.NewGuid(),
@@ -388,17 +385,17 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
             CreatedById = actorUserId
         };
 
-        seed.AddRange(season, campaign, player, playerTag);
+        seed.AddRange(player, playerTag);
         await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var assignment = new PlayerCampaignAssignmentEntity
         {
             PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
+            CampaignId = campaignId,
             ClubId = clubId,
             CreatedById = actorUserId,
             PlacementOutcome = PlacementOutcome.Undecided,
-            TryoutNumber = 7
+            TryoutNumber = 8
         };
         seed.Add(assignment);
         await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -414,7 +411,7 @@ public sealed class CampaignTagApplicationRetryTests(NovaAppHostFixture fixture)
         seed.Add(application);
         await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return (campaign.CampaignId, playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId, application.CampaignTagApplicationId);
+        return (playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId, application.CampaignTagApplicationId);
     }
 
     /// <summary>
