@@ -255,7 +255,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
     }
 
-    /// <summary>Verifies an Active campaign cannot be moved out of the club's current season.</summary>
+    /// <summary>Verifies campaign metadata cannot be moved out of the club's current season.</summary>
     [Fact]
     public async Task UpdateAsync_ReturnsConflict_WhenTargetSeasonIsHistorical()
     {
@@ -273,6 +273,8 @@ public sealed class CampaignMetadataServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Detail.ShouldBe(
+            "A campaign must belong to the club's current season to update its metadata.");
 
         await using var verify = _harness.CreateAdminContext();
         (await verify.Campaigns.SingleAsync(
@@ -384,7 +386,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 6, 1),
                 SeasonId = SeasonAId,
                 ClubId = ClubAId,
-                Status = CampaignStatus.Active,
+                Status = CampaignStatus.Draft,
                 CreatedById = ClubAAdminId
             },
             new CampaignEntity

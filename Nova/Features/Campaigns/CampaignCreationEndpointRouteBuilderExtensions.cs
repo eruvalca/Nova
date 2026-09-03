@@ -39,7 +39,7 @@ internal static class CampaignCreationEndpointRouteBuilderExtensions
     }
 
     /// <summary>
-    /// Creates an Active campaign and its initial Active-player participation snapshot.
+    /// Creates an administrator-only Draft campaign without enrolling players.
     /// </summary>
     /// <param name="input">The campaign and season creation request.</param>
     /// <param name="campaignCreationService">The campaign creation service.</param>

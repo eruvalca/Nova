@@ -40,6 +40,68 @@ public sealed class HttpTeamDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies placement history accepts Draft rows in the contracted lifecycle order.
+    /// </summary>
+    [Fact]
+    public async Task GetTeamDetailAsync_ReturnsDetail_WhenPlacementHistoryUsesDraftLifecycleOrder()
+    {
+        var active = new TeamPlacementImpactDto(
+            1,
+            1,
+            "Active Campaign",
+            CampaignStatus.Active,
+            new DateOnly(2024, 1, 1),
+            1,
+            "Active Player",
+            2028,
+            null,
+            PlacementOutcome.Assigned);
+        var draft = active with
+        {
+            PlayerCampaignAssignmentId = 2,
+            CampaignId = 2,
+            CampaignName = "Draft Campaign",
+            CampaignStatus = CampaignStatus.Draft,
+            CampaignStartDate = new DateOnly(2025, 1, 1),
+            PlayerId = 2,
+            PlayerDisplayName = "Draft Player"
+        };
+        var closed = active with
+        {
+            PlayerCampaignAssignmentId = 3,
+            CampaignId = 3,
+            CampaignName = "Closed Campaign",
+            CampaignStatus = CampaignStatus.Closed,
+            CampaignStartDate = new DateOnly(2026, 1, 1),
+            PlayerId = 3,
+            PlayerDisplayName = "Closed Player"
+        };
+        var payload = new TeamDetailDto(
+            7,
+            8,
+            "U16",
+            2028,
+            LifecycleStatus.Active,
+            [active],
+            [active, draft, closed]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
+            7,
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PlacementHistory.Select(placement => placement.CampaignStatus)
+            .ShouldBe([CampaignStatus.Active, CampaignStatus.Draft, CampaignStatus.Closed]);
+        result.Value.ActivePlacementImpacts.Single().CampaignStatus.ShouldBe(CampaignStatus.Active);
+    }
+
+    /// <summary>
     /// Verifies malformed successful responses are surfaced as protocol failures.
     /// </summary>
     [Fact]
@@ -454,6 +516,63 @@ public sealed class HttpTeamDetailServiceTests
             LifecycleStatus.Active,
             [],
             [older, newer]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new CapturingHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpTeamDetailService(http).GetTeamDetailAsync(
+            7,
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>
+    /// Verifies placement history rejects every reversed lifecycle transition.
+    /// </summary>
+    /// <param name="firstStatus">The lifecycle status of the preceding history row.</param>
+    /// <param name="secondStatus">The lifecycle status of the following history row.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(CampaignStatus.Draft, CampaignStatus.Active)]
+    [InlineData(CampaignStatus.Closed, CampaignStatus.Active)]
+    [InlineData(CampaignStatus.Closed, CampaignStatus.Draft)]
+    public async Task GetTeamDetailAsync_ReturnsServerError_WhenPlacementHistoryLifecycleOrderIsInvalid(
+        CampaignStatus firstStatus,
+        CampaignStatus secondStatus)
+    {
+        var first = new TeamPlacementImpactDto(
+            1,
+            1,
+            "First Campaign",
+            firstStatus,
+            new DateOnly(2025, 1, 1),
+            1,
+            "First Player",
+            2028,
+            null,
+            PlacementOutcome.Assigned);
+        var second = first with
+        {
+            PlayerCampaignAssignmentId = 2,
+            CampaignId = 2,
+            CampaignName = "Second Campaign",
+            CampaignStatus = secondStatus,
+            PlayerId = 2,
+            PlayerDisplayName = "Second Player"
+        };
+        TeamPlacementImpactDto[] placementHistory = [first, second];
+        var payload = new TeamDetailDto(
+            7,
+            8,
+            "U16",
+            2028,
+            LifecycleStatus.Active,
+            placementHistory.Where(placement => placement.CampaignStatus == CampaignStatus.Active).ToList(),
+            placementHistory);
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(payload)

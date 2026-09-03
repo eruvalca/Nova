@@ -3,12 +3,12 @@
 namespace Nova.Shared.Features.Campaigns;
 
 /// <summary>
-/// Creates Active campaigns and their initial participation snapshots across server and HTTP boundaries.
+/// Creates administrator-only Draft campaigns across server and HTTP boundaries.
 /// </summary>
 public interface ICampaignCreationService
 {
     /// <summary>
-    /// Creates an Active campaign in an existing or inline-created season and enrolls all Active players.
+    /// Creates a Draft campaign in an existing or inline-created season without enrolling players.
     /// </summary>
     /// <param name="input">The idempotent campaign and season creation request.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>

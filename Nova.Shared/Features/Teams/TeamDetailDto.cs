@@ -11,7 +11,7 @@ namespace Nova.Shared.Features.Teams;
 /// <param name="GraduationYear">The minimum eligible player graduation year.</param>
 /// <param name="LifecycleStatus">The team lifecycle state.</param>
 /// <param name="ActivePlacementImpacts">Active-campaign placements currently assigned to the team.</param>
-/// <param name="PlacementHistory">All historical and active placements assigned to the team.</param>
+/// <param name="PlacementHistory">All visible Draft, Active, and Closed campaign placements assigned to the team.</param>
 public sealed record TeamDetailDto(
     long TeamId,
     long ClubId,

@@ -407,6 +407,47 @@ public sealed class CampaignPlacementServiceTests : IDisposable
             TestContext.Current.CancellationToken);
 
         result.IsT4.ShouldBeTrue();
+        result.AsT4.Detail.ShouldBe("Only active campaigns can accept placement changes.");
+    }
+
+    /// <summary>
+    /// Verifies a Draft campaign rejects placement mutations without changing the assignment or
+    /// appending placement activity.
+    /// </summary>
+    [Fact]
+    public async Task UpdatePlacementAsync_ReturnsConflictWithoutWritesOrActivity_WhenCampaignIsDraft()
+    {
+        await using (var arrange = _harness.CreateAdminContext())
+        {
+            var campaign = await arrange.Campaigns
+                .SingleAsync(candidate => candidate.CampaignId == 600, TestContext.Current.CancellationToken);
+            campaign.Status = CampaignStatus.Draft;
+            await arrange.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var result = await service.UpdatePlacementAsync(
+            new UpdateCampaignPlacementInput(
+                ClubAAssignmentId,
+                PlacementOutcome.Assigned,
+                EligibleTeamId,
+                _clubAConcurrencyToken),
+            TestContext.Current.CancellationToken);
+
+        result.IsT4.ShouldBeTrue();
+        result.AsT4.Detail.ShouldBe("Only active campaigns can accept placement changes.");
+
+        await using var verify = _harness.CreateAdminContext();
+        var assignment = await verify.PlayerCampaignAssignments
+            .SingleAsync(
+                candidate => candidate.PlayerCampaignAssignmentId == ClubAAssignmentId,
+                TestContext.Current.CancellationToken);
+        assignment.PlacementOutcome.ShouldBe(PlacementOutcome.Undecided);
+        assignment.TeamId.ShouldBeNull();
+        assignment.ConcurrencyToken.ShouldBe(_clubAConcurrencyToken);
+        (await verify.ActivityEvents.AnyAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
     /// <summary>
@@ -537,6 +578,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 6, 1),
                 SeasonId = 500,
                 ClubId = ClubAId,
+                Status = CampaignStatus.Active,
                 CreatedById = ClubAAdminId
             },
             new CampaignEntity
@@ -547,6 +589,7 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 6, 1),
                 SeasonId = 501,
                 ClubId = ClubBId,
+                Status = CampaignStatus.Active,
                 CreatedById = ClubBAdminId
             },
             new CampaignEntity

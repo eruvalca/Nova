@@ -13,7 +13,7 @@ using Shouldly;
 namespace Nova.Integration.Tests.Data;
 
 /// <summary>
-/// Verifies campaign creation constraints, retries, rollback, and roster-lock races on PostgreSQL.
+/// Verifies Draft campaign creation constraints, retries, rollback, and concurrency on PostgreSQL.
 /// </summary>
 /// <param name="fixture">The shared Aspire AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
@@ -54,6 +54,73 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             CreateCampaign("Second Club", secondClub, operationId));
 
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>Verifies the filtered index permits one Active campaign in each club.</summary>
+    [Fact]
+    public async Task OneActiveCampaign_AllowsDifferentClubs()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var firstClub = await SeedAsync(includePlayers: false, cancellationToken);
+        var secondClub = await SeedAsync(includePlayers: false, cancellationToken);
+        await using var db = fixture.CreateAdminContext();
+        var first = CreateCampaign("Active A", firstClub, Guid.CreateVersion7());
+        var second = CreateCampaign("Active B", secondClub, Guid.CreateVersion7());
+        first.Status = CampaignStatus.Active;
+        second.Status = CampaignStatus.Active;
+        db.Campaigns.AddRange(first, second);
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>Verifies the filtered index rejects a second Active campaign in one club.</summary>
+    [Fact]
+    public async Task OneActiveCampaign_RejectsSecondInSameClub()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(includePlayers: false, cancellationToken);
+        await using var db = fixture.CreateAdminContext();
+        var first = CreateCampaign("Active A", seed, Guid.CreateVersion7());
+        var second = CreateCampaign("Active B", seed, Guid.CreateVersion7());
+        first.Status = CampaignStatus.Active;
+        second.Status = CampaignStatus.Active;
+        db.Campaigns.AddRange(first, second);
+
+        await Should.ThrowAsync<DbUpdateException>(() => db.SaveChangesAsync(cancellationToken));
+    }
+
+    /// <summary>Verifies competing Active inserts leave exactly one winner.</summary>
+    [Fact]
+    public async Task OneActiveCampaign_CompetingTransactionsYieldOneWinner()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(includePlayers: false, cancellationToken);
+
+        async Task<bool> TryInsertAsync(string name)
+        {
+            await using var db = fixture.CreateAdminContext();
+            var campaign = CreateCampaign(name, seed, Guid.CreateVersion7());
+            campaign.Status = CampaignStatus.Active;
+            db.Campaigns.Add(campaign);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+            catch (DbUpdateException)
+            {
+                return false;
+            }
+        }
+
+        var outcomes = await Task.WhenAll(
+            TryInsertAsync("Competing A"),
+            TryInsertAsync("Competing B"));
+
+        outcomes.Count(success => success).ShouldBe(1);
+        await using var verify = fixture.CreateAdminContext();
+        (await verify.Campaigns.CountAsync(campaign => campaign.ClubId == seed.ClubId
+            && campaign.Status == CampaignStatus.Active, cancellationToken)).ShouldBe(1);
     }
 
     /// <summary>
@@ -193,6 +260,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
                 && campaign.CreationOperationId == input.OperationId)
             .ToListAsync(cancellationToken);
         campaigns.Count.ShouldBe(1);
+        campaigns[0].Status.ShouldBe(CampaignStatus.Draft);
 
         var seasons = await verify.Seasons
             .Where(season => season.ClubId == seed.ClubId
@@ -204,8 +272,10 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             .CountAsync(
                 assignment => assignment.CampaignId == result.Value.CampaignId,
                 cancellationToken);
-        assignmentCount.ShouldBe(seed.ActivePlayerCount);
-        result.Value.EnrolledPlayerCount.ShouldBe(seed.ActivePlayerCount);
+        assignmentCount.ShouldBe(0);
+        (await verify.ActivityEvents.CountAsync(activity => activity.CampaignId == result.Value.CampaignId
+            && activity.EventKind == ActivityEventKind.CampaignDraftCreated
+            && activity.IsAdminOnly, cancellationToken)).ShouldBe(1);
     }
 
     /// <summary>
@@ -245,14 +315,17 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             cancellationToken)).ShouldBe(1);
         (await verify.PlayerCampaignAssignments.CountAsync(
             assignment => assignment.CampaignId == result.Value.CampaignId,
-            cancellationToken)).ShouldBe(seed.ActivePlayerCount);
+            cancellationToken)).ShouldBe(0);
+        (await verify.ActivityEvents.CountAsync(activity => activity.CampaignId == result.Value.CampaignId
+            && activity.EventKind == ActivityEventKind.CampaignDraftCreated,
+            cancellationToken)).ShouldBe(1);
     }
 
     /// <summary>
-    /// Verifies a failure before participation persistence rolls back inline season and campaign writes.
+    /// Verifies an activity-write failure rolls back the inline season and Draft campaign.
     /// </summary>
     [Fact]
-    public async Task Create_RollsBackSeasonCampaignAndParticipations_WhenSecondSaveFails()
+    public async Task Create_RollsBackSeasonCampaignAndActivity_WhenSecondSaveFails()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(
@@ -281,33 +354,21 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             season => season.ClubId == seed.ClubId
                 && season.CreationOperationId == input.OperationId,
             cancellationToken)).ShouldBeFalse();
+        (await verify.ActivityEvents.AnyAsync(
+            activity => activity.ClubId == seed.ClubId
+                && activity.EventKind == ActivityEventKind.CampaignDraftCreated,
+            cancellationToken)).ShouldBeFalse();
     }
 
     /// <summary>
-    /// Verifies either roster-lock winner leaves exactly one participation linking the new player and
-    /// campaign.
+    /// Verifies creating a player alongside a Draft never enrolls that player in the Draft.
     /// </summary>
-    /// <param name="campaignWinsLock">Whether campaign creation acquires the roster lock first.</param>
-    [Theory(IncludeTestCaseIndex = true)]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ConcurrentCampaignAndPlayerCreation_ProducesParticipation_ForEitherLockWinner(
-        bool campaignWinsLock)
+    [Fact]
+    public async Task ConcurrentCampaignAndPlayerCreation_DoesNotEnrollPlayerInDraft()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
         ActAs(seed.ActorUserId, seed.ClubId, isAdmin: true);
-
-        var campaignGate = new AdvisoryLockGateInterceptor(advisoryLocksToSkip: 1);
-        var playerGate = new AdvisoryLockGateInterceptor();
-        var campaignFactory = new RetryingTenantDbContextFactory(
-            fixture.ConnectionString,
-            fixture.CurrentUser,
-            campaignGate);
-        var playerFactory = new RetryingTenantDbContextFactory(
-            fixture.ConnectionString,
-            fixture.CurrentUser,
-            playerGate);
         var playerInput = new CreatePlayerInput
         {
             FirstName = "Concurrent",
@@ -316,50 +377,10 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             GraduationYear = 2030
         };
 
-        Task<ServiceResult<CreateCampaignResult>> campaignTask;
-        Task<ServiceResult<PlayerDto>> playerTask;
-        try
-        {
-            if (campaignWinsLock)
-            {
-                campaignTask = CreateCampaignService(campaignFactory).CreateAsync(
-                    ExistingSeasonInput(seed),
-                    cancellationToken);
-                await campaignGate.WaitForAcquiredAsync(cancellationToken);
-
-                playerTask = CreatePlayerService(playerFactory).CreateAsync(
-                    playerInput,
-                    cancellationToken);
-                await playerGate.WaitForAttemptAsync(cancellationToken);
-
-                campaignGate.Release();
-                await campaignTask;
-                await playerGate.WaitForAcquiredAsync(cancellationToken);
-                playerGate.Release();
-            }
-            else
-            {
-                playerTask = CreatePlayerService(playerFactory).CreateAsync(
-                    playerInput,
-                    cancellationToken);
-                await playerGate.WaitForAcquiredAsync(cancellationToken);
-
-                campaignTask = CreateCampaignService(campaignFactory).CreateAsync(
-                    ExistingSeasonInput(seed),
-                    cancellationToken);
-                await campaignGate.WaitForAttemptAsync(cancellationToken);
-
-                playerGate.Release();
-                await playerTask;
-                await campaignGate.WaitForAcquiredAsync(cancellationToken);
-                campaignGate.Release();
-            }
-        }
-        finally
-        {
-            campaignGate.Release();
-            playerGate.Release();
-        }
+        var campaignTask = CreateCampaignService(new FixtureDbContextFactory(fixture)).CreateAsync(
+            ExistingSeasonInput(seed),
+            cancellationToken);
+        var playerTask = CreatePlayerService().CreateAsync(playerInput, cancellationToken);
 
         await Task.WhenAll(campaignTask, playerTask);
         var campaignResult = await campaignTask;
@@ -372,8 +393,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             .Where(assignment => assignment.CampaignId == campaignResult.Value.CampaignId
                 && assignment.PlayerId == playerResult.Value.PlayerId)
             .ToListAsync(cancellationToken);
-        assignments.Count.ShouldBe(1);
-        assignments[0].PlacementOutcome.ShouldBe(PlacementOutcome.Undecided);
+        assignments.ShouldBeEmpty();
     }
 
     /// <summary>
@@ -428,7 +448,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             Name = name,
             StartDate = new DateOnly(2026, 6, 1),
             EndDate = new DateOnly(2026, 6, 30),
-            Status = CampaignStatus.Active,
+            Status = CampaignStatus.Draft,
             ClubId = seed.ClubId,
             SeasonId = seed.SeasonId,
             CreatedById = seed.ActorUserId

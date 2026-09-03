@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Nova.Entities;
+using Nova.Shared.Enums;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -17,8 +18,12 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     private const long ClubBUserId = 901;
     private const long ClubAAssignmentId = 1300;
     private const long ClubBAssignmentId = 1301;
+    private const long ClubADraftAssignmentId = 1302;
     private const long ClubATagId = 1400;
     private const long ClubBTagId = 1401;
+    private const long ClubAApplicationId = 1500;
+    private const long ClubBApplicationId = 1501;
+    private const long ClubADraftApplicationId = 1502;
 
     private readonly TenancyTestHarness _harness = new();
 
@@ -47,6 +52,43 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
 
         applications.Count.ShouldBe(1);
         applications.ShouldAllBe(candidate => candidate.ClubId == ClubAId);
+    }
+
+    /// <summary>
+    /// Verifies Draft-linked tag applications are hidden from members, visible to their club administrators,
+    /// and visible across tenants only through the administrative context.
+    /// </summary>
+    [Fact]
+    public void TenantContext_ShapesDraftCampaignTagApplicationsByRole()
+    {
+        ActAs(ClubAUserId, ClubAId);
+        using (var memberDb = _harness.CreateTenantContext())
+        {
+            var memberApplicationIds = memberDb.CampaignTagApplications
+                .OrderBy(application => application.CampaignTagApplicationId)
+                .Select(application => application.CampaignTagApplicationId)
+                .ToList();
+
+            memberApplicationIds.ShouldBe([ClubAApplicationId]);
+        }
+
+        ActAs(ClubAUserId, ClubAId, isClubAdmin: true);
+        using (var clubAdminDb = _harness.CreateTenantContext())
+        {
+            var clubAdminApplicationIds = clubAdminDb.CampaignTagApplications
+                .OrderBy(application => application.CampaignTagApplicationId)
+                .Select(application => application.CampaignTagApplicationId)
+                .ToList();
+
+            clubAdminApplicationIds.ShouldBe([ClubAApplicationId, ClubADraftApplicationId]);
+        }
+
+        using var adminDb = _harness.CreateAdminContext();
+        var allApplicationIds = adminDb.CampaignTagApplications
+            .OrderBy(application => application.CampaignTagApplicationId)
+            .Select(application => application.CampaignTagApplicationId)
+            .ToList();
+        allApplicationIds.ShouldBe([ClubAApplicationId, ClubBApplicationId, ClubADraftApplicationId]);
     }
 
     /// <summary>
@@ -152,14 +194,16 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     /// </summary>
     /// <param name="userId">The current user identifier.</param>
     /// <param name="clubId">The current club identifier.</param>
-    private void ActAs(long userId, long clubId)
+    /// <param name="isClubAdmin">Whether the current user is a club administrator.</param>
+    private void ActAs(long userId, long clubId, bool isClubAdmin = false)
     {
         _harness.CurrentUser.UserId = userId;
         _harness.CurrentUser.ClubId = clubId;
+        _harness.CurrentUser.IsClubAdmin = isClubAdmin;
     }
 
     /// <summary>
-    /// Seeds one campaign tag application for each club.
+    /// Seeds one Active campaign tag application for each club plus a Draft-linked application for club A.
     /// </summary>
     private void Seed()
     {
@@ -235,6 +279,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
                 CreationOperationId = Guid.NewGuid(),
                 CampaignId = 1200,
                 Name = "Campaign A",
+                Status = CampaignStatus.Active,
                 SeasonId = 1000,
                 ClubId = ClubAId,
                 CreatedById = ClubAUserId
@@ -244,9 +289,20 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
                 CreationOperationId = Guid.NewGuid(),
                 CampaignId = 1201,
                 Name = "Campaign B",
+                Status = CampaignStatus.Active,
                 SeasonId = 1001,
                 ClubId = ClubBId,
                 CreatedById = ClubBUserId
+            },
+            new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                CampaignId = 1202,
+                Name = "Campaign A Draft",
+                Status = CampaignStatus.Draft,
+                SeasonId = 1000,
+                ClubId = ClubAId,
+                CreatedById = ClubAUserId
             });
 
         db.PlayerCampaignAssignments.AddRange(
@@ -265,6 +321,14 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
                 CampaignId = 1201,
                 ClubId = ClubBId,
                 CreatedById = ClubBUserId
+            },
+            new PlayerCampaignAssignmentEntity
+            {
+                PlayerCampaignAssignmentId = ClubADraftAssignmentId,
+                PlayerId = 1100,
+                CampaignId = 1202,
+                ClubId = ClubAId,
+                CreatedById = ClubAUserId
             });
 
         db.PlayerTags.AddRange(
@@ -293,7 +357,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             new CampaignTagApplicationEntity
             {
                 CreationOperationId = Guid.NewGuid(),
-                CampaignTagApplicationId = 1500,
+                CampaignTagApplicationId = ClubAApplicationId,
                 PlayerCampaignAssignmentId = ClubAAssignmentId,
                 PlayerTagId = ClubATagId,
                 ClubId = ClubAId,
@@ -302,11 +366,20 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             new CampaignTagApplicationEntity
             {
                 CreationOperationId = Guid.NewGuid(),
-                CampaignTagApplicationId = 1501,
+                CampaignTagApplicationId = ClubBApplicationId,
                 PlayerCampaignAssignmentId = ClubBAssignmentId,
                 PlayerTagId = ClubBTagId,
                 ClubId = ClubBId,
                 CreatedById = ClubBUserId
+            },
+            new CampaignTagApplicationEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                CampaignTagApplicationId = ClubADraftApplicationId,
+                PlayerCampaignAssignmentId = ClubADraftAssignmentId,
+                PlayerTagId = ClubATagId,
+                ClubId = ClubAId,
+                CreatedById = ClubAUserId
             });
 
         _clubARemovalOperationId = Guid.CreateVersion7();
@@ -315,14 +388,14 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
             new CampaignTagApplicationRemovalReceiptEntity
             {
                 RemovalOperationId = _clubARemovalOperationId,
-                CampaignTagApplicationId = 1500,
+                CampaignTagApplicationId = ClubAApplicationId,
                 ClubId = ClubAId,
                 CreatedById = ClubAUserId
             },
             new CampaignTagApplicationRemovalReceiptEntity
             {
                 RemovalOperationId = _clubBRemovalOperationId,
-                CampaignTagApplicationId = 1501,
+                CampaignTagApplicationId = ClubBApplicationId,
                 ClubId = ClubBId,
                 CreatedById = ClubBUserId
             });

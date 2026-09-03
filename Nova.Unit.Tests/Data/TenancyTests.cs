@@ -98,6 +98,8 @@ public class TenancyTests : IDisposable
     // Assigned during Seed() once database-generated IDs are available.
     private long _clubAAssignmentId;
     private long _clubBAssignmentId;
+    private long _clubADraftAssignmentId;
+    private long _clubBDraftAssignmentId;
 
     public TenancyTests()
     {
@@ -183,6 +185,7 @@ public class TenancyTests : IDisposable
             CreationOperationId = Guid.NewGuid(),
             Name = "Campaign A",
             StartDate = new DateOnly(2026, 6, 1),
+            Status = CampaignStatus.Active,
             SeasonId = seasonA.SeasonId,
             ClubId = ClubAId,
             CreatedById = ClubAMember1Id
@@ -192,11 +195,40 @@ public class TenancyTests : IDisposable
             CreationOperationId = Guid.NewGuid(),
             Name = "Campaign B",
             StartDate = new DateOnly(2026, 6, 1),
+            Status = CampaignStatus.Active,
             SeasonId = seasonB.SeasonId,
             ClubId = ClubBId,
             CreatedById = ClubBMemberId
         };
         context.Campaigns.AddRange(campaignA, campaignB);
+        context.SaveChanges();
+
+        var draftCampaignA = new CampaignEntity
+        {
+            CreationOperationId = Guid.NewGuid(),
+            Name = "Draft Campaign A",
+            StartDate = new DateOnly(2026, 7, 1),
+            Status = CampaignStatus.Draft,
+            SeasonId = seasonA.SeasonId,
+            ClubId = ClubAId,
+            CreatedById = ClubAMember1Id
+        };
+        var draftCampaignB = new CampaignEntity
+        {
+            CreationOperationId = Guid.NewGuid(),
+            Name = "Draft Campaign B",
+            StartDate = new DateOnly(2026, 7, 1),
+            Status = CampaignStatus.Draft,
+            SeasonId = seasonB.SeasonId,
+            ClubId = ClubBId,
+            CreatedById = ClubBMemberId
+        };
+        context.Campaigns.AddRange(draftCampaignA, draftCampaignB);
+        context.ActivityEvents.AddRange(
+            CreateActivity(ClubAId, isAdminOnly: false, "Member A"),
+            CreateActivity(ClubAId, isAdminOnly: true, "Admin A"),
+            CreateActivity(ClubBId, isAdminOnly: false, "Member B"),
+            CreateActivity(ClubBId, isAdminOnly: true, "Admin B"));
         context.SaveChanges();
 
         var playerA = context.Players.First(p => p.ClubId == ClubAId);
@@ -215,16 +247,65 @@ public class TenancyTests : IDisposable
             ClubId = ClubBId,
             CreatedById = ClubBMemberId
         };
-        context.PlayerCampaignAssignments.AddRange(assignmentA, assignmentB);
+        var draftAssignmentA = new PlayerCampaignAssignmentEntity
+        {
+            PlayerId = playerA.PlayerId,
+            CampaignId = draftCampaignA.CampaignId,
+            ClubId = ClubAId,
+            CreatedById = ClubAMember1Id
+        };
+        var draftAssignmentB = new PlayerCampaignAssignmentEntity
+        {
+            PlayerId = playerB.PlayerId,
+            CampaignId = draftCampaignB.CampaignId,
+            ClubId = ClubBId,
+            CreatedById = ClubBMemberId
+        };
+        context.PlayerCampaignAssignments.AddRange(
+            assignmentA,
+            assignmentB,
+            draftAssignmentA,
+            draftAssignmentB);
         context.SaveChanges();
 
         _clubAAssignmentId = assignmentA.PlayerCampaignAssignmentId;
         _clubBAssignmentId = assignmentB.PlayerCampaignAssignmentId;
+        _clubADraftAssignmentId = draftAssignmentA.PlayerCampaignAssignmentId;
+        _clubBDraftAssignmentId = draftAssignmentB.PlayerCampaignAssignmentId;
 
-        // One note per club to exercise the tenant filter on NoteEntity.
+        // Active and Draft evaluation rows exercise role-shaped visibility on the dependent graph.
         context.Notes.AddRange(
             new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Note A", PlayerCampaignAssignmentId = _clubAAssignmentId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
-            new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Note B", PlayerCampaignAssignmentId = _clubBAssignmentId, ClubId = ClubBId, CreatedById = ClubBMemberId });
+            new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Note B", PlayerCampaignAssignmentId = _clubBAssignmentId, ClubId = ClubBId, CreatedById = ClubBMemberId },
+            new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Draft Note A", PlayerCampaignAssignmentId = _clubADraftAssignmentId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new NoteEntity { CreationOperationId = Guid.NewGuid(), Content = "Draft Note B", PlayerCampaignAssignmentId = _clubBDraftAssignmentId, ClubId = ClubBId, CreatedById = ClubBMemberId });
+
+        var tagA = new PlayerTagEntity
+        {
+            CreationOperationId = Guid.NewGuid(),
+            Name = "Tag A",
+            NormalizedName = "TAG A",
+            Color = "#112233",
+            ClubId = ClubAId,
+            CreatedById = ClubAMember1Id
+        };
+        var tagB = new PlayerTagEntity
+        {
+            CreationOperationId = Guid.NewGuid(),
+            Name = "Tag B",
+            NormalizedName = "TAG B",
+            Color = "#445566",
+            ClubId = ClubBId,
+            CreatedById = ClubBMemberId
+        };
+        context.PlayerTags.AddRange(tagA, tagB);
+        context.SaveChanges();
+
+        context.CampaignTagApplications.AddRange(
+            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubAAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubADraftAssignmentId, PlayerTagId = tagA.PlayerTagId, ClubId = ClubAId, CreatedById = ClubAMember1Id },
+            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubBAssignmentId, PlayerTagId = tagB.PlayerTagId, ClubId = ClubBId, CreatedById = ClubBMemberId },
+            new CampaignTagApplicationEntity { CreationOperationId = Guid.NewGuid(), PlayerCampaignAssignmentId = _clubBDraftAssignmentId, PlayerTagId = tagB.PlayerTagId, ClubId = ClubBId, CreatedById = ClubBMemberId });
         context.SaveChanges();
     }
 
@@ -233,6 +314,90 @@ public class TenancyTests : IDisposable
         _harness.CurrentUser.UserId = userId;
         _harness.CurrentUser.ClubId = clubId;
         _harness.CurrentUser.IsClubAdmin = isClubAdmin;
+    }
+
+    private static ActivityEventEntity CreateActivity(long clubId, bool isAdminOnly, string actorName)
+        => new()
+        {
+            ClubId = clubId,
+            EventKind = ActivityEventKind.MemberJoined,
+            IsAdminOnly = isAdminOnly,
+            ActorUserId = clubId == ClubAId ? ClubAMember1Id : ClubBMemberId,
+            ActorDisplayName = actorName,
+            PayloadJson = "{}",
+            CreatedById = clubId == ClubAId ? ClubAMember1Id : ClubBMemberId
+        };
+
+    [Fact]
+    public void Campaigns_HideDraftsFromMembers_AndShowThemToClubAdmins()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using (var member = _harness.CreateReadContext())
+        {
+            member.Campaigns.Select(campaign => campaign.Name).ShouldBe(["Campaign A"]);
+        }
+
+        ActAs(ClubAMember1Id, ClubAId, isClubAdmin: true);
+        using var admin = _harness.CreateReadContext();
+        admin.Campaigns.Select(campaign => campaign.Name)
+            .ShouldBe(["Campaign A", "Draft Campaign A"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void DraftEvaluationGraph_IsVisibleOnlyToOwningClubAdministratorsAndAdminContext()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using (var member = _harness.CreateReadContext())
+        {
+            member.PlayerCampaignAssignments.Select(assignment => assignment.PlayerCampaignAssignmentId)
+                .ShouldBe([_clubAAssignmentId]);
+            member.Notes.Select(note => note.Content).ShouldBe(["Note A"]);
+            member.CampaignTagApplications.Count().ShouldBe(1);
+        }
+
+        ActAs(ClubAMember1Id, ClubAId, isClubAdmin: true);
+        using (var clubAdmin = _harness.CreateReadContext())
+        {
+            clubAdmin.PlayerCampaignAssignments.Select(assignment => assignment.PlayerCampaignAssignmentId)
+                .ShouldBe([_clubAAssignmentId, _clubADraftAssignmentId], ignoreOrder: true);
+            clubAdmin.Notes.Select(note => note.Content)
+                .ShouldBe(["Note A", "Draft Note A"], ignoreOrder: true);
+            clubAdmin.CampaignTagApplications.Count().ShouldBe(2);
+        }
+
+        ActAs(ClubBMemberId, ClubBId);
+        using (var otherClubMember = _harness.CreateReadContext())
+        {
+            otherClubMember.PlayerCampaignAssignments.Select(assignment => assignment.PlayerCampaignAssignmentId)
+                .ShouldBe([_clubBAssignmentId]);
+            otherClubMember.Notes.Select(note => note.Content).ShouldBe(["Note B"]);
+            otherClubMember.CampaignTagApplications.Count().ShouldBe(1);
+        }
+
+        using var allClubs = _harness.CreateAdminContext();
+        allClubs.PlayerCampaignAssignments.Count().ShouldBe(4);
+        allClubs.Notes.Count().ShouldBe(4);
+        allClubs.CampaignTagApplications.Count().ShouldBe(4);
+    }
+
+    [Fact]
+    public void ActivityEvents_HideAdminOnlyRowsFromMembers_AndPreserveTenantIsolation()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using (var member = _harness.CreateReadContext())
+        {
+            member.ActivityEvents.Select(activity => activity.ActorDisplayName).ShouldBe(["Member A"]);
+        }
+
+        ActAs(ClubAMember1Id, ClubAId, isClubAdmin: true);
+        using (var clubAdmin = _harness.CreateReadContext())
+        {
+            clubAdmin.ActivityEvents.Select(activity => activity.ActorDisplayName)
+                .ShouldBe(["Member A", "Admin A"], ignoreOrder: true);
+        }
+
+        using var allClubs = _harness.CreateAdminContext();
+        allClubs.ActivityEvents.Count().ShouldBe(4);
     }
 
     [Fact]

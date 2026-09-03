@@ -956,13 +956,12 @@ public sealed class CampaignComponentsTests : BunitContext
                 "Summer Tryouts",
                 new DateOnly(2026, 6, 1),
                 null,
-                CampaignStatus.Active,
+                CampaignStatus.Draft,
                 9,
                 "Summer 2026",
                 new DateOnly(2026, 6, 1),
                 new DateOnly(2026, 8, 31),
-                SeasonCreatedInline: true,
-                EnrolledPlayerCount: 34))));
+                SeasonCreatedInline: true))));
 
         var queryService = Substitute.For<ICampaignQueryService>();
         queryService.GetCreationSetupAsync(Arg.Any<CancellationToken>())
@@ -1009,13 +1008,12 @@ public sealed class CampaignComponentsTests : BunitContext
                 "Fall ID",
                 new DateOnly(2026, 6, 1),
                 null,
-                CampaignStatus.Active,
+                CampaignStatus.Draft,
                 5,
                 "Summer 2026",
                 new DateOnly(2026, 6, 1),
                 null,
-                SeasonCreatedInline: false,
-                EnrolledPlayerCount: 34))));
+                SeasonCreatedInline: false))));
 
         RegisterServices(isClubAdmin: true, creationService: creationService);
 

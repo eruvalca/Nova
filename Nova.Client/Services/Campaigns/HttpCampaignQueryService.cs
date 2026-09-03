@@ -90,13 +90,13 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             && result.ParticipantCount >= 0
             && result.SeasonId > 0
             && !string.IsNullOrWhiteSpace(result.SeasonName)
-            && result.Status is CampaignStatus.Active or CampaignStatus.Closed
+            && result.Status is CampaignStatus.Active or CampaignStatus.Draft or CampaignStatus.Closed
             && HasValidClosureFields(result);
 
     /// <summary>
     /// Validates that the closure fields are consistent with the campaign lifecycle status: a Closed
     /// campaign must carry a closure timestamp, closer identifier, and non-empty closer display name,
-    /// while an Active campaign must carry none of them.
+    /// while an Active or Draft campaign must carry none of them.
     /// </summary>
     /// <param name="result">The campaign-detail payload.</param>
     /// <returns><see langword="true"/> when the closure fields match the status.</returns>
@@ -180,7 +180,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             && campaign.ParticipantCount >= 0
             && campaign.UnresolvedCount >= 0
             && campaign.UnresolvedCount <= campaign.ParticipantCount
-            && campaign.Status is CampaignStatus.Active or CampaignStatus.Closed;
+            && campaign.Status is CampaignStatus.Active or CampaignStatus.Draft or CampaignStatus.Closed;
 
     /// <summary>
     /// Compares adjacent campaign rows using the portable response-order keys.
@@ -190,7 +190,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
     /// <returns>A positive value when the rows violate the required order.</returns>
     private static int CompareCampaign(CampaignListItem left, CampaignListItem right)
     {
-        var status = left.Status.CompareTo(right.Status);
+        var status = GetLifecycleSortRank(left.Status).CompareTo(GetLifecycleSortRank(right.Status));
         if (status != 0)
         {
             return status;
@@ -222,6 +222,20 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             ? right.CampaignId.CompareTo(left.CampaignId)
             : 0;
     }
+
+    /// <summary>
+    /// Gets the portable lifecycle ordering used by the server: Active, Draft, then Closed.
+    /// </summary>
+    /// <param name="status">The campaign lifecycle status.</param>
+    /// <returns>The lifecycle sort rank.</returns>
+    private static int GetLifecycleSortRank(CampaignStatus status)
+        => status switch
+        {
+            CampaignStatus.Active => 0,
+            CampaignStatus.Draft => 1,
+            CampaignStatus.Closed => 2,
+            _ => int.MaxValue
+        };
 
     /// <summary>
     /// Validates the structural, count, bound, and ordering invariants of setup data.

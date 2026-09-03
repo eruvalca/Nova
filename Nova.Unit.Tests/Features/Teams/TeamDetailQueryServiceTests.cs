@@ -25,18 +25,21 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
     private const long ClubATeamId = 300;
     private const long ClubBTeamId = 301;
 
-    // Active campaign intentionally has the OLDER start date to expose the in-memory sort bug.
+    // Lifecycle dates intentionally oppose their status order to expose status-rank regressions.
     private const long ActiveCampaignId = 400;
     private const long ClosedCampaignId = 401;
+    private const long DraftCampaignId = 402;
 
     private const long ClubASeasonId = 500;
     private const long ClubBSeasonId = 501;
 
     private const long PlayerInActiveId = 600;
     private const long PlayerInClosedId = 601;
+    private const long PlayerInDraftId = 602;
 
     private const long ActiveAssignmentId = 800;
     private const long ClosedAssignmentId = 801;
+    private const long DraftAssignmentId = 802;
 
     private readonly TenancyTestHarness _harness = new();
 
@@ -52,8 +55,6 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
     /// <summary>
     /// Verifies that Active-campaign placements sort before non-Active placements even when the
     /// Active campaign has an older <c>StartDate</c> than the Closed one.
-    /// Without the active-first leading key in the in-memory sort, the Closed campaign's newer
-    /// date would push its rows to the top and contradict the SQL truncation order.
     /// </summary>
     [Fact]
     public async Task GetTeamDetailAsync_ActiveCampaignPlacementsFirst_WhenActiveHasOlderStartDate()
@@ -66,6 +67,24 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
         result.Value.PlacementHistory[0].CampaignStatus.ShouldBe(CampaignStatus.Active,
             "Active-campaign placements must sort first, regardless of CampaignStartDate.");
         result.Value.PlacementHistory[0].CampaignId.ShouldBe(ActiveCampaignId);
+    }
+
+    /// <summary>
+    /// Verifies administrators receive Draft-linked placements between Active and Closed rows,
+    /// even when campaign dates would otherwise produce the opposite order.
+    /// </summary>
+    [Fact]
+    public async Task GetTeamDetailAsync_OrdersActiveDraftClosed_ForClubAdministrator()
+    {
+        ActAs(ClubAMemberId, ClubAId, isClubAdmin: true);
+        var result = await CreateService().GetTeamDetailAsync(ClubATeamId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.PlacementHistory.Count.ShouldBe(3);
+        result.Value.PlacementHistory.Select(placement => placement.CampaignStatus)
+            .ShouldBe([CampaignStatus.Active, CampaignStatus.Draft, CampaignStatus.Closed]);
+        result.Value.PlacementHistory.Select(placement => placement.CampaignId)
+            .ShouldBe([ActiveCampaignId, DraftCampaignId, ClosedCampaignId]);
     }
 
     /// <summary>
@@ -131,16 +150,17 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
     /// </summary>
     /// <param name="userId">The simulated user identifier.</param>
     /// <param name="clubId">The simulated club identifier, or <see langword="null"/> to simulate a non-member.</param>
-    private void ActAs(long? userId, long? clubId)
+    /// <param name="isClubAdmin">Whether the simulated member has club-administrator visibility.</param>
+    private void ActAs(long? userId, long? clubId, bool isClubAdmin = false)
     {
         _harness.CurrentUser.UserId = userId;
         _harness.CurrentUser.ClubId = clubId;
+        _harness.CurrentUser.IsClubAdmin = isClubAdmin;
     }
 
     /// <summary>
-    /// Seeds two clubs, a team for Club A with one Active-campaign placement and one
-    /// Closed-campaign placement. The Active campaign has an older <c>StartDate</c> than
-    /// the Closed one so that the in-memory sort key is observable.
+    /// Seeds two clubs and a team for Club A with Active, Draft, and Closed placements.
+    /// Campaign dates oppose the lifecycle order so the leading status rank is observable.
     /// </summary>
     private void Seed()
     {
@@ -188,6 +208,17 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
                 SeasonId = ClubASeasonId,
                 ClubId = ClubAId,
                 CreatedById = ClubAMemberId
+            },
+            new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                CampaignId = DraftCampaignId,
+                Name = "Draft Tryouts",
+                StartDate = new DateOnly(2024, 6, 1),
+                Status = CampaignStatus.Draft,
+                SeasonId = ClubASeasonId,
+                ClubId = ClubAId,
+                CreatedById = ClubAMemberId
             });
 
         db.Players.AddRange(
@@ -212,6 +243,17 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
                 GraduationYear = 2028,
                 ClubId = ClubAId,
                 CreatedById = ClubAMemberId
+            },
+            new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                PlayerId = PlayerInDraftId,
+                FirstName = "Draft",
+                LastName = "Player",
+                DateOfBirth = new DateOnly(2011, 1, 1),
+                GraduationYear = 2029,
+                ClubId = ClubAId,
+                CreatedById = ClubAMemberId
             });
 
         db.PlayerCampaignAssignments.AddRange(
@@ -230,6 +272,16 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
                 PlayerCampaignAssignmentId = ClosedAssignmentId,
                 PlayerId = PlayerInClosedId,
                 CampaignId = ClosedCampaignId,
+                TeamId = ClubATeamId,
+                PlacementOutcome = PlacementOutcome.Assigned,
+                ClubId = ClubAId,
+                CreatedById = ClubAMemberId
+            },
+            new PlayerCampaignAssignmentEntity
+            {
+                PlayerCampaignAssignmentId = DraftAssignmentId,
+                PlayerId = PlayerInDraftId,
+                CampaignId = DraftCampaignId,
                 TeamId = ClubATeamId,
                 PlacementOutcome = PlacementOutcome.Assigned,
                 ClubId = ClubAId,

@@ -9,18 +9,22 @@ namespace Nova.Integration.Tests.Data;
 
 /// <summary>
 /// Verifies PostgreSQL bounds team placement history to <see cref="TeamDetailDto.MaxPlacementHistoryItems"/>,
-/// reports truncation, and orders Active-campaign placements first.
+/// reports truncation, and orders campaign placements by lifecycle rank.
 /// </summary>
 /// <param name="fixture">The shared Aspire AppHost fixture.</param>
 [Collection(NovaAppHostCollection.Name)]
 public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
 {
+    /// <summary>
+    /// Verifies PostgreSQL applies Active, Draft, then Closed lifecycle ordering before bounding
+    /// the placement-history response.
+    /// </summary>
     [Fact]
-    public async Task GetTeamDetail_BoundsPlacementHistory_AndOrdersActiveFirst()
+    public async Task GetTeamDetail_BoundsPlacementHistory_AndOrdersActiveDraftClosed()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(cancellationToken);
-        ActAs(seed.MemberUserId, seed.ClubId);
+        ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: true);
 
         var service = new TeamDetailQueryService(
             new PostgresReadContextFactory(fixture),
@@ -32,11 +36,19 @@ public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
         result.IsSuccess.ShouldBeTrue();
         result.Value.PlacementHistory.Count.ShouldBe(TeamDetailDto.MaxPlacementHistoryItems);
         result.Value.IsPlacementHistoryTruncated.ShouldBeTrue();
-        result.Value.PlacementHistoryTotalCount.ShouldBe(TeamDetailDto.MaxPlacementHistoryItems + 1);
+        result.Value.PlacementHistoryTotalCount.ShouldBe(TeamDetailDto.MaxPlacementHistoryItems + 2);
         result.Value.ActivePlacementImpacts.Count.ShouldBe(1);
         result.Value.PlacementHistory[0].CampaignStatus.ShouldBe(CampaignStatus.Active);
+        result.Value.PlacementHistory[1].CampaignStatus.ShouldBe(CampaignStatus.Draft);
+        result.Value.PlacementHistory.Skip(2).ShouldAllBe(
+            placement => placement.CampaignStatus == CampaignStatus.Closed);
     }
 
+    /// <summary>
+    /// Seeds countervailing campaign dates so the PostgreSQL lifecycle rank is observable.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cooperative cancellation.</param>
+    /// <returns>The identifiers required to execute the tenant-scoped query.</returns>
     private async Task<Seed> SeedAsync(CancellationToken cancellationToken)
     {
         ActAs(userId: null, clubId: null);
@@ -89,6 +101,41 @@ public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
         {
             PlayerId = activePlayer.PlayerId,
             CampaignId = activeCampaign.CampaignId,
+            TeamId = team.TeamId,
+            PlacementOutcome = PlacementOutcome.Assigned,
+            ClubId = club.ClubId,
+            CreatedById = actorUserId
+        });
+
+        var draftCampaign = new CampaignEntity
+        {
+            CreationOperationId = Guid.NewGuid(),
+            Name = $"Draft Campaign {suffix}",
+            StartDate = new DateOnly(2024, 6, 1),
+            Status = CampaignStatus.Draft,
+            SeasonId = activeSeason.SeasonId,
+            ClubId = club.ClubId,
+            CreatedById = actorUserId
+        };
+        var draftPlayer = new PlayerEntity
+        {
+            CreationOperationId = Guid.NewGuid(),
+            FirstName = "Draft",
+            LastName = "Player",
+            DateOfBirth = new DateOnly(2011, 6, 1),
+            GraduationYear = 2029,
+            LifecycleStatus = LifecycleStatus.Active,
+            ClubId = club.ClubId,
+            CreatedById = actorUserId
+        };
+        db.Campaigns.Add(draftCampaign);
+        db.Players.Add(draftPlayer);
+        await db.SaveChangesAsync(cancellationToken);
+
+        db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+        {
+            PlayerId = draftPlayer.PlayerId,
+            CampaignId = draftCampaign.CampaignId,
             TeamId = team.TeamId,
             PlacementOutcome = PlacementOutcome.Assigned,
             ClubId = club.ClubId,
@@ -153,11 +200,17 @@ public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
         return new Seed(club.ClubId, member.Id, team.TeamId);
     }
 
-    private void ActAs(long? userId, long? clubId)
+    /// <summary>
+    /// Sets the simulated tenant identity for the current asynchronous flow.
+    /// </summary>
+    /// <param name="userId">The simulated user identifier.</param>
+    /// <param name="clubId">The simulated club identifier.</param>
+    /// <param name="isClubAdmin">Whether the simulated member has club-administrator visibility.</param>
+    private void ActAs(long? userId, long? clubId, bool isClubAdmin = false)
     {
         fixture.CurrentUser.UserId = userId;
         fixture.CurrentUser.ClubId = clubId;
-        fixture.CurrentUser.IsClubAdmin = false;
+        fixture.CurrentUser.IsClubAdmin = isClubAdmin;
     }
 
     private sealed record Seed(long ClubId, long MemberUserId, long TeamId);

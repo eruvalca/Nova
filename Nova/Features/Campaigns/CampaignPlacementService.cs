@@ -239,7 +239,7 @@ public sealed partial class CampaignPlacementService(
 
         return await placementDecision.Match(
             ApplyPlacementAsync,
-            RejectClosedCampaignAsync,
+            RejectNonActiveCampaignAsync,
             RejectArchivedPlayerAsync,
             RejectUnavailableTeamAsync,
             RejectArchivedTeamAsync,
@@ -322,11 +322,11 @@ public sealed partial class CampaignPlacementService(
             return new PlacementMutationSuccess(replacementToken);
         }
 
-        Task<PlacementUpdateResult> RejectClosedCampaignAsync(PlacementCampaignClosed _)
+        Task<PlacementUpdateResult> RejectNonActiveCampaignAsync(PlacementCampaignNotActive _)
         {
-            LogPlacementCampaignClosed(input.PlayerCampaignAssignmentId, participation.CampaignId);
+            LogPlacementCampaignNotActive(input.PlayerCampaignAssignmentId, participation.CampaignId);
             return Task.FromResult<PlacementUpdateResult>(
-                new PlacementConflict("Closed campaigns are read-only and cannot accept placement changes."));
+                new PlacementConflict("Only active campaigns can accept placement changes."));
         }
 
         Task<PlacementUpdateResult> RejectArchivedPlayerAsync(PlacementPlayerArchived _)
@@ -429,12 +429,12 @@ public sealed partial class CampaignPlacementService(
     private partial void LogPlacementTeamNotFound(long assignmentId, long teamId, long clubId);
 
     /// <summary>
-    /// Logs a placement rejected because its campaign is closed.
+    /// Logs a placement rejected because its campaign is not active.
     /// </summary>
     /// <param name="assignmentId">The requested campaign participation identifier.</param>
-    /// <param name="campaignId">The closed campaign identifier.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign placement rejected for AssignmentId={AssignmentId} because CampaignId={CampaignId} is closed.")]
-    private partial void LogPlacementCampaignClosed(long assignmentId, long campaignId);
+    /// <param name="campaignId">The campaign identifier.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign placement rejected for AssignmentId={AssignmentId} because CampaignId={CampaignId} is not active.")]
+    private partial void LogPlacementCampaignNotActive(long assignmentId, long campaignId);
 
     /// <summary>
     /// Logs a placement rejected because its player is archived.

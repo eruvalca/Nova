@@ -182,7 +182,11 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
-        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(club.ClubId, email, cancellationToken, closedCampaign: true);
+        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Closed);
 
         using var response = await client.PostAsJsonAsync(
             CampaignEndpoints.ApplyCampaignTagApplication,
@@ -194,7 +198,47 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Closed campaigns are read-only and cannot accept tag applications.");
+            .ShouldBe("Only active campaigns can accept tag applications.");
+    }
+
+    /// <summary>
+    /// Verifies a club administrator cannot apply a tag in a Draft campaign and no application is persisted.
+    /// </summary>
+    [Fact]
+    public async Task ApplyCampaignTagApplication_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("tag-apply-draft");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Draft);
+
+        using var response = await client.PostAsJsonAsync(
+            CampaignEndpoints.ApplyCampaignTagApplication,
+            ValidApplyInput(assignmentId, tagId),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("detail").GetString()
+            .ShouldBe("Only active campaigns can accept tag applications.");
+
+        await using var verify = fixture.CreateAdminContext();
+        var applicationCount = await verify.CampaignTagApplications
+            .CountAsync(
+                application => application.PlayerCampaignAssignmentId == assignmentId
+                    && application.PlayerTagId == tagId,
+                cancellationToken);
+        applicationCount.ShouldBe(0);
     }
 
     /// <summary>
@@ -475,7 +519,11 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
-        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(club.ClubId, email, cancellationToken, closedCampaign: true);
+        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Closed);
         var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
 
         using var removeResponse = await client.DeleteAsync(
@@ -487,8 +535,46 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
             await removeResponse.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
         document.RootElement.GetProperty("detail").GetString()
-            .ShouldBe("Closed campaigns are read-only and cannot remove tag applications.");
+            .ShouldBe("Only active campaigns can remove tag applications.");
         await AssertApplicationPersistedAsync(applicationId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Verifies a club administrator cannot remove a tag application from a Draft campaign and no receipt is persisted.
+    /// </summary>
+    [Fact]
+    public async Task RemoveCampaignTagApplication_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("tag-remove-draft");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, clubId: null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(
+            club.ClubId,
+            email,
+            cancellationToken,
+            campaignStatus: CampaignStatus.Draft);
+        var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
+
+        using var response = await client.DeleteAsync(
+            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId),
+            cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        document.RootElement.GetProperty("detail").GetString()
+            .ShouldBe("Only active campaigns can remove tag applications.");
+        await AssertApplicationPersistedAsync(applicationId, cancellationToken);
+
+        await using var verify = fixture.CreateAdminContext();
+        var receiptCount = await verify.CampaignTagApplicationRemovalReceipts
+            .CountAsync(receipt => receipt.ClubId == club.ClubId, cancellationToken);
+        receiptCount.ShouldBe(0);
     }
 
     /// <summary>
@@ -606,19 +692,19 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Seeds an active season, campaign, player, tag, and participation for the given club.
+    /// Seeds a season, campaign, player, tag, and participation for the given club.
     /// </summary>
     /// <param name="clubId">The owning club identifier.</param>
     /// <param name="email">A registered user email whose database row provides the created-by identifier.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
-    /// <param name="closedCampaign">Whether the campaign should be seeded as closed.</param>
+    /// <param name="campaignStatus">The lifecycle status assigned to the campaign.</param>
     /// <param name="archivedTag">Whether the tag definition should be seeded as archived.</param>
     /// <returns>The campaign, tag, and participation identifiers.</returns>
     private async Task<(long CampaignId, long TagId, long AssignmentId)> SeedTagApplicationDataAsync(
         long clubId,
         string email,
         CancellationToken cancellationToken,
-        bool closedCampaign = false,
+        CampaignStatus campaignStatus = CampaignStatus.Active,
         bool archivedTag = false)
     {
         await using var context = fixture.CreateAdminContext();
@@ -630,9 +716,9 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
             CreationOperationId = Guid.NewGuid(),
             Name = $"Tag App Campaign {suffix}",
             StartDate = new DateOnly(2026, 6, 1),
-            Status = closedCampaign ? CampaignStatus.Closed : CampaignStatus.Active,
-            ClosedAt = closedCampaign ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ClosedById = closedCampaign ? user.Id : null,
+            Status = campaignStatus,
+            ClosedAt = campaignStatus == CampaignStatus.Closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+            ClosedById = campaignStatus == CampaignStatus.Closed ? user.Id : null,
             Season = season,
             SeasonId = 0,
             ClubId = clubId,
@@ -682,7 +768,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>
     /// Inserts a tag application row directly via the admin context, bypassing the apply endpoint's
-    /// lifecycle guards so boundary tests can start from a closed campaign or archived tag.
+    /// lifecycle guards so boundary tests can start from a Draft or Closed campaign or archived tag.
     /// </summary>
     /// <param name="clubId">The owning club identifier.</param>
     /// <param name="tagId">The tag definition identifier.</param>

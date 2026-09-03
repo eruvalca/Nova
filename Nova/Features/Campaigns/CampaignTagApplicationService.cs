@@ -147,10 +147,10 @@ public sealed partial class CampaignTagApplicationService(
 
         await db.AcquireCampaignMutationLockAsync(participation.CampaignId, cancellationToken);
         await db.Entry(participation.Campaign).ReloadAsync(cancellationToken);
-        if (participation.Campaign.Status == CampaignStatus.Closed)
+        if (participation.Campaign.Status != CampaignStatus.Active)
         {
-            LogApplyCampaignClosed(input.PlayerCampaignAssignmentId, participation.CampaignId, input.PlayerTagId);
-            return new CampaignTagApplicationConflict("Closed campaigns are read-only and cannot accept tag applications.");
+            LogApplyCampaignNotActive(input.PlayerCampaignAssignmentId, participation.CampaignId, input.PlayerTagId);
+            return new CampaignTagApplicationConflict("Only active campaigns can accept tag applications.");
         }
 
         await db.AcquireTagMutationLockAsync(input.PlayerTagId, cancellationToken);
@@ -336,10 +336,10 @@ public sealed partial class CampaignTagApplicationService(
 
         await db.AcquireCampaignMutationLockAsync(application.PlayerCampaignAssignment.CampaignId, cancellationToken);
         await db.Entry(application.PlayerCampaignAssignment.Campaign).ReloadAsync(cancellationToken);
-        if (application.PlayerCampaignAssignment.Campaign.Status == CampaignStatus.Closed)
+        if (application.PlayerCampaignAssignment.Campaign.Status != CampaignStatus.Active)
         {
-            LogRemoveCampaignClosed(input.CampaignTagApplicationId, application.PlayerCampaignAssignment.CampaignId);
-            return new CampaignTagApplicationConflict("Closed campaigns are read-only and cannot remove tag applications.");
+            LogRemoveCampaignNotActive(input.CampaignTagApplicationId, application.PlayerCampaignAssignment.CampaignId);
+            return new CampaignTagApplicationConflict("Only active campaigns can remove tag applications.");
         }
 
         await db.AcquireTagMutationLockAsync(application.PlayerTagId, cancellationToken);
@@ -522,13 +522,13 @@ public sealed partial class CampaignTagApplicationService(
     private partial void LogApplyNotFound(long assignmentId, long tagId, long clubId);
 
     /// <summary>
-    /// Logs an apply request rejected because the campaign is closed.
+    /// Logs an apply request rejected because the campaign is not active.
     /// </summary>
     /// <param name="assignmentId">The requested participation identifier.</param>
-    /// <param name="campaignId">The closed campaign identifier.</param>
+    /// <param name="campaignId">The campaign identifier.</param>
     /// <param name="tagId">The requested tag-definition identifier.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign tag application rejected for AssignmentId={AssignmentId}, CampaignId={CampaignId}, TagId={TagId} because the campaign is closed.")]
-    private partial void LogApplyCampaignClosed(long assignmentId, long campaignId, long tagId);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign tag application rejected for AssignmentId={AssignmentId}, CampaignId={CampaignId}, TagId={TagId} because the campaign is not active.")]
+    private partial void LogApplyCampaignNotActive(long assignmentId, long campaignId, long tagId);
 
     /// <summary>
     /// Logs an apply request rejected because the tag definition is archived.
@@ -586,12 +586,12 @@ public sealed partial class CampaignTagApplicationService(
     private partial void LogRemoveNotFound(long applicationId, long clubId);
 
     /// <summary>
-    /// Logs a remove request rejected because the campaign is closed.
+    /// Logs a remove request rejected because the campaign is not active.
     /// </summary>
     /// <param name="applicationId">The requested campaign tag application identifier.</param>
-    /// <param name="campaignId">The closed campaign identifier.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign tag application removal rejected for CampaignTagApplicationId={ApplicationId} because CampaignId={CampaignId} is closed.")]
-    private partial void LogRemoveCampaignClosed(long applicationId, long campaignId);
+    /// <param name="campaignId">The campaign identifier.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign tag application removal rejected for CampaignTagApplicationId={ApplicationId} because CampaignId={CampaignId} is not active.")]
+    private partial void LogRemoveCampaignNotActive(long applicationId, long campaignId);
 
     /// <summary>
     /// Logs a remove request rejected because the tag definition is archived.

@@ -329,6 +329,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 9, 1),
                 SeasonId = 600,
                 ClubId = ClubAId,
+                Status = CampaignStatus.Draft,
                 CreatedById = ClubAAdminId
             });
             await mutate.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -514,6 +515,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 6, 1),
                 SeasonId = 600,
                 ClubId = ClubAId,
+                Status = CampaignStatus.Active,
                 CreatedById = ClubAAdminId
             },
             new CampaignEntity
@@ -538,6 +540,7 @@ public sealed class ArchivalLifecycleServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 6, 1),
                 SeasonId = 601,
                 ClubId = ClubBId,
+                Status = CampaignStatus.Active,
                 CreatedById = ClubBAdminId
             });
 

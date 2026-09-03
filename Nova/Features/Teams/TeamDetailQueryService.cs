@@ -91,7 +91,9 @@ public sealed partial class TeamDetailQueryService(
 
         var placementHistoryTotalCount = await placementQuery.CountAsync(cancellationToken);
         var rows = await placementQuery
-            .OrderByDescending(row => row.CampaignStatus == CampaignStatus.Active)
+            .OrderBy(row => row.CampaignStatus == CampaignStatus.Active
+                ? 0
+                : row.CampaignStatus == CampaignStatus.Draft ? 1 : 2)
             .ThenByDescending(row => row.CampaignStartDate)
             .ThenByDescending(row => row.CampaignId)
             .ThenBy(row => row.PlayerDisplayName)

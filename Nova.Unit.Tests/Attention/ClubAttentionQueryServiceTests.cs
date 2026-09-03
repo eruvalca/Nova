@@ -127,7 +127,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
     [Fact]
     public async Task GetClubAttention_CountsNeedsPlacement_WithNewestCampaignName()
     {
-        SeedCampaignWithPlayers(ClubAId, "Older Campaign", new DateOnly(2026, 5, 1), CampaignStatus.Active, new[]
+        SeedCampaignWithPlayers(ClubAId, "Older Campaign", new DateOnly(2026, 5, 1), CampaignStatus.Closed, new[]
         {
             new PlayerAssignmentSeed(PlayerName: "Old Undecided", LifecycleStatus: LifecycleStatus.Active, Outcome: PlacementOutcome.Undecided, TeamId: null),
             new PlayerAssignmentSeed(PlayerName: "Old Teamed", LifecycleStatus: LifecycleStatus.Active, Outcome: PlacementOutcome.Assigned, TeamId: 600)

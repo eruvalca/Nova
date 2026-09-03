@@ -11,6 +11,11 @@ namespace Nova.Data.Configurations;
 public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEntity>
 {
     /// <summary>
+    /// Gets the database constraint name that enforces one Active campaign per club.
+    /// </summary>
+    public const string OneActiveCampaignPerClubIndexName = "UX_Campaigns_ClubId_Active";
+
+    /// <summary>
     /// Executes the Configure operation.
     /// </summary>
     /// <param name="builder">The builder.</param>
@@ -26,6 +31,10 @@ public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEnti
             .IsUnique();
         builder.HasIndex(e => new { e.ClubId, e.SeasonId, e.Name })
             .IsUnique();
+        builder.HasIndex(e => e.ClubId)
+            .HasDatabaseName(OneActiveCampaignPerClubIndexName)
+            .HasFilter($"\"{nameof(CampaignEntity.Status)}\" = {(int)CampaignStatus.Active}")
+            .IsUnique();
 
         var statusColumn = $"\"{nameof(CampaignEntity.Status)}\"";
         var closedAtColumn = $"\"{nameof(CampaignEntity.ClosedAt)}\"";
@@ -34,7 +43,7 @@ public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEnti
         builder.ToTable(tableBuilder =>
             tableBuilder.HasCheckConstraint(
                 "CK_Campaigns_StatusClosureMetadata",
-                $"({statusColumn} = {(int)CampaignStatus.Active} AND {closedAtColumn} IS NULL AND {closedByIdColumn} IS NULL) OR "
+                $"({statusColumn} IN ({(int)CampaignStatus.Active}, {(int)CampaignStatus.Draft}) AND {closedAtColumn} IS NULL AND {closedByIdColumn} IS NULL) OR "
                 + $"({statusColumn} = {(int)CampaignStatus.Closed} AND {closedAtColumn} IS NOT NULL AND {closedByIdColumn} IS NOT NULL)"));
 
         builder

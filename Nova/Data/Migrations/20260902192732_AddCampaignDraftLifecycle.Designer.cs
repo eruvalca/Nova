@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Nova.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations
 {
     [DbContext(typeof(NovaDbContext))]
-    partial class NovaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902192732_AddCampaignDraftLifecycle")]
+    partial class AddCampaignDraftLifecycle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -526,50 +529,6 @@ namespace Nova.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ClubJoinRequests");
-                });
-
-            modelBuilder.Entity("Nova.Entities.ClubMembershipMutationReceiptEntity", b =>
-                {
-                    b.Property<long>("ClubMembershipMutationReceiptId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("ClubMembershipMutationReceiptId"));
-
-                    b.Property<long>("ClubId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("CreatedById")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("MemberUserId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset?>("ModifiedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("ModifiedById")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("MutationKind")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<Guid>("OperationId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("ClubMembershipMutationReceiptId");
-
-                    b.HasIndex("OperationId")
-                        .IsUnique();
-
-                    b.HasIndex("ClubId", "CreatedAt");
-
-                    b.ToTable("ClubMembershipMutationReceipts");
                 });
 
             modelBuilder.Entity("Nova.Entities.EvaluationNoteMutationReceiptEntity", b =>
@@ -1407,17 +1366,6 @@ namespace Nova.Data.Migrations
                     b.Navigation("Club");
 
                     b.Navigation("RequestingUser");
-                });
-
-            modelBuilder.Entity("Nova.Entities.ClubMembershipMutationReceiptEntity", b =>
-                {
-                    b.HasOne("Nova.Entities.ClubEntity", "Club")
-                        .WithMany()
-                        .HasForeignKey("ClubId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Club");
                 });
 
             modelBuilder.Entity("Nova.Entities.EvaluationNoteMutationReceiptEntity", b =>

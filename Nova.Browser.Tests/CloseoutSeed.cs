@@ -23,7 +23,7 @@ namespace Nova.Browser.Tests;
 /// <param name="EvaluatorEmail">The approved evaluator's login e-mail.</param>
 /// <param name="BlockedCampaignId">The blocked active campaign identifier.</param>
 /// <param name="BlockedAssignmentIds">The blocked campaign's participant assignment identifiers in tryout-number order.</param>
-/// <param name="ReadyCampaignId">The ready active campaign identifier.</param>
+/// <param name="ReadyCampaignId">The ready historical campaign identifier.</param>
 /// <param name="ClosedCampaignId">The closed campaign identifier.</param>
 /// <param name="EligibleTeamId">An active team eligible for every seeded player.</param>
 /// <param name="EligibleTeamName">The eligible team's display name.</param>
@@ -121,6 +121,12 @@ public static class CloseoutSeed
             fixture, club.ClubId, adminEmail, "Closeout Closed", participantCount: 3, PlacementOutcome.NotSelected, cancellationToken);
         await SeedingHelpers.CloseCampaignThroughServiceAsync(
             fixture, club.ClubId, adminUserId, closed.CampaignId, cancellationToken);
+        await ActivateCampaignAsync(
+            fixture,
+            club.ClubId,
+            blockedCampaignId,
+            adminUserId,
+            cancellationToken);
 
         return new SeededCloseoutWorkspace(
             club.ClubId,
@@ -136,6 +142,55 @@ public static class CloseoutSeed
             closed.CampaignId,
             eligibleTeamId,
             eligibleTeamName);
+    }
+
+    /// <summary>Switches the club's sole Active campaign for a browser scenario.</summary>
+    public static async Task ActivateCampaignAsync(
+        NovaAppHostFixture fixture,
+        long clubId,
+        long campaignId,
+        long actorUserId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var currentActive = await context.Campaigns
+            .SingleOrDefaultAsync(
+                campaign => campaign.ClubId == clubId
+                    && campaign.Status == CampaignStatus.Active
+                    && campaign.CampaignId != campaignId,
+                cancellationToken);
+        if (currentActive is not null)
+        {
+            currentActive.Status = CampaignStatus.Closed;
+            currentActive.ClosedAt = DateTimeOffset.UtcNow;
+            currentActive.ClosedById = actorUserId;
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        var target = await context.Campaigns.SingleAsync(
+            campaign => campaign.CampaignId == campaignId,
+            cancellationToken);
+        target.Status = CampaignStatus.Active;
+        target.ClosedAt = null;
+        target.ClosedById = null;
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>Closes the club's Active campaign so a historical campaign can be reopened.</summary>
+    public static async Task CloseActiveCampaignAsync(
+        NovaAppHostFixture fixture,
+        long clubId,
+        long actorUserId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var currentActive = await context.Campaigns.SingleAsync(
+            campaign => campaign.ClubId == clubId && campaign.Status == CampaignStatus.Active,
+            cancellationToken);
+        currentActive.Status = CampaignStatus.Closed;
+        currentActive.ClosedAt = DateTimeOffset.UtcNow;
+        currentActive.ClosedById = actorUserId;
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>

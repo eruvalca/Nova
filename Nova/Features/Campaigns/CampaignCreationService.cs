@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Activity;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
@@ -12,7 +13,7 @@ using Nova.Shared.Validation;
 namespace Nova.Features.Campaigns;
 
 /// <summary>
-/// Creates Active campaigns and initial participation snapshots in retry-safe tenant transactions.
+/// Creates administrator-only Draft campaigns in retry-safe tenant transactions.
 /// </summary>
 /// <param name="dbContextFactory">The tenant-scoped context factory used for each execution attempt.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
@@ -101,7 +102,6 @@ public sealed partial class CampaignCreationService(
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await db.AcquireClubSeasonLockAsync(clubId, cancellationToken);
-        await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
 
         var committedResult = await FindCommittedResultAsync(
             db,
@@ -158,7 +158,7 @@ public sealed partial class CampaignCreationService(
             Name = input.Name,
             StartDate = input.StartDate,
             EndDate = input.PlannedEndDate,
-            Status = CampaignStatus.Active,
+            Status = CampaignStatus.Draft,
             ClubId = clubId,
             SeasonId = season.Value.SeasonId,
             Season = season.Value,
@@ -168,25 +168,21 @@ public sealed partial class CampaignCreationService(
 
         try
         {
-            var activePlayerIds = await db.Players
-                .Where(player => player.LifecycleStatus == LifecycleStatus.Active)
-                .Select(player => player.PlayerId)
-                .ToListAsync(cancellationToken);
-            campaign.InitialEnrolledPlayerCount = activePlayerIds.Count;
-
             await db.SaveChangesAsync(cancellationToken);
 
-            foreach (var playerId in activePlayerIds)
-            {
-                db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
-                {
-                    CampaignId = campaign.CampaignId,
-                    PlayerId = playerId,
-                    ClubId = clubId,
-                    PlacementOutcome = PlacementOutcome.Undecided,
-                    CreatedById = actorUserId
-                });
-            }
+            var actorName = await db.Users
+                .Where(user => user.Id == actorUserId)
+                .Select(user => user.FirstName + " " + user.LastName)
+                .FirstOrDefaultAsync(cancellationToken) ?? "Unknown user";
+
+            ActivityEventWriter.AppendCampaignLifecycle(
+                db,
+                clubId,
+                campaign.CampaignId,
+                ActivityEventKind.CampaignDraftCreated,
+                actorUserId,
+                actorName,
+                campaign.Name);
 
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -195,9 +191,8 @@ public sealed partial class CampaignCreationService(
                 input.OperationId,
                 campaign.CampaignId,
                 season.Value.SeasonId,
-                activePlayerIds.Count,
                 actorUserId);
-            return ToResult(campaign, season.Value, activePlayerIds.Count);
+            return ToResult(campaign, season.Value);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -345,13 +340,12 @@ public sealed partial class CampaignCreationService(
                 campaign.Name,
                 campaign.StartDate,
                 campaign.EndDate,
-                CampaignStatus.Active,
+                CampaignStatus.Draft,
                 campaign.SeasonId,
                 campaign.Season.Name,
                 campaign.Season.StartDate,
                 campaign.Season.EndDate,
-                campaign.SeasonCreatedInline,
-                campaign.InitialEnrolledPlayerCount))
+                campaign.SeasonCreatedInline))
             .SingleOrDefaultAsync(cancellationToken);
 
     /// <summary>
@@ -379,8 +373,7 @@ public sealed partial class CampaignCreationService(
         LogCampaignCommitRecovered(
             operationId,
             result.CampaignId,
-            result.SeasonId,
-            result.EnrolledPlayerCount);
+            result.SeasonId);
         return new ExecutionResult<ServiceResult<CreateCampaignResult>>(
             successful: true,
             result);
@@ -391,12 +384,10 @@ public sealed partial class CampaignCreationService(
     /// </summary>
     /// <param name="campaign">The committed campaign.</param>
     /// <param name="season">The selected or created season.</param>
-    /// <param name="enrolledPlayerCount">The number of initial participations.</param>
     /// <returns>The shared campaign creation result.</returns>
     private static CreateCampaignResult ToResult(
         CampaignEntity campaign,
-        SeasonEntity season,
-        int enrolledPlayerCount)
+        SeasonEntity season)
         => new(
             campaign.CreationOperationId,
             campaign.CampaignId,
@@ -408,8 +399,7 @@ public sealed partial class CampaignCreationService(
             season.Name,
             season.StartDate,
             season.EndDate,
-            campaign.SeasonCreatedInline,
-            enrolledPlayerCount);
+            campaign.SeasonCreatedInline);
 
     /// <summary>
     /// Determines whether a persistence failure was caused by a unique-index violation.
@@ -456,20 +446,18 @@ public sealed partial class CampaignCreationService(
     [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign creation uniqueness conflict for OperationId={OperationId}, ClubId={ClubId}.")]
     private partial void LogCampaignCreateUniqueConflict(Guid operationId, long clubId);
 
-    /// <summary>Logs successful campaign creation and initial enrollment.</summary>
-    [LoggerMessage(Level = LogLevel.Information, Message = "Campaign creation OperationId={OperationId} committed as CampaignId={CampaignId} in SeasonId={SeasonId} with {PlayerCount} player(s) by UserId={ActorUserId}.")]
+    /// <summary>Logs successful Draft campaign creation.</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Campaign creation OperationId={OperationId} committed Draft CampaignId={CampaignId} in SeasonId={SeasonId} by UserId={ActorUserId}.")]
     private partial void LogCampaignCreated(
         Guid operationId,
         long campaignId,
         long seasonId,
-        int playerCount,
         long actorUserId);
 
     /// <summary>Logs successful verification after an ambiguous campaign creation commit.</summary>
-    [LoggerMessage(Level = LogLevel.Information, Message = "Campaign creation OperationId={OperationId} recovered committed CampaignId={CampaignId} in SeasonId={SeasonId} with {PlayerCount} player(s) after an ambiguous commit.")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Campaign creation OperationId={OperationId} recovered committed Draft CampaignId={CampaignId} in SeasonId={SeasonId} after an ambiguous commit.")]
     private partial void LogCampaignCommitRecovered(
         Guid operationId,
         long campaignId,
-        long seasonId,
-        int playerCount);
+        long seasonId);
 }

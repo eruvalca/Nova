@@ -3,12 +3,12 @@
 namespace Nova.Shared.Features.Campaigns;
 
 /// <summary>
-/// Corrects Active campaign metadata across server and HTTP boundaries.
+/// Corrects Draft or Active campaign metadata across server and HTTP boundaries.
 /// </summary>
 public interface ICampaignMetadataService
 {
     /// <summary>
-    /// Updates an Active campaign's name, season, start date, and planned end date.
+    /// Updates a Draft or Active campaign's name, season, start date, and planned end date.
     /// Returns a conflict when the campaign is Closed; does not affect enrollment.
     /// </summary>
     /// <param name="input">The metadata correction request.</param>
