@@ -20,7 +20,7 @@ aspire wait myapi
 Keep these points in mind:
 
 - In a git worktree, rerun `aspire start --isolated` whenever AppHost changes need to be picked up.
-- If the Aspire CLI was installed without a `.aspire-install.json` sidecar, set `ASPIRE_HOME` to a per-worktree directory **outside the checkout** (e.g. `$TEMP\nova-aspire-<hash>`) before starting, so the CLI user home (logs, cache, dev certs) is not shared between concurrent worktree sessions and the checkout stays clean. Script/PR/local installs pin their own install prefix and ignore `ASPIRE_HOME` — leave them alone. The bundle/DCP binaries are located independently (`ASPIRE_DCP_PATH` / `ASPIRE_DASHBOARD_PATH`). Docker containers, networks, ports, and data volumes are already isolated per run or per checkout path — the CLI home is the one machine-state directory worth splitting.
+- Set `ASPIRE_HOME` to a per-worktree directory **outside the checkout** (e.g. `$TEMP\nova-aspire-<hash>`) before starting, so the CLI user home (logs, cache, dev certs) is not shared between concurrent worktree sessions and the checkout stays clean. `ASPIRE_HOME` is honored by sidecar-less and package-manager installs (WinGet, Homebrew, `dotnet-tool`, Nix); only the `script`/`pr`/`localhive` install routes pin their home to the install prefix and ignore it — for those, leave the home alone. The bundle/DCP binaries are located independently (`ASPIRE_DCP_PATH` / `ASPIRE_DASHBOARD_PATH`). Docker containers, networks, ports, and data volumes are already isolated per run or per checkout path — the CLI home is the one machine-state directory worth splitting.
 - Outside worktrees, rerun `aspire start`.
 - Avoid `aspire run` in normal agent workflows because it blocks the terminal.
 
