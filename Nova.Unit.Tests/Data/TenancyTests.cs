@@ -183,6 +183,7 @@ public class TenancyTests : IDisposable
             CreationOperationId = Guid.NewGuid(),
             Name = "Campaign A",
             StartDate = new DateOnly(2026, 6, 1),
+            Status = CampaignStatus.Active,
             SeasonId = seasonA.SeasonId,
             ClubId = ClubAId,
             CreatedById = ClubAMember1Id
@@ -192,11 +193,40 @@ public class TenancyTests : IDisposable
             CreationOperationId = Guid.NewGuid(),
             Name = "Campaign B",
             StartDate = new DateOnly(2026, 6, 1),
+            Status = CampaignStatus.Active,
             SeasonId = seasonB.SeasonId,
             ClubId = ClubBId,
             CreatedById = ClubBMemberId
         };
         context.Campaigns.AddRange(campaignA, campaignB);
+        context.SaveChanges();
+
+        context.Campaigns.AddRange(
+            new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Draft Campaign A",
+                StartDate = new DateOnly(2026, 7, 1),
+                Status = CampaignStatus.Draft,
+                SeasonId = seasonA.SeasonId,
+                ClubId = ClubAId,
+                CreatedById = ClubAMember1Id
+            },
+            new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Draft Campaign B",
+                StartDate = new DateOnly(2026, 7, 1),
+                Status = CampaignStatus.Draft,
+                SeasonId = seasonB.SeasonId,
+                ClubId = ClubBId,
+                CreatedById = ClubBMemberId
+            });
+        context.ActivityEvents.AddRange(
+            CreateActivity(ClubAId, isAdminOnly: false, "Member A"),
+            CreateActivity(ClubAId, isAdminOnly: true, "Admin A"),
+            CreateActivity(ClubBId, isAdminOnly: false, "Member B"),
+            CreateActivity(ClubBId, isAdminOnly: true, "Admin B"));
         context.SaveChanges();
 
         var playerA = context.Players.First(p => p.ClubId == ClubAId);
@@ -233,6 +263,53 @@ public class TenancyTests : IDisposable
         _harness.CurrentUser.UserId = userId;
         _harness.CurrentUser.ClubId = clubId;
         _harness.CurrentUser.IsClubAdmin = isClubAdmin;
+    }
+
+    private static ActivityEventEntity CreateActivity(long clubId, bool isAdminOnly, string actorName)
+        => new()
+        {
+            ClubId = clubId,
+            EventKind = ActivityEventKind.MemberJoined,
+            IsAdminOnly = isAdminOnly,
+            ActorUserId = clubId == ClubAId ? ClubAMember1Id : ClubBMemberId,
+            ActorDisplayName = actorName,
+            PayloadJson = "{}",
+            CreatedById = clubId == ClubAId ? ClubAMember1Id : ClubBMemberId
+        };
+
+    [Fact]
+    public void Campaigns_HideDraftsFromMembers_AndShowThemToClubAdmins()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using (var member = _harness.CreateReadContext())
+        {
+            member.Campaigns.Select(campaign => campaign.Name).ShouldBe(["Campaign A"]);
+        }
+
+        ActAs(ClubAMember1Id, ClubAId, isClubAdmin: true);
+        using var admin = _harness.CreateReadContext();
+        admin.Campaigns.Select(campaign => campaign.Name)
+            .ShouldBe(["Campaign A", "Draft Campaign A"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void ActivityEvents_HideAdminOnlyRowsFromMembers_AndPreserveTenantIsolation()
+    {
+        ActAs(ClubAMember1Id, ClubAId);
+        using (var member = _harness.CreateReadContext())
+        {
+            member.ActivityEvents.Select(activity => activity.ActorDisplayName).ShouldBe(["Member A"]);
+        }
+
+        ActAs(ClubAMember1Id, ClubAId, isClubAdmin: true);
+        using (var clubAdmin = _harness.CreateReadContext())
+        {
+            clubAdmin.ActivityEvents.Select(activity => activity.ActorDisplayName)
+                .ShouldBe(["Member A", "Admin A"], ignoreOrder: true);
+        }
+
+        using var allClubs = _harness.CreateAdminContext();
+        allClubs.ActivityEvents.Count().ShouldBe(4);
     }
 
     [Fact]

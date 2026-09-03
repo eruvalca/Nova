@@ -384,7 +384,7 @@ public sealed class CampaignMetadataServiceTests : IDisposable
                 StartDate = new DateOnly(2026, 6, 1),
                 SeasonId = SeasonAId,
                 ClubId = ClubAId,
-                Status = CampaignStatus.Active,
+                Status = CampaignStatus.Draft,
                 CreatedById = ClubAAdminId
             },
             new CampaignEntity

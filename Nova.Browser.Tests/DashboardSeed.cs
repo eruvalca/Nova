@@ -22,8 +22,6 @@ namespace Nova.Browser.Tests;
 /// <param name="ClubLessEmail">The photo-complete club-less user's login e-mail.</param>
 /// <param name="UndecidedCampaignId">The active campaign carrying undecided participants.</param>
 /// <param name="UndecidedCampaignName">The active undecided campaign's display name.</param>
-/// <param name="DecidedCampaignId">The second active campaign with a decided participant.</param>
-/// <param name="DecidedCampaignName">The second active campaign's display name.</param>
 /// <param name="FirstUnresolvedCampaignId">The campaign targeted by the administrator review-placements link.</param>
 /// <param name="ActivePlayerCount">The seeded active player count.</param>
 /// <param name="ArchivedPlayerCount">The seeded archived player count.</param>
@@ -43,8 +41,6 @@ public sealed record SeededDashboardWorkspace(
     string ClubLessEmail,
     long UndecidedCampaignId,
     string UndecidedCampaignName,
-    long DecidedCampaignId,
-    string DecidedCampaignName,
     long FirstUnresolvedCampaignId,
     int ActivePlayerCount,
     int ArchivedPlayerCount,
@@ -66,8 +62,8 @@ public sealed record SeededEmptyDashboardWorkspace(
 
 /// <summary>
 /// Seeds the club dashboard workspace for browser scenarios: an administrator, an approved evaluator,
-/// a pending applicant, a photo-less user, a photo-complete club-less user, two active campaigns (one
-/// with undecided participants), active + archived players and teams, one pending join request, and one
+/// a pending applicant, a photo-less user, a photo-complete club-less user, one active campaign with
+/// undecided and decided participants, active + archived players and teams, one pending join request, and one
 /// member-visible activity event so the evaluator sees a recent-activity row with the actor name.
 /// </summary>
 public static class DashboardSeed
@@ -128,7 +124,12 @@ public static class DashboardSeed
 
         var undecided = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
             fixture, club.ClubId, adminEmail, "Dash Undecided", participantCount: 2, PlacementOutcome.Undecided, cancellationToken);
-        var decided = await SeedDecidedCampaignAsync(fixture, club.ClubId, adminEmail, cancellationToken);
+        await SeedDecidedParticipantAsync(
+            fixture,
+            club.ClubId,
+            undecided.CampaignId,
+            adminEmail,
+            cancellationToken);
 
         var suffix = Guid.NewGuid().ToString("N");
         await using (var seedContext = fixture.CreateAdminContext())
@@ -199,8 +200,6 @@ public static class DashboardSeed
             clubLessEmail,
             undecided.CampaignId,
             undecided.CampaignName,
-            decided.CampaignId,
-            decided.Name,
             undecided.CampaignId,
             ActivePlayerCount: 3,
             ArchivedPlayerCount: 1,
@@ -238,34 +237,27 @@ public static class DashboardSeed
     }
 
     /// <summary>
-    /// Seeds a second active campaign with a single decided (Not selected) participant, using a newer
-    /// season start date than <see cref="SeedingHelpers.SeedCampaignWithParticipantsAsync"/> so card
-    /// ordering is deterministic.
+    /// Adds a decided (Not selected) participant to the club's sole Active campaign.
     /// </summary>
     /// <param name="fixture">The shared AppHost fixture.</param>
     /// <param name="clubId">The owning club identifier.</param>
     /// <param name="adminEmail">A registered user email whose database row provides the created-by identifier.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
-    /// <returns>The seeded campaign identifier and name.</returns>
-    private static async Task<(long CampaignId, string Name)> SeedDecidedCampaignAsync(
+    private static async Task SeedDecidedParticipantAsync(
         NovaAppHostFixture fixture,
         long clubId,
+        long campaignId,
         string adminEmail,
         CancellationToken cancellationToken)
     {
         await using var context = fixture.CreateAdminContext();
         var adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
         var suffix = Guid.NewGuid().ToString("N");
-        var name = $"Dash Decided Campaign {suffix}";
-        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Dash Decided Season {suffix}", StartDate = new DateOnly(2026, 2, 1), ClubId = clubId, CreatedById = adminUserId };
-        var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = name, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = adminUserId };
         var player = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Decided", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = adminUserId };
-        context.AddRange(season, campaign, player);
+        context.Add(player);
         await context.SaveChangesAsync(cancellationToken);
 
-        context.Add(new PlayerCampaignAssignmentEntity { PlayerId = player.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = adminUserId, PlacementOutcome = PlacementOutcome.NotSelected });
+        context.Add(new PlayerCampaignAssignmentEntity { PlayerId = player.PlayerId, CampaignId = campaignId, ClubId = clubId, CreatedById = adminUserId, PlacementOutcome = PlacementOutcome.NotSelected });
         await context.SaveChangesAsync(cancellationToken);
-
-        return (campaign.CampaignId, name);
     }
 }

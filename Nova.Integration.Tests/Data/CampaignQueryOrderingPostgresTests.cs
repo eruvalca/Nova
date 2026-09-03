@@ -18,7 +18,7 @@ public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixtur
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(101, cancellationToken);
-        ActAs(seed.MemberUserId, seed.ClubId);
+        ActAs(seed.MemberUserId, seed.ClubId, isAdmin: true);
 
         var service = new CampaignQueryService(
             new PostgresReadContextFactory(fixture),
@@ -68,11 +68,11 @@ public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixtur
         return new Seed(club.ClubId, member.Id, currentSeason.SeasonId);
     }
 
-    private void ActAs(long? userId, long? clubId)
+    private void ActAs(long? userId, long? clubId, bool isAdmin = false)
     {
         fixture.CurrentUser.UserId = userId;
         fixture.CurrentUser.ClubId = clubId;
-        fixture.CurrentUser.IsClubAdmin = false;
+        fixture.CurrentUser.IsClubAdmin = isAdmin;
     }
 
     private sealed record Seed(long ClubId, long MemberUserId, long CurrentSeasonId);

@@ -28,6 +28,8 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
 
         appliedMigrations.ShouldContain(
             migration => migration.EndsWith("_AddCampaignLifecyclePersistence", StringComparison.Ordinal));
+        appliedMigrations.ShouldContain(
+            migration => migration.EndsWith("_AddCampaignDraftLifecycle", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -65,6 +67,23 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         campaign.ClosedAt = DateTimeOffset.UtcNow;
         campaign.ClosedById = Random.Shared.NextInt64(1, long.MaxValue);
         db.Update(campaign);
+
+        await Should.ThrowAsync<DbUpdateException>(
+            () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>Verifies Draft campaigns cannot carry closure provenance.</summary>
+    [Fact]
+    public async Task StatusMetadataConstraint_RejectsClosureProvenance_ForDraftStatus()
+    {
+        var seed = await SeedCampaignAsync();
+        await using var db = fixture.CreateAdminContext();
+        var campaign = await db.Campaigns.SingleAsync(
+            candidate => candidate.CampaignId == seed.CampaignId,
+            TestContext.Current.CancellationToken);
+        campaign.Status = CampaignStatus.Draft;
+        campaign.ClosedAt = DateTimeOffset.UtcNow;
+        campaign.ClosedById = seed.ActorUserId;
 
         await Should.ThrowAsync<DbUpdateException>(
             () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
@@ -303,6 +322,58 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
                 && candidate.EventKind == ActivityEventKind.CampaignReopened)
             .ToListAsync(cancellationToken);
         reopenedEvents.Count.ShouldBe(1);
+    }
+
+    /// <summary>Verifies concurrent reopens of different campaigns yield one Active winner.</summary>
+    [Fact]
+    public async Task ReopenConcurrency_DifferentClosedCampaignsYieldOneWinner()
+    {
+        var first = await SeedCampaignAsync(closed: true);
+        long secondCampaignId;
+        await using (var seed = fixture.CreateAdminContext())
+        {
+            var seasonId = await seed.Campaigns
+                .Where(campaign => campaign.CampaignId == first.CampaignId)
+                .Select(campaign => campaign.SeasonId)
+                .SingleAsync(TestContext.Current.CancellationToken);
+            var second = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Second Closed {Guid.NewGuid():N}",
+                StartDate = new DateOnly(2026, 7, 1),
+                Status = CampaignStatus.Closed,
+                ClosedAt = DateTimeOffset.UtcNow,
+                ClosedById = first.ActorUserId,
+                SeasonId = seasonId,
+                ClubId = first.ClubId,
+                CreatedById = first.ActorUserId
+            };
+            seed.Campaigns.Add(second);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            secondCampaignId = second.CampaignId;
+        }
+
+        fixture.CurrentUser.UserId = first.ActorUserId;
+        fixture.CurrentUser.ClubId = first.ClubId;
+        fixture.CurrentUser.IsClubAdmin = true;
+        var service = new CampaignLifecycleService(
+            new FixtureDbContextFactory(fixture),
+            fixture.CurrentUser,
+            NullLogger<CampaignLifecycleService>.Instance);
+
+        var results = await Task.WhenAll(
+            service.ReopenAsync(first.CampaignId, TestContext.Current.CancellationToken),
+            service.ReopenAsync(secondCampaignId, TestContext.Current.CancellationToken));
+
+        results.Count(result => result.IsT0).ShouldBe(1);
+        results.Count(result => result.IsT3).ShouldBe(1);
+        await using var verify = fixture.CreateAdminContext();
+        (await verify.Campaigns.CountAsync(campaign => campaign.ClubId == first.ClubId
+            && campaign.Status == CampaignStatus.Active,
+            TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await verify.ActivityEvents.CountAsync(activity => activity.ClubId == first.ClubId
+            && activity.EventKind == ActivityEventKind.CampaignReopened,
+            TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>
