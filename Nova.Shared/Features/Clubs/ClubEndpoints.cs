@@ -133,7 +133,7 @@ public static class ClubEndpoints
     /// </summary>
     /// <param name="clubId">The id of the club to request joining.</param>
     /// <returns>The relative URL of the create join request endpoint.</returns>
-    public static string CreateJoinRequestUrl(long clubId) => $"/api/clubs/{clubId}/join-requests";
+    public static string CreateJoinRequestUrl(long clubId) => $"{GroupPrefix}/{clubId}/join-requests";
 
     /// <summary>
     /// Builds the URL for cancelling a specific join request.

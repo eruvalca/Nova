@@ -47,9 +47,12 @@ When another operation can replace the target state before `verifySucceeded` run
 immutable operation receipt instead; a mutable security or concurrency stamp is not proof. Generate
 one stable operation ID before the first attempt, add a uniquely constrained receipt through the
 same context and transaction as every domain effect, and verify that receipt by operation ID through
-a fresh context. If receipts are pruned inline, scope cleanup to the current tenant/aggregate and
-support the cutoff predicate with a matching index—never scan or delete every tenant through an
-admin context. `ClubMemberService` is the canonical mutable-state and scoped-retention example.
+a fresh context. Receipts with a durable aggregate FK can prune inline within the current tenant.
+Receipts that deliberately omit that FK so proof survives aggregate deletion need an independent
+age-based cleanup path reachable from later operations in any tenant (or a background worker) and a
+`CreatedAt`-leading index for the cutoff. A global cleanup may delete only expired receipt rows;
+never scan or delete live tenant data through an admin context. `ClubMemberService` is the canonical
+FK-less receipt and global age-retention example.
 
 ## Multi-entity advisory locks
 

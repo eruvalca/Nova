@@ -20,7 +20,7 @@ namespace Nova.Features.Clubs;
 /// <summary>
 /// Maps the minimal API endpoints for club creation, search, and club join request management.
 /// </summary>
-internal static partial class ClubEndpointRouteBuilderExtensions
+internal static class ClubEndpointRouteBuilderExtensions
 {
     extension(IEndpointRouteBuilder endpoints)
     {
@@ -217,7 +217,7 @@ internal static partial class ClubEndpointRouteBuilderExtensions
         IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
         ICurrentUserProvider currentUserProvider,
         ClubMembershipClaimRefresher claimRefresher,
-        ILoggerFactory loggerFactory,
+        ClubEndpointLogger endpointLogger,
         CancellationToken cancellationToken)
     {
         // Read the crest from the form instead of binding a required IFormFile parameter: a
@@ -292,22 +292,12 @@ internal static partial class ClubEndpointRouteBuilderExtensions
         }
         catch (Exception exception)
         {
-            var logger = loggerFactory.CreateLogger(typeof(ClubEndpointRouteBuilderExtensions).FullName!);
-            LogClubCreationCookieRefreshFailed(logger, exception, currentUserProvider.UserId);
+            endpointLogger.LogClubCreationCookieRefreshFailed(exception, currentUserProvider.UserId);
             return ServiceProblem.ServerError(
                 "The club was created, but your sign-in could not be refreshed. Sign in again to continue.")
                 .ToHttpResult();
         }
     }
-
-    [LoggerMessage(
-        EventId = 3010,
-        Level = LogLevel.Error,
-        Message = "Club creation committed, but the authentication cookie could not be refreshed for user {UserId}.")]
-    private static partial void LogClubCreationCookieRefreshFailed(
-        ILogger logger,
-        Exception exception,
-        long? userId);
 
     /// <summary>
     /// Handles retrieval of a club crest by club ID and size, with ETag caching.

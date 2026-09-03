@@ -13,7 +13,7 @@ public class ClubMembershipMutationReceiptEntityConfiguration : IEntityTypeConfi
         builder.HasKey(receipt => receipt.ClubMembershipMutationReceiptId);
         builder.Property(receipt => receipt.ClubMembershipMutationReceiptId).ValueGeneratedOnAdd();
         builder.Property(receipt => receipt.MutationKind).HasMaxLength(32);
-        builder.HasIndex(receipt => new { receipt.ClubId, receipt.CreatedAt });
+        builder.HasIndex(receipt => receipt.CreatedAt);
         builder.HasIndex(receipt => receipt.OperationId).IsUnique();
     }
 }

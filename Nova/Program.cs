@@ -63,6 +63,7 @@ builder.Services.Configure<HubOptions>(options =>
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<ClubMembershipClaimRefresher>();
+builder.Services.AddScoped<ClubEndpointLogger>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 
 builder.Services.AddAuthentication(options =>

@@ -104,8 +104,9 @@ public sealed class ClubMemberServiceTests : IDisposable
         after.ActivityEvents.Count(activity => activity.EventKind == ActivityEventKind.MemberPromoted).ShouldBe(1);
     }
 
+    /// <summary>Verifies one membership mutation prunes expired receipts from every club scope.</summary>
     [Fact]
-    public async Task PromoteMemberAsync_PrunesExpiredReceiptsOnlyForCurrentClub()
+    public async Task PromoteMemberAsync_PrunesExpiredReceiptsGlobally()
     {
         var currentClubReceiptOperationId = Guid.NewGuid();
         var otherClubReceiptOperationId = Guid.NewGuid();
@@ -149,7 +150,7 @@ public sealed class ClubMemberServiceTests : IDisposable
         using var verify = _harness.CreateAdminContext();
         verify.ClubMembershipMutationReceipts.ShouldNotContain(
             receipt => receipt.OperationId == currentClubReceiptOperationId);
-        verify.ClubMembershipMutationReceipts.ShouldContain(
+        verify.ClubMembershipMutationReceipts.ShouldNotContain(
             receipt => receipt.OperationId == otherClubReceiptOperationId);
     }
 
