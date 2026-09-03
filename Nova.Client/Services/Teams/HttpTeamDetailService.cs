@@ -69,6 +69,7 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && placement.CampaignId > 0
             && !string.IsNullOrWhiteSpace(placement.CampaignName)
             && placement.CampaignStatus is Nova.Shared.Enums.CampaignStatus.Active
+                or Nova.Shared.Enums.CampaignStatus.Draft
                 or Nova.Shared.Enums.CampaignStatus.Closed
             && placement.CampaignStartDate != default
             && placement.PlayerId > 0
@@ -86,7 +87,8 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
         {
             if (pair.First.CampaignStatus != pair.Second.CampaignStatus)
             {
-                return pair.First.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active;
+                return GetLifecycleSortRank(pair.First.CampaignStatus)
+                    < GetLifecycleSortRank(pair.Second.CampaignStatus);
             }
 
             if (pair.First.CampaignStartDate != pair.Second.CampaignStartDate)
@@ -105,4 +107,18 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
                    StringComparison.Ordinal)
                || pair.First.PlayerId < pair.Second.PlayerId;
         });
+
+    /// <summary>
+    /// Gets the portable lifecycle ordering used by the server: Active, Draft, then Closed.
+    /// </summary>
+    /// <param name="status">The campaign lifecycle status.</param>
+    /// <returns>The lifecycle sort rank.</returns>
+    private static int GetLifecycleSortRank(Nova.Shared.Enums.CampaignStatus status)
+        => status switch
+        {
+            Nova.Shared.Enums.CampaignStatus.Active => 0,
+            Nova.Shared.Enums.CampaignStatus.Draft => 1,
+            Nova.Shared.Enums.CampaignStatus.Closed => 2,
+            _ => int.MaxValue
+        };
 }

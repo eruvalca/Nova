@@ -90,6 +90,60 @@ public sealed class HttpPlayerDetailServiceTests
     }
 
     /// <summary>
+    /// Verifies player detail accepts Draft campaign history without treating Draft tags as current traits.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerDetailAsync_ReturnsPlayerDetail_WhenCampaignHistoryContainsDraft()
+    {
+        var tagApplication = new PlayerTagApplicationDto(
+            1,
+            1,
+            "Leadership",
+            "#001122",
+            false,
+            5,
+            "Coach",
+            new DateTimeOffset(2025, 3, 2, 0, 0, 0, TimeSpan.Zero));
+        var draftHistory = new PlayerCampaignHistoryDto(
+            11,
+            12,
+            "Spring Tryouts",
+            CampaignStatus.Draft,
+            new DateOnly(2025, 3, 1),
+            null,
+            PlacementOutcome.Undecided,
+            null,
+            [],
+            [tagApplication]);
+        var payload = new PlayerDetailDto(
+            PlayerId: 42,
+            FirstName: "Alex",
+            LastName: "Athlete",
+            DateOfBirth: new DateOnly(2010, 2, 3),
+            Gender: Gender.Male,
+            GraduationYear: 2028,
+            JerseyNumber: 11,
+            LifecycleStatus: LifecycleStatus.Active,
+            CurrentTraits: [],
+            CampaignHistory: [draftHistory]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
+            42,
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.CurrentTraits.ShouldBeEmpty();
+        result.Value.CampaignHistory.Single().CampaignStatus.ShouldBe(CampaignStatus.Draft);
+        result.Value.CampaignHistory.Single().TagApplications.ShouldHaveSingleItem();
+    }
+
+    /// <summary>
     /// Verifies current traits cannot diverge from active-campaign tag applications.
     /// </summary>
     [Fact]

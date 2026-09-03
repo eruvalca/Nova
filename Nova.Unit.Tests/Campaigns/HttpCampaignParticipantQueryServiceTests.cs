@@ -334,6 +334,94 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         result.Value.AppliedTags[1].CampaignTagApplicationId.ShouldBe(2);
     }
 
+    /// <summary>
+    /// Verifies participant detail accepts a valid administrator-visible Draft payload.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantDetailAsync_ReturnsSuccess_ForDraftPayload()
+    {
+        var payload = new CampaignParticipantDetailDto(
+            101,
+            202,
+            "Avery Adams",
+            2028,
+            null,
+            PlacementOutcome.Undecided,
+            null,
+            DateTimeOffset.UtcNow,
+            null,
+            CampaignStatus.Draft,
+            Guid.NewGuid(),
+            [],
+            [],
+            new CampaignParticipantCapabilitiesDto(false, false, false, true));
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
+        {
+            CampaignId = 42,
+            PlayerCampaignAssignmentId = 101
+        }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.CampaignStatus.ShouldBe(CampaignStatus.Draft);
+        result.Value.Capabilities.CanEditPlacement.ShouldBeFalse();
+        result.Value.Capabilities.CanAddNote.ShouldBeFalse();
+        result.Value.Capabilities.CanApplyTag.ShouldBeFalse();
+        result.Value.Capabilities.CanArchiveTagDefinitions.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Verifies participant detail rejects campaign lifecycle values outside the shared enum.
+    /// </summary>
+    [Fact]
+    public async Task GetParticipantDetailAsync_ReturnsServerError_WhenCampaignStatusIsUndefined()
+    {
+        var payload = new CampaignParticipantDetailDto(
+            101,
+            202,
+            "Avery Adams",
+            2028,
+            null,
+            PlacementOutcome.Undecided,
+            null,
+            DateTimeOffset.UtcNow,
+            null,
+            (CampaignStatus)99,
+            Guid.NewGuid(),
+            [],
+            [],
+            new CampaignParticipantCapabilitiesDto(false, false, false, true));
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(payload)
+        };
+        var handler = new RecordingHandler(_ => Task.FromResult(response));
+        using var http = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com")
+        };
+        var service = new HttpCampaignParticipantQueryService(http);
+
+        var result = await service.GetParticipantDetailAsync(new GetCampaignParticipantDetailInput
+        {
+            CampaignId = 42,
+            PlayerCampaignAssignmentId = 101
+        }, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     [Fact]
     public async Task GetParticipantRosterAsync_ReturnsServerError_WhenSuccessBodyIsInvalidJson()
     {

@@ -55,6 +55,7 @@ public sealed class HttpPlayerDetailService(HttpClient http) : IPlayerDetailServ
                 && history.CampaignId > 0
                 && !string.IsNullOrWhiteSpace(history.CampaignName)
                 && history.CampaignStatus is Nova.Shared.Enums.CampaignStatus.Active
+                    or Nova.Shared.Enums.CampaignStatus.Draft
                     or Nova.Shared.Enums.CampaignStatus.Closed
                 && history.CampaignStartDate != default
                 && IsValidPlacementRelationship(history)

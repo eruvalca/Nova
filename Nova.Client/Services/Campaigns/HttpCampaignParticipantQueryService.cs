@@ -146,7 +146,7 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
            && detail.Capabilities is not null
            && IsValidPlacementRelationship(detail.PlacementOutcome, detail.Team)
            && detail.ConcurrencyToken != Guid.Empty
-           && detail.CampaignStatus is >= CampaignStatus.Active and <= CampaignStatus.Closed
+           && detail.CampaignStatus is CampaignStatus.Active or CampaignStatus.Draft or CampaignStatus.Closed
            && AreNotesOrdered(detail.Notes)
            && AreTagApplicationsOrdered(detail.AppliedTags);
 
