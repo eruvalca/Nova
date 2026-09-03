@@ -60,12 +60,13 @@ controls by role/label (see `references/browser-suite.md`); when a redesign chan
 the locators — never weaken the assertion to make it pass.
 
 All three projects run xUnit v4 `ParallelMode.All` via per-project
-`TestAssemblyParallelization.cs`. Unit uses the Aggressive algorithm at the CPU-thread default;
-integration and browser use Conservative because they share the AppHost/database, and browser is
-capped at 4 threads. Keep data per-test unique and the simulated user flow-local: direct
-`fixture.CurrentUser.X = ...` assignment is parallel-safe (AsyncLocal-backed); use
-`fixture.UseUser(...)` only when restore-on-dispose semantics are needed. Never introduce static
-mutable test state.
+`TestAssemblyParallelization.cs`. Unit tests use the Aggressive algorithm at the CPU-thread default;
+they have per-test in-memory SQLite connections and no shared collection fixture. Integration tests
+use Conservative at the CPU-thread default, and browser tests use Conservative capped at 4 threads,
+because both share the AppHost/database. Keep integration/browser data per-test unique and the
+simulated user flow-local: direct `fixture.CurrentUser.X = ...` assignment is parallel-safe
+(AsyncLocal-backed); use `fixture.UseUser(...)` only when restore-on-dispose semantics are needed.
+Never introduce static mutable test state.
 
 Broad test-generation workflows may create `.testagent/` as disposable local scratch state. The
 directory is gitignored and must not be committed; keep durable evidence in the tests and the PR

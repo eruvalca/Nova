@@ -44,11 +44,13 @@ Nova.Shared/
 | `{Verb}Template` | Full absolute URL template with `{param}` tokens | `"/api/clubs/{clubId:long}/join-requests"` |
 | `{Verb}Relative` | Relative template for parameterised routes inside a group | `"{clubId:long}/join-requests"` |
 
-For routes with dynamic segments, add a URL-builder static method rather than exposing the template directly to callers:
+For routes with dynamic segments, add a URL-builder static method rather than exposing the template
+directly to callers. Compose the builder from `GroupPrefix` and other existing route constants so a
+prefix change cannot leave server mappings and clients out of sync:
 
 ```csharp
 public static string CreateJoinRequestUrl(long clubId) =>
-    $"/api/clubs/{clubId}/join-requests";
+    $"{GroupPrefix}/{clubId}/join-requests";
 ```
 
 ### Usage in Endpoint Mapping

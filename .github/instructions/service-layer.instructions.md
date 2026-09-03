@@ -58,6 +58,11 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
   club-season → club-roster → campaign → player → team → tag. When acquiring multiple locks of the
   same type, sort their identifiers ascending before locking. A writer may take a subsequence of
   the global order, but it must never reverse that order.
+- Every writer that can change `NovaUserEntity.ClubId` or the `ClubAdmin` role—including club
+  creation, join approval, member lifecycle mutations, and account deletion—must use the shared
+  membership order: user-membership locks by ascending user id → club-membership lock →
+  any required join-request lock. Re-read membership, authorization, and member/administrator
+  counts after the locks are held.
 - When the required lock set comes from mutable relationships, compute the candidates, acquire locks in global order, reload guarded state, and detect relationships that appeared outside the locked set. Fail with a retryable conflict rather than evaluating an invariant against an unlocked row. (`TeamManagementService.UpdateTeamAsync` is the canonical example.)
 - The lock is intentionally a no-op under SQLite. Add a PostgreSQL integration test for lifecycle
   races such as close-versus-write or archive-versus-placement.
@@ -71,6 +76,9 @@ All `ServiceProblem` instances converted to HTTP **must carry the W3C trace ID**
   first attempt, enforce tenant-scoped uniqueness in the database, and use `verifySucceeded` to
   reconstruct the committed result instead of replaying a non-idempotent mutation.
 - When persisted state could have been produced by an earlier request, track whether the current attempt reached `CommitAsync` and only treat that state as proof for an attempt that did commit.
+- Mutable target state is not durable commit proof when a later operation can overwrite it before
+  `verifySucceeded` runs. Persist an immutable, uniquely constrained operation receipt in the same
+  transaction and verify it by the logical operation's stable ID instead.
 - Verify retry behavior with focused PostgreSQL integration tests; the SQLite harness cannot model
   provider execution strategies or ambiguous commits.
 

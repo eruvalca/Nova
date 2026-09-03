@@ -36,10 +36,20 @@ Test both provider failure modes:
 5. In `verifySucceeded`, query by tenant and operation ID using a fresh context and reconstruct the
    successful result.
 
-For lifecycle transitions or other mutations without an operation ID, persisted target state may
-have come from an earlier request. Follow `TeamLifecycleService`: reset a commit-attempt tracker at
-the start of each attempt, mark it immediately before `CommitAsync`, and only let
-`verifySucceeded` treat target state as proof when that attempt reached commit.
+For lifecycle transitions, persisted target state is sufficient commit proof only when it uniquely
+identifies the logical operation and cannot be overwritten before verification. A commit-attempt
+tracker prevents state from an earlier request from proving success: reset it at the start of every
+attempt, mark it immediately before `CommitAsync`, and reject state-based verification when the
+attempt never reached commit. `TeamLifecycleService` is the canonical pattern for stable target
+state.
+
+When another operation can replace the target state before `verifySucceeded` runs, persist an
+immutable operation receipt instead; a mutable security or concurrency stamp is not proof. Generate
+one stable operation ID before the first attempt, add a uniquely constrained receipt through the
+same context and transaction as every domain effect, and verify that receipt by operation ID through
+a fresh context. If receipts are pruned inline, scope cleanup to the current tenant/aggregate and
+support the cutoff predicate with a matching index—never scan or delete every tenant through an
+admin context. `ClubMemberService` is the canonical mutable-state and scoped-retention example.
 
 ## Multi-entity advisory locks
 
@@ -47,6 +57,12 @@ Every writer of the same invariant must use the global entity-type order:
 club-season → club-roster → campaign → player → team → tag. Acquire multiple locks of the same type
 by ascending ID. Writers may take a subsequence, but never reverse it. Campaign creation is the
 canonical club-season-then-club-roster example.
+
+Club-membership writers use a separate shared order: user-membership locks by ascending user id,
+then the club-membership lock, then any join-request lock. Club creation, join approval, explicit
+member lifecycle mutations, and account deletion all participate because each can change
+`NovaUserEntity.ClubId` or the `ClubAdmin` role. Re-read the actor, target, membership, roles, and
+guard counts only after the required locks are held.
 
 The canonical global order for the team/player eligibility invariant is campaign, players ascending,
 then team. `TeamManagementService.UpdateTeamAsync` takes the players-then-team subsequence: it
@@ -58,5 +74,10 @@ Add PostgreSQL tests that assert:
 - The emitted lock order.
 - Competing writers cannot jointly violate the invariant.
 - A related row appearing outside the computed lock set reaches the fail-safe conflict.
+
+Prove actual contention rather than starting operations back-to-back: hold or intercept the target
+advisory lock, start every competitor, wait until each has reached the blocked lock acquisition, and
+only then release the gate. A test that can pass through sequential execution does not validate the
+lock.
 
 SQLite cannot validate advisory-lock serialization.

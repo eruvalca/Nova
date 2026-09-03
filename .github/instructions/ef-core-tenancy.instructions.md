@@ -57,6 +57,10 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   first, then the Blazor `AuthenticationStateProvider`. `NullCurrentUserProvider` is for design
   time and tests.
 - The club id travels as the `NovaClaimTypes.ClubId` claim, added by `NovaUserClaimsPrincipalFactory`. When membership changes, call `ClubMembershipClaimRefresher` (`RefreshCurrentUserAsync` for the acting user or `MarkUserClaimsStaleAsync` for another) and `Match` its `OneOf<Success, Error<string[]>>` — do not ignore it.
+- When membership or Identity roles change through EF so they can share a domain transaction,
+  rotate both `SecurityStamp` and `ConcurrencyStamp` through that same context. After commit, load
+  the acting user from a fresh `NovaAdminDbContext` with `AsNoTracking` before refreshing the cookie;
+  do not refresh from a possibly stale entity tracked by the scoped `UserManager`.
 - New users get `Roles.StandardUser` at registration (see `Register.razor` / `ExternalLogin.razor`).
 
 ## Entities, configurations, relationships
