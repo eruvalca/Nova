@@ -598,7 +598,7 @@ public partial class TeamDetail(
     /// Normalizes the inbound return URL to a safe local path within this application.
     /// </summary>
     /// <param name="returnUrl">The incoming return URL query value.</param>
-    /// <returns>A safe local path for the teams back link, defaulting to <c>/teams</c>.</returns>
+    /// <returns>A safe local path for the teams back link, defaulting to <c>/club/teams</c>.</returns>
     private static string NormalizeReturnUrl(string? returnUrl)
     {
         if (string.IsNullOrWhiteSpace(returnUrl))

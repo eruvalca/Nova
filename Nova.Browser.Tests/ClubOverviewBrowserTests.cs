@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
 using Nova.Shared.Features.Clubs;
@@ -22,10 +23,11 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
         await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Overview).ToString());
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Overview", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" })).ToBeVisibleAsync();
+        var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
+        await Expect(directory).ToBeVisibleAsync();
         foreach (var label in new[] { "Overview", "Seasons", "Teams", "Members", "Requests", "Tags", "Crest" })
         {
-            await Expect(page.GetByRole(AriaRole.Link, new() { Name = label, Exact = true })).ToBeVisibleAsync();
+            await Expect(directory.GetByRole(AriaRole.Link, new() { Name = label, Exact = true })).ToBeVisibleAsync();
         }
         await Expect(page.Locator(".club-identity").GetByText(seed.ClubName, new() { Exact = true })).ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Current season", Exact = true })).ToBeVisibleAsync();
@@ -41,13 +43,50 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
         {
             var page = context.Pages[0];
             await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Overview).ToString());
+
+            // Move the page to WebAssembly before driving the collapse: on the first visit the page
+            // renders on the InteractiveServer circuit, and a server-side re-render of the Club shell
+            // (fired shortly after load, once its async state settles) replaces the <nav> element and
+            // resets Bootstrap's runtime-added classes — the re-render can land mid-transition, snapping
+            // the sheet closed before the keyboard walk.
+            //
+            // Navigation focus review requirement: Wait for the shell's async state to settle (roles +
+            // club identity + season data) before opening the sheet. Once settled, the collapse is the
+            // only writer of the sheet's classes, and a keyboard Enter on a directory link routes
+            // through the interactive Router, whose FocusOnNavigate moves focus to the destination h1.
+            await Expect(page.Locator(".club-identity").GetByText(seed.ClubName, new() { Exact = true })).ToBeVisibleAsync();
+            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Current season", Exact = true })).ToBeVisibleAsync();
+
             var toggle = page.Locator(".club-directory-toggle");
             await Expect(toggle).ToBeVisibleAsync();
             var box = await toggle.BoundingBoxAsync();
             box.ShouldNotBeNull();
             box.Height.ShouldBeGreaterThanOrEqualTo(44);
-            await toggle.ClickAsync();
-            await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Crest", Exact = true })).ToBeVisibleAsync();
+
+            // Issue #201 keyboard acceptance: the sheet must open under keyboard activation
+            // (focus + Enter, then tabbing reaches the directory links), not only pointer click.
+            await toggle.FocusAsync();
+            await Expect(toggle).ToBeFocusedAsync();
+            await page.Keyboard.PressAsync("Enter");
+            var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
+            await Expect(directory.GetByRole(AriaRole.Link, new() { Name = "Crest", Exact = true })).ToBeVisibleAsync();
+            var teams = directory.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true });
+
+            // Wait for the Bootstrap collapse to finish its transition and reach the fully-open
+            // "show" state before walking the tab order: while the nav is "collapsing" its links
+            // are not yet tab-reachable (focus bounces toggle -> body -> toggle, never into the
+            // directory), which makes the keyboard tab loop fail deterministically.
+            await Expect(page.Locator(".club-route-directory")).ToHaveClassAsync(new Regex(@"\bshow\b"));
+            await InteractionHelpers.TabUntilFocusedAsync(page, teams);
+
+            // Following a directory route with the keyboard must land focus on the destination
+            // page's h1 (Routes.razor FocusOnNavigate selector) — the focus-loop acceptance
+            // criterion for the Club shell.
+            await page.Keyboard.PressAsync("Enter");
+            await page.WaitForURLAsync(
+                url => new Uri(url).AbsolutePath.Equals(ClubRoutes.Teams, StringComparison.OrdinalIgnoreCase),
+                new() { WaitUntil = WaitUntilState.Commit });
+            await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Teams", Exact = true })).ToBeFocusedAsync();
         }
 
         await using var noScript = await fixture.NewSignedInContextAsync(seed.Email, Password, viewport, javaScriptEnabled: false);

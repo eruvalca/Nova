@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Features.Clubs;
@@ -85,6 +86,37 @@ public sealed class ClubIdentityHttpTests(NovaAppHostFixture fixture)
         identity.ShouldNotBeNull();
         identity.ClubId.ShouldBe(club.ClubId);
         identity.Name.ShouldBe(club.Name);
+        identity.City.ShouldBe(club.City);
+        identity.State.ShouldBe(club.State);
         identity.HasCrest.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetCurrent_ReturnsNotFoundProblemDetails_ForStaleClubMembership()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = SeedingHelpers.UniqueEmail("club-identity-stale");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(
+            client, email, Password, cancellationToken);
+        var club = await SeedingHelpers.CreateClubAsync(client, cancellationToken);
+        await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
+
+        // The cookie carries a valid ClubId claim, then the club is deleted directly in the
+        // database (the FK is SetNull, so the user's club id is nulled but the already-issued
+        // cookie is not). The next club-identity read therefore sees a stale membership.
+        await using (var context = fixture.CreateAdminContext())
+        {
+            var clubRow = await context.Clubs.SingleAsync(item => item.ClubId == club.ClubId, cancellationToken);
+            context.Clubs.Remove(clubRow);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        using var current = await client.GetAsync(ClubEndpoints.GetCurrent, cancellationToken);
+        var problem = await current.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken);
+
+        current.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        problem.ShouldNotBeNull();
+        problem.Detail.ShouldBe("The current club was not found.");
     }
 }

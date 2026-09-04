@@ -58,6 +58,19 @@ public sealed class ClubIdentityQueryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetCurrentAsync_ReturnsNotFound_WhenClubDoesNotExist()
+    {
+        _harness.CurrentUser.UserId = 10;
+        _harness.CurrentUser.ClubId = 999;
+
+        var result = await CreateService().GetCurrentAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.NotFound);
+        result.Problem.Detail.ShouldBe("The current club was not found.");
+    }
+
+    [Fact]
     public async Task GetCurrentAsync_ReturnsServerError_WhenReadFails()
     {
         var throwingFactory = Substitute.For<IDbContextFactory<NovaReadDbContext>>();

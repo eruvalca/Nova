@@ -77,10 +77,11 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var labelFits = await clubLabel.EvaluateAsync<bool>("element => element.scrollWidth <= element.clientWidth");
         labelFits.ShouldBeTrue("the full club name must not be clipped or ellipsized");
 
-        // Campaigns and Players remain global icon + label items; Teams is Club-local.
+        // Campaigns and Players remain global icon + label items; Teams is Club-local, so it
+        // sits inside the club-gated block beside them.
         await AssertIconLinkAsync(nav, "Campaigns", "campaigns", "bi-calendar-check");
         await AssertIconLinkAsync(nav, "Players", "players", "bi-people");
-        await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true })).ToHaveCountAsync(0);
+        await AssertIconLinkAsync(nav, "Teams", "/club/teams", "bi-shield");
 
         // Manage keeps the avatar (the seeded admin has a completed profile photo) and text.
         var manage = nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false });
@@ -283,7 +284,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         ((double)togglerBox!.Width).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
 
         // No route is reachable visually (or in the accessibility tree) until the menu opens.
-        foreach (var label in new[] { "Dashboard", clubName, "Campaigns", "Players" })
+        foreach (var label in new[] { "Dashboard", clubName, "Campaigns", "Players", "Teams" })
         {
             await Expect(nav.GetByRole(AriaRole.Link, new() { Name = label, Exact = true })).ToHaveCountAsync(0);
         }
@@ -322,7 +323,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true })).ToBeVisibleAsync();
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true })).ToBeVisibleAsync();
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true })).ToBeVisibleAsync();
-        await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true })).ToHaveCountAsync(0);
+        await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true })).ToBeVisibleAsync();
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false })).ToBeVisibleAsync();
         await Expect(nav.GetByRole(AriaRole.Button, new() { Name = "Logout", Exact = true })).ToBeVisibleAsync();
 
@@ -470,14 +471,14 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await nav.Locator(".navbar-toggler").ClickAsync();
         await Expect(nav.Locator(".navbar-collapse")).ToHaveClassAsync(new Regex(@"\bshow\b"));
 
-        var playersBox = await nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }).BoundingBoxAsync();
+        var teamsBox = await nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }).BoundingBoxAsync();
         var manageBox = await nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false }).BoundingBoxAsync();
         var logoutBox = await nav.GetByRole(AriaRole.Button, new() { Name = "Logout", Exact = true }).BoundingBoxAsync();
-        playersBox.ShouldNotBeNull();
+        teamsBox.ShouldNotBeNull();
         manageBox.ShouldNotBeNull();
         logoutBox.ShouldNotBeNull();
 
-        var sectionGap = manageBox!.Y - (playersBox!.Y + playersBox.Height);
+        var sectionGap = manageBox!.Y - (teamsBox!.Y + teamsBox.Height);
         sectionGap.ShouldBeInRange(3.5f, 9.5f, "the account separator must not create an oversized gap");
 
         var accountRowGap = logoutBox!.Y - (manageBox.Y + manageBox.Height);

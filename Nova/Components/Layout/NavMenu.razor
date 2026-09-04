@@ -1,4 +1,5 @@
 ﻿@using Nova.Shared.Security
+@using Nova.Shared.Features.Clubs
 
 <nav class="navbar navbar-expand-md navbar-light nova-navigation @(IsAccountRoutesSingle ? "account-routes-single" : null)" aria-label="Primary">
     <div class="container-fluid nova-navigation-inner">
@@ -62,6 +63,15 @@
                                         <span class="bi bi-people-fill nav-icon-fill" aria-hidden="true"></span>
                                     </span>
                                     <span class="nav-label">Players</span>
+                                </NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link d-flex align-items-center gap-2" href="@ClubRoutes.Teams" Match="NavLinkMatch.Prefix">
+                                    <span class="nav-icon-slot">
+                                        <span class="bi bi-shield nav-icon" aria-hidden="true"></span>
+                                        <span class="bi bi-shield-fill nav-icon-fill" aria-hidden="true"></span>
+                                    </span>
+                                    <span class="nav-label">Teams</span>
                                 </NavLink>
                             </li>
                         }
