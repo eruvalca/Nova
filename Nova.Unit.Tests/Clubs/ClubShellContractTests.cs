@@ -47,7 +47,10 @@ public sealed class ClubShellContractTests
         markup.ShouldContain("RetryIdentityAsync");
         markup.ShouldContain("RetrySeasonAsync");
         markup.ShouldContain("RetryCampaignAsync");
-        code.ShouldContain("Task.WhenAll(LoadIdentityAsync(), LoadSeasonAsync(), LoadCampaignAsync())");
+        code.ShouldContain("Task.WhenAll(");
+        code.ShouldContain("LoadIdentityAsync(version, requestToken)");
+        code.ShouldContain("LoadSeasonAsync(version, requestToken)");
+        code.ShouldContain("LoadCampaignAsync(version, requestToken)");
         code.ShouldContain("if (Initialized)");
         code.ShouldContain("RestorePersistedState();");
         code.ShouldContain("item => item.IsCurrent");

@@ -38,6 +38,33 @@ public partial class NavMenu(
     protected string? CurrentUrl => currentUrl;
 
     /// <summary>
+    /// Gets a value indicating whether the current route is inside the club area but not the
+    /// Teams subsection, so the Club link stays active on every club route except the Teams
+    /// routes that carry their own link.
+    /// </summary>
+    protected bool ClubSectionActive => IsClubActive(currentUrl);
+
+    private static bool IsClubActive(string? baseRelativeUrl)
+    {
+        if (baseRelativeUrl is null)
+        {
+            return false;
+        }
+
+        var path = baseRelativeUrl.Split('?', '#')[0].TrimStart('/').TrimEnd('/');
+        if (path.Length == 0)
+        {
+            return false;
+        }
+
+        var isClubArea = path.Equals("club", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("club/", StringComparison.OrdinalIgnoreCase);
+        var isTeamsArea = path.Equals("club/teams", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("club/teams/", StringComparison.OrdinalIgnoreCase);
+        return isClubArea && !isTeamsArea;
+    }
+
+    /// <summary>
     /// Gets the URL for the current user's small profile photo, or null if the user has no photo.
     /// </summary>
     protected string? PhotoUrl => currentUserProvider.UserId.HasValue

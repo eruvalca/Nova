@@ -36,6 +36,12 @@ public partial class ClubOverview(
     // Cancellation source for the current reload batch; starting a new batch supersedes the prior one.
     private CancellationTokenSource? _reloadSource;
 
+    // Per-region cancellation sources so a retry of one section never cancels a concurrent
+    // retry or reload of another section, and so a second retry of the same section supersedes the first.
+    private CancellationTokenSource? _identityRetrySource;
+    private CancellationTokenSource? _seasonRetrySource;
+    private CancellationTokenSource? _campaignRetrySource;
+
     [SupplyParameterFromQuery(Name = "notice")]
     public string? Notice { get; set; }
 
@@ -220,7 +226,7 @@ public partial class ClubOverview(
 
     private async Task RetryIdentityAsync()
     {
-        var (version, requestToken) = BeginReloadBatch();
+        var (version, requestToken) = BeginRegionRetry(ref _identityRetrySource);
         await LoadIdentityAsync(version, requestToken);
         if (IsCurrentBatch(version, requestToken))
         {
@@ -229,7 +235,7 @@ public partial class ClubOverview(
     }
     private async Task RetrySeasonAsync()
     {
-        var (version, requestToken) = BeginReloadBatch();
+        var (version, requestToken) = BeginRegionRetry(ref _seasonRetrySource);
         await LoadSeasonAsync(version, requestToken);
         if (IsCurrentBatch(version, requestToken))
         {
@@ -238,7 +244,7 @@ public partial class ClubOverview(
     }
     private async Task RetryCampaignAsync()
     {
-        var (version, requestToken) = BeginReloadBatch();
+        var (version, requestToken) = BeginRegionRetry(ref _campaignRetrySource);
         await LoadCampaignAsync(version, requestToken);
         if (IsCurrentBatch(version, requestToken))
         {
@@ -305,7 +311,35 @@ public partial class ClubOverview(
         _reloadSource?.Cancel();
         _reloadSource?.Dispose();
         _reloadSource = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+        SupersedeRegionRetries();
         return (version, _reloadSource.Token);
+    }
+
+    // Cancels and disposes a region's own retry source, then creates a fresh one linked to the
+    // component lifetime, so a retry of that region supersedes only an earlier retry of the
+    // same region — never a concurrent retry of another region. Deliberately keeps the current
+    // batch version: per-region supersession is by cancellation, while the version marks a full
+    // batch (initial load or authentication change) superseding every region at once.
+    private (int Version, CancellationToken Token) BeginRegionRetry(ref CancellationTokenSource? source)
+    {
+        var version = _reloadVersion;
+        source?.Cancel();
+        source?.Dispose();
+        source = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+        return (version, source.Token);
+    }
+
+    private void SupersedeRegionRetries()
+    {
+        _identityRetrySource?.Cancel();
+        _identityRetrySource?.Dispose();
+        _identityRetrySource = null;
+        _seasonRetrySource?.Cancel();
+        _seasonRetrySource?.Dispose();
+        _seasonRetrySource = null;
+        _campaignRetrySource?.Cancel();
+        _campaignRetrySource?.Dispose();
+        _campaignRetrySource = null;
     }
 
     private bool IsCurrentBatch(int version, CancellationToken requestToken)
@@ -315,6 +349,7 @@ public partial class ClubOverview(
     {
         _reloadSource?.Cancel();
         _reloadSource?.Dispose();
+        SupersedeRegionRetries();
         authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         await base.DisposeAsyncCore();
     }

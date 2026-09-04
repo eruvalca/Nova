@@ -30,7 +30,7 @@
                         @if (ClubDetailUrl is not null && ClubName is not null)
                         {
                             <li class="nav-item">
-                                <NavLink class="nav-link d-flex align-items-center gap-2" href="@ClubDetailUrl" Match="NavLinkMatch.Prefix">
+                                <a class="nav-link d-flex align-items-center gap-2 @(ClubSectionActive ? "active" : null)" href="@ClubDetailUrl" aria-current="@(ClubSectionActive ? "page" : null)">
                                     @if (context.User.HasClaim(c => c.Type == NovaClaimTypes.HasClubCrest))
                                     {
                                         <span class="nav-avatar-slot">
@@ -45,7 +45,7 @@
                                         </span>
                                     }
                                     <span class="nav-label">@ClubName</span>
-                                </NavLink>
+                                </a>
                             </li>
                             <li class="nav-item">
                                 <NavLink class="nav-link d-flex align-items-center gap-2" href="campaigns" Match="NavLinkMatch.Prefix">

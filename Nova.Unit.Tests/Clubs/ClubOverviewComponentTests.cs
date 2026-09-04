@@ -151,6 +151,60 @@ public sealed class ClubOverviewComponentTests : BunitContext
         services.Campaigns.Received(1).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Retrying one region while another region's retry is in flight must supersede only the
+    /// same region's earlier retry: a synchronous season retry must never cancel the identity
+    /// retry currently awaiting its response, which before per-region sources shared one batch
+    /// source and stranded the identity region on its permanent loading state.
+    /// </summary>
+    [Fact]
+    public async Task RetrySeason_DoesNotCancelConcurrentIdentityRetry_AndBothRegionsRecover()
+    {
+        var requestTokenSeen = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var identityGate = new TaskCompletionSource<ServiceResult<ClubIdentityResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstCall = true;
+        var identity = Substitute.For<IClubIdentityQueryService>();
+        identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(async info =>
+        {
+            if (firstCall)
+            {
+                firstCall = false;
+                return new ServiceResult<ClubIdentityResult>(ServiceProblem.ServerError("Identity unavailable."));
+            }
+            var token = info.Arg<CancellationToken>();
+            requestTokenSeen.TrySetResult(token);
+            if (token.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(token);
+            }
+            return await identityGate.Task;
+        });
+        var services = Configure(
+            isAdministrator: false,
+            identity: identity,
+            season: new ServiceResult<SeasonPageResult>(ServiceProblem.ServerError("Season failed.")));
+        var cut = RenderOverview();
+
+        cut.Markup.ShouldContain("Identity unavailable.");
+        cut.Markup.ShouldContain("Season failed.");
+
+        // Start the identity retry and hold it in flight while it awaits the response.
+        cut.FindAll(".region-failure a")[0].Click();
+        var requestToken = await requestTokenSeen.Task;
+        requestToken.IsCancellationRequested.ShouldBeFalse();
+
+        // Retry the season while the identity retry is still in flight.
+        cut.Find(".region-failure a").Click();
+        cut.WaitForAssertion(() =>
+            services.Seasons.Received(2).ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>()));
+
+        // The concurrent identity retry must not have been canceled by the season retry.
+        requestToken.IsCancellationRequested.ShouldBeFalse();
+
+        identityGate.SetResult(new ServiceResult<ClubIdentityResult>(Identity()));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("North Star Volleyball Club"));
+    }
+
     [Fact]
     public void Render_RestoresPersistedRegions_WithoutRepeatingStartupQueries()
     {
