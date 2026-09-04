@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
@@ -162,6 +163,12 @@ public partial class Teams(
     public IReadOnlyList<TeamRosterItem>? PersistedRoster { get; set; }
 
     /// <summary>
+    /// Gets or sets the club identifier the persisted roster snapshot was sourced from.
+    /// </summary>
+    [PersistentState]
+    public long? PersistedClubId { get; set; }
+
+    /// <summary>
     /// Gets or sets the persisted startup page error used across prerender and interactive attach.
     /// </summary>
     [PersistentState]
@@ -222,12 +229,20 @@ public partial class Teams(
 
         if (Initialized)
         {
-            _roster = PersistedRoster;
-            _pageError = PersistedPageError;
-            RefreshAvailableGraduationYears(_roster ?? []);
+            // Only restore the prerendered snapshot when it belongs to the still-current club.
+            // On an interactive attach after a club change, reload against the new scope
+            // instead of surfacing the previous club's roster.
+            if (PersistedClubId is not null && PersistedClubId == _clubId)
+            {
+                _roster = PersistedRoster;
+                _pageError = PersistedPageError;
+                RefreshAvailableGraduationYears(_roster ?? []);
 
-            _isLoading = false;
-            return;
+                _isLoading = false;
+                return;
+            }
+
+            Initialized = false;
         }
 
         _isLoading = true;
@@ -399,6 +414,7 @@ public partial class Teams(
     {
         PersistedRoster = _roster;
         PersistedPageError = _pageError;
+        PersistedClubId = _clubId;
     }
 
     /// <summary>
@@ -835,7 +851,7 @@ public partial class Teams(
     /// <param name="teamId">The target team identifier.</param>
     /// <returns>A relative team-detail URL with an encoded return URL query parameter.</returns>
     private string BuildTeamDetailUrl(long teamId)
-        => $"/club/teams/{teamId}?returnUrl={Uri.EscapeDataString(BuildCurrentRosterUrl())}";
+        => $"{ClubRoutes.TeamDetail(teamId)}?returnUrl={Uri.EscapeDataString(BuildCurrentRosterUrl())}";
 
     /// <summary>
     /// Builds the current roster URL with active filter state for use as a return URL.
@@ -858,7 +874,7 @@ public partial class Teams(
             querySegments.Add($"graduationYear={_graduationYearFilter.Value.ToString(CultureInfo.InvariantCulture)}");
         }
 
-        return $"/club/teams?{string.Join("&", querySegments)}";
+        return $"{ClubRoutes.Teams}?{string.Join("&", querySegments)}";
     }
 
     private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)

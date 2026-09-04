@@ -291,6 +291,39 @@ public sealed class TeamComponentsTests : BunitContext
         secondFilter.TextContent.ShouldNotContain("2032");
     }
 
+    /// <summary>
+    /// On an interactive attach after a club change, the prerendered roster snapshot from the
+    /// previous club must not be restored; the page must reload against the new club scope instead.
+    /// </summary>
+    [Fact]
+    public void Teams_ReloadsRoster_WhenPersistedSnapshotBelongsToDifferentClub()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(
+            [
+                new TeamRosterItem
+                {
+                    TeamId = 9,
+                    Name = "U18 Crimson",
+                    GraduationYear = 2034,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ActivePlacementCount = 2
+                }
+            ])));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        Services.AddSingleton<AuthenticationStateProvider>(
+            new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43)));
+
+        var cut = Render<PersistedClubIdTeams>(parameters => parameters
+            .Add(component => component.StartInitialized, true));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U18 Crimson"));
+        cut.Markup.ShouldNotContain("U14 Emerald");
+        rosterService.Received(1).GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public void Teams_ClosesManagementPanels_WhenClubAdminRoleIsRevokedAfterLoad()
     {
@@ -892,5 +925,43 @@ public sealed class TeamComponentsTests : BunitContext
         /// <param name="newPrincipal">The principal to publish to subscribers.</param>
         public void Change(ClaimsPrincipal newPrincipal)
             => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(newPrincipal)));
+    }
+
+    /// <summary>
+    /// Starts with a prerendered state already restored from the previous club (club 42), so tests can
+    /// exercise the interactive-attach path where the persisted snapshot's club differs from the current one.
+    /// </summary>
+    private sealed class PersistedClubIdTeams(
+        ITeamRosterService rosterService,
+        ITeamManagementService managementService,
+        ITeamLifecycleService lifecycleService,
+        AuthenticationStateProvider authenticationStateProvider,
+        NavigationManager navigationManager)
+        : TeamsPage(rosterService, managementService, lifecycleService, authenticationStateProvider, navigationManager)
+    {
+        [Parameter] public bool StartInitialized { get; set; }
+
+        protected override Task OnInitializedAsync()
+        {
+            if (StartInitialized)
+            {
+                Initialized = true;
+                PersistedClubId = 42;
+                PersistedRoster =
+                [
+                    new TeamRosterItem
+                    {
+                        TeamId = 5,
+                        Name = "U14 Emerald",
+                        GraduationYear = 2031,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ActivePlacementCount = 1
+                    }
+                ];
+                PersistedPageError = null;
+            }
+
+            return base.OnInitializedAsync();
+        }
     }
 }

@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
@@ -157,6 +158,12 @@ public partial class TeamDetail(
     public TeamDetailDto? PersistedDetail { get; set; }
 
     /// <summary>
+    /// Gets or sets the club identifier the persisted detail payload was sourced from.
+    /// </summary>
+    [PersistentState]
+    public long? PersistedClubId { get; set; }
+
+    /// <summary>
     /// Gets or sets the persisted startup page-error message used across prerender and interactive attach.
     /// </summary>
     [PersistentState]
@@ -193,11 +200,19 @@ public partial class TeamDetail(
 
         if (Initialized)
         {
-            _detail = PersistedDetail;
-            _error = PersistedError;
-            _isNotFound = PersistedIsNotFound;
-            _isLoading = false;
-            return;
+            // Only restore the prerendered snapshot when it belongs to the still-current club.
+            // On an interactive attach after a club change, reload against the new scope
+            // instead of surfacing the previous club's detail.
+            if (PersistedClubId is not null && PersistedClubId == _clubId)
+            {
+                _detail = PersistedDetail;
+                _error = PersistedError;
+                _isNotFound = PersistedIsNotFound;
+                _isLoading = false;
+                return;
+            }
+
+            Initialized = false;
         }
 
         await LoadDetailAsync();
@@ -577,6 +592,7 @@ public partial class TeamDetail(
         PersistedDetail = _detail;
         PersistedError = _error;
         PersistedIsNotFound = _isNotFound;
+        PersistedClubId = _clubId;
     }
 
     /// <summary>
@@ -612,7 +628,7 @@ public partial class TeamDetail(
     {
         if (string.IsNullOrWhiteSpace(returnUrl))
         {
-            return "/club/teams";
+            return ClubRoutes.Teams;
         }
 
         var candidate = returnUrl.Trim();
@@ -620,7 +636,7 @@ public partial class TeamDetail(
             || candidate.StartsWith("//", StringComparison.Ordinal)
             || candidate.Contains('\\'))
         {
-            return "/club/teams";
+            return ClubRoutes.Teams;
         }
 
         return candidate.StartsWith('/') ? candidate : $"/{candidate}";

@@ -679,6 +679,32 @@ public sealed class TeamDetailComponentTests : BunitContext
         groups[1].CampaignName.ShouldBe("Spring 2024");
     }
 
+    // ── Persisted-state club guard ────────────────────────────────────────────
+
+    /// <summary>
+    /// On an interactive attach after a club change, the prerendered detail snapshot from the
+    /// previous club must not be restored; the page must reload against the new club scope instead.
+    /// </summary>
+    [Fact]
+    public void TeamDetail_ReloadsDetail_WhenPersistedSnapshotBelongsToDifferentClub()
+    {
+        var detailService = Substitute.For<ITeamDetailService>();
+        detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<TeamDetailDto>(CreateTeamDetail(name: "U18 Crimson"))));
+
+        RegisterServices(isClubAdmin: true, detailService: detailService);
+        Services.AddSingleton<AuthenticationStateProvider>(
+            new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, clubId: 43)));
+
+        var cut = Render<PersistedClubIdTeamDetail>(parameters => parameters
+            .Add(component => component.TeamId, 7)
+            .Add(component => component.StartInitialized, true));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U18 Crimson"));
+        cut.Markup.ShouldNotContain("U16 Blue");
+        detailService.Received(1).GetTeamDetailAsync(7, Arg.Any<CancellationToken>());
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -801,5 +827,34 @@ public sealed class TeamDetailComponentTests : BunitContext
         /// <param name="newPrincipal">The principal to publish to subscribers.</param>
         public void Change(ClaimsPrincipal newPrincipal)
             => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(newPrincipal)));
+    }
+
+    /// <summary>
+    /// Starts with a prerendered state already restored from the previous club (club 42), so tests can
+    /// exercise the interactive-attach path where the persisted snapshot's club differs from the current one.
+    /// </summary>
+    private sealed class PersistedClubIdTeamDetail(
+        ITeamDetailService teamDetailService,
+        ITeamManagementService teamManagementService,
+        ITeamLifecycleService teamLifecycleService,
+        AuthenticationStateProvider authenticationStateProvider,
+        NavigationManager navigationManager)
+        : TeamDetailPage(teamDetailService, teamManagementService, teamLifecycleService, authenticationStateProvider, navigationManager)
+    {
+        [Parameter] public bool StartInitialized { get; set; }
+
+        protected override Task OnInitializedAsync()
+        {
+            if (StartInitialized)
+            {
+                Initialized = true;
+                PersistedClubId = 42;
+                PersistedDetail = CreateTeamDetail();
+                PersistedError = null;
+                PersistedIsNotFound = false;
+            }
+
+            return base.OnInitializedAsync();
+        }
     }
 }
