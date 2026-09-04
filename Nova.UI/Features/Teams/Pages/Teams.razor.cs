@@ -926,7 +926,8 @@ public partial class Teams(
     }
 
     /// <summary>
-    /// Cancels any in-flight roster load and clears the currently displayed roster/error state.
+    /// Cancels any in-flight roster load and clears the currently displayed roster/error state,
+    /// including club-scoped graduation-year options inherited from the previous club.
     /// </summary>
     private void ResetRosterState()
     {
@@ -937,6 +938,8 @@ public partial class Teams(
         _roster = null;
         _pageError = null;
         _isLoading = false;
+        _knownGraduationYears.Clear();
+        _availableGraduationYears = [];
     }
 
     /// <inheritdoc />

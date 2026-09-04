@@ -240,6 +240,57 @@ public sealed class TeamComponentsTests : BunitContext
         rosterService.Received(2).GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// When club membership changes, graduation-year filter options must be derived from the
+    /// new club's roster only — years from the previous club must not leak into the dropdown.
+    /// </summary>
+    [Fact]
+    public void Teams_ClearsGraduationYearOptions_WhenClubMembershipChanges()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(SuccessRosterResult(
+                [
+                    new TeamRosterItem
+                    {
+                        TeamId = 7,
+                        Name = "U16 Orange",
+                        GraduationYear = 2032,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ActivePlacementCount = 1
+                    }
+                ])),
+                Task.FromResult(SuccessRosterResult(
+                [
+                    new TeamRosterItem
+                    {
+                        TeamId = 9,
+                        Name = "U18 Crimson",
+                        GraduationYear = 2034,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ActivePlacementCount = 2
+                    }
+                ])));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Orange"));
+
+        var firstFilter = cut.Find("#teams-grad-year");
+        firstFilter.TextContent.ShouldContain("2032");
+
+        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U18 Crimson"));
+        var secondFilter = cut.Find("#teams-grad-year");
+        secondFilter.TextContent.ShouldContain("2034");
+        secondFilter.TextContent.ShouldNotContain("2032");
+    }
+
     [Fact]
     public void Teams_ClosesManagementPanels_WhenClubAdminRoleIsRevokedAfterLoad()
     {
