@@ -199,6 +199,67 @@ public sealed class ClubOverviewComponentTests : BunitContext
         cut.Markup.ShouldNotContain("href=\"/club/seasons\"");
     }
 
+    [Fact]
+    public void Render_RedirectsToAccessDenied_WhenMembershipDisappears()
+    {
+        var identity = Substitute.For<IClubIdentityQueryService>();
+        identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(
+            Task.FromResult(new ServiceResult<ClubIdentityResult>(Identity())),
+            Task.FromResult(new ServiceResult<ClubIdentityResult>(ServiceProblem.Forbidden("A current club membership is required."))));
+        Configure(isAdministrator: false, identity: identity);
+        var auth = new TestAuthenticationStateProvider(MemberPrincipal());
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = RenderOverview();
+        cut.Markup.ShouldContain("North Star Volleyball Club");
+
+        auth.Change(MemberPrincipal(clubId: null));
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        cut.WaitForAssertion(() => navigationManager.Uri.ShouldEndWith("/Account/AccessDenied"));
+    }
+
+    [Fact]
+    public void Render_ReloadsAllRegions_WhenClubMembershipChanges()
+    {
+        var identity = Substitute.For<IClubIdentityQueryService>();
+        identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(
+            Task.FromResult(new ServiceResult<ClubIdentityResult>(Identity())),
+            Task.FromResult(new ServiceResult<ClubIdentityResult>(Identity() with { ClubId = 2, Name = "Harbor Lights Volleyball Club" })));
+        var services = Configure(isAdministrator: false, identity: identity);
+        var auth = new TestAuthenticationStateProvider(MemberPrincipal());
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = RenderOverview();
+        cut.Markup.ShouldContain("North Star Volleyball Club");
+
+        auth.Change(MemberPrincipal(clubId: "2"));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Harbor Lights Volleyball Club"));
+        services.Identity.Received(2).GetCurrentAsync(Arg.Any<CancellationToken>());
+        services.Seasons.Received(2).ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
+        services.Campaigns.Received(2).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Render_InvalidatesPersistedState_WhenClubMembershipChanges()
+    {
+        var identity = Substitute.For<IClubIdentityQueryService>();
+        identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(
+            Task.FromResult(new ServiceResult<ClubIdentityResult>(Identity() with { ClubId = 2, Name = "Harbor Lights Volleyball Club" })));
+        var services = Configure(isAdministrator: false, identity: identity);
+        var auth = new TestAuthenticationStateProvider(MemberPrincipal());
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<PersistedStateClubOverview>(parameters => parameters
+            .Add(component => component.StartInitialized, true));
+        cut.Markup.ShouldContain("North Star Volleyball Club");
+
+        auth.Change(MemberPrincipal(clubId: "2"));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Harbor Lights Volleyball Club"));
+    }
+
     private IRenderedComponent<ContainerFragment> RenderOverview()
         => Render(builder =>
         {
@@ -249,13 +310,13 @@ public sealed class ClubOverviewComponentTests : BunitContext
         return new(identity, seasonService, campaignService);
     }
 
-    private static ClaimsPrincipal MemberPrincipal()
+    private static ClaimsPrincipal MemberPrincipal(string? clubId = "1")
     {
-        var claims = new List<Claim>
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, "10") };
+        if (clubId is not null)
         {
-            new(ClaimTypes.NameIdentifier, "10"),
-            new(NovaClaimTypes.ClubId, "1")
-        };
+            claims.Add(new Claim(NovaClaimTypes.ClubId, clubId));
+        }
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
     }
 

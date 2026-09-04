@@ -27,6 +27,7 @@ public partial class ClubOverview(
     private bool _seasonLoading;
     private bool _campaignLoading;
     private bool _isClubAdmin;
+    private string? _clubIdText;
 
     [SupplyParameterFromQuery(Name = "notice")]
     public string? Notice { get; set; }
@@ -57,11 +58,16 @@ public partial class ClubOverview(
 
     protected override async Task OnInitializedAsync()
     {
-        _isClubAdmin = (await authenticationStateProvider.GetAuthenticationStateAsync()).User.IsInRole(Roles.ClubAdmin);
+        var state = await authenticationStateProvider.GetAuthenticationStateAsync();
+        _isClubAdmin = state.User.IsInRole(Roles.ClubAdmin);
+        _clubIdText = state.User.FindFirst(NovaClaimTypes.ClubId)?.Value;
         if (Initialized)
         {
             RestorePersistedState();
-            return;
+            if (_identity?.ClubId.ToString() == _clubIdText)
+            {
+                return;
+            }
         }
 
         _identityLoading = _seasonLoading = _campaignLoading = true;
@@ -185,12 +191,19 @@ public partial class ClubOverview(
 
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
     {
-        var isClubAdmin = (await stateTask).User.IsInRole(Roles.ClubAdmin);
-        if (isClubAdmin != _isClubAdmin)
+        var state = await stateTask;
+        var isClubAdmin = state.User.IsInRole(Roles.ClubAdmin);
+        var clubIdText = state.User.FindFirst(NovaClaimTypes.ClubId)?.Value;
+        var clubChanged = clubIdText != _clubIdText;
+        _isClubAdmin = isClubAdmin;
+        _clubIdText = clubIdText;
+        if (clubChanged)
         {
-            _isClubAdmin = isClubAdmin;
-            await InvokeAsync(StateHasChanged);
+            _identityLoading = _seasonLoading = _campaignLoading = true;
+            await Task.WhenAll(LoadIdentityAsync(), LoadSeasonAsync(), LoadCampaignAsync());
+            PersistState();
         }
+        await InvokeAsync(StateHasChanged);
     }
 
     protected override async ValueTask DisposeAsyncCore()
