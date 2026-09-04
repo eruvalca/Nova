@@ -33,6 +33,7 @@ public partial class ClubOverview(
     public string? Notice { get; set; }
 
     [PersistentState] public ClubIdentityResult? PersistedIdentity { get; set; }
+    [PersistentState] public string? PersistedClubId { get; set; }
     [PersistentState] public SeasonSummary? PersistedSeason { get; set; }
     [PersistentState] public CampaignListResult? PersistedCampaigns { get; set; }
     [PersistentState] public string? PersistedIdentityError { get; set; }
@@ -64,7 +65,7 @@ public partial class ClubOverview(
         if (Initialized)
         {
             RestorePersistedState();
-            if (_identity?.ClubId.ToString() == _clubIdText)
+            if (PersistedClubId is not null && PersistedClubId == _clubIdText)
             {
                 return;
             }
@@ -168,6 +169,7 @@ public partial class ClubOverview(
 
     private void PersistState()
     {
+        PersistedClubId = _clubIdText;
         PersistedIdentity = _identity;
         PersistedSeason = _currentSeason;
         PersistedCampaigns = _campaigns;

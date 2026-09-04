@@ -168,6 +168,23 @@ public sealed class ClubOverviewComponentTests : BunitContext
     }
 
     [Fact]
+    public void Render_RestoresPersistedIdentityError_WithoutRepeatingStartupQueries()
+    {
+        var services = Configure(isAdministrator: false);
+
+        var cut = Render<PersistedIdentityErrorClubOverview>(parameters => parameters
+            .Add(component => component.StartInitialized, true));
+
+        cut.Markup.ShouldContain("Identity unavailable.");
+        cut.Markup.ShouldContain("Retry this section");
+        cut.Markup.ShouldContain("2026–27");
+        cut.Markup.ShouldContain("Fall evaluations");
+        services.Identity.DidNotReceive().GetCurrentAsync(Arg.Any<CancellationToken>());
+        services.Seasons.DidNotReceive().ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
+        services.Campaigns.DidNotReceive().GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public void Render_ReconcilesRoleGatedContent_WhenAuthenticationChanges()
     {
         Configure(isAdministrator: false);
@@ -381,6 +398,32 @@ public sealed class ClubOverviewComponentTests : BunitContext
 
     private sealed record ServiceSet(IClubIdentityQueryService Identity, ISeasonQueryService Seasons, ICampaignQueryService Campaigns);
 
+    private sealed class PersistedIdentityErrorClubOverview(
+        IClubIdentityQueryService identityQueryService,
+        ISeasonQueryService seasonQueryService,
+        ICampaignQueryService campaignQueryService,
+        AuthenticationStateProvider authenticationStateProvider,
+        NavigationManager navigationManager)
+        : ClubOverview(identityQueryService, seasonQueryService, campaignQueryService, authenticationStateProvider, navigationManager)
+    {
+        [Parameter] public bool StartInitialized { get; set; }
+
+        protected override Task OnInitializedAsync()
+        {
+            if (StartInitialized)
+            {
+                Initialized = true;
+                PersistedClubId = "1";
+                PersistedIdentity = null;
+                PersistedIdentityError = "Identity unavailable.";
+                PersistedSeason = CurrentSeason().Value.Items[0];
+                PersistedCampaigns = ActiveCampaigns().Value;
+            }
+
+            return base.OnInitializedAsync();
+        }
+    }
+
     private sealed class PersistedStateClubOverview(
         IClubIdentityQueryService identityQueryService,
         ISeasonQueryService seasonQueryService,
@@ -396,6 +439,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
             if (StartInitialized)
             {
                 Initialized = true;
+                PersistedClubId = "1";
                 PersistedIdentity = Identity();
                 PersistedSeason = CurrentSeason().Value.Items[0];
                 PersistedCampaigns = ActiveCampaigns().Value;
