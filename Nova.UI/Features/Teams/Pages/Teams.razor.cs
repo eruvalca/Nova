@@ -206,6 +206,9 @@ public partial class Teams(
         }
     }
 
+    protected override void OnInitialized()
+        => authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
@@ -858,9 +861,23 @@ public partial class Teams(
         return $"/club/teams?{string.Join("&", querySegments)}";
     }
 
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
+        => _ = ApplyAuthenticationStateAsync(stateTask);
+
+    private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
+    {
+        var canManageTeams = (await stateTask).User.IsInRole(Roles.ClubAdmin);
+        if (canManageTeams != _canManageTeams)
+        {
+            _canManageTeams = canManageTeams;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
+        authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();
         _searchDebounceSource = null;

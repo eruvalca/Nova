@@ -166,6 +166,9 @@ public partial class TeamDetail(
     [PersistentState]
     public bool Initialized { get; set; }
 
+    protected override void OnInitialized()
+        => authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
@@ -612,6 +615,26 @@ public partial class TeamDetail(
         }
 
         return candidate.StartsWith('/') ? candidate : $"/{candidate}";
+    }
+
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
+        => _ = ApplyAuthenticationStateAsync(stateTask);
+
+    private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
+    {
+        var canManageTeams = (await stateTask).User.IsInRole(Roles.ClubAdmin);
+        if (canManageTeams != _canManageTeams)
+        {
+            _canManageTeams = canManageTeams;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        await base.DisposeAsyncCore();
     }
 }
 

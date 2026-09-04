@@ -308,6 +308,52 @@ public sealed class TeamDetailComponentTests : BunitContext
         });
     }
 
+    // ── Role matrix: reconcile on authentication-state change ─────────────────
+
+    /// <summary>
+    /// Verifies admin action buttons appear when the user is promoted to club admin while on the page.
+    /// </summary>
+    [Fact]
+    public void TeamDetail_ShowsAdminActions_WhenClubAdminRoleIsGrantedAfterLoad()
+    {
+        RegisterServices(isClubAdmin: false);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: false));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
+        cut.Markup.ShouldNotContain("btn-outline-primary");
+
+        auth.Change(CreatePrincipal(isClubAdmin: true));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("btn-outline-primary");
+            cut.Markup.ShouldContain("btn-outline-warning");
+        });
+    }
+
+    /// <summary>
+    /// Verifies admin action buttons are suppressed when club admin role is revoked while on the page.
+    /// </summary>
+    [Fact]
+    public void TeamDetail_HidesAdminActions_WhenClubAdminRoleIsRevokedAfterLoad()
+    {
+        RegisterServices(isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
+        cut.Markup.ShouldContain("btn-outline-primary");
+
+        auth.Change(CreatePrincipal(isClubAdmin: false));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldNotContain("btn-outline-primary");
+            cut.Markup.ShouldNotContain("btn-outline-warning");
+        });
+    }
+
     // ── Edit mutation with refresh ────────────────────────────────────────────
 
     /// <summary>
@@ -683,8 +729,16 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// <param name="principal">The principal to return from <see cref="GetAuthenticationStateAsync"/>.</param>
     private sealed class FakeAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
     {
+        private Task<AuthenticationState> _state = Task.FromResult(new AuthenticationState(principal));
+
         /// <inheritdoc />
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
-            Task.FromResult(new AuthenticationState(principal));
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => _state;
+
+        /// <summary>
+        /// Raises an authentication-state change notification with a new principal.
+        /// </summary>
+        /// <param name="newPrincipal">The principal to publish to subscribers.</param>
+        public void Change(ClaimsPrincipal newPrincipal)
+            => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(newPrincipal)));
     }
 }

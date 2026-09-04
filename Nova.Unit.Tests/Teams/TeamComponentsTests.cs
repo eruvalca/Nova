@@ -152,6 +152,48 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     [Fact]
+    public void Teams_ShowsMutationControls_WhenClubAdminRoleIsGrantedAfterLoad()
+    {
+        RegisterServices(isClubAdmin: false);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForState(() => !cut.Markup.Contains("Loading teams...", StringComparison.Ordinal));
+        cut.Markup.ShouldNotContain("Add team");
+
+        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Add team");
+            cut.Markup.ShouldContain("Edit");
+            cut.Markup.ShouldContain("Archive");
+        });
+    }
+
+    [Fact]
+    public void Teams_HidesMutationControls_WhenClubAdminRoleIsRevokedAfterLoad()
+    {
+        RegisterServices(isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForState(() => !cut.Markup.Contains("Loading teams...", StringComparison.Ordinal));
+        cut.Markup.ShouldContain("Add team");
+
+        auth.Change(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldNotContain("Add team");
+            cut.Markup.ShouldNotContain("btn-outline-primary");
+            cut.Markup.ShouldNotContain("btn-outline-warning");
+        });
+    }
+
+    [Fact]
     public void Teams_AppliesLifecycleAndGraduationFilters_WhenInputsChange()
     {
         var rosterService = Substitute.For<ITeamRosterService>();
@@ -718,7 +760,16 @@ public sealed class TeamComponentsTests : BunitContext
     /// <param name="principal">The principal to return from <see cref="GetAuthenticationStateAsync"/>.</param>
     private sealed class FakeAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
     {
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
-            Task.FromResult(new AuthenticationState(principal));
+        private Task<AuthenticationState> _state = Task.FromResult(new AuthenticationState(principal));
+
+        /// <inheritdoc />
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => _state;
+
+        /// <summary>
+        /// Raises an authentication-state change notification with a new principal.
+        /// </summary>
+        /// <param name="newPrincipal">The principal to publish to subscribers.</param>
+        public void Change(ClaimsPrincipal newPrincipal)
+            => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(newPrincipal)));
     }
 }
