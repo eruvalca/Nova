@@ -225,10 +225,6 @@ public sealed partial class CampaignLifecycleService
         {
             return ServiceProblem.Conflict("Another campaign is already active for this club.");
         }
-        catch (DbUpdateException)
-        {
-            return ServiceProblem.Conflict("The campaign could not be opened because related campaign data changed.");
-        }
 
         LogCampaignOpened(campaignId, activePlayerIds.Count, actorUserId);
         return ToOpeningReceipt(campaign);

@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Shouldly;
@@ -51,21 +52,25 @@ public sealed class HttpCampaignLifecycleServiceTests
         handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(CampaignEndpoints.OpenUrl(CampaignId));
     }
 
-    /// <summary>Verifies an inconsistent success payload is rejected as an internal problem.</summary>
-    [Fact]
-    public async Task OpenAsync_RejectsInconsistentSuccessPayload()
+    /// <summary>Verifies every invalid opening-receipt shape is rejected as an internal problem.</summary>
+    /// <param name="payload">The invalid successful JSON payload.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":1,"warnings":null}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":1,"warnings":[99]}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":0,"warnings":[0,0]}""")]
+    [InlineData("""{"operationId":"22222222-2222-2222-2222-222222222222","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":1,"warnings":[]}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":41,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":1,"warnings":[]}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"0001-01-01T00:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":1,"warnings":[]}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":0,"enrolledPlayerCount":3,"activeTeamCount":1,"warnings":[]}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":0,"activeTeamCount":1,"warnings":[]}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":-1,"warnings":[]}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":1,"warnings":[0]}""")]
+    public async Task OpenAsync_RejectsInvalidSuccessPayload(string payload)
     {
-        var operationId = Guid.NewGuid();
+        var operationId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = JsonContent.Create(new OpenCampaignResult(
-                operationId,
-                CampaignId,
-                DateTimeOffset.UtcNow,
-                7,
-                3,
-                1,
-                [CampaignOpeningWarning.NoActiveTeams]))
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
         };
         using var http = new HttpClient(new FakeHttpMessageHandler(response))
         {

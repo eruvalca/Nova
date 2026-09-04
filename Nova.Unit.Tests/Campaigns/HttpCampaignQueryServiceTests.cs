@@ -157,6 +157,68 @@ public sealed class HttpCampaignQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    /// <summary>Verifies opening readiness uses the shared route and accepts a populated valid payload.</summary>
+    [Fact]
+    public async Task GetOpeningReadinessAsync_RequestsSharedRoute_AndAcceptsValidPayload()
+    {
+        const long campaignId = 42;
+        const string payload = """
+            {"campaignId":42,"activePlayerCount":3,"activeTeamCount":0,"canOpen":true,
+            "blockers":[],"warnings":[0],"blockingCampaign":null}
+            """;
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignQueryService(http)
+            .GetOpeningReadinessAsync(campaignId, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ActivePlayerCount.ShouldBe(3);
+        result.Value.Warnings.ShouldBe([CampaignOpeningWarning.NoActiveTeams]);
+        handler.LastRequest.ShouldNotBeNull();
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(CampaignEndpoints.GetOpeningReadinessUrl(campaignId));
+    }
+
+    /// <summary>Verifies invalid opening-readiness relationships are rejected as protocol errors.</summary>
+    /// <param name="payload">The invalid successful JSON payload.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":null,"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":null}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[99],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[99]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":0,"activeTeamCount":1,"canOpen":false,"blockers":[0,0],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":0,"canOpen":true,"blockers":[],"warnings":[0,0]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":-1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":-1,"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":0,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":0,"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[1],"warnings":[],"blockingCampaign":null}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":0,"campaignName":"Other"}}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":42,"campaignName":"Other"}}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":43,"campaignName":" "}}""")]
+    public async Task GetOpeningReadinessAsync_ReturnsServerError_ForInvalidPayload(string payload)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpCampaignQueryService(http)
+            .GetOpeningReadinessAsync(42, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>
     /// Verifies a populated, structurally valid campaign response is accepted.
     /// </summary>

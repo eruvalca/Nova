@@ -414,6 +414,43 @@ internal sealed class FailFirstSaveChangesInterceptor : SaveChangesInterceptor
 }
 
 /// <summary>
+/// Simulates one transient provider failure from a campaign-opening write command. EF Core wraps the
+/// provider exception in <see cref="DbUpdateException"/>, matching the normal SaveChanges failure path.
+/// </summary>
+internal sealed class FailFirstCampaignWriteCommandInterceptor : DbCommandInterceptor
+{
+    private int _shouldFail = 1;
+    private int _failureCount;
+
+    /// <summary>Gets the number of transient write failures injected by this interceptor.</summary>
+    public int FailureCount => Volatile.Read(ref _failureCount);
+
+    /// <inheritdoc />
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsCampaignOpeningWrite(command.CommandText)
+            && Interlocked.Exchange(ref _shouldFail, 0) == 1)
+        {
+            Interlocked.Increment(ref _failureCount);
+            throw new NpgsqlException("Simulated transient campaign write failure.", new TimeoutException());
+        }
+
+        return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    /// <summary>Identifies the generated write batch used to persist a campaign opening.</summary>
+    /// <param name="commandText">The generated provider command text.</param>
+    /// <returns><see langword="true"/> when the command writes the campaign opening aggregate.</returns>
+    private static bool IsCampaignOpeningWrite(string commandText)
+        => commandText.Contains("UPDATE \"Campaigns\"", StringComparison.Ordinal)
+            || commandText.Contains("INSERT INTO \"PlayerCampaignAssignments\"", StringComparison.Ordinal);
+}
+
+/// <summary>
 /// Simulates a non-transient failure immediately before the second save in one context so tests can
 /// verify that earlier writes in the transaction are rolled back.
 /// </summary>

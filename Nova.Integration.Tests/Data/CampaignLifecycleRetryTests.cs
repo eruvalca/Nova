@@ -16,7 +16,10 @@ namespace Nova.Integration.Tests.Data;
 [Collection(NovaAppHostCollection.Name)]
 public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
 {
-    /// <summary>Verifies opening retries a rolled-back attempt with a fresh context and one aggregate.</summary>
+    /// <summary>
+    /// Verifies opening lets a provider failure wrapped by EF in <see cref="DbUpdateException"/>
+    /// reach the execution strategy, which retries with a fresh context and commits one aggregate.
+    /// </summary>
     [Fact]
     public async Task CampaignOpen_RetriesWithFreshContext_AfterTransientSaveFailure()
     {
@@ -30,7 +33,7 @@ public sealed class CampaignLifecycleRetryTests(NovaAppHostFixture fixture)
         var operationId = Guid.CreateVersion7();
         ActAsAdmin(actorUserId, clubId);
 
-        var failureInterceptor = new FailFirstSaveChangesInterceptor();
+        var failureInterceptor = new FailFirstCampaignWriteCommandInterceptor();
         var factory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
             fixture.CurrentUser,

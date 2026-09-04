@@ -69,7 +69,9 @@ internal sealed class CampaignTestSeedInterceptor : SaveChangesInterceptor
             }
 
             campaign.OpeningOperationId ??= Guid.CreateVersion7();
-            campaign.OpenedAt ??= campaign.CreatedAt.ToUniversalTime();
+            campaign.OpenedAt ??= campaign.CreatedAt == default
+                ? DateTimeOffset.UtcNow
+                : campaign.CreatedAt.ToUniversalTime();
             campaign.OpenedById ??= campaign.CreatedById;
             campaign.SeasonOpeningSequence ??= Interlocked.Increment(ref nextOpeningSequence);
             campaign.InitialEnrolledPlayerCount ??= 0;
