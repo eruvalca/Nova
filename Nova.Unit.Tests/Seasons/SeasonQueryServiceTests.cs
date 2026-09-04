@@ -6,6 +6,7 @@ using Nova.Shared.Enums;
 using Nova.Shared.Features.Seasons;
 using Nova.Shared.Results;
 using Nova.Unit.Tests.Data;
+using NSubstitute;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Seasons;
@@ -183,6 +184,48 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
         list.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
         detail.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
+    /// <summary>Verifies a season-list read failure surfaces as a server error rather than an exception.</summary>
+    [Fact]
+    public async Task ListAsync_ReturnsServerError_WhenReadFails()
+    {
+        _harness.CurrentUser.UserId = MemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var throwingFactory = Substitute.For<IDbContextFactory<NovaReadDbContext>>();
+        throwingFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<NovaReadDbContext>>(_ => throw new InvalidOperationException("boom"));
+        var service = new SeasonQueryService(
+            throwingFactory,
+            _harness.CurrentUser,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SeasonQueryService>.Instance);
+
+        var result = await service.ListAsync(new GetSeasonListInput(), TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies a season-detail read failure surfaces as a server error rather than an exception.</summary>
+    [Fact]
+    public async Task GetAsync_ReturnsServerError_WhenReadFails()
+    {
+        _harness.CurrentUser.UserId = MemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var throwingFactory = Substitute.For<IDbContextFactory<NovaReadDbContext>>();
+        throwingFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<NovaReadDbContext>>(_ => throw new InvalidOperationException("boom"));
+        var service = new SeasonQueryService(
+            throwingFactory,
+            _harness.CurrentUser,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SeasonQueryService>.Instance);
+
+        var result = await service.GetAsync(
+            new GetSeasonDetailInput { SeasonId = _currentSeasonId },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
     /// <summary>Creates a query service over fresh read contexts.</summary>

@@ -1,10 +1,12 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
 using Nova.Shared.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
+using NSubstitute;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Clubs;
@@ -55,10 +57,30 @@ public sealed class ClubIdentityQueryServiceTests : IDisposable
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
     }
 
+    [Fact]
+    public async Task GetCurrentAsync_ReturnsServerError_WhenReadFails()
+    {
+        var throwingFactory = Substitute.For<IDbContextFactory<NovaReadDbContext>>();
+        throwingFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<NovaReadDbContext>>(_ => throw new InvalidOperationException("boom"));
+        var service = new ClubIdentityQueryService(
+            throwingFactory,
+            _harness.CurrentUser,
+            NullLogger<ClubIdentityQueryService>.Instance);
+
+        _harness.CurrentUser.UserId = 10;
+        _harness.CurrentUser.ClubId = 1;
+
+        var result = await service.GetCurrentAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     private ClubIdentityQueryService CreateService()
     {
         IDbContextFactory<NovaReadDbContext> factory = new TestDbContextFactory<NovaReadDbContext>(_harness.CreateReadContext);
-        return new(factory, _harness.CurrentUser);
+        return new(factory, _harness.CurrentUser, NullLogger<ClubIdentityQueryService>.Instance);
     }
 
     private void Seed()

@@ -7,6 +7,7 @@ using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.Unit.Tests.Data;
+using NSubstitute;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -604,6 +605,63 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+    }
+
+    /// <summary>Verifies a campaign-list read failure surfaces as a server error rather than an exception.</summary>
+    [Fact]
+    public async Task GetCampaignList_ReturnsServerError_WhenReadFails()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var service = CreateThrowingService();
+
+        var result = await service.GetCampaignListAsync(new GetCampaignListInput(), TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies a campaign-detail read failure surfaces as a server error rather than an exception.</summary>
+    [Fact]
+    public async Task GetCampaignDetail_ReturnsServerError_WhenReadFails()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        var service = CreateThrowingService();
+
+        var result = await service.GetCampaignDetailAsync(
+            new GetCampaignDetailInput { CampaignId = 1 },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies a creation-setup read failure surfaces as a server error rather than an exception.</summary>
+    [Fact]
+    public async Task GetCreationSetup_ReturnsServerError_WhenReadFails()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+        var service = CreateThrowingService();
+
+        var result = await service.GetCreationSetupAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Creates a campaign query service over a context factory that throws on read.</summary>
+    private CampaignQueryService CreateThrowingService()
+    {
+        var throwingFactory = Substitute.For<IDbContextFactory<NovaReadDbContext>>();
+        throwingFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<NovaReadDbContext>>(_ => throw new InvalidOperationException("boom"));
+        return new CampaignQueryService(
+            throwingFactory,
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
     }
 
     /// <summary>Adds one Draft campaign to Club A and returns its generated identifier.</summary>
