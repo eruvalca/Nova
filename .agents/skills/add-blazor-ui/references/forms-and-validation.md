@@ -125,6 +125,3 @@ at the next intentional user action instead.
 
 - `role="alert"` on error containers; `aria-live="assertive"` for errors, `"polite"` for advisory
   blockers; `aria-hidden="true"` on decorative spinners.
-- Bootstrap-first: `mb-3`, `form-label`, `form-control`, `form-select`, `btn`, `alert`, `row g-3`.
-  Add scoped CSS in `{Name}.razor.css` only when Bootstrap cannot express the requirement, using
-  `rem` units.
