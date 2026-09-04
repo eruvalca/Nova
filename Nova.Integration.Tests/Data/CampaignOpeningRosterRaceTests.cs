@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.Features.Players;
+using Nova.Features.Teams;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Players;
@@ -172,11 +173,64 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
         restored.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
     }
 
+    /// <summary>
+    /// Verifies a team archive provably waits on the club-roster advisory lock held by an opening in
+    /// progress, and that the opening's committed active-team snapshot predates the archive: the
+    /// receipt counts the team as active at the opening instant.
+    /// </summary>
+    [Fact]
+    public async Task CampaignOpenHoldingRosterLock_TeamArchiveWaits_AndReceiptMatchesOpeningInstant()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedDraftAsync(activePlayerCount: 1, cancellationToken, activeTeamCount: 2);
+        ActAsAdmin(seed.ActorUserId, seed.ClubId);
+        var gate = new AdvisoryLockGateInterceptor(advisoryLocksToSkip: 1);
+        var campaignService = CreateCampaignService(new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            gate));
+        var teamService = new TeamLifecycleService(
+            new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, new NoOpInterceptor()),
+            fixture.CurrentUser,
+            NullLogger<TeamLifecycleService>.Instance);
+
+        var openTask = campaignService.OpenAsync(
+            seed.CampaignId,
+            new OpenCampaignInput { OperationId = Guid.CreateVersion7() },
+            cancellationToken);
+        await gate.WaitForAcquiredAsync(cancellationToken);
+        var archiveTask = teamService.ArchiveAsync(seed.TeamIds[1], cancellationToken);
+
+        await using var probe = fixture.CreateAdminContext();
+        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+            probe,
+            (long.MinValue / 4) + seed.ClubId,
+            cancellationToken);
+        gate.Release();
+
+        var receipt = (await openTask).Value.ShouldBeOfType<OpenCampaignResult>();
+        receipt.ActiveTeamCount.ShouldBe(2);
+        receipt.Warnings.ShouldBeEmpty();
+        (await archiveTask).IsSuccess.ShouldBeTrue();
+
+        await using var verify = fixture.CreateAdminContext();
+        var campaign = await verify.Campaigns.SingleAsync(
+            candidate => candidate.CampaignId == seed.CampaignId, cancellationToken);
+        campaign.InitialActiveTeamCount.ShouldBe(2);
+        var archivedTeam = await verify.Teams.SingleAsync(
+            candidate => candidate.TeamId == seed.TeamIds[1], cancellationToken);
+        archivedTeam.LifecycleStatus.ShouldBe(LifecycleStatus.Archived);
+    }
+
     /// <summary>Seeds a Draft in the current season and the requested active roster.</summary>
     /// <param name="activePlayerCount">The number of active players to create.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <param name="activeTeamCount">The number of active teams to create.</param>
     /// <returns>The identifiers needed by the competing operations.</returns>
-    private async Task<RosterRaceSeed> SeedDraftAsync(int activePlayerCount, CancellationToken cancellationToken)
+    private async Task<RosterRaceSeed> SeedDraftAsync(
+        int activePlayerCount,
+        CancellationToken cancellationToken,
+        int activeTeamCount = 0)
     {
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
         var suffix = Guid.CreateVersion7().ToString("N");
@@ -228,15 +282,28 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
                 CreatedById = actorUserId
             })
             .ToList();
+        var teams = Enumerable.Range(0, activeTeamCount)
+            .Select(index => new TeamEntity
+            {
+                CreationOperationId = Guid.CreateVersion7(),
+                Name = $"Roster Team {index + 1} {suffix}",
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            })
+            .ToList();
         context.Add(campaign);
         context.AddRange(players);
+        context.AddRange(teams);
         await context.SaveChangesAsync(cancellationToken);
 
         return new RosterRaceSeed(
             club.ClubId,
             campaign.CampaignId,
             actorUserId,
-            players.Select(player => player.PlayerId).ToList());
+            players.Select(player => player.PlayerId).ToList(),
+            teams.Select(team => team.TeamId).ToList());
     }
 
     /// <summary>Sets the flow-local test actor to the seeded club administrator.</summary>
@@ -261,9 +328,11 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
     /// <param name="CampaignId">The Draft campaign identifier.</param>
     /// <param name="ActorUserId">The acting administrator identifier.</param>
     /// <param name="PlayerIds">The seeded active-player identifiers.</param>
+    /// <param name="TeamIds">The seeded active-team identifiers.</param>
     private sealed record RosterRaceSeed(
         long ClubId,
         long CampaignId,
         long ActorUserId,
-        IReadOnlyList<long> PlayerIds);
+        IReadOnlyList<long> PlayerIds,
+        IReadOnlyList<long> TeamIds);
 }
