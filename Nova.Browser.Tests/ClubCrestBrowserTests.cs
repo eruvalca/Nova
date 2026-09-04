@@ -80,12 +80,12 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
 
         await AssertCrestInNavAsync(page, clubName);
-        var clubId = await GetClubIdFromNavAsync(page, clubName);
+        var clubId = await GetCurrentClubIdAsync(page);
 
         // The club detail header shows the medium crest variant next to the club name.
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/Clubs/{clubId}").ToString());
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = clubName })).ToBeVisibleAsync();
-        var detailCrest = page.Locator("img.club-detail-crest");
+        var detailCrest = page.Locator(".club-identity img");
         await Expect(detailCrest).ToHaveCountAsync(1);
         await Expect(detailCrest).ToHaveAttributeAsync(
             "src",
@@ -235,10 +235,10 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
         navSize.ShouldBe(new[] { 64d, 64d });
 
         // The club detail crest preserves its aspect ratio: natural width differs from height.
-        var clubId = await GetClubIdFromNavAsync(page, clubName);
+        var clubId = await GetCurrentClubIdAsync(page);
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/Clubs/{clubId}").ToString());
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = clubName })).ToBeVisibleAsync();
-        var detailCrest = page.Locator("img.club-detail-crest");
+        var detailCrest = page.Locator(".club-identity img");
         await Expect(detailCrest).ToHaveCountAsync(1);
         var detailSize = await WaitForNaturalSizeAsync(detailCrest, page);
         detailSize[0].ShouldNotBe(detailSize[1], "the club detail crest must not be a square");
@@ -309,14 +309,9 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
     /// <param name="page">The page to inspect.</param>
     /// <param name="clubName">The club item label.</param>
     /// <returns>The club identifier.</returns>
-    private static async Task<long> GetClubIdFromNavAsync(IPage page, string clubName)
-    {
-        var club = page.Locator("nav.navbar").GetByRole(AriaRole.Link, new() { Name = clubName });
-        var href = await club.GetAttributeAsync("href");
-        href.ShouldNotBeNull();
-        var segments = href!.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return long.Parse(segments[^1]);
-    }
+    private static Task<long> GetCurrentClubIdAsync(IPage page)
+        => page.EvaluateAsync<long>(
+            "async () => { const response = await fetch('/api/clubs/current'); const club = await response.json(); return club.clubId; }");
 
     /// <summary>
     /// Writes a small valid JPEG crest to a temporary file for the file input.

@@ -446,7 +446,7 @@ public sealed class TeamDetailComponentTests : BunitContext
 
         var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
         cut.WaitForAssertion(() =>
-            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/teams"));
+            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/club/teams"));
     }
 
     /// <summary>
@@ -479,7 +479,7 @@ public sealed class TeamDetailComponentTests : BunitContext
 
         var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
         cut.WaitForAssertion(() =>
-            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/teams"));
+            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/club/teams"));
     }
 
     /// <summary>
@@ -495,7 +495,7 @@ public sealed class TeamDetailComponentTests : BunitContext
 
         var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
         cut.WaitForAssertion(() =>
-            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/teams"));
+            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/club/teams"));
     }
 
     /// <summary>
@@ -512,7 +512,7 @@ public sealed class TeamDetailComponentTests : BunitContext
 
         var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
         cut.WaitForAssertion(() =>
-            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/teams"));
+            cut.Find("a.btn-outline-secondary").GetAttribute("href").ShouldBe("/club/teams"));
     }
 
     // ── Enhanced navigation guard ─────────────────────────────────────────────

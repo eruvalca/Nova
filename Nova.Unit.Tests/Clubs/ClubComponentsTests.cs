@@ -25,7 +25,6 @@ namespace Nova.Unit.Tests.Clubs;
 /// - <see cref="CreateClubForm"/> component
 /// - <see cref="ClubSearchPanel"/> component
 /// - <see cref="PendingJoinRequestCard"/> component
-/// - <see cref="ClubDetail"/> page
 ///
 /// These tests verify component rendering, state management, user interactions, and navigation.
 /// xUnit creates a new class instance per test, so each test gets a fresh <see cref="TestContext"/>.
@@ -42,18 +41,14 @@ public class ClubComponentsTests : BunitContext
     /// </summary>
     /// <param name="joinRequestService">Optional substitute; a default mock is created when <see langword="null"/>.</param>
     /// <param name="clubService">Optional substitute; a default mock is created when <see langword="null"/>.</param>
-    /// <param name="clubDetailService">Optional substitute; a default mock is created when <see langword="null"/>.</param>
     private void SetupServices(IClubJoinRequestService? joinRequestService = null,
-        IClubService? clubService = null,
-        IClubDetailService? clubDetailService = null)
+        IClubService? clubService = null)
     {
         joinRequestService ??= Substitute.For<IClubJoinRequestService>();
         clubService ??= Substitute.For<IClubService>();
-        clubDetailService ??= Substitute.For<IClubDetailService>();
 
         Services.AddSingleton(joinRequestService);
         Services.AddSingleton(clubService);
-        Services.AddSingleton(clubDetailService);
 
         // ClubOnboarding now injects AuthenticationStateProvider to guard against club members
         // navigating back to the onboarding page. Register a fake that returns an authenticated
@@ -1305,234 +1300,4 @@ public class ClubComponentsTests : BunitContext
     #endregion
     // ClubAdmin page is covered by integration tests (see Nova.Integration.Tests).
 
-    #region ClubDetail Page Tests
-
-    /// <summary>
-    /// ClubDetail renders city and state when detail load succeeds.
-    /// </summary>
-    [Fact]
-    public void ClubDetail_RendersCityAndState_WhenDetailLoads()
-    {
-        // Arrange
-        var clubDetailService = Substitute.For<IClubDetailService>();
-        var detail = new ClubDetailDto(
-            42,
-            "Test Club",
-            "Austin",
-            "TX",
-            [],
-            false,
-            false);
-        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
-
-        SetupServices(clubDetailService: clubDetailService);
-
-        // Act
-        var cut = Render<ClubDetail>(parameters =>
-            parameters.Add(p => p.ClubId, 42L));
-
-        // Assert
-        cut.Markup.ShouldContain("Austin, TX");
-    }
-
-    /// <summary>
-    /// ClubDetail renders member roster and current-user indicator when roster includes current user.
-    /// </summary>
-    [Fact]
-    public void ClubDetail_RendersRosterAndCurrentUserIndicator_WhenMembersAreLoaded()
-    {
-        // Arrange
-        var clubDetailService = Substitute.For<IClubDetailService>();
-        var detail = new ClubDetailDto(
-            42,
-            "Test Club",
-            "Austin",
-            "TX",
-            [
-                new ClubRosterMemberDto(100, "Alice Admin", true),
-                new ClubRosterMemberDto(101, "Bob Member", false)
-            ],
-            false,
-            false);
-        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
-
-        SetupServices(clubDetailService: clubDetailService);
-
-        // Act
-        var cut = Render<ClubDetail>(parameters =>
-            parameters.Add(p => p.ClubId, 42L));
-
-        // Assert
-        cut.Markup.ShouldContain("Alice Admin");
-        cut.Markup.ShouldContain("Bob Member");
-        cut.Markup.ShouldContain("Current user (You)");
-    }
-
-    /// <summary>
-    /// ClubDetail shows admin link when current user is club admin.
-    /// </summary>
-    [Fact]
-    public void ClubDetail_ShowsAdminLink_WhenCurrentUserIsClubAdmin()
-    {
-        // Arrange
-        var clubDetailService = Substitute.For<IClubDetailService>();
-        var detail = new ClubDetailDto(
-            42,
-            "Test Club",
-            "Austin",
-            "TX",
-            [],
-            true,
-            false);
-        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
-
-        SetupServices(clubDetailService: clubDetailService);
-
-        // Act
-        var cut = Render<ClubDetail>(parameters =>
-            parameters.Add(p => p.ClubId, 42L));
-
-        // Assert
-        cut.Markup.ShouldContain("Admin");
-        cut.Markup.ShouldContain("/Clubs/42/admin");
-    }
-
-    /// <summary>
-    /// ClubDetail hides admin link when current user is not a club admin.
-    /// </summary>
-    [Fact]
-    public void ClubDetail_HidesAdminLink_WhenCurrentUserIsNotClubAdmin()
-    {
-        // Arrange
-        var clubDetailService = Substitute.For<IClubDetailService>();
-        var detail = new ClubDetailDto(
-            42,
-            "Test Club",
-            "Austin",
-            "TX",
-            [],
-            false,
-            false);
-        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
-
-        SetupServices(clubDetailService: clubDetailService);
-
-        // Act
-        var cut = Render<ClubDetail>(parameters =>
-            parameters.Add(p => p.ClubId, 42L));
-
-        // Assert
-        cut.Markup.ShouldNotContain("/Clubs/42/admin");
-    }
-
-    /// <summary>
-    /// ClubDetail navigates to access denied when service returns Forbidden.
-    /// </summary>
-    [Fact]
-    public void ClubDetail_NavigatesToAccessDenied_WhenServiceReturnsForbidden()
-    {
-        // Arrange
-        var clubDetailService = Substitute.For<IClubDetailService>();
-        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(ServiceProblem.Forbidden("Not authorized"))));
-
-        SetupServices(clubDetailService: clubDetailService);
-        var navigationManager = Services.GetRequiredService<NavigationManager>();
-        var expectedUri = navigationManager.ToAbsoluteUri("/Account/AccessDenied").ToString();
-
-        // Act
-        Render<ClubDetail>(parameters =>
-            parameters.Add(p => p.ClubId, 42L));
-
-        // Assert
-        navigationManager.Uri.ShouldBe(expectedUri);
-    }
-
-    /// <summary>
-    /// ClubDetail displays non-forbidden service errors.
-    /// </summary>
-    [Fact]
-    public void ClubDetail_ShowsErrorMessage_WhenServiceReturnsNonForbiddenError()
-    {
-        // Arrange
-        var clubDetailService = Substitute.For<IClubDetailService>();
-        const string errorMessage = "Club details are unavailable right now";
-        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(ServiceProblem.ServerError(errorMessage))));
-
-        SetupServices(clubDetailService: clubDetailService);
-
-        // Act
-        var cut = Render<ClubDetail>(parameters =>
-            parameters.Add(p => p.ClubId, 42L));
-
-        // Assert
-        cut.Markup.ShouldContain("alert-danger");
-        cut.Markup.ShouldContain(errorMessage);
-    }
-
-    /// <summary>
-    /// ClubDetail shows the club crest image next to the club name when the club has a crest.
-    /// </summary>
-    [Fact]
-    public void ClubDetail_RendersClubCrest_WhenClubHasCrest()
-    {
-        // Arrange
-        var clubDetailService = Substitute.For<IClubDetailService>();
-        var detail = new ClubDetailDto(
-            42,
-            "Test Club",
-            "Austin",
-            "TX",
-            [],
-            false,
-            true);
-        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
-
-        SetupServices(clubDetailService: clubDetailService);
-
-        // Act
-        var cut = Render<ClubDetail>(parameters =>
-            parameters.Add(p => p.ClubId, 42L));
-
-        // Assert
-        cut.Markup.ShouldContain("club-detail-crest");
-        cut.Markup.ShouldContain("src=\"/api/clubs/42/crest?size=medium\"");
-    }
-
-    /// <summary>
-    /// ClubDetail does not render the club crest image when the club has no crest.
-    /// </summary>
-    [Fact]
-    public void ClubDetail_OmitsClubCrest_WhenClubHasNoCrest()
-    {
-        // Arrange
-        var clubDetailService = Substitute.For<IClubDetailService>();
-        var detail = new ClubDetailDto(
-            42,
-            "Test Club",
-            "Austin",
-            "TX",
-            [],
-            false,
-            false);
-        clubDetailService.GetClubDetailAsync(42L, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new ServiceResult<ClubDetailDto>(detail)));
-
-        SetupServices(clubDetailService: clubDetailService);
-
-        // Act
-        var cut = Render<ClubDetail>(parameters =>
-            parameters.Add(p => p.ClubId, 42L));
-
-        // Assert
-        cut.Markup.ShouldNotContain("club-detail-crest");
-    }
-
-    #endregion
 }

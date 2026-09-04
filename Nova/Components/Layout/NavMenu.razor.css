@@ -503,11 +503,15 @@
         height: 2rem;
     }
 
-    .nav-label {
+    .nova-navigation .nav-label {
+        min-width: 0;
+        flex: 1 1 auto;
         overflow: hidden;
         font-size: 0.875rem;
         line-height: 1.25;
-        text-overflow: ellipsis;
+        text-overflow: clip;
+        overflow-wrap: anywhere;
+        white-space: normal;
     }
 
     ::deep .nav-link.active::after {

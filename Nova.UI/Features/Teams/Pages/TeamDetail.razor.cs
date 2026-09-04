@@ -600,7 +600,7 @@ public partial class TeamDetail(
     {
         if (string.IsNullOrWhiteSpace(returnUrl))
         {
-            return "/teams";
+            return "/club/teams";
         }
 
         var candidate = returnUrl.Trim();
@@ -608,7 +608,7 @@ public partial class TeamDetail(
             || candidate.StartsWith("//", StringComparison.Ordinal)
             || candidate.Contains('\\'))
         {
-            return "/teams";
+            return "/club/teams";
         }
 
         return candidate.StartsWith('/') ? candidate : $"/{candidate}";

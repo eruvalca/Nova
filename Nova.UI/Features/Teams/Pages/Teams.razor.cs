@@ -832,7 +832,7 @@ public partial class Teams(
     /// <param name="teamId">The target team identifier.</param>
     /// <returns>A relative team-detail URL with an encoded return URL query parameter.</returns>
     private string BuildTeamDetailUrl(long teamId)
-        => $"/teams/{teamId}?returnUrl={Uri.EscapeDataString(BuildCurrentRosterUrl())}";
+        => $"/club/teams/{teamId}?returnUrl={Uri.EscapeDataString(BuildCurrentRosterUrl())}";
 
     /// <summary>
     /// Builds the current roster URL with active filter state for use as a return URL.
@@ -855,7 +855,7 @@ public partial class Teams(
             querySegments.Add($"graduationYear={_graduationYearFilter.Value.ToString(CultureInfo.InvariantCulture)}");
         }
 
-        return $"/teams?{string.Join("&", querySegments)}";
+        return $"/club/teams?{string.Join("&", querySegments)}";
     }
 
     /// <inheritdoc />

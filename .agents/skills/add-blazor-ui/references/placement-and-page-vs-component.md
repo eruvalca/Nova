@@ -87,12 +87,12 @@ Features/{Feature}/Pages/{Name}.razor.css    # optional, component-scoped styles
 
   ```csharp
   /// <summary>
-  /// Displays the signed-in member's club details and roster.
+  /// Redirects a tenant-matching legacy Club detail route to the canonical Club overview.
   /// </summary>
-  /// <param name="clubDetailService">The service that loads club detail data.</param>
-  /// <param name="navigationManager">The navigation manager used for access-denied redirects.</param>
+  /// <param name="authenticationStateProvider">The provider for the caller's current membership claims.</param>
+  /// <param name="navigationManager">The navigation manager used to replace or deny the legacy route.</param>
   public partial class ClubDetail(
-      IClubDetailService clubDetailService,
+      AuthenticationStateProvider authenticationStateProvider,
       NavigationManager navigationManager)
   ```
 

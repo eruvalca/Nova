@@ -1,0 +1,19 @@
+@page "/club/seasons"
+@page "/club/members"
+@page "/club/requests"
+@page "/club/tags"
+@page "/club/crest"
+@attribute [Authorize(Policy = Policies.RequireClubAdmin)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Features.Clubs
+@using Nova.Shared.Security
+@using Nova.UI.Features.Clubs.Components
+
+<PageTitle>@Section.Title</PageTitle>
+<ClubShell CurrentLabel="@Section.Title">
+    <section class="reserved-club-section">
+        <h1>@Section.Title</h1>
+        <p>@Section.Explanation</p>
+        <a class="btn btn-outline-primary" href="@ClubRoutes.Overview">Back to Overview</a>
+    </section>
+</ClubShell>

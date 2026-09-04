@@ -81,6 +81,9 @@ Nova.UI/
 - **Inherit `NovaComponentBase` by default**: `_Imports.razor` sets `NovaComponentBase` as the default base type for components and pages. Keep this default unless a component has a clear reason to use a different base class.
 - **DI in code-behind**: prefer constructor injection with primary constructors in the `.razor.cs` file over `@inject`/`[Inject]` when possible. Constructor injection requires the component to be instantiated by DI-aware rendering (.NET 10 supports this); use `[Inject]` properties only when constructor injection is not viable (e.g., generated base-class constraints).
 - **Flow cancellation through async work**: pass `ComponentCancellationToken` to async operations (service methods, HTTP calls, EF/query calls exposed via services, delays, streams, etc.) so work stops promptly when the component is disposed.
+- **Preserve lifecycle cancellation**: when a component catches transport failures, re-throw
+  `OperationCanceledException` when `ComponentCancellationToken` (or the operation's owned request
+  token) is canceled. Only map unrelated transport cancellation to user-visible unavailability.
 - **Extend disposal via `DisposeAsyncCore()`**: when component-specific async cleanup is needed, override `DisposeAsyncCore()` in the existing component inheritance chain instead of re-implementing `IAsyncDisposable` on the component.
 - **Choose the lifecycle method by purpose**: `OnInitializedAsync` for one-time data loading;
   `OnParametersSet(Async)` to react to `[Parameter]`/`[SupplyParameterFromQuery]` values (it runs on
@@ -146,6 +149,15 @@ Nova.UI/
 - `HttpContext` is only available during static SSR in `Nova`. Never use it from interactive components or from `Nova.UI`/`Nova.Client`; flow user/tenant state through abstractions (e.g., `AuthenticationStateProvider`, `CurrentUserState` in `Nova.Shared`) instead.
 - Claims serialized into interactive/WASM authentication state are browser-visible. Serialize only claims required by the UI; if `SerializeAllClaims` is the only mechanism, document why and do not treat the claims as secrets or as a replacement for server authorization.
 - Keep Identity/Account pages in `Nova` as static SSR — they depend on `HttpContext`, cookies, and `SignInManager`.
+
+## Authorization denial recovery
+
+- Server-routed authorization failures reach the Identity cookie's `OnRedirectToAccessDenied`
+  callback before Blazor can render `RedirectToLoginOrAccessDenied`. Any route-specific recovery for
+  an authenticated user must therefore stay aligned in both locations, preferably through a shared
+  route classifier.
+- Keep API denials as `401`/`403`, and preserve the normal access-denied destination for unrelated UI
+  routes. A role-specific recovery redirect must not broaden authorization or silently grant access.
 
 ## Related
 

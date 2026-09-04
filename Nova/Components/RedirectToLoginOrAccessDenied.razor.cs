@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Nova.Shared.Features.Clubs;
+using Nova.Shared.Security;
 
 namespace Nova.Components;
 
@@ -21,6 +23,14 @@ public partial class RedirectToLoginOrAccessDenied(
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
         if (authState.User.Identity?.IsAuthenticated == true)
         {
+            var relativePath = navigationManager.ToBaseRelativePath(navigationManager.Uri);
+            if (authState.User.HasClaim(claim => claim.Type == NovaClaimTypes.ClubId)
+                && ClubRoutes.IsAdministratorRoute(relativePath))
+            {
+                navigationManager.NavigateTo(ClubRoutes.OverviewWithPermissionsChanged, forceLoad: true);
+                return;
+            }
+
             navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
             return;
         }

@@ -1,0 +1,5 @@
+@page "/teams"
+@page "/teams/{TeamId:long}"
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Security

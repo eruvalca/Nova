@@ -45,6 +45,7 @@ builder.Services.AddScoped(sp =>
 builder.Services.AddCropper();
 builder.Services.AddScoped<IProfilePhotoService, HttpProfilePhotoService>();
 builder.Services.AddScoped<IClubService, HttpClubService>();
+builder.Services.AddScoped<IClubIdentityQueryService, HttpClubIdentityQueryService>();
 builder.Services.AddScoped<IClubCrestService, HttpClubCrestService>();
 builder.Services.AddScoped<ICropperCanvasExporter, CropperCanvasExporter>();
 builder.Services.AddScoped<IClubJoinRequestService, HttpClubJoinRequestService>();

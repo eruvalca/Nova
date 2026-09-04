@@ -10,6 +10,12 @@ public static class ClubEndpoints
     /// </summary>
     public const string GroupPrefix = "/api/clubs";
 
+    /// <summary>Gets the signed-in member's current club identity (GET).</summary>
+    public const string GetCurrent = "/api/clubs/current";
+
+    /// <summary>Relative route for the signed-in member's current club identity.</summary>
+    public const string GetCurrentRelative = "current";
+
     /// <summary>
     /// Creates a new club for the current user (POST). The current user becomes the club admin.
     /// </summary>

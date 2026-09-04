@@ -57,10 +57,10 @@ public class NavMenuTests
 
         // Assert
         cut.Markup.ShouldContain("Austin Strikers");
-        cut.Markup.ShouldContain("href=\"Clubs/42\"");
+        cut.Markup.ShouldContain("href=\"/club\"");
         cut.Markup.ShouldContain("href=\"campaigns\"");
         cut.Markup.ShouldContain("href=\"players\"");
-        cut.Markup.ShouldContain("href=\"teams\"");
+        cut.Markup.ShouldNotContain("href=\"teams\"");
 
         // Each authorized link renders the dual-glyph overlay: the outline span plus its
         // -fill twin (toggled by CSS off the NavLink .active class; see NavMenu.razor.css).
@@ -72,8 +72,6 @@ public class NavMenuTests
         cut.Markup.ShouldContain("bi-calendar-check-fill nav-icon-fill");
         cut.Markup.ShouldContain("bi-people nav-icon");
         cut.Markup.ShouldContain("bi-people-fill nav-icon-fill");
-        cut.Markup.ShouldContain("bi-shield nav-icon");
-        cut.Markup.ShouldContain("bi-shield-fill nav-icon-fill");
         cut.Markup.ShouldContain("nav-icon-slot");
 
         // An authenticated (multi-route) nav must NOT carry the single-Login marker class.

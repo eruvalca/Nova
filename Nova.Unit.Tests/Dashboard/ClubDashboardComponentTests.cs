@@ -90,7 +90,7 @@ public sealed class ClubDashboardComponentTests : BunitContext
         cut.Markup.ShouldContain("8 active");
         cut.Markup.ShouldContain("1 archived");
         cut.Markup.ShouldContain("href=\"players\"");
-        cut.Markup.ShouldContain("href=\"teams\"");
+        cut.Markup.ShouldContain("href=\"/club/teams\"");
         cut.Markup.ShouldContain("Admin A requested to join the club");
     }
 

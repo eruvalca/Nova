@@ -86,6 +86,13 @@ Rules:
 - This is unrelated to `ExcludeFromInteractiveRouting`, which controls routing/rendering, not
   duplicate initialization.
 
+## Independent startup regions
+
+When a page loads independent regions, start their loaders together but keep each region's loading,
+data, empty, and error state separate. Persist every region's startup result or error plus the shared
+initialization flag. A local retry reloads and re-persists only its region; it must not clear or
+relabel successful neighbors. `ClubOverview.razor.cs` is the canonical example.
+
 ## Cancellation
 
 Pass `ComponentCancellationToken` (from `NovaComponentBase`) into every async service call, HTTP
@@ -96,6 +103,11 @@ var result = await playerService.GetPlayerRosterAsync(input, ComponentCancellati
 ```
 
 After disposal the property returns an already-canceled token rather than throwing.
+
+When a loader catches HTTP failures, re-throw `OperationCanceledException` if
+`ComponentCancellationToken` or the loader's owned request token is canceled. A component being
+disposed is not a user-visible unavailable state; only unrelated transport cancellation belongs in
+the recoverable-error branch.
 
 For a debounce, use a separate `CancellationTokenSource` field so each keystroke cancels the pending
 delay, and clean it up in `DisposeAsyncCore`:

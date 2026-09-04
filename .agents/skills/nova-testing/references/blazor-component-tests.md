@@ -127,6 +127,15 @@ private sealed class PersistedStateAssignClubAdminPanel(
 service.DidNotReceive().GetClubMembersAsync(Arg.Any<CancellationToken>());
 ```
 
+## Testing independent regions
+
+For a page whose regions load and recover independently, use
+`ClubOverviewComponentTests` as the canonical pattern. Cover every meaningful failure combination,
+assert that successful regions remain visible, prove a regional retry calls only its own service,
+and seed persisted state to prove interactive attach performs no duplicate startup requests. If the
+loader catches transport cancellation, also protect the distinction between component-token
+cancellation and a recoverable transport failure.
+
 ## Conventions
 
 - Name tests `Subject_Outcome_Condition`.

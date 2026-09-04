@@ -45,10 +45,10 @@ public partial class NavMenu(
         : null;
 
     /// <summary>
-    /// Gets the URL for the current user's club detail page, or null if the user has no club.
+    /// Gets the canonical URL for the current user's club, or null if the user has no club.
     /// </summary>
     protected string? ClubDetailUrl => currentUserProvider.ClubId.HasValue
-        ? $"Clubs/{currentUserProvider.ClubId.Value}"
+        ? ClubRoutes.Overview
         : null;
 
     /// <summary>

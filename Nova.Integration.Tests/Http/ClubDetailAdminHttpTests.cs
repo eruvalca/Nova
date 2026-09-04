@@ -68,10 +68,12 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         }
 
         using var memberResponse = await memberClient.GetAsync(detailRoute, cancellationToken);
-        memberResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        memberResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
+        memberResponse.Headers.Location!.AbsolutePath.ShouldBe("/club");
 
         using var adminResponse = await clubAdminClient.GetAsync(detailRoute, cancellationToken);
-        adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+        adminResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
+        adminResponse.Headers.Location!.AbsolutePath.ShouldBe("/club");
 
         using var otherClubAdminResponse = await otherClubAdminClient.GetAsync(detailRoute, cancellationToken);
         otherClubAdminResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
@@ -148,10 +150,10 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies member detail-page rendering excludes the admin link and includes location/roster details.
+    /// Verifies the matching legacy member route redirects to the canonical current-club overview.
     /// </summary>
     [Fact]
-    public async Task ClubDetailPage_ForMember_ShowsLocationRosterAndCurrentUserWithoutAdminLinkAsync()
+    public async Task ClubDetailPage_ForMember_RedirectsToCanonicalOverviewAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAdminClient = fixture.CreateNovaHttpClient();
@@ -169,21 +171,16 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
         using var response = await memberClient.GetAsync($"/Clubs/{club.ClubId}", cancellationToken);
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        body.ShouldContain("Phoenix, AZ");
-        body.ShouldContain("Adrian Admin");
-        body.ShouldContain("Megan Member");
-        body.ShouldContain("Current user (You)");
-        body.ShouldNotContain($"/Clubs/{club.ClubId}/admin");
+        response.StatusCode.ShouldBe(HttpStatusCode.Found);
+        response.Headers.Location.ShouldNotBeNull();
+        response.Headers.Location.AbsolutePath.ShouldBe("/club");
     }
 
     /// <summary>
-    /// Verifies ClubAdmin detail-page rendering includes the club-admin link.
+    /// Verifies the matching legacy administrator route also redirects to the canonical overview.
     /// </summary>
     [Fact]
-    public async Task ClubDetailPage_ForClubAdmin_ShowsAdminLinkAsync()
+    public async Task ClubDetailPage_ForClubAdmin_RedirectsToCanonicalOverviewAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAdminClient = fixture.CreateNovaHttpClient();
@@ -201,15 +198,9 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
         using var response = await clubAdminClient.GetAsync($"/Clubs/{club.ClubId}", cancellationToken);
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        body.ShouldContain("Raleigh, NC");
-        body.ShouldContain("Carla Captain");
-        body.ShouldContain("Rita Roster");
-        body.ShouldContain("Current user (You)");
-        body.ShouldContain($"/Clubs/{club.ClubId}/admin");
-        body.ShouldContain("Admin");
+        response.StatusCode.ShouldBe(HttpStatusCode.Found);
+        response.Headers.Location.ShouldNotBeNull();
+        response.Headers.Location.AbsolutePath.ShouldBe("/club");
     }
 
     /// <summary>
@@ -309,19 +300,19 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
 
         await RefreshClubMembershipCookieAsync(approvedJoinerClient, cancellationToken);
 
-        using (var approvedDetail = await approvedJoinerClient.GetAsync($"/Clubs/{club.ClubId}", cancellationToken))
+        using (var approvedDetail = await approvedJoinerClient.GetAsync(ClubEndpoints.GetCurrent, cancellationToken))
         {
             approvedDetail.StatusCode.ShouldBe(HttpStatusCode.OK);
             var body = await approvedDetail.Content.ReadAsStringAsync(cancellationToken);
-            body.ShouldContain("Paula PendingApprove");
+            body.ShouldContain(club.Name);
             body.ShouldNotContain("Rex PendingReject");
         }
 
-        using (var adminDetail = await clubAdminClient.GetAsync($"/Clubs/{club.ClubId}", cancellationToken))
+        using (var adminDetail = await clubAdminClient.GetAsync(ClubEndpoints.GetCurrent, cancellationToken))
         {
             adminDetail.StatusCode.ShouldBe(HttpStatusCode.OK);
             var body = await adminDetail.Content.ReadAsStringAsync(cancellationToken);
-            body.ShouldContain("Paula PendingApprove");
+            body.ShouldContain(club.Name);
             body.ShouldNotContain("Rex PendingReject");
         }
     }

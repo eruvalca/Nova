@@ -1,0 +1,46 @@
+{
+  "title": "Choose the Club shell and Overview composition",
+  "question": "All three options use Nova's established Fieldhouse Wayfinding system and the agreed role-shaped routes. Choose the composition that should govern issue #201.",
+  "options": [
+    {
+      "id": "stacked-waypoints",
+      "label": "Stacked Waypoints",
+      "kicker": "THE ROLL",
+      "lineage": "A fieldhouse route board joining three successive orientation points",
+      "thesis": "Club identity, current season, and active work read as one connected vertical handoff.",
+      "palette": ["#F4F8F3", "#FFFFFF", "#0E7C7B", "#142F2E", "#DEE2E6"],
+      "materials": ["matte enamel route markers", "paper field sheets", "roster hairlines"],
+      "viewport": "A stable Club directory frames a broad hall where identity leads into a vertical Season-to-Active-Work route.",
+      "risk": "The route can imply a wizard unless every marker is written as orientation rather than progress.",
+      "comp": ".impeccable/mocks/decision/issue-201-stacked-waypoints.png"
+    },
+    {
+      "id": "operations-ledger",
+      "label": "Operations Ledger",
+      "lineage": "A club register with one identity heading and two authoritative ledger rows",
+      "thesis": "The Overview behaves like a compact register: who the club is, which season is current, and where work continues.",
+      "palette": ["#FFFFFF", "#F4F8F3", "#142F2E", "#0E7C7B", "#DDF2EC"],
+      "materials": ["bound operations ledger", "ruled roster sheet", "enamel section tabs"],
+      "viewport": "A full-width identity strip sits above a disciplined two-row ledger for Current season and Active work.",
+      "risk": "The compact register can feel overly administrative if hierarchy and breathing room are too restrained.",
+      "comp": ".impeccable/mocks/decision/issue-201-operations-ledger.png"
+    },
+    {
+      "id": "stewardship-wall",
+      "label": "Stewardship Wall",
+      "lineage": "A fieldhouse directory wall opening onto two neighboring work bays",
+      "thesis": "A strong club sign anchors the hall while season and active work occupy distinct, equally truthful bays.",
+      "palette": ["#DDF2EC", "#FFFFFF", "#142F2E", "#0E7C7B", "#95651A"],
+      "materials": ["painted club sign", "pinned field sheets", "precise metal dividers"],
+      "viewport": "The local directory and club sign establish identity; Current season and Active work sit side by side below it and stack on mobile.",
+      "risk": "The paired bays can drift toward a generic dashboard card grid if their shared fieldhouse structure is weakened.",
+      "comp": ".impeccable/mocks/decision/issue-201-stewardship-wall.png"
+    }
+  ],
+  "reroll": true,
+  "buildPath": {
+    "value": "comp",
+    "toggle": true
+  },
+  "steer": true
+}
