@@ -191,6 +191,10 @@ public sealed partial class TeamLifecycleService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        // Serialize with the club-roster lock so campaign opening cannot snapshot this team's
+        // lifecycle status while the transition is in flight; the opening's active-team count and
+        // NoActiveTeams warning must match the committed roster at the opening instant.
+        await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
         await db.AcquireTeamMutationLockAsync(teamId, cancellationToken);
         var team = await db.Teams
             .SingleOrDefaultAsync(candidate => candidate.TeamId == teamId, cancellationToken);

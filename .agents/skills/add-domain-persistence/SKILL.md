@@ -18,6 +18,8 @@ Canonical examples:
   `PlayerCampaignAssignmentEntityConfiguration`, `CampaignPlacementService`.
 - Lifecycle and transaction races: `CampaignEntity`, `CampaignLifecycleService`,
   `LifecycleMutationLock`.
+- Immutable opening receipts and deletion tombstones: `CampaignLifecycleService.OpenAsync`,
+  `CampaignLifecycleService.DeleteDraftAsync`, `CampaignLifecycleRetryTests`.
 - Append-only activity events: `ActivityEventEntity`, `ActivityEventEntityConfiguration`,
   `ActivityEventWriter`, `ActivityEventPolicy`, `ClubActivityFeedPolicy`.
 - Retry-safe and idempotent mutations: `TeamManagementService`, `TeamLifecycleService`,

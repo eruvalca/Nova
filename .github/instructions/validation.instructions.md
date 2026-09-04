@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova.Shared/**/*Input.cs,Nova.Shared/Validation/**/*.cs,Nova/Features/**/*Service.cs"
+applyTo: "Nova.Shared/**/*Input.cs,Nova.Shared/Validation/**/*.cs,Nova/Features/**/*Service*.cs"
 description: "Validation rules: DataAnnotations on input records as single source of truth, the [NotWhitespace] attribute, InputValidator.Validate<T>, dual-layer rationale, and the ProfilePhotoValidator exception."
 ---
 

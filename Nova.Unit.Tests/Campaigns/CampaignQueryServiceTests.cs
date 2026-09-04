@@ -463,6 +463,93 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Value.ClosedByDisplayName.ShouldBeNull();
     }
 
+    /// <summary>
+    /// Verifies administrator readiness reports exact active counts, the blocking campaign,
+    /// and the typed zero-team warning from one advisory snapshot.
+    /// </summary>
+    [Fact]
+    public async Task GetOpeningReadiness_ReturnsCountsBlockerIdentityAndWarning()
+    {
+        long draftCampaignId;
+        await using (var admin = _harness.CreateAdminContext())
+        {
+            var seasonId = await admin.Clubs
+                .Where(club => club.ClubId == ClubAId)
+                .Select(club => club.CurrentSeasonId!.Value)
+                .SingleAsync(TestContext.Current.CancellationToken);
+            var draft = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Ready Draft",
+                StartDate = new DateOnly(2026, 7, 1),
+                SeasonId = seasonId,
+                ClubId = ClubAId,
+                CreatedById = ClubAMemberId,
+            };
+            admin.Campaigns.Add(draft);
+            var activeTeams = await admin.Teams
+                .Where(team => team.ClubId == ClubAId && team.LifecycleStatus == LifecycleStatus.Active)
+                .ToListAsync(TestContext.Current.CancellationToken);
+            foreach (var team in activeTeams)
+            {
+                team.LifecycleStatus = LifecycleStatus.Archived;
+                team.ArchivedAt = DateTimeOffset.UtcNow;
+                team.ArchivedById = ClubAMemberId;
+            }
+
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
+            draftCampaignId = draft.CampaignId;
+        }
+
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetOpeningReadinessAsync(
+            draftCampaignId,
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.CampaignId.ShouldBe(draftCampaignId);
+        result.Value.ActivePlayerCount.ShouldBe(1);
+        result.Value.ActiveTeamCount.ShouldBe(0);
+        result.Value.CanOpen.ShouldBeFalse();
+        result.Value.Blockers.ShouldBe([CampaignOpeningBlocker.AnotherCampaignActive]);
+        result.Value.Warnings.ShouldBe([CampaignOpeningWarning.NoActiveTeams]);
+        result.Value.BlockingCampaign.ShouldNotBeNull();
+        result.Value.BlockingCampaign.CampaignName.ShouldBe("A1");
+    }
+
+    /// <summary>Verifies opening readiness is restricted to club administrators.</summary>
+    [Fact]
+    public async Task GetOpeningReadiness_ReturnsForbidden_ForMember()
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = false;
+        long campaignId;
+        await using (var admin = _harness.CreateAdminContext())
+        {
+            campaignId = await admin.Campaigns
+                .Where(campaign => campaign.ClubId == ClubAId)
+                .Select(campaign => campaign.CampaignId)
+                .FirstAsync(TestContext.Current.CancellationToken);
+        }
+
+        var result = await new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness),
+            _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance)
+            .GetOpeningReadinessAsync(campaignId, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
+    }
+
     /// <summary>Verifies a Closed campaign's detail carries populated closure fields with a resolved display name.</summary>
     [Fact]
     public async Task GetCampaignDetail_ReturnsClosureFields_ForClosedCampaign()

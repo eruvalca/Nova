@@ -177,6 +177,7 @@ public sealed partial class PlayerLifecycleService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
         await db.AcquirePlayerMutationLockAsync(playerId, cancellationToken);
         var player = await db.Players
             .SingleOrDefaultAsync(candidate => candidate.PlayerId == playerId, cancellationToken);

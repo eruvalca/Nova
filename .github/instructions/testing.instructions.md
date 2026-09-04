@@ -140,6 +140,10 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
   (`ClubJoinRequestEntity`, `NovaUserEntity`, `NovaUserPhotoEntity`) need one test per visibility rule.
 - Never assert on global, unfiltered counts in integration tests (the database is shared across the
   collection — each test seeds its own data with database-generated ids).
+- Prefer explicit seed helpers for entities with database-enforced lifecycle constraints. If a
+  compatibility normalizer is needed for older direct seeds, it must be bypassable; provider
+  constraint tests must use the unnormalized context so deliberately invalid state reaches the
+  database unchanged.
 - For every new HTTP endpoint, add boundary coverage for route registration, auth policy behavior, success serialization, and each declared ProblemDetails shape that cannot be proven by service or client unit tests. Keep provider-specific assertions separate.
 - When a query requirement promises an exact asynchronous relational reader count or no N+1 reader
   queries, assert `ReaderExecutionCount` with `CountingCommandInterceptor`; context-factory

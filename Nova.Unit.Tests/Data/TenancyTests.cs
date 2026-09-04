@@ -5,6 +5,7 @@ using Nova.Data;
 using Nova.Data.Interceptors;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
 using Nova.Shared.Security;
 using Shouldly;
@@ -69,7 +70,8 @@ public sealed class TenancyTestHarness : IDisposable
         // Attach the pinned Identity options so the model matches the running app.
         var builder = new DbContextOptionsBuilder<TContext>()
             .UseSqlite(_connection)
-            .UseApplicationServiceProvider(IdentityStoreServiceProvider.Instance);
+            .UseApplicationServiceProvider(IdentityStoreServiceProvider.Instance)
+            .AddInterceptors(new CampaignTestSeedInterceptor());
         if (withTenantInterceptor)
         {
             builder.AddInterceptors(new TenantSaveChangesInterceptor());

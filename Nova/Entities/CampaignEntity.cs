@@ -24,6 +24,36 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     public bool SeasonCreatedInline { get; set; }
 
     /// <summary>
+    /// Gets or sets the caller-generated identifier for the logical opening operation.
+    /// </summary>
+    public Guid? OpeningOperationId { get; set; }
+
+    /// <summary>
+    /// Gets or sets when this campaign originally opened.
+    /// </summary>
+    public DateTimeOffset? OpenedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the administrator who originally opened this campaign.
+    /// </summary>
+    public long? OpenedById { get; set; }
+
+    /// <summary>
+    /// Gets or sets the deterministic opening order within the campaign's season.
+    /// </summary>
+    public long? SeasonOpeningSequence { get; set; }
+
+    /// <summary>
+    /// Gets or sets the exact active-player count enrolled when the campaign opened.
+    /// </summary>
+    public int? InitialEnrolledPlayerCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the exact active-team count observed when the campaign opened.
+    /// </summary>
+    public int? InitialActiveTeamCount { get; set; }
+
+    /// <summary>
     /// Gets or sets the Name.
     /// </summary>
     public required string Name { get; set; }

@@ -77,6 +77,59 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<ServiceResult<CampaignOpeningReadinessResult>> GetOpeningReadinessAsync(
+        long campaignId,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync(
+            CampaignEndpoints.GetOpeningReadinessUrl(campaignId),
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return await response.ToServiceProblemAsync(cancellationToken);
+        }
+
+        return await response.Content.ReadRequiredJsonAsync<CampaignOpeningReadinessResult>(
+            "The server returned an invalid campaign opening-readiness response.",
+            result => IsValidOpeningReadiness(result, campaignId),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Validates an opening-readiness response and its blocker/warning relationships.
+    /// </summary>
+    /// <param name="result">The deserialized readiness payload.</param>
+    /// <param name="campaignId">The requested campaign identifier.</param>
+    /// <returns><see langword="true"/> when the payload satisfies the shared contract.</returns>
+    private static bool IsValidOpeningReadiness(CampaignOpeningReadinessResult result, long campaignId)
+    {
+        if (result.CampaignId != campaignId
+            || result.ActivePlayerCount < 0
+            || result.ActiveTeamCount < 0
+            || result.Blockers is null
+            || result.Warnings is null
+            || result.Blockers.Any(blocker => !Enum.IsDefined(blocker))
+            || result.Warnings.Any(warning => !Enum.IsDefined(warning))
+            || result.Blockers.Distinct().Count() != result.Blockers.Count
+            || result.Warnings.Distinct().Count() != result.Warnings.Count)
+        {
+            return false;
+        }
+
+        var hasPlayerBlocker = result.Blockers.Contains(CampaignOpeningBlocker.NoActivePlayers);
+        var hasCampaignBlocker = result.Blockers.Contains(CampaignOpeningBlocker.AnotherCampaignActive);
+        var hasTeamWarning = result.Warnings.Contains(CampaignOpeningWarning.NoActiveTeams);
+        return result.CanOpen == (result.Blockers.Count == 0)
+            && hasPlayerBlocker == (result.ActivePlayerCount == 0)
+            && hasTeamWarning == (result.ActiveTeamCount == 0)
+            && hasCampaignBlocker == (result.BlockingCampaign is not null)
+            && (result.BlockingCampaign is null
+                || (result.BlockingCampaign.CampaignId > 0
+                    && result.BlockingCampaign.CampaignId != campaignId
+                    && !string.IsNullOrWhiteSpace(result.BlockingCampaign.CampaignName)));
+    }
+
     /// <summary>
     /// Validates the structural invariants of a campaign-detail success payload.
     /// </summary>
