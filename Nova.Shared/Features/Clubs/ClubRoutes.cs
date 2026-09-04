@@ -23,6 +23,26 @@ public static class ClubRoutes
             || normalized.Equals(Members, StringComparison.OrdinalIgnoreCase)
             || normalized.Equals(Requests, StringComparison.OrdinalIgnoreCase)
             || normalized.Equals(Tags, StringComparison.OrdinalIgnoreCase)
-            || normalized.Equals(Crest, StringComparison.OrdinalIgnoreCase);
+            || normalized.Equals(Crest, StringComparison.OrdinalIgnoreCase)
+            || IsLegacyClubAdminRoute(normalized);
+    }
+
+    /// <summary>
+    /// Recognizes the legacy pre-shell admin route <c>/Clubs/{ClubId:long}/admin</c>, which still
+    /// uses <see cref="Nova.Shared.Security.Policies.RequireClubAdmin"/> and is linked from the
+    /// dashboard, so demoted admins are recovered with the permissions-changed notice there too.
+    /// </summary>
+    private static bool IsLegacyClubAdminRoute(string normalized)
+    {
+        const string prefix = "/clubs/";
+        const string suffix = "/admin";
+        if (!normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            || !normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var clubId = normalized.AsSpan(prefix.Length, normalized.Length - prefix.Length - suffix.Length);
+        return clubId.Length > 0 && long.TryParse(clubId, out _);
     }
 }

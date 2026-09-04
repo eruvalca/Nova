@@ -436,6 +436,148 @@ public class NavMenuTests
         teamsLink.ClassList.ShouldNotContain("active");
     }
 
+    /// <summary>
+    /// On legacy pre-shell club routes (<c>/Clubs/{clubId}</c>) the Club link must remain active:
+    /// members are still redirected there via <see cref="ClubDetail"/> until the shell replaces it.
+    /// </summary>
+    [Fact]
+    public void Render_ActivatesClubLink_OnLegacyClubDetailRoute()
+    {
+        // Arrange
+        var currentUserProvider = Substitute.For<ICurrentUserProvider>();
+        currentUserProvider.ClubId.Returns(42L);
+        currentUserProvider.UserId.Returns(7L);
+        currentUserProvider.GetCurrentUserState().Returns(new CurrentUserState(new ClubMember(7L, 42L, false)));
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        var authStateProvider = Substitute.For<AuthenticationStateProvider>();
+        authStateProvider.GetAuthenticationStateAsync()
+            .Returns(Task.FromResult(new AuthenticationState(CreatePrincipal(clubId: "42", clubName: "Austin Strikers"))));
+
+        using var testContext = new BunitContext();
+        testContext.Services.AddScoped(_ => currentUserProvider);
+        testContext.Services.AddScoped(_ => httpContextAccessor);
+        testContext.Services.AddScoped(_ => authStateProvider);
+        testContext.Services.AddScoped<NavigationManager>(_ => new FakeNavigationManager("/Clubs/42"));
+        testContext.Services.AddSingleton<IAuthorizationPolicyProvider>(new DefaultAuthorizationPolicyProvider(Options.Create(new AuthorizationOptions())));
+        testContext.Services.AddSingleton<IAuthorizationService, FakeAuthorizationService>();
+
+        // Act
+        var cut = testContext.Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<NavMenu>(2);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
+
+        // Assert
+        var clubLink = cut.Find("a[href=\"/club\"]");
+        var teamsLink = cut.Find("a[href=\"/club/teams\"]");
+        clubLink.ClassList.ShouldContain("active");
+        teamsLink.ClassList.ShouldNotContain("active");
+    }
+
+    /// <summary>
+    /// On the legacy pre-shell admin route (<c>/Clubs/{clubId}/admin</c>), still linked from the
+    /// dashboard, the Club link must remain active between the admin area and the shell.
+    /// </summary>
+    [Fact]
+    public void Render_ActivatesClubLink_OnLegacyClubAdminRoute()
+    {
+        // Arrange
+        var currentUserProvider = Substitute.For<ICurrentUserProvider>();
+        currentUserProvider.ClubId.Returns(42L);
+        currentUserProvider.UserId.Returns(7L);
+        currentUserProvider.GetCurrentUserState().Returns(new CurrentUserState(new ClubMember(7L, 42L, false)));
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        var authStateProvider = Substitute.For<AuthenticationStateProvider>();
+        authStateProvider.GetAuthenticationStateAsync()
+            .Returns(Task.FromResult(new AuthenticationState(CreatePrincipal(clubId: "42", clubName: "Austin Strikers"))));
+
+        using var testContext = new BunitContext();
+        testContext.Services.AddScoped(_ => currentUserProvider);
+        testContext.Services.AddScoped(_ => httpContextAccessor);
+        testContext.Services.AddScoped(_ => authStateProvider);
+        testContext.Services.AddScoped<NavigationManager>(_ => new FakeNavigationManager("/Clubs/42/admin"));
+        testContext.Services.AddSingleton<IAuthorizationPolicyProvider>(new DefaultAuthorizationPolicyProvider(Options.Create(new AuthorizationOptions())));
+        testContext.Services.AddSingleton<IAuthorizationService, FakeAuthorizationService>();
+
+        // Act
+        var cut = testContext.Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<NavMenu>(2);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
+
+        // Assert
+        var clubLink = cut.Find("a[href=\"/club\"]");
+        var teamsLink = cut.Find("a[href=\"/club/teams\"]");
+        clubLink.ClassList.ShouldContain("active");
+        teamsLink.ClassList.ShouldNotContain("active");
+    }
+
+    /// <summary>
+    /// The legacy onboarding route (<c>/Clubs/Onboarding</c>) is not a club-area route — its
+    /// clubId segment is non-numeric and the page is <c>[Authorize]</c>-only — so the Club link
+    /// must stay inactive there.
+    /// </summary>
+    [Fact]
+    public void Render_DoesNotActivateClubLink_OnLegacyOnboardingRoute()
+    {
+        // Arrange
+        var currentUserProvider = Substitute.For<ICurrentUserProvider>();
+        currentUserProvider.ClubId.Returns(42L);
+        currentUserProvider.UserId.Returns(7L);
+        currentUserProvider.GetCurrentUserState().Returns(new CurrentUserState(new ClubMember(7L, 42L, false)));
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        var authStateProvider = Substitute.For<AuthenticationStateProvider>();
+        authStateProvider.GetAuthenticationStateAsync()
+            .Returns(Task.FromResult(new AuthenticationState(CreatePrincipal(clubId: "42", clubName: "Austin Strikers"))));
+
+        using var testContext = new BunitContext();
+        testContext.Services.AddScoped(_ => currentUserProvider);
+        testContext.Services.AddScoped(_ => httpContextAccessor);
+        testContext.Services.AddScoped(_ => authStateProvider);
+        testContext.Services.AddScoped<NavigationManager>(_ => new FakeNavigationManager("/Clubs/Onboarding"));
+        testContext.Services.AddSingleton<IAuthorizationPolicyProvider>(new DefaultAuthorizationPolicyProvider(Options.Create(new AuthorizationOptions())));
+        testContext.Services.AddSingleton<IAuthorizationService, FakeAuthorizationService>();
+
+        // Act
+        var cut = testContext.Render(builder =>
+        {
+            builder.OpenComponent<CascadingAuthenticationState>(0);
+            builder.AddAttribute(1, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                childBuilder.OpenComponent<NavMenu>(2);
+                childBuilder.CloseComponent();
+            }));
+            builder.CloseComponent();
+        });
+
+        // Assert
+        var clubLink = cut.Find("a[href=\"/club\"]");
+        var teamsLink = cut.Find("a[href=\"/club/teams\"]");
+        clubLink.ClassList.ShouldNotContain("active");
+        teamsLink.ClassList.ShouldNotContain("active");
+    }
+
     private static ClaimsPrincipal CreatePrincipal(string? clubId, string? clubName, bool hasClubCrest = false, bool hasProfilePhoto = false)
     {
         var claims = new List<Claim>

@@ -660,7 +660,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         var nav = page.Locator("nav[aria-label='Primary']");
 
-        foreach (var label in new[] { "Dashboard", "Campaigns", "Players" })
+        foreach (var label in new[] { "Dashboard", "Campaigns", "Players", "Teams" })
         {
             var box = await nav.GetByRole(AriaRole.Link, new() { Name = label, Exact = true }).BoundingBoxAsync();
             box.ShouldNotBeNull();

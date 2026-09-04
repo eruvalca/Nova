@@ -59,6 +59,30 @@ public class RedirectToLoginOrAccessDeniedTests : BunitContext
         navigationManager.Uri.ShouldBe(navigationManager.ToAbsoluteUri("/club?notice=permissions-changed").ToString());
     }
 
+    [Fact]
+    public void OnInitializedAsync_NavigatesDemotedMemberToClubNotice_OnLegacyAdministratorRoute()
+    {
+        SetAuthenticationState(isAuthenticated: true, hasClub: true);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/Clubs/42/admin");
+
+        Render<RedirectToLoginOrAccessDenied>();
+
+        navigationManager.Uri.ShouldBe(navigationManager.ToAbsoluteUri("/club?notice=permissions-changed").ToString());
+    }
+
+    [Fact]
+    public void OnInitializedAsync_NavigatesDemotedMemberToAccessDenied_OnLegacyMemberRoute()
+    {
+        SetAuthenticationState(isAuthenticated: true, hasClub: false);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/Clubs/42");
+
+        Render<RedirectToLoginOrAccessDenied>();
+
+        navigationManager.Uri.ShouldBe(navigationManager.ToAbsoluteUri("/Account/AccessDenied").ToString());
+    }
+
     private void SetAuthenticationState(bool isAuthenticated, bool hasClub = false)
     {
         var identity = isAuthenticated

@@ -18,6 +18,12 @@ public sealed class ClubShellContractTests
         ClubRoutes.Crest.ShouldBe("/club/crest");
         ClubRoutes.IsAdministratorRoute("club/seasons?x=1").ShouldBeTrue();
         ClubRoutes.IsAdministratorRoute("club/teams/17").ShouldBeFalse();
+        // Legacy pre-shell admin route is still linked from the dashboard and uses
+        // RequireClubAdmin, so demoted admins recover with the permissions-changed notice there.
+        ClubRoutes.IsAdministratorRoute("Clubs/42/admin").ShouldBeTrue();
+        ClubRoutes.IsAdministratorRoute("/Clubs/42/admin?tab=requests").ShouldBeTrue();
+        ClubRoutes.IsAdministratorRoute("clubs/42").ShouldBeFalse();
+        ClubRoutes.IsAdministratorRoute("clubs/onboarding").ShouldBeFalse();
     }
 
     [Fact]
