@@ -866,12 +866,77 @@ public partial class Teams(
 
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
     {
-        var canManageTeams = (await stateTask).User.IsInRole(Roles.ClubAdmin);
-        if (canManageTeams != _canManageTeams)
+        var authState = await stateTask;
+        var principal = authState.User;
+        var canManageTeams = principal.IsInRole(Roles.ClubAdmin);
+        var clubId = ReadClubIdClaim(principal);
+
+        var roleChanged = canManageTeams != _canManageTeams;
+        var clubChanged = clubId != _clubId;
+
+        _canManageTeams = canManageTeams;
+        _clubId = clubId;
+
+        if (clubChanged)
         {
-            _canManageTeams = canManageTeams;
+            ResetManagementState();
+            ResetRosterState();
+
+            if (_clubId is null)
+            {
+                _pageError = "You must join a club before viewing the team roster.";
+                PersistStartupState();
+            }
+            else
+            {
+                await LoadRosterAsync();
+            }
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (roleChanged)
+        {
+            if (!canManageTeams)
+            {
+                ResetManagementState();
+            }
+
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    /// <summary>
+    /// Closes every open management interaction (create/edit/archive panel and mutation
+    /// feedback) without touching the loaded roster.
+    /// </summary>
+    private void ResetManagementState()
+    {
+        _showCreateForm = false;
+        _editForm = null;
+        _createForm = TeamFormState.CreateDefault();
+        _formError = null;
+        _actionError = null;
+        _statusMessage = null;
+        _cutoffBlockers = [];
+        _archiveCandidate = null;
+        _archiveConfirmed = false;
+        _archiveBlockers = [];
+    }
+
+    /// <summary>
+    /// Cancels any in-flight roster load and clears the currently displayed roster/error state.
+    /// </summary>
+    private void ResetRosterState()
+    {
+        _loadRosterSource?.Cancel();
+        _loadRosterSource?.Dispose();
+        _loadRosterSource = null;
+        _loadRosterVersion++;
+        _roster = null;
+        _pageError = null;
+        _isLoading = false;
     }
 
     /// <inheritdoc />

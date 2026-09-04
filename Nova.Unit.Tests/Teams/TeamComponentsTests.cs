@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Globalization;
+using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -190,6 +191,75 @@ public sealed class TeamComponentsTests : BunitContext
             cut.Markup.ShouldNotContain("Add team");
             cut.Markup.ShouldNotContain("btn-outline-primary");
             cut.Markup.ShouldNotContain("btn-outline-warning");
+        });
+    }
+
+    [Fact]
+    public void Teams_RebindsRoster_WhenClubMembershipChangesAfterLoad()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(SuccessRosterResult(
+                [
+                    new TeamRosterItem
+                    {
+                        TeamId = 7,
+                        Name = "U16 Orange",
+                        GraduationYear = 2032,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ActivePlacementCount = 1
+                    }
+                ])),
+                Task.FromResult(SuccessRosterResult(
+                [
+                    new TeamRosterItem
+                    {
+                        TeamId = 9,
+                        Name = "U18 Crimson",
+                        GraduationYear = 2034,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ActivePlacementCount = 2
+                    }
+                ])));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Orange"));
+
+        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("U18 Crimson");
+            cut.Markup.ShouldNotContain("U16 Orange");
+        });
+        rosterService.Received(2).GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Teams_ClosesManagementPanels_WhenClubAdminRoleIsRevokedAfterLoad()
+    {
+        RegisterServices(isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit team"));
+
+        auth.Change(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldNotContain("Edit team");
+            cut.Markup.ShouldNotContain("Add team");
+            cut.Markup.ShouldNotContain("Save changes");
         });
     }
 
@@ -733,12 +803,12 @@ public sealed class TeamComponentsTests : BunitContext
         throw new InvalidOperationException("Could not locate repository root for Teams route assertion.");
     }
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool isAdmin)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool isAdmin, long clubId = 42)
     {
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, "101"),
-            new(NovaClaimTypes.ClubId, "42")
+            new(NovaClaimTypes.ClubId, clubId.ToString(CultureInfo.InvariantCulture))
         };
 
         if (isClubAdmin)

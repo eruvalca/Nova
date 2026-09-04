@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using System.Globalization;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Teams;
@@ -83,6 +85,12 @@ public partial class TeamDetail(
     /// Indicates whether the current user can manage (edit/archive/restore) teams.
     /// </summary>
     private bool _canManageTeams;
+
+    /// <summary>
+    /// The club identifier from the current principal's claims, used to detect club-membership changes
+    /// while the page is mounted and rebind club-scoped state accordingly.
+    /// </summary>
+    private long? _clubId;
 
     /// <summary>
     /// Indicates whether the edit form is currently visible.
@@ -177,6 +185,7 @@ public partial class TeamDetail(
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authState.User;
         _canManageTeams = principal.IsInRole(Roles.ClubAdmin);
+        _clubId = ReadClubIdClaim(principal);
 
         _lastLoadedTeamId = TeamId;
         _lastReturnUrl = ReturnUrl;
@@ -622,12 +631,68 @@ public partial class TeamDetail(
 
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
     {
-        var canManageTeams = (await stateTask).User.IsInRole(Roles.ClubAdmin);
-        if (canManageTeams != _canManageTeams)
+        var authState = await stateTask;
+        var principal = authState.User;
+        var canManageTeams = principal.IsInRole(Roles.ClubAdmin);
+        var clubId = ReadClubIdClaim(principal);
+
+        var roleChanged = canManageTeams != _canManageTeams;
+        var clubChanged = clubId != _clubId;
+
+        _canManageTeams = canManageTeams;
+        _clubId = clubId;
+
+        if (clubChanged)
         {
-            _canManageTeams = canManageTeams;
+            // Rebind to the newly claimed club: cancel in-flight work, close any open
+            // management panels, drop the stale detail, and reload against the new scope.
+            ResetTeamScopedState();
+            await LoadDetailAsync();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (roleChanged)
+        {
+            if (!canManageTeams)
+            {
+                // Permission loss must not leave edit/archive panels open on a page the
+                // user can no longer mutate.
+                CloseManagementState();
+            }
+
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    /// <summary>
+    /// Closes every open management interaction (edit form, archive confirmation, mutation
+    /// feedback) without touching the loaded detail, used when management permission is lost.
+    /// </summary>
+    private void CloseManagementState()
+    {
+        _showEditForm = false;
+        _editForm = null;
+        _formError = null;
+        _cutoffBlockers = [];
+        _showArchiveConfirm = false;
+        _archiveConfirmed = false;
+        _archiveBlockers = [];
+        _mutationError = null;
+        _statusMessage = null;
+    }
+
+    /// <summary>
+    /// Parses the club identifier claim from the current principal.
+    /// </summary>
+    /// <param name="principal">The current principal.</param>
+    /// <returns>The parsed club identifier when present; otherwise <see langword="null"/>.</returns>
+    private static long? ReadClubIdClaim(ClaimsPrincipal principal)
+    {
+        var clubIdText = principal.FindFirst(NovaClaimTypes.ClubId)?.Value;
+        return long.TryParse(clubIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var clubId)
+            ? clubId
+            : null;
     }
 
     /// <inheritdoc />

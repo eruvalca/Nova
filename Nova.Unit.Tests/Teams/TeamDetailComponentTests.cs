@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Globalization;
+using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -354,6 +355,63 @@ public sealed class TeamDetailComponentTests : BunitContext
         });
     }
 
+    /// <summary>
+    /// Verifies a same-role club-membership change reloads the detail against the new
+    /// club scope instead of leaving the previous club's team on screen.
+    /// </summary>
+    [Fact]
+    public void TeamDetail_RebindsDetail_WhenClubMembershipChangesAfterLoad()
+    {
+        var detailService = Substitute.For<ITeamDetailService>();
+        detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<TeamDetailDto>(CreateTeamDetail())),
+                Task.FromResult(new ServiceResult<TeamDetailDto>(CreateTeamDetail(name: "U18 Crimson"))));
+
+        RegisterServices(detailService: detailService, isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        auth.Change(CreatePrincipal(isClubAdmin: true, clubId: 43));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("U18 Crimson");
+            cut.Markup.ShouldNotContain("U16 Blue");
+        });
+        detailService.Received(2).GetTeamDetailAsync(7, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Verifies demotion to evaluator closes any open edit form and archive panel and hides
+    /// the management action buttons on the currently loaded team.
+    /// </summary>
+    [Fact]
+    public void TeamDetail_ClosesManagementPanels_WhenClubAdminRoleIsRevokedAfterLoad()
+    {
+        RegisterServices(isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit team"));
+
+        auth.Change(CreatePrincipal(isClubAdmin: false));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldNotContain("Edit team");
+            cut.Markup.ShouldNotContain("btn-outline-primary");
+            cut.Markup.ShouldNotContain("Save changes");
+        });
+    }
+
     // ── Edit mutation with refresh ────────────────────────────────────────────
 
     /// <summary>
@@ -659,15 +717,17 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// <param name="lifecycleStatus">Optional lifecycle status override.</param>
     /// <param name="activePlacementImpacts">Optional active placement impact override.</param>
     /// <param name="placementHistory">Optional placement history override.</param>
+    /// <param name="name">Optional display-name override used to distinguish club-scoped reloads.</param>
     /// <returns>A populated <see cref="TeamDetailDto"/>.</returns>
     private static TeamDetailDto CreateTeamDetail(
         LifecycleStatus lifecycleStatus = LifecycleStatus.Active,
         IReadOnlyList<TeamPlacementImpactDto>? activePlacementImpacts = null,
-        IReadOnlyList<TeamPlacementImpactDto>? placementHistory = null)
+        IReadOnlyList<TeamPlacementImpactDto>? placementHistory = null,
+        string name = "U16 Blue")
         => new(
             TeamId: 7,
             ClubId: 42,
-            Name: "U16 Blue",
+            Name: name,
             GraduationYear: 2028,
             LifecycleStatus: lifecycleStatus,
             ActivePlacementImpacts: activePlacementImpacts ?? [],
@@ -706,13 +766,14 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Builds a <see cref="ClaimsPrincipal"/> with optional club-admin role for test authentication.
     /// </summary>
     /// <param name="isClubAdmin">Whether to add the club-admin role claim.</param>
+    /// <param name="clubId">The club identifier claim value; defaults to 42.</param>
     /// <returns>A populated claims principal.</returns>
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, long clubId = 42)
     {
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, "101"),
-            new(NovaClaimTypes.ClubId, "42")
+            new(NovaClaimTypes.ClubId, clubId.ToString(CultureInfo.InvariantCulture))
         };
 
         if (isClubAdmin)
