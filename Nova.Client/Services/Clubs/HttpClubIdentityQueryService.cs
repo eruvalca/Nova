@@ -20,8 +20,11 @@ public sealed class HttpClubIdentityQueryService(HttpClient http) : IClubIdentit
             identity => identity is not null
                 && identity.ClubId > 0
                 && !string.IsNullOrWhiteSpace(identity.Name)
+                && identity.Name.Length <= 200
                 && !string.IsNullOrWhiteSpace(identity.City)
-                && !string.IsNullOrWhiteSpace(identity.State),
+                && identity.City.Length <= 100
+                && !string.IsNullOrWhiteSpace(identity.State)
+                && identity.State.Length <= 100,
             cancellationToken);
     }
 }

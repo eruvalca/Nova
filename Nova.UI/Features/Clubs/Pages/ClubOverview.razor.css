@@ -25,5 +25,5 @@
     .identity-lockup { align-items: flex-start; }
     .club-waypoint { gap: .75rem; }
     .active-work .waypoint-content { display: block; }
-    .active-work-action { margin-top: .5rem; }
+    .active-work-action { margin-top: .5rem; width: 100%; }
 }

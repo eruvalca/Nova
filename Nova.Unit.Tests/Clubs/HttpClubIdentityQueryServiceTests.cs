@@ -56,6 +56,42 @@ public sealed class HttpClubIdentityQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    public static TheoryData<string> OverlengthPayloads =>
+        new()
+        {
+            PayloadWith("name", new string('a', 201)),
+            PayloadWith("city", new string('a', 101)),
+            PayloadWith("state", new string('a', 101))
+        };
+
+    [Theory]
+    [MemberData(nameof(OverlengthPayloads))]
+    public async Task GetCurrentAsync_ReturnsServerError_ForOverlengthSuccessPayload(string body)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        using var http = new HttpClient(new CaptureHandler(response)) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpClubIdentityQueryService(http).GetCurrentAsync(TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    // Mirrors the shared club bounds declared on CreateClubInput (200/100/100).
+    private static string PayloadWith(string overlongProperty, string longValue)
+    {
+        var (name, city, state) = overlongProperty switch
+        {
+            "name" => (longValue, "Erie", "PA"),
+            "city" => ("Club", longValue, "PA"),
+            _ => ("Club", "Erie", longValue)
+        };
+        return $$"""{"clubId":1,"name":"{{name}}","city":"{{city}}","state":"{{state}}","hasCrest":false}""";
+    }
+
     private sealed class CaptureHandler(HttpResponseMessage response) : HttpMessageHandler
     {
         public HttpRequestMessage? Request { get; private set; }
