@@ -65,6 +65,9 @@ public sealed class HttpCampaignLifecycleServiceTests
     [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":0,"activeTeamCount":1,"warnings":[]}""")]
     [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":-1,"warnings":[]}""")]
     [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":1,"warnings":[0]}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":-1,"enrolledPlayerCount":3,"activeTeamCount":1,"warnings":[]}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":-2,"activeTeamCount":1,"warnings":[]}""")]
+    [InlineData("""{"operationId":"11111111-1111-1111-1111-111111111111","campaignId":42,"openedAt":"2026-09-03T12:00:00Z","openedByUserId":7,"enrolledPlayerCount":3,"activeTeamCount":0,"warnings":[]}""")]
     public async Task OpenAsync_RejectsInvalidSuccessPayload(string payload)
     {
         var operationId = Guid.Parse("11111111-1111-1111-1111-111111111111");

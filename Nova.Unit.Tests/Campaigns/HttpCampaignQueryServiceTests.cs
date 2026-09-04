@@ -201,6 +201,10 @@ public sealed class HttpCampaignQueryServiceTests
     [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":0,"campaignName":"Other"}}""")]
     [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":42,"campaignName":"Other"}}""")]
     [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":43,"campaignName":" "}}""")]
+    [InlineData("""{"campaignId":43,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":null}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":0,"activeTeamCount":1,"canOpen":true,"blockers":[0],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[0],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[0]}""")]
     public async Task GetOpeningReadinessAsync_ReturnsServerError_ForInvalidPayload(string payload)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)

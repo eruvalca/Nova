@@ -109,6 +109,69 @@ public sealed class CampaignOpeningRosterRaceTests(NovaAppHostFixture fixture)
         enrolledPlayerIds.ShouldBe([seed.PlayerIds[1]]);
     }
 
+    /// <summary>
+    /// Verifies a player restore provably waits on the club-roster advisory lock held by an opening
+    /// in progress, and that the opening's committed snapshot predates the restore: the restored
+    /// player is not enrolled by the racing opening.
+    /// </summary>
+    [Fact]
+    public async Task CampaignOpenHoldingRosterLock_RestoreWaits_AndDoesNotEnrollAfterOpen()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedDraftAsync(activePlayerCount: 2, cancellationToken);
+        var archivedPlayerId = seed.PlayerIds[1];
+        await using (var archive = fixture.CreateAdminContext())
+        {
+            var player = await archive.Players.SingleAsync(
+                candidate => candidate.PlayerId == archivedPlayerId, cancellationToken);
+            player.LifecycleStatus = LifecycleStatus.Archived;
+            player.ArchivedAt = DateTimeOffset.UtcNow.AddDays(-1);
+            player.ArchivedById = seed.ActorUserId;
+            await archive.SaveChangesAsync(cancellationToken);
+        }
+
+        ActAsAdmin(seed.ActorUserId, seed.ClubId);
+        // The opening acquires the club-season lock first, so skip it and gate while holding the
+        // club-roster lock, which is the lock the restore must wait for.
+        var gate = new AdvisoryLockGateInterceptor(advisoryLocksToSkip: 1);
+        var campaignService = CreateCampaignService(new RetryingTenantDbContextFactory(
+            fixture.ConnectionString,
+            fixture.CurrentUser,
+            gate));
+        var playerService = new PlayerLifecycleService(
+            new RetryingTenantDbContextFactory(fixture.ConnectionString, fixture.CurrentUser, new NoOpInterceptor()),
+            fixture.CurrentUser,
+            NullLogger<PlayerLifecycleService>.Instance);
+
+        var openTask = campaignService.OpenAsync(
+            seed.CampaignId,
+            new OpenCampaignInput { OperationId = Guid.CreateVersion7() },
+            cancellationToken);
+        await gate.WaitForAcquiredAsync(cancellationToken);
+        var restoreTask = playerService.RestoreAsync(archivedPlayerId, cancellationToken);
+
+        await using var probe = fixture.CreateAdminContext();
+        await PostgresAdvisoryLockTestHelper.WaitForAdvisoryLockWaiterAsync(
+            probe,
+            (long.MinValue / 4) + seed.ClubId,
+            cancellationToken);
+        gate.Release();
+
+        var receipt = (await openTask).Value.ShouldBeOfType<OpenCampaignResult>();
+        receipt.EnrolledPlayerCount.ShouldBe(1);
+        (await restoreTask).IsSuccess.ShouldBeTrue();
+
+        await using var verify = fixture.CreateAdminContext();
+        var enrolledPlayerIds = await verify.PlayerCampaignAssignments
+            .Where(assignment => assignment.CampaignId == seed.CampaignId)
+            .Select(assignment => assignment.PlayerId)
+            .ToListAsync(cancellationToken);
+        enrolledPlayerIds.ShouldBe([seed.PlayerIds[0]]);
+        var restored = await verify.Players.SingleAsync(
+            candidate => candidate.PlayerId == archivedPlayerId, cancellationToken);
+        restored.LifecycleStatus.ShouldBe(LifecycleStatus.Active);
+    }
+
     /// <summary>Seeds a Draft in the current season and the requested active roster.</summary>
     /// <param name="activePlayerCount">The number of active players to create.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>

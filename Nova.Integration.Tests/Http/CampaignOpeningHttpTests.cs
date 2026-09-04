@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Activity;
 using Nova.Shared.Features.Campaigns;
 using Shouldly;
 using static Nova.Integration.Tests.Http.SeedingHelpers;
@@ -189,6 +190,168 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         }
     }
 
+    /// <summary>
+    /// Verifies replaying an opening with the same operation identifier returns the identical receipt
+    /// and that the opening state, technical enrollments, and a single lifecycle event are persisted.
+    /// </summary>
+    [Fact]
+    public async Task CampaignOpen_ReplaysIdenticalReceipt_AndPersistsOpeningState()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var (client, email, clubId) = await CreateAdministratorAsync("opening-replay", cancellationToken);
+        using (client)
+        {
+            var campaignId = await SeedDraftAsync(clubId, email, activePlayerCount: 2, cancellationToken);
+            var operationId = Guid.CreateVersion7();
+            using var response = await client.PostAsJsonAsync(
+                CampaignEndpoints.OpenUrl(campaignId),
+                new OpenCampaignInput { OperationId = operationId },
+                cancellationToken);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var receipt = (await response.Content.ReadFromJsonAsync<OpenCampaignResult>(cancellationToken))!;
+            receipt.EnrolledPlayerCount.ShouldBe(2);
+            receipt.Warnings.ShouldBe([CampaignOpeningWarning.NoActiveTeams]);
+
+            using var replayResponse = await client.PostAsJsonAsync(
+                CampaignEndpoints.OpenUrl(campaignId),
+                new OpenCampaignInput { OperationId = operationId },
+                cancellationToken);
+            replayResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var replayed = (await replayResponse.Content.ReadFromJsonAsync<OpenCampaignResult>(cancellationToken))!;
+            replayed.OperationId.ShouldBe(receipt.OperationId);
+            replayed.CampaignId.ShouldBe(receipt.CampaignId);
+            replayed.OpenedAt.ShouldBe(receipt.OpenedAt, TimeSpan.FromMilliseconds(1));
+            replayed.OpenedByUserId.ShouldBe(receipt.OpenedByUserId);
+            replayed.EnrolledPlayerCount.ShouldBe(receipt.EnrolledPlayerCount);
+            replayed.ActiveTeamCount.ShouldBe(receipt.ActiveTeamCount);
+            replayed.Warnings.ShouldBe(receipt.Warnings);
+
+            await using var context = fixture.CreateAdminContext();
+            var campaign = await context.Campaigns.SingleAsync(
+                candidate => candidate.CampaignId == campaignId, cancellationToken);
+            campaign.Status.ShouldBe(CampaignStatus.Active);
+            campaign.OpeningOperationId.ShouldBe(operationId);
+            campaign.OpenedAt.ShouldNotBeNull();
+            campaign.OpenedById.ShouldBe(receipt.OpenedByUserId);
+            campaign.SeasonOpeningSequence.ShouldBe(1);
+            campaign.InitialEnrolledPlayerCount.ShouldBe(2);
+            campaign.InitialActiveTeamCount.ShouldBe(0);
+            var assignments = await context.PlayerCampaignAssignments
+                .Where(assignment => assignment.CampaignId == campaignId)
+                .ToListAsync(cancellationToken);
+            assignments.Count.ShouldBe(2);
+            assignments.ShouldAllBe(assignment => assignment.PlacementOutcome == PlacementOutcome.Undecided);
+            (await context.ActivityEvents.CountAsync(
+                activity => activity.CampaignId == campaignId
+                    && activity.EventKind == ActivityEventKind.CampaignOpened,
+                cancellationToken)).ShouldBe(1);
+        }
+    }
+
+    /// <summary>
+    /// Verifies opening conflicts surface every condition-keyed blocker, including the other Active
+    /// campaign's identity, without partially mutating the Draft.
+    /// </summary>
+    [Fact]
+    public async Task CampaignOpen_ReturnsConflict_WithStructuredBlockers()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var (client, email, clubId) = await CreateAdministratorAsync("opening-blockers", cancellationToken);
+        using (client)
+        {
+            var emptyDraftId = await SeedDraftAsync(clubId, email, activePlayerCount: 0, cancellationToken);
+            using var noPlayersResponse = await client.PostAsJsonAsync(
+                CampaignEndpoints.OpenUrl(emptyDraftId),
+                new OpenCampaignInput { OperationId = Guid.CreateVersion7() },
+                cancellationToken);
+            noPlayersResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+            var noPlayersErrors = await ReadErrorsAsync(noPlayersResponse, cancellationToken);
+            noPlayersErrors.ShouldContainKey(CampaignOpeningProblemKeys.NoActivePlayers);
+
+            var draftId = await SeedDraftAsync(clubId, email, activePlayerCount: 1, cancellationToken);
+            var blockingCampaignId = await SeedBlockingActiveCampaignAsync(clubId, email, cancellationToken);
+            using var blockedResponse = await client.PostAsJsonAsync(
+                CampaignEndpoints.OpenUrl(draftId),
+                new OpenCampaignInput { OperationId = Guid.CreateVersion7() },
+                cancellationToken);
+            blockedResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+            var blockedErrors = await ReadErrorsAsync(blockedResponse, cancellationToken);
+            blockedErrors.ShouldContainKey(CampaignOpeningProblemKeys.AnotherCampaignActive);
+            blockedErrors[CampaignOpeningProblemKeys.BlockingCampaignId].Single()
+                .ShouldBe(blockingCampaignId.ToString());
+            blockedErrors[CampaignOpeningProblemKeys.BlockingCampaignName].Single()
+                .ShouldNotBeNullOrWhiteSpace();
+
+            await using var context = fixture.CreateAdminContext();
+            var draft = await context.Campaigns.SingleAsync(
+                candidate => candidate.CampaignId == draftId, cancellationToken);
+            draft.Status.ShouldBe(CampaignStatus.Draft);
+            draft.OpeningOperationId.ShouldBeNull();
+        }
+    }
+
+    /// <summary>
+    /// Verifies a blocked Draft reports every readiness blocker and warning together with the
+    /// blocking Active campaign's identity over the deployed pipeline.
+    /// </summary>
+    [Fact]
+    public async Task CampaignOpeningReadiness_ReportsBlockers_ForBlockedDraft()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var (client, email, clubId) = await CreateAdministratorAsync("readiness-blocked", cancellationToken);
+        using (client)
+        {
+            var draftId = await SeedDraftAsync(clubId, email, activePlayerCount: 0, cancellationToken);
+            var blockingCampaignId = await SeedBlockingActiveCampaignAsync(clubId, email, cancellationToken);
+
+            using var response = await client.GetAsync(
+                CampaignEndpoints.GetOpeningReadinessUrl(draftId), cancellationToken);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var readiness = (await response.Content.ReadFromJsonAsync<CampaignOpeningReadinessResult>(cancellationToken))!;
+            readiness.CanOpen.ShouldBeFalse();
+            readiness.Blockers.ShouldContain(CampaignOpeningBlocker.NoActivePlayers);
+            readiness.Blockers.ShouldContain(CampaignOpeningBlocker.AnotherCampaignActive);
+            readiness.Warnings.ShouldContain(CampaignOpeningWarning.NoActiveTeams);
+            readiness.BlockingCampaign.ShouldNotBeNull();
+            readiness.BlockingCampaign.CampaignId.ShouldBe(blockingCampaignId);
+            readiness.BlockingCampaign.CampaignName.ShouldNotBeNullOrWhiteSpace();
+        }
+    }
+
+    /// <summary>
+    /// Verifies Draft deletion persists exactly one durable tombstone and that replaying the
+    /// deletion still succeeds without adding another.
+    /// </summary>
+    [Fact]
+    public async Task CampaignDraftDelete_PersistsSingleTombstone_AndReplays()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var (client, email, clubId) = await CreateAdministratorAsync("delete-tombstone", cancellationToken);
+        using (client)
+        {
+            var campaignId = await SeedDraftAsync(clubId, email, activePlayerCount: 0, cancellationToken);
+            using var response = await client.DeleteAsync(
+                CampaignEndpoints.DeleteDraftUrl(campaignId), cancellationToken);
+            response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+            await using var context = fixture.CreateAdminContext();
+            (await context.Campaigns.AnyAsync(
+                candidate => candidate.CampaignId == campaignId, cancellationToken)).ShouldBeFalse();
+            (await context.ActivityEvents.CountAsync(
+                activity => activity.CampaignId == campaignId
+                    && activity.EventKind == ActivityEventKind.CampaignDraftDeleted,
+                cancellationToken)).ShouldBe(1);
+
+            using var replayResponse = await client.DeleteAsync(
+                CampaignEndpoints.DeleteDraftUrl(campaignId), cancellationToken);
+            replayResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+            (await context.ActivityEvents.CountAsync(
+                activity => activity.CampaignId == campaignId
+                    && activity.EventKind == ActivityEventKind.CampaignDraftDeleted,
+                cancellationToken)).ShouldBe(1);
+        }
+    }
+
     /// <summary>Creates and signs in a club administrator.</summary>
     /// <param name="prefix">The unique identity prefix.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
@@ -205,6 +368,60 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
         return (client, email, club.ClubId);
+    }
+
+    /// <summary>Seeds an Active campaign that blocks another Draft in the club from opening.</summary>
+    /// <param name="clubId">The owning club identifier.</param>
+    /// <param name="adminEmail">The administrator e-mail used to resolve audit ownership.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The blocking Active campaign identifier.</returns>
+    private async Task<long> SeedBlockingActiveCampaignAsync(
+        long clubId,
+        string adminEmail,
+        CancellationToken cancellationToken)
+    {
+        await using var context = fixture.CreateAdminContext();
+        var userId = await context.Users
+            .Where(user => user.NormalizedEmail == adminEmail.ToUpperInvariant())
+            .Select(user => user.Id)
+            .SingleAsync(cancellationToken);
+        var club = await context.Clubs.SingleAsync(candidate => candidate.ClubId == clubId, cancellationToken);
+        var season = club.CurrentSeasonId is long currentSeasonId
+            ? await context.Seasons.SingleAsync(candidate => candidate.SeasonId == currentSeasonId, cancellationToken)
+            : throw new InvalidOperationException("The club has no current season for the blocking campaign.");
+        var suffix = Guid.CreateVersion7().ToString("N");
+        var campaign = new CampaignEntity
+        {
+            CreationOperationId = Guid.CreateVersion7(),
+            Name = $"Opening Blocker {suffix}",
+            StartDate = new DateOnly(2026, 5, 1),
+            Status = CampaignStatus.Active,
+            SeasonId = season.SeasonId,
+            ClubId = clubId,
+            CreatedById = userId
+        };
+        context.Add(campaign);
+        await context.SaveChangesAsync(cancellationToken);
+        return campaign.CampaignId;
+    }
+
+    /// <summary>
+    /// Reads the <c>errors</c> dictionary from a ProblemDetails payload.
+    /// </summary>
+    /// <param name="response">The problem-details response.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The structured error dictionary.</returns>
+    private static async Task<Dictionary<string, string[]>> ReadErrorsAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        var errors = document.RootElement.GetProperty("errors");
+        return errors.EnumerateObject().ToDictionary(
+            property => property.Name,
+            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
     }
 
     /// <summary>Seeds one Draft and optional active players for an administrator's club.</summary>
