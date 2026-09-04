@@ -15,6 +15,7 @@ public sealed partial class ClubIdentityQueryService(
     ICurrentUserProvider currentUserProvider,
     ILogger<ClubIdentityQueryService> logger) : IClubIdentityQueryService
 {
+    /// <inheritdoc />
     public async Task<ServiceResult<ClubIdentityResult>> GetCurrentAsync(
         CancellationToken cancellationToken = default)
     {

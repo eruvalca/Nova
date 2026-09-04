@@ -44,6 +44,12 @@ public partial class NavMenu(
     /// </summary>
     protected bool ClubSectionActive => IsClubActive(currentUrl);
 
+    /// <summary>
+    /// Determines whether a URL activates the Club link, including legacy numeric club routes
+    /// and excluding the Teams subsection, which has its own navigation item.
+    /// </summary>
+    /// <param name="baseRelativeUrl">The base-relative URL, optionally including a query or fragment, or null.</param>
+    /// <returns>True for a Club destination outside Teams; otherwise false.</returns>
     private static bool IsClubActive(string? baseRelativeUrl)
     {
         if (baseRelativeUrl is null)

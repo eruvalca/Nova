@@ -214,6 +214,10 @@ internal static class ClubEndpointRouteBuilderExtensions
         }
     }
 
+    /// <summary>Handles the signed-in member's current-club identity read.</summary>
+    /// <param name="clubIdentityQueryService">The service that loads identity from the trusted membership context.</param>
+    /// <param name="cancellationToken">The token that cancels the identity read when the request is aborted.</param>
+    /// <returns>The club identity HTTP response or the service problem mapped to an HTTP result.</returns>
     private static async Task<IResult> GetCurrentClubHandler(
         IClubIdentityQueryService clubIdentityQueryService,
         CancellationToken cancellationToken)

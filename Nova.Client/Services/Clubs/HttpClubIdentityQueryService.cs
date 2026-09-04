@@ -4,8 +4,10 @@ using Nova.Shared.Results;
 namespace Nova.Client.Services.Clubs;
 
 /// <summary>Loads the current club identity over HTTP for WebAssembly rendering.</summary>
+/// <param name="http">The HTTP client for the authenticated server API.</param>
 public sealed class HttpClubIdentityQueryService(HttpClient http) : IClubIdentityQueryService
 {
+    /// <inheritdoc />
     public async Task<ServiceResult<ClubIdentityResult>> GetCurrentAsync(
         CancellationToken cancellationToken = default)
     {

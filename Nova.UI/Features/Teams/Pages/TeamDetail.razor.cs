@@ -181,6 +181,7 @@ public partial class TeamDetail(
     [PersistentState]
     public bool Initialized { get; set; }
 
+    /// <inheritdoc />
     protected override void OnInitialized()
         => authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
 

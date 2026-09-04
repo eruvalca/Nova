@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Globalization;
+using System.Security.Claims;
 using Bunit;
 using Bunit.Rendering;
 using Microsoft.AspNetCore.Authorization;
@@ -20,7 +21,9 @@ namespace Nova.Unit.Tests.Clubs;
 
 public sealed class ClubOverviewComponentTests : BunitContext
 {
-    [Theory]
+    /// <summary>Verifies identity, culture-formatted season dates, and role-shaped campaign actions.</summary>
+    /// <param name="isAdministrator">Whether the current member has administrator permissions.</param>
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
     public void Render_ShowsIdentityCurrentSeasonAndActiveCampaign_ForMemberAndAdministrator(bool isAdministrator)
@@ -33,7 +36,10 @@ public sealed class ClubOverviewComponentTests : BunitContext
         cut.Markup.ShouldContain("Duluth, MN");
         cut.Markup.ShouldContain("aria-label=\"No club crest\"");
         cut.Markup.ShouldContain("2026–27");
-        cut.Markup.ShouldContain("Sep 1, 2026 – May 31, 2027");
+        var expectedStart = new DateOnly(2026, 9, 1).ToString("MMM d, yyyy", CultureInfo.CurrentCulture);
+        var expectedEnd = new DateOnly(2027, 5, 31).ToString("MMM d, yyyy", CultureInfo.CurrentCulture);
+        cut.Find("section[aria-labelledby='current-season-heading'] p").TextContent
+            .ShouldBe($"Current · {expectedStart} – {expectedEnd}");
         cut.Markup.ShouldContain("Fall evaluations");
         cut.Markup.ShouldContain("Open campaign");
         cut.Markup.ShouldNotContain("Participant");
