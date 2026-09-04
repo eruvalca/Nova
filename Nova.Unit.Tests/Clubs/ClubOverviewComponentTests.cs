@@ -21,6 +21,13 @@ namespace Nova.Unit.Tests.Clubs;
 
 public sealed class ClubOverviewComponentTests : BunitContext
 {
+    /// <summary>Configures the shell's browser-only focus restoration while component tests exercise its content.</summary>
+    public ClubOverviewComponentTests()
+    {
+        JSInterop.SetupModule("./_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js")
+            .SetupVoid("restoreHeadingFocusAfterAttach", _ => true).SetVoidResult();
+    }
+
     /// <summary>Verifies identity, culture-formatted season dates, and role-shaped campaign actions.</summary>
     /// <param name="isAdministrator">Whether the current member has administrator permissions.</param>
     [Theory(IncludeTestCaseIndex = true)]

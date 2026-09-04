@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.JSInterop;
 using Nova.Shared.Security;
 
 namespace Nova.UI.Features.Clubs.Components;
@@ -8,8 +9,27 @@ namespace Nova.UI.Features.Clubs.Components;
 /// Provides the role-shaped local directory and working hall shared by Club routes.
 /// </summary>
 /// <param name="authenticationStateProvider">The provider used to read the current principal's ClubAdmin role and to track login/logout changes.</param>
-public partial class ClubShell(AuthenticationStateProvider authenticationStateProvider)
+/// <param name="jsRuntime">The runtime used to restore navigation focus after interactive attachment.</param>
+public partial class ClubShell(AuthenticationStateProvider authenticationStateProvider, IJSRuntime jsRuntime)
 {
+    /// <summary>The current shell's working hall, which contains the destination heading.</summary>
+    private ElementReference _hall;
+
+    /// <summary>The lazily imported module that restores focus lost when prerendered content is replaced.</summary>
+    private readonly Lazy<Task<IJSObjectReference>> _moduleTask = new(() => jsRuntime
+        .InvokeAsync<IJSObjectReference>("import", "./_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js")
+        .AsTask());
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var module = await _moduleTask.Value;
+            await module.InvokeVoidAsync("restoreHeadingFocusAfterAttach", ComponentCancellationToken, _hall);
+        }
+    }
+
     /// <summary>
     /// Whether the current principal holds the ClubAdmin role.
     /// </summary>
@@ -70,6 +90,18 @@ public partial class ClubShell(AuthenticationStateProvider authenticationStatePr
     protected override async ValueTask DisposeAsyncCore()
     {
         authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        if (_moduleTask.IsValueCreated)
+        {
+            try
+            {
+                var module = await _moduleTask.Value;
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // A disconnected circuit has already released the browser's component state.
+            }
+        }
         await base.DisposeAsyncCore();
     }
 }

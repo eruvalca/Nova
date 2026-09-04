@@ -34,6 +34,8 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Active work", Exact = true })).ToBeVisibleAsync();
     }
 
+    /// <summary>Verifies mobile keyboard navigation, touch sizing, and the no-script directory fallback.</summary>
+    /// <returns>A task that completes after both directory variants have been checked.</returns>
     [Fact]
     public async Task Overview_MobileSheet_OpensCompleteDirectory_AndNoScriptShowsRoutes()
     {
@@ -54,18 +56,16 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
 
             var toggle = page.Locator(".club-directory-toggle");
             await Expect(toggle).ToBeVisibleAsync();
-            var box = await toggle.BoundingBoxAsync();
-            box.ShouldNotBeNull();
-            box.Height.ShouldBeGreaterThanOrEqualTo(44);
-
             // Issue #201 keyboard acceptance: the sheet must open under keyboard activation
             // (focus + Enter, then tabbing reaches the directory links), not only pointer click.
             await toggle.FocusAsync();
             await Expect(toggle).ToBeFocusedAsync();
             var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
+            // Resolve the current button on each retry: interactive attach can replace the
+            // focused prerendered node, leaving a document-level Enter aimed at the body.
             await InteractionHelpers.ActUntilAsync(
                 page,
-                () => page.Keyboard.PressAsync("Enter"),
+                () => toggle.PressAsync("Enter"),
                 async () => await page.Locator(".club-route-directory").EvaluateAsync<bool>(
                     "el => el.classList.contains('show')"));
 
@@ -73,18 +73,32 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
             // transition its links are not yet reachable (focus bounces toggle -> body -> toggle),
             // so wait for the "show" state before walking the tab order.
             await Expect(page.Locator(".club-route-directory")).ToHaveClassAsync(new Regex(@"\bshow\b"));
+            // Successful activation proves attachment before measuring a node that SSR replacement could remove.
+            var box = await toggle.BoundingBoxAsync();
+            box.ShouldNotBeNull();
+            box.Height.ShouldBeGreaterThanOrEqualTo(44);
             await Expect(directory.GetByRole(AriaRole.Link, new() { Name = "Crest", Exact = true })).ToBeVisibleAsync();
             var teams = directory.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true });
             await InteractionHelpers.TabUntilFocusedAsync(page, teams);
 
             // Following a directory route with the keyboard must land focus on the destination
-            // page's h1 (Routes.razor FocusOnNavigate selector) — the focus-loop acceptance
-            // criterion for the Club shell.
+            // page's h1 and retain that focus when the new shell attaches interactively.
             await page.Keyboard.PressAsync("Enter");
             await page.WaitForURLAsync(
                 url => new Uri(url).AbsolutePath.Equals(ClubRoutes.Teams, StringComparison.OrdinalIgnoreCase),
                 new() { WaitUntil = WaitUntilState.Commit });
             await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Teams", Exact = true })).ToBeFocusedAsync();
+
+            // A delayed focus-restoration call must not take focus from a control the user selected.
+            var destinationToggle = page.Locator(".club-directory-toggle");
+            await destinationToggle.FocusAsync();
+            await page.Locator(".club-hall").EvaluateAsync("""
+                async hall => {
+                    const module = await import('/_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js');
+                    module.restoreHeadingFocusAfterAttach(hall);
+                }
+                """);
+            await Expect(destinationToggle).ToBeFocusedAsync();
         }
 
         await using var noScript = await fixture.NewSignedInContextAsync(seed.Email, Password, viewport, javaScriptEnabled: false);

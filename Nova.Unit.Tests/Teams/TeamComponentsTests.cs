@@ -20,6 +20,13 @@ namespace Nova.Unit.Tests.Teams;
 /// </summary>
 public sealed class TeamComponentsTests : BunitContext
 {
+    /// <summary>Configures the shell's browser-only focus restoration while component tests exercise team workflows.</summary>
+    public TeamComponentsTests()
+    {
+        JSInterop.SetupModule("./_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js")
+            .SetupVoid("restoreHeadingFocusAfterAttach", _ => true).SetVoidResult();
+    }
+
     [Fact]
     public void Teams_ShowsLoadingState_WhileRosterRequestIsPending()
     {

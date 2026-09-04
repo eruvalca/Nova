@@ -1,4 +1,6 @@
+@using Nova.Shared.Features.Clubs
+
 <div class="region-failure" role="alert">
     <p>@Message</p>
-    <a href="/club" @onclick="Retry" @onclick:preventDefault>Retry this section</a>
+    <a href="@ClubRoutes.Overview" @onclick="Retry" @onclick:preventDefault>Retry this section</a>
 </div>
