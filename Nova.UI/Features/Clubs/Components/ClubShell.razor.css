@@ -28,7 +28,9 @@
 }
 
 .club-directory-toggle { display: none; }
-.club-route-directory { display: block; }
+@media (min-width: 768px) {
+    .club-route-directory { display: block; }
+}
 .club-route-directory ul { display: grid; gap: .25rem; margin: 0; padding: 0; list-style: none; }
 .club-route-directory ::deep a {
     display: flex;

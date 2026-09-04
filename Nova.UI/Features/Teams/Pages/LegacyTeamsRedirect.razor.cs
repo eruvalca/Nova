@@ -11,9 +11,11 @@ public partial class LegacyTeamsRedirect(NavigationManager navigationManager)
     [Parameter]
     public long? TeamId { get; set; }
 
-    /// <summary>Replaces the legacy route with its canonical Club-local equivalent.</summary>
+    /// <summary>Replaces the legacy route with its canonical Club-local equivalent, preserving the incoming query.</summary>
     protected override void OnInitialized()
-        => navigationManager.NavigateTo(
-            TeamId is long teamId ? ClubRoutes.TeamDetail(teamId) : ClubRoutes.Teams,
-            replace: true);
+    {
+        var query = navigationManager.ToAbsoluteUri(navigationManager.Uri).Query;
+        var target = TeamId is long teamId ? ClubRoutes.TeamDetail(teamId) : ClubRoutes.Teams;
+        navigationManager.NavigateTo($"{target}{query}", replace: true);
+    }
 }

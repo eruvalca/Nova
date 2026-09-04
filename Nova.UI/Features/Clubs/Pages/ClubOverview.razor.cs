@@ -52,6 +52,9 @@ public partial class ClubOverview(
         }
     }
 
+    protected override void OnInitialized()
+        => authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+
     protected override async Task OnInitializedAsync()
     {
         _isClubAdmin = (await authenticationStateProvider.GetAuthenticationStateAsync()).User.IsInRole(Roles.ClubAdmin);
@@ -175,5 +178,24 @@ public partial class ClubOverview(
         _identityError = PersistedIdentityError;
         _seasonError = PersistedSeasonError;
         _campaignError = PersistedCampaignError;
+    }
+
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
+        => _ = ApplyAuthenticationStateAsync(stateTask);
+
+    private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
+    {
+        var isClubAdmin = (await stateTask).User.IsInRole(Roles.ClubAdmin);
+        if (isClubAdmin != _isClubAdmin)
+        {
+            _isClubAdmin = isClubAdmin;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        await base.DisposeAsyncCore();
     }
 }

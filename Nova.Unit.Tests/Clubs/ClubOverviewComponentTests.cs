@@ -167,6 +167,38 @@ public sealed class ClubOverviewComponentTests : BunitContext
         services.Campaigns.DidNotReceive().GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public void Render_ReconcilesRoleGatedContent_WhenAuthenticationChanges()
+    {
+        Configure(isAdministrator: false);
+        var auth = new TestAuthenticationStateProvider(MemberPrincipal());
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = RenderOverview();
+        cut.Markup.ShouldNotContain(">Crest<");
+
+        auth.Change(AdministratorPrincipal());
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain(">Crest<"));
+        cut.Markup.ShouldContain("href=\"/club/seasons\"");
+    }
+
+    [Fact]
+    public void Render_SuppressesAdministratorContent_WhenRoleIsRevoked()
+    {
+        Configure(isAdministrator: true);
+        var auth = new TestAuthenticationStateProvider(AdministratorPrincipal());
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = RenderOverview();
+        cut.Markup.ShouldContain(">Crest<");
+
+        auth.Change(MemberPrincipal());
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain(">Crest<"));
+        cut.Markup.ShouldNotContain("href=\"/club/seasons\"");
+    }
+
     private IRenderedComponent<ContainerFragment> RenderOverview()
         => Render(builder =>
         {
@@ -215,6 +247,38 @@ public sealed class ClubOverviewComponentTests : BunitContext
         Services.AddSingleton<IAuthorizationPolicyProvider>(new DefaultAuthorizationPolicyProvider(Options.Create(new AuthorizationOptions())));
         Services.AddSingleton<IAuthorizationService>(new RoleAuthorizationService());
         return new(identity, seasonService, campaignService);
+    }
+
+    private static ClaimsPrincipal MemberPrincipal()
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "10"),
+            new(NovaClaimTypes.ClubId, "1")
+        };
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
+    private static ClaimsPrincipal AdministratorPrincipal()
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "10"),
+            new(NovaClaimTypes.ClubId, "1"),
+            new(ClaimTypes.Role, Roles.ClubAdmin)
+        };
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
+    private sealed class TestAuthenticationStateProvider(ClaimsPrincipal initialPrincipal)
+        : AuthenticationStateProvider
+    {
+        private Task<AuthenticationState> _state = Task.FromResult(new AuthenticationState(initialPrincipal));
+
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => _state;
+
+        public void Change(ClaimsPrincipal principal)
+            => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(principal)));
     }
 
     private static ClubIdentityResult Identity() => new()
