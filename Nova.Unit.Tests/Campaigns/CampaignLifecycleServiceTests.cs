@@ -402,6 +402,200 @@ public sealed class CampaignLifecycleServiceTests : IDisposable
     }
 
     /// <summary>
+    /// Verifies opening persists an immutable receipt, enrolls only the tenant's active roster,
+    /// and replays without duplicating participation or activity.
+    /// </summary>
+    [Fact]
+    public async Task OpenAsync_OpensDraftAndReplaysOriginalReceipt_WithoutDuplicateEffects()
+    {
+        await using (var arrange = _harness.CreateAdminContext())
+        {
+            var legacyParticipation = await arrange.PlayerCampaignAssignments.SingleAsync(
+                assignment => assignment.CampaignId == ClubBCampaignId,
+                TestContext.Current.CancellationToken);
+            arrange.PlayerCampaignAssignments.Remove(legacyParticipation);
+            await arrange.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        ActAs(ClubBAdminId, ClubBId, isClubAdmin: true);
+        var service = CreateService();
+        var operationId = Guid.NewGuid();
+        var input = new OpenCampaignInput { OperationId = operationId };
+
+        var first = await service.OpenAsync(
+            ClubBCampaignId,
+            input,
+            TestContext.Current.CancellationToken);
+        var replay = await service.OpenAsync(
+            ClubBCampaignId,
+            input,
+            TestContext.Current.CancellationToken);
+
+        first.IsSuccess.ShouldBeTrue();
+        replay.IsSuccess.ShouldBeTrue();
+        replay.Value.ShouldBe(first.Value);
+        first.Value.OperationId.ShouldBe(operationId);
+        first.Value.CampaignId.ShouldBe(ClubBCampaignId);
+        first.Value.EnrolledPlayerCount.ShouldBe(1);
+        first.Value.ActiveTeamCount.ShouldBe(1);
+        first.Value.Warnings.ShouldBeEmpty();
+
+        await using var verify = _harness.CreateAdminContext();
+        var campaign = await verify.Campaigns.SingleAsync(
+            candidate => candidate.CampaignId == ClubBCampaignId,
+            TestContext.Current.CancellationToken);
+        campaign.Status.ShouldBe(CampaignStatus.Active);
+        campaign.OpeningOperationId.ShouldBe(operationId);
+        campaign.OpenedById.ShouldBe(ClubBAdminId);
+        campaign.OpenedAt.ShouldBe(first.Value.OpenedAt);
+        campaign.InitialEnrolledPlayerCount.ShouldBe(1);
+        campaign.InitialActiveTeamCount.ShouldBe(1);
+        campaign.SeasonOpeningSequence.ShouldBe(1);
+
+        (await verify.PlayerCampaignAssignments.CountAsync(
+            assignment => assignment.CampaignId == ClubBCampaignId,
+            TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await verify.ActivityEvents.CountAsync(
+            activity => activity.CampaignId == ClubBCampaignId
+                && activity.EventKind == ActivityEventKind.CampaignOpened,
+            TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await verify.ActivityEvents.AnyAsync(
+            activity => activity.CampaignId == ClubBCampaignId
+                && activity.EventKind >= ActivityEventKind.PlacementAssigned
+                && activity.EventKind <= ActivityEventKind.PlacementSuperseded,
+            TestContext.Current.CancellationToken)).ShouldBeFalse();
+    }
+
+    /// <summary>Verifies every freshly detected opening blocker is returned without writes.</summary>
+    [Fact]
+    public async Task OpenAsync_ReturnsAllBlockers_WithoutPartialMutation()
+    {
+        await using (var arrange = _harness.CreateAdminContext())
+        {
+            var players = await arrange.Players
+                .Where(player => player.ClubId == ClubAId)
+                .ToListAsync(TestContext.Current.CancellationToken);
+            foreach (var player in players)
+            {
+                player.LifecycleStatus = LifecycleStatus.Archived;
+                player.ArchivedAt = DateTimeOffset.UtcNow;
+                player.ArchivedById = ClubAAdminId;
+            }
+
+            await arrange.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var operationId = Guid.NewGuid();
+        var result = await CreateService().OpenAsync(
+            BlockedCampaignId,
+            new OpenCampaignInput { OperationId = operationId },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
+        result.Problem.Errors!.ShouldContainKey(CampaignOpeningProblemKeys.NoActivePlayers);
+        result.Problem.Errors!.ShouldContainKey(CampaignOpeningProblemKeys.AnotherCampaignActive);
+        result.Problem.Errors!.ShouldContainKey(CampaignOpeningProblemKeys.BlockingCampaignId);
+        result.Problem.Errors!.ShouldContainKey(CampaignOpeningProblemKeys.BlockingCampaignName);
+
+        await using var verify = _harness.CreateAdminContext();
+        var campaign = await verify.Campaigns.SingleAsync(
+            candidate => candidate.CampaignId == BlockedCampaignId,
+            TestContext.Current.CancellationToken);
+        campaign.Status.ShouldBe(CampaignStatus.Draft);
+        campaign.OpeningOperationId.ShouldBeNull();
+        (await verify.ActivityEvents.AnyAsync(
+            activity => activity.CampaignId == BlockedCampaignId
+                && activity.EventKind == ActivityEventKind.CampaignOpened,
+            TestContext.Current.CancellationToken)).ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Verifies Draft deletion leaves durable club data and exactly one tenant-scoped tombstone.
+    /// </summary>
+    [Fact]
+    public async Task DeleteDraftAsync_DeletesDraftAndReplaysFromDurableTombstone()
+    {
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var service = CreateService();
+
+        var first = await service.DeleteDraftAsync(
+            BlockedCampaignId,
+            TestContext.Current.CancellationToken);
+        var replay = await service.DeleteDraftAsync(
+            BlockedCampaignId,
+            TestContext.Current.CancellationToken);
+
+        first.IsSuccess.ShouldBeTrue();
+        replay.IsSuccess.ShouldBeTrue();
+
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Campaigns.AnyAsync(
+            campaign => campaign.CampaignId == BlockedCampaignId,
+            TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await verify.Seasons.AnyAsync(
+            season => season.SeasonId == CurrentSeasonAId,
+            TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await verify.Teams.CountAsync(
+            team => team.ClubId == ClubAId,
+            TestContext.Current.CancellationToken)).ShouldBe(3);
+        var tombstones = await verify.ActivityEvents
+            .Where(activity => activity.CampaignId == BlockedCampaignId
+                && activity.EventKind == ActivityEventKind.CampaignDraftDeleted)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        tombstones.Count.ShouldBe(1);
+        tombstones[0].IsAdminOnly.ShouldBeTrue();
+        tombstones[0].PayloadJson.ShouldContain("\"campaignName\":\"Blocked Campaign\"");
+    }
+
+    /// <summary>Verifies only the most recently opened current-season campaign may reopen.</summary>
+    [Fact]
+    public async Task ReopenAsync_RejectsOlderCampaign_WhenANewerCampaignWasOpened()
+    {
+        await SetOnlyActiveCampaignAsync(null);
+        await using (var arrange = _harness.CreateAdminContext())
+        {
+            var older = await arrange.Campaigns.SingleAsync(
+                campaign => campaign.CampaignId == ClosedCampaignId,
+                TestContext.Current.CancellationToken);
+            older.SeasonOpeningSequence = 10_000;
+            arrange.Campaigns.Add(new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Newer Closed Campaign",
+                StartDate = new DateOnly(2026, 8, 1),
+                Status = CampaignStatus.Closed,
+                OpeningOperationId = Guid.NewGuid(),
+                OpenedAt = DateTimeOffset.UtcNow.AddDays(-2),
+                OpenedById = ClubAAdminId,
+                SeasonOpeningSequence = 10_001,
+                InitialEnrolledPlayerCount = 0,
+                InitialActiveTeamCount = 0,
+                ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
+                ClosedById = ClubAAdminId,
+                SeasonId = CurrentSeasonAId,
+                ClubId = ClubAId,
+                CreatedById = ClubAAdminId,
+            });
+            await arrange.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
+        var result = await CreateService().ReopenAsync(
+            ClosedCampaignId,
+            TestContext.Current.CancellationToken);
+
+        result.IsT3.ShouldBeTrue();
+        result.AsT3.Detail.ShouldContain("most recently opened");
+        await using var verify = _harness.CreateAdminContext();
+        (await verify.Campaigns
+            .Where(campaign => campaign.CampaignId == ClosedCampaignId)
+            .Select(campaign => campaign.Status)
+            .SingleAsync(TestContext.Current.CancellationToken)).ShouldBe(CampaignStatus.Closed);
+    }
+
+    /// <summary>
     /// Creates the campaign lifecycle service over the shared SQLite tenancy harness.
     /// </summary>
     /// <returns>A service instance using the mutable fake current-user provider.</returns>

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Nova.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations
 {
     [DbContext(typeof(NovaDbContext))]
-    partial class NovaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903104201_AddCampaignOpeningLifecycle")]
+    partial class AddCampaignOpeningLifecycle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -590,10 +593,10 @@ namespace Nova.Data.Migrations
 
                     b.HasKey("ClubMembershipMutationReceiptId");
 
-                    b.HasIndex("CreatedAt");
-
                     b.HasIndex("OperationId")
                         .IsUnique();
+
+                    b.HasIndex("ClubId", "CreatedAt");
 
                     b.ToTable("ClubMembershipMutationReceipts");
                 });
@@ -1433,6 +1436,17 @@ namespace Nova.Data.Migrations
                     b.Navigation("Club");
 
                     b.Navigation("RequestingUser");
+                });
+
+            modelBuilder.Entity("Nova.Entities.ClubMembershipMutationReceiptEntity", b =>
+                {
+                    b.HasOne("Nova.Entities.ClubEntity", "Club")
+                        .WithMany()
+                        .HasForeignKey("ClubId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Club");
                 });
 
             modelBuilder.Entity("Nova.Entities.EvaluationNoteMutationReceiptEntity", b =>

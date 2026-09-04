@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova/Features/**/*Service.cs,Nova/Features/**/*Policy.cs,Nova/Features/**/*Decision.cs,Nova/Entities/**/*.cs,Nova.Unit.Tests/**/*PolicyTests.cs"
+applyTo: "Nova/Features/**/*Service*.cs,Nova/Features/**/*Policy.cs,Nova/Features/**/*Decision.cs,Nova/Entities/**/*.cs,Nova.Unit.Tests/**/*PolicyTests.cs"
 description: "Functional-core rules for extracting deterministic business decisions while keeping authorization, EF, locking, persistence, and other effects in application services."
 ---
 

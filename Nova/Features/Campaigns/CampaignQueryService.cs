@@ -238,6 +238,73 @@ public sealed partial class CampaignQueryService(
         };
     }
 
+    /// <inheritdoc />
+    public async Task<ServiceResult<CampaignOpeningReadinessResult>> GetOpeningReadinessAsync(
+        long campaignId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetClubId(out var clubId) || !currentUserProvider.IsClubAdmin)
+        {
+            LogOpeningReadinessForbidden(campaignId, currentUserProvider.UserId ?? 0);
+            return ServiceProblem.Forbidden("You must be a club administrator to view campaign opening readiness.");
+        }
+
+        await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var target = await db.Campaigns
+            .Where(campaign => campaign.CampaignId == campaignId && campaign.ClubId == clubId)
+            .Select(campaign => new { campaign.Status, campaign.SeasonId, campaign.Club.CurrentSeasonId })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (target is null)
+        {
+            return ServiceProblem.NotFound();
+        }
+
+        if (target.Status != CampaignStatus.Draft)
+        {
+            return ServiceProblem.Conflict("Only a Draft campaign has opening readiness.");
+        }
+
+        if (target.SeasonId != target.CurrentSeasonId)
+        {
+            return ServiceProblem.Conflict("Only a Draft in the club's current season can be opened.");
+        }
+
+        var activePlayerCount = await db.Players
+            .CountAsync(player => player.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
+        var activeTeamCount = await db.Teams
+            .CountAsync(team => team.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
+        var blockingCampaign = await db.Campaigns
+            .Where(campaign => campaign.CampaignId != campaignId && campaign.Status == CampaignStatus.Active)
+            .OrderBy(campaign => campaign.CampaignId)
+            .Select(campaign => new BlockingActiveCampaign(campaign.CampaignId, campaign.Name))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var blockers = new List<CampaignOpeningBlocker>();
+        if (activePlayerCount == 0)
+        {
+            blockers.Add(CampaignOpeningBlocker.NoActivePlayers);
+        }
+
+        if (blockingCampaign is not null)
+        {
+            blockers.Add(CampaignOpeningBlocker.AnotherCampaignActive);
+        }
+
+        IReadOnlyList<CampaignOpeningWarning> warnings = activeTeamCount == 0
+            ? [CampaignOpeningWarning.NoActiveTeams]
+            : [];
+
+        return new CampaignOpeningReadinessResult(
+            campaignId,
+            activePlayerCount,
+            activeTeamCount,
+            blockers.Count == 0,
+            blockers.AsReadOnly(),
+            warnings,
+            blockingCampaign);
+    }
+
     /// <summary>
     /// Resolves the approved caller's current club identifier.
     /// </summary>
@@ -333,4 +400,10 @@ public sealed partial class CampaignQueryService(
     /// <param name="userId">The current user identifier, or zero when unavailable.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign creation setup access forbidden for UserId={UserId}.")]
     private partial void LogCreationSetupForbidden(long userId);
+
+    /// <summary>Logs an opening-readiness request rejected because the caller is not a club administrator.</summary>
+    /// <param name="campaignId">The requested campaign identifier.</param>
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign opening readiness forbidden for CampaignId={CampaignId} by UserId={UserId}.")]
+    private partial void LogOpeningReadinessForbidden(long campaignId, long userId);
 }

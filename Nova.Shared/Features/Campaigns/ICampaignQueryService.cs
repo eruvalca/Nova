@@ -34,4 +34,14 @@ public interface ICampaignQueryService
     /// <returns>The setup data or a service problem.</returns>
     Task<ServiceResult<CampaignCreationSetupResult>> GetCreationSetupAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves the current advisory opening readiness for one Draft campaign.
+    /// </summary>
+    /// <param name="campaignId">The Draft campaign identifier.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The opening readiness or a service problem.</returns>
+    Task<ServiceResult<CampaignOpeningReadinessResult>> GetOpeningReadinessAsync(
+        long campaignId,
+        CancellationToken cancellationToken = default);
 }

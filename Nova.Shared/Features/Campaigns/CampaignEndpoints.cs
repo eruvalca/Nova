@@ -221,6 +221,51 @@ public static class CampaignEndpoints
     public const string ReopenRouteName = "ReopenCampaign";
 
     /// <summary>
+    /// Gets the administrator-only Draft opening-readiness route.
+    /// </summary>
+    public const string GetOpeningReadiness = $"{GroupPrefix}/{{campaignId:long}}/open-readiness";
+
+    /// <summary>
+    /// Gets the relative Draft opening-readiness route.
+    /// </summary>
+    public const string GetOpeningReadinessRelative = "{campaignId:long}/open-readiness";
+
+    /// <summary>
+    /// Gets the route name assigned to Draft opening readiness.
+    /// </summary>
+    public const string GetOpeningReadinessRouteName = "GetCampaignOpeningReadiness";
+
+    /// <summary>
+    /// Opens a Draft campaign (POST).
+    /// </summary>
+    public const string Open = $"{GroupPrefix}/{{campaignId:long}}/open";
+
+    /// <summary>
+    /// Gets the relative Draft-open route.
+    /// </summary>
+    public const string OpenRelative = "{campaignId:long}/open";
+
+    /// <summary>
+    /// Gets the route name assigned to Draft opening.
+    /// </summary>
+    public const string OpenRouteName = "OpenCampaign";
+
+    /// <summary>
+    /// Deletes an unopened Draft campaign (DELETE).
+    /// </summary>
+    public const string DeleteDraft = $"{GroupPrefix}/{{campaignId:long}}";
+
+    /// <summary>
+    /// Gets the relative Draft-delete route.
+    /// </summary>
+    public const string DeleteDraftRelative = "{campaignId:long}";
+
+    /// <summary>
+    /// Gets the route name assigned to Draft deletion.
+    /// </summary>
+    public const string DeleteDraftRouteName = "DeleteCampaignDraft";
+
+    /// <summary>
     /// Applies a tag definition to a campaign participation (POST).
     /// </summary>
     public const string ApplyCampaignTagApplication = $"{GroupPrefix}/tag-applications";
@@ -541,6 +586,30 @@ public static class CampaignEndpoints
     /// <returns>The reopen URL.</returns>
     public static string ReopenUrl(long campaignId)
         => $"{GroupPrefix}/{campaignId}/reopen";
+
+    /// <summary>
+    /// Builds a Draft opening-readiness URL.
+    /// </summary>
+    /// <param name="campaignId">The Draft campaign identifier.</param>
+    /// <returns>The opening-readiness URL.</returns>
+    public static string GetOpeningReadinessUrl(long campaignId)
+        => $"{GroupPrefix}/{campaignId}/open-readiness";
+
+    /// <summary>
+    /// Builds a Draft-open URL.
+    /// </summary>
+    /// <param name="campaignId">The Draft campaign identifier.</param>
+    /// <returns>The open URL.</returns>
+    public static string OpenUrl(long campaignId)
+        => $"{GroupPrefix}/{campaignId}/open";
+
+    /// <summary>
+    /// Builds a Draft-delete URL.
+    /// </summary>
+    /// <param name="campaignId">The Draft campaign identifier.</param>
+    /// <returns>The delete URL.</returns>
+    public static string DeleteDraftUrl(long campaignId)
+        => $"{GroupPrefix}/{campaignId}";
 
     /// <summary>
     /// Builds a campaign tag application removal URL.

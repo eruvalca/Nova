@@ -5,6 +5,10 @@ description: "Season lifecycle invariants: authoritative currentness, campaign s
 
 # Season Lifecycle Invariants
 
+For campaign lifecycle product semantics, read `PRODUCT.md` → **Operating Context** and
+**Capabilities**. This file records the persistence and concurrency invariants that implement
+those product decisions.
+
 - `ClubEntity.CurrentSeasonId` is the sole authority for a club's current season. Keep it as an
   optional, tenant-consistent relationship; null is the supported onboarding or recovery state.
 - Season dates are metadata. They may produce warnings or bound linked campaign dates, but they
