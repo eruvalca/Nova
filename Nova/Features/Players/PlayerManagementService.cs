@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Features.Campaigns;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Players;
@@ -211,14 +212,7 @@ public sealed partial class PlayerManagementService(
 
         foreach (var campaignId in activeCampaignIds)
         {
-            db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
-            {
-                PlayerId = player.PlayerId,
-                CampaignId = campaignId,
-                ClubId = clubId,
-                PlacementOutcome = PlacementOutcome.Undecided,
-                CreatedById = default
-            });
+            CampaignParticipationWriter.StageEnrollments(db, clubId, campaignId, [player.PlayerId]);
         }
 
         try

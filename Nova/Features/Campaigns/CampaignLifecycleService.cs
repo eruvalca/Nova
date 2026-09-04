@@ -374,6 +374,20 @@ public sealed partial class CampaignLifecycleService(
             return new LifecycleConflict("Only a closed campaign can be reopened.");
         }
 
+        if (campaign.SeasonOpeningSequence is not long openingSequence)
+        {
+            return new LifecycleConflict("The campaign has no authoritative opening receipt and cannot be reopened.");
+        }
+
+        var latestOpeningSequence = await db.Campaigns
+            .Where(candidate => candidate.SeasonId == campaign.SeasonId)
+            .MaxAsync(candidate => candidate.SeasonOpeningSequence, cancellationToken);
+        if (latestOpeningSequence != openingSequence)
+        {
+            return new LifecycleConflict(
+                "Only the most recently opened campaign in the current season can be reopened.");
+        }
+
         if (await db.Campaigns.AnyAsync(
             candidate => candidate.CampaignId != campaignId
                 && candidate.Status == CampaignStatus.Active,

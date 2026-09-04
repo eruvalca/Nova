@@ -26,6 +26,27 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
                 .MapGroup(CampaignEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubAdmin);
 
+            group.MapPost(CampaignEndpoints.OpenRelative, OpenCampaignHandler)
+                .Produces<OpenCampaignResult>()
+                .ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery()
+                .WithName(CampaignEndpoints.OpenRouteName);
+
+            group.MapDelete(CampaignEndpoints.DeleteDraftRelative, DeleteDraftHandler)
+                .Produces(StatusCodes.Status204NoContent)
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .DisableAntiforgery()
+                .WithName(CampaignEndpoints.DeleteDraftRouteName);
+
             group.MapPost(CampaignEndpoints.CloseRelative, CloseCampaignHandler)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -102,6 +123,40 @@ internal static class CampaignLifecycleEndpointRouteBuilderExtensions
     {
         var result = await lifecycleService.CloseAsync(campaignId, cancellationToken);
         return result.ToHttpResult();
+    }
+
+    /// <summary>
+    /// Handles an idempotent Draft-open request.
+    /// </summary>
+    /// <param name="campaignId">The Draft campaign identifier.</param>
+    /// <param name="input">The logical opening operation input.</param>
+    /// <param name="lifecycleService">The campaign lifecycle service.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>The immutable opening receipt or ProblemDetails.</returns>
+    private static async Task<IResult> OpenCampaignHandler(
+        long campaignId,
+        OpenCampaignInput input,
+        CampaignLifecycleService lifecycleService,
+        CancellationToken cancellationToken)
+    {
+        var result = await lifecycleService.OpenAsync(campaignId, input, cancellationToken);
+        return result.ToHttpResult();
+    }
+
+    /// <summary>
+    /// Handles an idempotent Draft-delete request.
+    /// </summary>
+    /// <param name="campaignId">The Draft campaign identifier.</param>
+    /// <param name="lifecycleService">The campaign lifecycle service.</param>
+    /// <param name="cancellationToken">A token that cancels the operation.</param>
+    /// <returns>No content or ProblemDetails.</returns>
+    private static async Task<IResult> DeleteDraftHandler(
+        long campaignId,
+        CampaignLifecycleService lifecycleService,
+        CancellationToken cancellationToken)
+    {
+        var result = await lifecycleService.DeleteDraftAsync(campaignId, cancellationToken);
+        return result.ToHttpResult(_ => TypedResults.NoContent());
     }
 
     /// <summary>

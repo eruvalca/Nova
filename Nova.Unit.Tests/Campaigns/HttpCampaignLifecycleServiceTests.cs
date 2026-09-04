@@ -13,6 +13,92 @@ public sealed class HttpCampaignLifecycleServiceTests
 {
     private const long CampaignId = 42;
 
+    /// <summary>Verifies open posts the operation and accepts a consistent immutable receipt.</summary>
+    [Fact]
+    public async Task OpenAsync_PostsToSharedUrl_AndReturnsValidatedReceipt()
+    {
+        var operationId = Guid.NewGuid();
+        var receipt = new OpenCampaignResult(
+            operationId,
+            CampaignId,
+            DateTimeOffset.UtcNow,
+            7,
+            3,
+            0,
+            [CampaignOpeningWarning.NoActiveTeams]);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(receipt)
+        };
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignLifecycleService(http).OpenAsync(
+            CampaignId,
+            new OpenCampaignInput { OperationId = operationId },
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.OperationId.ShouldBe(receipt.OperationId);
+        result.Value.CampaignId.ShouldBe(receipt.CampaignId);
+        result.Value.OpenedAt.ShouldBe(receipt.OpenedAt);
+        result.Value.OpenedByUserId.ShouldBe(receipt.OpenedByUserId);
+        result.Value.EnrolledPlayerCount.ShouldBe(receipt.EnrolledPlayerCount);
+        result.Value.ActiveTeamCount.ShouldBe(receipt.ActiveTeamCount);
+        result.Value.Warnings.ShouldBe(receipt.Warnings);
+        handler.LastRequest.ShouldNotBeNull();
+        handler.LastRequest.Method.ShouldBe(HttpMethod.Post);
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(CampaignEndpoints.OpenUrl(CampaignId));
+    }
+
+    /// <summary>Verifies an inconsistent success payload is rejected as an internal problem.</summary>
+    [Fact]
+    public async Task OpenAsync_RejectsInconsistentSuccessPayload()
+    {
+        var operationId = Guid.NewGuid();
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new OpenCampaignResult(
+                operationId,
+                CampaignId,
+                DateTimeOffset.UtcNow,
+                7,
+                3,
+                1,
+                [CampaignOpeningWarning.NoActiveTeams]))
+        };
+        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        {
+            BaseAddress = new Uri("https://localhost/")
+        };
+
+        var result = await new HttpCampaignLifecycleService(http).OpenAsync(
+            CampaignId,
+            new OpenCampaignInput { OperationId = operationId },
+            TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies Draft deletion uses DELETE and accepts the idempotent no-content response.</summary>
+    [Fact]
+    public async Task DeleteDraftAsync_DeletesSharedUrl_AndReturnsSuccess_OnNoContent()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
+        var handler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignLifecycleService(http).DeleteDraftAsync(
+            CampaignId,
+            TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        handler.LastRequest.ShouldNotBeNull();
+        handler.LastRequest.Method.ShouldBe(HttpMethod.Delete);
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(CampaignEndpoints.DeleteDraftUrl(CampaignId));
+    }
+
     private sealed class FakeHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
     {
         /// <summary>Gets the last request sent by the client.</summary>

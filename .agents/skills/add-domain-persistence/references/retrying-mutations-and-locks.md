@@ -4,10 +4,13 @@ Canonical Nova examples:
 
 - `Nova\Features\Seasons\SeasonCommandService.cs`
 - `Nova\Features\Campaigns\CampaignCreationService.cs`
+- `Nova\Features\Campaigns\CampaignLifecycleService.Opening.cs`
 - `Nova\Features\Teams\TeamManagementService.cs`
 - `Nova\Features\Teams\TeamLifecycleService.cs`
 - `Nova\Data\Configurations\TeamEntityConfiguration.cs`
 - `Nova.Integration.Tests\Data\SeasonFoundationPostgresTests.cs`
+- `Nova.Integration.Tests\Data\CampaignLifecyclePostgresTests.cs`
+- `Nova.Integration.Tests\Data\CampaignLifecycleRetryTests.cs`
 - `Nova.Integration.Tests\Data\TeamManagementRetryTests.cs`
 - `Nova.Integration.Tests\Data\TeamLifecycleRetryTests.cs`
 - `Nova.Integration.Tests\Data\TeamPlayerGraduationYearRaceTests.cs`
@@ -53,6 +56,17 @@ age-based cleanup path reachable from later operations in any tenant (or a backg
 `CreatedAt`-leading index for the cutoff. A global cleanup may delete only expired receipt rows;
 never scan or delete live tenant data through an admin context. `ClubMemberService` is the canonical
 FK-less receipt and global age-retention example.
+
+When the aggregate itself can retain immutable opening evidence, store the receipt on the aggregate
+and reconstruct the original result from those persisted fields. Do not verify by recounting mutable
+dependents that may have changed after the operation. `CampaignLifecycleService.OpenAsync` is the
+canonical example.
+
+For idempotent deletion without a separate receipt table, an append-only event may be the durable
+tombstone when it snapshots the tenant, aggregate id, and required result evidence. Append it in the
+same transaction as deletion, serialize competitors on the aggregate lock, and verify an ambiguous
+commit only when both the tenant-scoped tombstone exists and the aggregate is absent.
+`CampaignLifecycleService.DeleteDraftAsync` is the canonical example.
 
 ## Multi-entity advisory locks
 

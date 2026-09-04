@@ -6,6 +6,8 @@ Canonical files:
 - `Nova.Integration.Tests\Data\PostgresTenancyTests.cs` shows provider-specific database tests for migrations, `timestamptz`, `DateOnly`, and query-filter SQL translation.
 - `Nova.Integration.Tests\Data\CampaignParticipationPostgresTests.cs` shows database-constraint and optimistic-concurrency coverage.
 - `Nova.Integration.Tests\Data\CampaignLifecyclePostgresTests.cs` shows advisory-lock and competing-transaction race coverage.
+- `Nova.Integration.Tests\Data\CampaignLifecycleRetryTests.cs` shows immutable campaign-opening
+  receipt and Draft-deletion tombstone recovery in both retry failure modes.
 - `Nova.Integration.Tests\Data\SeasonFoundationPostgresTests.cs` shows current-season pointer
   constraints, metadata concurrency, retry recovery, and advancement races.
 - `Nova.Integration.Tests\Data\ExecutionStrategyRetryTestSupport.cs` provides before-commit rollback
@@ -90,6 +92,11 @@ Test-isolation pattern: the database is shared across all tests in the collectio
 seeds its OWN clubs/users/players with database-generated ids (no hardcoded keys) and lets the
 tenant query filters scope queries to that test's data. Never assert on global, unfiltered counts
 in integration tests.
+
+Prefer explicit seed helpers for lifecycle-constrained entities. The fixture's campaign seed
+normalizer exists only to keep older direct Active/Closed seeds concise; provider constraint tests
+must use `CreateUnnormalizedAdminContext()` so intentionally invalid metadata is not repaired before
+PostgreSQL evaluates it. Any future compatibility normalizer must provide the same bypass.
 
 ## HTTP-layer e2e
 

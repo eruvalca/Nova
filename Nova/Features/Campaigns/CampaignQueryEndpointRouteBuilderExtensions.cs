@@ -48,6 +48,16 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName(CampaignEndpoints.GetCreationSetupRouteName);
 
+            group.MapGet(CampaignEndpoints.GetOpeningReadinessRelative, GetOpeningReadinessHandler)
+                .RequireAuthorization(Policies.RequireClubAdmin)
+                .Produces<CampaignOpeningReadinessResult>()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .WithName(CampaignEndpoints.GetOpeningReadinessRouteName);
+
             return endpoints;
         }
     }
@@ -95,6 +105,22 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
         CancellationToken cancellationToken)
     {
         var result = await campaignQueryService.GetCreationSetupAsync(cancellationToken);
+        return result.ToHttpResult();
+    }
+
+    /// <summary>
+    /// Handles a Draft opening-readiness request.
+    /// </summary>
+    /// <param name="campaignId">The Draft campaign identifier.</param>
+    /// <param name="campaignQueryService">The campaign query service.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>The readiness snapshot or a ProblemDetails response.</returns>
+    private static async Task<IResult> GetOpeningReadinessHandler(
+        long campaignId,
+        ICampaignQueryService campaignQueryService,
+        CancellationToken cancellationToken)
+    {
+        var result = await campaignQueryService.GetOpeningReadinessAsync(campaignId, cancellationToken);
         return result.ToHttpResult();
     }
 }

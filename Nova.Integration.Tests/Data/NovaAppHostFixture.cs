@@ -55,6 +55,7 @@ public sealed class FakeCurrentUserProvider : ICurrentUserProvider
 /// </summary>
 public sealed class NovaAppHostFixture : IAsyncLifetime
 {
+    private readonly CampaignTestSeedInterceptor campaignTestSeedInterceptor = new();
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(5);
 
     /// <summary>
@@ -206,6 +207,14 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// <returns>A new admin context owned by the caller.</returns>
     public NovaAdminDbContext CreateAdminContext() =>
         new(Options<NovaAdminDbContext>(withInterceptor: true), AdminContextUser);
+
+    /// <summary>
+    /// Creates an unfiltered admin context without campaign seed normalization so provider tests
+    /// can send deliberately invalid lifecycle metadata to PostgreSQL unchanged.
+    /// </summary>
+    /// <returns>A new unnormalized admin context owned by the caller.</returns>
+    public NovaAdminDbContext CreateUnnormalizedAdminContext() =>
+        new(Options<NovaAdminDbContext>(withInterceptor: true, normalizeCampaignSeeds: false), AdminContextUser);
 
     /// <summary>
     /// Gets the base URI of the running "nova" web resource, preferring the https endpoint so
@@ -398,13 +407,21 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// </summary>
     /// <typeparam name="TContext">The context type the options are for.</typeparam>
     /// <param name="withInterceptor">Whether to attach the <see cref="TenantSaveChangesInterceptor"/>.</param>
+    /// <param name="normalizeCampaignSeeds">Whether to attach the compatibility normalizer for direct campaign seeds.</param>
     /// <returns>The configured options.</returns>
-    private DbContextOptions<TContext> Options<TContext>(bool withInterceptor) where TContext : DbContext
+    private DbContextOptions<TContext> Options<TContext>(
+        bool withInterceptor,
+        bool normalizeCampaignSeeds = true) where TContext : DbContext
     {
         // Attach the pinned Identity options so the model matches the running app (and the migrations).
         var builder = new DbContextOptionsBuilder<TContext>()
             .UseNpgsql(ConnectionString)
             .UseApplicationServiceProvider(IdentityStoreServiceProvider.Instance);
+        if (normalizeCampaignSeeds)
+        {
+            builder.AddInterceptors(campaignTestSeedInterceptor);
+        }
+
         if (withInterceptor)
         {
             builder.AddInterceptors(new TenantSaveChangesInterceptor());

@@ -31,6 +31,8 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
             migration => migration.EndsWith("_AddCampaignLifecyclePersistence", StringComparison.Ordinal));
         appliedMigrations.ShouldContain(
             migration => migration.EndsWith("_AddCampaignDraftLifecycle", StringComparison.Ordinal));
+        appliedMigrations.ShouldContain(
+            migration => migration.EndsWith("_AddCampaignOpeningLifecycle", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -41,7 +43,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     {
         var seed = await SeedCampaignAsync();
 
-        await using var db = fixture.CreateAdminContext();
+        await using var db = fixture.CreateUnnormalizedAdminContext();
         var campaign = await db.Campaigns
             .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, TestContext.Current.CancellationToken);
         campaign.Status = CampaignStatus.Closed;
@@ -61,7 +63,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     {
         var seed = await SeedCampaignAsync();
 
-        await using var db = fixture.CreateAdminContext();
+        await using var db = fixture.CreateUnnormalizedAdminContext();
         var campaign = await db.Campaigns
             .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, TestContext.Current.CancellationToken);
         campaign.Status = CampaignStatus.Active;
@@ -78,7 +80,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     public async Task StatusMetadataConstraint_RejectsClosureProvenance_ForDraftStatus()
     {
         var seed = await SeedCampaignAsync();
-        await using var db = fixture.CreateAdminContext();
+        await using var db = fixture.CreateUnnormalizedAdminContext();
         var campaign = await db.Campaigns.SingleAsync(
             candidate => candidate.CampaignId == seed.CampaignId,
             TestContext.Current.CancellationToken);
@@ -98,11 +100,58 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     {
         var seed = await SeedCampaignAsync();
 
-        await using var db = fixture.CreateAdminContext();
+        await using var db = fixture.CreateUnnormalizedAdminContext();
         var campaign = await db.Campaigns
             .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, TestContext.Current.CancellationToken);
         campaign.Status = (CampaignStatus)99;
         db.Update(campaign);
+
+        await Should.ThrowAsync<DbUpdateException>(
+            () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>Verifies Draft campaigns cannot retain any opening receipt field.</summary>
+    [Fact]
+    public async Task StatusMetadataConstraint_RejectsOpeningReceipt_ForDraftStatus()
+    {
+        var seed = await SeedCampaignAsync();
+        await using var db = fixture.CreateUnnormalizedAdminContext();
+        var campaign = await db.Campaigns.SingleAsync(
+            candidate => candidate.CampaignId == seed.CampaignId,
+            TestContext.Current.CancellationToken);
+        campaign.Status = CampaignStatus.Draft;
+        campaign.ClosedAt = null;
+        campaign.ClosedById = null;
+
+        await Should.ThrowAsync<DbUpdateException>(
+            () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>Verifies Active campaigns require a complete opening receipt.</summary>
+    [Fact]
+    public async Task StatusMetadataConstraint_RejectsPartialOpeningReceipt_ForActiveStatus()
+    {
+        var seed = await SeedCampaignAsync();
+        await using var db = fixture.CreateUnnormalizedAdminContext();
+        var campaign = await db.Campaigns.SingleAsync(
+            candidate => candidate.CampaignId == seed.CampaignId,
+            TestContext.Current.CancellationToken);
+        campaign.OpenedAt = null;
+
+        await Should.ThrowAsync<DbUpdateException>(
+            () => db.SaveChangesAsync(TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>Verifies Closed campaigns retain the complete opening receipt.</summary>
+    [Fact]
+    public async Task StatusMetadataConstraint_RejectsPartialOpeningReceipt_ForClosedStatus()
+    {
+        var seed = await SeedCampaignAsync(closed: true);
+        await using var db = fixture.CreateUnnormalizedAdminContext();
+        var campaign = await db.Campaigns.SingleAsync(
+            candidate => candidate.CampaignId == seed.CampaignId,
+            TestContext.Current.CancellationToken);
+        campaign.InitialEnrolledPlayerCount = null;
 
         await Should.ThrowAsync<DbUpdateException>(
             () => db.SaveChangesAsync(TestContext.Current.CancellationToken));

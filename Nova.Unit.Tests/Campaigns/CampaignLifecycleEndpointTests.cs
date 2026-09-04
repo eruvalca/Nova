@@ -27,8 +27,8 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class CampaignLifecycleEndpointTests
 {
     /// <summary>
-    /// Verifies the close and reopen routes are registered with club-administrator authorization,
-    /// disabled antiforgery, the POST verb, and the shared route names.
+    /// Verifies every lifecycle route is registered with club-administrator authorization,
+    /// disabled antiforgery, the intended verb, and the shared route name.
     /// </summary>
     [Fact]
     public async Task CampaignLifecycleEndpoints_RequireClubAdmin_AndDisableAntiforgery()
@@ -51,14 +51,24 @@ public sealed class CampaignLifecycleEndpointTests
             candidate => candidate.RoutePattern.RawText == CampaignEndpoints.Close);
         var reopen = routeEndpoints.SingleOrDefault(
             candidate => candidate.RoutePattern.RawText == CampaignEndpoints.Reopen);
+        var open = routeEndpoints.SingleOrDefault(
+            candidate => candidate.RoutePattern.RawText == CampaignEndpoints.Open);
+        var delete = routeEndpoints.SingleOrDefault(
+            candidate => candidate.RoutePattern.RawText == CampaignEndpoints.DeleteDraft);
 
         close.ShouldNotBeNull(
             $"The close endpoint must be registered at '{CampaignEndpoints.Close}'.");
         reopen.ShouldNotBeNull(
             $"The reopen endpoint must be registered at '{CampaignEndpoints.Reopen}'.");
+        open.ShouldNotBeNull(
+            $"The open endpoint must be registered at '{CampaignEndpoints.Open}'.");
+        delete.ShouldNotBeNull(
+            $"The delete endpoint must be registered at '{CampaignEndpoints.DeleteDraft}'.");
 
         AssertLifecycleEndpoint(close!, CampaignEndpoints.CloseRouteName);
         AssertLifecycleEndpoint(reopen!, CampaignEndpoints.ReopenRouteName);
+        AssertLifecycleEndpoint(open!, CampaignEndpoints.OpenRouteName);
+        AssertLifecycleEndpoint(delete!, CampaignEndpoints.DeleteDraftRouteName, HttpMethods.Delete);
     }
 
     /// <summary>
@@ -224,14 +234,19 @@ public sealed class CampaignLifecycleEndpointTests
     /// </summary>
     /// <param name="endpoint">The registered route endpoint to inspect.</param>
     /// <param name="routeName">The expected shared route name.</param>
-    private static void AssertLifecycleEndpoint(RouteEndpoint endpoint, string routeName)
+    /// <param name="method">The expected HTTP method.</param>
+    private static void AssertLifecycleEndpoint(
+        RouteEndpoint endpoint,
+        string routeName,
+        string? method = null)
     {
         endpoint.Metadata
             .GetOrderedMetadata<IAuthorizeData>()
             .ShouldContain(metadata => metadata.Policy == Policies.RequireClubAdmin);
         endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>()!.RequiresValidation.ShouldBeFalse();
         endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName.ShouldBe(routeName);
-        endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.ShouldContain(HttpMethods.Post);
+        endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods
+            .ShouldContain(method ?? HttpMethods.Post);
     }
 
     /// <summary>

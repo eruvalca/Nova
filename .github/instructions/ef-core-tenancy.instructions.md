@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova/Data/**/*.cs,Nova/Entities/**/*.cs,Nova/Features/**/*Service.cs,Nova/Program.cs,Nova.Unit.Tests/**/*.cs"
+applyTo: "Nova/Data/**/*.cs,Nova/Entities/**/*.cs,Nova/Features/**/*Service*.cs,Nova/Program.cs,Nova.Unit.Tests/**/*.cs"
 description: "EF Core setup, club-based multi-tenancy, tenant-safe query construction, provider behavior, entity/relationship rules, and migrations."
 ---
 

@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova/Features/**/*Service.cs,Nova.Shared/**/I*Service.cs,Nova.Shared/Results/**/*.cs,Nova.Client/Services/**/*.cs"
+applyTo: "Nova/Features/**/*Service*.cs,Nova.Shared/**/I*Service.cs,Nova.Shared/Results/**/*.cs,Nova.Client/Services/**/*.cs"
 description: "Service-layer rules: validation, ServiceResult, retry-safe transactions, lifecycle locking, trace IDs, and logging."
 ---
 
