@@ -149,10 +149,10 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// Verifies that a non-administrator is shown the redesigned access-denied surface for an administrator route.
+    /// Verifies that a member denied an administrator route returns to the Club overview with a permission notice.
     /// </summary>
     [Fact]
-    public async Task ClubAdmin_OrdinaryMember_ShowsAccessDeniedSurface()
+    public async Task ClubAdmin_OrdinaryMember_ShowsOverviewPermissionNotice()
     {
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, DashboardSeed.Password);
@@ -161,16 +161,21 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/Clubs/{seed.ClubId}/admin").ToString());
 
         await page.WaitForURLAsync(
-            url => url.Contains("/Account/AccessDenied", StringComparison.OrdinalIgnoreCase),
+            url => new Uri(url).PathAndQuery == ClubRoutes.OverviewWithPermissionsChanged,
             new() { WaitUntil = WaitUntilState.Commit });
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access denied", Exact = true }))
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Overview", Exact = true }))
             .ToBeVisibleAsync();
-        await Expect(page.GetByRole(AriaRole.Navigation, new() { Name = "Account areas" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Status).Filter(new() { HasText = "You don't have access to that section." }))
+            .ToBeVisibleAsync();
+        var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
+        await Expect(directory.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true })).ToBeVisibleAsync();
+        await Expect(directory.GetByRole(AriaRole.Link, new() { Name = "Members", Exact = true })).ToHaveCountAsync(0);
     }
 
     /// <summary>
     /// Verifies the static-SSR administrator form refreshes the actor's cookie from committed
-    /// database state after self-demotion.
+    /// database state after self-demotion, denies further management, and recovers a later
+    /// administrator-route request to the member-shaped Club overview.
     /// </summary>
     [Fact]
     public async Task ClubAdmin_SelfDemotion_ImmediatelyLosesAdministratorAccessButRetainsMembership()
@@ -186,20 +191,27 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
             $"form:has(input[name='MemberUserId'][value='{seed.ActorUserId}'])");
         await selfDemotionForm.GetByRole(AriaRole.Button, new() { Name = "Demote", Exact = true }).ClickAsync();
         await page.WaitForURLAsync(
-            url => url.Contains("/Account/AccessDenied", StringComparison.OrdinalIgnoreCase),
+            url => new Uri(url).AbsolutePath == "/Account/AccessDenied",
             new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access denied", Exact = true }))
             .ToBeVisibleAsync();
 
         await page.GotoAsync(adminUrl);
         await page.WaitForURLAsync(
-            url => url.Contains("/Account/AccessDenied", StringComparison.OrdinalIgnoreCase),
+            url => new Uri(url).PathAndQuery == ClubRoutes.OverviewWithPermissionsChanged,
             new() { WaitUntil = WaitUntilState.Commit });
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Overview", Exact = true }))
+            .ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Status).Filter(new() { HasText = "You don't have access to that section." }))
+            .ToBeVisibleAsync();
 
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/Clubs/{seed.Club.ClubId}").ToString());
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = seed.Club.Name, Exact = true }))
             .ToBeVisibleAsync();
-        await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Admin", Exact = true }))
+        var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
+        await Expect(directory.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }))
+            .ToBeVisibleAsync();
+        await Expect(directory.GetByRole(AriaRole.Link, new() { Name = "Members", Exact = true }))
             .ToHaveCountAsync(0);
     }
 

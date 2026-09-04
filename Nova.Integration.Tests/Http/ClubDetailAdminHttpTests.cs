@@ -82,10 +82,10 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
     }
 
     /// <summary>
-    /// Verifies login-vs-access-denied distinctions and ClubAdmin-only access on the admin page.
+    /// Verifies login, non-member denial, member recovery, and ClubAdmin-only access on the admin page.
     /// </summary>
     [Fact]
-    public async Task ClubAdminRoute_UsesLoginOrAccessDeniedAndAllowsOnlyClubAdminsAsync()
+    public async Task ClubAdminRoute_RecoversMembersToOverviewAndAllowsOnlyClubAdminsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
@@ -135,7 +135,8 @@ public class ClubDetailAdminHttpTests(NovaAppHostFixture fixture)
         {
             memberResponse.StatusCode.ShouldBe(HttpStatusCode.Found);
             memberResponse.Headers.Location.ShouldNotBeNull();
-            memberResponse.Headers.Location.OriginalString.ShouldContain("/Account/AccessDenied");
+            new Uri(memberClient.BaseAddress!, memberResponse.Headers.Location).PathAndQuery
+                .ShouldBe(ClubRoutes.OverviewWithPermissionsChanged);
         }
 
         using (var adminResponse = await clubAdminClient.GetAsync(adminRoute, cancellationToken))
