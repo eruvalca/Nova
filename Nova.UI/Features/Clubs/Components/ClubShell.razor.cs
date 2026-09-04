@@ -22,7 +22,7 @@ public partial class ClubShell(AuthenticationStateProvider authenticationStatePr
         => _isClubAdmin = (await authenticationStateProvider.GetAuthenticationStateAsync()).User.IsInRole(Roles.ClubAdmin);
 
     private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
-        => _ = ApplyAuthenticationStateAsync(stateTask);
+        => _ = InvokeAsync(() => ApplyAuthenticationStateAsync(stateTask));
 
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
     {

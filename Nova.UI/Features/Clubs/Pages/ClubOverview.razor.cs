@@ -279,7 +279,7 @@ public partial class ClubOverview(
     }
 
     private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
-        => _ = ApplyAuthenticationStateAsync(stateTask);
+        => _ = InvokeAsync(() => ApplyAuthenticationStateAsync(stateTask));
 
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
     {
