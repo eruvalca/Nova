@@ -617,6 +617,7 @@ public partial class TeamDetail(
         _archiveBlockers = [];
         _mutationError = null;
         _statusMessage = null;
+        _isMutating = false;
     }
 
     /// <summary>

@@ -742,6 +742,62 @@ public sealed class TeamDetailComponentTests : BunitContext
         detailService.Received(1).GetTeamDetailAsync(7, Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// When a mutation is in flight and the club membership changes mid-mutation, the
+    /// cancellation path must clear the mutating flag; otherwise the replacement club's
+    /// team detail loads with every management control permanently disabled.
+    /// </summary>
+    [Fact]
+    public void TeamDetail_ClearsMutatingFlag_WhenClubMembershipChangesDuringMutation()
+    {
+        var pendingUpdate = new TaskCompletionSource<ServiceResult<TeamDto>>();
+        var managementService = Substitute.For<ITeamManagementService>();
+        managementService.UpdateAsync(Arg.Any<UpdateTeamInput>(), Arg.Any<CancellationToken>())
+            .Returns(pendingUpdate.Task);
+
+        var detailService = Substitute.For<ITeamDetailService>();
+        detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<TeamDetailDto>(CreateTeamDetail())),
+                Task.FromResult(new ServiceResult<TeamDetailDto>(CreateTeamDetail(name: "U18 Crimson"))));
+
+        RegisterServices(isClubAdmin: true, detailService: detailService, managementService: managementService);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit team"));
+        cut.Find("button[type='submit']").Click();
+
+        // The mutation is now in flight; the edit submit must be disabled.
+        cut.WaitForAssertion(() =>
+            cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeTrue());
+
+        // Club membership changes mid-mutation: the old team scope is invalidated.
+        auth.Change(CreatePrincipal(isClubAdmin: true, clubId: 43));
+
+        // The replacement club's detail loads with the edit form closed.
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U18 Crimson"));
+        cut.Markup.ShouldNotContain("Edit team");
+
+        // The stale mutation's cancellation return must not leave _isMutating stuck true:
+        // the new club's management controls must be re-enabled.
+        pendingUpdate.SetResult(new ServiceResult<TeamDto>(new TeamDto
+        {
+            TeamId = 7,
+            ClubId = 42,
+            Name = "U16 Blue",
+            GraduationYear = 2028,
+            LifecycleStatus = LifecycleStatus.Active
+        }));
+
+        cut.WaitForAssertion(() =>
+            cut.Find("button.btn-outline-primary").HasAttribute("disabled").ShouldBeFalse());
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>
