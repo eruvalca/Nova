@@ -29,6 +29,13 @@ public partial class ClubOverview(
     private bool _isClubAdmin;
     private string? _clubIdText;
 
+    // Monotonic generation for reload batches: a slower earlier load must never overwrite
+    // results for a club that a later authentication change superseded.
+    private int _reloadVersion;
+
+    // Cancellation source for the current reload batch; starting a new batch supersedes the prior one.
+    private CancellationTokenSource? _reloadSource;
+
     [SupplyParameterFromQuery(Name = "notice")]
     public string? Notice { get; set; }
 
@@ -71,77 +78,130 @@ public partial class ClubOverview(
             }
         }
 
+        var (version, requestToken) = BeginReloadBatch();
         _identityLoading = _seasonLoading = _campaignLoading = true;
-        await Task.WhenAll(LoadIdentityAsync(), LoadSeasonAsync(), LoadCampaignAsync());
-        Initialized = true;
-        PersistState();
+        await Task.WhenAll(
+            LoadIdentityAsync(version, requestToken),
+            LoadSeasonAsync(version, requestToken),
+            LoadCampaignAsync(version, requestToken));
+        if (IsCurrentBatch(version, requestToken))
+        {
+            Initialized = true;
+            PersistState();
+        }
     }
 
-    private async Task LoadIdentityAsync()
+    private async Task LoadIdentityAsync(int version, CancellationToken requestToken)
     {
         _identityLoading = true;
         _identityError = null;
         try
         {
-            await ApplyResultAsync(await identityQueryService.GetCurrentAsync(ComponentCancellationToken),
-                value => _identity = value, message => _identityError = message, "Club identity is unavailable.");
+            var result = await identityQueryService.GetCurrentAsync(requestToken);
+            if (IsCurrentBatch(version, requestToken))
+            {
+                await ApplyResultAsync(result,
+                    value => _identity = value, message => _identityError = message, "Club identity is unavailable.");
+            }
+            if (IsCurrentBatch(version, requestToken))
+            {
+                _identityLoading = false;
+                _announcement = _identityError ?? "Club identity loaded.";
+            }
         }
         catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
         {
             throw;
         }
+        catch (OperationCanceledException) when (requestToken.IsCancellationRequested)
+        {
+            return;
+        }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
         {
-            _identityError = "Club identity is unavailable. Retry this section.";
+            if (IsCurrentBatch(version, requestToken))
+            {
+                _identityLoading = false;
+                _identityError = "Club identity is unavailable. Retry this section.";
+                _announcement = _identityError;
+            }
         }
-        _identityLoading = false;
-        _announcement = _identityError ?? "Club identity loaded.";
     }
 
-    private async Task LoadSeasonAsync()
+    private async Task LoadSeasonAsync(int version, CancellationToken requestToken)
     {
         _seasonLoading = true;
         _seasonError = null;
         try
         {
-            var result = await seasonQueryService.ListAsync(new GetSeasonListInput { Page = 1, PageSize = 1 }, ComponentCancellationToken);
-            await ApplyResultAsync(result,
-                value => _currentSeason = value.Items.FirstOrDefault(item => item.IsCurrent),
-                message => _seasonError = message, "Current season is unavailable.");
+            var result = await seasonQueryService.ListAsync(new GetSeasonListInput { Page = 1, PageSize = 1 }, requestToken);
+            if (IsCurrentBatch(version, requestToken))
+            {
+                await ApplyResultAsync(result,
+                    value => _currentSeason = value.Items.FirstOrDefault(item => item.IsCurrent),
+                    message => _seasonError = message, "Current season is unavailable.");
+            }
+            if (IsCurrentBatch(version, requestToken))
+            {
+                _seasonLoading = false;
+                _announcement = _seasonError ?? "Current season loaded.";
+            }
         }
         catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
         {
             throw;
         }
+        catch (OperationCanceledException) when (requestToken.IsCancellationRequested)
+        {
+            return;
+        }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
         {
-            _seasonError = "Current season is unavailable. Retry this section.";
+            if (IsCurrentBatch(version, requestToken))
+            {
+                _seasonLoading = false;
+                _seasonError = "Current season is unavailable. Retry this section.";
+                _announcement = _seasonError;
+            }
         }
-        _seasonLoading = false;
-        _announcement = _seasonError ?? "Current season loaded.";
     }
 
-    private async Task LoadCampaignAsync()
+    private async Task LoadCampaignAsync(int version, CancellationToken requestToken)
     {
         _campaignLoading = true;
         _campaignError = null;
         try
         {
             var result = await campaignQueryService.GetCampaignListAsync(
-                new GetCampaignListInput { Status = "active", Limit = 1 }, ComponentCancellationToken);
-            await ApplyResultAsync(result, value => _campaigns = value,
-                message => _campaignError = message, "Active work is unavailable.");
+                new GetCampaignListInput { Status = "active", Limit = 1 }, requestToken);
+            if (IsCurrentBatch(version, requestToken))
+            {
+                await ApplyResultAsync(result, value => _campaigns = value,
+                    message => _campaignError = message, "Active work is unavailable.");
+            }
+            if (IsCurrentBatch(version, requestToken))
+            {
+                _campaignLoading = false;
+                _announcement = _campaignError ?? "Active work loaded.";
+            }
         }
         catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
         {
             throw;
         }
+        catch (OperationCanceledException) when (requestToken.IsCancellationRequested)
+        {
+            return;
+        }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
         {
-            _campaignError = "Active work is unavailable. Retry this section.";
+            if (IsCurrentBatch(version, requestToken))
+            {
+                _campaignLoading = false;
+                _campaignError = "Active work is unavailable. Retry this section.";
+                _announcement = _campaignError;
+            }
         }
-        _campaignLoading = false;
-        _announcement = _campaignError ?? "Active work loaded.";
     }
 
     private Task ApplyResultAsync<T>(ServiceResult<T> result, Action<T> success, Action<string> failure, string fallback)
@@ -158,9 +218,33 @@ public partial class ClubOverview(
         return Task.CompletedTask;
     }
 
-    private async Task RetryIdentityAsync() { await LoadIdentityAsync(); PersistState(); }
-    private async Task RetrySeasonAsync() { await LoadSeasonAsync(); PersistState(); }
-    private async Task RetryCampaignAsync() { await LoadCampaignAsync(); PersistState(); }
+    private async Task RetryIdentityAsync()
+    {
+        var (version, requestToken) = BeginReloadBatch();
+        await LoadIdentityAsync(version, requestToken);
+        if (IsCurrentBatch(version, requestToken))
+        {
+            PersistState();
+        }
+    }
+    private async Task RetrySeasonAsync()
+    {
+        var (version, requestToken) = BeginReloadBatch();
+        await LoadSeasonAsync(version, requestToken);
+        if (IsCurrentBatch(version, requestToken))
+        {
+            PersistState();
+        }
+    }
+    private async Task RetryCampaignAsync()
+    {
+        var (version, requestToken) = BeginReloadBatch();
+        await LoadCampaignAsync(version, requestToken);
+        if (IsCurrentBatch(version, requestToken))
+        {
+            PersistState();
+        }
+    }
 
     protected static string FormatDateWindow(DateOnly start, DateOnly? end)
         => end is null
@@ -201,15 +285,36 @@ public partial class ClubOverview(
         _clubIdText = clubIdText;
         if (clubChanged)
         {
+            var (version, requestToken) = BeginReloadBatch();
             _identityLoading = _seasonLoading = _campaignLoading = true;
-            await Task.WhenAll(LoadIdentityAsync(), LoadSeasonAsync(), LoadCampaignAsync());
-            PersistState();
+            await Task.WhenAll(
+                LoadIdentityAsync(version, requestToken),
+                LoadSeasonAsync(version, requestToken),
+                LoadCampaignAsync(version, requestToken));
+            if (IsCurrentBatch(version, requestToken))
+            {
+                PersistState();
+            }
         }
         await InvokeAsync(StateHasChanged);
     }
 
+    private (int Version, CancellationToken Token) BeginReloadBatch()
+    {
+        var version = Interlocked.Increment(ref _reloadVersion);
+        _reloadSource?.Cancel();
+        _reloadSource?.Dispose();
+        _reloadSource = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+        return (version, _reloadSource.Token);
+    }
+
+    private bool IsCurrentBatch(int version, CancellationToken requestToken)
+        => version == _reloadVersion && !requestToken.IsCancellationRequested;
+
     protected override async ValueTask DisposeAsyncCore()
     {
+        _reloadSource?.Cancel();
+        _reloadSource?.Dispose();
         authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         await base.DisposeAsyncCore();
     }

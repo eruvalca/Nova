@@ -277,6 +277,63 @@ public sealed class ClubOverviewComponentTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Harbor Lights Volleyball Club"));
     }
 
+    /// <summary>
+    /// Disposing the component cancels the in-flight reload through the linked reload token, and the
+    /// lifecycle guidance's rethrow keeps that cancellation benign to the renderer: it must not
+    /// become this region's recoverable error and must not surface as an unhandled renderer
+    /// exception (canceled lifecycle tasks are swallowed by the renderer by design).
+    /// </summary>
+    [Fact]
+    public async Task DisposeAsync_RethrowsLifecycleCancellation_WithoutUnhandledException()
+    {
+        var requestTokenSeen = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var identity = Substitute.For<IClubIdentityQueryService>();
+        identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(async info =>
+        {
+            requestTokenSeen.TrySetResult(info.Arg<CancellationToken>());
+            await Task.Delay(Timeout.InfiniteTimeSpan, info.Arg<CancellationToken>());
+            return new ServiceResult<ClubIdentityResult>(Identity());
+        });
+        Configure(isAdministrator: false, identity: identity);
+
+        var cut = RenderOverview();
+        var component = cut.FindComponent<ClubOverview>().Instance;
+        var requestToken = await requestTokenSeen.Task;
+        requestToken.IsCancellationRequested.ShouldBeFalse();
+
+        // Cancel the component: this cancels the linked reload token the in-flight load awaits.
+        await component.DisposeAsync();
+
+        requestToken.IsCancellationRequested.ShouldBeTrue();
+        cut.Markup.ShouldNotContain("Club identity is unavailable. Retry this section.");
+
+        // The rethrown cancellation must never reach the renderer's unhandled-exception sink.
+        await Should.ThrowAsync<TimeoutException>(
+            () => Renderer.UnhandledException.WaitAsync(TimeSpan.FromMilliseconds(250)));
+
+        cut.Dispose();
+    }
+
+    [Fact]
+    public void Render_MapsUnrelatedOperationCanceledException_ToIdentityRegionFailure()
+    {
+        var identity = Substitute.For<IClubIdentityQueryService>();
+        identity.GetCurrentAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<ServiceResult<ClubIdentityResult>>(
+                new OperationCanceledException("transport interrupted")));
+        Configure(isAdministrator: false, identity: identity);
+
+        var cut = RenderOverview();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Club identity is unavailable. Retry this section.");
+            cut.Markup.ShouldContain("2026–27");
+            cut.Markup.ShouldContain("Fall evaluations");
+            cut.FindAll(".region-failure").Count.ShouldBe(1);
+        });
+    }
+
     private IRenderedComponent<ContainerFragment> RenderOverview()
         => Render(builder =>
         {
