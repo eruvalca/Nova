@@ -312,6 +312,38 @@ public sealed class ClubOverviewComponentTests : BunitContext
         services.Campaigns.Received(2).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// When club membership changes, the overview must render the region loading states before
+    /// the reload completes instead of leaving the previous club's data visible.
+    /// </summary>
+    [Fact]
+    public void Render_ShowsLoadingState_WhenClubMembershipChangesBeforeReloadCompletes()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<ClubIdentityResult>>();
+        var identity = Substitute.For<IClubIdentityQueryService>();
+        identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(
+            Task.FromResult(new ServiceResult<ClubIdentityResult>(Identity())),
+            pending.Task);
+        var services = Configure(isAdministrator: false, identity: identity);
+        var auth = new TestAuthenticationStateProvider(MemberPrincipal());
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = RenderOverview();
+        cut.Markup.ShouldContain("North Star Volleyball Club");
+
+        auth.Change(MemberPrincipal(clubId: "2"));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Loading club identity…");
+            cut.Markup.ShouldNotContain("North Star Volleyball Club");
+        });
+
+        pending.SetResult(new ServiceResult<ClubIdentityResult>(
+            Identity() with { ClubId = 2, Name = "Harbor Lights Volleyball Club" }));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Harbor Lights Volleyball Club"));
+    }
+
     [Fact]
     public void Render_InvalidatesPersistedState_WhenClubMembershipChanges()
     {

@@ -905,6 +905,10 @@ public partial class Teams(
             }
             else
             {
+                // AuthenticationStateChanged is an external event, so render the loading
+                // state before the reload's first await to avoid showing the old club's roster.
+                _isLoading = true;
+                await InvokeAsync(StateHasChanged);
                 await LoadRosterAsync();
             }
 

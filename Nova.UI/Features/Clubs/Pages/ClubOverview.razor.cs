@@ -293,6 +293,9 @@ public partial class ClubOverview(
         {
             var (version, requestToken) = BeginReloadBatch();
             _identityLoading = _seasonLoading = _campaignLoading = true;
+            // AuthenticationStateChanged is an external event, so render the loading state
+            // before the reload's first await to avoid showing the previous club's data.
+            await InvokeAsync(StateHasChanged);
             await Task.WhenAll(
                 LoadIdentityAsync(version, requestToken),
                 LoadSeasonAsync(version, requestToken),

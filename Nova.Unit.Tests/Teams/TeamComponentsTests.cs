@@ -241,6 +241,43 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     /// <summary>
+    /// When club membership changes, the page must render the loading state before the new
+    /// club's roster request completes instead of leaving the previous club's roster visible.
+    /// </summary>
+    [Fact]
+    public void Teams_ShowsLoadingState_WhenClubMembershipChangesBeforeReloadCompletes()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<IReadOnlyList<TeamRosterItem>>>();
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(SuccessRosterResult(CreateRosterItems(name: "U16 Orange"))),
+                pending.Task);
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Orange"));
+
+        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Loading teams...");
+            cut.Markup.ShouldNotContain("U16 Orange");
+        });
+
+        pending.SetResult(SuccessRosterResult(CreateRosterItems(name: "U18 Crimson", teamId: 9)));
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("U18 Crimson");
+            cut.Markup.ShouldNotContain("U16 Orange");
+        });
+    }
+
+    /// <summary>
     /// When club membership changes, graduation-year filter options must be derived from the
     /// new club's roster only — years from the previous club must not leak into the dropdown.
     /// </summary>
@@ -855,14 +892,17 @@ public sealed class TeamComponentsTests : BunitContext
     private static ServiceResult<IReadOnlyList<TeamRosterItem>> SuccessRosterResult(IReadOnlyList<TeamRosterItem> items)
         => new(items.ToList().AsReadOnly());
 
-    private static List<TeamRosterItem> CreateRosterItems(LifecycleStatus lifecycleStatus = LifecycleStatus.Active)
+    private static List<TeamRosterItem> CreateRosterItems(
+        LifecycleStatus lifecycleStatus = LifecycleStatus.Active,
+        string name = "U16 Blue",
+        long teamId = 7)
     {
         return
         [
             new TeamRosterItem
             {
-                TeamId = 7,
-                Name = "U16 Blue",
+                TeamId = teamId,
+                Name = name,
                 GraduationYear = 2032,
                 LifecycleStatus = lifecycleStatus,
                 ActivePlacementCount = 1

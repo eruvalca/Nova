@@ -386,6 +386,43 @@ public sealed class TeamDetailComponentTests : BunitContext
     }
 
     /// <summary>
+    /// When club membership changes, the page must render the loading state before the new
+    /// club's detail request completes instead of leaving the previous club's team visible.
+    /// </summary>
+    [Fact]
+    public void TeamDetail_ShowsLoadingState_WhenClubMembershipChangesBeforeReloadCompletes()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<TeamDetailDto>>();
+        var detailService = Substitute.For<ITeamDetailService>();
+        detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(new ServiceResult<TeamDetailDto>(CreateTeamDetail())),
+                pending.Task);
+
+        RegisterServices(detailService: detailService, isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        auth.Change(CreatePrincipal(isClubAdmin: true, clubId: 43));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Loading team details...");
+            cut.Markup.ShouldNotContain("U16 Blue");
+        });
+
+        pending.SetResult(new ServiceResult<TeamDetailDto>(CreateTeamDetail(name: "U18 Crimson")));
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("U18 Crimson");
+            cut.Markup.ShouldNotContain("U16 Blue");
+        });
+    }
+
+    /// <summary>
     /// Verifies demotion to evaluator closes any open edit form and archive panel and hides
     /// the management action buttons on the currently loaded team.
     /// </summary>

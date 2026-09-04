@@ -663,6 +663,10 @@ public partial class TeamDetail(
             // Rebind to the newly claimed club: cancel in-flight work, close any open
             // management panels, drop the stale detail, and reload against the new scope.
             ResetTeamScopedState();
+            // AuthenticationStateChanged is an external event, so render the cleared/loading
+            // state before the reload's first await to avoid showing the previous team.
+            _isLoading = true;
+            await InvokeAsync(StateHasChanged);
             await LoadDetailAsync();
             await InvokeAsync(StateHasChanged);
             return;
