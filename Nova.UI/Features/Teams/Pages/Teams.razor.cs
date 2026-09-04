@@ -68,6 +68,13 @@ public partial class Teams(
     private bool _isMutating;
 
     /// <summary>
+    /// Monotonic guard incremented on every club-scope reset. A mutation's <c>finally</c> only clears
+    /// <see cref="_isMutating"/> when its captured generation is still current, so a previously
+    /// cancelled (or stalled) operation can never clear the flag of a newer mutation.
+    /// </summary>
+    private long _mutationGeneration;
+
+    /// <summary>
     /// Indicates whether the current user can create/edit/archive/restore teams.
     /// </summary>
     private bool _canManageTeams;
@@ -617,6 +624,7 @@ public partial class Teams(
     private async Task CreateTeamAsync(TeamFormState formState)
     {
         var teamToken = _teamScopedCts.Token;
+        var generation = _mutationGeneration;
         _isMutating = true;
         _formError = null;
         _actionError = null;
@@ -644,7 +652,10 @@ public partial class Teams(
         }
         finally
         {
-            _isMutating = false;
+            if (generation == _mutationGeneration)
+            {
+                _isMutating = false;
+            }
         }
 
         if (teamToken.IsCancellationRequested)
@@ -677,6 +688,7 @@ public partial class Teams(
     private async Task UpdateTeamAsync(TeamFormState formState)
     {
         var teamToken = _teamScopedCts.Token;
+        var generation = _mutationGeneration;
         _isMutating = true;
         _formError = null;
         _actionError = null;
@@ -704,7 +716,10 @@ public partial class Teams(
         }
         finally
         {
-            _isMutating = false;
+            if (generation == _mutationGeneration)
+            {
+                _isMutating = false;
+            }
         }
 
         if (teamToken.IsCancellationRequested)
@@ -795,6 +810,7 @@ public partial class Teams(
 
         _isMutating = true;
         var teamToken = _teamScopedCts.Token;
+        var generation = _mutationGeneration;
         _actionError = null;
         _archiveBlockers = [];
 
@@ -820,7 +836,10 @@ public partial class Teams(
         }
         finally
         {
-            _isMutating = false;
+            if (generation == _mutationGeneration)
+            {
+                _isMutating = false;
+            }
         }
 
         if (teamToken.IsCancellationRequested)
@@ -865,6 +884,7 @@ public partial class Teams(
 
         _isMutating = true;
         var teamToken = _teamScopedCts.Token;
+        var generation = _mutationGeneration;
         _statusMessage = null;
         _actionError = null;
 
@@ -890,7 +910,10 @@ public partial class Teams(
         }
         finally
         {
-            _isMutating = false;
+            if (generation == _mutationGeneration)
+            {
+                _isMutating = false;
+            }
         }
 
         if (teamToken.IsCancellationRequested)
@@ -1004,10 +1027,14 @@ public partial class Teams(
 
     /// <summary>
     /// Cancels and recreates the club-scoped mutation token source so in-flight mutations
-    /// cannot apply stale results to the newly scoped UI after a club change.
+    /// cannot apply stale results to the newly scoped UI after a club change, and releases
+    /// mutation ownership so a stalled or cancelled operation cannot keep the new club's
+    /// management controls disabled.
     /// </summary>
     private void ResetTeamScopedState()
     {
+        _mutationGeneration++;
+        _isMutating = false;
         _teamScopedCts.Cancel();
         _teamScopedCts.Dispose();
         _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);

@@ -278,6 +278,78 @@ public sealed class TeamComponentsTests : BunitContext
     }
 
     /// <summary>
+    /// A club switch cancels the previous club's in-flight mutation and must release mutation
+    /// ownership so the new club's management controls are not disabled by a stalled operation.
+    /// A stale mutation completing later must not clear the flag of a newer mutation.
+    /// </summary>
+    [Fact]
+    public void Teams_ReenablesMutationControls_WhenClubChangesDuringInFlightMutation()
+    {
+        var pendingCreate1 = new TaskCompletionSource<ServiceResult<TeamDto>>();
+        var pendingCreate2 = new TaskCompletionSource<ServiceResult<TeamDto>>();
+        var managementService = Substitute.For<ITeamManagementService>();
+        managementService.CreateAsync(Arg.Any<CreateTeamInput>(), Arg.Any<CancellationToken>())
+            .Returns(pendingCreate1.Task, pendingCreate2.Task);
+
+        RegisterServices(managementService: managementService, isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        // Start a create mutation that stalls on the pending task.
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Add team"));
+        cut.Find("#team-name").Change("U14 White");
+        cut.Find("#team-grad-year").Change(2034);
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Find("button[type='submit']").HasAttribute("disabled"));
+
+        // Switch club while the mutation is still in flight.
+        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+
+        // The new club's controls must be usable again immediately, even though the old
+        // mutation never completed.
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("U16 Blue");
+            cut.Markup.ShouldNotContain("Loading teams...");
+        });
+        cut.Find("button.btn-primary").HasAttribute("disabled").ShouldBeFalse();
+
+        // Start a second mutation for the new club, then complete the stale one. Its finally
+        // must not clear the newer mutation's flag.
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Add team"));
+        cut.Find("#team-name").Change("U18 Crimson");
+        cut.Find("#team-grad-year").Change(2032);
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Find("button[type='submit']").HasAttribute("disabled"));
+
+        pendingCreate1.SetResult(new ServiceResult<TeamDto>(new TeamDto
+        {
+            TeamId = 22,
+            ClubId = 43,
+            Name = "U16 Blue",
+            GraduationYear = 2032,
+            LifecycleStatus = LifecycleStatus.Active
+        }));
+        cut.Render();
+        cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeTrue();
+
+        pendingCreate2.SetResult(new ServiceResult<TeamDto>(new TeamDto
+        {
+            TeamId = 23,
+            ClubId = 43,
+            Name = "U18 Crimson",
+            GraduationYear = 2032,
+            LifecycleStatus = LifecycleStatus.Active
+        }));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Team created successfully."));
+    }
+
+    /// <summary>
     /// When club membership changes, graduation-year filter options must be derived from the
     /// new club's roster only — years from the previous club must not leak into the dropdown.
     /// </summary>
