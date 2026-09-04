@@ -304,11 +304,10 @@ public sealed class ClubCrestBrowserTests(BrowserSuiteFixture fixture)
     }
 
     /// <summary>
-    /// Extracts the club identifier from the navigation bar club link href (<c>Clubs/{id}</c>).
+    /// Resolves the current club identifier from the <c>/api/clubs/current</c> endpoint.
     /// </summary>
     /// <param name="page">The page to inspect.</param>
-    /// <param name="clubName">The club item label.</param>
-    /// <returns>The club identifier.</returns>
+    /// <returns>The current club identifier.</returns>
     private static Task<long> GetCurrentClubIdAsync(IPage page)
         => page.EvaluateAsync<long>(
             "async () => { const response = await fetch('/api/clubs/current'); const club = await response.json(); return club.clubId; }");

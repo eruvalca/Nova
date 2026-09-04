@@ -8,6 +8,7 @@ using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Teams.Components;
+using OneOf.Types;
 
 namespace Nova.UI.Features.Teams.Pages;
 
@@ -152,6 +153,13 @@ public partial class Teams(
     private CancellationTokenSource? _loadRosterSource;
 
     /// <summary>
+    /// Scoped cancellation token source for the current club's in-flight mutations; cancelled and
+    /// replaced when an authentication change moves to a different club so stale mutation results
+    /// cannot apply to the newly scoped UI.
+    /// </summary>
+    private CancellationTokenSource _teamScopedCts = new();
+
+    /// <summary>
     /// Monotonic request version used to ignore stale roster results.
     /// </summary>
     private long _loadRosterVersion;
@@ -219,6 +227,7 @@ public partial class Teams(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
         _ = ApplyQueryFiltersToState();
 
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
@@ -607,31 +616,29 @@ public partial class Teams(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task CreateTeamAsync(TeamFormState formState)
     {
+        var teamToken = _teamScopedCts.Token;
         _isMutating = true;
         _formError = null;
         _actionError = null;
         _cutoffBlockers = [];
 
-        var shouldReloadRoster = false;
+        ServiceResult<TeamDto> result;
         try
         {
-            var result = await teamManagementService.CreateAsync(formState.ToCreateInput(), ComponentCancellationToken);
-            result.Switch(
-                _ =>
-                {
-                    _showCreateForm = false;
-                    _createForm = TeamFormState.CreateDefault();
-                    _statusMessage = "Team created successfully.";
-                },
-                problem => _formError = problem.Detail ?? "Could not create team.");
-            shouldReloadRoster = result.IsSuccess;
+            result = await teamManagementService.CreateAsync(formState.ToCreateInput(), teamToken);
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _formError = "Could not create team. Please retry.";
             return;
         }
@@ -639,6 +646,22 @@ public partial class Teams(
         {
             _isMutating = false;
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var shouldReloadRoster = false;
+        result.Switch(
+            _ =>
+            {
+                _showCreateForm = false;
+                _createForm = TeamFormState.CreateDefault();
+                _statusMessage = "Team created successfully.";
+            },
+            problem => _formError = problem.Detail ?? "Could not create team.");
+        shouldReloadRoster = result.IsSuccess;
 
         if (shouldReloadRoster)
         {
@@ -653,38 +676,29 @@ public partial class Teams(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task UpdateTeamAsync(TeamFormState formState)
     {
+        var teamToken = _teamScopedCts.Token;
         _isMutating = true;
         _formError = null;
         _actionError = null;
         _cutoffBlockers = [];
 
-        var shouldReloadRoster = false;
+        ServiceResult<TeamDto> result;
         try
         {
-            var result = await teamManagementService.UpdateAsync(formState.ToUpdateInput(), ComponentCancellationToken);
-            result.Switch(
-                _ =>
-                {
-                    _editForm = null;
-                    _statusMessage = "Team updated successfully.";
-                },
-                problem =>
-                {
-                    _formError = problem.Detail ?? "Could not update team.";
-                    if (problem.Kind == ServiceProblemKind.Conflict
-                        && problem.TryGetGraduationYearBlockers(out var blockers))
-                    {
-                        _cutoffBlockers = blockers;
-                    }
-                });
-            shouldReloadRoster = result.IsSuccess;
+            result = await teamManagementService.UpdateAsync(formState.ToUpdateInput(), teamToken);
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _formError = "Could not update team. Please retry.";
             return;
         }
@@ -692,6 +706,29 @@ public partial class Teams(
         {
             _isMutating = false;
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var shouldReloadRoster = false;
+        result.Switch(
+            _ =>
+            {
+                _editForm = null;
+                _statusMessage = "Team updated successfully.";
+            },
+            problem =>
+            {
+                _formError = problem.Detail ?? "Could not update team.";
+                if (problem.Kind == ServiceProblemKind.Conflict
+                    && problem.TryGetGraduationYearBlockers(out var blockers))
+                {
+                    _cutoffBlockers = blockers;
+                }
+            });
+        shouldReloadRoster = result.IsSuccess;
 
         if (shouldReloadRoster)
         {
@@ -757,36 +794,27 @@ public partial class Teams(
         }
 
         _isMutating = true;
+        var teamToken = _teamScopedCts.Token;
         _actionError = null;
         _archiveBlockers = [];
 
-        var shouldReloadRoster = false;
+        ServiceResult<Success> result;
         try
         {
-            var result = await teamLifecycleService.ArchiveAsync(_archiveCandidate.TeamId, ComponentCancellationToken);
-            result.Switch(
-                _ =>
-                {
-                    _statusMessage = "Team archived.";
-                    ClearArchiveState();
-                },
-                problem =>
-                {
-                    _actionError = problem.Detail ?? "Could not archive team.";
-                    if (problem.Kind == ServiceProblemKind.Conflict
-                        && problem.TryGetArchiveBlockers(out var blockers))
-                    {
-                        _archiveBlockers = blockers;
-                    }
-                });
-            shouldReloadRoster = result.IsSuccess;
+            result = await teamLifecycleService.ArchiveAsync(_archiveCandidate.TeamId, teamToken);
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _actionError = "Could not archive team. Please retry.";
             return;
         }
@@ -794,6 +822,28 @@ public partial class Teams(
         {
             _isMutating = false;
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        result.Switch(
+            _ =>
+            {
+                _statusMessage = "Team archived.";
+                ClearArchiveState();
+            },
+            problem =>
+            {
+                _actionError = problem.Detail ?? "Could not archive team.";
+                if (problem.Kind == ServiceProblemKind.Conflict
+                    && problem.TryGetArchiveBlockers(out var blockers))
+                {
+                    _archiveBlockers = blockers;
+                }
+            });
+        var shouldReloadRoster = result.IsSuccess;
 
         if (shouldReloadRoster)
         {
@@ -814,23 +864,27 @@ public partial class Teams(
         }
 
         _isMutating = true;
+        var teamToken = _teamScopedCts.Token;
         _statusMessage = null;
         _actionError = null;
-        var shouldReloadRoster = false;
+
+        ServiceResult<Success> result;
         try
         {
-            var result = await teamLifecycleService.RestoreAsync(team.TeamId, ComponentCancellationToken);
-            result.Switch(
-                _ => _statusMessage = "Team restored.",
-                problem => _actionError = problem.Detail ?? "Could not restore team.");
-            shouldReloadRoster = result.IsSuccess;
+            result = await teamLifecycleService.RestoreAsync(team.TeamId, teamToken);
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _actionError = "Could not restore team. Please retry.";
             return;
         }
@@ -838,6 +892,16 @@ public partial class Teams(
         {
             _isMutating = false;
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        result.Switch(
+            _ => _statusMessage = "Team restored.",
+            problem => _actionError = problem.Detail ?? "Could not restore team.");
+        var shouldReloadRoster = result.IsSuccess;
 
         if (shouldReloadRoster)
         {
@@ -877,9 +941,19 @@ public partial class Teams(
         return $"{ClubRoutes.Teams}?{string.Join("&", querySegments)}";
     }
 
+    /// <summary>
+    /// Handles an authentication state change by applying it on the component's renderer.
+    /// </summary>
+    /// <param name="stateTask">The pending authentication state.</param>
     private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
         => _ = InvokeAsync(() => ApplyAuthenticationStateAsync(stateTask));
 
+    /// <summary>
+    /// Applies the latest authentication state, cancelling in-flight mutations and reloading the
+    /// roster when the authenticated club changes, or hiding management when admin rights are lost.
+    /// </summary>
+    /// <param name="stateTask">The pending authentication state.</param>
+    /// <returns>A task that completes when the club/role rebind and any reload are finished.</returns>
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
     {
         var authState = await stateTask;
@@ -895,6 +969,7 @@ public partial class Teams(
 
         if (clubChanged)
         {
+            ResetTeamScopedState();
             ResetManagementState();
             ResetRosterState();
 
@@ -925,6 +1000,17 @@ public partial class Teams(
 
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    /// <summary>
+    /// Cancels and recreates the club-scoped mutation token source so in-flight mutations
+    /// cannot apply stale results to the newly scoped UI after a club change.
+    /// </summary>
+    private void ResetTeamScopedState()
+    {
+        _teamScopedCts.Cancel();
+        _teamScopedCts.Dispose();
+        _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
     }
 
     /// <summary>
@@ -972,6 +1058,8 @@ public partial class Teams(
         _loadRosterSource?.Cancel();
         _loadRosterSource?.Dispose();
         _loadRosterSource = null;
+        _teamScopedCts?.Cancel();
+        _teamScopedCts?.Dispose();
         return ValueTask.CompletedTask;
     }
 }

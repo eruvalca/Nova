@@ -643,9 +643,18 @@ public partial class TeamDetail(
         return candidate.StartsWith('/') ? candidate : $"/{candidate}";
     }
 
+    /// <summary>
+    /// Handles an authentication-state change event by scheduling the state application on the dispatcher.
+    /// </summary>
+    /// <param name="stateTask">The authentication state task produced by the change event.</param>
     private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
         => _ = InvokeAsync(() => ApplyAuthenticationStateAsync(stateTask));
 
+    /// <summary>
+    /// Applies an authentication-state change by rebinding the claimed club and management
+    /// permission, cancelling in-flight work and reloading the detail when the club scope changes.
+    /// </summary>
+    /// <param name="stateTask">The authentication state task produced by the change event.</param>
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
     {
         var authState = await stateTask;
