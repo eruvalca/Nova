@@ -821,7 +821,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
         // Every primary route is visible with an accessible (non-empty) name — full label, no
         // truncation-based accessible-name loss.
-        foreach (var label in new[] { "Dashboard", clubName, "Campaigns", "Players" })
+        foreach (var label in new[] { "Dashboard", clubName, "Campaigns", "Players", "Teams" })
         {
             var link = nav.GetByRole(AriaRole.Link, new() { Name = label, Exact = true });
             await Expect(link).ToBeVisibleAsync();
@@ -1034,6 +1034,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
             (nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true }), "club crest"),
             (nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }), "Campaigns"),
             (nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }), "Players"),
+            (nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }), "Teams"),
             (nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false }), "Manage"),
             (nav.GetByRole(AriaRole.Button, new() { Name = "Logout", Exact = true }), "Logout"),
         };

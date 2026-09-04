@@ -37,7 +37,8 @@ public sealed class ClubShellContractTests
         var positions = labels.Select(label => markup.IndexOf($">{label}<", StringComparison.Ordinal)).ToArray();
         positions.ShouldAllBe(position => position >= 0);
         positions.ShouldBeInOrder();
-        markup.ShouldContain("data-bs-toggle=\"collapse\"");
+        markup.ShouldContain("@onclick=\"ToggleDirectory\"");
+        markup.ShouldContain("aria-expanded=\"@(_isDirectoryOpen ? \"true\" : \"false\")\"");
         css.ShouldContain("@media (scripting: none)");
         css.ShouldContain("min-height: 2.75rem");
     }

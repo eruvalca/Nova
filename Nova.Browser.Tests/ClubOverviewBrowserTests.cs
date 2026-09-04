@@ -44,16 +44,11 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
             var page = context.Pages[0];
             await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Overview).ToString());
 
-            // Move the page to WebAssembly before driving the collapse: on the first visit the page
-            // renders on the InteractiveServer circuit, and a server-side re-render of the Club shell
-            // (fired shortly after load, once its async state settles) replaces the <nav> element and
-            // resets Bootstrap's runtime-added classes — the re-render can land mid-transition, snapping
-            // the sheet closed before the keyboard walk.
-            //
-            // Navigation focus review requirement: Wait for the shell's async state to settle (roles +
-            // club identity + season data) before opening the sheet. Once settled, the collapse is the
-            // only writer of the sheet's classes, and a keyboard Enter on a directory link routes
-            // through the interactive Router, whose FocusOnNavigate moves focus to the destination h1.
+            // The Club shell owns the sheet's open state in Blazor (@onclick + aria-expanded),
+            // so re-renders cannot snap the sheet closed as Bootstrap's runtime class plumbing
+            // could. The async-state settle wait is still needed: the toggle's @onclick handler is
+            // inert until the interactive circuit attaches, so wait for the identity + season to
+            // settle, then retry the Enter until the sheet shows (the hydration-retry pattern).
             await Expect(page.Locator(".club-identity").GetByText(seed.ClubName, new() { Exact = true })).ToBeVisibleAsync();
             await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Current season", Exact = true })).ToBeVisibleAsync();
 
@@ -67,16 +62,19 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
             // (focus + Enter, then tabbing reaches the directory links), not only pointer click.
             await toggle.FocusAsync();
             await Expect(toggle).ToBeFocusedAsync();
-            await page.Keyboard.PressAsync("Enter");
             var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
+            await InteractionHelpers.ActUntilAsync(
+                page,
+                () => page.Keyboard.PressAsync("Enter"),
+                async () => await page.Locator(".club-route-directory").EvaluateAsync<bool>(
+                    "el => el.classList.contains('show')"));
+
+            // The sheet is fully open and its links are tab-reachable. While the nav is in a
+            // transition its links are not yet reachable (focus bounces toggle -> body -> toggle),
+            // so wait for the "show" state before walking the tab order.
+            await Expect(page.Locator(".club-route-directory")).ToHaveClassAsync(new Regex(@"\bshow\b"));
             await Expect(directory.GetByRole(AriaRole.Link, new() { Name = "Crest", Exact = true })).ToBeVisibleAsync();
             var teams = directory.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true });
-
-            // Wait for the Bootstrap collapse to finish its transition and reach the fully-open
-            // "show" state before walking the tab order: while the nav is "collapsing" its links
-            // are not yet tab-reachable (focus bounces toggle -> body -> toggle, never into the
-            // directory), which makes the keyboard tab loop fail deterministically.
-            await Expect(page.Locator(".club-route-directory")).ToHaveClassAsync(new Regex(@"\bshow\b"));
             await InteractionHelpers.TabUntilFocusedAsync(page, teams);
 
             // Following a directory route with the keyboard must land focus on the destination
@@ -129,7 +127,7 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
 
         await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Seasons).ToString());
         new Uri(page.Url).PathAndQuery.ShouldBe(ClubRoutes.OverviewWithPermissionsChanged);
-        await Expect(page.GetByText("Your permissions changed. Club navigation now reflects your current access."))
+        await Expect(page.GetByText("You don't have access to that section. Club navigation reflects your current permissions."))
             .ToBeVisibleAsync();
     }
 

@@ -8,13 +8,13 @@
             <span class="club-directory-mark" aria-hidden="true"></span>
             <strong>Club</strong>
         </div>
-        <button class="club-directory-toggle" type="button" data-bs-toggle="collapse"
-                data-bs-target="#club-route-directory" aria-controls="club-route-directory"
-                aria-expanded="false">
+        <button class="club-directory-toggle" type="button" @onclick="ToggleDirectory"
+                aria-controls="club-route-directory" aria-expanded="@(_isDirectoryOpen ? "true" : "false")">
             <span>@CurrentLabel</span>
             <span class="bi bi-chevron-down" aria-hidden="true"></span>
         </button>
-        <nav class="collapse club-route-directory" id="club-route-directory" aria-label="Club directory">
+        <nav class="@(_isDirectoryOpen ? "collapse show" : "collapse") club-route-directory"
+             id="club-route-directory" aria-label="Club directory">
             <ul>
                 <li><NavLink href="@ClubRoutes.Overview" Match="NavLinkMatch.All">Overview</NavLink></li>
                 @if (_isClubAdmin)

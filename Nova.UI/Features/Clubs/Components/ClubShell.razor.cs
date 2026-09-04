@@ -16,6 +16,12 @@ public partial class ClubShell(AuthenticationStateProvider authenticationStatePr
     private bool _isClubAdmin;
 
     /// <summary>
+    /// Whether the club directory sheet is open. The shell owns this state in Blazor so
+    /// re-renders cannot snap the sheet closed, as Bootstrap's class-based collapse did.
+    /// </summary>
+    private bool _isDirectoryOpen;
+
+    /// <summary>
     /// The label rendered for the current club route.
     /// </summary>
     [Parameter, EditorRequired]
@@ -26,6 +32,11 @@ public partial class ClubShell(AuthenticationStateProvider authenticationStatePr
     /// </summary>
     [Parameter, EditorRequired]
     public required RenderFragment ChildContent { get; set; }
+
+    /// <summary>
+    /// Toggles the club directory sheet between its collapsed and expanded states.
+    /// </summary>
+    private void ToggleDirectory() => _isDirectoryOpen = !_isDirectoryOpen;
 
     /// <inheritdoc />
     protected override void OnInitialized()

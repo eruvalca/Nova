@@ -16,7 +16,7 @@
 .identity-lockup img, .crest-fallback { flex: 0 0 auto; width: clamp(5rem, 10vw, 8rem); height: clamp(5rem, 10vw, 8rem); border-radius: 50%; object-fit: cover; }
 .crest-fallback { display: grid; place-items: center; border: 1px solid var(--bs-border-color); color: var(--bs-primary-text-emphasis); background: var(--bs-primary-bg-subtle); font-weight: 800; font-size: 1.25rem; }
 .identity-lockup h2 { margin-bottom: .35rem; color: var(--bs-emphasis-color); font-size: clamp(2.25rem, 4.5vw, 4.25rem); letter-spacing: -.03em; text-transform: none; overflow-wrap: anywhere; }
-.identity-lockup p { margin: 0; font-size: 1rem; }
+.identity-lockup p { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
 .active-work .waypoint-content { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 2rem; max-width: none; }
 .active-work-copy { min-width: 0; }
 .active-work-action { min-height: 2.75rem; align-content: center; }

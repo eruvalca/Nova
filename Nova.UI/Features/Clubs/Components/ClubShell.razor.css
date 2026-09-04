@@ -84,10 +84,6 @@
 @media (scripting: none) and (max-width: 991.98px) {
     .club-directory-toggle { display: none; }
     .club-route-directory { display: block !important; margin: 0; overflow-x: auto; }
-    .club-route-directory ul { display: flex; max-height: none; width: max-content; padding: 0 .35rem; }
+    .club-route-directory ul { display: flex; max-height: none; width: max-content; padding: .35rem .35rem; }
     .club-route-directory ::deep a { white-space: nowrap; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .club-route-directory.collapsing { transition: none; }
 }
