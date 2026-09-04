@@ -73,7 +73,7 @@ public sealed partial class SeasonQueryService(
                 throw;
             }
 
-            LogSeasonListReadFailed(exception);
+            LogSeasonListReadFailed(exception, currentUserProvider.UserId ?? 0, clubId);
             return ServiceProblem.ServerError("The season list is unavailable.");
         }
     }
@@ -155,7 +155,7 @@ public sealed partial class SeasonQueryService(
                 throw;
             }
 
-            LogSeasonDetailReadFailed(exception);
+            LogSeasonDetailReadFailed(exception, currentUserProvider.UserId ?? 0, clubId, input.SeasonId);
             return ServiceProblem.ServerError("The season detail is unavailable.");
         }
     }
@@ -187,11 +187,16 @@ public sealed partial class SeasonQueryService(
 
     /// <summary>Logs a season-list read failure.</summary>
     /// <param name="exception">The thrown exception.</param>
-    [LoggerMessage(Level = LogLevel.Error, Message = "Season list read failed.")]
-    private partial void LogSeasonListReadFailed(Exception exception);
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Season list read failed for UserId={UserId}, ClubId={ClubId}.")]
+    private partial void LogSeasonListReadFailed(Exception exception, long userId, long clubId);
 
     /// <summary>Logs a season-detail read failure.</summary>
     /// <param name="exception">The thrown exception.</param>
-    [LoggerMessage(Level = LogLevel.Error, Message = "Season detail read failed.")]
-    private partial void LogSeasonDetailReadFailed(Exception exception);
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="seasonId">The requested season identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Season detail read failed for UserId={UserId}, ClubId={ClubId}, SeasonId={SeasonId}.")]
+    private partial void LogSeasonDetailReadFailed(Exception exception, long userId, long clubId, long seasonId);
 }

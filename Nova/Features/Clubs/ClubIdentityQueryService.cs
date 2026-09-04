@@ -49,7 +49,7 @@ public sealed partial class ClubIdentityQueryService(
                 throw;
             }
 
-            LogClubIdentityReadFailed(exception);
+            LogClubIdentityReadFailed(exception, currentUserProvider.UserId ?? 0, clubId);
             return ServiceProblem.ServerError("The current club identity is unavailable.");
         }
     }
@@ -58,6 +58,8 @@ public sealed partial class ClubIdentityQueryService(
     /// Logs a club identity read failure.
     /// </summary>
     /// <param name="exception">The thrown exception.</param>
-    [LoggerMessage(Level = LogLevel.Error, Message = "Club identity read failed.")]
-    private partial void LogClubIdentityReadFailed(Exception exception);
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Club identity read failed for UserId={UserId}, ClubId={ClubId}.")]
+    private partial void LogClubIdentityReadFailed(Exception exception, long userId, long clubId);
 }

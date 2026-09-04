@@ -7,7 +7,7 @@
 .club-route-spine { max-width: 72rem; }
 .club-waypoint { position: relative; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 1.25rem; padding-bottom: clamp(2.5rem, 6vw, 4.5rem); }
 .club-waypoint:not(.last)::before { content: ""; position: absolute; left: .43rem; top: 1.1rem; bottom: 0; width: 1px; background: var(--bs-border-color); }
-.waypoint-marker { position: relative; z-index: 1; width: .9rem; height: .9rem; margin-top: .4rem; border: 3px solid var(--bs-body-bg); border-radius: 50%; background: var(--bs-warning); outline: 1px solid var(--bs-warning-border-subtle); }
+.waypoint-marker { position: relative; z-index: 1; width: .9rem; height: .9rem; margin-top: .4rem; border: 3px solid var(--bs-body-bg); border-radius: 50%; background: var(--bs-primary); outline: 1px solid var(--bs-primary-border-subtle); }
 .waypoint-content { min-width: 0; max-width: 58rem; }
 .waypoint-content h2 { margin: 0 0 1rem; font-size: .86rem; letter-spacing: .08em; text-transform: uppercase; color: var(--bs-secondary-color); }
 .waypoint-content h3 { margin: 0 0 .45rem; font-size: 1.25rem; overflow-wrap: anywhere; }

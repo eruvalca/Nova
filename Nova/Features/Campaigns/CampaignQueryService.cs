@@ -130,7 +130,7 @@ public sealed partial class CampaignQueryService(
                 throw;
             }
 
-            LogCampaignListReadFailed(exception);
+            LogCampaignListReadFailed(exception, currentUserProvider.UserId ?? 0, clubId);
             return ServiceProblem.ServerError("The campaign list is unavailable.");
         }
     }
@@ -204,7 +204,7 @@ public sealed partial class CampaignQueryService(
                 throw;
             }
 
-            LogCampaignDetailReadFailed(exception);
+            LogCampaignDetailReadFailed(exception, currentUserProvider.UserId ?? 0, clubId, input.CampaignId);
             return ServiceProblem.ServerError("The campaign detail is unavailable.");
         }
     }
@@ -272,7 +272,7 @@ public sealed partial class CampaignQueryService(
                 throw;
             }
 
-            LogCreationSetupReadFailed(exception);
+            LogCreationSetupReadFailed(exception, currentUserProvider.UserId ?? 0, clubId);
             return ServiceProblem.ServerError("Campaign creation setup is unavailable.");
         }
     }
@@ -442,18 +442,25 @@ public sealed partial class CampaignQueryService(
 
     /// <summary>Logs a campaign-list read failure.</summary>
     /// <param name="exception">The thrown exception.</param>
-    [LoggerMessage(Level = LogLevel.Error, Message = "Campaign list read failed.")]
-    private partial void LogCampaignListReadFailed(Exception exception);
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Campaign list read failed for UserId={UserId}, ClubId={ClubId}.")]
+    private partial void LogCampaignListReadFailed(Exception exception, long userId, long clubId);
 
     /// <summary>Logs a campaign-detail read failure.</summary>
     /// <param name="exception">The thrown exception.</param>
-    [LoggerMessage(Level = LogLevel.Error, Message = "Campaign detail read failed.")]
-    private partial void LogCampaignDetailReadFailed(Exception exception);
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="campaignId">The requested campaign identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Campaign detail read failed for UserId={UserId}, ClubId={ClubId}, CampaignId={CampaignId}.")]
+    private partial void LogCampaignDetailReadFailed(Exception exception, long userId, long clubId, long campaignId);
 
     /// <summary>Logs a creation-setup read failure.</summary>
     /// <param name="exception">The thrown exception.</param>
-    [LoggerMessage(Level = LogLevel.Error, Message = "Campaign creation setup read failed.")]
-    private partial void LogCreationSetupReadFailed(Exception exception);
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Campaign creation setup read failed for UserId={UserId}, ClubId={ClubId}.")]
+    private partial void LogCreationSetupReadFailed(Exception exception, long userId, long clubId);
 
     /// <summary>Logs an opening-readiness request rejected because the caller is not a club administrator.</summary>
     /// <param name="campaignId">The requested campaign identifier.</param>
