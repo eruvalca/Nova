@@ -81,6 +81,8 @@ public partial class Teams(
 
     /// <summary>Orders authentication results across startup, notifications, and disposal.</summary>
     private int _authenticationVersion;
+    /// <summary>Distinguishes an applied clubless identity from uninitialized field defaults.</summary>
+    private bool _identityApplied;
 
     /// <summary>
     /// Stores the current user's club identifier from claims.
@@ -248,6 +250,7 @@ public partial class Teams(
         }
         var principal = authenticationState.User;
 
+        _identityApplied = true;
         _canManageTeams = principal.IsInRole(Roles.ClubAdmin);
         _clubId = ReadClubIdClaim(principal);
 
@@ -1004,8 +1007,9 @@ public partial class Teams(
         var clubId = ReadClubIdClaim(principal);
 
         var roleChanged = canManageTeams != _canManageTeams;
-        var clubChanged = clubId != _clubId;
+        var clubChanged = !_identityApplied || clubId != _clubId;
 
+        _identityApplied = true;
         _canManageTeams = canManageTeams;
         _clubId = clubId;
 

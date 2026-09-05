@@ -50,6 +50,8 @@ public partial class CampaignEntry(
     private string? _error;
     /// <summary>Failure from the latest opening-readiness refresh.</summary>
     private string? _readinessError;
+    /// <summary>Explains missing current-season choices and keeps metadata editing unavailable until retry.</summary>
+    private string? _setupError;
     /// <summary>Current command failure or uncertain outcome.</summary>
     private string? _mutationError;
     /// <summary>Server validation errors keyed by metadata field.</summary>
@@ -147,6 +149,7 @@ public partial class CampaignEntry(
         Readiness = null;
         SnapshotScope = null;
         Setup = null;
+        _setupError = null;
         _edit = null;
         _team = null;
         _openingId = null;
@@ -293,6 +296,9 @@ public partial class CampaignEntry(
     {
         var version = ++_version;
         _error = null;
+        _setupError = null;
+        Setup = null;
+        _edit = null;
         _unavailable = false;
         try
         {
@@ -335,6 +341,11 @@ public partial class CampaignEntry(
             }
 
             Setup = setup.IsSuccess ? setup.Value : null;
+            if (setup.IsProblem)
+            {
+                _setupError = Explain(setup.Problem);
+                _edit = null;
+            }
             await RefreshReadinessAsync(version);
         }
         catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested) { throw; }
@@ -387,6 +398,10 @@ public partial class CampaignEntry(
     /// <summary>Starts a metadata correction with a fresh validation state.</summary>
     private void BeginEdit()
     {
+        if (Setup is null)
+        {
+            return;
+        }
         _fieldErrors = null;
         if (Detail is not null)
         {

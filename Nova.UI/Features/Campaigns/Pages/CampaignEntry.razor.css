@@ -46,3 +46,7 @@ h1 { font-size: calc(var(--draft-unit) * 3); font-weight: 600; }
 
 @media (max-width: 1199.98px) { .draft-field { --draft-unit: 1rem; } }
 button, .btn { min-height: 2.75rem; }
+.draft-field ::deep button,
+.draft-field ::deep .btn,
+.draft-field ::deep .form-control,
+.draft-field ::deep .form-select { min-height: 2.75rem; }

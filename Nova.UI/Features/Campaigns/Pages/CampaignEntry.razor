@@ -62,7 +62,11 @@ else
             <div class="draft-grid">
                 <div class="draft-preparation">
                     <section class="draft-board draft-details" aria-labelledby="draft-details-heading">
-                        <div class="draft-section-heading"><h2 id="draft-details-heading">Campaign details</h2><button class="btn btn-outline-primary" disabled="@(!_sessionReady || _busy || _openingId is not null)" @onclick="BeginEdit">Edit</button></div>
+                        <div class="draft-section-heading"><h2 id="draft-details-heading">Campaign details</h2><button class="btn btn-outline-primary" disabled="@(!_sessionReady || _busy || _openingId is not null || Setup is null)" @onclick="BeginEdit">Edit</button></div>
+                        @if (_setupError is not null)
+                        {
+                            <div role="alert">@_setupError <button class="btn btn-outline-primary" disabled="@_busy" @onclick="ReloadAsync">Retry campaign setup</button></div>
+                        }
                         @if (_edit is not null)
                         {
                             <CampaignMetadataForm Heading="Edit campaign details" Model="_edit" Seasons="@(Setup?.CurrentSeason is { } season ? [season] : [])" IsSubmitting="_busy" ErrorMessage="@_mutationError" ServerErrors="_fieldErrors" OnValidSubmit="SaveDetailsAsync" OnCancel="CancelEdit" />

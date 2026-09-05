@@ -20,6 +20,27 @@ namespace Nova.Unit.Tests.Teams;
 /// </summary>
 public sealed class TeamComponentsTests : BunitContext
 {
+    /// <summary>Verifies an empty identity overtaking startup reaches the club-required state without a team query.</summary>
+    [Fact]
+    public async Task Teams_AppliesEmptyIdentity_WhenItOvertakesStartup()
+    {
+        RegisterServices(isClubAdmin: true);
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        var authentication = new DeferredAuthentication(pending.Task);
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<TeamsPage>();
+        var roster = Services.GetRequiredService<ITeamRosterService>();
+
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(new AuthenticationState(new ClaimsPrincipal()))));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("You must join a club before viewing the team roster."));
+        cut.Instance.Initialized.ShouldBeTrue();
+        await cut.InvokeAsync(() => pending.SetResult(new AuthenticationState(CreatePrincipal(true, false))));
+        cut.Markup.ShouldContain("You must join a club before viewing the team roster.");
+        cut.FindAll("tbody tr").ShouldBeEmpty();
+        roster.ReceivedCalls().ShouldBeEmpty();
+    }
+
     /// <summary>Verifies late administrator authentication cannot overwrite a newer revocation.</summary>
     /// <param name="startup">Whether the older task is the initial authentication read.</param>
     [Theory(IncludeTestCaseIndex = true)]

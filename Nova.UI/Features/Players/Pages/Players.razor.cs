@@ -88,6 +88,8 @@ public partial class Players(
 
     /// <summary>Orders asynchronous authentication notifications and startup authentication.</summary>
     private int _authenticationVersion;
+    /// <summary>Distinguishes an applied clubless identity from uninitialized field defaults.</summary>
+    private bool _identityApplied;
 
     /// <summary>Gets the identity and authority that own the current persisted snapshot.</summary>
     private string CurrentScope => $"{_userId}:{_clubId}:{_canManagePlayers}";
@@ -263,6 +265,7 @@ public partial class Players(
         }
         var principal = authenticationState.User;
 
+        _identityApplied = true;
         _canManagePlayers = principal.IsInRole(Roles.ClubAdmin);
         _clubId = ReadClubIdClaim(principal);
         _userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -310,13 +313,14 @@ public partial class Players(
             var clubId = ReadClubIdClaim(state.User);
             var userId = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var canManagePlayers = state.User.IsInRole(Roles.ClubAdmin);
-            if (clubId == _clubId && userId == _userId && canManagePlayers == _canManagePlayers)
+            if (_identityApplied && clubId == _clubId && userId == _userId && canManagePlayers == _canManagePlayers)
             {
                 return;
             }
 
             ++_identityVersion;
             ++_rosterVersion;
+            _identityApplied = true;
             _clubId = clubId;
             _userId = userId;
             _canManagePlayers = canManagePlayers;

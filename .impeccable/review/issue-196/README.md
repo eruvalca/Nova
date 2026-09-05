@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round thirteen on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,537 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through thirteen change UI state/rendering and tests only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
+Validated for PR #244 review round fourteen on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,540 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL and embedded form touch-target coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through fourteen change UI state/rendering and tests only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -137,3 +137,15 @@ The thirteenth review round blocks opening while deletion confirmation is open a
 Round thirteen focused validation passed with `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignEntryTests'` (34 tests). A declaration scan found no undocumented private or protected members in `CampaignEntry.razor.cs` or `NewCampaign.razor.cs`.
 
 The initial round-thirteen browser run exposed a prerender focus race in `Overview_MobileSheet_OpensCompleteDirectory_AndNoScriptShowsRoutes`: it asserted focus before interactive attachment could replace the button. The test now asserts focus after its existing keyboard activation retry opens the menu, preserving the focus and keyboard assertions on the surviving interactive element.
+
+The fourteenth review round distinguishes an applied clubless identity from default fields in Players and Teams, so authentication notifications that overtake startup still publish the club-required state. Draft setup failures retain their explanation, disable metadata editing, and expose a retry. Scoped descendant selectors apply the 44-pixel minimum height to embedded metadata and team form controls.
+
+| Requirement | Regression evidence |
+|---|---|
+| Apply an empty identity before pending startup, initialize the unavailable roster, and ignore the late administrator | `Players_AppliesEmptyIdentity_WhenItOvertakesStartup`, `Teams_AppliesEmptyIdentity_WhenItOvertakesStartup` |
+| Keep Draft details visible while setup fails, disable Edit, and restore season options on explicit retry | `CampaignEntry_DisablesEdit_WhenSetupFails_AndRecoversOnRetry` |
+| Measure visible embedded form inputs, selects, and buttons at a 390-pixel viewport | Existing `CampaignDraftBrowserTests` creation/correction and first-team journeys call `AssertNestedFormTouchTargetsAsync` |
+
+Initial round-fourteen validation corrected missing required fixture counts and narrowed the Teams empty-roster assertion to table rows because the search placeholder contains the sample team's name. An unrelated workspace debounce test failed during the first full unit run with concurrent format verification; all 78 workspace tests passed in isolation and the subsequent full unit run passed all 2,540 tests.
+
+The first browser run passed 118 tests and failed the Draft keyboard transition and an account-photo interaction timeout. The Draft test now waits for the canceled metadata form to disappear before pressing Enter on the opening button; its Roster focus assertion remains intact. The subsequent full browser run passed all 120 tests with seven optional screenshot checks skipped, including the account-photo scenario without changes to that test or feature.

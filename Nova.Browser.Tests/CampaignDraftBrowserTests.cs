@@ -47,8 +47,12 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         await Expect(commit).ToBeEnabledAsync();
         (await page.EvaluateAsync<bool>("document.documentElement.scrollWidth <= innerWidth")).ShouldBeTrue();
         await CaptureAsync(page, "preparation-mobile");
-        await commit.FocusAsync();
-        await page.Keyboard.PressAsync("Enter");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Edit", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#edit-campaign-name")).ToBeVisibleAsync();
+        await AssertNestedFormTouchTargetsAsync(page);
+        await page.Locator("form").GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#edit-campaign-name")).ToBeHiddenAsync();
+        await commit.PressAsync("Enter");
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster", Exact = true })).ToBeFocusedAsync();
         await Expect(page.GetByRole(AriaRole.Status).Filter(new() { HasText = "Campaign opened and enrolled 24 players." })).ToBeVisibleAsync();
         page.Url.ShouldContain("/roster");
@@ -165,6 +169,9 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Open campaign and enroll 0 players" })).ToBeDisabledAsync();
         await CaptureAsync(page, "preparation-blocked");
         await page.GetByRole(AriaRole.Button, new() { Name = "Create team", Exact = true }).ClickAsync();
+        await page.SetViewportSizeAsync(390, 844);
+        await Expect(page.GetByLabel("Team name")).ToBeVisibleAsync();
+        await AssertNestedFormTouchTargetsAsync(page);
         await page.GetByLabel("Team name").FillAsync("Winter blue");
         await page.GetByLabel("Graduation year").FillAsync("2030");
         await page.Locator("form").GetByRole(AriaRole.Button, new() { Name = "Create team", Exact = true }).ClickAsync();
@@ -178,6 +185,22 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         await using var context = fixture.AppHost.CreateAdminContext();
         (await context.Campaigns.AnyAsync(item => item.ClubId == seed.ClubId, ct)).ShouldBeFalse();
         (await context.Teams.SingleAsync(item => item.ClubId == seed.ClubId, ct)).Name.ShouldBe("Winter blue");
+    }
+
+    /// <summary>Checks the rendered child form controls meet the mobile touch-target height.</summary>
+    /// <param name="page">The Draft page with an open metadata or team form.</param>
+    /// <returns>A task completing when all visible controls are measured.</returns>
+    private static async Task AssertNestedFormTouchTargetsAsync(IPage page)
+    {
+        var controls = page.Locator("form input:visible, form select:visible, form button:visible");
+        var count = await controls.CountAsync();
+        count.ShouldBeGreaterThanOrEqualTo(4);
+        for (var index = 0; index < count; index++)
+        {
+            var control = controls.Nth(index);
+            var bounds = await control.BoundingBoxAsync();
+            bounds.ShouldNotBeNull().Height.ShouldBeGreaterThanOrEqualTo(44);
+        }
     }
 
     private async Task CreateDraftAsync(IPage page, string name)

@@ -21,6 +21,29 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>Verifies Draft readiness and opening recovery through the rendered administrator controls.</summary>
 public sealed class CampaignEntryTests : BunitContext
 {
+    /// <summary>Verifies missing setup disables metadata editing without hiding the Draft and explicit retry restores season choices.</summary>
+    [Fact]
+    public void CampaignEntry_DisablesEdit_WhenSetupFails_AndRecoversOnRetry()
+    {
+        var (queries, _) = Register(ReadyWithoutTeams());
+        queries.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignCreationSetupResult>(ServiceProblem.ServerError("Setup unavailable")));
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Draft"));
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").HasAttribute("disabled").ShouldBeTrue();
+        cut.Markup.ShouldContain("Setup unavailable");
+        queries.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
+            { CurrentSeason = new CampaignSeasonChoice { SeasonId = 5, Name = "Recovered season", StartDate = new DateOnly(2026, 1, 1) }, ActivePlayerCount = 3, ActiveTeamCount = 0 }));
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry campaign setup").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").HasAttribute("disabled").ShouldBeFalse());
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        cut.FindAll("select option").ShouldContain(option => option.TextContent.StartsWith("Recovered season", StringComparison.Ordinal));
+        cut.Markup.ShouldNotContain("Setup unavailable");
+    }
+
     /// <summary>Verifies choosing deletion blocks opening until the administrator keeps the Draft.</summary>
     [Fact]
     public void CampaignEntry_BlocksOpening_DuringDeleteConfirmation()

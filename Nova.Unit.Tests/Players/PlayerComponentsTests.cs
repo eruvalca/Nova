@@ -20,6 +20,26 @@ namespace Nova.Unit.Tests.Players;
 /// </summary>
 public sealed class PlayerComponentsTests : BunitContext
 {
+    /// <summary>Verifies an empty identity overtaking startup reaches the club-required state without loading another user's roster.</summary>
+    [Fact]
+    public async Task Players_AppliesEmptyIdentity_WhenItOvertakesStartup()
+    {
+        RegisterServices(isClubAdmin: true);
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        var authentication = new DeferredAuthentication(pending.Task);
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<PlayersPage>();
+
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(new AuthenticationState(new ClaimsPrincipal()))));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("You must join a club before viewing the player roster."));
+        cut.Instance.Initialized.ShouldBeTrue();
+        await cut.InvokeAsync(() => pending.SetResult(new AuthenticationState(CreatePrincipal(true))));
+        cut.Markup.ShouldContain("You must join a club before viewing the player roster.");
+        cut.Markup.ShouldNotContain("Avery Johnson");
+        await Services.GetRequiredService<IPlayerService>().DidNotReceive().GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Verifies role loss discards a checked archive confirmation and restoring access requires fresh consent.</summary>
     [Fact]
     public async Task Players_DiscardsArchiveConfirmation_WhenAdministratorRoleIsLost()
@@ -751,6 +771,18 @@ public sealed class PlayerComponentsTests : BunitContext
             PersistedRoster = new PagedResult<PlayerListItem>(CreateRosterItems(), 1, 50, 1);
             return base.OnInitializedAsync();
         }
+    }
+
+    /// <summary>Controls the startup identity independently of later notifications.</summary>
+    /// <param name="initial">The startup identity task.</param>
+    private sealed class DeferredAuthentication(Task<AuthenticationState> initial) : AuthenticationStateProvider
+    {
+        /// <inheritdoc />
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => initial;
+
+        /// <summary>Publishes a newer identity task.</summary>
+        /// <param name="state">The state to publish.</param>
+        public void Publish(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
     }
 
     /// <summary>
