@@ -20,6 +20,36 @@ namespace Nova.Unit.Tests.Teams;
 /// </summary>
 public sealed class TeamComponentsTests : BunitContext
 {
+    /// <summary>Verifies Draft return context is discarded on club or role changes while directory filters survive.</summary>
+    /// <param name="clubChange">Whether authority changes by switching clubs instead of revoking the administrator role.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Teams_DiscardsDraftReturnContext_WhenScopeChanges(bool clubChange)
+    {
+        RegisterServices(isClubAdmin: true);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true, false));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/club/teams?returnToDraft=10&view=archived&search=Blue");
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Return to draft"));
+
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(clubChange, false, clubChange ? 43 : 42)));
+
+        cut.WaitForAssertion(() => navigation.Uri.ShouldNotContain("returnToDraft"));
+        navigation.Uri.ShouldContain("view=archived");
+        navigation.Uri.ShouldContain("search=Blue");
+        cut.Instance.ReturnToDraft.ShouldBeNull();
+        cut.Markup.ShouldNotContain("Return to draft");
+        cut.FindAll("a").ShouldNotContain(link => (link.GetAttribute("href") ?? string.Empty).Contains("returnToDraft", StringComparison.OrdinalIgnoreCase));
+        if (!clubChange)
+        {
+            await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, false)));
+            cut.Markup.ShouldNotContain("Return to draft");
+        }
+    }
+
     /// <summary>Verifies an empty identity overtaking startup reaches the club-required state without a team query.</summary>
     [Fact]
     public async Task Teams_AppliesEmptyIdentity_WhenItOvertakesStartup()

@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round fifteen on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,541 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL and embedded form touch-target coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through fifteen change UI state/rendering and tests only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
+Validated for PR #244 review round sixteen on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,550 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL and embedded form touch-target coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through sixteen change UI state/rendering and tests only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -158,3 +158,14 @@ The fifteenth review round documents the private state and helpers added to crea
 | Document private state, handlers, and URL helpers in all four flagged files | Declaration scan found no undocumented private/protected members in `CampaignCreateForm`, `CampaignMetadataForm`, `CampaignWorkspace`, or `Campaigns` |
 
 The new regression failed before the behavior fix because only the original submission reached the callback. After the fix, all 66 `CampaignComponentsTests` passed, including assertions on the corrected payload and retained operation ID.
+
+The sixteenth review round reconciles opening-readiness conflicts against a fresh authorized detail query. Active and Closed results move to Roster without submitting an opening command or inventing receipt feedback; a still-Draft result retains the readiness explanation without recursive refreshes. Failed reconciliation removes stale Draft controls and presents an unavailable state or retry. Teams discards its Draft-return parameter and query value on club or authority changes while preserving directory filters.
+
+| Requirement | Regression evidence |
+|---|---|
+| Reconcile Active, Closed, and still-Draft conflicts without claiming an opening receipt | `CampaignEntry_ReconcilesReadinessConflict_UsingFreshLifecycle` |
+| Discard reconciliation results after navigating to another Draft | `CampaignEntry_IgnoresLateReadinessConflictReconciliation_AfterRouteChanges` |
+| Remove stale controls on deleted, forbidden, and transport-failed reconciliation | `CampaignEntry_ClearsDraft_WhenReadinessReconciliationFails` |
+| Remove Draft return context on club/role changes, preserve filters, and prevent restoration on role regain | `Teams_DiscardsDraftReturnContext_WhenScopeChanges` |
+
+Focused validation passed all 42 `CampaignEntryTests` and 45 `TeamComponentsTests`. The initial lifecycle test expectation was corrected to include the Roster route's own detail load after navigation; it also asserts a single readiness query so a still-Draft conflict cannot recurse.

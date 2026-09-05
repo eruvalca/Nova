@@ -979,6 +979,7 @@ public partial class Teams(
 
     /// <summary>Gets or sets the optional local Draft correction handoff.</summary>
     [SupplyParameterFromQuery(Name = "returnToDraft")] public string? ReturnToDraft { get; set; }
+    /// <summary>Accepts only a positive local campaign identifier for the correction return link.</summary>
     private long? DraftReturnId => long.TryParse(ReturnToDraft, out var id) && id > 0 ? id : null;
 
     /// <summary>
@@ -1012,6 +1013,16 @@ public partial class Teams(
         _identityApplied = true;
         _canManageTeams = canManageTeams;
         _clubId = clubId;
+
+        if (clubChanged || roleChanged)
+        {
+            ReturnToDraft = null;
+            var uri = navigationManager.GetUriWithQueryParameter("returnToDraft", (string?)null);
+            if (!string.Equals(uri, navigationManager.Uri, StringComparison.Ordinal))
+            {
+                navigationManager.NavigateTo(uri, new NavigationOptions { ReplaceHistoryEntry = true });
+            }
+        }
 
         if (clubChanged)
         {

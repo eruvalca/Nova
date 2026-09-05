@@ -386,6 +386,56 @@ public partial class CampaignEntry(
             return true;
         }
         _readinessError = result.Problem.Detail ?? "Opening readiness is unavailable.";
+        if (result.Problem.Kind == ServiceProblemKind.Conflict)
+        {
+            // Readiness can race another administrator's lifecycle command. Reconcile once;
+            // a still-Draft conflict (such as season advancement) must not trigger a reload loop.
+            Detail = null;
+            ServiceResult<CampaignDetailResult> current;
+            try
+            {
+                current = await queries.GetCampaignDetailAsync(new GetCampaignDetailInput { CampaignId = CampaignId }, ComponentCancellationToken);
+            }
+            catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException
+                && !ComponentCancellationToken.IsCancellationRequested)
+            {
+                if (version == _version)
+                {
+                    _error = "Could not confirm the campaign's current state. Check your connection and retry.";
+                }
+                return false;
+            }
+            if (version != _version)
+            {
+                return false;
+            }
+            if (current.IsSuccess)
+            {
+                Detail = current.Value;
+                SnapshotScope = _scope;
+                if (Detail.Status != CampaignStatus.Draft)
+                {
+                    _readinessError = null;
+                    Setup = null;
+                    _setupError = null;
+                    _edit = null;
+                    _team = null;
+                    _confirmDelete = false;
+                    navigation.NavigateTo($"/campaigns/{CampaignId}/roster");
+                }
+            }
+            else
+            {
+                Detail = null;
+                Setup = null;
+                _unavailable = current.Problem.Kind is ServiceProblemKind.NotFound or ServiceProblemKind.Forbidden;
+                if (!_unavailable)
+                {
+                    _error = current.Problem.Detail ?? "Campaign details are unavailable.";
+                }
+            }
+            return false;
+        }
         if (result.Problem.Kind is ServiceProblemKind.NotFound or ServiceProblemKind.Forbidden)
         {
             _unavailable = true;

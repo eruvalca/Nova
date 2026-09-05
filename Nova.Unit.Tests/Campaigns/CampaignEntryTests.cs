@@ -21,6 +21,110 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>Verifies Draft readiness and opening recovery through the rendered administrator controls.</summary>
 public sealed class CampaignEntryTests : BunitContext
 {
+    /// <summary>Verifies failed lifecycle reconciliation never leaves stale Draft controls available.</summary>
+    /// <param name="failure">The authoritative lookup failure after readiness conflicts.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("not-found")]
+    [InlineData("forbidden")]
+    [InlineData("transport")]
+    public void CampaignEntry_ClearsDraft_WhenReadinessReconciliationFails(string failure)
+    {
+        var (queries, lifecycle) = Register(ReadyWithoutTeams());
+        var detailCalls = 0;
+        queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                if (++detailCalls == 1)
+                {
+                    return Task.FromResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Summer Draft")));
+                }
+                if (failure == "transport")
+                {
+                    return Task.FromException<ServiceResult<CampaignDetailResult>>(new HttpRequestException("Offline"));
+                }
+                return Task.FromResult(new ServiceResult<CampaignDetailResult>(failure == "not-found"
+                    ? ServiceProblem.NotFound("Deleted") : ServiceProblem.Forbidden("Permission lost")));
+            });
+        queries.GetOpeningReadinessAsync(10, Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignOpeningReadinessResult>(ServiceProblem.Conflict("Readiness changed")));
+
+        var cut = RenderReview();
+
+        if (failure == "transport")
+        {
+            cut.WaitForAssertion(() => cut.Markup.ShouldContain("Could not confirm"));
+            cut.FindAll("button").ShouldContain(button => button.TextContent.Trim() == "Retry");
+        }
+        else
+        {
+            cut.WaitForAssertion(() => cut.Markup.ShouldContain("Campaign not found"));
+        }
+        cut.Markup.ShouldNotContain("Summer Draft");
+        cut.Markup.ShouldNotContain("Loading campaign");
+        cut.FindAll("button.draft-commit").ShouldBeEmpty();
+        cut.FindAll("button").ShouldNotContain(button => button.TextContent.Trim() == "Edit" || button.TextContent.Trim() == "Delete draft");
+        _ = lifecycle.DidNotReceive().OpenAsync(Arg.Any<long>(), Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies readiness conflicts reconcile lifecycle without claiming another administrator's opening operation.</summary>
+    /// <param name="status">The authoritative lifecycle status after the conflict.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(CampaignStatus.Active)]
+    [InlineData(CampaignStatus.Closed)]
+    [InlineData(CampaignStatus.Draft)]
+    public void CampaignEntry_ReconcilesReadinessConflict_UsingFreshLifecycle(CampaignStatus status)
+    {
+        var (queries, lifecycle) = Register(ReadyWithoutTeams());
+        queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Summer Draft")),
+                new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Summer Draft") with { Status = status }));
+        queries.GetOpeningReadinessAsync(10, Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignOpeningReadinessResult>(ServiceProblem.Conflict("Readiness no longer available")));
+
+        var cut = RenderReview();
+
+        if (status == CampaignStatus.Draft)
+        {
+            cut.WaitForAssertion(() => cut.Markup.ShouldContain("Readiness no longer available"));
+            Services.GetRequiredService<NavigationManager>().Uri.ShouldNotContain("/roster");
+        }
+        else
+        {
+            cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.ShouldContain("/campaigns/10/roster"));
+        }
+        // The Roster route performs its own authorized detail load after reconciliation.
+        _ = queries.Received(status == CampaignStatus.Draft ? 2 : 3).GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
+        _ = queries.Received(1).GetOpeningReadinessAsync(10, Arg.Any<CancellationToken>());
+        _ = lifecycle.DidNotReceive().OpenAsync(Arg.Any<long>(), Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
+        cut.Markup.ShouldNotContain("Campaign opened and enrolled");
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "write" && invocation.Arguments.OfType<OpenCampaignResult>().Any());
+    }
+
+    /// <summary>Verifies a stale lifecycle reconciliation cannot redirect a newly selected Draft.</summary>
+    [Fact]
+    public async Task CampaignEntry_IgnoresLateReadinessConflictReconciliation_AfterRouteChanges()
+    {
+        var (queries, _) = Register(ReadyWithoutTeams());
+        var pending = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
+        queries.GetCampaignDetailAsync(Arg.Is<GetCampaignDetailInput>(input => input.CampaignId == 10), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Old Draft"))), pending.Task);
+        queries.GetOpeningReadinessAsync(10, Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignOpeningReadinessResult>(ServiceProblem.Conflict("Old readiness conflict")));
+        queries.GetCampaignDetailAsync(Arg.Is<GetCampaignDetailInput>(input => input.CampaignId == 11), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignDetailResult>(DraftDetail(11, "New Draft")));
+        queries.GetOpeningReadinessAsync(11, Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignOpeningReadinessResult>(ReadyWithoutTeams() with { CampaignId = 11 }));
+        var cut = RenderReview();
+
+        cut.Render(parameters => parameters.Add(component => component.CampaignId, 11));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("New Draft"));
+        await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Old Draft") with { Status = CampaignStatus.Active })));
+
+        Services.GetRequiredService<NavigationManager>().Uri.ShouldNotContain("/roster");
+        cut.Markup.ShouldContain("New Draft");
+        cut.Markup.ShouldNotContain("Old Draft");
+    }
+
     /// <summary>Verifies missing setup disables metadata editing without hiding the Draft and explicit retry restores season choices.</summary>
     [Fact]
     public void CampaignEntry_DisablesEdit_WhenSetupFails_AndRecoversOnRetry()
