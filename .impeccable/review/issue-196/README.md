@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round six on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,489 passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round five; round six changes only UI state handling, with no provider or HTTP contract changes. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags. Format verification passed. Theme contrast/token checks passed in round five; theme inputs are unchanged. The complete browser run passed after build, unit tests, and formatting finished.
+Validated for PR #244 review round seven on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,496 passed. PostgreSQL/HTTP integration suite: 531 passed. Latest full browser suite (round six): 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags. Round seven changes only client response validation. Format verification passed. Theme contrast/token checks passed in round five; theme inputs are unchanged. Browser/UI code is unchanged from that passing run.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -71,3 +71,10 @@ The sixth review round completes Players identity rebinding: user, club, or role
 | Ignore old roster successes, authorization failures, and transport failures | `Players_IgnoresPreviousClubRosterCompletion`, `Players_IgnoresPreviousClubTransportFailure` |
 | Ignore old edit and archive completions | `Players_IgnoresPreviousClubEditCompletion`, `Players_IgnoresPreviousClubArchiveCompletion` |
 | Restore only a matching user/club/role snapshot | `Players_RestoresOnlyMatchingPrerenderSnapshot` |
+
+The seventh review round requires exactly `min(5, ActiveTeamCount)` readiness preview entries in the WASM client, matching the server's atomic team snapshot. Omitted/empty previews with active teams and undersized capped previews are rejected. Existing malformed-payload fixtures carry valid previews when testing other invariants, so the new check does not mask those assertions.
+
+| Requirement | Regression evidence in `HttpCampaignQueryServiceTests` |
+|---|---|
+| Reject omitted and empty previews when active teams exist | `GetOpeningReadinessAsync_ReturnsServerError_ForInvalidPayload` |
+| Accept zero/singleton/capped previews and reject a short capped preview | `GetOpeningReadinessAsync_RequiresCompleteBoundedPreview` |

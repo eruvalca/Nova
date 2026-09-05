@@ -97,7 +97,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
     }
 
     /// <summary>
-    /// Validates an opening-readiness response and its blocker/warning relationships.
+    /// Validates the complete bounded team preview and opening-readiness blocker/warning relationships.
     /// </summary>
     /// <param name="result">The deserialized readiness payload.</param>
     /// <param name="campaignId">The requested campaign identifier.</param>
@@ -108,7 +108,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             || result.ActivePlayerCount < 0
             || result.ActiveTeamCount < 0
             || result.ActiveTeams is null
-            || result.ActiveTeams.Count > Math.Min(5, result.ActiveTeamCount)
+            || result.ActiveTeams.Count != Math.Min(5, result.ActiveTeamCount)
             || result.ActiveTeams.Any(team => team is null || team.TeamId <= 0 || string.IsNullOrWhiteSpace(team.Name))
             || result.ActiveTeams.Select(team => team.TeamId).Distinct().Count() != result.ActiveTeams.Count
             || result.Blockers is null

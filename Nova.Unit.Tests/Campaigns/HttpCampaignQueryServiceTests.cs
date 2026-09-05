@@ -188,31 +188,33 @@ public sealed class HttpCampaignQueryServiceTests
     /// <summary>Verifies invalid opening-readiness relationships are rejected as protocol errors.</summary>
     /// <param name="payload">The invalid successful JSON payload.</param>
     [Theory(IncludeTestCaseIndex = true)]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":null,"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":null}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[99],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[99]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":0,"activeTeamCount":1,"canOpen":false,"blockers":[0,0],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":0,"canOpen":true,"blockers":[],"warnings":[0,0]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":-1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":-1,"canOpen":true,"blockers":[],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":0,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":0,"canOpen":true,"blockers":[],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[1],"warnings":[],"blockingCampaign":null}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":0,"campaignName":"Other"}}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":42,"campaignName":"Other"}}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":43,"campaignName":" "}}""")]
-    [InlineData("""{"campaignId":43,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":null}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":0,"activeTeamCount":1,"canOpen":true,"blockers":[0],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[0],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[0]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":null}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[null]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":0,"name":"Team"}]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":" "}]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":2,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":"A"},{"teamId":1,"name":"B"}]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":"A"},{"teamId":2,"name":"B"}]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":null,"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":null}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":false,"blockers":[99],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[99]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":0,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":false,"blockers":[0,0],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":0,"canOpen":true,"blockers":[],"warnings":[0,0]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":-1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":-1,"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":false,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":0,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":0,"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":false,"blockers":[1],"warnings":[],"blockingCampaign":null}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":0,"campaignName":"Other"}}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":42,"campaignName":"Other"}}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":43,"campaignName":" "}}""")]
+    [InlineData("""{"campaignId":43,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":null}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":0,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[0],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":false,"blockers":[0],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[0]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":null}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[null]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":0,"name":"Team"}]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":" "}]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":2,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":"A"},{"teamId":1,"name":"B"}]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":"A"},{"teamId":2,"name":"B"}]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[]}""")]
     public async Task GetOpeningReadinessAsync_ReturnsServerError_ForInvalidPayload(string payload)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -229,6 +231,48 @@ public sealed class HttpCampaignQueryServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies readiness requires the full bounded preview at zero, singleton, and capped counts.</summary>
+    /// <param name="teamCount">The authoritative number of active teams.</param>
+    /// <param name="previewCount">The number of names returned by the server.</param>
+    /// <param name="valid">Whether the preview satisfies the exact bounded contract.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(0, 0, true)]
+    [InlineData(1, 1, true)]
+    [InlineData(5, 5, true)]
+    [InlineData(6, 5, true)]
+    [InlineData(6, 4, false)]
+    public async Task GetOpeningReadinessAsync_RequiresCompleteBoundedPreview(int teamCount, int previewCount, bool valid)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                campaignId = 42,
+                activePlayerCount = 1,
+                activeTeamCount = teamCount,
+                activeTeams = Enumerable.Range(1, previewCount).Select(id => new { teamId = id, name = $"Team {id}" }),
+                canOpen = true,
+                blockingCampaign = (object?)null,
+                blockers = Array.Empty<int>(),
+                warnings = teamCount == 0 ? [0] : Array.Empty<int>()
+            })
+        };
+        using var http = new HttpClient(new FakeHttpMessageHandler(response)) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignQueryService(http).GetOpeningReadinessAsync(42, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBe(valid);
+        if (valid)
+        {
+            result.Value.ActiveTeamCount.ShouldBe(teamCount);
+            result.Value.ActiveTeams.Count.ShouldBe(previewCount);
+        }
+        else
+        {
+            result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        }
     }
 
     /// <summary>
