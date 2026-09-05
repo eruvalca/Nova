@@ -310,7 +310,9 @@ public partial class Campaigns(
         _isLoading = false;
         if (_list is not null && _page > 1 && LoadedCampaignCount == 0)
         {
-            navigationManager.NavigateTo(PageUrl(Math.Max(1, (int)Math.Ceiling(_list.TotalCount / 20d))), replace: true);
+            // Counts can precede a concurrent deletion; always leave an empty non-first page.
+            var lastPage = (int)Math.Ceiling(_list.TotalCount / 20d);
+            navigationManager.NavigateTo(PageUrl(Math.Max(1, Math.Min(_page - 1, lastPage))), replace: true);
         }
     }
 

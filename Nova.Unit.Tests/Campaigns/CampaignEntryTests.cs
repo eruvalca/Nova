@@ -21,6 +21,22 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>Verifies Draft readiness and opening recovery through the rendered administrator controls.</summary>
 public sealed class CampaignEntryTests : BunitContext
 {
+    /// <summary>Verifies preparation readiness labels use the correct player and team nouns.</summary>
+    /// <param name="count">The readiness count.</param>
+    /// <param name="suffix">The expected plural suffix.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, "")]
+    [InlineData(2, "s")]
+    public void CampaignEntry_UsesCountAwareReadinessLabels(int count, string suffix)
+    {
+        Register(new CampaignOpeningReadinessResult(10, count, count, true, [], [], null));
+        var cut = Render<CampaignEntry>(parameters => parameters.Add(component => component.CampaignId, 10));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Draft"));
+        cut.FindAll("p").Select(element => element.TextContent.Trim()).ShouldContain($"active player{suffix} will enroll");
+        cut.FindAll("p").Select(element => element.TextContent.Trim()).ShouldContain($"active team{suffix}");
+    }
+
     /// <summary>Verifies failed detail reads stop showing loading, while a pending retry restores loading and can recover the Draft.</summary>
     /// <param name="transport">Whether the initial detail request throws a transport exception.</param>
     [Theory(IncludeTestCaseIndex = true)]

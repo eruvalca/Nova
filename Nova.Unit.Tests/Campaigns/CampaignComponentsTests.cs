@@ -296,6 +296,76 @@ public sealed class CampaignComponentsTests : BunitContext
         await queries.Received(1).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Verifies an empty directory page always moves backwards, including when its total is stale.</summary>
+    /// <param name="page">The empty requested page.</param>
+    /// <param name="total">The server total returned with no rows.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(2, 21)]
+    [InlineData(99, 1)]
+    public void Campaigns_RefetchesLowerPage_WhenRequestedPageIsEmpty(int page, int total)
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => SuccessListResult(call.Arg<GetCampaignListInput>().Page == 1 ? CreateSeasonGroups() : [],
+                call.Arg<GetCampaignListInput>().Page == 1 ? null : total));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo($"/campaigns?page={page}");
+
+        var cut = Render<CampaignsPage>();
+
+        cut.WaitForAssertion(() => new Uri(navigation.Uri).Query.ShouldContain("page=1"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        _ = queries.Received().GetCampaignListAsync(Arg.Is<GetCampaignListInput>(input => input.Page == page), Arg.Any<CancellationToken>());
+        _ = queries.Received().GetCampaignListAsync(Arg.Is<GetCampaignListInput>(input => input.Page == 1), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies directory rows use singular and plural enrollment and participant labels.</summary>
+    /// <param name="count">The number of players in each row's scale.</param>
+    /// <param name="suffix">The plural suffix for the displayed nouns.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, "")]
+    [InlineData(2, "s")]
+    public void Campaigns_UsesCountAwareRowLabels(int count, string suffix)
+    {
+        var group = CreateSeasonGroups()[0];
+        var active = group.Campaigns[0] with { ParticipantCount = count };
+        var draft = active with { CampaignId = 999, Status = CampaignStatus.Draft, Name = "Draft count" };
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignListResult>(new CampaignListResult
+            { Seasons = [group with { Campaigns = [active, draft] }], TotalCount = 2, DraftActivePlayerCount = count }));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+
+        var cut = Render<CampaignsPage>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Draft count"));
+        var text = cut.Find("tbody").TextContent;
+        text.ShouldContain($"{count} active player{suffix} will enroll");
+        cut.FindAll("tbody td").Select(cell => cell.TextContent.Trim()).ShouldContain($"{count} participant{suffix}");
+    }
+
+    /// <summary>Verifies creation preview labels follow their player and team counts.</summary>
+    /// <param name="count">The preview count.</param>
+    /// <param name="suffix">The plural suffix.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, "")]
+    [InlineData(2, "s")]
+    public void NewCampaign_UsesCountAwarePreviewLabels(int count, string suffix)
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
+            { CurrentSeason = CreateSeasonChoices()[0], ActivePlayerCount = count, ActiveTeamCount = count }));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var cut = Render<NewCampaignPage>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Current enrollment preview"));
+        var text = string.Join(" ", cut.Nodes.Select(node => node.TextContent)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        string.Join(" ", text).ShouldContain($"{count} active player{suffix} will enroll");
+        string.Join(" ", text).ShouldContain($"{count} active team{suffix} will be available");
+    }
+
     [Fact]
     public void Campaigns_SwitchesToClosedView_WhenFilterChanges()
     {

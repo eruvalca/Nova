@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round eleven on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,526 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through eleven change UI state/rendering only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
+Validated for PR #244 review round twelve on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,534 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through twelve change UI state/rendering only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -114,3 +114,14 @@ The eleventh review round orders Teams authentication completions during startup
 | Separate failed detail loading from pending retry and recover the Draft | `CampaignEntry_ShowsDetailFailureWithoutLoading_AndRetries` |
 
 Round eleven focused validation passed with `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*TeamComponentsTests'` (42 tests) and the equivalent `'*CampaignEntryTests'` filter (29 tests).
+
+The twelfth review round ensures an empty non-first directory page always moves backwards, even when concurrent deletion leaves the returned total stale. Directory, creation, and preparation labels select singular player/team/participant nouns for singleton counts.
+
+| Requirement | Regression evidence |
+|---|---|
+| Refetch a lower page for an empty page with a stale total or an out-of-range page | `Campaigns_RefetchesLowerPage_WhenRequestedPageIsEmpty` |
+| Use singular/plural directory enrollment and participant labels | `Campaigns_UsesCountAwareRowLabels` |
+| Use singular/plural creation player/team previews | `NewCampaign_UsesCountAwarePreviewLabels` |
+| Use singular/plural preparation player/team readiness labels | `CampaignEntry_UsesCountAwareReadinessLabels` |
+
+Round twelve focused validation passed with `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignComponentsTests'` (65 tests) and the equivalent `'*CampaignEntryTests'` filter (31 tests).

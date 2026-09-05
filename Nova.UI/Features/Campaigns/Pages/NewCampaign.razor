@@ -42,10 +42,10 @@ FORM: Main-column form; opening review belongs to the saved Draft. -->
             <div class="card-body">
                 <h2 class="h6 mb-2">Current enrollment preview</h2>
                 <p class="mb-1">
-                    <strong>@_setup.ActivePlayerCount</strong> active players will enroll when you open the campaign.
+                    <strong>@_setup.ActivePlayerCount</strong> active @(_setup.ActivePlayerCount == 1 ? "player" : "players") will enroll when you open the campaign.
                 </p>
                 <p class="mb-0">
-                    <strong>@_setup.ActiveTeamCount</strong> active teams will be available for placement.
+                    <strong>@_setup.ActiveTeamCount</strong> active @(_setup.ActiveTeamCount == 1 ? "team" : "teams") will be available for placement.
                 </p>
             </div>
         </div>

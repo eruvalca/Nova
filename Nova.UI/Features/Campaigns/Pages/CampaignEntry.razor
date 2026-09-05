@@ -94,9 +94,9 @@ else
                     <h2 id="draft-roster-heading">Roster preview</h2>
                     @if (Readiness is not null)
                     {
-                        <p class="draft-count">@Readiness.ActivePlayerCount</p><p>active players will enroll</p>
+                        <p class="draft-count">@Readiness.ActivePlayerCount</p><p>active @(Readiness.ActivePlayerCount == 1 ? "player" : "players") will enroll</p>
                         <a href="@PlayersUrl">View players</a>
-                        <div class="draft-team-summary"><p class="draft-count">@Readiness.ActiveTeamCount</p><p>active teams</p></div>
+                        <div class="draft-team-summary"><p class="draft-count">@Readiness.ActiveTeamCount</p><p>active @(Readiness.ActiveTeamCount == 1 ? "team" : "teams")</p></div>
                     }
                     else { <p>Refresh readiness to see the current enrollment scale.</p> }
                     <div class="draft-opening">

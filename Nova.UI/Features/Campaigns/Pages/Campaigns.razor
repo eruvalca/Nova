@@ -162,7 +162,7 @@ FORM: Directory companion to the approved Details and readiness system. -->
                                                 <div class="text-muted small">Immutable campaign record</div>
                                             }
                                         </td>
-                                        <td>@(campaign.Status == CampaignStatus.Draft ? $"{_list.DraftActivePlayerCount} active players will enroll" : $"{campaign.ParticipantCount} participants")</td>
+                                        <td>@(campaign.Status == CampaignStatus.Draft ? $"{_list.DraftActivePlayerCount} active {(_list.DraftActivePlayerCount == 1 ? "player" : "players")} will enroll" : $"{campaign.ParticipantCount} {(campaign.ParticipantCount == 1 ? "participant" : "participants")}")</td>
                                         <td><a href="@($"/campaigns/{campaign.CampaignId}")">@(campaign.Status == CampaignStatus.Draft ? "Prepare draft" : campaign.Status == CampaignStatus.Active ? "Continue campaign" : "View record")</a></td>
                                         @if (_canManageCampaigns && season.Campaigns.Any(item => item.Status == CampaignStatus.Active))
                                         {
