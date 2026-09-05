@@ -21,6 +21,36 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>Verifies Draft readiness and opening recovery through the rendered administrator controls.</summary>
 public sealed class CampaignEntryTests : BunitContext
 {
+    /// <summary>Verifies changed enrollment requires a second confirmation before allocating or sending an opening operation.</summary>
+    /// <param name="freshCount">The authoritative count discovered just before submission.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(2)]
+    [InlineData(5)]
+    public void CampaignEntry_RequiresNewConfirmation_WhenEnrollmentCountChanges(int freshCount)
+    {
+        var (queries, lifecycle) = Register(ReadyWithoutTeams());
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").TextContent.ShouldBe("Open campaign and enroll 3 players"));
+        queries.GetOpeningReadinessAsync(10, Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignOpeningReadinessResult>(ReadyWithoutTeams() with { ActivePlayerCount = freshCount }));
+        lifecycle.OpenAsync(10, Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => new ServiceResult<OpenCampaignResult>(new OpenCampaignResult(call.Arg<OpenCampaignInput>().OperationId,
+                10, DateTimeOffset.UtcNow, 101, freshCount + 1, 0, [])));
+
+        cut.Find("button.draft-commit").Click();
+
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").TextContent.ShouldBe($"Open campaign and enroll {freshCount} players"));
+        cut.Markup.ShouldContain("The active player count changed. Review the updated enrollment count and confirm opening again.");
+        _ = lifecycle.DidNotReceive().OpenAsync(Arg.Any<long>(), Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "write" && invocation.Arguments.Contains("open:10"));
+        cut.Find("button.draft-commit").Click();
+        cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.ShouldContain("/roster"));
+        _ = lifecycle.Received(1).OpenAsync(10, Arg.Is<OpenCampaignInput>(input => input.OperationId != Guid.Empty), Arg.Any<CancellationToken>());
+        var receipt = JSInterop.Invocations.Where(invocation => invocation.Identifier == "write")
+            .SelectMany(invocation => invocation.Arguments).OfType<OpenCampaignResult>().Single();
+        receipt.EnrolledPlayerCount.ShouldBe(freshCount + 1);
+    }
+
     /// <summary>Verifies failed lifecycle reconciliation never leaves stale Draft controls available.</summary>
     /// <param name="failure">The authoritative lookup failure after readiness conflicts.</param>
     [Theory(IncludeTestCaseIndex = true)]

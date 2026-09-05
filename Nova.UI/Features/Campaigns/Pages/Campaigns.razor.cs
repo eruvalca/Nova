@@ -132,6 +132,9 @@ public partial class Campaigns(
     /// </summary>
     private bool _isMutating;
 
+    /// <summary>Invalidates metadata completions when ownership changes or the component is disposed.</summary>
+    private int _mutationGeneration;
+
     /// <summary>
     /// The current mutation-level error message shown inside the active form.
     /// </summary>
@@ -536,6 +539,8 @@ public partial class Campaigns(
             return;
         }
 
+        var generation = ++_mutationGeneration;
+        var scope = _identityScope;
         _isMutating = true;
         _mutationError = null;
         _mutationConflict = false;
@@ -543,6 +548,10 @@ public partial class Campaigns(
         try
         {
             var result = await campaignMetadataService.UpdateAsync(model.ToUpdateInput(), ComponentCancellationToken);
+            if (!OwnsMutation(generation, scope))
+            {
+                return;
+            }
             await HandleMutationResultAsync(
                 result,
                 updated =>
@@ -553,7 +562,7 @@ public partial class Campaigns(
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
-            if (ComponentCancellationToken.IsCancellationRequested)
+            if (!OwnsMutation(generation, scope))
             {
                 return;
             }
@@ -562,7 +571,10 @@ public partial class Campaigns(
         }
         finally
         {
-            _isMutating = false;
+            if (OwnsMutation(generation, scope))
+            {
+                _isMutating = false;
+            }
         }
     }
 
@@ -578,6 +590,8 @@ public partial class Campaigns(
             return;
         }
 
+        var generation = ++_mutationGeneration;
+        var scope = _identityScope;
         _isMutating = true;
         _mutationError = null;
         _mutationConflict = false;
@@ -588,6 +602,10 @@ public partial class Campaigns(
                 model.SeasonId,
                 model.ToUpdateInput(),
                 ComponentCancellationToken);
+            if (!OwnsMutation(generation, scope))
+            {
+                return;
+            }
             await HandleMutationResultAsync(
                 result,
                 updated =>
@@ -600,7 +618,7 @@ public partial class Campaigns(
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
-            if (ComponentCancellationToken.IsCancellationRequested)
+            if (!OwnsMutation(generation, scope))
             {
                 return;
             }
@@ -609,9 +627,19 @@ public partial class Campaigns(
         }
         finally
         {
-            _isMutating = false;
+            if (OwnsMutation(generation, scope))
+            {
+                _isMutating = false;
+            }
         }
     }
+
+    /// <summary>Allows only the current identity's latest metadata mutation to publish state or navigation.</summary>
+    /// <param name="generation">The mutation generation captured before submission.</param>
+    /// <param name="scope">The user, club, and authority that started the mutation.</param>
+    /// <returns>Whether the completion still owns the current directory state.</returns>
+    private bool OwnsMutation(int generation, string? scope)
+        => generation == _mutationGeneration && scope == _identityScope && !ComponentCancellationToken.IsCancellationRequested;
 
     /// <summary>
     /// Applies shared mutation result handling: success callback, Forbidden redirect, conflict and
@@ -684,6 +712,7 @@ public partial class Campaigns(
     protected override ValueTask DisposeAsyncCore()
     {
         ++_authenticationVersion;
+        ++_mutationGeneration;
         authenticationStateProvider.AuthenticationStateChanged -= DirectoryAuthenticationChanged;
         _loadListSource?.Cancel();
         _loadListSource?.Dispose();
@@ -719,6 +748,8 @@ public partial class Campaigns(
             return;
         }
 
+        ++_mutationGeneration;
+        _isMutating = false;
         _identityScope = identity;
         _canManageCampaigns = state.User.IsInRole(Roles.ClubAdmin);
         _ = ApplyViewQueryToState();

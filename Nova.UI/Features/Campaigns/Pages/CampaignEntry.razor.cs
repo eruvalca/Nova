@@ -506,7 +506,7 @@ public partial class CampaignEntry(
         await RefreshReadinessAsync(version);
     });
 
-    /// <summary>Refreshes readiness and starts one durably retained opening operation.</summary>
+    /// <summary>Refreshes readiness, reconfirms a changed enrollment preview, and starts one retained opening operation.</summary>
     /// <returns>The guarded opening task.</returns>
     private Task OpenAsync() => MutateAsync(async version =>
     {
@@ -515,11 +515,19 @@ public partial class CampaignEntry(
             return;
         }
 
+        var confirmedPlayerCount = Readiness?.ActivePlayerCount;
         if (!await RefreshReadinessAsync(version) || Readiness?.CanOpen != true || version != _version)
         {
             return;
         }
 
+        if (Readiness.ActivePlayerCount != confirmedPlayerCount)
+        {
+            _message = "The active player count changed. Review the updated enrollment count and confirm opening again.";
+            return;
+        }
+
+        _message = null;
         _openingId = Guid.CreateVersion7();
         await SubmitOpeningAsync(version);
     }, opening: true);

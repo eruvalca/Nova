@@ -749,6 +749,93 @@ public sealed class CampaignComponentsTests : BunitContext
             queryService.Received(2).GetCreationSetupAsync(Arg.Any<CancellationToken>()));
     }
 
+    /// <summary>Verifies old-club metadata completions cannot affect new-club feedback, navigation, queries, or a pending save.</summary>
+    /// <param name="season">Whether the obsolete mutation edits a season.</param>
+    /// <param name="outcome">The obsolete mutation outcome.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false, "success")]
+    [InlineData(false, "forbidden")]
+    [InlineData(false, "transport")]
+    [InlineData(true, "success")]
+    [InlineData(true, "forbidden")]
+    [InlineData(true, "transport")]
+    public async Task Campaigns_IgnoresOldScopeMutationCompletion(bool season, string outcome)
+    {
+        var oldCampaign = new TaskCompletionSource<ServiceResult<UpdateCampaignMetadataResult>>();
+        var oldSeason = new TaskCompletionSource<ServiceResult<SeasonSummary>>();
+        var current = new TaskCompletionSource<ServiceResult<UpdateCampaignMetadataResult>>();
+        var metadata = Substitute.For<ICampaignMetadataService>();
+        metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(season ? current.Task : oldCampaign.Task, current.Task);
+        var seasons = Substitute.For<ISeasonCommandService>();
+        seasons.UpdateAsync(Arg.Any<long>(), Arg.Any<UpdateSeasonInput>(), Arg.Any<CancellationToken>()).Returns(oldSeason.Task);
+        RegisterServices(isClubAdmin: true, metadataService: metadata, seasonMetadataService: seasons);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        if (season)
+        {
+            cut.FindAll("button").First(button => button.TextContent.Trim() == "Edit season").Click();
+        }
+        else
+        {
+            cut.Find("tbody button").Click();
+        }
+        var oldSave = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+        await cut.InvokeAsync(() => authentication.ChangePrincipal(CreatePrincipal(true, 43)));
+        cut.WaitForAssertion(() => cut.Find("tbody button").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("tbody button").Click();
+        var newSave = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+        cut.WaitForAssertion(() => cut.Find("#campaigns-view-filter").HasAttribute("disabled").ShouldBeTrue());
+        var queries = Services.GetRequiredService<ICampaignQueryService>();
+        var queryCount = queries.ReceivedCalls().Count();
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        var currentUrl = navigation.Uri;
+
+        await cut.InvokeAsync(() =>
+        {
+            if (outcome == "transport")
+            {
+                if (season)
+                {
+                    oldSeason.SetException(new HttpRequestException("Old request failed"));
+                }
+                else
+                {
+                    oldCampaign.SetException(new HttpRequestException("Old request failed"));
+                }
+            }
+            else if (season)
+            {
+                oldSeason.SetResult(outcome == "success" ? new ServiceResult<SeasonSummary>(new SeasonSummary
+                {
+                    SeasonId = 5,
+                    Name = "Old season",
+                    StartDate = new DateOnly(2026, 1, 1),
+                    IsCurrent = true,
+                    ConcurrencyToken = Guid.NewGuid()
+                })
+                    : new ServiceResult<SeasonSummary>(ServiceProblem.Forbidden("Old permission")));
+            }
+            else
+            {
+                oldCampaign.SetResult(outcome == "success" ? new ServiceResult<UpdateCampaignMetadataResult>(
+                    new UpdateCampaignMetadataResult(10, "Old campaign", new DateOnly(2026, 6, 1), null, CampaignStatus.Active, 5, "Summer 2026"))
+                    : new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.Forbidden("Old permission")));
+            }
+        });
+        await oldSave;
+
+        cut.Find("#campaigns-view-filter").HasAttribute("disabled").ShouldBeTrue();
+        cut.Markup.ShouldNotContain("metadata updated.");
+        cut.Markup.ShouldNotContain("Could not reach the server");
+        navigation.Uri.ShouldBe(currentUrl);
+        queries.ReceivedCalls().Count().ShouldBe(queryCount);
+        await cut.InvokeAsync(() => current.SetResult(new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.ServerError("Current save failed"))));
+        await newSave;
+    }
+
     [Fact]
     public void Campaigns_DisablesEditActions_WhileMutationIsPending()
     {

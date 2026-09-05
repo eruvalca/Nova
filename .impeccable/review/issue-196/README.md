@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round sixteen on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,550 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL and embedded form touch-target coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through sixteen change UI state/rendering and tests only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
+Validated for PR #244 review round seventeen on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,558 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL and embedded form touch-target coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through seventeen change UI state/rendering and tests only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -169,3 +169,12 @@ The sixteenth review round reconciles opening-readiness conflicts against a fres
 | Remove Draft return context on club/role changes, preserve filters, and prevent restoration on role regain | `Teams_DiscardsDraftReturnContext_WhenScopeChanges` |
 
 Focused validation passed all 42 `CampaignEntryTests` and 45 `TeamComponentsTests`. The initial lifecycle test expectation was corrected to include the Roster route's own detail load after navigation; it also asserts a single readiness query so a still-Draft conflict cannot recurse.
+
+The seventeenth review round pauses opening when the mandatory readiness refresh changes the displayed enrollment count. It renders the new preview and requests another confirmation before allocating or storing an operation ID. The locked command's immutable receipt remains authoritative if enrollment changes after that refresh. Directory campaign and season mutations capture generation and identity ownership; stale successes, failures, redirects, reloads, and cleanup cannot affect a newer scope or save.
+
+| Requirement | Regression evidence |
+|---|---|
+| Require another confirmation after rising or falling preview counts, then report the immutable receipt count | `CampaignEntry_RequiresNewConfirmation_WhenEnrollmentCountChanges` |
+| Ignore old campaign/season success, forbidden, and transport results while preserving a newer save's busy state | `Campaigns_IgnoresOldScopeMutationCompletion` |
+
+Focused validation passed all 44 `CampaignEntryTests` and 72 `CampaignComponentsTests`.
