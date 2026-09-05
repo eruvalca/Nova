@@ -79,6 +79,9 @@ public partial class Teams(
     /// </summary>
     private bool _canManageTeams;
 
+    /// <summary>Orders authentication results across startup, notifications, and disposal.</summary>
+    private int _authenticationVersion;
+
     /// <summary>
     /// Stores the current user's club identifier from claims.
     /// </summary>
@@ -237,7 +240,12 @@ public partial class Teams(
         _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
         _ = ApplyQueryFiltersToState();
 
+        var authenticationVersion = _authenticationVersion;
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         var principal = authenticationState.User;
 
         _canManageTeams = principal.IsInRole(Roles.ClubAdmin);
@@ -266,14 +274,11 @@ public partial class Teams(
         {
             _pageError = "You must join a club before viewing the team roster.";
             PersistStartupState();
-            Initialized = true;
             _isLoading = false;
             return;
         }
 
         await LoadRosterAsync();
-        PersistStartupState();
-        Initialized = true;
     }
 
     /// <summary>
@@ -424,10 +429,11 @@ public partial class Teams(
     }
 
     /// <summary>
-    /// Persists the current startup roster/error state for prerender-to-interactive restoration.
+    /// Marks initialization complete and persists the owned roster/error state for interactive restoration.
     /// </summary>
     private void PersistStartupState()
     {
+        Initialized = true;
         PersistedRoster = _roster;
         PersistedPageError = _pageError;
         PersistedClubId = _clubId;
@@ -987,7 +993,12 @@ public partial class Teams(
     /// <returns>A task that completes when the club/role rebind and any reload are finished.</returns>
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
     {
+        var authenticationVersion = ++_authenticationVersion;
         var authState = await stateTask;
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         var principal = authState.User;
         var canManageTeams = principal.IsInRole(Roles.ClubAdmin);
         var clubId = ReadClubIdClaim(principal);
@@ -1086,6 +1097,7 @@ public partial class Teams(
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
+        ++_authenticationVersion;
         authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();

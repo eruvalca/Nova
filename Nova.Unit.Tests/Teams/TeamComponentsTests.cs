@@ -20,6 +20,62 @@ namespace Nova.Unit.Tests.Teams;
 /// </summary>
 public sealed class TeamComponentsTests : BunitContext
 {
+    /// <summary>Verifies late administrator authentication cannot overwrite a newer revocation.</summary>
+    /// <param name="startup">Whether the older task is the initial authentication read.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Teams_IgnoresOvertakenAdministratorAuthentication(bool startup)
+    {
+        RegisterServices(isClubAdmin: true);
+        var older = new TaskCompletionSource<AuthenticationState>();
+        var administrator = new AuthenticationState(CreatePrincipal(isClubAdmin: true, isAdmin: false));
+        var authentication = new DeferredAuthentication(startup ? older.Task : Task.FromResult(administrator));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/club/teams?returnToDraft=10");
+        var cut = Render<TeamsPage>();
+        if (!startup)
+        {
+            cut.WaitForAssertion(() => cut.Markup.ShouldContain("Add team"));
+            await cut.InvokeAsync(() => authentication.Publish(older.Task));
+        }
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(
+            new AuthenticationState(CreatePrincipal(isClubAdmin: false, isAdmin: false)))));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+        cut.Markup.ShouldNotContain("Add team");
+        cut.Markup.ShouldNotContain("Return to draft");
+
+        await cut.InvokeAsync(() => older.SetResult(administrator));
+
+        cut.Instance.Initialized.ShouldBeTrue();
+        cut.Markup.ShouldNotContain("Add team");
+        cut.Markup.ShouldNotContain("Archive team");
+        cut.Markup.ShouldNotContain("Return to draft");
+    }
+
+    /// <summary>Verifies a pending identity completion cannot reload the roster after disposal.</summary>
+    [Fact]
+    public async Task Teams_IgnoresAuthenticationCompletion_AfterDisposal()
+    {
+        RegisterServices(isClubAdmin: true);
+        var authentication = new DeferredAuthentication(Task.FromResult(
+            new AuthenticationState(CreatePrincipal(isClubAdmin: true, isAdmin: false))));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+        var roster = Services.GetRequiredService<ITeamRosterService>();
+        var callsBeforeDisposal = roster.ReceivedCalls().Count();
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        await cut.InvokeAsync(() => authentication.Publish(pending.Task));
+        await cut.Instance.DisposeAsync();
+        cut.Dispose();
+
+        await cut.InvokeAsync(() => pending.SetResult(new AuthenticationState(
+            CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43))));
+
+        roster.ReceivedCalls().Count().ShouldBe(callsBeforeDisposal);
+    }
+
     /// <summary>Verifies crafted Draft return context is hidden from members and disappears when administrator access is revoked.</summary>
     /// <param name="startsAsAdmin">Whether administrator access is initially granted before being revoked.</param>
     [Theory(IncludeTestCaseIndex = true)]
@@ -1049,6 +1105,18 @@ public sealed class TeamComponentsTests : BunitContext
         }
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
+    /// <summary>Controls authentication completion independently of notification order.</summary>
+    /// <param name="initial">The initial authentication task.</param>
+    private sealed class DeferredAuthentication(Task<AuthenticationState> initial) : AuthenticationStateProvider
+    {
+        /// <inheritdoc />
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => initial;
+
+        /// <summary>Publishes a pending authentication state.</summary>
+        /// <param name="state">The state task to publish.</param>
+        public void Publish(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
     }
 
     /// <summary>

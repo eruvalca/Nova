@@ -52,7 +52,10 @@ else
         @if (_message is not null) { <p role="status">@_message</p> }
         @if (Detail is null)
         {
-            <p role="status">Loading campaign…</p>
+            @if (_error is null)
+            {
+                <p role="status">Loading campaign…</p>
+            }
         }
         else
         {

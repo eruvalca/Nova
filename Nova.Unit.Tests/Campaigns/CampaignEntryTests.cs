@@ -21,6 +21,36 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>Verifies Draft readiness and opening recovery through the rendered administrator controls.</summary>
 public sealed class CampaignEntryTests : BunitContext
 {
+    /// <summary>Verifies failed detail reads stop showing loading, while a pending retry restores loading and can recover the Draft.</summary>
+    /// <param name="transport">Whether the initial detail request throws a transport exception.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CampaignEntry_ShowsDetailFailureWithoutLoading_AndRetries(bool transport)
+    {
+        var (queries, _) = Register(ReadyWithoutTeams());
+        var pending = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
+        var calls = 0;
+        queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ++calls > 1 ? pending.Task : transport
+                ? Task.FromException<ServiceResult<CampaignDetailResult>>(new HttpRequestException("Offline"))
+                : Task.FromResult(new ServiceResult<CampaignDetailResult>(ServiceProblem.ServerError("Detail unavailable"))));
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.FindAll("button").ShouldContain(button => button.TextContent.Trim() == "Retry"));
+        cut.Markup.ShouldNotContain("Loading campaign");
+        cut.Markup.ShouldNotContain("Summer Draft");
+
+        var retry = cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry")
+            .ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Loading campaign"));
+        await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Recovered Draft"))));
+        await retry;
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Recovered Draft"));
+        cut.Markup.ShouldNotContain("Loading campaign");
+        cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse();
+    }
+
     /// <summary>Verifies incompatible recovery markers prevent mutation and remain available for corrected retry.</summary>
     /// <param name="key">The typed recovery marker that fails to deserialize.</param>
     /// <param name="unsupported">Whether the failure is unsupported data rather than malformed JSON.</param>

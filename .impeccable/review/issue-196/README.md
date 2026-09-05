@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round ten on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,521 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through ten change UI state/rendering only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
+Validated for PR #244 review round eleven on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,526 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through eleven change UI state/rendering only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -104,3 +104,13 @@ The tenth review round orders authentication completions in Draft creation and p
 | Preserve incompatible form/pending/open/delete data, block commands, and retry the original operation | `NewCampaign_PreservesIncompatibleRecovery_UntilCorrectedRetry`, `CampaignEntry_PreservesIncompatibleRecovery_UntilCorrectedRetry` |
 
 Focused validation passed: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignEntryTests'` (27 tests) and the equivalent `'*NewCampaignRecoveryTests'` filter (16 tests).
+
+The eleventh review round orders Teams authentication completions during startup and notifications and invalidates them on disposal. A late administrator result cannot restore management or Draft-return controls after revocation. Campaign preparation no longer displays loading alongside a terminal detail error; Retry displays loading while pending and restores the Draft when successful.
+
+| Requirement | Regression evidence |
+|---|---|
+| Keep revoked Teams management and Draft-return controls hidden after late startup/notification results | `Teams_IgnoresOvertakenAdministratorAuthentication` |
+| Ignore Teams authentication completed after disposal | `Teams_IgnoresAuthenticationCompletion_AfterDisposal` |
+| Separate failed detail loading from pending retry and recover the Draft | `CampaignEntry_ShowsDetailFailureWithoutLoading_AndRetries` |
+
+Round eleven focused validation passed with `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*TeamComponentsTests'` (42 tests) and the equivalent `'*CampaignEntryTests'` filter (29 tests).
