@@ -30,6 +30,11 @@ public partial class PlacementDecisionSupersession : Migration
             type: "bigint",
             nullable: true);
 
+        migrationBuilder.AddCheckConstraint(
+            name: "CK_PlayerCampaignAssignments_DecisionAttribution",
+            table: "PlayerCampaignAssignments",
+            sql: "(\"PlacementOutcome\" = 0 AND \"DecisionRecordedAt\" IS NULL AND \"DecisionRecordedById\" IS NULL AND \"DecisionActorDisplayName\" IS NULL) OR (\"PlacementOutcome\" IN (1, 2, 3) AND \"DecisionRecordedAt\" IS NOT NULL AND \"DecisionRecordedById\" IS NOT NULL AND \"DecisionRecordedById\" > 0 AND \"DecisionActorDisplayName\" IS NOT NULL AND length(trim(\"DecisionActorDisplayName\")) > 0)");
+
         migrationBuilder.CreateTable(
             name: "PlacementMutationReceipts",
             columns: table => new
@@ -70,6 +75,8 @@ public partial class PlacementDecisionSupersession : Migration
     /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.DropCheckConstraint(name: "CK_PlayerCampaignAssignments_DecisionAttribution", table: "PlayerCampaignAssignments");
+
         migrationBuilder.DropTable(
             name: "PlacementMutationReceipts");
 

@@ -20,6 +20,10 @@ public class PlayerCampaignAssignmentEntityConfiguration : IEntityTypeConfigurat
         builder.Property(e => e.PlayerCampaignAssignmentId)
             .ValueGeneratedOnAdd();
 
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_PlayerCampaignAssignments_DecisionAttribution",
+            "(\"PlacementOutcome\" = 0 AND \"DecisionRecordedAt\" IS NULL AND \"DecisionRecordedById\" IS NULL AND \"DecisionActorDisplayName\" IS NULL) OR (\"PlacementOutcome\" IN (1, 2, 3) AND \"DecisionRecordedAt\" IS NOT NULL AND \"DecisionRecordedById\" IS NOT NULL AND \"DecisionRecordedById\" > 0 AND \"DecisionActorDisplayName\" IS NOT NULL AND length(trim(\"DecisionActorDisplayName\")) > 0)"));
+
         builder.HasAlternateKey(e => new { e.PlayerCampaignAssignmentId, e.ClubId });
 
         builder.Property(e => e.ConcurrencyToken)

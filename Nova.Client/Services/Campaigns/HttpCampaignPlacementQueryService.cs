@@ -179,6 +179,9 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
                 && decision.SeasonOpeningSequence > 0
                 && decision.Outcome == item.PlacementOutcome
                 && decision.TeamId == item.Team?.TeamId
+                && decision.RecordedAt != default
+                && decision.RecordedById > 0
+                && !string.IsNullOrWhiteSpace(decision.ActorDisplayName)
                 && decision.ConcurrencyToken == item.ConcurrencyToken;
 
     /// <summary>

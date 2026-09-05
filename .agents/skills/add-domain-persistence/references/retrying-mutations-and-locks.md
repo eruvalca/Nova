@@ -56,11 +56,14 @@ are in `.github/instructions/ef-core-tenancy.instructions.md`; do not copy an ol
 configuration without checking this boundary. `CampaignPlacementService` and
 `CampaignPlacementRetryTests` demonstrate recovery after both a later save and club deletion.
 
-Tenant-local pruning alone cannot reach receipts of deleted clubs. Provide an age-based cleanup
-path reachable from operations in any tenant (or a background worker), with a `CreatedAt`-leading
-index. The existing `ClubMembershipMutationReceipts.PruneExpiredAsync` handles membership and
-placement receipts globally; it removes only expired receipt evidence through an admin context.
-Receipts are commit proof, not history or effective-state inputs, and are not rewritten by later saves.
+Receipts with a durable aggregate FK can prune inline within the current tenant. Tenant-local
+pruning cannot reach FK-less receipts of deleted clubs: provide an age-based cleanup path reachable
+from operations in any tenant (or a background worker), with a cutoff-leading index (`CreatedAt` or
+an explicit recovery-expiry timestamp). The existing
+`ClubMembershipMutationReceipts.PruneExpiredAsync` handles membership and placement receipts globally;
+it removes only expired receipt evidence through an admin context. Never scan or delete live tenant
+data through that context. Receipts are commit proof, not history or effective-state inputs, and are
+not rewritten by later saves.
 
 When the aggregate itself can retain immutable opening evidence, store the receipt on the aggregate
 and reconstruct the original result from those persisted fields. Do not verify by recounting mutable
@@ -72,6 +75,35 @@ tombstone when it snapshots the tenant, aggregate id, and required result eviden
 same transaction as deletion, serialize competitors on the aggregate lock, and verify an ambiguous
 commit only when both the tenant-scoped tombstone exists and the aggregate is absent.
 `CampaignLifecycleService.DeleteDraftAsync` is the canonical example.
+
+## Client retries and reviewed batches
+
+For recovery across HTTP requests, use `PlayerImportService.CommitAsync` and
+`PlayerImportCommitPostgresTests` as the canonical implementation and provider-test examples.
+Import recovery bounds each global cleanup batch in `PruneImportReceiptsAsync`; the membership
+receipt example above demonstrates global age retention, not bounded batches.
+The caller retains the operation ID across requests; generating a new ID per HTTP attempt only
+protects retries inside that attempt. A batch receipt owns the batch ID; do not copy it onto every
+created entity's uniquely constrained `CreationOperationId`.
+
+Bind recovery to the authenticated tenant, actor, and original request fingerprint, and authorize
+against current persisted membership and roles before returning the receipt. Return the stored
+original result before reclassifying mutable domain state. Recheck for the receipt after acquiring
+the serialization lock; keep the unique tenant/operation constraint as the final identity guard.
+Persist a receipt even for a successful zero-effect batch, otherwise a later retry can change its
+outcome. Cancellation or a missing response does not prove rollback.
+
+Keep new-execution authorization and completed-result recovery lifetimes separate. An exact-match
+receipt may support recovery after confirmation expiry when the feature contract permits it;
+receipt absence must not let an expired confirmation execute. Import lifetimes and row-selection
+policy belong in `PlayerImportConstraints` and the import contract, not in universal mutation rules.
+
+For preview/confirm flows that promise to import only reviewed eligible rows, bind the reviewed
+classification as well as the exact bytes into the confirmation. Revalidate eligible rows at commit;
+previously excluded rows cannot become silently eligible. Inspect all writers of the checked
+identity: Nova's import duplicate check needs roster serialization in profile name/date-of-birth
+updates as well as creation. This serialization does not impose import duplicate policy on manual
+creation.
 
 ## Multi-entity advisory locks
 

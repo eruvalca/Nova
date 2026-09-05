@@ -165,6 +165,51 @@ public sealed class CampaignPlacementRetryTests(NovaAppHostFixture fixture)
         persisted.TeamId.ShouldBeNull();
     }
 
+    /// <summary>PostgreSQL rejects incomplete decision attribution without the test seed normalizer.</summary>
+    /// <param name="invalidField">The attribution invariant to violate.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("all")]
+    [InlineData("time")]
+    [InlineData("actorId")]
+    [InlineData("actorName")]
+    [InlineData("zeroActor")]
+    [InlineData("blankActor")]
+    [InlineData("enrollment")]
+    public async Task PlacementDecision_RejectsInvalidAttribution_AtDatabaseBoundary(string invalidField)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedPlacementDataAsync(7, Guid.NewGuid().ToString("N"));
+        await using var db = fixture.CreateUnnormalizedAdminContext();
+        var row = await db.PlayerCampaignAssignments.SingleAsync(x => x.PlayerCampaignAssignmentId == seed.AssignmentId, cancellationToken);
+        row.PlacementOutcome = PlacementOutcome.NotSelected;
+        row.DecisionRecordedAt = DateTimeOffset.UtcNow;
+        row.DecisionRecordedById = 7;
+        row.DecisionActorDisplayName = "Test member";
+        switch (invalidField)
+        {
+            case "all":
+                row.DecisionRecordedAt = null;
+                row.DecisionRecordedById = null;
+                row.DecisionActorDisplayName = null;
+                break;
+            case "time": row.DecisionRecordedAt = null; break;
+            case "actorId": row.DecisionRecordedById = null; break;
+            case "actorName": row.DecisionActorDisplayName = null; break;
+            case "zeroActor": row.DecisionRecordedById = 0; break;
+            case "blankActor": row.DecisionActorDisplayName = " "; break;
+            case "enrollment": row.PlacementOutcome = PlacementOutcome.Undecided; break;
+        }
+        var exception = await Should.ThrowAsync<DbUpdateException>(() => db.SaveChangesAsync(cancellationToken));
+        var provider = exception.InnerException.ShouldBeOfType<Npgsql.PostgresException>();
+        provider.SqlState.ShouldBe(Npgsql.PostgresErrorCodes.CheckViolation);
+        provider.ConstraintName.ShouldBe("CK_PlayerCampaignAssignments_DecisionAttribution");
+        await using var verify = fixture.CreateAdminContext();
+        var persisted = await verify.PlayerCampaignAssignments.SingleAsync(x => x.PlayerCampaignAssignmentId == seed.AssignmentId, cancellationToken);
+        persisted.PlacementOutcome.ShouldBe(PlacementOutcome.Undecided);
+        persisted.DecisionRecordedAt.ShouldBeNull();
+        persisted.DecisionRecordedById.ShouldBeNull();
+        persisted.DecisionActorDisplayName.ShouldBeNull();
+    }
     /// <summary>Verifies receipt operation identifiers are unique within a tenant and reusable by another tenant.</summary>
     [Fact]
     public async Task PlacementReceipt_EnforcesTenantScopedOperationUniqueness()

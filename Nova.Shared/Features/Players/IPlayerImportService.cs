@@ -3,10 +3,18 @@
 namespace Nova.Shared.Features.Players;
 
 /// <summary>
-/// Generates and previews bounded player CSV imports without committing player records.
+/// Previews bounded CSV files and commits explicitly confirmed eligible rows with durable recovery.
 /// </summary>
 public interface IPlayerImportService
 {
+    /// <summary>Commits reviewed eligible rows or recovers the original exact-request receipt.</summary>
+    /// <param name="input">The original upload and server-issued confirmation.</param>
+    /// <param name="cancellationToken">Cancels processing; cancellation does not prove rollback.</param>
+    /// <returns>The immutable completion or a safe failure.</returns>
+    Task<ServiceResult<PlayerImportCompletion>> CommitAsync(
+        PlayerImportCommitInput input,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Gets the authoritative CSV template for the current club administrator.</summary>
     Task<ServiceResult<PlayerImportTemplate>> GetTemplateAsync(CancellationToken cancellationToken = default);
 

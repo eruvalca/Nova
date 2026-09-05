@@ -6,6 +6,9 @@
 create `Undecided` rows with no decision attribution or placement activity. The placement mutation
 accepts only `Assigned`, `NotSelected`, or `Withdrawn`. `DecisionRecordedAt`, `DecisionRecordedById`,
 and `DecisionActorDisplayName` describe an explicit save independently of enrollment audit columns.
+The database requires all three for saved outcomes and none for `Undecided`. Saved-decision DTOs
+require these attribution fields in JSON and expose non-nullable values; clients reject missing,
+null, default, or invalid actor metadata.
 
 `CampaignSavedPlacementDecision` identifies the player, source participation/campaign/season,
 opening sequence, outcome/team, decision attribution, and source concurrency token. The placement
@@ -74,3 +77,4 @@ queries are not converted by #213; #214 owns those consumers and their query/pro
 | WASM no-op success | `UpdatePlacementAsync_ReturnsSuccess_WhenNoOpPreservesSubmittedToken` |
 | Enrollment display without a clearing action | `OutcomeOptions_DisableUndecided_ForEnrollmentAndSavedDecision`, `OutcomeChange_ClearsTeam_AndDisablesTeamSelect_WhenLeavingAssigned` |
 | Strict supersession feed contract | `GetClubActivityAsync_AcceptsSupersession_ForSavedOutcomes`, `GetClubActivityAsync_RejectsSupersession_ForMalformedDecision` |
+| Required saved-decision attribution in JSON and persistence | `GetPlacementRosterAsync_RejectsMissingDecisionAttribution`, `GetPlacementRosterAsync_RejectsMalformedSavedDecision`, `PlacementDecision_RejectsInvalidAttribution_AtDatabaseBoundary` |

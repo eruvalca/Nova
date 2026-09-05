@@ -20,9 +20,9 @@ internal static class PlayerCampaignAssignmentEntityExtensions
                 assignment.Campaign.SeasonOpeningSequence!.Value,
                 assignment.PlacementOutcome,
                 assignment.TeamId,
-                assignment.DecisionRecordedAt,
-                assignment.DecisionRecordedById,
-                assignment.DecisionActorDisplayName,
+                assignment.DecisionRecordedAt!.Value,
+                assignment.DecisionRecordedById!.Value,
+                assignment.DecisionActorDisplayName!,
                 assignment.ConcurrencyToken);
     }
 }

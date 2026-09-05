@@ -109,7 +109,7 @@ public sealed partial class CampaignPlacementQueryService(
                 SavedDecision = row.PlacementOutcome == PlacementOutcome.Undecided ? null : new(
                     row.PlayerCampaignAssignmentId, row.PlayerId, row.CampaignId, row.SeasonId,
                     row.SeasonOpeningSequence!.Value, row.PlacementOutcome, row.TeamId,
-                    row.DecisionRecordedAt, row.DecisionRecordedById, row.DecisionActorDisplayName,
+                    row.DecisionRecordedAt!.Value, row.DecisionRecordedById!.Value, row.DecisionActorDisplayName!,
                     row.ConcurrencyToken),
             })
             .ToList()

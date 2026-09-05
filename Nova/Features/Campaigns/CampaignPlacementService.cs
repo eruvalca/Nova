@@ -397,21 +397,21 @@ public sealed partial class CampaignPlacementService(
 
         Task<PlacementUpdateResult> RejectSeasonAsync(PlacementSeasonConflict _)
         {
-            LogPlacementDecisionRejected(input.PlayerCampaignAssignmentId, "SeasonConflict");
+            LogPlacementDecisionRejected(input.PlayerCampaignAssignmentId, userId, "SeasonConflict");
             return Task.FromResult<PlacementUpdateResult>(new PlacementConflict(
                 "Only the current season's latest active campaign can accept placement decisions."));
         }
 
         Task<PlacementUpdateResult> RejectTerminalWithdrawalAsync(PlacementWithdrawalTerminal _)
         {
-            LogPlacementDecisionRejected(input.PlayerCampaignAssignmentId, "WithdrawalTerminal");
+            LogPlacementDecisionRejected(input.PlayerCampaignAssignmentId, userId, "WithdrawalTerminal");
             return Task.FromResult<PlacementUpdateResult>(new PlacementConflict(
                 "Withdrawn is final in its owning campaign. An administrator must record a superseding decision in a later active campaign."));
         }
 
         Task<PlacementUpdateResult> RejectWithdrawalAuthorityAsync(PlacementWithdrawalRequiresAdmin _)
         {
-            LogPlacementDecisionRejected(input.PlayerCampaignAssignmentId, "WithdrawalRequiresAdmin");
+            LogPlacementDecisionRejected(input.PlayerCampaignAssignmentId, userId, "WithdrawalRequiresAdmin");
             return Task.FromResult<PlacementUpdateResult>(new PlacementForbidden(
                 "Only a club administrator can supersede a prior campaign's Withdrawn decision."));
         }
@@ -576,9 +576,10 @@ public sealed partial class CampaignPlacementService(
 
     /// <summary>Logs a rejected same-season placement decision.</summary>
     /// <param name="assignmentId">The requested participation identifier.</param>
+    /// <param name="userId">The acting club member identifier.</param>
     /// <param name="reason">The stable domain rejection reason.</param>
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Placement decision rejected for AssignmentId={AssignmentId}: {Reason}.")]
-    private partial void LogPlacementDecisionRejected(long assignmentId, string reason);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Placement decision rejected for AssignmentId={AssignmentId} by UserId={UserId}: {Reason}.")]
+    private partial void LogPlacementDecisionRejected(long assignmentId, long userId, string reason);
 
     /// <summary>
     /// Logs a successful placement mutation.

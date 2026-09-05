@@ -11,6 +11,190 @@ namespace Nova.Unit.Tests.Players;
 /// <summary>Tests the strict WebAssembly player-import HTTP boundary.</summary>
 public sealed class HttpPlayerImportServiceTests
 {
+    /// <summary>Commits preserve the exact recovery identity and reconcile valid populated, mixed, and zero-creation results.</summary>
+    /// <param name="shape">The legitimate completion shape.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("enrolled")]
+    [InlineData("mixed")]
+    [InlineData("blocked")]
+    public async Task CommitAsync_SendsExactMultipartIdentity_AndAcceptsValidCompletion(string shape)
+    {
+        var completion = ValidCompletion();
+        completion = shape switch
+        {
+            "mixed" => completion with
+            {
+                TotalRows = 3,
+                SkippedInvalidRows = 1,
+                SkippedDuplicateRows = 1,
+                Rows = [completion.Rows[0], new(3, PlayerImportCommitRowStatus.SkippedInvalidAtPreview, null, [], null),
+                    new(4, PlayerImportCommitRowStatus.SkippedDuplicateAtPreview, null, [], null)]
+            },
+            "blocked" => completion with
+            {
+                CreatedRows = 0,
+                EnrolledPlayers = 0,
+                BlockedRows = 1,
+                Rows = [new(2, PlayerImportCommitRowStatus.BlockedAtCommit, null, [], new(PlayerImportDuplicateKind.ExistingActivePlayer, 44, null))]
+            },
+            _ => completion
+        };
+        var handler = new CapturingHandler(new(HttpStatusCode.OK) { Content = JsonContent.Create(completion) });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var input = CommitInput(completion.OperationId);
+        var result = await new HttpPlayerImportService(http).CommitAsync(input, TestContext.Current.CancellationToken);
+        result.IsSuccess.ShouldBeTrue();
+        System.Text.Json.JsonSerializer.Serialize(result.Value).ShouldBe(System.Text.Json.JsonSerializer.Serialize(completion));
+        handler.Method.ShouldBe(HttpMethod.Post);
+        handler.PathAndQuery.ShouldBe(PlayerEndpoints.ImportCommit);
+        handler.MediaType.ShouldBe("multipart/form-data");
+        handler.Body.ShouldContain("name=operationId");
+        handler.Body.ShouldContain(input.OperationId.ToString());
+        handler.Body.ShouldContain("name=confirmationToken");
+        handler.Body.ShouldContain(input.ConfirmationToken);
+        handler.Body.ShouldContain("content");
+    }
+
+    /// <summary>Strict success validation rejects contradictory aggregates, malformed rows, and mismatched operation identity.</summary>
+    /// <param name="malformation">The invalid completion case.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("operation")]
+    [InlineData("timestamp")]
+    [InlineData("retention")]
+    [InlineData("total")]
+    [InlineData("count")]
+    [InlineData("enrollment")]
+    [InlineData("campaign")]
+    [InlineData("null rows")]
+    [InlineData("null row")]
+    [InlineData("row order")]
+    [InlineData("status")]
+    [InlineData("player id")]
+    [InlineData("duplicate player id")]
+    [InlineData("null errors")]
+    [InlineData("created errors")]
+    [InlineData("blocked without reason")]
+    [InlineData("invalid duplicate")]
+    [InlineData("skip with player")]
+    public async Task CommitAsync_RejectsMalformedCompletion(string malformation)
+    {
+        var valid = ValidCompletion();
+        var row = valid.Rows[0];
+        var invalid = malformation switch
+        {
+            "operation" => valid with { OperationId = Guid.CreateVersion7() },
+            "timestamp" => valid with { CompletedAt = default },
+            "retention" => valid with { RecoveryExpiresAt = valid.CompletedAt.AddHours(25) },
+            "total" => valid with { TotalRows = 1001 },
+            "count" => valid with { CreatedRows = 0 },
+            "enrollment" => valid with { WaitingPlayers = 1 },
+            "campaign" => valid with { CampaignName = null },
+            "null rows" => valid with { Rows = null! },
+            "null row" => valid with { Rows = [null!] },
+            "row order" => valid with { Rows = [row with { SourceRowNumber = 3 }] },
+            "status" => valid with { Rows = [row with { Status = (PlayerImportCommitRowStatus)999 }] },
+            "player id" => valid with { Rows = [row with { PlayerId = 0 }] },
+            "duplicate player id" => valid with { TotalRows = 2, CreatedRows = 2, EnrolledPlayers = 2, Rows = [row, row with { SourceRowNumber = 3 }] },
+            "null errors" => valid with { Rows = [row with { Errors = null! }] },
+            "created errors" => valid with { Rows = [row with { Errors = [new(PlayerImportField.FirstName, "Invalid")] }] },
+            "blocked without reason" => valid with { CreatedRows = 0, EnrolledPlayers = 0, BlockedRows = 1, Rows = [row with { Status = PlayerImportCommitRowStatus.BlockedAtCommit, PlayerId = null }] },
+            "invalid duplicate" => valid with { CreatedRows = 0, EnrolledPlayers = 0, BlockedRows = 1, Rows = [new(2, PlayerImportCommitRowStatus.BlockedAtCommit, null, [], new(PlayerImportDuplicateKind.ExistingActivePlayer, 0, null))] },
+            "skip with player" => valid with { TotalRows = 2, SkippedDuplicateRows = 1, Rows = [row, row with { SourceRowNumber = 3, Status = PlayerImportCommitRowStatus.SkippedDuplicateAtPreview }] },
+            _ => throw new ArgumentOutOfRangeException(nameof(malformation))
+        };
+        var handler = new CapturingHandler(new(HttpStatusCode.OK) { Content = JsonContent.Create(invalid) });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var result = await new HttpPlayerImportService(http).CommitAsync(CommitInput(valid.OperationId), TestContext.Current.CancellationToken);
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Malformed JSON cannot be reported as a completed import.</summary>
+    /// <param name="body">The invalid JSON body.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("not-json")]
+    public async Task CommitAsync_RejectsMalformedSuccessJson(string body)
+    {
+        var handler = new CapturingHandler(new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var result = await new HttpPlayerImportService(http).CommitAsync(CommitInput(Guid.CreateVersion7()), TestContext.Current.CancellationToken);
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Non-success HTTP responses retain their service failure classification.</summary>
+    /// <param name="status">The HTTP response status.</param>
+    /// <param name="kind">The expected service failure.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(HttpStatusCode.Forbidden, ServiceProblemKind.Forbidden)]
+    [InlineData(HttpStatusCode.Conflict, ServiceProblemKind.Conflict)]
+    [InlineData(HttpStatusCode.BadRequest, ServiceProblemKind.Validation)]
+    public async Task CommitAsync_PropagatesProblemDetails(HttpStatusCode status, ServiceProblemKind kind)
+    {
+        var handler = new CapturingHandler(new(status)
+        {
+            Content = JsonContent.Create(new { detail = "Preview again.", errors = new Dictionary<string, string[]> { ["file"] = ["Invalid confirmation."] } })
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var result = await new HttpPlayerImportService(http).CommitAsync(CommitInput(Guid.CreateVersion7()), TestContext.Current.CancellationToken);
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(kind);
+    }
+
+    /// <summary>Creates a valid populated completion with authoritative server timestamps.</summary>
+    /// <returns>A valid enrollment receipt.</returns>
+    private static PlayerImportCompletion ValidCompletion() => new(
+        Guid.CreateVersion7(), DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddHours(24),
+        1, 1, 0, 0, 0, 1, 0, 41, "Campaign", [new(2, PlayerImportCommitRowStatus.Created, 42, [], null)]);
+
+    /// <summary>Builds a replayable request for the expected operation.</summary>
+    /// <param name="operationId">The preview operation identity.</param>
+    /// <returns>The commit input.</returns>
+    private static PlayerImportCommitInput CommitInput(Guid operationId) => new()
+    {
+        Upload = ValidUpload(),
+        OperationId = operationId,
+        ConfirmationToken = "exact-protected-token"
+    };
+
+    /// <summary>Invalid confirmation inputs fail locally without transmitting a mutation.</summary>
+    /// <param name="invalidField">The invalid request field.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("operation")]
+    [InlineData("token")]
+    [InlineData("file size")]
+    public async Task CommitAsync_RejectsInvalidInput_WithoutSendingRequest(string invalidField)
+    {
+        var input = CommitInput(Guid.CreateVersion7());
+        input = invalidField switch
+        {
+            "operation" => input with { OperationId = Guid.Empty },
+            "token" => input with { ConfirmationToken = " " },
+            "file size" => input with { Upload = input.Upload with { Content = new byte[PlayerImportConstraints.MaxFileBytes + 1] } },
+            _ => throw new ArgumentOutOfRangeException(nameof(invalidField))
+        };
+        var handler = new CapturingHandler(new(HttpStatusCode.OK));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var result = await new HttpPlayerImportService(http).CommitAsync(input, TestContext.Current.CancellationToken);
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
+        handler.Method.ShouldBeNull();
+    }
+
+    /// <summary>Cancellation stays cancellation rather than being misreported as a completed or rolled-back batch.</summary>
+    [Fact]
+    public async Task CommitAsync_PreservesCancellation()
+    {
+        var handler = new CapturingHandler(new(HttpStatusCode.OK));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Should.ThrowAsync<OperationCanceledException>(() => new HttpPlayerImportService(http)
+            .CommitAsync(CommitInput(Guid.CreateVersion7()), cancellation.Token));
+    }
+
     [Fact]
     public async Task PreviewAsync_SendsMultipartFile_AndReturnsValidPreview()
     {
@@ -511,6 +695,30 @@ public sealed class HttpPlayerImportServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Preview success respects the same confirmation length bound as commit input.</summary>
+    /// <param name="excess">Characters beyond the inclusive maximum.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task PreviewAsync_EnforcesConfirmationTokenLength(int excess)
+    {
+        var preview = ValidPreview() with
+        {
+            ConfirmationToken = new string('x', PlayerImportConstraints.MaxConfirmationTokenCharacters + excess)
+        };
+        using var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(preview)
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var result = await new HttpPlayerImportService(http).PreviewAsync(ValidUpload(), TestContext.Current.CancellationToken);
+        result.IsSuccess.ShouldBe(excess == 0);
+        if (excess > 0)
+        {
+            result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        }
     }
 
     private static PlayerImportUploadInput ValidUpload() => new()

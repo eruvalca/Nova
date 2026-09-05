@@ -48,7 +48,7 @@ public sealed class PlayerImportServiceTests : IDisposable
 
     public PlayerImportServiceTests()
     {
-        _tokenProtector = new(new EphemeralDataProtectionProvider());
+        _tokenProtector = new(new EphemeralDataProtectionProvider(), TimeProvider.System);
         Seed();
     }
 
@@ -300,6 +300,8 @@ public sealed class PlayerImportServiceTests : IDisposable
         payload.FileLength.ShouldBe(upload.Content.Length);
         payload.FileSha256.ShouldNotBeNullOrWhiteSpace();
         payload.ExpiresAt.ShouldBe(first.Value.ExpiresAt);
+        payload.Version.ShouldBe(2);
+        payload.RowStatuses.ShouldBe(first.Value.Rows.Select(row => row.Status));
         (payload.ExpiresAt - payload.IssuedAt).ShouldBe(TimeSpan.FromMinutes(60));
     }
 
@@ -316,10 +318,12 @@ public sealed class PlayerImportServiceTests : IDisposable
     [Fact]
     public void TokenProtector_RejectsExpiredToken()
     {
-        var token = _tokenProtector.Protect(TokenPayload(), TimeSpan.FromMilliseconds(1));
-        Thread.Sleep(25);
+        var clock = new PlayerImportTestClock();
+        var protector = new PlayerImportPreviewTokenProtector(new EphemeralDataProtectionProvider(), clock);
+        var token = protector.Protect(TokenPayload(), TimeSpan.FromHours(1));
+        clock.Now = clock.Now.AddHours(2);
 
-        _tokenProtector.TryUnprotect(token, out var payload).ShouldBeFalse();
+        protector.TryUnprotect(token, out var payload).ShouldBeFalse();
         payload.ShouldBeNull();
     }
 
@@ -340,14 +344,15 @@ public sealed class PlayerImportServiceTests : IDisposable
         var operationId = Guid.CreateVersion7();
         var now = DateTimeOffset.UtcNow;
         var payload = new PlayerImportPreviewTokenPayload(
-            1,
+            2,
             operationId,
             ClubAId,
             AdminId,
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)),
             content.Length,
             now,
-            now.AddHours(1));
+            now.AddHours(1),
+            [PlayerImportRowStatus.Ready]);
         var token = _tokenProtector.Protect(payload, TimeSpan.FromHours(1));
 
         _tokenProtector.TryValidate(token, operationId, ClubAId, AdminId, content, out var valid).ShouldBeTrue();
@@ -376,7 +381,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     [Fact]
     public void TokenProtector_ReturnsSafeOut_ForUnsupportedVersionAndMalformedHash()
     {
-        var unsupported = _tokenProtector.Protect(TokenPayload() with { Version = 2 }, TimeSpan.FromHours(1));
+        var unsupported = _tokenProtector.Protect(TokenPayload() with { Version = 1 }, TimeSpan.FromHours(1));
 
         _tokenProtector.TryUnprotect(unsupported, out var unsupportedPayload).ShouldBeFalse();
         unsupportedPayload.ShouldBeNull();
@@ -406,13 +411,42 @@ public sealed class PlayerImportServiceTests : IDisposable
         nullHashResult.ShouldBeNull();
     }
 
+    /// <summary>Malformed signed claims cannot widen authorization or silently change reviewed eligibility.</summary>
+    /// <param name="malformation">The signed claim to corrupt.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("future")]
+    [InlineData("lifetime")]
+    [InlineData("missing rows")]
+    [InlineData("empty rows")]
+    [InlineData("invalid status")]
+    [InlineData("too many rows")]
+    public void TokenProtector_RejectsMalformedTimestampsAndRowClassifications(string malformation)
+    {
+        var payload = TokenPayload();
+        payload = malformation switch
+        {
+            "future" => payload with { IssuedAt = payload.IssuedAt.AddDays(1), ExpiresAt = payload.ExpiresAt.AddDays(1) },
+            "lifetime" => payload with { ExpiresAt = payload.ExpiresAt.AddHours(1) },
+            "missing rows" => payload with { RowStatuses = null! },
+            "empty rows" => payload with { RowStatuses = [] },
+            "invalid status" => payload with { RowStatuses = [(PlayerImportRowStatus)999] },
+            "too many rows" => payload with { RowStatuses = Enumerable.Repeat(PlayerImportRowStatus.Ready, 1001).ToArray() },
+            _ => throw new ArgumentOutOfRangeException(nameof(malformation))
+        };
+        var token = _tokenProtector.Protect(payload, TimeSpan.FromHours(1));
+        _tokenProtector.TryUnprotect(token, out var rejected).ShouldBeFalse();
+        rejected.ShouldBeNull();
+    }
+
     private PlayerImportService CreateService(PlayerImportReadContextFactory? factory = null) => new(
         factory ?? new PlayerImportReadContextFactory(_harness),
         _harness.CurrentUser,
         new PlayerImportCsvParser(),
         _tokenProtector,
         TimeProvider.System,
-        NullLogger<PlayerImportService>.Instance);
+        NullLogger<PlayerImportService>.Instance,
+        new PlayerImportWriteContextFactory(_harness),
+        new PlayerImportAdminContextFactory(_harness));
 
     private static PlayerImportUploadInput Upload(string rows)
     {
@@ -430,7 +464,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     private static PlayerImportPreviewTokenPayload TokenPayload()
     {
         var now = DateTimeOffset.UtcNow;
-        return new(1, Guid.CreateVersion7(), ClubAId, AdminId, "HASH", 42, now, now.AddHours(1));
+        return new(2, Guid.CreateVersion7(), ClubAId, AdminId, "HASH", 42, now, now.AddHours(1), [PlayerImportRowStatus.Ready]);
     }
 
     private void ActAs(long? userId, long? clubId, bool isAdmin)

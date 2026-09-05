@@ -65,6 +65,8 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// Gets the Players.
     /// </summary>
     public DbSet<PlayerEntity> Players => Set<PlayerEntity>();
+    /// <summary>Gets immutable player-import completion receipts.</summary>
+    public DbSet<PlayerImportReceiptEntity> PlayerImportReceipts => Set<PlayerImportReceiptEntity>();
     /// <summary>
     /// Gets the Player Tags.
     /// </summary>

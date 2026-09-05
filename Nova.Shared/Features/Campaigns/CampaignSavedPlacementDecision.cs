@@ -1,4 +1,5 @@
-﻿using Nova.Shared.Enums;
+﻿using System.Text.Json.Serialization;
+using Nova.Shared.Enums;
 
 namespace Nova.Shared.Features.Campaigns;
 
@@ -22,7 +23,7 @@ public sealed record CampaignSavedPlacementDecision(
     long SeasonOpeningSequence,
     PlacementOutcome Outcome,
     long? TeamId,
-    DateTimeOffset? RecordedAt,
-    long? RecordedById,
-    string? ActorDisplayName,
+    [property: JsonRequired] DateTimeOffset RecordedAt,
+    [property: JsonRequired] long RecordedById,
+    [property: JsonRequired] string ActorDisplayName,
     Guid ConcurrencyToken);

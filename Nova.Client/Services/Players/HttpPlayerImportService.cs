@@ -8,10 +8,130 @@ using Nova.Shared.Validation;
 
 namespace Nova.Client.Services.Players;
 
-/// <summary>WebAssembly HTTP implementation of the player import preview service.</summary>
+/// <summary>WebAssembly HTTP implementation of player import preview, commit, and exact-request recovery.</summary>
 /// <param name="httpClient">The client used to call the server player-import endpoints.</param>
 public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImportService
 {
+    /// <inheritdoc />
+    public async Task<ServiceResult<PlayerImportCompletion>> CommitAsync(
+        PlayerImportCommitInput input, CancellationToken cancellationToken = default)
+    {
+        if (input is null)
+        {
+            return ServiceProblem.Validation("input", "A confirmed preview is required.");
+        }
+
+        var errors = InputValidator.Validate(input);
+        if (errors.Count > 0)
+        {
+            return ServiceProblem.Validation(errors);
+        }
+
+        var problem = ValidateUpload(input.Upload);
+        if (problem is not null)
+        {
+            return problem.Value;
+        }
+
+        using var form = new MultipartFormDataContent();
+        using var file = new ByteArrayContent(input.Upload.Content);
+        if (!string.IsNullOrEmpty(input.Upload.ContentType))
+        {
+            file.Headers.ContentType = MediaTypeHeaderValue.Parse(input.Upload.ContentType);
+        }
+
+        form.Add(file, PlayerImportConstraints.FileFormFieldName, PlayerImportConstraints.TemplateFileName);
+        form.Add(new StringContent(input.OperationId.ToString()), PlayerImportConstraints.OperationIdFormFieldName);
+        form.Add(new StringContent(input.ConfirmationToken), PlayerImportConstraints.ConfirmationTokenFormFieldName);
+        using var response = await httpClient.PostAsync(PlayerEndpoints.ImportCommit, form, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return await response.ToServiceProblemAsync(cancellationToken);
+        }
+
+        return await response.Content.ReadRequiredJsonAsync<PlayerImportCompletion>(
+            "The server returned an invalid player import completion.",
+            completion => completion.OperationId == input.OperationId && IsValidCompletion(completion),
+            cancellationToken);
+    }
+
+    /// <summary>Rejects incomplete or contradictory success bodies rather than reporting false success.</summary>
+    /// <param name="completion">The decoded server result.</param>
+    /// <returns>Whether every aggregate and row relationship is valid.</returns>
+    private static bool IsValidCompletion(PlayerImportCompletion completion)
+    {
+        if (completion.OperationId == Guid.Empty || completion.OperationId.Version != 7
+            || completion.CompletedAt == default || completion.CompletedAt.Offset != TimeSpan.Zero
+            || completion.RecoveryExpiresAt.Offset != TimeSpan.Zero
+            || completion.RecoveryExpiresAt - completion.CompletedAt != TimeSpan.FromHours(PlayerImportConstraints.RecoveryLifetimeHours)
+            || completion.TotalRows is < 1 or > PlayerImportConstraints.MaxDataRows
+            || completion.Rows is null || completion.Rows.Count != completion.TotalRows
+            || completion.CreatedRows < 0 || completion.SkippedInvalidRows < 0
+            || completion.SkippedDuplicateRows < 0 || completion.BlockedRows < 0
+            || (long)completion.CreatedRows + completion.SkippedInvalidRows + completion.SkippedDuplicateRows + completion.BlockedRows != completion.TotalRows
+            || completion.CreatedRows + completion.BlockedRows == 0
+            || completion.EnrolledPlayers < 0 || completion.WaitingPlayers < 0
+            || (long)completion.EnrolledPlayers + completion.WaitingPlayers != completion.CreatedRows
+            || (completion.CampaignId is null
+                ? completion.CampaignName is not null || completion.EnrolledPlayers != 0
+                : completion.CampaignId <= 0 || string.IsNullOrWhiteSpace(completion.CampaignName) || completion.WaitingPlayers != 0))
+        {
+            return false;
+        }
+
+        var counts = new int[4];
+        var players = new HashSet<long>();
+        for (var index = 0; index < completion.Rows.Count; index++)
+        {
+            var row = completion.Rows[index];
+            if (row is null || row.SourceRowNumber != index + 2 || !Enum.IsDefined(row.Status)
+                || row.Errors is null
+                || row.Errors.Any(error => error is null || !Enum.IsDefined(error.Field) || string.IsNullOrWhiteSpace(error.Message)))
+            {
+                return false;
+            }
+
+            counts[(int)row.Status]++;
+            if (row.Status == PlayerImportCommitRowStatus.Created)
+            {
+                if (row.PlayerId is not > 0 || !players.Add(row.PlayerId.Value) || row.Errors.Count != 0 || row.Duplicate is not null)
+                {
+                    return false;
+                }
+            }
+            else if (row.PlayerId is not null)
+            {
+                return false;
+            }
+            else if (row.Status == PlayerImportCommitRowStatus.BlockedAtCommit)
+            {
+                if (row.Duplicate is { } duplicate)
+                {
+                    if (row.Errors.Count != 0 || !Enum.IsDefined(duplicate.Kind)
+                        || (duplicate.Kind == PlayerImportDuplicateKind.EarlierUploadRow
+                            ? duplicate.ExistingPlayerId is not null || duplicate.EarlierSourceRowNumber is not >= 2 || duplicate.EarlierSourceRowNumber >= row.SourceRowNumber
+                            : duplicate.ExistingPlayerId is not > 0 || duplicate.EarlierSourceRowNumber is not null))
+                    {
+                        return false;
+                    }
+                }
+                else if (row.Errors.Count == 0)
+                {
+                    return false;
+                }
+            }
+            else if (row.Errors.Count != 0 || row.Duplicate is not null)
+            {
+                return false;
+            }
+        }
+
+        return counts[(int)PlayerImportCommitRowStatus.Created] == completion.CreatedRows
+            && counts[(int)PlayerImportCommitRowStatus.SkippedInvalidAtPreview] == completion.SkippedInvalidRows
+            && counts[(int)PlayerImportCommitRowStatus.SkippedDuplicateAtPreview] == completion.SkippedDuplicateRows
+            && counts[(int)PlayerImportCommitRowStatus.BlockedAtCommit] == completion.BlockedRows;
+    }
+
     /// <inheritdoc />
     public async Task<ServiceResult<PlayerImportTemplate>> GetTemplateAsync(
         CancellationToken cancellationToken = default)
@@ -124,6 +244,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
         if (preview.OperationId == Guid.Empty
             || preview.OperationId.Version != 7
             || string.IsNullOrWhiteSpace(preview.ConfirmationToken)
+            || preview.ConfirmationToken.Length > PlayerImportConstraints.MaxConfirmationTokenCharacters
             || preview.ExpiresAt == default
             || preview.TotalRows is < 1 or > PlayerImportConstraints.MaxDataRows
             || preview.ReadyRows < 0

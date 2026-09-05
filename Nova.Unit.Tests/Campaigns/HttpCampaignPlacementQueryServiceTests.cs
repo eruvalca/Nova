@@ -84,6 +84,47 @@ public sealed class HttpCampaignPlacementQueryServiceTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.Items.Single().SavedDecision.ShouldBe(decision);
     }
+    /// <summary>Missing or null attribution cannot deserialize into a successful saved-decision response.</summary>
+    /// <param name="field">The attribution field to remove or null.</param>
+    /// <param name="omit">Whether to omit the field instead of setting it to null.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("recordedAt", true)]
+    [InlineData("recordedById", true)]
+    [InlineData("actorDisplayName", true)]
+    [InlineData("recordedAt", false)]
+    [InlineData("recordedById", false)]
+    [InlineData("actorDisplayName", false)]
+    public async Task GetPlacementRosterAsync_RejectsMissingDecisionAttribution(string field, bool omit)
+    {
+        var token = Guid.NewGuid();
+        var row = new CampaignPlacementRosterItem(101, 202, "Zoe Adams", "Zoe", "Adams", 2028,
+            PlacementOutcome.NotSelected, null, token)
+        {
+            SavedDecision = new(101, 202, 42, 50, 3, PlacementOutcome.NotSelected, null,
+                DateTimeOffset.UnixEpoch, 70, "Casey Member", token)
+        };
+        var payload = System.Text.Json.JsonSerializer.SerializeToNode(
+            new PagedResult<CampaignPlacementRosterItem>([row], 1, 50, 1),
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+        var decision = payload["items"]![0]!["savedDecision"]!.AsObject();
+        if (omit)
+        {
+            decision.Remove(field).ShouldBeTrue();
+        }
+        else
+        {
+            decision[field] = null;
+        }
+        using var http = new HttpClient(new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(payload.ToJsonString(), System.Text.Encoding.UTF8, "application/json")
+        })))
+        { BaseAddress = new Uri("https://example.com") };
+        var result = await new HttpCampaignPlacementQueryService(http).GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 }, TestContext.Current.CancellationToken);
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
     /// <summary>Checks each saved-decision invariant independently rejects corrupt successful responses.</summary>
     /// <param name="invalidField">The single malformed field or relationship.</param>
     [Theory(IncludeTestCaseIndex = true)]
@@ -97,6 +138,10 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     [InlineData("team")]
     [InlineData("token")]
     [InlineData("technical")]
+    [InlineData("recordedAt")]
+    [InlineData("recordedBy")]
+    [InlineData("actorNull")]
+    [InlineData("actorBlank")]
     public async Task GetPlacementRosterAsync_RejectsMalformedSavedDecision(string invalidField)
     {
         var token = Guid.NewGuid();
@@ -104,6 +149,10 @@ public sealed class HttpCampaignPlacementQueryServiceTests
             PlacementOutcome.NotSelected, null, DateTimeOffset.UnixEpoch, 70, "Casey Member", token);
         decision = invalidField switch
         {
+            "recordedAt" => decision with { RecordedAt = default },
+            "recordedBy" => decision with { RecordedById = 0 },
+            "actorNull" => decision with { ActorDisplayName = null! },
+            "actorBlank" => decision with { ActorDisplayName = " " },
             "missing" => null,
             "participation" => decision with { PlayerCampaignAssignmentId = 102 },
             "player" => decision with { PlayerId = 203 },
@@ -274,7 +323,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     PlacementOutcome.Assigned,
                     null,
                     token) { SavedDecision = new CampaignSavedPlacementDecision(101, 202, 42, 50, 1,
-                        PlacementOutcome.Assigned, null, null, null, null, token) }],
+                        PlacementOutcome.Assigned, null, DateTimeOffset.UnixEpoch, 70, "Casey Member", token) }],
                 1,
                 50,
                 1);
@@ -311,7 +360,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     PlacementOutcome.Assigned,
                     new CampaignParticipantTeamSummaryDto(301, "Alpha"),
                     token) { SavedDecision = new CampaignSavedPlacementDecision(101, 202, 42, 50, 1,
-                        PlacementOutcome.Assigned, 301, null, null, null, token) }],
+                        PlacementOutcome.Assigned, 301, DateTimeOffset.UnixEpoch, 70, "Casey Member", token) }],
                 1,
                 50,
                 1);

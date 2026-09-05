@@ -5,6 +5,12 @@
 /// </summary>
 public static class PlayerEndpoints
 {
+    /// <summary>Commits or recovers a confirmed CSV import.</summary>
+    public const string ImportCommit = GroupPrefix + "/" + ImportCommitRelative;
+
+    /// <summary>The commit path relative to the player group.</summary>
+    public const string ImportCommitRelative = "import/commit";
+
     /// <summary>
     /// The group prefix for player endpoints.
     /// </summary>
