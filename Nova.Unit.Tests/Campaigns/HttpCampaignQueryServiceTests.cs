@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json.Nodes;
 using Nova.Client.Services;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
@@ -410,16 +411,45 @@ public sealed class HttpCampaignQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    /// <summary>Verifies missing required paging metadata is rejected rather than replaced with CLR defaults.</summary>
+    /// <param name="payload">A raw successful response with omitted required properties.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("""{"seasons":[],"totalCount":0,"limit":50}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"page":1}""")]
+    [InlineData("""{"seasons":[],"totalCount":0}""")]
+    public async Task GetCampaignListAsync_RejectsMissingPagingMetadata(string payload)
+    {
+        var result = await GetCampaignListFromJsonAsync(payload, supplyPaging: false);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>
     /// Executes the list client against a supplied successful JSON response.
     /// </summary>
     /// <param name="payload">The response JSON.</param>
     /// <param name="limit">The optional requested result bound.</param>
+    /// <param name="supplyPaging">Whether fixtures unrelated to paging receive valid required paging properties.</param>
     /// <returns>The client result.</returns>
     private static async Task<ServiceResult<CampaignListResult>> GetCampaignListFromJsonAsync(
         string payload,
-        int? limit = null)
+        int? limit = null,
+        bool supplyPaging = true)
     {
+        if (supplyPaging)
+        {
+            var body = JsonNode.Parse(payload)!.AsObject();
+            if (!body.ContainsKey("page"))
+            {
+                body["page"] = 1;
+            }
+            if (!body.ContainsKey("limit"))
+            {
+                body["limit"] = limit ?? GetCampaignListInput.DefaultLimit;
+            }
+            payload = body.ToJsonString();
+        }
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(payload, Encoding.UTF8, "application/json")

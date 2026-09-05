@@ -52,7 +52,7 @@ public sealed partial class CampaignQueryService(
             await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
             var currentSeasonId = await db.Clubs.Where(club => club.ClubId == clubId)
                 .Select(club => club.CurrentSeasonId).SingleAsync(cancellationToken);
-            int? activePlayerCount = currentUserProvider.IsClubAdmin
+            int? activePlayerCount = currentUserProvider.IsClubAdmin && status is null or CampaignStatus.Draft
                 ? await db.Players.CountAsync(player => player.LifecycleStatus == LifecycleStatus.Active, cancellationToken)
                 : null;
             var query = db.Campaigns.AsQueryable();

@@ -89,8 +89,11 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
                 const receipt = { campaignId, operationId, enrolledPlayerCount: 24 };
                 recovery.write(scope, 'receipt:' + campaignId, receipt);
                 try {
-                    const first = workspace.readOpeningReceipt(scope, campaignId);
-                    const second = workspace.readOpeningReceipt(scope, campaignId);
+                    let focusCount = 0;
+                    const heading = { focus: () => focusCount++ };
+                    const first = workspace.readOpeningReceipt(scope, campaignId, heading);
+                    const second = workspace.readOpeningReceipt(scope, campaignId, heading);
+                    if (focusCount !== 0) return false;
                     if (JSON.stringify(first) !== JSON.stringify(receipt) || JSON.stringify(second) !== JSON.stringify(receipt)) return false;
                     workspace.acknowledgeOpeningReceipt(scope, campaignId, crypto.randomUUID());
                     if (workspace.readOpeningReceipt(scope, campaignId)?.operationId !== operationId) return false;

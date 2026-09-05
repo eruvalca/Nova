@@ -1,8 +1,7 @@
 let activeContainer = null;
 import { read } from './CampaignEntry.razor.js';
-export { acknowledgeOpeningReceipt } from './CampaignEntry.razor.js';
-export function readOpeningReceipt(scope, campaignId, heading) {
-    heading?.focus();
+export { acknowledgeOpeningReceipt, focus } from './CampaignEntry.razor.js';
+export function readOpeningReceipt(scope, campaignId) {
     return read(scope, 'receipt:' + campaignId);
 }
 let keydownListener = null;

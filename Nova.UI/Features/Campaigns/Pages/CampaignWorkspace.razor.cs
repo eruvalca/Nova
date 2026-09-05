@@ -1504,12 +1504,13 @@ public partial class CampaignWorkspace(
             var scope = $"{state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
             try
             {
-                var receipt = await module.InvokeAsync<OpenCampaignResult?>("readOpeningReceipt", ComponentCancellationToken, scope, CampaignId, _rosterHeading);
+                var receipt = await module.InvokeAsync<OpenCampaignResult?>("readOpeningReceipt", ComponentCancellationToken, scope, CampaignId);
                 ComponentCancellationToken.ThrowIfCancellationRequested();
                 if (receipt is not null && receipt.CampaignId == CampaignId && receipt.EnrolledPlayerCount > 0 && receipt.OperationId != Guid.Empty)
                 {
                     _openingReceiptMessage = $"Campaign opened and enrolled {receipt.EnrolledPlayerCount} players.";
                     StateHasChanged();
+                    await module.InvokeVoidAsync("focus", ComponentCancellationToken, _rosterHeading);
                     await module.InvokeVoidAsync("acknowledgeOpeningReceipt", ComponentCancellationToken, scope, CampaignId, receipt.OperationId);
                 }
             }

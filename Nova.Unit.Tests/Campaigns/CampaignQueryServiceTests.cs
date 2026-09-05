@@ -486,6 +486,28 @@ public sealed class CampaignQueryServiceTests : IDisposable
         draft.ParticipantCount.ShouldBe(0);
     }
 
+    /// <summary>Verifies views without Drafts omit enrollment previews and their additional player-count reader.</summary>
+    /// <param name="status">The directory view excluding Drafts.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("active")]
+    [InlineData("closed")]
+    public async Task GetCampaignList_OmitsDraftPreviewAndPlayerCount_ForNonDraftView(string status)
+    {
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+        var counter = new CountingCommandInterceptor();
+        var service = new CampaignQueryService(new CampaignReadHarnessDbContextFactory(_harness, counter),
+            _harness.CurrentUser, NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetCampaignListAsync(new GetCampaignListInput { Status = status }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Seasons.ShouldNotBeEmpty();
+        result.Value.DraftActivePlayerCount.ShouldBeNull();
+        counter.ReaderExecutionCount.ShouldBe(3);
+    }
+
     /// <summary>Verifies the detail query returns the club's campaign header payload.</summary>
     [Fact]
     public async Task GetCampaignDetail_ReturnsDetail_ForClubsCampaign()

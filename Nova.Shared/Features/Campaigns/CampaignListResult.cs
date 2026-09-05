@@ -1,4 +1,5 @@
-﻿using Nova.Shared.Enums;
+﻿using System.Text.Json.Serialization;
+using Nova.Shared.Enums;
 
 namespace Nova.Shared.Features.Campaigns;
 
@@ -87,16 +88,18 @@ public sealed record CampaignSeasonGroup
 /// </summary>
 public sealed record CampaignListResult
 {
-    /// <summary>Gets the requested one-based page.</summary>
+    /// <summary>Gets the requested one-based page, which must be present in JSON responses.</summary>
+    [JsonRequired]
     public int Page { get; init; } = 1;
 
-    /// <summary>Gets the applied page size.</summary>
+    /// <summary>Gets the applied page size, which must be present in JSON responses.</summary>
+    [JsonRequired]
     public int Limit { get; init; } = GetCampaignListInput.DefaultLimit;
 
     /// <summary>Gets the club's authoritative current season.</summary>
     public long? CurrentSeasonId { get; init; }
 
-    /// <summary>Gets the enrollment preview for administrators; absent for members.</summary>
+    /// <summary>Gets the administrator enrollment preview when the filter can include Drafts; otherwise absent.</summary>
     public int? DraftActivePlayerCount { get; init; }
 
     /// <summary>

@@ -175,8 +175,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Campaign reopened.");
 
         // The panel returns to the active checklist.
-        var panelText = (await page.Locator("section[aria-labelledby='closeout-region-heading']").TextContentAsync()) ?? string.Empty;
-        panelText.Contains("Enrolled", StringComparison.Ordinal).ShouldBeTrue($"Panel text after reopen was: {panelText}");
+        await Expect(page.Locator("section[aria-labelledby='closeout-region-heading']")).ToContainTextAsync("Enrolled");
 
         // Overview activity shows both the closed and reopened transitions.
         await OpenOverviewAsync(page, seed.ClosedCampaignId);

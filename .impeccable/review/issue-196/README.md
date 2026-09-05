@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Solution build: passed with zero warnings. Unit suite: 2,273 passed. PostgreSQL/HTTP integration suite: 474 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three new journey tests execute without flags. Format verification and theme contrast/token checks passed.
+Validated for PR #244 review round four on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,468 passed. PostgreSQL/HTTP integration suite: 531 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags. Format verification and theme contrast/token checks passed. The browser rerun passed after replacing an immediate closeout-checklist read with a retrying assertion that waits for the existing post-reopen refresh.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -46,4 +46,8 @@ Metadata edits clear contextual server validation on input changes without reint
 | Correct a server-rejected date and submit again, including after a parent render | `CampaignEntry_ResubmitsMetadata_AfterCorrectingServerValidation` |
 | Block initial and recovery opening calls while storage fails; then submit the same operation once | `CampaignEntry_RetriesStorageBeforeOpening_WithTheSameOperation` |
 
-The focused command `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignEntryTests'` passed all 14 cases. The full unit and browser suites and format verification were rerun successfully after the corrections. Provider contracts and persistence services are unchanged.
+Subsequent PR review rounds added scoped deletion replay, durable creation retries, identity cleanup recovery, URL paging synchronization, strict paging and closure validation, single-statement team previews, and accessible mobile table headers. The workspace reuses its router's authorized detail snapshot, preserves the focused Roster route during participant navigation, and ignores conflicting workspace tab values on that route.
+
+Opening receipts remain stored until .NET validates and applies the immutable count and acknowledges the matching operation. Only that validated receipt handoff moves focus to the Roster heading; ordinary visits retain normal navigation focus. Abandoned metadata edits discard server validation errors. JSON responses must contain both paging fields, Active/Closed directory requests omit the unused Draft player-count query, and creation links back to the root-relative directory path.
+
+Regression coverage includes `CampaignEntryTests`, `CampaignWorkspaceTests`, `HttpCampaignQueryServiceTests`, and `CampaignQueryServiceTests`, plus the real-browser Draft journey. The query tests assert the actual reader count for views without Drafts. The browser checks receipt retention and acknowledgment using the real JavaScript modules, along with Roster routing and mobile header semantics. The verification totals above describe the complete suites, not the original focused test subset.

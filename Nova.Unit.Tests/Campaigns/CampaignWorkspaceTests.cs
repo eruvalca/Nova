@@ -353,6 +353,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Campaign opened and enrolled 7 players."));
+        module.Invocations.Count(invocation => invocation.Identifier == "focus").ShouldBe(1);
         module.Invocations.Where(invocation => invocation.Identifier == "acknowledgeOpeningReceipt").Count().ShouldBe(1);
         var arguments = module.Invocations.Single(invocation => invocation.Identifier == "acknowledgeOpeningReceipt").Arguments;
         arguments[0].ShouldBe("101:42:False");
@@ -364,6 +365,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
     /// <param name="kind">The invalid receipt partition.</param>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("read-failure")]
+    [InlineData("no-receipt")]
     [InlineData("wrong-campaign")]
     [InlineData("empty-operation")]
     [InlineData("zero-count")]
@@ -378,6 +380,10 @@ public sealed class CampaignWorkspaceTests : BunitContext
         {
             read.SetException(new JSException("Storage unavailable"));
         }
+        else if (kind == "no-receipt")
+        {
+            read.SetResult(null);
+        }
         else
         {
             read.SetResult(new OpenCampaignResult(kind == "empty-operation" ? Guid.Empty : Guid.NewGuid(),
@@ -389,6 +395,7 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.WaitForAssertion(() => module.Invocations.Count(invocation => invocation.Identifier == "readOpeningReceipt").ShouldBe(1));
         cut.Markup.ShouldNotContain("Campaign opened and enrolled");
         module.Invocations.ShouldNotContain(invocation => invocation.Identifier == "acknowledgeOpeningReceipt");
+        module.Invocations.ShouldNotContain(invocation => invocation.Identifier == "focus");
     }
 
     /// <summary>Verifies stale canonical-workspace tab values cannot replace the dedicated Roster panel.</summary>

@@ -35,6 +35,8 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         var cut = Render<NewCampaign>();
 
         cut.WaitForAssertion(() => cut.Find("#campaign-name").GetAttribute("value").ShouldBe("Recovered Draft"));
+        cut.FindAll("a").Single(link => link.TextContent.Contains("Back to campaigns", StringComparison.OrdinalIgnoreCase))
+            .GetAttribute("href").ShouldBe("/campaigns");
         cut.Find("#campaign-start-date").GetAttribute("value").ShouldBe("2026-06-15");
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
 
