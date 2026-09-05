@@ -1,252 +1,434 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.JSInterop;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
-using Nova.UI.Components;
+using Nova.Shared.Security;
 using Nova.UI.Features.Campaigns.Components;
 
 namespace Nova.UI.Features.Campaigns.Pages;
 
-/// <summary>
-/// Renders the administrator campaign-creation workflow with live enrollment preview counts.
-/// </summary>
-/// <param name="campaignQueryService">The campaign creation-setup query service.</param>
-/// <param name="campaignCreationService">The campaign creation service.</param>
-/// <param name="navigationManager">The navigation manager used for redirects.</param>
+/// <summary>Creates a saved Draft with tab-scoped input and exact-request recovery.</summary>
+/// <param name="campaignQueryService">The authorized current-season and enrollment setup queries.</param>
+/// <param name="campaignCreationService">The idempotent Draft creation service.</param>
+/// <param name="navigationManager">The local route navigation service.</param>
+/// <param name="authentication">The current identity and its change notifications.</param>
+/// <param name="js">The runtime used for tab-scoped creation recovery.</param>
 public partial class NewCampaign(
     ICampaignQueryService campaignQueryService,
     ICampaignCreationService campaignCreationService,
-    NavigationManager navigationManager) : NovaComponentBase
+    NavigationManager navigationManager,
+    AuthenticationStateProvider authentication,
+    IJSRuntime js)
 {
-    /// <summary>
-    /// The loaded creation setup data, or <see langword="null"/> when unavailable.
-    /// </summary>
+    /// <summary>Authorized current-season and enrollment setup.</summary>
     private CampaignCreationSetupResult? _setup;
-
-    /// <summary>
-    /// The current page-level error message for setup loading.
-    /// </summary>
+    /// <summary>Setup-loading or recovery-storage failure.</summary>
     private string? _pageError;
-
-    /// <summary>
-    /// The current form-level error message for creation failures.
-    /// </summary>
+    /// <summary>Creation validation, persistence, or uncertain-outcome feedback.</summary>
     private string? _formError;
-
-    /// <summary>
-    /// Indicates whether setup data is being loaded.
-    /// </summary>
+    /// <summary>Whether current-identity setup is being fetched.</summary>
     private bool _isLoading;
-
-    /// <summary>
-    /// Indicates whether a creation submission is in progress.
-    /// </summary>
+    /// <summary>Whether creation or recovery-storage retry is in flight.</summary>
     private bool _isSubmitting;
+    /// <summary>Whether recovery storage allows creation submission.</summary>
+    private bool _sessionReady;
+    /// <summary>Whether scoped recovery reads have already been attempted.</summary>
+    private bool _storageAttempted;
+    /// <summary>Records an input write failure until the current form is durably saved again.</summary>
+    private bool _storageSaveFailed;
+    /// <summary>Editable creation input separate from the pending command.</summary>
+    private CampaignCreateFormState _createForm = CampaignCreateFormState.CreateDefault();
+    /// <summary>Original creation payload retained until its outcome is resolved.</summary>
+    private CreateCampaignInput? _pending;
+    /// <summary>Interop module for tab-scoped creation recovery.</summary>
+    private IJSObjectReference? _module;
+    /// <summary>User, club, and authority key owning creation recovery.</summary>
+    private string _scope = "";
+    /// <summary>Request generation rejecting obsolete identity and setup results.</summary>
+    private int _version;
+    /// <summary>Orders authentication completions across startup, notifications, and disposal.</summary>
+    private int _authenticationVersion;
+    /// <summary>Server validation errors keyed by creation field.</summary>
+    private IReadOnlyDictionary<string, string[]>? _fieldErrors;
 
-    /// <summary>
-    /// The create-campaign input model bound to the form.
-    /// </summary>
-    private readonly CampaignCreateFormState _createForm = CampaignCreateFormState.CreateDefault();
-
-    /// <summary>
-    /// The last attempted creation payload with the operation identifier normalized away, used to
-    /// detect field edits between retries via record equality.
-    /// </summary>
-    private CreateCampaignInput? _lastAttemptPayload;
-
-    /// <summary>
-    /// Gets or sets the persisted startup setup snapshot used across prerender and interactive attach.
-    /// </summary>
-    [PersistentState]
-    public CampaignCreationSetupResult? PersistedSetup { get; set; }
-
-    /// <summary>
-    /// Gets or sets the persisted startup page error used across prerender and interactive attach.
-    /// </summary>
-    [PersistentState]
-    public string? PersistedPageError { get; set; }
-
-    /// <summary>
-    /// Gets or sets whether startup initialization already completed during prerender.
-    /// </summary>
-    [PersistentState]
-    public bool Initialized { get; set; }
+    /// <summary>Gets or sets the persisted setup.</summary>
+    [PersistentState] public CampaignCreationSetupResult? PersistedSetup { get; set; }
+    /// <summary>Gets or sets the persisted startup error.</summary>
+    [PersistentState] public string? PersistedPageError { get; set; }
+    /// <summary>Gets or sets the persisted snapshot's identity.</summary>
+    [PersistentState] public string? SnapshotScope { get; set; }
+    /// <summary>Gets or sets whether prerender initialization completed.</summary>
+    [PersistentState] public bool Initialized { get; set; }
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
-        if (Initialized)
+        authentication.AuthenticationStateChanged += AuthenticationChanged;
+        var authenticationVersion = _authenticationVersion;
+        var state = await authentication.GetAuthenticationStateAsync();
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        _scope = Identity(state);
+        if (Initialized && SnapshotScope == _scope)
         {
             _setup = PersistedSetup;
             _pageError = PersistedPageError;
-            _isLoading = false;
-            EnsureOperationId();
+            return;
+        }
+        await LoadSetupAsync();
+    }
+
+    /// <summary>Builds the user, club, and authority key for creation recovery.</summary>
+    /// <param name="state">The authenticated identity.</param>
+    /// <returns>The scoped recovery key.</returns>
+    private static string Identity(AuthenticationState state) => $"{state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
+
+    /// <summary>Discards form, error, and recovery ownership before loading another identity's setup.</summary>
+    /// <param name="task">The updated authentication state.</param>
+    private void AuthenticationChanged(Task<AuthenticationState> task) => _ = InvokeAsync(async () =>
+    {
+        var authenticationVersion = ++_authenticationVersion;
+        var state = await task;
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        var next = Identity(state);
+        if (next == _scope)
+        {
             return;
         }
 
-        _isLoading = true;
-        EnsureOperationId();
-        await LoadSetupAsync();
-        PersistStartupState();
-        Initialized = true;
-    }
-
-    /// <summary>
-    /// Assigns a fresh idempotency identifier when the form has not started one yet.
-    /// </summary>
-    private void EnsureOperationId()
-    {
-        if (_createForm.OperationId == Guid.Empty)
+        var old = _scope;
+        var version = ++_version;
+        _scope = next;
+        _setup = null;
+        PersistedSetup = null;
+        _pageError = null;
+        _formError = null;
+        _fieldErrors = null;
+        PersistedPageError = null;
+        SnapshotScope = null;
+        Initialized = false;
+        _pending = null;
+        _createForm = CampaignCreateFormState.CreateDefault();
+        _sessionReady = false;
+        _storageAttempted = false;
+        _storageSaveFailed = false;
+        _isSubmitting = false;
+        StateHasChanged();
+        if (_module is not null)
         {
-            _createForm.OperationId = Guid.CreateVersion7();
+            try { await _module.InvokeVoidAsync("clear", ComponentCancellationToken, old); }
+            catch (JSException) { /* New-scope initialization reports storage availability independently. */ }
+        }
+
+        if (version != _version || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        await LoadSetupAsync();
+        StateHasChanged();
+    });
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_storageAttempted || _setup is null)
+        {
+            return;
+        }
+
+        _storageAttempted = true;
+        var version = _version;
+        try
+        {
+            _module ??= await js.InvokeAsync<IJSObjectReference>("import", ComponentCancellationToken,
+                "./_content/Nova.UI/Features/Campaigns/Pages/NewCampaign.razor.js");
+            if (version != _version)
+            {
+                return;
+            }
+            var saved = await _module.InvokeAsync<CampaignCreateFormState?>("read", ComponentCancellationToken, _scope, "create-form");
+            if (version != _version)
+            {
+                return;
+            }
+            var pending = await _module.InvokeAsync<CreateCampaignInput?>("read", ComponentCancellationToken, _scope, "create-pending");
+            if (version != _version)
+            {
+                return;
+            }
+
+            if (saved is not null)
+            {
+                _createForm = saved;
+            }
+            else
+            {
+                _createForm.ExistingSeasonId = _setup.CurrentSeason?.SeasonId;
+                _createForm.UseInlineSeason = _setup.CurrentSeason is null;
+                _createForm.InlineSeasonStartDate = _createForm.StartDate;
+            }
+            if (_createForm.OperationId == Guid.Empty)
+            {
+                _createForm.OperationId = Guid.CreateVersion7();
+            }
+
+            _createForm = _createForm.Clone();
+            _pending = pending;
+            _sessionReady = true;
+            StateHasChanged();
+        }
+        catch (Exception exception) when (exception is JSException or System.Text.Json.JsonException or NotSupportedException)
+        {
+            if (version == _version)
+            {
+                _sessionReady = false;
+                _pageError = exception is JSException
+                    ? "Recovery storage is unavailable. Enable session storage and reload before creating a Draft."
+                    : "Stored creation recovery data is incompatible. Creation is disabled and the original recovery data is preserved. Restore compatible recovery data before retrying; check Campaigns for a previously created Draft.";
+                StateHasChanged();
+            }
         }
     }
 
-    /// <summary>
-    /// Reloads the creation setup data.
-    /// </summary>
-    /// <returns>A task that completes when loading and state updates are finished.</returns>
+    /// <summary>Loads and persists setup only for the identity that owns this request.</summary>
+    /// <returns>The setup refresh task.</returns>
     private async Task LoadSetupAsync()
     {
+        var version = _version;
         _isLoading = true;
         _pageError = null;
-
-        ServiceResult<CampaignCreationSetupResult> result;
         try
         {
-            result = await campaignQueryService.GetCreationSetupAsync(ComponentCancellationToken);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
-        {
-            if (ComponentCancellationToken.IsCancellationRequested)
+            var result = await campaignQueryService.GetCreationSetupAsync(ComponentCancellationToken);
+            if (version != _version)
             {
                 return;
             }
 
-            _pageError = "Could not reach the server. Check your connection and retry.";
-            _setup = null;
-            PersistStartupState();
-            _isLoading = false;
-            return;
-        }
-
-        result.Switch(
-            setup => _setup = setup,
-            problem =>
+            if (result.IsSuccess)
             {
-                if (problem.Kind == ServiceProblemKind.Forbidden)
+                _setup = result.Value;
+            }
+            else
+            {
+                _setup = null;
+                _pageError = result.Problem.Detail ?? "Campaign setup is unavailable.";
+                if (result.Problem.Kind == ServiceProblemKind.Forbidden)
                 {
                     navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
-                    return;
                 }
-
-                _pageError = FirstNonBlank(problem.Detail, "Failed to load campaign creation setup. Please retry.");
-                _setup = null;
-            });
-
-        PersistStartupState();
-        _isLoading = false;
-    }
-
-    /// <summary>
-    /// Persists the current startup setup/error state for prerender-to-interactive restoration.
-    /// </summary>
-    private void PersistStartupState()
-    {
-        PersistedSetup = _setup;
-        PersistedPageError = _pageError;
-    }
-
-    /// <summary>
-    /// Reloads setup data after a page-level error.
-    /// </summary>
-    /// <returns>A task that completes when the reload finishes.</returns>
-    private Task ReloadAsync() => LoadSetupAsync();
-
-    /// <summary>
-    /// Creates the campaign from the validated form state and navigates to the campaign list.
-    /// The operation identifier is reused only while the payload is byte-identical to the previous
-    /// attempt so retries resume an ambiguous commit; editing any field after an attempt mints a new
-    /// identifier so the changed payload cannot be silently replaced by the replayed original.
-    /// </summary>
-    /// <param name="model">The validated form state.</param>
-    /// <returns>A task that completes when the creation request finishes.</returns>
-    private async Task CreateCampaignAsync(CampaignCreateFormState model)
-    {
-        if (_isSubmitting)
-        {
-            return;
-        }
-
-        var input = model.ToCreateInput() with { OperationId = _createForm.OperationId };
-        // Record equality compares every payload field (including the nested inline season), so
-        // changed payloads can never collide the way a delimiter-joined string fingerprint could.
-        var payload = input with { OperationId = Guid.Empty };
-        if (_lastAttemptPayload is not null && _lastAttemptPayload != payload)
-        {
-            // The page model holds the canonical current-attempt identifier so the child form's
-            // clone carries it into every later submission of the changed payload.
-            _createForm.OperationId = Guid.CreateVersion7();
-            input = input with { OperationId = _createForm.OperationId };
-        }
-
-        _lastAttemptPayload = payload;
-
-        _isSubmitting = true;
-        _formError = null;
-
-        try
-        {
-            var result = await campaignCreationService.CreateAsync(input, ComponentCancellationToken);
-            result.Switch(
-                _ => navigationManager.NavigateTo("campaigns"),
-                problem =>
-                {
-                    if (problem.Kind == ServiceProblemKind.Forbidden)
-                    {
-                        navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
-                        return;
-                    }
-
-                    _formError = problem.Kind == ServiceProblemKind.Conflict
-                        ? FirstNonBlank(problem.Detail, "A campaign with these details already exists. Review the campaign list before retrying.")
-                        : FirstNonBlank(problem.Detail, FlattenValidationErrors(problem), "Failed to create the campaign. Please retry.");
-                });
-        }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
-        {
-            if (ComponentCancellationToken.IsCancellationRequested)
-            {
-                return;
             }
-
-            _formError = "Could not reach the server. Check your connection and retry; the same request will resume safely.";
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        {
+            if (version == _version)
+            {
+                _pageError = "Could not load campaign setup. Check your connection and retry.";
+            }
         }
         finally
         {
-            _isSubmitting = false;
+            if (version == _version)
+            {
+                _isLoading = false;
+                PersistedSetup = _setup;
+                PersistedPageError = _pageError;
+                SnapshotScope = _scope;
+                Initialized = true;
+            }
         }
     }
 
-    /// <summary>
-    /// Returns the first non-blank message from the supplied candidates.
-    /// </summary>
-    /// <param name="candidates">The candidate messages in preference order.</param>
-    /// <returns>The first non-blank candidate.</returns>
-    private static string FirstNonBlank(params string?[] candidates)
-        => candidates.First(candidate => !string.IsNullOrWhiteSpace(candidate))!;
+    /// <summary>Invalidates setup work and retries setup and recovery reads.</summary>
+    /// <returns>The setup reload task.</returns>
+    private Task ReloadAsync()
+    {
+        ++_version;
+        _storageAttempted = false;
+        _sessionReady = false;
+        return LoadSetupAsync();
+    }
 
-    /// <summary>
-    /// Flattens field-level validation messages when the problem carries no detail text.
-    /// </summary>
-    /// <param name="problem">The service problem.</param>
-    /// <returns>The joined field messages, or <see langword="null"/> when the problem has no errors.</returns>
-    private static string? FlattenValidationErrors(ServiceProblem problem)
-        => problem.Errors is { Count: > 0 }
-            ? string.Join(" ", problem.Errors.SelectMany(pair => pair.Value))
-            : null;
+    /// <summary>Saves edited input, retaining it in memory if recovery storage fails.</summary>
+    /// <param name="model">The current form input.</param>
+    /// <returns>The recovery write task.</returns>
+    private async Task SaveInputAsync(CampaignCreateFormState model)
+    {
+        if (!_sessionReady || _pending is not null)
+        {
+            return;
+        }
 
-    /// <summary>
-    /// Cancels creation and returns to the campaign list.
-    /// </summary>
-    private void Cancel() => navigationManager.NavigateTo("campaigns");
+        _createForm = model;
+        _fieldErrors = null;
+        var version = _version;
+        try { await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-form", model); }
+        catch (JSException)
+        {
+            if (version == _version)
+            {
+                _sessionReady = false;
+                _storageSaveFailed = true;
+                _formError = "Your input could not be saved for recovery. Retry recovery storage before submitting.";
+            }
+        }
+    }
+
+    /// <summary>Retries saving the current in-memory input without restoring an older stored form.</summary>
+    /// <returns>The retry task; submission stays disabled until the write succeeds.</returns>
+    private async Task RetryStorageAsync()
+    {
+        if (_isSubmitting || !_storageSaveFailed)
+        {
+            return;
+        }
+
+        var version = _version;
+        _isSubmitting = true;
+        try
+        {
+            await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-form", _createForm);
+            if (version == _version)
+            {
+                _storageSaveFailed = false;
+                _formError = null;
+                _sessionReady = true;
+            }
+        }
+        catch (JSException)
+        {
+            // Keep the current form and recovery action available until storage accepts the write.
+        }
+        finally
+        {
+            if (version == _version)
+            {
+                _isSubmitting = false;
+            }
+        }
+    }
+
+    /// <summary>Persists and submits the original payload, retaining uncertain creation for replay.</summary>
+    /// <param name="model">The editable input used only when no original request is pending.</param>
+    /// <returns>The creation or exact-request recovery task.</returns>
+    private async Task CreateCampaignAsync(CampaignCreateFormState model)
+    {
+        if (_isSubmitting || !_sessionReady)
+        {
+            return;
+        }
+
+        var version = _version;
+        _isSubmitting = true;
+        _formError = null;
+        _fieldErrors = null;
+        try
+        {
+            if (_pending is null)
+            {
+                _createForm = model;
+                if (_createForm.OperationId == Guid.Empty)
+                {
+                    _createForm.OperationId = Guid.CreateVersion7();
+                }
+
+                _pending = _createForm.ToCreateInput();
+            }
+            // Confirmation cannot bypass persistence after a failed initial write.
+            await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-form", _createForm);
+            if (version != _version)
+            {
+                return;
+            }
+            await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-pending", _pending);
+            if (version != _version)
+            {
+                return;
+            }
+
+            var result = await campaignCreationService.CreateAsync(_pending, ComponentCancellationToken);
+            if (version != _version)
+            {
+                return;
+            }
+
+            if (result.IsSuccess)
+            {
+                await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, "create-form");
+                if (version != _version)
+                {
+                    return;
+                }
+
+                await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, "create-pending");
+                if (version != _version)
+                {
+                    return;
+                }
+
+                navigationManager.NavigateTo($"/campaigns/{result.Value.CampaignId}");
+                return;
+            }
+            _formError = result.Problem.Detail ?? "The Draft could not be saved.";
+            _fieldErrors = result.Problem.Errors;
+            if (result.Problem.Kind != ServiceProblemKind.ServerError)
+            {
+                await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, "create-pending");
+                if (version != _version)
+                {
+                    return;
+                }
+
+                _pending = null;
+                _createForm.OperationId = Guid.CreateVersion7();
+                _createForm = _createForm.Clone();
+            }
+            if (result.Problem.Kind == ServiceProblemKind.Forbidden)
+            {
+                navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
+            }
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or JSException)
+        {
+            if (version == _version)
+            {
+                _formError = "The creation result is uncertain. Confirm the original request before editing or submitting another Draft.";
+            }
+        }
+        finally
+        {
+            if (version == _version)
+            {
+                _isSubmitting = false;
+            }
+        }
+    }
+
+    /// <summary>Replays retained creation without accepting an edited replacement.</summary>
+    /// <returns>The creation recovery task.</returns>
+    private Task RecoverAsync() => CreateCampaignAsync(_createForm);
+    /// <summary>Returns to the directory without submitting the form.</summary>
+    private void Cancel() => navigationManager.NavigateTo("/campaigns");
+
+    /// <inheritdoc />
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        ++_authenticationVersion;
+        ++_version;
+        authentication.AuthenticationStateChanged -= AuthenticationChanged;
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); } catch (JSDisconnectedException) { }
+        }
+        await base.DisposeAsyncCore();
+    }
 }

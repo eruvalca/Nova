@@ -1,4 +1,9 @@
 let activeContainer = null;
+import { read } from './CampaignEntry.razor.js';
+export { acknowledgeOpeningReceipt, focus } from './CampaignEntry.razor.js';
+export function readOpeningReceipt(scope, campaignId) {
+    return read(scope, 'receipt:' + campaignId);
+}
 let keydownListener = null;
 
 // Suppresses the browser's default keyboard activation click for roster rows and cards.

@@ -1,0 +1,70 @@
+{
+  "title": "Campaign directory and Draft preparation",
+  "question": "Choose the composition for the campaign directory, saved Draft, and opening review.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Preparation sheet",
+      "kicker": "THE ROLL",
+      "thesis": "One continuous sheet moves from campaign details through roster and teams to the opening checkpoint.",
+      "palette": [
+        "#0E7C7B",
+        "#F4F8F3",
+        "#DDF2EC",
+        "#142F2E"
+      ],
+      "materials": [
+        "flat working sheets",
+        "precise hairlines",
+        "system typography"
+      ],
+      "viewport": "A wide preparation sheet holds numbered sections and a full-width opening review at its foot.",
+      "risk": "The final commitment sits lower on long preparation pages.",
+      "comp": ".impeccable/mocks/decision/issue-196-preparation-sheet.png"
+    },
+    {
+      "id": "readiness-split",
+      "label": "Details and readiness",
+      "thesis": "Preparation fills the main column while a narrow readiness board keeps the opening consequence in view.",
+      "palette": [
+        "#0E7C7B",
+        "#F4F8F3",
+        "#DDF2EC",
+        "#142F2E"
+      ],
+      "materials": [
+        "flat working sheets",
+        "precise hairlines",
+        "system typography"
+      ],
+      "viewport": "A broad details and teams column sits beside a compact roster and opening board.",
+      "risk": "The two columns must collapse carefully on phones.",
+      "comp": ".impeccable/mocks/decision/issue-196-readiness-split.png"
+    },
+    {
+      "id": "checkpoint-led",
+      "label": "Opening checkpoint",
+      "thesis": "The enrollment consequence leads the page, with editable preparation sections directly beneath it.",
+      "palette": [
+        "#0E7C7B",
+        "#F4F8F3",
+        "#DDF2EC",
+        "#142F2E"
+      ],
+      "materials": [
+        "flat working sheets",
+        "precise hairlines",
+        "system typography"
+      ],
+      "viewport": "A wide opening review leads above compact campaign details and durable-team rows.",
+      "risk": "An early opening action needs especially clear blocker and warning states.",
+      "comp": ".impeccable/mocks/decision/issue-196-checkpoint-led.png"
+    }
+  ],
+  "reroll": true,
+  "steer": true,
+  "buildPath": {
+    "value": "comp",
+    "toggle": true
+  }
+}

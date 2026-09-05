@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json.Nodes;
 using Nova.Client.Services;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
@@ -39,13 +40,13 @@ public sealed class HttpCampaignQueryServiceTests
     [Fact]
     public async Task GetCampaignListAsync_RequestsSharedRoute_AndRespectsQuery()
     {
-        var sample = new CampaignListResult { TotalCount = 0, Seasons = new List<CampaignSeasonGroup>() };
+        var sample = new CampaignListResult { TotalCount = 0, Page = 2, Limit = 10, Seasons = new List<CampaignSeasonGroup>() };
         using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(sample) };
         var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var svc = new HttpCampaignQueryService(http);
-        var input = new GetCampaignListInput { Status = "active", Limit = 10 };
+        var input = new GetCampaignListInput { Status = "active", Limit = 10, Page = 2 };
         var result = await svc.GetCampaignListAsync(input, TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -54,6 +55,7 @@ public sealed class HttpCampaignQueryServiceTests
         handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(CampaignEndpoints.GetCampaignList);
         handler.LastRequest.RequestUri!.Query.ShouldContain("status=active");
         handler.LastRequest.RequestUri!.Query.ShouldContain("limit=10");
+        handler.LastRequest.RequestUri!.Query.ShouldContain("page=2");
     }
 
     /// <summary>Verifies an empty successful list body maps to a server error.</summary>
@@ -186,25 +188,33 @@ public sealed class HttpCampaignQueryServiceTests
     /// <summary>Verifies invalid opening-readiness relationships are rejected as protocol errors.</summary>
     /// <param name="payload">The invalid successful JSON payload.</param>
     [Theory(IncludeTestCaseIndex = true)]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":null,"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":null}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[99],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[99]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":0,"activeTeamCount":1,"canOpen":false,"blockers":[0,0],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":0,"canOpen":true,"blockers":[],"warnings":[0,0]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":-1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":-1,"canOpen":true,"blockers":[],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":0,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":0,"canOpen":true,"blockers":[],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[1],"warnings":[],"blockingCampaign":null}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":0,"campaignName":"Other"}}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":42,"campaignName":"Other"}}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":43,"campaignName":" "}}""")]
-    [InlineData("""{"campaignId":43,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":null}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":0,"activeTeamCount":1,"canOpen":true,"blockers":[0],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[0],"warnings":[]}""")]
-    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[0]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":null,"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":null}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":false,"blockers":[99],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[99]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":0,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":false,"blockers":[0,0],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":0,"canOpen":true,"blockers":[],"warnings":[0,0]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":-1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":-1,"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":false,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":0,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":0,"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":false,"blockers":[1],"warnings":[],"blockingCampaign":null}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":0,"campaignName":"Other"}}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":42,"campaignName":"Other"}}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":{"campaignId":43,"campaignName":" "}}""")]
+    [InlineData("""{"campaignId":43,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[],"blockingCampaign":null}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":0,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[0],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":false,"blockers":[0],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"activeTeams":[{"teamId":1,"name":"Team"}],"canOpen":true,"blockers":[],"warnings":[0]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":null}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[null]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":0,"name":"Team"}]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":" "}]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":2,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":"A"},{"teamId":1,"name":"B"}]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":"A"},{"teamId":2,"name":"B"}]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[]}""")]
+    [InlineData("""{"campaignId":42,"blockingCampaign":null,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[]}""")]
     public async Task GetOpeningReadinessAsync_ReturnsServerError_ForInvalidPayload(string payload)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -221,6 +231,48 @@ public sealed class HttpCampaignQueryServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies readiness requires the full bounded preview at zero, singleton, and capped counts.</summary>
+    /// <param name="teamCount">The authoritative number of active teams.</param>
+    /// <param name="previewCount">The number of names returned by the server.</param>
+    /// <param name="valid">Whether the preview satisfies the exact bounded contract.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(0, 0, true)]
+    [InlineData(1, 1, true)]
+    [InlineData(5, 5, true)]
+    [InlineData(6, 5, true)]
+    [InlineData(6, 4, false)]
+    public async Task GetOpeningReadinessAsync_RequiresCompleteBoundedPreview(int teamCount, int previewCount, bool valid)
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                campaignId = 42,
+                activePlayerCount = 1,
+                activeTeamCount = teamCount,
+                activeTeams = Enumerable.Range(1, previewCount).Select(id => new { teamId = id, name = $"Team {id}" }),
+                canOpen = true,
+                blockingCampaign = (object?)null,
+                blockers = Array.Empty<int>(),
+                warnings = teamCount == 0 ? [0] : Array.Empty<int>()
+            })
+        };
+        using var http = new HttpClient(new FakeHttpMessageHandler(response)) { BaseAddress = new Uri("https://localhost/") };
+
+        var result = await new HttpCampaignQueryService(http).GetOpeningReadinessAsync(42, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBe(valid);
+        if (valid)
+        {
+            result.Value.ActiveTeamCount.ShouldBe(teamCount);
+            result.Value.ActiveTeams.Count.ShouldBe(previewCount);
+        }
+        else
+        {
+            result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        }
     }
 
     /// <summary>
@@ -246,17 +298,38 @@ public sealed class HttpCampaignQueryServiceTests
     public async Task GetCampaignListAsync_AcceptsDraftLifecycleOrder()
     {
         const string payload = """
-            {"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01",
+            {"draftActivePlayerCount":0,"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01",
             "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
             {"campaignId":1,"name":"Active","startDate":"2026-06-01","status":0,"participantCount":1,"unresolvedCount":0},
             {"campaignId":2,"name":"Draft","startDate":"2026-06-01","status":2,"participantCount":0,"unresolvedCount":0},
-            {"campaignId":3,"name":"Closed","startDate":"2026-06-01","status":1,"participantCount":1,"unresolvedCount":0}
+            {"campaignId":3,"name":"Closed","startDate":"2026-06-01","closedAt":"2026-07-01T00:00:00Z","status":1,"participantCount":1,"unresolvedCount":0}
             ]}],"totalCount":3}
             """;
 
         var result = await GetCampaignListFromJsonAsync(payload);
 
         result.IsSuccess.ShouldBeTrue();
+    }
+
+    /// <summary>Verifies the authoritative current-season group may precede a newer dated historical season.</summary>
+    [Fact]
+    public async Task GetCampaignListAsync_AcceptsCurrentSeasonBeforeNewerHistory()
+    {
+        const string payload = """
+            {"currentSeasonId":1,"draftActivePlayerCount":0,"seasons":[
+            {"seasonId":1,"name":"Current","startDate":"2026-01-01",
+            "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
+            {"campaignId":1,"name":"Draft","startDate":"2026-06-01","status":2,"participantCount":0,"unresolvedCount":0}]},
+            {"seasonId":2,"name":"History","startDate":"2027-01-01",
+            "concurrencyToken":"22222222-2222-2222-2222-222222222222","campaigns":[
+            {"campaignId":2,"name":"Closed","startDate":"2027-06-01","closedAt":"2027-07-01T00:00:00Z","status":1,"participantCount":0,"unresolvedCount":0}]}
+            ],"totalCount":2}
+            """;
+
+        var result = await GetCampaignListFromJsonAsync(payload);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Seasons.Select(season => season.SeasonId).ShouldBe([1L, 2L]);
     }
 
     /// <summary>Verifies an empty season metadata token is rejected as a malformed success payload.</summary>
@@ -283,6 +356,11 @@ public sealed class HttpCampaignQueryServiceTests
     [InlineData("""{"seasons":[null],"totalCount":0}""")]
     [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","campaigns":null}],"totalCount":0}""")]
     [InlineData("""{"seasons":[],"totalCount":-1}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"page":0}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"limit":0}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"limit":101}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"currentSeasonId":0}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"draftActivePlayerCount":-1}""")]
     [InlineData("""{"seasons":[{"seasonId":0,"name":"Season","startDate":"2026-01-01","campaigns":[]}],"totalCount":0}""")]
     [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-02","endDate":"2026-01-01","campaigns":[]}],"totalCount":0}""")]
     [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","campaigns":[{"campaignId":1,"name":"Campaign","startDate":"2026-06-02","plannedEndDate":"2026-06-01","status":0,"participantCount":0,"unresolvedCount":0}]}],"totalCount":1}""")]
@@ -315,6 +393,43 @@ public sealed class HttpCampaignQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    /// <summary>Verifies successful list responses echo the exact requested bound, including empty pages.</summary>
+    /// <param name="responseLimit">The bound reported by the server.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(19)]
+    [InlineData(21)]
+    public async Task GetCampaignListAsync_RejectsDifferentResponseLimit(int responseLimit)
+    {
+        var payload = $$"""{"seasons":[],"totalCount":0,"limit":{{responseLimit}}}""";
+
+        var result = await GetCampaignListFromJsonAsync(payload, limit: 20);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies closure metadata agrees with the declared lifecycle status.</summary>
+    /// <param name="status">The wire lifecycle status.</param>
+    /// <param name="closedAt">The JSON closure timestamp or null.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(0, "\"2026-07-01T00:00:00Z\"")]
+    [InlineData(2, "\"2026-07-01T00:00:00Z\"")]
+    [InlineData(1, "null")]
+    public async Task GetCampaignListAsync_RejectsInconsistentClosureMetadata(int status, string closedAt)
+    {
+        var payload = $$"""
+            {"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01",
+            "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
+            {"campaignId":1,"name":"Campaign","startDate":"2026-06-01","status":{{status}},
+            "closedAt":{{closedAt}},"participantCount":0,"unresolvedCount":0}]}],"totalCount":1}
+            """;
+
+        var result = await GetCampaignListFromJsonAsync(payload);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>
     /// Verifies strict setup-payload invariants map invalid successful responses to server errors.
     /// </summary>
@@ -340,16 +455,73 @@ public sealed class HttpCampaignQueryServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    /// <summary>Verifies Draft rows require an enrollment preview while a legitimate zero count is accepted.</summary>
+    /// <param name="previewProperty">The optional JSON property fragment.</param>
+    /// <param name="valid">Whether the preview is present and valid.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("", false)]
+    [InlineData("\"draftActivePlayerCount\":null,", false)]
+    [InlineData("\"draftActivePlayerCount\":0,", true)]
+    public async Task GetCampaignListAsync_RequiresPreviewForDraftRows(string previewProperty, bool valid)
+    {
+        var payload = $$"""
+            { {{previewProperty}} "seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01",
+            "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
+            {"campaignId":1,"name":"Draft","startDate":"2026-06-01","status":2,"participantCount":0,"unresolvedCount":0}]}],"totalCount":1}
+            """;
+
+        var result = await GetCampaignListFromJsonAsync(payload);
+
+        result.IsSuccess.ShouldBe(valid);
+        if (valid)
+        {
+            result.Value.DraftActivePlayerCount.ShouldBe(0);
+        }
+        else
+        {
+            result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        }
+    }
+
+    /// <summary>Verifies missing required paging metadata is rejected rather than replaced with CLR defaults.</summary>
+    /// <param name="payload">A raw successful response with omitted required properties.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("""{"seasons":[],"totalCount":0,"limit":50}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"page":1}""")]
+    [InlineData("""{"seasons":[],"totalCount":0}""")]
+    public async Task GetCampaignListAsync_RejectsMissingPagingMetadata(string payload)
+    {
+        var result = await GetCampaignListFromJsonAsync(payload, supplyPaging: false);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
     /// <summary>
     /// Executes the list client against a supplied successful JSON response.
     /// </summary>
     /// <param name="payload">The response JSON.</param>
     /// <param name="limit">The optional requested result bound.</param>
+    /// <param name="supplyPaging">Whether fixtures unrelated to paging receive valid required paging properties.</param>
     /// <returns>The client result.</returns>
     private static async Task<ServiceResult<CampaignListResult>> GetCampaignListFromJsonAsync(
         string payload,
-        int? limit = null)
+        int? limit = null,
+        bool supplyPaging = true)
     {
+        if (supplyPaging)
+        {
+            var body = JsonNode.Parse(payload)!.AsObject();
+            if (!body.ContainsKey("page"))
+            {
+                body["page"] = 1;
+            }
+            if (!body.ContainsKey("limit"))
+            {
+                body["limit"] = limit ?? GetCampaignListInput.DefaultLimit;
+            }
+            payload = body.ToJsonString();
+        }
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(payload, Encoding.UTF8, "application/json")

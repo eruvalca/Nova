@@ -61,8 +61,8 @@ public sealed class CampaignComponentsTests : BunitContext
         var cut = Render<CampaignsPage>();
         cut.WaitForAssertion(() =>
         {
-            cut.Markup.ShouldContain("No active campaigns");
-            cut.Markup.ShouldContain("Create your first campaign");
+            cut.Markup.ShouldContain("No campaigns available");
+            cut.Markup.ShouldContain("Create a Draft to prepare your campaign");
         });
     }
 
@@ -72,9 +72,9 @@ public sealed class CampaignComponentsTests : BunitContext
         RegisterServices(isClubAdmin: false, seasonGroups: []);
 
         var cut = Render<CampaignsPage>();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No active campaigns"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No campaigns available"));
 
-        cut.Markup.ShouldContain("There are no active campaigns right now");
+        cut.Markup.ShouldContain("An administrator can open a campaign for club work");
         cut.Markup.ShouldNotContain("Create campaign");
     }
 
@@ -140,7 +140,7 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
-    public void Campaigns_RequestsActiveViewWithMaxLimit_ByDefault()
+    public void Campaigns_RequestsAllStatusesWithTwentyRows_ByDefault()
     {
         var queryService = Substitute.For<ICampaignQueryService>();
         queryService.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
@@ -154,9 +154,216 @@ public sealed class CampaignComponentsTests : BunitContext
         queryService.Received().GetCampaignListAsync(
             Arg.Is<GetCampaignListInput>(input =>
                 input != null
-                && string.Equals(input.Status, "active", StringComparison.Ordinal)
-                && input.Limit == GetCampaignListInput.MaxLimit),
+                && input.Status == null
+                && input.Limit == 20 && input.Page == 1),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies a member's unsupported Draft deep link becomes a readable first page of authorized campaigns.</summary>
+    [Fact]
+    public void Campaigns_NormalizesDraftDeepLink_ForOrdinaryMember()
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(SuccessListResult(CreateSeasonGroups()));
+        RegisterServices(isClubAdmin: false, queryService: queries);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns?view=draft&page=3");
+
+        var cut = Render<CampaignsPage>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.Find("#campaigns-view-filter").GetAttribute("value").ShouldBe("all");
+        cut.FindAll("#campaigns-view-filter option").Select(option => option.TextContent).ShouldContain("All campaigns");
+        cut.FindAll("#campaigns-view-filter option[value='draft']").ShouldBeEmpty();
+        new Uri(navigation.Uri).Query.ShouldContain("view=all");
+        new Uri(navigation.Uri).Query.ShouldContain("page=1");
+        _ = queries.Received().GetCampaignListAsync(
+            Arg.Is<GetCampaignListInput>(input => input.Status == null && input.Page == 1), Arg.Any<CancellationToken>());
+        _ = queries.DidNotReceive().GetCampaignListAsync(
+            Arg.Is<GetCampaignListInput>(input => input.Status == "draft"), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies losing administrator authority clears the Draft view and replaces it with authorized work.</summary>
+    [Fact]
+    public async Task Campaigns_NormalizesDraftView_WhenAdministratorRoleIsRemoved()
+    {
+        var groups = CreateSeasonGroups();
+        var drafts = new[] { groups[0] with { Campaigns = [groups[0].Campaigns[0] with { Name = "Hidden Draft", Status = CampaignStatus.Draft }] } };
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(SuccessListResult(call.Arg<GetCampaignListInput>().Status == "draft" ? drafts : groups)));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/campaigns?view=draft");
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Hidden Draft"));
+
+        await cut.InvokeAsync(() => authentication.ChangePrincipal(CreatePrincipal(isClubAdmin: false)));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.Markup.ShouldNotContain("Hidden Draft");
+        cut.Find("#campaigns-view-filter").GetAttribute("value").ShouldBe("all");
+        new Uri(navigation.Uri).Query.ShouldContain("view=all");
+        new Uri(navigation.Uri).Query.ShouldContain("page=1");
+        _ = queries.Received().GetCampaignListAsync(
+            Arg.Is<GetCampaignListInput>(input => input.Status == null && input.Page == 1), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies malformed optional directory query values fall back to the normal first page.</summary>
+    /// <param name="page">The raw page value tested alongside an invalid deletion marker.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("abc")]
+    [InlineData("2147483648")]
+    [InlineData("-4")]
+    [InlineData("1")]
+    public void Campaigns_DefaultsMalformedOptionalQueryValues(string page)
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(SuccessListResult(CreateSeasonGroups()));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/campaigns?page={page}&deleted=abc");
+
+        var cut = Render<CampaignsPage>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.Markup.ShouldNotContain("Draft deleted.");
+        _ = queries.Received(1).GetCampaignListAsync(Arg.Is<GetCampaignListInput>(input => input.Page == 1), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies an older authentication notification cannot restore administrator authority or cancel the newer scope's pending query.</summary>
+    [Fact]
+    public async Task Campaigns_IgnoresOlderAuthenticationCompletion_WhileNewMemberListLoads()
+    {
+        var pendingList = new TaskCompletionSource<ServiceResult<CampaignListResult>>();
+        var requests = 0;
+        var newerRequestToken = CancellationToken.None;
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (++requests == 1)
+                {
+                    return Task.FromResult(SuccessListResult(CreateSeasonGroups()));
+                }
+                newerRequestToken = call.Arg<CancellationToken>();
+                return pendingList.Task;
+            });
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        var older = new TaskCompletionSource<AuthenticationState>();
+        var newer = new TaskCompletionSource<AuthenticationState>();
+        await cut.InvokeAsync(() => authentication.NotifyPending(older.Task));
+        await cut.InvokeAsync(() => authentication.NotifyPending(newer.Task));
+        await cut.InvokeAsync(() => newer.SetResult(new AuthenticationState(CreatePrincipal(false, clubId: 43))));
+        cut.WaitForAssertion(() => requests.ShouldBe(2));
+
+        await cut.InvokeAsync(() => older.SetResult(new AuthenticationState(CreatePrincipal(true))));
+
+        requests.ShouldBe(2);
+        newerRequestToken.IsCancellationRequested.ShouldBeFalse();
+        await cut.InvokeAsync(() => pendingList.SetResult(SuccessListResult(CreateSeasonGroups())));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.FindAll("#campaigns-view-filter option[value='draft']").ShouldBeEmpty();
+        cut.Markup.ShouldNotContain("Create campaign");
+    }
+
+    /// <summary>Verifies an authentication notification completing after disposal cannot start another directory query.</summary>
+    [Fact]
+    public async Task Campaigns_IgnoresPendingAuthentication_AfterDisposal()
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(SuccessListResult(CreateSeasonGroups()));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        await cut.InvokeAsync(() => authentication.NotifyPending(pending.Task));
+        await cut.Instance.DisposeAsync();
+        cut.Dispose();
+
+        await cut.InvokeAsync(() => pending.SetResult(new AuthenticationState(CreatePrincipal(false, clubId: 43))));
+
+        await queries.Received(1).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies an empty directory page always moves backwards, including when its total is stale.</summary>
+    /// <param name="page">The empty requested page.</param>
+    /// <param name="total">The server total returned with no rows.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(2, 21)]
+    [InlineData(99, 1)]
+    public void Campaigns_RefetchesLowerPage_WhenRequestedPageIsEmpty(int page, int total)
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => SuccessListResult(call.Arg<GetCampaignListInput>().Page == 1 ? CreateSeasonGroups() : [],
+                call.Arg<GetCampaignListInput>().Page == 1 ? null : total));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo($"/campaigns?page={page}");
+
+        var cut = Render<CampaignsPage>();
+
+        cut.WaitForAssertion(() => new Uri(navigation.Uri).Query.ShouldContain("page=1"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        _ = queries.Received().GetCampaignListAsync(Arg.Is<GetCampaignListInput>(input => input.Page == page), Arg.Any<CancellationToken>());
+        _ = queries.Received().GetCampaignListAsync(Arg.Is<GetCampaignListInput>(input => input.Page == 1), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies directory rows use singular and plural enrollment and participant labels.</summary>
+    /// <param name="count">The number of players in each row's scale.</param>
+    /// <param name="suffix">The plural suffix for the displayed nouns.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, "")]
+    [InlineData(2, "s")]
+    public void Campaigns_UsesCountAwareRowLabels(int count, string suffix)
+    {
+        var group = CreateSeasonGroups()[0];
+        var active = group.Campaigns[0] with { ParticipantCount = count };
+        var draft = active with { CampaignId = 999, Status = CampaignStatus.Draft, Name = "Draft count" };
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignListResult>(new CampaignListResult
+            { Seasons = [group with { Campaigns = [active, draft] }], TotalCount = 2, DraftActivePlayerCount = count }));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+
+        var cut = Render<CampaignsPage>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Draft count"));
+        var text = cut.Find("tbody").TextContent;
+        text.ShouldContain($"{count} active player{suffix} will enroll");
+        cut.FindAll("tbody td").Select(cell => cell.TextContent.Trim()).ShouldContain($"{count} participant{suffix}");
+    }
+
+    /// <summary>Verifies creation preview labels follow their player and team counts.</summary>
+    /// <param name="count">The preview count.</param>
+    /// <param name="suffix">The plural suffix.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, "")]
+    [InlineData(2, "s")]
+    public void NewCampaign_UsesCountAwarePreviewLabels(int count, string suffix)
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
+            { CurrentSeason = CreateSeasonChoices()[0], ActivePlayerCount = count, ActiveTeamCount = count }));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var cut = Render<NewCampaignPage>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Current enrollment preview"));
+        var text = string.Join(" ", cut.Nodes.Select(node => node.TextContent)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        string.Join(" ", text).ShouldContain($"{count} active player{suffix} will enroll");
+        string.Join(" ", text).ShouldContain($"{count} active team{suffix} will be available");
     }
 
     [Fact]
@@ -187,7 +394,7 @@ public sealed class CampaignComponentsTests : BunitContext
         var cut = Render<CampaignsPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Spring ID Camp"));
 
-        cut.Markup.ShouldContain("Closed campaigns are read-only; reopen to edit.");
+        cut.Markup.ShouldContain("Immutable campaign record");
         cut.FindAll("tbody button").Count.ShouldBe(0);
     }
 
@@ -198,7 +405,8 @@ public sealed class CampaignComponentsTests : BunitContext
 
         var cut = Render<CampaignsPage>();
         cut.WaitForAssertion(() =>
-            cut.Markup.ShouldContain("Showing the most recent 1 of 120 campaigns."));
+            cut.Markup.ShouldContain("Showing 1 of 120 campaigns"));
+        cut.Find("nav[aria-label='Campaign pages'] a").TextContent.ShouldBe("Next");
     }
 
     [Fact]
@@ -541,6 +749,93 @@ public sealed class CampaignComponentsTests : BunitContext
             queryService.Received(2).GetCreationSetupAsync(Arg.Any<CancellationToken>()));
     }
 
+    /// <summary>Verifies old-club metadata completions cannot affect new-club feedback, navigation, queries, or a pending save.</summary>
+    /// <param name="season">Whether the obsolete mutation edits a season.</param>
+    /// <param name="outcome">The obsolete mutation outcome.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false, "success")]
+    [InlineData(false, "forbidden")]
+    [InlineData(false, "transport")]
+    [InlineData(true, "success")]
+    [InlineData(true, "forbidden")]
+    [InlineData(true, "transport")]
+    public async Task Campaigns_IgnoresOldScopeMutationCompletion(bool season, string outcome)
+    {
+        var oldCampaign = new TaskCompletionSource<ServiceResult<UpdateCampaignMetadataResult>>();
+        var oldSeason = new TaskCompletionSource<ServiceResult<SeasonSummary>>();
+        var current = new TaskCompletionSource<ServiceResult<UpdateCampaignMetadataResult>>();
+        var metadata = Substitute.For<ICampaignMetadataService>();
+        metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(season ? current.Task : oldCampaign.Task, current.Task);
+        var seasons = Substitute.For<ISeasonCommandService>();
+        seasons.UpdateAsync(Arg.Any<long>(), Arg.Any<UpdateSeasonInput>(), Arg.Any<CancellationToken>()).Returns(oldSeason.Task);
+        RegisterServices(isClubAdmin: true, metadataService: metadata, seasonMetadataService: seasons);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        if (season)
+        {
+            cut.FindAll("button").First(button => button.TextContent.Trim() == "Edit season").Click();
+        }
+        else
+        {
+            cut.Find("tbody button").Click();
+        }
+        var oldSave = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+        await cut.InvokeAsync(() => authentication.ChangePrincipal(CreatePrincipal(true, 43)));
+        cut.WaitForAssertion(() => cut.Find("tbody button").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("tbody button").Click();
+        var newSave = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+        cut.WaitForAssertion(() => cut.Find("#campaigns-view-filter").HasAttribute("disabled").ShouldBeTrue());
+        var queries = Services.GetRequiredService<ICampaignQueryService>();
+        var queryCount = queries.ReceivedCalls().Count();
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        var currentUrl = navigation.Uri;
+
+        await cut.InvokeAsync(() =>
+        {
+            if (outcome == "transport")
+            {
+                if (season)
+                {
+                    oldSeason.SetException(new HttpRequestException("Old request failed"));
+                }
+                else
+                {
+                    oldCampaign.SetException(new HttpRequestException("Old request failed"));
+                }
+            }
+            else if (season)
+            {
+                oldSeason.SetResult(outcome == "success" ? new ServiceResult<SeasonSummary>(new SeasonSummary
+                {
+                    SeasonId = 5,
+                    Name = "Old season",
+                    StartDate = new DateOnly(2026, 1, 1),
+                    IsCurrent = true,
+                    ConcurrencyToken = Guid.NewGuid()
+                })
+                    : new ServiceResult<SeasonSummary>(ServiceProblem.Forbidden("Old permission")));
+            }
+            else
+            {
+                oldCampaign.SetResult(outcome == "success" ? new ServiceResult<UpdateCampaignMetadataResult>(
+                    new UpdateCampaignMetadataResult(10, "Old campaign", new DateOnly(2026, 6, 1), null, CampaignStatus.Active, 5, "Summer 2026"))
+                    : new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.Forbidden("Old permission")));
+            }
+        });
+        await oldSave;
+
+        cut.Find("#campaigns-view-filter").HasAttribute("disabled").ShouldBeTrue();
+        cut.Markup.ShouldNotContain("metadata updated.");
+        cut.Markup.ShouldNotContain("Could not reach the server");
+        navigation.Uri.ShouldBe(currentUrl);
+        queries.ReceivedCalls().Count().ShouldBe(queryCount);
+        await cut.InvokeAsync(() => current.SetResult(new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.ServerError("Current save failed"))));
+        await newSave;
+    }
+
     [Fact]
     public void Campaigns_DisablesEditActions_WhileMutationIsPending()
     {
@@ -810,6 +1105,40 @@ public sealed class CampaignComponentsTests : BunitContext
         formMarkup.ShouldNotContain("Old 2020");
     }
 
+    /// <summary>Verifies correcting a server-rejected field permits resubmission even when the parent repeats the same error snapshot.</summary>
+    [Fact]
+    public void CampaignCreateForm_ResubmitsCorrectedField_WithUnchangedParentErrorSnapshot()
+    {
+        var submissions = new List<CampaignCreateFormState>();
+        var model = new CampaignCreateFormState
+        {
+            OperationId = Guid.NewGuid(),
+            Name = "Original Draft",
+            StartDate = new DateOnly(2026, 6, 1),
+            ExistingSeasonId = 5
+        };
+        var cut = Render<CampaignCreateForm>(parameters => parameters
+            .Add(component => component.Model, model)
+            .Add(component => component.Seasons, CreateSeasonChoices())
+            .Add(component => component.AllowInlineSeasonCreation, false)
+            .Add(component => component.OnValidSubmit, EventCallback.Factory.Create<CampaignCreateFormState>(this, submissions.Add)));
+        cut.Find("form").Submit();
+        submissions.Count.ShouldBe(1);
+        var errors = new Dictionary<string, string[]> { ["Name"] = ["A campaign already has this name."] };
+        cut.Render(parameters => parameters.Add(component => component.ServerErrors, errors));
+        cut.FindAll(".validation-message").ShouldContain(message => message.TextContent == "A campaign already has this name.");
+
+        cut.Find("#campaign-name").Change("Corrected Draft");
+        cut.Render(parameters => parameters.Add(component => component.ServerErrors, errors));
+        cut.Find("form").Submit();
+
+        submissions.Count.ShouldBe(2);
+        submissions[0].Name.ShouldBe("Original Draft");
+        submissions[1].Name.ShouldBe("Corrected Draft");
+        submissions[1].OperationId.ShouldBe(model.OperationId);
+        cut.FindAll(".validation-message").ShouldNotContain(message => message.TextContent == "A campaign already has this name.");
+    }
+
     [Fact]
     public void CampaignCreateForm_ShowsValidationMessages_WhenSubmittedInvalid()
     {
@@ -919,10 +1248,10 @@ public sealed class CampaignComponentsTests : BunitContext
 
         cut.Markup.ShouldContain("34");
         cut.Markup.ShouldContain("6");
-        cut.Markup.ShouldContain("active players will be enrolled as participants");
+        cut.Markup.ShouldContain("active players will enroll when you open the campaign");
         cut.Markup.ShouldContain("active teams will be available for placement");
-        cut.Markup.ShouldContain("Active");
-        cut.Markup.ShouldContain("does not close the campaign");
+        cut.Markup.ShouldContain("Draft");
+        cut.Markup.ShouldContain("Dates never open or close a campaign automatically");
         cut.Markup.ShouldNotContain("season-mode-inline");
         cut.Markup.ShouldContain("Campaigns can only be created in the current season.");
     }
@@ -946,7 +1275,7 @@ public sealed class CampaignComponentsTests : BunitContext
 
     /// <summary>Verifies no-current setup can create a campaign and its first season together.</summary>
     [Fact]
-    public void NewCampaign_CreatesWithInlineSeason_AndNavigatesToList()
+    public void NewCampaign_CreatesWithInlineSeason_AndNavigatesToSavedDraft()
     {
         var creationService = Substitute.For<ICampaignCreationService>();
         creationService.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
@@ -994,7 +1323,7 @@ public sealed class CampaignComponentsTests : BunitContext
                 Arg.Any<CancellationToken>()));
 
         var navigationManager = (BunitNavigationManager)Services.GetRequiredService<NavigationManager>();
-        new Uri(navigationManager.Uri).AbsolutePath.ShouldBe("/campaigns");
+        new Uri(navigationManager.Uri).AbsolutePath.ShouldBe("/campaigns/21");
     }
 
     [Fact]
@@ -1097,9 +1426,9 @@ public sealed class CampaignComponentsTests : BunitContext
         cut.Find("#campaign-name").Change("Fall ID Camp");
         cut.Find("#existing-season").Change("5");
         cut.Find("button[type='submit']").Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Could not reach the server"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("The creation result is uncertain"));
 
-        cut.Find("button[type='submit']").Click();
+        cut.FindAll("button").Single(button => button.TextContent == "Confirm creation result").Click();
         cut.WaitForAssertion(() =>
         {
             var calls = creationService.ReceivedCalls()
@@ -1112,7 +1441,7 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
-    public void NewCampaign_MintsNewOperationId_WhenPayloadChangesAfterFailure()
+    public void NewCampaign_PreservesOriginalPayload_WhenCreationResultIsUncertain()
     {
         var creationService = Substitute.For<ICampaignCreationService>();
         creationService.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
@@ -1126,10 +1455,11 @@ public sealed class CampaignComponentsTests : BunitContext
         cut.Find("#campaign-name").Change("Fall ID Camp");
         cut.Find("#existing-season").Change("5");
         cut.Find("button[type='submit']").Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Could not reach the server"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("The creation result is uncertain"));
 
         cut.Find("#campaign-name").Change("Fall ID Camp 2026");
-        cut.Find("button[type='submit']").Click();
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        cut.FindAll("button").Single(button => button.TextContent == "Confirm creation result").Click();
         cut.WaitForAssertion(() =>
         {
             var calls = creationService.ReceivedCalls()
@@ -1137,14 +1467,14 @@ public sealed class CampaignComponentsTests : BunitContext
                 .Where(input => input is not null)
                 .ToList();
             calls.Count.ShouldBe(2);
-            calls[0]!.OperationId.ShouldNotBe(calls[1]!.OperationId);
+            calls[0]!.OperationId.ShouldBe(calls[1]!.OperationId);
+            calls[1]!.Name.ShouldBe("Fall ID Camp");
         });
 
-        // A further identical retry of the changed payload must reuse the minted identifier,
-        // never the original one. Wait for the submit flag to reset before clicking again.
+        // Further recovery attempts preserve the original immutable request.
         cut.WaitForAssertion(() =>
             cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeFalse());
-        cut.Find("button[type='submit']").Click();
+        cut.FindAll("button").Single(button => button.TextContent == "Confirm creation result").Click();
         cut.WaitForAssertion(() =>
         {
             var calls = creationService.ReceivedCalls()
@@ -1157,11 +1487,11 @@ public sealed class CampaignComponentsTests : BunitContext
     }
 
     [Fact]
-    public void NewCampaign_MintsNewOperationId_WhenNameWithDelimiterChanges()
+    public void NewCampaign_MintsNewOperationId_AfterDefinitiveConflictWithChangedName()
     {
         var creationService = Substitute.For<ICampaignCreationService>();
         creationService.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
-            .Returns<Task<ServiceResult<CreateCampaignResult>>>(_ => throw new HttpRequestException("offline"));
+            .Returns(new ServiceResult<CreateCampaignResult>(ServiceProblem.Conflict("Duplicate name")));
 
         RegisterServices(isClubAdmin: true, creationService: creationService);
 
@@ -1171,7 +1501,7 @@ public sealed class CampaignComponentsTests : BunitContext
         cut.Find("#campaign-name").Change("Fall | 2026-07-15 | ID Camp");
         cut.Find("#existing-season").Change("5");
         cut.Find("button[type='submit']").Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Could not reach the server"));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Duplicate name"));
 
         cut.Find("#campaign-name").Change("Fall | 2026-07-16 | ID Camp");
         cut.Find("button[type='submit']").Click();
@@ -1204,7 +1534,7 @@ public sealed class CampaignComponentsTests : BunitContext
 
         cut.WaitForAssertion(() =>
         {
-            cut.Markup.ShouldContain("Could not reach the server");
+            cut.Markup.ShouldContain("The creation result is uncertain");
             cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeFalse();
         });
     }
@@ -1219,7 +1549,7 @@ public sealed class CampaignComponentsTests : BunitContext
         RegisterServices(isClubAdmin: true, queryService: queryService);
 
         var cut = Render<NewCampaignPage>();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Could not reach the server. Check your connection and retry."));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Could not load campaign setup. Check your connection and retry."));
     }
 
     [Fact]
@@ -1259,6 +1589,8 @@ public sealed class CampaignComponentsTests : BunitContext
         metadataService ??= Substitute.For<ICampaignMetadataService>();
         seasonMetadataService ??= Substitute.For<ISeasonCommandService>();
 
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.SetupModule("./_content/Nova.UI/Features/Campaigns/Pages/NewCampaign.razor.js").Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(queryService);
         Services.AddSingleton(creationService);
         Services.AddSingleton(metadataService);
@@ -1345,12 +1677,16 @@ public sealed class CampaignComponentsTests : BunitContext
         }
     ];
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin)
+    /// <summary>Builds a principal with explicit club and administrator scope.</summary>
+    /// <param name="isClubAdmin">Whether the principal is a club administrator.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <returns>The authenticated test principal.</returns>
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, long clubId = 42)
     {
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, "101"),
-            new(NovaClaimTypes.ClubId, "42")
+            new(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture))
         };
 
         if (isClubAdmin)
@@ -1384,9 +1720,25 @@ public sealed class CampaignComponentsTests : BunitContext
     /// <param name="principal">The principal to return from <see cref="GetAuthenticationStateAsync"/>.</param>
     private sealed class FakeAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
     {
+        /// <summary>Stores the current identity for role-change scenarios.</summary>
+        private ClaimsPrincipal _principal = principal;
+
         /// <inheritdoc />
         public override Task<AuthenticationState> GetAuthenticationStateAsync()
-            => Task.FromResult(new AuthenticationState(principal));
+            => Task.FromResult(new AuthenticationState(_principal));
+
+        /// <summary>Publishes an identity change to mounted directory components.</summary>
+        /// <param name="next">The replacement identity.</param>
+        public void ChangePrincipal(ClaimsPrincipal next)
+        {
+            _principal = next;
+            NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+        }
+
+        /// <summary>Publishes an unresolved authentication notification to exercise out-of-order completion.</summary>
+        /// <param name="pending">The authentication result that will complete later.</param>
+        public void NotifyPending(Task<AuthenticationState> pending)
+            => NotifyAuthenticationStateChanged(pending);
     }
 
     /// <summary>
@@ -1412,6 +1764,7 @@ public sealed class CampaignComponentsTests : BunitContext
             if (StartInitialized)
             {
                 Initialized = true;
+                PersistedIdentityScope = "101:42:True";
                 PersistedList = new CampaignListResult
                 {
                     TotalCount = PersistedGroups?.Sum(season => season.Campaigns.Count) ?? 0,

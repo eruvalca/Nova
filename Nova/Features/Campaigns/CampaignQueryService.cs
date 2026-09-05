@@ -50,6 +50,11 @@ public sealed partial class CampaignQueryService(
         try
         {
             await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var currentSeasonId = await db.Clubs.Where(club => club.ClubId == clubId)
+                .Select(club => club.CurrentSeasonId).SingleAsync(cancellationToken);
+            int? activePlayerCount = currentUserProvider.IsClubAdmin && status is null or CampaignStatus.Draft
+                ? await db.Players.CountAsync(player => player.LifecycleStatus == LifecycleStatus.Active, cancellationToken)
+                : null;
             var query = db.Campaigns.AsQueryable();
             if (status is CampaignStatus selectedStatus)
             {
@@ -57,17 +62,20 @@ public sealed partial class CampaignQueryService(
             }
 
             var totalCount = await query.CountAsync(cancellationToken);
+            var page = input.Page ?? 1;
+            var offset = (long)(page - 1) * limit;
             var rows = await query
-                .OrderByDescending(campaign => campaign.Season.StartDate)
+                .Where(campaign => offset <= int.MaxValue)
+                .OrderByDescending(campaign => campaign.SeasonId == currentSeasonId)
+                .ThenByDescending(campaign => campaign.Season.StartDate)
                 .ThenByDescending(campaign => campaign.SeasonId)
                 .ThenBy(campaign => campaign.Status == CampaignStatus.Active
                     ? 0
                     : campaign.Status == CampaignStatus.Draft ? 1 : 2)
-                .ThenByDescending(campaign => campaign.StartDate)
-                .ThenByDescending(campaign => campaign.EndDate.HasValue)
-                .ThenByDescending(campaign => campaign.EndDate)
-                .ThenBy(campaign => campaign.Name)
+                .ThenByDescending(campaign => campaign.Status == CampaignStatus.Closed ? campaign.ClosedAt : null)
+                .ThenByDescending(campaign => campaign.Status == CampaignStatus.Closed ? (DateOnly?)null : campaign.StartDate)
                 .ThenByDescending(campaign => campaign.CampaignId)
+                .Skip((int)Math.Min(offset, int.MaxValue))
                 .Take(limit)
                 .Select(campaign => new CampaignListProjection
                 {
@@ -76,6 +84,7 @@ public sealed partial class CampaignQueryService(
                     CampaignStartDate = campaign.StartDate,
                     CampaignPlannedEndDate = campaign.EndDate,
                     CampaignStatus = campaign.Status,
+                    ClosedAt = campaign.ClosedAt,
                     SeasonId = campaign.SeasonId,
                     SeasonName = campaign.Season.Name,
                     SeasonStartDate = campaign.Season.StartDate,
@@ -110,6 +119,7 @@ public sealed partial class CampaignQueryService(
                         StartDate = row.CampaignStartDate,
                         PlannedEndDate = row.CampaignPlannedEndDate,
                         Status = row.CampaignStatus,
+                        ClosedAt = row.ClosedAt,
                         ParticipantCount = row.ParticipantCount,
                         UnresolvedCount = row.UnresolvedCount
                     }).ToList().AsReadOnly()
@@ -120,6 +130,10 @@ public sealed partial class CampaignQueryService(
             return new CampaignListResult
             {
                 TotalCount = totalCount,
+                Page = page,
+                Limit = limit,
+                CurrentSeasonId = currentSeasonId,
+                DraftActivePlayerCount = activePlayerCount,
                 Seasons = seasons
             };
         }
@@ -311,8 +325,16 @@ public sealed partial class CampaignQueryService(
 
         var activePlayerCount = await db.Players
             .CountAsync(player => player.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
-        var activeTeamCount = await db.Teams
-            .CountAsync(team => team.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
+        // One statement keeps the bounded preview and its total on the same database snapshot.
+        var teamSnapshot = await db.Clubs.Where(club => club.ClubId == clubId).AsSingleQuery()
+            .Select(club => new
+            {
+                Count = club.Teams.Count(team => team.LifecycleStatus == LifecycleStatus.Active),
+                Preview = club.Teams.Where(team => team.LifecycleStatus == LifecycleStatus.Active)
+                    .OrderBy(team => team.Name).ThenBy(team => team.TeamId).Take(5)
+                    .Select(team => new CampaignOpeningTeam(team.TeamId, team.Name)).ToList()
+            }).SingleAsync(cancellationToken);
+        var activeTeamCount = teamSnapshot.Count;
         var blockingCampaign = await db.Campaigns
             .Where(campaign => campaign.CampaignId != campaignId && campaign.Status == CampaignStatus.Active)
             .OrderBy(campaign => campaign.CampaignId)
@@ -341,7 +363,10 @@ public sealed partial class CampaignQueryService(
             blockers.Count == 0,
             blockers.AsReadOnly(),
             warnings,
-            blockingCampaign);
+            blockingCampaign)
+        {
+            ActiveTeams = teamSnapshot.Preview
+        };
     }
 
     /// <summary>
@@ -393,6 +418,8 @@ public sealed partial class CampaignQueryService(
     /// </summary>
     private sealed class CampaignListProjection
     {
+        /// <summary>Gets the campaign closure time.</summary>
+        public DateTimeOffset? ClosedAt { get; init; }
         /// <summary>Gets the campaign identifier.</summary>
         public long CampaignId { get; init; }
         /// <summary>Gets the campaign name.</summary>

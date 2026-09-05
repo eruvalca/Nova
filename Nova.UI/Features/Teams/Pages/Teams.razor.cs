@@ -79,6 +79,11 @@ public partial class Teams(
     /// </summary>
     private bool _canManageTeams;
 
+    /// <summary>Orders authentication results across startup, notifications, and disposal.</summary>
+    private int _authenticationVersion;
+    /// <summary>Distinguishes an applied clubless identity from uninitialized field defaults.</summary>
+    private bool _identityApplied;
+
     /// <summary>
     /// Stores the current user's club identifier from claims.
     /// </summary>
@@ -237,9 +242,15 @@ public partial class Teams(
         _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
         _ = ApplyQueryFiltersToState();
 
+        var authenticationVersion = _authenticationVersion;
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         var principal = authenticationState.User;
 
+        _identityApplied = true;
         _canManageTeams = principal.IsInRole(Roles.ClubAdmin);
         _clubId = ReadClubIdClaim(principal);
 
@@ -266,14 +277,11 @@ public partial class Teams(
         {
             _pageError = "You must join a club before viewing the team roster.";
             PersistStartupState();
-            Initialized = true;
             _isLoading = false;
             return;
         }
 
         await LoadRosterAsync();
-        PersistStartupState();
-        Initialized = true;
     }
 
     /// <summary>
@@ -424,10 +432,11 @@ public partial class Teams(
     }
 
     /// <summary>
-    /// Persists the current startup roster/error state for prerender-to-interactive restoration.
+    /// Marks initialization complete and persists the owned roster/error state for interactive restoration.
     /// </summary>
     private void PersistStartupState()
     {
+        Initialized = true;
         PersistedRoster = _roster;
         PersistedPageError = _pageError;
         PersistedClubId = _clubId;
@@ -950,6 +959,10 @@ public partial class Teams(
         {
             $"view={Uri.EscapeDataString(_lifecycleStatusFilter)}"
         };
+        if (DraftReturnId is { } draftId)
+        {
+            querySegments.Add($"returnToDraft={draftId}");
+        }
 
         if (!string.IsNullOrWhiteSpace(_searchApplied))
         {
@@ -963,6 +976,11 @@ public partial class Teams(
 
         return $"{ClubRoutes.Teams}?{string.Join("&", querySegments)}";
     }
+
+    /// <summary>Gets or sets the optional local Draft correction handoff.</summary>
+    [SupplyParameterFromQuery(Name = "returnToDraft")] public string? ReturnToDraft { get; set; }
+    /// <summary>Accepts only a positive local campaign identifier for the correction return link.</summary>
+    private long? DraftReturnId => long.TryParse(ReturnToDraft, out var id) && id > 0 ? id : null;
 
     /// <summary>
     /// Handles an authentication state change by applying it on the component's renderer.
@@ -979,16 +997,32 @@ public partial class Teams(
     /// <returns>A task that completes when the club/role rebind and any reload are finished.</returns>
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
     {
+        var authenticationVersion = ++_authenticationVersion;
         var authState = await stateTask;
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         var principal = authState.User;
         var canManageTeams = principal.IsInRole(Roles.ClubAdmin);
         var clubId = ReadClubIdClaim(principal);
 
         var roleChanged = canManageTeams != _canManageTeams;
-        var clubChanged = clubId != _clubId;
+        var clubChanged = !_identityApplied || clubId != _clubId;
 
+        _identityApplied = true;
         _canManageTeams = canManageTeams;
         _clubId = clubId;
+
+        if (clubChanged || roleChanged)
+        {
+            ReturnToDraft = null;
+            var uri = navigationManager.GetUriWithQueryParameter("returnToDraft", (string?)null);
+            if (!string.Equals(uri, navigationManager.Uri, StringComparison.Ordinal))
+            {
+                navigationManager.NavigateTo(uri, new NavigationOptions { ReplaceHistoryEntry = true });
+            }
+        }
 
         if (clubChanged)
         {
@@ -1078,6 +1112,7 @@ public partial class Teams(
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
+        ++_authenticationVersion;
         authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();

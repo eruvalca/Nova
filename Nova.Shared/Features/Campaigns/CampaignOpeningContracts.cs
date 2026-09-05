@@ -53,7 +53,16 @@ public sealed record CampaignOpeningReadinessResult(
     bool CanOpen,
     IReadOnlyList<CampaignOpeningBlocker> Blockers,
     IReadOnlyList<CampaignOpeningWarning> Warnings,
-    BlockingActiveCampaign? BlockingCampaign);
+    BlockingActiveCampaign? BlockingCampaign)
+{
+    /// <summary>Gets at most five active teams, ordered by name then identifier.</summary>
+    public IReadOnlyList<CampaignOpeningTeam> ActiveTeams { get; init; } = [];
+}
+
+/// <summary>Identifies a durable team in a Draft preparation preview.</summary>
+/// <param name="TeamId">The durable club team identifier.</param>
+/// <param name="Name">The current team name.</param>
+public sealed record CampaignOpeningTeam(long TeamId, string Name);
 
 /// <summary>
 /// Reports the immutable snapshot committed when a Draft campaign opened.

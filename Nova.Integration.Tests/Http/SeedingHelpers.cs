@@ -22,6 +22,47 @@ namespace Nova.Integration.Tests.Http;
 /// </summary>
 internal static class SeedingHelpers
 {
+    /// <summary>Seeds a club's active players and durable teams for the Draft browser journey.</summary>
+    public static async Task<(long ClubId, string AdminEmail)> SeedDraftClubAsync(
+        NovaAppHostFixture fixture, int playerCount, int teamCount, CancellationToken cancellationToken)
+    {
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("draft-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, "Test#Passw0rd!", cancellationToken);
+        await UpdateUserAsync(fixture, email, null, cancellationToken, firstName: "Alex", lastName: "Morgan");
+        var club = await CreateClubAsync(client, cancellationToken);
+        await using var context = fixture.CreateAdminContext();
+        var userId = await context.Users.Where(user => user.NormalizedEmail == email.ToUpperInvariant()).Select(user => user.Id).SingleAsync(cancellationToken);
+        for (var index = 0; index < playerCount; index++)
+        {
+            context.Players.Add(new PlayerEntity
+            {
+                CreationOperationId = Guid.CreateVersion7(),
+                FirstName = "Player",
+                LastName = $"{index + 1:00}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = userId
+            });
+        }
+        for (var index = 0; index < teamCount; index++)
+        {
+            context.Teams.Add(new TeamEntity
+            {
+                CreationOperationId = Guid.CreateVersion7(),
+                Name = $"U{14 + index * 2} North",
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = userId
+            });
+        }
+        await context.SaveChangesAsync(cancellationToken);
+        return (club.ClubId, email);
+    }
+
     /// <summary>
     /// Generates a unique e-mail address for a test user.
     /// </summary>

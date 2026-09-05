@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Load data once for this component instance | `OnInitializedAsync` | Runs once per instance — but an interactive component is instantiated twice (prerender + attach). See below. |
 | React to a `[Parameter]` or `[SupplyParameterFromQuery]` value | `OnParametersSet` / `OnParametersSetAsync` | Runs after initialization **and every time the component receives parameters**, which includes every parent re-render. Never do unguarded work here. |
-| Touch rendered DOM or use `@ref` element references | `OnAfterRenderAsync(bool firstRender)` | Not called during static SSR/prerender. Use `firstRender` only when the target exists on that render; conditional content may need a later attempt. Interactive event handlers may also invoke JS. Never load data here. |
+| Touch rendered DOM or use `@ref` element references | `OnAfterRenderAsync(bool firstRender)` | Not called during static SSR/prerender. Use `firstRender` only when the target exists on that render; conditional content may need a later attempt. Keep server startup queries in initialization; browser-storage recovery may reconcile after JS becomes available. |
 | Async cleanup (timers, `CancellationTokenSource`, JS module references) | `DisposeAsyncCore()` | Override it; do not re-implement `IAsyncDisposable` — `NovaComponentBase` already does. |
 
 `SetParametersAsync` and `ShouldRender` are not used anywhere in Nova. Do not introduce them without
@@ -169,30 +169,31 @@ await InvokeAsync(() =>
 
 ## Handling service results and errors
 
-Services return `OneOf` results; branch with `Switch`, map `Forbidden` to a redirect, and put
-everything else into a page-level error field:
-
-```csharp
-result.Switch(
-    detail => _club = detail,
-    problem =>
-    {
-        if (problem.Kind == ServiceProblemKind.Forbidden)
-        {
-            navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
-            return;
-        }
-
-        _error = problem.Detail ?? "Failed to load club details. Please refresh and try again.";
-    });
-```
-
-A `NotFound` problem is sometimes the expected empty state rather than an error — see
-`ClubOnboarding`.
+Map `ServiceResult` problems according to the feature's visibility contract. Draft access uses the
+same unavailable state as an unknown campaign; do not turn it into a revealing authorization error.
+Other routes may require AccessDenied, and onboarding may use NotFound as an empty state. Field-level
+validation belongs in the [form recipe](forms-and-validation.md), not a generic page-error branch.
 
 **Preserve mutation feedback across refreshes**: when a successful mutation sets a status message and
 then reloads data, the reload helper must not clear that message before it can render. Clear feedback
 at an intentional user-action boundary instead.
+
+## Pending-command recovery
+
+Use this only when the feature requires recovery across reloads. Follow the scoped
+`.github/instructions/blazor-architecture.instructions.md` recoverable-command rules; do not add
+browser persistence to ordinary mutations merely because they are asynchronous.
+
+For tab-scoped recovery, initialize session storage after interactive attachment. Keep the original
+command payload separate from editable form state until an ambiguous result is resolved. A transport
+failure does not justify a new operation ID. Place the persistence gate in the shared submission
+path so both initial and recovery actions pass through it; recheck request ownership after JS awaits
+as well as HTTP awaits. Reconcile with fresh authorized lifecycle data and the existing replay
+command. An already Active campaign may still need replay to obtain this operation's receipt.
+
+`CampaignEntry.razor.cs` demonstrates opening replay and receipt handoff; `NewCampaign.razor.cs`
+demonstrates retention of the original creation payload. `CampaignEntryTests` covers a failed storage
+write followed by confirmation, replay after opening, and unavailable data despite failed cleanup.
 
 ## Bounded data
 

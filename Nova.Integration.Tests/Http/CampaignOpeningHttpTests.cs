@@ -352,6 +352,59 @@ public sealed class CampaignOpeningHttpTests(NovaAppHostFixture fixture)
         }
     }
 
+    /// <summary>Verifies readiness previews only the first five active teams while retaining the full count.</summary>
+    [Fact]
+    public async Task CampaignOpeningReadiness_ReturnsBoundedActiveTeamPreview()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var (client, email, clubId) = await CreateAdministratorAsync("readiness-teams", cancellationToken);
+        using (client)
+        {
+            var draftId = await SeedDraftAsync(clubId, email, activePlayerCount: 1, cancellationToken);
+            long[] expectedTeamIds;
+            await using (var context = fixture.CreateAdminContext())
+            {
+                var userId = await context.Users.Where(user => user.NormalizedEmail == email.ToUpperInvariant())
+                    .Select(user => user.Id).SingleAsync(cancellationToken);
+                var teams = new[] { "Foxtrot", "Echo", "Delta", "Charlie", "Bravo", "Alpha" }
+                    .Select(name => new TeamEntity
+                    {
+                        CreationOperationId = Guid.NewGuid(),
+                        Name = name,
+                        GraduationYear = 2030,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ClubId = clubId,
+                        CreatedById = userId
+                    }).ToArray();
+                context.Teams.AddRange(teams);
+                context.Teams.Add(new TeamEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    Name = "Aardvark archived",
+                    GraduationYear = 2030,
+                    LifecycleStatus = LifecycleStatus.Archived,
+                    ArchivedAt = DateTimeOffset.UtcNow,
+                    ArchivedById = userId,
+                    ClubId = clubId,
+                    CreatedById = userId
+                });
+                await context.SaveChangesAsync(cancellationToken);
+                expectedTeamIds = teams.OrderBy(team => team.Name, StringComparer.Ordinal)
+                    .Take(5).Select(team => team.TeamId).ToArray();
+            }
+
+            using var response = await client.GetAsync(CampaignEndpoints.GetOpeningReadinessUrl(draftId), cancellationToken);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK);
+            var readiness = await response.Content.ReadFromJsonAsync<CampaignOpeningReadinessResult>(cancellationToken);
+            readiness.ShouldNotBeNull();
+            readiness.ActiveTeamCount.ShouldBe(6);
+            readiness.ActiveTeams.Select(team => team.TeamId).ShouldBe(expectedTeamIds);
+            readiness.ActiveTeams.Select(team => team.Name).ShouldBe(["Alpha", "Bravo", "Charlie", "Delta", "Echo"]);
+            readiness.CanOpen.ShouldBeTrue();
+            readiness.Warnings.ShouldBeEmpty();
+        }
+    }
+
     /// <summary>Creates and signs in a club administrator.</summary>
     /// <param name="prefix">The unique identity prefix.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>

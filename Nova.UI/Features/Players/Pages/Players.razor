@@ -9,6 +9,7 @@
 <PageTitle>Players</PageTitle>
 
 <div class="container py-4">
+    @if (_canManagePlayers && DraftReturnId is { } draftId) { <a class="btn btn-outline-primary mb-3" href="@($"/campaigns/{draftId}")">Return to draft</a> }
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <h1 class="mb-0">Players</h1>
         <div class="d-flex flex-wrap align-items-center gap-2">
@@ -75,7 +76,7 @@
         </div>
     </div>
 
-    @if (_showCreateForm)
+    @if (_canManagePlayers && _showCreateForm)
     {
         <div class="mb-3">
             <PlayerForm Heading="Add player"
@@ -89,7 +90,7 @@
         </div>
     }
 
-    @if (_editForm is not null)
+    @if (_canManagePlayers && _editForm is not null)
     {
         <div class="mb-3">
             <PlayerForm Heading="Edit player"
@@ -103,7 +104,7 @@
         </div>
     }
 
-    @if (_archiveCandidate is not null)
+    @if (_canManagePlayers && _archiveCandidate is not null)
     {
         <section class="card shadow-sm border-0 mb-3" aria-live="polite">
             <div class="card-body">

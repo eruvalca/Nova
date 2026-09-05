@@ -34,6 +34,27 @@ public partial class CampaignWorkspace(
     NavigationManager navigationManager,
     IJSRuntime jsRuntime) : NovaComponentBase
 {
+    /// <summary>Identifies the focused Roster route so its navigation retains the landing destination.</summary>
+    private bool IsRosterLanding => new Uri(navigationManager.Uri).AbsolutePath.EndsWith("/roster", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Announces the enrollment count from the validated immutable opening receipt.</summary>
+    private string? _openingReceiptMessage;
+    /// <summary>Prevents repeated receipt consumption within this workspace component instance.</summary>
+    private bool _receiptChecked;
+    /// <summary>Targets keyboard focus when a validated opening receipt reaches the Roster landing.</summary>
+    private ElementReference _rosterHeading;
+
+    /// <summary>Builds roster navigation while retaining the focused landing route when it is active.</summary>
+    /// <param name="state">The roster filters, sorting, and paging to preserve.</param>
+    /// <param name="tab">The workspace tab encoded in the destination.</param>
+    /// <param name="participantId">The participant to open in the detail drawer, if any.</param>
+    /// <returns>The local workspace or focused Roster URL.</returns>
+    private string BuildRosterUrl(CampaignWorkspaceRosterState state, string tab, long? participantId = null)
+    {
+        var url = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, state, tab, participantId);
+        return IsRosterLanding
+            ? url.Replace($"/campaigns/{CampaignId}?", $"/campaigns/{CampaignId}/roster?", StringComparison.Ordinal)
+            : url;
+    }
     /// <summary>
     /// The debounce interval for search input updates.
     /// </summary>
@@ -92,6 +113,14 @@ public partial class CampaignWorkspace(
     /// </summary>
     [Parameter]
     public long CampaignId { get; set; }
+
+    /// <summary>Gets or sets the authorized detail already loaded by the lifecycle router.</summary>
+    [Parameter]
+    public CampaignDetailResult? InitialDetail { get; set; }
+
+    /// <summary>Gets or sets the user, club, and role scope that owns the initial detail.</summary>
+    [Parameter]
+    public string? InitialDetailScope { get; set; }
 
     /// <summary>
     /// Gets or sets the incoming tab query parameter.
@@ -468,7 +497,8 @@ public partial class CampaignWorkspace(
         // Re-derive the active tab on every parameter set. In-app tab clicks perform a client-side,
         // query-only navigation that reuses this component instance and re-supplies TabQuery, so a
         // one-shot guard would leave the rendered view stuck on the initially loaded tab.
-        _activeTab = CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
+        // The focused Roster route always owns the roster panel, regardless of workspace tab input.
+        _activeTab = IsRosterLanding ? EvaluateTabName : CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
 
         // The placements state is independent of the roster state; parse it on every parameter
         // set so the placements panel receives the URL-backed filters regardless of roster state.
@@ -556,7 +586,19 @@ public partial class CampaignWorkspace(
         }
 
         _isLoading = true;
-        await LoadDetailAsync();
+        var scope = $"{authenticationState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{authenticationState.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{_isClubAdmin}";
+        if (InitialDetail is { Status: CampaignStatus.Active or CampaignStatus.Closed } initial
+            && initial.CampaignId == CampaignId && InitialDetailScope == scope)
+        {
+            _detail = initial;
+            _isLoading = false;
+            await LoadChoicesAsync();
+            await LoadRosterAsync();
+        }
+        else
+        {
+            await LoadDetailAsync();
+        }
         PersistStartupState();
         Initialized = true;
     }
@@ -653,6 +695,11 @@ public partial class CampaignWorkspace(
 
         _isLoading = false;
 
+        if (detailLoaded && _detail?.Status == CampaignStatus.Draft)
+        {
+            navigationManager.NavigateTo($"/campaigns/{CampaignId}", replace: true);
+            return;
+        }
         if (detailLoaded)
         {
             await LoadChoicesAsync();
@@ -786,7 +833,8 @@ public partial class CampaignWorkspace(
         _appliedQueryString = CampaignWorkspaceUrlState.BuildQueryString(next);
         _reloadRosterPending = true;
 
-        var targetUrl = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, next, _activeTab, _selectedParticipantId);
+        var targetUrl = BuildRosterUrl(next, _activeTab, _selectedParticipantId);
+
         var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
 
         if (string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
@@ -959,7 +1007,7 @@ public partial class CampaignWorkspace(
     {
         if (!string.Equals(TabQuery, EvaluateTabName, StringComparison.OrdinalIgnoreCase))
         {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, EvaluateTabName, _selectedParticipantId));
+            navigationManager.NavigateTo(BuildRosterUrl(_filters, EvaluateTabName, _selectedParticipantId));
         }
 
         return Task.CompletedTask;
@@ -1036,7 +1084,7 @@ public partial class CampaignWorkspace(
     {
         if (!string.Equals(TabQuery, EvaluateTabName, StringComparison.OrdinalIgnoreCase))
         {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, EvaluateTabName, _selectedParticipantId));
+            navigationManager.NavigateTo(BuildRosterUrl(_filters, EvaluateTabName, _selectedParticipantId));
         }
 
         return Task.CompletedTask;
@@ -1298,7 +1346,7 @@ public partial class CampaignWorkspace(
         await CaptureRosterScrollAsync();
         _selectedParticipantId = item.PlayerCampaignAssignmentId;
         navigationManager.NavigateTo(
-            CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab, _selectedParticipantId));
+            BuildRosterUrl(_filters, _activeTab, _selectedParticipantId));
     }
 
     /// <summary>
@@ -1350,7 +1398,7 @@ public partial class CampaignWorkspace(
             await CaptureRosterScrollAsync();
             _selectedParticipantId = items[targetIndex].PlayerCampaignAssignmentId;
             navigationManager.NavigateTo(
-                CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab, _selectedParticipantId));
+                BuildRosterUrl(_filters, _activeTab, _selectedParticipantId));
             return;
         }
 
@@ -1410,7 +1458,7 @@ public partial class CampaignWorkspace(
         var target = move.Edge == BoundaryIntent.First ? _roster.Items[0] : _roster.Items[^1];
         _selectedParticipantId = target.PlayerCampaignAssignmentId;
         navigationManager.NavigateTo(
-            CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab, _selectedParticipantId),
+            BuildRosterUrl(_filters, _activeTab, _selectedParticipantId),
             new NavigationOptions { ReplaceHistoryEntry = true });
     }
 
@@ -1423,7 +1471,7 @@ public partial class CampaignWorkspace(
         await CaptureRosterScrollAsync();
         _selectedParticipantId = null;
         navigationManager.NavigateTo(
-            CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab));
+            BuildRosterUrl(_filters, _activeTab));
     }
 
     /// <summary>
@@ -1456,6 +1504,31 @@ public partial class CampaignWorkspace(
         }
 
         var module = await _moduleTask.Value;
+
+        // Check optional opening feedback once when the Roster landing is ready.
+        if (IsRosterLanding && !_receiptChecked)
+        {
+            _receiptChecked = true;
+            var state = await authenticationStateProvider.GetAuthenticationStateAsync();
+            var scope = $"{state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
+            try
+            {
+                var receipt = await module.InvokeAsync<OpenCampaignResult?>("readOpeningReceipt", ComponentCancellationToken, scope, CampaignId);
+                ComponentCancellationToken.ThrowIfCancellationRequested();
+                if (receipt is not null && receipt.CampaignId == CampaignId && receipt.EnrolledPlayerCount > 0 && receipt.OperationId != Guid.Empty)
+                {
+                    var playerNoun = receipt.EnrolledPlayerCount == 1 ? "player" : "players";
+                    _openingReceiptMessage = $"Campaign opened and enrolled {receipt.EnrolledPlayerCount} {playerNoun}.";
+                    StateHasChanged();
+                    await module.InvokeVoidAsync("focus", ComponentCancellationToken, _rosterHeading);
+                    await module.InvokeVoidAsync("acknowledgeOpeningReceipt", ComponentCancellationToken, scope, CampaignId, receipt.OperationId);
+                }
+            }
+            catch (Exception exception) when (exception is JSException or System.Text.Json.JsonException or NotSupportedException)
+            {
+                // Optional feedback cannot prevent using the roster, including incompatible stored JSON.
+            }
+        }
 
         // The region element is recreated across loading/error/loaded renders, so re-attach the
         // keydown suppression on every pass that renders the loaded roster. The module replaces

@@ -1,4 +1,3 @@
-@page "/campaigns/{CampaignId:long}"
 @rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
@@ -110,6 +109,8 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
             </div>
         }
 
+        @if (!IsRosterLanding)
+        {
         <div class="campaign-route">
         <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Campaign workspace sections">
             <li class="nav-item" role="presentation">
@@ -134,14 +135,20 @@ FORM: Campaign map, ranked 1; phase-line workspace staging; seed key assigned.
             </li>
         </ul>
         </div>
+        }
 
         @if (_activeTab == EvaluateTabName)
         {
             <section class="workspace-board" aria-labelledby="roster-region-heading">
                 <div class="workspace-board-heading">
                     <div>
-                        <h2 id="roster-region-heading">Evaluate roster</h2>
-                        <p>Filter the player field, then open a participant to record observations.</p>
+                        <h2 id="roster-region-heading" tabindex="-1" @ref="_rosterHeading">@(IsRosterLanding ? "Roster" : "Evaluate roster")</h2>
+                        @if (IsRosterLanding)
+                        {
+                            <p><a href="@($"/campaigns/{CampaignId}?tab=evaluate")">Continue to evaluation</a></p>
+                            @if (_openingReceiptMessage is not null) { <p role="status">@_openingReceiptMessage</p> }
+                        }
+                        else { <p>Filter the player field, then open a participant to record observations.</p> }
                     </div>
                 </div>
                 <div class="workspace-board-body">

@@ -8,6 +8,10 @@ namespace Nova.Shared.Features.Campaigns;
 /// </summary>
 public sealed record GetCampaignListInput
 {
+    /// <summary>Gets the one-based campaign page.</summary>
+    [Range(1, int.MaxValue)]
+    public int? Page { get; init; }
+
     /// <summary>
     /// The default number of campaigns returned when no limit is supplied.
     /// </summary>

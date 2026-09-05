@@ -122,16 +122,27 @@ Nova.UI/
 - Any listener that outlives a single event must attach scoped to the component's subtree and detach in `DisposeAsyncCore()`.
 - Step-by-step recipe with code examples: `.agents/skills/add-blazor-ui/references/js-interop.md`.
 
+## Recoverable lifecycle commands
+
+- Reuse the command's existing idempotency/replay contract. For flows that retain pending commands
+  across reloads, persist the original operation ID and required payload before dispatch on **every**
+  submission path, including confirmation/retry. A failed storage write cannot enable an unpersisted
+  commit. Browser recovery context is never authorization or readiness evidence.
+- Scope recovery context to the authenticated user and club, including permission changes. Clear
+  unavailable or no-longer-authorized visible data before awaiting browser-storage cleanup.
+- Report committed effects from the command's immutable receipt, not a refreshed preview or later
+  aggregate count. See `.agents/skills/add-blazor-ui/references/lifecycle-and-state.md` for recovery.
+
 ## Styling
 
 - Style to the design system (`DESIGN.md` / `.github/instructions/ui-design.instructions.md`) rather
   than stock Bootstrap defaults. Bootstrap classes, components, and utilities remain available where
   they serve the design — a tool, not a prerequisite.
-- For the application identity chrome (the authenticated nav rail/bottom strip in `NavMenu`, the
+- For the application identity chrome (the authenticated navigation in `NavMenu`, the
   public header and brand in `PublicLayout`, and layout shells), follow the design system: scoped
   `.razor.css` that uses semantic `--bs-*` CSS variables and the navigation semantics in
-  `.github/instructions/ui-design.instructions.md` (left rail ≥768px, fixed bottom route strip below
-  768px, active edge rail/top marker).
+  `.github/instructions/ui-design.instructions.md`; keep breakpoint and mobile-menu behavior there
+  rather than duplicating it here.
 - Component-specific styles go in the component's `.razor.css`. Avoid global stylesheet overrides
   for feature-specific UI when component-scoped styles can satisfy the requirement.
 - Use `rem` units for all custom CSS length values; `px` is acceptable only for hairline borders (e.g., `border: 1px solid`) or pixel-exact requirements.

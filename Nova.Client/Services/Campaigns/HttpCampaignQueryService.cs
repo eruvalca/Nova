@@ -23,7 +23,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         }
 
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetCampaignListUrl(input.Status, input.Limit),
+            CampaignEndpoints.GetCampaignListUrl(input.Status, input.Limit, input.Page),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -32,7 +32,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
 
         return await response.Content.ReadRequiredJsonAsync<CampaignListResult>(
             "The server returned an invalid campaign list response.",
-            result => IsValidCampaignList(result, input.Limit),
+            result => result.Page == (input.Page ?? 1) && IsValidCampaignList(result, input.Limit),
             cancellationToken);
     }
 
@@ -97,7 +97,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
     }
 
     /// <summary>
-    /// Validates an opening-readiness response and its blocker/warning relationships.
+    /// Validates the complete bounded team preview and opening-readiness blocker/warning relationships.
     /// </summary>
     /// <param name="result">The deserialized readiness payload.</param>
     /// <param name="campaignId">The requested campaign identifier.</param>
@@ -107,6 +107,10 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         if (result.CampaignId != campaignId
             || result.ActivePlayerCount < 0
             || result.ActiveTeamCount < 0
+            || result.ActiveTeams is null
+            || result.ActiveTeams.Count != Math.Min(5, result.ActiveTeamCount)
+            || result.ActiveTeams.Any(team => team is null || team.TeamId <= 0 || string.IsNullOrWhiteSpace(team.Name))
+            || result.ActiveTeams.Select(team => team.TeamId).Distinct().Count() != result.ActiveTeams.Count
             || result.Blockers is null
             || result.Warnings is null
             || result.Blockers.Any(blocker => !Enum.IsDefined(blocker))
@@ -181,13 +185,17 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         var limit = requestedLimit ?? GetCampaignListInput.DefaultLimit;
         // Count and bounded rows are separate reads, so a concurrent mutation may make
         // the total briefly lag the returned rows; validate bounds without rejecting that state.
-        if (rows.Count > limit || result.TotalCount < 0)
+        if (rows.Count > limit || result.TotalCount < 0 || result.Page < 1
+            || result.Limit != limit
+            || result.CurrentSeasonId is <= 0 || result.DraftActivePlayerCount is < 0
+            || (result.DraftActivePlayerCount is null && rows.Any(row => row.Status == CampaignStatus.Draft)))
         {
             return false;
         }
 
         DateOnly? previousSeasonStart = null;
         long? previousSeasonId = null;
+        var seenCurrentSeason = false;
         foreach (var season in result.Seasons)
         {
             if (season.SeasonId <= 0
@@ -195,7 +203,8 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
                 || season.StartDate == default
                 || season.EndDate < season.StartDate
                 || season.ConcurrencyToken == Guid.Empty
-                || (previousSeasonStart is not null
+                || (season.SeasonId == result.CurrentSeasonId && (seenCurrentSeason || previousSeasonId is not null))
+                || (previousSeasonStart is not null && previousSeasonId != result.CurrentSeasonId
                     && (season.StartDate > previousSeasonStart
                         || (season.StartDate == previousSeasonStart && season.SeasonId >= previousSeasonId))))
             {
@@ -203,6 +212,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             }
 
             previousSeasonStart = season.StartDate;
+            seenCurrentSeason |= season.SeasonId == result.CurrentSeasonId;
             previousSeasonId = season.SeasonId;
             CampaignListItem? previous = null;
             foreach (var campaign in season.Campaigns)
@@ -233,7 +243,8 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             && campaign.ParticipantCount >= 0
             && campaign.UnresolvedCount >= 0
             && campaign.UnresolvedCount <= campaign.ParticipantCount
-            && campaign.Status is CampaignStatus.Active or CampaignStatus.Draft or CampaignStatus.Closed;
+            && campaign.Status is CampaignStatus.Active or CampaignStatus.Draft or CampaignStatus.Closed
+            && (campaign.Status == CampaignStatus.Closed ? campaign.ClosedAt is not null : campaign.ClosedAt is null);
 
     /// <summary>
     /// Compares adjacent campaign rows using the portable response-order keys.
@@ -249,31 +260,15 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             return status;
         }
 
-        var start = right.StartDate.CompareTo(left.StartDate);
+        var start = left.Status == CampaignStatus.Closed
+            ? Nullable.Compare(right.ClosedAt, left.ClosedAt)
+            : right.StartDate.CompareTo(left.StartDate);
         if (start != 0)
         {
             return start;
         }
 
-        var leftHasEnd = left.PlannedEndDate.HasValue;
-        var rightHasEnd = right.PlannedEndDate.HasValue;
-        var endPresence = rightHasEnd.CompareTo(leftHasEnd);
-        if (endPresence != 0)
-        {
-            return endPresence;
-        }
-
-        var end = right.PlannedEndDate.GetValueOrDefault().CompareTo(left.PlannedEndDate.GetValueOrDefault());
-        if (end != 0)
-        {
-            return end;
-        }
-
-        // The server's database collation determines ordering for different names.
-        // Only apply the portable ID tie-breaker when names are equal.
-        return string.Equals(left.Name, right.Name, StringComparison.Ordinal)
-            ? right.CampaignId.CompareTo(left.CampaignId)
-            : 0;
+        return right.CampaignId.CompareTo(left.CampaignId);
     }
 
     /// <summary>

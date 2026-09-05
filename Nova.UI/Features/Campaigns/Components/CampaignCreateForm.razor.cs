@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Validation;
 
@@ -10,6 +11,17 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// </summary>
 public partial class CampaignCreateForm
 {
+    /// <summary>Owns validation and field notifications for the local editable creation model.</summary>
+    private EditContext _editContext = new(CampaignCreateFormState.CreateDefault());
+    /// <summary>Holds command validation failures separately from DataAnnotations messages.</summary>
+    private ValidationMessageStore? _serverMessages;
+    /// <summary>Tracks the parent error snapshot so a rerender does not reinstall cleared failures.</summary>
+    private IReadOnlyDictionary<string, string[]>? _lastErrors;
+
+    /// <summary>Gets or sets a callback preserving edited input.</summary>
+    [Parameter] public EventCallback<CampaignCreateFormState> OnChanged { get; set; }
+    /// <summary>Gets or sets authoritative field validation failures.</summary>
+    [Parameter] public IReadOnlyDictionary<string, string[]>? ServerErrors { get; set; }
     /// <summary>
     /// The local editable copy bound by this form.
     /// </summary>
@@ -79,15 +91,61 @@ public partial class CampaignCreateForm
     {
         if (!ReferenceEquals(_lastModelReference, Model))
         {
+            _editContext.OnFieldChanged -= ClearServerErrors;
             _lastModelReference = Model;
             _localModel = Model.Clone();
+            _editContext = new EditContext(_localModel);
+            _serverMessages = new ValidationMessageStore(_editContext);
+            _editContext.OnFieldChanged += ClearServerErrors;
         }
 
         if (!AllowInlineSeasonCreation)
         {
             _localModel.UseInlineSeason = false;
         }
+        if (!ReferenceEquals(_lastErrors, ServerErrors))
+        {
+            _lastErrors = ServerErrors;
+            _serverMessages?.Clear();
+            if (ServerErrors is not null)
+            {
+                foreach (var error in ServerErrors)
+                {
+                    var field = error.Key switch
+                    {
+                        "InlineSeason.Name" => nameof(CampaignCreateFormState.InlineSeasonName),
+                        "InlineSeason.StartDate" => nameof(CampaignCreateFormState.InlineSeasonStartDate),
+                        "InlineSeason.EndDate" => nameof(CampaignCreateFormState.InlineSeasonEndDate),
+                        _ => error.Key
+                    };
+                    _serverMessages?.Add(new FieldIdentifier(_localModel, field), error.Value);
+                }
+            }
+            _editContext.NotifyValidationStateChanged();
+        }
     }
+
+    /// <summary>Clears contextual command failures after an edit so corrected input can be resubmitted.</summary>
+    /// <param name="sender">The edit context reporting the change.</param>
+    /// <param name="args">The changed field notification.</param>
+    private void ClearServerErrors(object? sender, FieldChangedEventArgs args)
+    {
+        // Cross-field failures must be revalidated by the command against the corrected input.
+        // Keep the snapshot reference so an unchanged parent rerender cannot reinstall them.
+        _serverMessages?.Clear();
+        _editContext.NotifyValidationStateChanged();
+    }
+
+    /// <inheritdoc />
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        _editContext.OnFieldChanged -= ClearServerErrors;
+        await base.DisposeAsyncCore();
+    }
+
+    /// <summary>Publishes a copy of edited input for the parent's recovery storage.</summary>
+    /// <returns>A task completing when the parent has handled the input change.</returns>
+    private Task HandleChangeAsync() => OnChanged.InvokeAsync(_localModel.Clone());
 
     /// <summary>
     /// Submits a cloned local model to the parent callback.

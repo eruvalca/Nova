@@ -1,0 +1,268 @@
+{
+  "regions": [
+    {
+      "id": "navigation",
+      "kind": "chrome",
+      "box": {
+        "x": 0,
+        "y": 0,
+        "w": 0.183,
+        "h": 1
+      },
+      "note": "navigation: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "back",
+      "kind": "control",
+      "box": {
+        "x": 0.213,
+        "y": 0.045,
+        "w": 0.14,
+        "h": 0.03
+      },
+      "note": "back: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "title",
+      "kind": "text",
+      "box": {
+        "x": 0.213,
+        "y": 0.096,
+        "w": 0.25,
+        "h": 0.043
+      },
+      "note": "title: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "identity",
+      "kind": "text",
+      "box": {
+        "x": 0.213,
+        "y": 0.155,
+        "w": 0.21,
+        "h": 0.092
+      },
+      "note": "identity: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "details-board",
+      "kind": "chrome",
+      "box": {
+        "x": 0.213,
+        "y": 0.278,
+        "w": 0.448,
+        "h": 0.296
+      },
+      "note": "details-board: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "details-heading",
+      "kind": "text",
+      "box": {
+        "x": 0.229,
+        "y": 0.307,
+        "w": 0.14,
+        "h": 0.025
+      },
+      "note": "details-heading: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "details-copy",
+      "kind": "text",
+      "box": {
+        "x": 0.229,
+        "y": 0.38,
+        "w": 0.16,
+        "h": 0.101
+      },
+      "note": "details-copy: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "edit",
+      "kind": "control",
+      "box": {
+        "x": 0.602,
+        "y": 0.3,
+        "w": 0.042,
+        "h": 0.043
+      },
+      "note": "edit: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "teams-board",
+      "kind": "chrome",
+      "box": {
+        "x": 0.213,
+        "y": 0.596,
+        "w": 0.448,
+        "h": 0.304
+      },
+      "note": "teams-board: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "teams-heading",
+      "kind": "text",
+      "box": {
+        "x": 0.229,
+        "y": 0.62,
+        "w": 0.12,
+        "h": 0.025
+      },
+      "note": "teams-heading: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "team-actions",
+      "kind": "control",
+      "box": {
+        "x": 0.5,
+        "y": 0.619,
+        "w": 0.145,
+        "h": 0.03
+      },
+      "note": "team-actions: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "team-rows",
+      "kind": "text",
+      "box": {
+        "x": 0.229,
+        "y": 0.685,
+        "w": 0.12,
+        "h": 0.143
+      },
+      "note": "team-rows: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "readiness-board",
+      "kind": "chrome",
+      "box": {
+        "x": 0.674,
+        "y": 0.278,
+        "w": 0.292,
+        "h": 0.622
+      },
+      "note": "readiness-board: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "roster-heading",
+      "kind": "text",
+      "box": {
+        "x": 0.69,
+        "y": 0.307,
+        "w": 0.13,
+        "h": 0.025
+      },
+      "note": "roster-heading: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "roster-count",
+      "kind": "text",
+      "box": {
+        "x": 0.69,
+        "y": 0.36,
+        "w": 0.036,
+        "h": 0.036
+      },
+      "note": "roster-count: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "roster-copy",
+      "kind": "text",
+      "box": {
+        "x": 0.69,
+        "y": 0.4,
+        "w": 0.19,
+        "h": 0.026
+      },
+      "note": "roster-copy: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "players-link",
+      "kind": "control",
+      "box": {
+        "x": 0.69,
+        "y": 0.441,
+        "w": 0.1,
+        "h": 0.025
+      },
+      "note": "players-link: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "team-count",
+      "kind": "text",
+      "box": {
+        "x": 0.69,
+        "y": 0.51,
+        "w": 0.025,
+        "h": 0.035
+      },
+      "note": "team-count: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "team-label",
+      "kind": "text",
+      "box": {
+        "x": 0.69,
+        "y": 0.553,
+        "w": 0.1,
+        "h": 0.022
+      },
+      "note": "team-label: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "review-heading",
+      "kind": "text",
+      "box": {
+        "x": 0.69,
+        "y": 0.623,
+        "w": 0.14,
+        "h": 0.025
+      },
+      "note": "review-heading: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "ready-state",
+      "kind": "control",
+      "box": {
+        "x": 0.69,
+        "y": 0.657,
+        "w": 0.087,
+        "h": 0.036
+      },
+      "note": "ready-state: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "consequence",
+      "kind": "text",
+      "box": {
+        "x": 0.69,
+        "y": 0.715,
+        "w": 0.255,
+        "h": 0.077
+      },
+      "note": "consequence: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "open",
+      "kind": "control",
+      "box": {
+        "x": 0.69,
+        "y": 0.824,
+        "w": 0.258,
+        "h": 0.053
+      },
+      "note": "open: flat semantic UI using system typography and existing Nova chrome"
+    },
+    {
+      "id": "delete",
+      "kind": "control",
+      "box": {
+        "x": 0.213,
+        "y": 0.926,
+        "w": 0.08,
+        "h": 0.03
+      },
+      "note": "delete: flat semantic UI using system typography and existing Nova chrome"
+    }
+  ]
+}

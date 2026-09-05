@@ -284,6 +284,156 @@ public sealed class CampaignWorkspaceTests : BunitContext
         cut.Markup.ShouldNotContain("Reopen");
     }
 
+    /// <summary>Verifies the entry snapshot avoids a duplicate startup read while explicit metadata refresh reads current data.</summary>
+    [Fact]
+    public void CampaignWorkspace_UsesInitialSnapshot_ThenRefreshesAfterMetadataSave()
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignDetailResult>(CreateDetail("Fresh campaign")));
+        queries.GetCreationSetupAsync(Arg.Any<CancellationToken>()).Returns(new ServiceResult<CampaignCreationSetupResult>(CreateSetup()));
+        var metadata = Substitute.For<ICampaignMetadataService>();
+        metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<UpdateCampaignMetadataResult>(new UpdateCampaignMetadataResult(10, "Fresh campaign",
+                new DateOnly(2026, 6, 15), new DateOnly(2026, 6, 20), CampaignStatus.Active, 5, "Summer 2026")));
+        RegisterServices(campaignQueryService: queries, campaignMetadataService: metadata, isClubAdmin: true);
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.InitialDetail, CreateDetail("Entry snapshot"))
+            .Add(component => component.InitialDetailScope, "101:42:True"));
+
+        cut.WaitForAssertion(() => cut.Find("h1").TextContent.ShouldBe("Entry snapshot"));
+        _ = queries.DidNotReceive().GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
+        cut.Find("button[aria-haspopup='menu']").Click();
+        cut.FindAll("button[role='menuitem']").Single(button => button.TextContent.Trim() == "Edit metadata").Click();
+        cut.Find("button[type='submit']").Click();
+
+        cut.WaitForAssertion(() => cut.Find("h1").TextContent.ShouldBe("Fresh campaign"));
+        _ = queries.Received(1).GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies startup never trusts a snapshot belonging to another campaign, identity, or Draft lifecycle.</summary>
+    /// <param name="campaignId">The snapshot campaign.</param>
+    /// <param name="scope">The snapshot owner.</param>
+    /// <param name="status">The snapshot lifecycle.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(11, "101:42:False", CampaignStatus.Active)]
+    [InlineData(10, "101:43:False", CampaignStatus.Active)]
+    [InlineData(10, "101:42:False", CampaignStatus.Draft)]
+    public void CampaignWorkspace_RejectsUnusableInitialSnapshot(long campaignId, string scope, CampaignStatus status)
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignDetailResult>(CreateDetail("Authoritative campaign")));
+        RegisterServices(campaignQueryService: queries);
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters
+            .Add(component => component.CampaignId, 10)
+            .Add(component => component.InitialDetail, CreateDetail("Unusable snapshot", status) with { CampaignId = campaignId })
+            .Add(component => component.InitialDetailScope, scope));
+
+        cut.WaitForAssertion(() => cut.Find("h1").TextContent.ShouldBe("Authoritative campaign"));
+        cut.Markup.ShouldNotContain("Unusable snapshot");
+        _ = queries.Received(1).GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies the opening receipt is acknowledged separately only after its actual count is displayed.</summary>
+    /// <param name="count">The immutable number enrolled by the opening operation.</param>
+    /// <param name="noun">The grammatically appropriate enrollment noun.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, "player")]
+    [InlineData(7, "players")]
+    public void CampaignWorkspace_AcknowledgesValidOpeningReceipt_AfterApplyingCount(int count, string noun)
+    {
+        RegisterServices();
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10/roster");
+        var operationId = Guid.NewGuid();
+        var module = JSInterop.SetupModule(WorkspaceModulePath);
+        module.Mode = JSRuntimeMode.Loose;
+        module.Setup<OpenCampaignResult?>("readOpeningReceipt", _ => true).SetResult(
+            new OpenCampaignResult(operationId, 10, DateTimeOffset.UtcNow, 101, count, 0, [CampaignOpeningWarning.NoActiveTeams]));
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain($"Campaign opened and enrolled {count} {noun}."));
+        module.Invocations.Count(invocation => invocation.Identifier == "focus").ShouldBe(1);
+        module.Invocations.Where(invocation => invocation.Identifier == "acknowledgeOpeningReceipt").Count().ShouldBe(1);
+        var arguments = module.Invocations.Single(invocation => invocation.Identifier == "acknowledgeOpeningReceipt").Arguments;
+        arguments[0].ShouldBe("101:42:False");
+        arguments[1].ShouldBe(10L);
+        arguments[2]!.ToString().ShouldBe(operationId.ToString());
+    }
+
+    /// <summary>Verifies unreadable or invalid receipts remain unacknowledged and never produce an opening claim.</summary>
+    /// <param name="kind">The invalid receipt partition.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("read-failure")]
+    [InlineData("json-failure")]
+    [InlineData("unsupported-failure")]
+    [InlineData("no-receipt")]
+    [InlineData("wrong-campaign")]
+    [InlineData("empty-operation")]
+    [InlineData("zero-count")]
+    public void CampaignWorkspace_DoesNotAcknowledgeUnusableReceipt(string kind)
+    {
+        RegisterServices();
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10/roster");
+        var module = JSInterop.SetupModule(WorkspaceModulePath);
+        module.Mode = JSRuntimeMode.Loose;
+        var read = module.Setup<OpenCampaignResult?>("readOpeningReceipt", _ => true);
+        if (kind == "read-failure")
+        {
+            read.SetException(new JSException("Storage unavailable"));
+        }
+        else if (kind == "json-failure")
+        {
+            read.SetException(new System.Text.Json.JsonException("Malformed receipt"));
+        }
+        else if (kind == "unsupported-failure")
+        {
+            read.SetException(new NotSupportedException("Unsupported receipt"));
+        }
+        else if (kind == "no-receipt")
+        {
+            read.SetResult(null);
+        }
+        else
+        {
+            read.SetResult(new OpenCampaignResult(kind == "empty-operation" ? Guid.Empty : Guid.NewGuid(),
+            kind == "wrong-campaign" ? 11 : 10, DateTimeOffset.UtcNow, 101, kind == "zero-count" ? 0 : 7, 0, []));
+        }
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+
+        cut.WaitForAssertion(() => module.Invocations.Count(invocation => invocation.Identifier == "readOpeningReceipt").ShouldBe(1));
+        cut.Markup.ShouldNotContain("Campaign opened and enrolled");
+        module.Invocations.ShouldNotContain(invocation => invocation.Identifier == "acknowledgeOpeningReceipt");
+        module.Invocations.ShouldNotContain(invocation => invocation.Identifier == "focus");
+    }
+
+    /// <summary>Verifies stale canonical-workspace tab values cannot replace the dedicated Roster panel.</summary>
+    /// <param name="tab">A conflicting tab retained in the query string.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("placements")]
+    [InlineData("overview")]
+    [InlineData("closeout")]
+    public void CampaignWorkspace_RosterLandingIgnoresConflictingTab(string tab)
+    {
+        RegisterServices();
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/campaigns/10/roster?tab={tab}");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Find("#roster-region-heading").TextContent.Trim().ShouldBe("Roster");
+            cut.Find("#roster-search").ShouldNotBeNull();
+            cut.Find(".roster-scroll-region").ShouldNotBeNull();
+            cut.FindAll("tbody tr[id^='roster-row-']").ShouldNotBeEmpty();
+        });
+    }
+
     // ── Edit metadata ──────────────────────────────────────────────────────────
 
     [Fact]

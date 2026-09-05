@@ -1,0 +1,180 @@
+# Issue 196 implementation evidence
+
+The user selected **Details and readiness** (`readiness-split`) from the three served comps. The approved comp and provenance are in `../../mocks/decision/issue-196-readiness-split.{png,json}`. The direction contract is `../../surfaces/campaign-spine.md`; Fieldhouse Wayfinding remains defined by the repository's DESIGN.md and PRODUCT.md.
+
+## Surface and scope
+
+Campaigns uses one season-grouped, role-filtered operational board with 20-row paging and contextual actions. Creation saves an administrator-only Draft in the authoritative current season. Preparation pairs campaign details and durable teams with readiness. The URL-backed opening review refreshes before commitment; retries retain the original operation and show the immutable receipt's enrollment count on Roster. Draft deletion preserves teams. Players/Teams correction routes retain a validated local return context.
+
+The existing Active/Closed workspace supplies the minimal Roster destination. The Route Markers and workspace redesign remains #197. Eligibility/effective-placement semantics remain #213/#214. No schema migration or new lifecycle mutation was added.
+
+## Captures
+
+All images were captured from the real Aspire-hosted app by CampaignDraftBrowserTests. The `hero.png` frame is 1505×1045, matching the comp. `desktop.png` is 1440 wide. Mobile images are 390 wide. Warning and blocker desktop scenarios use 1280. Full-page mobile captures include the existing fixed bottom navigation at its viewport position.
+
+| State | Desktop | Mobile |
+|---|---|---|
+| Draft opening review | [Comp viewport](hero.png), [1440](desktop.png) | [390](preparation-mobile.png) |
+| Current-season/first-season creation | [Desktop](creation-desktop.png) | [Mobile](creation-mobile.png) |
+| Campaign directory | [Desktop](directory-desktop.png) | [Mobile](directory-mobile.png) |
+| No campaigns after deletion | [Feedback](directory-empty.png) | Covered by responsive directory layout |
+| Ordinary member with no visible campaigns | [Member](directory-member-empty.png) | Covered by responsive directory layout |
+| Zero-player blocker | [Blocked](preparation-blocked.png) | Shared readiness stack |
+| No-team warning and long name | [Long/warning](preparation-warning-long.png) | [Long/warning mobile](preparation-warning-long-mobile.png) |
+| Receipt and existing roster machinery | [Roster](roster-desktop.png) | [Roster mobile](roster-mobile.png) |
+
+## Fidelity and review
+
+The measured hero and responsive gates passed at approximately 89%. State/spec are in `../../build/`; region comparisons are in `../diff/hero/`, `../diff/desktop/`, and `../diff/final/`. The fresh review and bounded verdict are recorded in `finish-review.md`: the reviewer scored all four material fixes resolved and returned **ship** for that fix list.
+
+The detector reported eight advisory type-ramp differences and no failures. The approved comp uses larger local type; desktop spacing/type uses a bounded fluid unit, while mobile retains rem sizing. The existing shell's dimensions, native focus rings, and semantic danger color are preserved. These differences are explicit; no force override was used.
+
+## Verification
+
+Validated for PR #244 review round seventeen on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,558 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL and embedded form touch-target coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through seventeen change UI state/rendering and tests only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
+
+Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
+
+The approved hero checkpoint is also persisted at `../hero-repro.png`: the 1505×1045 `hero.png` capture associated with the passed 89% hero gate in `.impeccable/build/state.json`. The final packet refresh preserves this checkpoint association.
+
+## Code-review corrections
+
+Metadata edits clear contextual server validation on input changes without reintroducing the unchanged error snapshot. Opening confirmation now persists the retained operation ID before every submission, so a failed storage write cannot be bypassed by recovery. These are behavior corrections; the approved composition is unchanged.
+
+| Requirement | Regression evidence in `CampaignEntryTests` |
+|---|---|
+| Correct a server-rejected date and submit again, including after a parent render | `CampaignEntry_ResubmitsMetadata_AfterCorrectingServerValidation` |
+| Block initial and recovery opening calls while storage fails; then submit the same operation once | `CampaignEntry_RetriesStorageBeforeOpening_WithTheSameOperation` |
+
+Subsequent PR review rounds added scoped deletion replay, durable creation retries, identity cleanup recovery, URL paging synchronization, strict paging and closure validation, single-statement team previews, and accessible mobile table headers. The workspace reuses its router's authorized detail snapshot, preserves the focused Roster route during participant navigation, and ignores conflicting workspace tab values on that route.
+
+Opening receipts remain stored until .NET validates and applies the immutable count and acknowledges the matching operation. Only that validated receipt handoff moves focus to the Roster heading; ordinary visits retain normal navigation focus. Abandoned metadata edits discard server validation errors. JSON responses must contain both paging fields, Active/Closed directory requests omit the unused Draft player-count query, and creation links back to the root-relative directory path.
+
+Regression coverage includes `CampaignEntryTests`, `CampaignWorkspaceTests`, `HttpCampaignQueryServiceTests`, and `CampaignQueryServiceTests`, plus the real-browser Draft journey. The query tests assert the actual reader count for views without Drafts. The browser checks receipt retention and acknowledgment using the real JavaScript modules, along with Roster routing and mobile header semantics. The verification totals above describe the complete suites, not the original focused test subset.
+
+The fifth review round adds an accessible recovery-storage retry that writes the current in-memory creation form before enabling submission. Identity changes clear form and persisted errors before loading new setup; late writes cannot restore an old identity's error. Draft return links require current administrator rights, including live role changes on Players and Teams. A Draft list row now requires its enrollment preview, with zero remaining valid.
+
+| Requirement | Regression evidence |
+|---|---|
+| Recover from repeated input-storage failures without replacing current edits or the operation ID | `NewCampaign_RetryRecoveryStorage_PreservesCurrentEditsUntilWriteSucceeds` |
+| Clear old form and persisted errors before another club's setup completes | `NewCampaign_ClearsErrorsAndSnapshot_BeforeNewClubSetupCompletes` |
+| Ignore a previous club's late storage failure | `NewCampaign_IgnoresLateInputStorageFailure_AfterClubChanges` |
+| Reject missing/null Draft previews while accepting zero | `GetCampaignListAsync_RequiresPreviewForDraftRows` |
+| Hide Draft return links for members and after role loss | `Players_ReturnToDraft_RequiresCurrentAdministratorRole`, `Teams_ReturnToDraft_RequiresCurrentAdministratorRole` |
+
+The sixth review round completes Players identity rebinding: user, club, or role changes discard roster rows, derived filters, management forms, archive confirmation, and persisted snapshots before loading fresh data. Late query, edit, and mutation responses cannot publish into another identity's page. Prerender restoration checks the same scope, and club/user changes discard old directory return/filter context.
+
+| Requirement | Regression evidence in `PlayerComponentsTests` |
+|---|---|
+| Discard archive confirmation on role loss and require fresh confirmation when access returns | `Players_DiscardsArchiveConfirmation_WhenAdministratorRoleIsLost` |
+| Clear previous-club state immediately and query the new club | `Players_ClearsPreviousClubState_BeforeNewRosterCompletes` |
+| Ignore old roster successes, authorization failures, and transport failures | `Players_IgnoresPreviousClubRosterCompletion`, `Players_IgnoresPreviousClubTransportFailure` |
+| Ignore old edit and archive completions | `Players_IgnoresPreviousClubEditCompletion`, `Players_IgnoresPreviousClubArchiveCompletion` |
+| Restore only a matching user/club/role snapshot | `Players_RestoresOnlyMatchingPrerenderSnapshot` |
+
+The seventh review round requires exactly `min(5, ActiveTeamCount)` readiness preview entries in the WASM client, matching the server's atomic team snapshot. Omitted/empty previews with active teams and undersized capped previews are rejected. Existing malformed-payload fixtures carry valid previews when testing other invariants, so the new check does not mask those assertions.
+
+| Requirement | Regression evidence in `HttpCampaignQueryServiceTests` |
+|---|---|
+| Reject omitted and empty previews when active teams exist | `GetOpeningReadinessAsync_ReturnsServerError_ForInvalidPayload` |
+| Accept zero/singleton/capped previews and reject a short capped preview | `GetOpeningReadinessAsync_RequiresCompleteBoundedPreview` |
+
+The eighth review round orders campaign-directory authentication notifications before publishing their results, including startup and disposal. Raw page/deletion query values are parsed and normalized instead of throwing during binding. Optional opening receipts tolerate JSON/schema incompatibility, use the singular noun for one player, and have an accurate one-time-read comment.
+
+| Requirement | Regression evidence |
+|---|---|
+| Ignore older authentication notifications without cancelling the newest member query | `Campaigns_IgnoresOlderAuthenticationCompletion_WhileNewMemberListLoads` |
+| Ignore notifications completed after component disposal | `Campaigns_IgnoresPendingAuthentication_AfterDisposal` |
+| Normalize malformed page/deletion values | `Campaigns_DefaultsMalformedOptionalQueryValues`; real-browser `Draft_IsUnavailableToOrdinaryMember_AndWarningDoesNotBlockAdministrator` |
+| Ignore incompatible receipt data without focus or acknowledgment | `CampaignWorkspace_DoesNotAcknowledgeUnusableReceipt` |
+| Use singular/plural receipt wording while preserving immutable counts and acknowledgment | `CampaignWorkspace_AcknowledgesValidOpeningReceipt_AfterApplyingCount` |
+
+The ninth review round resets the Players URL on role changes as well as user/club changes. Replacing the URL with `/players` removes stale filter and Draft-return parameters when the in-memory roster filters reset, so refresh cannot reapply the previous authority's context.
+
+| Requirement | Regression evidence in `PlayerComponentsTests` |
+|---|---|
+| Reset the URL and query lifecycle/search/year/tag values when administrator access is revoked | `Players_ReturnToDraft_RequiresCurrentAdministratorRole` |
+
+The tenth review round orders authentication completions in Draft creation and preparation, including startup and disposal. Stale work cannot replace the latest identity or resume recovery from its previous scope. Typed recovery schema failures leave commands disabled and preserve the original markers; Retry can resume the original operation once compatible data is available. The preparation error remains visible for an already Active campaign as well.
+
+| Requirement | Regression evidence |
+|---|---|
+| Ignore older startup/notification authentication completions | `NewCampaign_IgnoresOvertakenAuthentication`, `CampaignEntry_IgnoresOvertakenAuthentication` |
+| Ignore authentication finishing after component disposal | `NewCampaign_IgnoresAuthenticationCompletion_AfterDisposal`, `CampaignEntry_IgnoresAuthenticationCompletion_AfterDisposal` |
+| Preserve incompatible form/pending/open/delete data, block commands, and retry the original operation | `NewCampaign_PreservesIncompatibleRecovery_UntilCorrectedRetry`, `CampaignEntry_PreservesIncompatibleRecovery_UntilCorrectedRetry` |
+
+Focused validation passed: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignEntryTests'` (27 tests) and the equivalent `'*NewCampaignRecoveryTests'` filter (16 tests).
+
+The eleventh review round orders Teams authentication completions during startup and notifications and invalidates them on disposal. A late administrator result cannot restore management or Draft-return controls after revocation. Campaign preparation no longer displays loading alongside a terminal detail error; Retry displays loading while pending and restores the Draft when successful.
+
+| Requirement | Regression evidence |
+|---|---|
+| Keep revoked Teams management and Draft-return controls hidden after late startup/notification results | `Teams_IgnoresOvertakenAdministratorAuthentication` |
+| Ignore Teams authentication completed after disposal | `Teams_IgnoresAuthenticationCompletion_AfterDisposal` |
+| Separate failed detail loading from pending retry and recover the Draft | `CampaignEntry_ShowsDetailFailureWithoutLoading_AndRetries` |
+
+Round eleven focused validation passed with `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*TeamComponentsTests'` (42 tests) and the equivalent `'*CampaignEntryTests'` filter (29 tests).
+
+The twelfth review round ensures an empty non-first directory page always moves backwards, even when concurrent deletion leaves the returned total stale. Directory, creation, and preparation labels select singular player/team/participant nouns for singleton counts.
+
+| Requirement | Regression evidence |
+|---|---|
+| Refetch a lower page for an empty page with a stale total or an out-of-range page | `Campaigns_RefetchesLowerPage_WhenRequestedPageIsEmpty` |
+| Use singular/plural directory enrollment and participant labels | `Campaigns_UsesCountAwareRowLabels` |
+| Use singular/plural creation player/team previews | `NewCampaign_UsesCountAwarePreviewLabels` |
+| Use singular/plural preparation player/team readiness labels | `CampaignEntry_UsesCountAwareReadinessLabels` |
+
+Round twelve focused validation passed with `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignComponentsTests'` (65 tests) and the equivalent `'*CampaignEntryTests'` filter (31 tests).
+
+The thirteenth review round blocks opening while deletion confirmation is open and tracks opening progress separately from other mutations. Opening and recovery submissions also enforce the confirmation boundary in code. Both Draft code-behind files now document their private state, helpers, and constructor dependencies, including ownership and replay semantics.
+
+| Requirement | Regression evidence |
+|---|---|
+| Block opening until deletion confirmation is dismissed | `CampaignEntry_BlocksOpening_DuringDeleteConfirmation` |
+| Avoid opening progress during metadata saves | `CampaignEntry_DoesNotAnnounceOpening_WhileMetadataSaveIsPending` |
+| Show opening progress and retain confirmation after an uncertain opening | `CampaignEntry_AnnouncesOpening_WhileOpeningCommandIsPending` |
+
+Round thirteen focused validation passed with `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignEntryTests'` (34 tests). A declaration scan found no undocumented private or protected members in `CampaignEntry.razor.cs` or `NewCampaign.razor.cs`.
+
+The initial round-thirteen browser run exposed a prerender focus race in `Overview_MobileSheet_OpensCompleteDirectory_AndNoScriptShowsRoutes`: it asserted focus before interactive attachment could replace the button. The test now asserts focus after its existing keyboard activation retry opens the menu, preserving the focus and keyboard assertions on the surviving interactive element.
+
+The fourteenth review round distinguishes an applied clubless identity from default fields in Players and Teams, so authentication notifications that overtake startup still publish the club-required state. Draft setup failures retain their explanation, disable metadata editing, and expose a retry. Scoped descendant selectors apply the 44-pixel minimum height to embedded metadata and team form controls.
+
+| Requirement | Regression evidence |
+|---|---|
+| Apply an empty identity before pending startup, initialize the unavailable roster, and ignore the late administrator | `Players_AppliesEmptyIdentity_WhenItOvertakesStartup`, `Teams_AppliesEmptyIdentity_WhenItOvertakesStartup` |
+| Keep Draft details visible while setup fails, disable Edit, and restore season options on explicit retry | `CampaignEntry_DisablesEdit_WhenSetupFails_AndRecoversOnRetry` |
+| Measure visible embedded form inputs, selects, and buttons at a 390-pixel viewport | Existing `CampaignDraftBrowserTests` creation/correction and first-team journeys call `AssertNestedFormTouchTargetsAsync` |
+
+Initial round-fourteen validation corrected missing required fixture counts and narrowed the Teams empty-roster assertion to table rows because the search placeholder contains the sample team's name. An unrelated workspace debounce test failed during the first full unit run with concurrent format verification; all 78 workspace tests passed in isolation and the subsequent full unit run passed all 2,540 tests.
+
+The first browser run passed 118 tests and failed the Draft keyboard transition and an account-photo interaction timeout. The Draft test now waits for the canceled metadata form to disappear before pressing Enter on the opening button; its Roster focus assertion remains intact. The subsequent full browser run passed all 120 tests with seven optional screenshot checks skipped, including the account-photo scenario without changes to that test or feature.
+
+The fifteenth review round documents the private state and helpers added to creation, metadata correction, the workspace, and the directory. Its requested creation-form regression exposed a real retry defect: command validation messages survived field corrections and prevented the next valid submission. The form now clears contextual server failures on field changes, retains the error snapshot reference across parent rerenders, and detaches the field handler on model replacement and disposal.
+
+| Requirement | Regression evidence |
+|---|---|
+| Resubmit corrected creation input after server field errors and an unchanged parent error snapshot | `CampaignCreateForm_ResubmitsCorrectedField_WithUnchangedParentErrorSnapshot` |
+| Document private state, handlers, and URL helpers in all four flagged files | Declaration scan found no undocumented private/protected members in `CampaignCreateForm`, `CampaignMetadataForm`, `CampaignWorkspace`, or `Campaigns` |
+
+The new regression failed before the behavior fix because only the original submission reached the callback. After the fix, all 66 `CampaignComponentsTests` passed, including assertions on the corrected payload and retained operation ID.
+
+The sixteenth review round reconciles opening-readiness conflicts against a fresh authorized detail query. Active and Closed results move to Roster without submitting an opening command or inventing receipt feedback; a still-Draft result retains the readiness explanation without recursive refreshes. Failed reconciliation removes stale Draft controls and presents an unavailable state or retry. Teams discards its Draft-return parameter and query value on club or authority changes while preserving directory filters.
+
+| Requirement | Regression evidence |
+|---|---|
+| Reconcile Active, Closed, and still-Draft conflicts without claiming an opening receipt | `CampaignEntry_ReconcilesReadinessConflict_UsingFreshLifecycle` |
+| Discard reconciliation results after navigating to another Draft | `CampaignEntry_IgnoresLateReadinessConflictReconciliation_AfterRouteChanges` |
+| Remove stale controls on deleted, forbidden, and transport-failed reconciliation | `CampaignEntry_ClearsDraft_WhenReadinessReconciliationFails` |
+| Remove Draft return context on club/role changes, preserve filters, and prevent restoration on role regain | `Teams_DiscardsDraftReturnContext_WhenScopeChanges` |
+
+Focused validation passed all 42 `CampaignEntryTests` and 45 `TeamComponentsTests`. The initial lifecycle test expectation was corrected to include the Roster route's own detail load after navigation; it also asserts a single readiness query so a still-Draft conflict cannot recurse.
+
+The seventeenth review round pauses opening when the mandatory readiness refresh changes the displayed enrollment count. It renders the new preview and requests another confirmation before allocating or storing an operation ID. The locked command's immutable receipt remains authoritative if enrollment changes after that refresh. Directory campaign and season mutations capture generation and identity ownership; stale successes, failures, redirects, reloads, and cleanup cannot affect a newer scope or save.
+
+| Requirement | Regression evidence |
+|---|---|
+| Require another confirmation after rising or falling preview counts, then report the immutable receipt count | `CampaignEntry_RequiresNewConfirmation_WhenEnrollmentCountChanges` |
+| Ignore old campaign/season success, forbidden, and transport results while preserving a newer save's busy state | `Campaigns_IgnoresOldScopeMutationCompletion` |
+
+Focused validation passed all 44 `CampaignEntryTests` and 72 `CampaignComponentsTests`.

@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Campaigns;
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Shouldly;
 
@@ -13,6 +14,62 @@ namespace Nova.Integration.Tests.Data;
 [Collection(NovaAppHostCollection.Name)]
 public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixture)
 {
+    /// <summary>Verifies PostgreSQL pages Closed history by actual closure time before campaign start dates.</summary>
+    [Fact]
+    public async Task GetCampaignList_PagesClosedCampaigns_ByClosureTime()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(1, cancellationToken);
+        long expectedFirstId;
+        long expectedSecondId;
+        await using (var db = fixture.CreateAdminContext())
+        {
+            var first = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Later closure",
+                Status = CampaignStatus.Closed,
+                StartDate = new DateOnly(2026, 2, 1),
+                ClosedAt = new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero),
+                ClosedById = seed.MemberUserId,
+                SeasonId = seed.CurrentSeasonId,
+                ClubId = seed.ClubId,
+                CreatedById = seed.MemberUserId
+            };
+            var second = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Later start",
+                Status = CampaignStatus.Closed,
+                StartDate = new DateOnly(2026, 3, 1),
+                ClosedAt = new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero),
+                ClosedById = seed.MemberUserId,
+                SeasonId = seed.CurrentSeasonId,
+                ClubId = seed.ClubId,
+                CreatedById = seed.MemberUserId
+            };
+            db.Campaigns.AddRange(first, second);
+            await db.SaveChangesAsync(cancellationToken);
+            expectedFirstId = first.CampaignId;
+            expectedSecondId = second.CampaignId;
+        }
+
+        ActAs(seed.MemberUserId, seed.ClubId);
+        var service = new CampaignQueryService(new PostgresReadContextFactory(fixture), fixture.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+        var firstPage = await service.GetCampaignListAsync(new GetCampaignListInput { Limit = 1 }, cancellationToken);
+        var secondPage = await service.GetCampaignListAsync(new GetCampaignListInput { Limit = 1, Page = 2 }, cancellationToken);
+
+        firstPage.IsSuccess.ShouldBeTrue();
+        secondPage.IsSuccess.ShouldBeTrue();
+        firstPage.Value.TotalCount.ShouldBe(2);
+        secondPage.Value.TotalCount.ShouldBe(2);
+        firstPage.Value.Seasons.Single().Campaigns.Single().CampaignId.ShouldBe(expectedFirstId);
+        secondPage.Value.Seasons.Single().Campaigns.Single().CampaignId.ShouldBe(expectedSecondId);
+        secondPage.Value.Seasons.Single().Campaigns.Single().ClosedAt
+            .ShouldBe(new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero));
+    }
+
     [Fact]
     public async Task GetCreationSetup_ReturnsOnlyCurrentSeason()
     {

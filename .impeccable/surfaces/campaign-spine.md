@@ -2,6 +2,27 @@
 
 Status: Confirmed
 
+## Issue 196 approved composition
+
+The user selected **Details and readiness** on the served decision page, confirmed in this task. Approved comp: `.impeccable/mocks/decision/issue-196-readiness-split.png` (sidecar records approval). Seed: `cb82d130`; surface / Operate; build path: comp.
+
+The Draft uses a broad details-and-teams column beside a narrower readiness and opening board. Mobile stacks details, teams, then readiness. The directory inherits the same flat boards and compact rows; creation uses the main working field. The existing Nova navigation remains authoritative. Generated sample names/counts are representative only. No lifecycle dropdown, manual enrollment, or description field is introduced.
+
+### Issue 196 shipped surface record
+
+Recorded from `Nova.UI/Features/Campaigns/Pages/CampaignEntry.razor`, `Campaigns.razor`, `NewCampaign.razor`, their styles and supporting components on 2026-09-05. Rendered evidence lives in [the issue 196 packet](../review/issue-196/README.md). The [finish verdict](../review/issue-196/finish-review.md#verdict) resolves all four scored fixes; its ship disposition is limited to those fixes.
+
+- **Preparation split:** campaign identity, written Draft state, season/current-season marker, and dates precede a broad column containing details above active teams. A narrower continuous board holds player and team counts, readiness, opening consequences, and the full-width teal commitment. Delete draft remains beneath the preparation boards with inline, campaign-naming confirmation and an explicit statement that club teams remain.
+- **Mobile reading order:** the split becomes one column at `991.98px` and below, retaining details → teams → readiness. At `575.98px` and below, board padding reduces and campaign names wrap. Buttons retain a `2.75rem` minimum height. This is a campaign composition, not a replacement for the established navigation shell or a universal page grid.
+- **Flat directory:** one white, hairline-bounded board groups compact campaign rows by season. Rows carry name, dates, written status, participant meaning, and Prepare draft / Continue campaign / View record. On narrow screens the rows become stacked records. The implemented directory does not yet show placement or unresolved progress; that earlier brief requirement is not evidence of a shipped progress component.
+- **Bounded and role-shaped directory:** URL-backed view and page controls expose 20-campaign pages, a loaded/total count, and Previous/Next links. Administrators receive Draft and management controls; members receive Active/Closed views and a truthful empty explanation. A member URL requesting Draft normalizes to All campaigns and page 1, keeping the displayed selection and URL coherent. The role-filtered total must never reveal Drafts.
+- **Creation sheet:** current enrollment and team previews precede the essentials form and its explicit saved-Draft consequence. Creation uses the authoritative current season; inline season creation appears only when no current season exists. The form saves preparation before any enrollment commitment.
+- **Count and receipt meaning:** Draft counts describe active club players who *will enroll*, not existing campaign participants. Active/Closed directory counts describe participants. The team preview states loaded versus total teams when bounded. Opening review is URL-backed (`review=open`), refreshes readiness before commitment, and says **Open campaign and enroll N players**. Zero players and another Active campaign block; zero teams warns without blocking. Roster success feedback consumes the original operation receipt's actual enrollment count, rather than the earlier preview or a later live roster count. Ambiguous opening results retain the original operation for confirmation; they do not present a new opening commitment.
+
+Fieldhouse palette roles, flat-board vocabulary, and global tokens remain unchanged. The Draft's local type and fluid spacing adjustments are composition-specific evidence, not new system tokens. No new global component or named rule is introduced by this record, so `DESIGN.md` and `.impeccable/design.json` retain their established definitions.
+
+**Scope:** native system typography follows the approved brief. Existing workspace styling does not become a new rule for future surfaces; this handoff does not expand its use. The resolved return-arrow glyph is replaced by authored SVG and is not a reusable icon pattern. The existing Active/Closed workspace and its provisional navigation are only the delivered Roster landing context; issue **#197** retains ownership of the Route Markers/workspace redesign. The Active-route sections below remain the confirmed target contract, not a claim that issue 196 shipped that redesign.
+
 Issues: [#166](https://github.com/eruvalca/Nova/issues/166), child of [#163](https://github.com/eruvalca/Nova/issues/163)
 
 Visitor mode: Operate
