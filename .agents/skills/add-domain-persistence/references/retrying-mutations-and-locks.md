@@ -53,7 +53,8 @@ same context and transaction as every domain effect, and verify that receipt by 
 a fresh context. Receipts with a durable aggregate FK can prune inline within the current tenant.
 Receipts that deliberately omit that FK so proof survives aggregate deletion need an independent
 age-based cleanup path reachable from later operations in any tenant (or a background worker) and a
-`CreatedAt`-leading index for the cutoff. A global cleanup may delete only expired receipt rows;
+cutoff-leading index (`CreatedAt` or an explicit recovery-expiry timestamp).
+A global cleanup may delete only expired receipt rows;
 never scan or delete live tenant data through an admin context. `ClubMemberService` is the canonical
 FK-less receipt and global age-retention example.
 
@@ -67,6 +68,35 @@ tombstone when it snapshots the tenant, aggregate id, and required result eviden
 same transaction as deletion, serialize competitors on the aggregate lock, and verify an ambiguous
 commit only when both the tenant-scoped tombstone exists and the aggregate is absent.
 `CampaignLifecycleService.DeleteDraftAsync` is the canonical example.
+
+## Client retries and reviewed batches
+
+For recovery across HTTP requests, use `PlayerImportService.CommitAsync` and
+`PlayerImportCommitPostgresTests` as the canonical implementation and provider-test examples.
+Import recovery bounds each global cleanup batch in `PruneImportReceiptsAsync`; the membership
+receipt example above demonstrates global age retention, not bounded batches.
+The caller retains the operation ID across requests; generating a new ID per HTTP attempt only
+protects retries inside that attempt. A batch receipt owns the batch ID; do not copy it onto every
+created entity's uniquely constrained `CreationOperationId`.
+
+Bind recovery to the authenticated tenant, actor, and original request fingerprint, and authorize
+against current persisted membership and roles before returning the receipt. Return the stored
+original result before reclassifying mutable domain state. Recheck for the receipt after acquiring
+the serialization lock; keep the unique tenant/operation constraint as the final identity guard.
+Persist a receipt even for a successful zero-effect batch, otherwise a later retry can change its
+outcome. Cancellation or a missing response does not prove rollback.
+
+Keep new-execution authorization and completed-result recovery lifetimes separate. An exact-match
+receipt may support recovery after confirmation expiry when the feature contract permits it;
+receipt absence must not let an expired confirmation execute. Import lifetimes and row-selection
+policy belong in `PlayerImportConstraints` and the import contract, not in universal mutation rules.
+
+For preview/confirm flows that promise to import only reviewed eligible rows, bind the reviewed
+classification as well as the exact bytes into the confirmation. Revalidate eligible rows at commit;
+previously excluded rows cannot become silently eligible. Inspect all writers of the checked
+identity: Nova's import duplicate check needs roster serialization in profile name/date-of-birth
+updates as well as creation. This serialization does not impose import duplicate policy on manual
+creation.
 
 ## Multi-entity advisory locks
 

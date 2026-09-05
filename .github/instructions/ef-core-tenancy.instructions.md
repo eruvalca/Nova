@@ -33,7 +33,8 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
   entities keep a real `ClubId` FK + `Club` navigation. Immutable operation receipts that prove an
   ambiguous commit are the deliberate exception: they retain a `ClubId` snapshot without an FK so
   verification survives later deletion of the club aggregate. Those FK-less receipts must have a
-  global age-based cleanup path and a `CreatedAt`-leading index so rows for deleted clubs do not
+  global age-based cleanup path and an index led by the cleanup cutoff column
+  (`CreatedAt` or an explicit recovery-expiry timestamp) so rows for deleted clubs do not
   accumulate indefinitely. The generic filter loop in
   `ApplicationDbContext.OnModelCreating` picks both shapes up automatically — adding the interface
   is all that's needed for filtering.

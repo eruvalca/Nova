@@ -1,25 +1,33 @@
 ﻿using System.Diagnostics;
-using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Shared.Enums;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 
 namespace Nova.Features.Players;
 
-/// <summary>Generates and previews player CSV imports without persisting player records.</summary>
+/// <summary>Previews bounded CSV imports and commits explicitly reviewed rows with durable recovery.</summary>
+/// <param name="readDbContextFactory">The tenant-filtered preview context factory.</param>
+/// <param name="currentUserProvider">The request's actor and tenant claims.</param>
+/// <param name="parser">The authoritative structural CSV validator.</param>
+/// <param name="tokenProtector">The protected review identity boundary.</param>
+/// <param name="timeProvider">The clock for preview and receipt lifetimes.</param>
+/// <param name="logger">The structured import outcome logger.</param>
+/// <param name="dbContextFactory">Fresh transactional tenant contexts.</param>
+/// <param name="adminDbContextFactory">Infrastructure contexts used only to prune expired receipts.</param>
 internal sealed partial class PlayerImportService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     PlayerImportCsvParser parser,
     PlayerImportPreviewTokenProtector tokenProtector,
     TimeProvider timeProvider,
-    ILogger<PlayerImportService> logger) : IPlayerImportService
+    ILogger<PlayerImportService> logger,
+    IDbContextFactory<NovaDbContext> dbContextFactory,
+    IDbContextFactory<NovaAdminDbContext> adminDbContextFactory) : IPlayerImportService
 {
     private static readonly byte[] TemplateContent = CreateTemplateContent();
 
@@ -59,6 +67,7 @@ internal sealed partial class PlayerImportService(
             return ServiceProblem.Forbidden("You must be a club administrator to preview a player import.");
         }
 
+        upload = upload with { Content = upload.Content.ToArray() };
         var startedAt = Stopwatch.GetTimestamp();
         var parseResult = parser.Parse(upload.Content, cancellationToken);
         return await parseResult.Match<Task<ServiceResult<PlayerImportPreview>>>(
@@ -77,6 +86,14 @@ internal sealed partial class PlayerImportService(
             });
     }
 
+    /// <summary>Classifies the parsed file and protects the exact reviewed eligibility set.</summary>
+    /// <param name="parsed">The structurally parsed source rows.</param>
+    /// <param name="content">The frozen original bytes.</param>
+    /// <param name="actorUserId">The reviewing administrator.</param>
+    /// <param name="clubId">The reviewing club.</param>
+    /// <param name="startedAt">The request start for duration logging.</param>
+    /// <param name="cancellationToken">Cancels classification.</param>
+    /// <returns>The advisory review with protected confirmation identity.</returns>
     private async Task<ServiceResult<PlayerImportPreview>> BuildPreviewAsync(
         ParsedPlayerImport parsed,
         byte[] content,
@@ -85,97 +102,23 @@ internal sealed partial class PlayerImportService(
         long startedAt,
         CancellationToken cancellationToken)
     {
-        var readyCandidates = parsed.Rows
-            .Where(row => row.Status == PlayerImportRowStatus.Ready)
-            .Select(row => row.Candidate!)
-            .ToList();
-        var dates = readyCandidates
-            .Select(candidate => candidate.DateOfBirth)
-            .Distinct()
-            .ToArray();
-
-        List<ExistingPlayer> existingPlayers;
-        await using (var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken))
-        {
-            existingPlayers = dates.Length == 0
-                ? []
-                : await db.Players
-                    .Where(player => dates.Contains(player.DateOfBirth))
-                    .Select(player => new ExistingPlayer(
-                        player.PlayerId,
-                        player.FirstName,
-                        player.LastName,
-                        player.DateOfBirth,
-                        player.LifecycleStatus))
-                    .ToListAsync(cancellationToken);
-        }
-
-        var existingByKey = existingPlayers
-            .GroupBy(player => PlayerDuplicateKey.Create(player.FirstName, player.LastName, player.DateOfBirth))
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderBy(player => player.LifecycleStatus == LifecycleStatus.Active ? 0 : 1)
-                    .ThenBy(player => player.PlayerId)
-                    .First());
-        var firstUploadRows = new Dictionary<PlayerDuplicateKey, int>();
-        var classifiedRows = new List<PlayerImportPreviewRow>(parsed.Rows.Count);
-
-        foreach (var row in parsed.Rows)
-        {
-            if (row.Status != PlayerImportRowStatus.Ready)
-            {
-                classifiedRows.Add(row);
-                continue;
-            }
-
-            var candidate = row.Candidate!;
-            var key = PlayerDuplicateKey.Create(candidate.FirstName, candidate.LastName, candidate.DateOfBirth);
-            if (existingByKey.TryGetValue(key, out var existing))
-            {
-                classifiedRows.Add(row with
-                {
-                    Status = PlayerImportRowStatus.Duplicate,
-                    Duplicate = new PlayerImportDuplicate(
-                        existing.LifecycleStatus == LifecycleStatus.Active
-                            ? PlayerImportDuplicateKind.ExistingActivePlayer
-                            : PlayerImportDuplicateKind.ExistingArchivedPlayer,
-                        existing.PlayerId,
-                        EarlierSourceRowNumber: null)
-                });
-                continue;
-            }
-
-            if (firstUploadRows.TryGetValue(key, out var earlierSourceRow))
-            {
-                classifiedRows.Add(row with
-                {
-                    Status = PlayerImportRowStatus.Duplicate,
-                    Duplicate = new PlayerImportDuplicate(
-                        PlayerImportDuplicateKind.EarlierUploadRow,
-                        ExistingPlayerId: null,
-                        earlierSourceRow)
-                });
-                continue;
-            }
-
-            firstUploadRows.Add(key, row.SourceRowNumber);
-            classifiedRows.Add(row);
-        }
+        await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+        var classifiedRows = await PlayerImportRowClassifier.ClassifyAsync(db, parsed, cancellationToken);
 
         var operationId = Guid.CreateVersion7();
         var issuedAt = timeProvider.GetUtcNow();
         var lifetime = TimeSpan.FromMinutes(PlayerImportConstraints.PreviewLifetimeMinutes);
         var expiresAt = issuedAt.Add(lifetime);
         var payload = new PlayerImportPreviewTokenPayload(
-            Version: 1,
+            Version: 2,
             operationId,
             clubId,
             actorUserId,
             Convert.ToHexString(SHA256.HashData(content)),
             content.Length,
             issuedAt,
-            expiresAt);
+            expiresAt,
+            classifiedRows.Select(row => row.Status).ToArray());
         var confirmationToken = tokenProtector.Protect(payload, lifetime);
 
         var readyRows = classifiedRows.Count(row => row.Status == PlayerImportRowStatus.Ready);
@@ -189,7 +132,7 @@ internal sealed partial class PlayerImportService(
             readyRows,
             invalidRows,
             duplicateRows,
-            classifiedRows.AsReadOnly());
+            classifiedRows);
 
         LogPreviewCompleted(
             operationId,
@@ -257,21 +200,6 @@ internal sealed partial class PlayerImportService(
         var header = string.Join(',', PlayerImportConstraints.Headers) + "\r\n";
         var body = Encoding.UTF8.GetBytes(header);
         return [.. Encoding.UTF8.GetPreamble(), .. body];
-    }
-
-    private readonly record struct ExistingPlayer(
-        long PlayerId,
-        string FirstName,
-        string LastName,
-        DateOnly DateOfBirth,
-        LifecycleStatus LifecycleStatus);
-
-    private readonly record struct PlayerDuplicateKey(string FirstName, string LastName, DateOnly DateOfBirth)
-    {
-        public static PlayerDuplicateKey Create(string firstName, string lastName, DateOnly dateOfBirth) => new(
-            firstName.Trim().ToUpperInvariant(),
-            lastName.Trim().ToUpperInvariant(),
-            dateOfBirth);
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Player import template forbidden for UserId={UserId}.")]
