@@ -1,4 +1,7 @@
-﻿using Nova.Shared.Enums;
+﻿using Microsoft.Extensions.Logging.Abstractions;
+using Nova.Features.Players;
+using Nova.Shared.Enums;
+using Nova.Shared.Features.Players;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -89,6 +92,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.Locator("div.alert-success[role=status]")).ToContainTextAsync("Placement saved.");
     }
 
+    /// <summary>Verifies automatic enrollment invalidates stale readiness without freezing campaign editing.</summary>
+    /// <returns>A task representing the concurrent closeout browser scenario.</returns>
     [Fact]
     public async Task Admin_StaleBlockedClose_ShowsConflictAlert_WithoutFreezing()
     {
@@ -110,11 +115,25 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var closeButton = adminPage.GetByRole(AriaRole.Button, new() { Name = "Close campaign" });
         await Expect(closeButton).ToBeEnabledAsync();
 
-        // Admin B makes the campaign undecided behind Admin A's session.
+        // Admin B creates a player while Admin A holds stale readiness. The real creation service
+        // automatically enrolls the player, introducing an unresolved participation without clearing a decision.
+        using (fixture.AppHost.UseUser(seed.SecondAdminUserId, seed.ClubId, isClubAdmin: true))
+        {
+            var players = new PlayerManagementService(
+                fixture.AppHost.CreateTenantContextFactory(),
+                fixture.AppHost.CurrentUser,
+                NullLogger<PlayerManagementService>.Instance);
+            var created = await players.CreateAsync(new CreatePlayerInput
+            {
+                FirstName = "Late",
+                LastName = $"Arrival {Guid.NewGuid():N}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030
+            }, cancellationToken);
+            created.IsSuccess.ShouldBeTrue();
+        }
         await OpenPlacementsAsync(secondPage, seed.ReadyCampaignId);
-        var secondFirstRow = secondPage.Locator("tbody tr[id^='placement-row-']").First;
-        await SavePlacementOutcomeAsync(secondPage, secondFirstRow, PlacementOutcome.Undecided);
-        await Expect(secondPage.Locator("div.alert-success[role=status]")).ToContainTextAsync("Placement saved.");
+        await Expect(secondPage.Locator("div.placement-summary[role=status]")).ToContainTextAsync("1 undecided");
 
         // Admin A's stale close is rejected with an actionable conflict and refetches the blockers.
         var conflictAlert = adminPage.Locator("div.alert-warning[role=alert]");

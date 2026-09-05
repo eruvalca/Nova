@@ -37,7 +37,6 @@ public sealed class UpdateCampaignPlacementInputValidationTests
     /// <param name="teamId">The optional requested team.</param>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.Assigned, 10L)]
-    [InlineData(PlacementOutcome.Undecided, null)]
     [InlineData(PlacementOutcome.NotSelected, null)]
     [InlineData(PlacementOutcome.Withdrawn, null)]
     public void Validate_ReturnsNoErrors_ForValidOutcomeTeamMatrix(
@@ -48,6 +47,18 @@ public sealed class UpdateCampaignPlacementInputValidationTests
             new UpdateCampaignPlacementInput(1, outcome, teamId, Guid.NewGuid()));
 
         errors.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies technical enrollment cannot be saved as a decision or used to clear history.
+    /// </summary>
+    [Fact]
+    public void Validate_ReturnsOutcomeError_ForUndecidedWithoutTeam()
+    {
+        var errors = InputValidator.Validate(
+            new UpdateCampaignPlacementInput(1, PlacementOutcome.Undecided, null, Guid.NewGuid()));
+
+        errors.ShouldContainKey(nameof(UpdateCampaignPlacementInput.Outcome));
     }
 
     /// <summary>

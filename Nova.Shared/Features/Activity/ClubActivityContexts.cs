@@ -40,6 +40,27 @@ public sealed record CampaignLifecycleContext : ClubActivityContext
 /// </summary>
 public sealed record PlacementContext : ClubActivityContext
 {
+    /// <summary>Gets the player identifier, independent of the owning campaign participation.</summary>
+    public long? PlayerId { get; init; }
+
+    /// <summary>Gets the season owning both sides of this transition.</summary>
+    public long? SeasonId { get; init; }
+
+    /// <summary>Gets the source campaign of the previous effective decision, if any.</summary>
+    public long? PreviousCampaignId { get; init; }
+
+    /// <summary>Gets the previous source campaign's display-name snapshot.</summary>
+    public string? PreviousCampaignName { get; init; }
+
+    /// <summary>Gets the source participation of the previous effective decision, if any.</summary>
+    public long? PreviousPlayerCampaignAssignmentId { get; init; }
+
+    /// <summary>Gets the prior team's stable identifier snapshot.</summary>
+    public long? PreviousTeamId { get; init; }
+
+    /// <summary>Gets the resulting team's stable identifier snapshot.</summary>
+    public long? TeamId { get; init; }
+
     /// <summary>
     /// Gets or sets the campaign identifier.
     /// </summary>

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
+using Nova.Extensions.Campaigns;
 using Nova.Features.Activity;
 using Nova.Features.Shared;
 using Nova.Shared.Enums;
@@ -94,14 +95,13 @@ public sealed partial class CampaignPlacementService(
         var userId = member.UserId;
         var clubId = member.ClubId;
 
-        // One stable replacement token for the whole logical request lets a retry after an
-        // ambiguous commit recognize the write it already persisted instead of reporting a
-        // spurious conflict against its own committed token.
+        // The replacement token also identifies an immutable receipt for this logical request.
         var replacementToken = Guid.NewGuid();
+        var isClubAdmin = currentUserProvider.IsClubAdmin;
 
         return await ExecuteWithFreshContextAsync(
             (db, commitAttempted) => UpdatePlacementAttemptAsync(
-                db, input, userId, clubId, replacementToken, commitAttempted, cancellationToken),
+                db, input, userId, clubId, isClubAdmin, replacementToken, commitAttempted, cancellationToken),
             db => VerifyPlacementCommittedAsync(
                 db, input.PlayerCampaignAssignmentId, replacementToken, cancellationToken),
             cancellationToken);
@@ -161,6 +161,7 @@ public sealed partial class CampaignPlacementService(
     /// <param name="input">The requested placement values and expected concurrency token.</param>
     /// <param name="userId">The acting club member identifier.</param>
     /// <param name="clubId">The current tenant club identifier.</param>
+    /// <param name="isClubAdmin">Whether the acting member may supersede a prior withdrawal.</param>
     /// <param name="replacementToken">The stable token this logical request writes on success.</param>
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels database work.</param>
@@ -170,11 +171,20 @@ public sealed partial class CampaignPlacementService(
         UpdateCampaignPlacementInput input,
         long userId,
         long clubId,
+        bool isClubAdmin,
         Guid replacementToken,
         CommitAttemptTracker commitAttempted,
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        await db.AcquireClubSeasonLockAsync(clubId, cancellationToken);
+        await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
+
+        var currentSeasonId = await db.Clubs
+            .Where(club => club.ClubId == clubId)
+            .Select(club => club.CurrentSeasonId)
+            .SingleOrDefaultAsync(cancellationToken);
 
         var participation = await db.PlayerCampaignAssignments
             .Include(assignment => assignment.Player)
@@ -197,13 +207,37 @@ public sealed partial class CampaignPlacementService(
 
         await db.AcquirePlayerMutationLockAsync(participation.PlayerId, cancellationToken);
         await db.Entry(participation.Player).ReloadAsync(cancellationToken);
+        await db.Entry(participation).ReloadAsync(cancellationToken);
+
+        // Preserve lifecycle rejection precedence, then reject stale edits before interpreting
+        // the winner's outcome (which may now be a terminal withdrawal).
+        if (participation.Campaign.Status == CampaignStatus.Active
+            && participation.Player.LifecycleStatus == LifecycleStatus.Active
+            && participation.ConcurrencyToken != input.ExpectedConcurrencyToken)
+        {
+            LogPlacementConflict(input.PlayerCampaignAssignmentId, userId);
+            return new PlacementConflict("The placement was changed by another user. Reload it and try again.");
+        }
+
+        // Select saved truth before considering team validity. Invalid or archived latest teams
+        // never cause a fallback to an earlier assignment. Enrollment rows cannot supersede.
+        var latestDecisionEntity = await db.PlayerCampaignAssignments
+            .Include(assignment => assignment.Campaign)
+            .Where(assignment => assignment.PlayerId == participation.PlayerId
+                && assignment.Campaign.SeasonId == participation.Campaign.SeasonId
+                && assignment.Campaign.Status != CampaignStatus.Draft
+                && assignment.PlacementOutcome != PlacementOutcome.Undecided)
+            .OrderByDescending(assignment => assignment.Campaign.SeasonOpeningSequence)
+            .ThenByDescending(assignment => assignment.PlayerCampaignAssignmentId)
+            .FirstOrDefaultAsync(cancellationToken);
+        var latestDecision = latestDecisionEntity?.ToSavedPlacementDecision();
 
         // The old team-name snapshot must come from post-lock state: the team navigation is not
         // loaded up front (only Player and Campaign are included above), so it is first loaded
         // after the team locks. Lock the affected teams in a deterministic order (interleaved
         // {old, new} sorted by identifier) so concurrent switches cannot deadlock, then load the
         // target team and the old-team reference before reading either team name.
-        var teamIdsToLock = new[] { participation.TeamId, input.TeamId }
+        var teamIdsToLock = new[] { participation.TeamId, latestDecision?.TeamId, input.TeamId }
             .Where(teamId => teamId.HasValue)
             .Select(teamId => teamId!.Value)
             .Distinct()
@@ -222,9 +256,9 @@ public sealed partial class CampaignPlacementService(
                 .SingleOrDefaultAsync(candidate => candidate.TeamId == teamId, cancellationToken);
         }
 
-        if (participation.TeamId is long previousTeamIdValue)
+        if (latestDecisionEntity?.TeamId is not null)
         {
-            await db.Entry(participation).Reference(assignment => assignment.Team).LoadAsync(cancellationToken);
+            await db.Entry(latestDecisionEntity).Reference(assignment => assignment.Team).LoadAsync(cancellationToken);
         }
 
         var placementDecision = CampaignPlacementPolicy.Evaluate(
@@ -235,7 +269,21 @@ public sealed partial class CampaignPlacementService(
                 input.TeamId.HasValue,
                 team is not null && team.ClubId == clubId,
                 team?.LifecycleStatus,
-                team?.GraduationYear));
+                team?.GraduationYear)
+            {
+                IsCurrentSeason = currentSeasonId == participation.Campaign.SeasonId,
+                CampaignId = participation.CampaignId,
+                SeasonId = participation.Campaign.SeasonId,
+                SeasonOpeningSequence = participation.Campaign.SeasonOpeningSequence ?? 0,
+                LatestDecision = latestDecision,
+                IsClubAdmin = isClubAdmin,
+                RequestedOutcome = input.Outcome,
+                RequestedTeamId = input.TeamId,
+                EffectiveTeamIsValid = latestDecisionEntity?.Team is { } effectiveTeam
+                    && effectiveTeam.ClubId == clubId
+                    && effectiveTeam.LifecycleStatus == LifecycleStatus.Active
+                    && participation.Player.GraduationYear >= effectiveTeam.GraduationYear,
+            });
 
         return await placementDecision.Match(
             ApplyPlacementAsync,
@@ -243,20 +291,28 @@ public sealed partial class CampaignPlacementService(
             RejectArchivedPlayerAsync,
             RejectUnavailableTeamAsync,
             RejectArchivedTeamAsync,
-            RejectIneligiblePlayerAsync);
+            RejectIneligiblePlayerAsync,
+            RejectSeasonAsync,
+            RejectTerminalWithdrawalAsync,
+            RejectWithdrawalAuthorityAsync);
 
-        async Task<PlacementUpdateResult> ApplyPlacementAsync(PlacementMayApply _)
+        async Task<PlacementUpdateResult> ApplyPlacementAsync(PlacementMayApply decision)
         {
+            if (decision.IsNoOp)
+            {
+                return new PlacementMutationSuccess(participation.ConcurrencyToken);
+            }
+
             db.Entry(participation)
                 .Property(assignment => assignment.ConcurrencyToken)
                 .OriginalValue = input.ExpectedConcurrencyToken;
 
             // Capture the prior placement state and the old team-name snapshot before mutation so
             // the durable event can describe the transition; a no-op save emits nothing.
-            var previousOutcome = participation.PlacementOutcome;
-            var previousTeamId = participation.TeamId;
-            var previousTeamName = participation.Team?.Name;
-            var placementKind = ActivityEventPolicy.ClassifyPlacementTransition(
+            var previousOutcome = latestDecision?.Outcome;
+            var previousTeamId = latestDecision?.TeamId;
+            var previousTeamName = latestDecisionEntity?.Team?.Name;
+            var placementKind = decision.IsSupersession ? ActivityEventKind.PlacementSuperseded : ActivityEventPolicy.ClassifyPlacementTransition(
                 previousOutcome,
                 previousTeamId,
                 input.Outcome,
@@ -273,6 +329,20 @@ public sealed partial class CampaignPlacementService(
                 .Select(user => user.FirstName + " " + user.LastName)
                 .FirstOrDefaultAsync(cancellationToken) ?? "Unknown user";
 
+            participation.DecisionRecordedAt = DateTimeOffset.UtcNow;
+            participation.DecisionRecordedById = userId;
+            participation.DecisionActorDisplayName = actorName;
+
+            await PruneExpiredMutationReceiptsAsync(db, cancellationToken);
+            db.PlacementMutationReceipts.Add(new PlacementMutationReceiptEntity
+            {
+                OperationId = replacementToken,
+                PlayerCampaignAssignmentId = participation.PlayerCampaignAssignmentId,
+                ConcurrencyToken = replacementToken,
+                ClubId = default,
+                CreatedById = default,
+            });
+
             if (placementKind is ActivityEventKind kind)
             {
                 ActivityEventWriter.AppendPlacement(
@@ -284,11 +354,18 @@ public sealed partial class CampaignPlacementService(
                     actorName,
                     new PlacementContext
                     {
+                        PlayerId = participation.PlayerId,
+                        SeasonId = participation.Campaign.SeasonId,
+                        PreviousCampaignId = latestDecision?.CampaignId,
+                        PreviousCampaignName = latestDecisionEntity?.Campaign.Name,
+                        PreviousPlayerCampaignAssignmentId = latestDecision?.PlayerCampaignAssignmentId,
+                        PreviousTeamId = previousTeamId,
+                        TeamId = input.TeamId,
                         CampaignId = participation.CampaignId,
                         CampaignName = participation.Campaign.Name,
                         PlayerCampaignAssignmentId = participation.PlayerCampaignAssignmentId,
                         PlayerDisplayName = participation.Player.FullName,
-                        PreviousOutcome = previousOutcome == PlacementOutcome.Undecided ? null : previousOutcome,
+                        PreviousOutcome = previousOutcome,
                         Outcome = input.Outcome,
                         PreviousTeamName = previousTeamName,
                         TeamName = team?.Name,
@@ -303,17 +380,6 @@ public sealed partial class CampaignPlacementService(
             }
             catch (DbUpdateConcurrencyException)
             {
-                // A retry after an ambiguous commit re-reads the already-written replacement token
-                // and fails the original-value check. Reload the persisted token: when it matches the
-                // token this logical request generated, the write already landed and the commit just
-                // surfaced as a conflict on replay, so report success. Otherwise the conflict is real.
-                await db.Entry(participation).ReloadAsync(cancellationToken);
-                if (participation.ConcurrencyToken == replacementToken)
-                {
-                    LogPlacementUpdated(input.PlayerCampaignAssignmentId, userId);
-                    return new PlacementMutationSuccess(replacementToken);
-                }
-
                 LogPlacementConflict(input.PlayerCampaignAssignmentId, userId);
                 return new PlacementConflict("The placement was changed by another user. Reload it and try again.");
             }
@@ -327,6 +393,27 @@ public sealed partial class CampaignPlacementService(
             LogPlacementCampaignNotActive(input.PlayerCampaignAssignmentId, participation.CampaignId);
             return Task.FromResult<PlacementUpdateResult>(
                 new PlacementConflict("Only active campaigns can accept placement changes."));
+        }
+
+        Task<PlacementUpdateResult> RejectSeasonAsync(PlacementSeasonConflict _)
+        {
+            LogPlacementDecisionRejected(input.PlayerCampaignAssignmentId, "SeasonConflict");
+            return Task.FromResult<PlacementUpdateResult>(new PlacementConflict(
+                "Only the current season's latest active campaign can accept placement decisions."));
+        }
+
+        Task<PlacementUpdateResult> RejectTerminalWithdrawalAsync(PlacementWithdrawalTerminal _)
+        {
+            LogPlacementDecisionRejected(input.PlayerCampaignAssignmentId, "WithdrawalTerminal");
+            return Task.FromResult<PlacementUpdateResult>(new PlacementConflict(
+                "Withdrawn is final in its owning campaign. An administrator must record a superseding decision in a later active campaign."));
+        }
+
+        Task<PlacementUpdateResult> RejectWithdrawalAuthorityAsync(PlacementWithdrawalRequiresAdmin _)
+        {
+            LogPlacementDecisionRejected(input.PlayerCampaignAssignmentId, "WithdrawalRequiresAdmin");
+            return Task.FromResult<PlacementUpdateResult>(new PlacementForbidden(
+                "Only a club administrator can supersede a prior campaign's Withdrawn decision."));
         }
 
         Task<PlacementUpdateResult> RejectArchivedPlayerAsync(PlacementPlayerArchived _)
@@ -365,7 +452,7 @@ public sealed partial class CampaignPlacementService(
     }
 
     /// <summary>
-    /// Verifies whether an ambiguous placement commit persisted this request's replacement token, and
+    /// Verifies whether an ambiguous placement commit persisted this request's immutable receipt, and
     /// reconstructs the success result when it did.
     /// </summary>
     /// <param name="db">The fresh tenant context used for commit verification.</param>
@@ -379,10 +466,11 @@ public sealed partial class CampaignPlacementService(
         Guid replacementToken,
         CancellationToken cancellationToken)
     {
-        var persistedToken = await db.PlayerCampaignAssignments
+        var persistedToken = await db.PlacementMutationReceipts
             .AsNoTracking()
-            .Where(assignment => assignment.PlayerCampaignAssignmentId == playerCampaignAssignmentId)
-            .Select(assignment => (Guid?)assignment.ConcurrencyToken)
+            .Where(receipt => receipt.PlayerCampaignAssignmentId == playerCampaignAssignmentId
+                && receipt.OperationId == replacementToken)
+            .Select(receipt => (Guid?)receipt.ConcurrencyToken)
             .SingleOrDefaultAsync(cancellationToken);
 
         if (persistedToken != replacementToken)
@@ -394,6 +482,24 @@ public sealed partial class CampaignPlacementService(
         return new ExecutionResult<PlacementUpdateResult>(
             successful: true,
             new PlacementMutationSuccess(replacementToken));
+    }
+
+    /// <summary>Prunes expired commit evidence within the current tenant and mutation transaction.</summary>
+    /// <param name="db">The mutation context.</param>
+    /// <param name="cancellationToken">Cancels receipt pruning.</param>
+    /// <returns>A task representing the retention operation.</returns>
+    private static async Task PruneExpiredMutationReceiptsAsync(NovaDbContext db, CancellationToken cancellationToken)
+    {
+        var cutoff = DateTimeOffset.UtcNow.AddDays(-1);
+        if (db.Database.IsNpgsql())
+        {
+            await db.PlacementMutationReceipts.Where(receipt => receipt.CreatedAt < cutoff)
+                .ExecuteDeleteAsync(cancellationToken);
+            return;
+        }
+
+        var receipts = await db.PlacementMutationReceipts.ToListAsync(cancellationToken);
+        db.PlacementMutationReceipts.RemoveRange(receipts.Where(receipt => receipt.CreatedAt < cutoff));
     }
 
     /// <summary>
@@ -467,6 +573,12 @@ public sealed partial class CampaignPlacementService(
     /// <param name="userId">The acting club member identifier.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign placement conflict for AssignmentId={AssignmentId} by UserId={UserId}.")]
     private partial void LogPlacementConflict(long assignmentId, long userId);
+
+    /// <summary>Logs a rejected same-season placement decision.</summary>
+    /// <param name="assignmentId">The requested participation identifier.</param>
+    /// <param name="reason">The stable domain rejection reason.</param>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Placement decision rejected for AssignmentId={AssignmentId}: {Reason}.")]
+    private partial void LogPlacementDecisionRejected(long assignmentId, string reason);
 
     /// <summary>
     /// Logs a successful placement mutation.

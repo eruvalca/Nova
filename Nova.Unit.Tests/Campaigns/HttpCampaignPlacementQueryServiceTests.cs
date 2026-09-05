@@ -62,6 +62,74 @@ public sealed class HttpCampaignPlacementQueryServiceTests
         capturedRequest.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/placements?graduationYear=2028&unresolvedOnly=true&page=1&pageSize=50");
     }
 
+    /// <summary>Checks a saved decision survives the HTTP contract with its source identity and attribution.</summary>
+    [Fact]
+    public async Task GetPlacementRosterAsync_RoundTripsSavedDecisionSnapshot()
+    {
+        var token = Guid.NewGuid();
+        var decision = new CampaignSavedPlacementDecision(101, 202, 42, 50, 3,
+            PlacementOutcome.NotSelected, null, DateTimeOffset.UnixEpoch, 70, "Casey Member", token);
+        var row = new CampaignPlacementRosterItem(101, 202, "Zoe Adams", "Zoe", "Adams", 2028,
+            PlacementOutcome.NotSelected, null, token)
+        { SavedDecision = decision };
+        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new PagedResult<CampaignPlacementRosterItem>([row], 1, 50, 1))
+        }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+
+        var result = await new HttpCampaignPlacementQueryService(http).GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Items.Single().SavedDecision.ShouldBe(decision);
+    }
+    /// <summary>Checks each saved-decision invariant independently rejects corrupt successful responses.</summary>
+    /// <param name="invalidField">The single malformed field or relationship.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("missing")]
+    [InlineData("participation")]
+    [InlineData("player")]
+    [InlineData("campaign")]
+    [InlineData("season")]
+    [InlineData("sequence")]
+    [InlineData("outcome")]
+    [InlineData("team")]
+    [InlineData("token")]
+    [InlineData("technical")]
+    public async Task GetPlacementRosterAsync_RejectsMalformedSavedDecision(string invalidField)
+    {
+        var token = Guid.NewGuid();
+        CampaignSavedPlacementDecision? decision = new(101, 202, 42, 50, 3,
+            PlacementOutcome.NotSelected, null, DateTimeOffset.UnixEpoch, 70, "Casey Member", token);
+        decision = invalidField switch
+        {
+            "missing" => null,
+            "participation" => decision with { PlayerCampaignAssignmentId = 102 },
+            "player" => decision with { PlayerId = 203 },
+            "campaign" => decision with { CampaignId = 43 },
+            "season" => decision with { SeasonId = 0 },
+            "sequence" => decision with { SeasonOpeningSequence = 0 },
+            "outcome" => decision with { Outcome = PlacementOutcome.Withdrawn },
+            "team" => decision with { TeamId = 301 },
+            "token" => decision with { ConcurrencyToken = Guid.NewGuid() },
+            _ => decision
+        };
+        var row = new CampaignPlacementRosterItem(101, 202, "Zoe Adams", "Zoe", "Adams", 2028,
+            invalidField == "technical" ? PlacementOutcome.Undecided : PlacementOutcome.NotSelected, null, token)
+        { SavedDecision = decision };
+        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new PagedResult<CampaignPlacementRosterItem>([row], 1, 50, 1))
+        }));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
+
+        var result = await new HttpCampaignPlacementQueryService(http).GetPlacementRosterAsync(
+            new GetCampaignPlacementRosterInput { CampaignId = 42 }, TestContext.Current.CancellationToken);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
     /// <summary>
     /// Verifies omitted optional filters still carry the default paging values in the URL.
     /// </summary>
@@ -194,6 +262,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     {
         var handler = new RecordingHandler(_ =>
         {
+            var token = Guid.NewGuid();
             var payload = new PagedResult<CampaignPlacementRosterItem>(
                 [new CampaignPlacementRosterItem(
                     101,
@@ -204,7 +273,8 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     2028,
                     PlacementOutcome.Assigned,
                     null,
-                    Guid.NewGuid())],
+                    token) { SavedDecision = new CampaignSavedPlacementDecision(101, 202, 42, 50, 1,
+                        PlacementOutcome.Assigned, null, null, null, null, token) }],
                 1,
                 50,
                 1);
@@ -229,6 +299,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     {
         var handler = new RecordingHandler(_ =>
         {
+            var token = Guid.NewGuid();
             var payload = new PagedResult<CampaignPlacementRosterItem>(
                 [new CampaignPlacementRosterItem(
                     101,
@@ -239,7 +310,8 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                     2028,
                     PlacementOutcome.Assigned,
                     new CampaignParticipantTeamSummaryDto(301, "Alpha"),
-                    Guid.NewGuid())],
+                    token) { SavedDecision = new CampaignSavedPlacementDecision(101, 202, 42, 50, 1,
+                        PlacementOutcome.Assigned, 301, null, null, null, token) }],
                 1,
                 50,
                 1);

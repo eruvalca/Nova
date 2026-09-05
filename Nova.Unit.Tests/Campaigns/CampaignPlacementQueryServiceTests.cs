@@ -169,6 +169,20 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
         assigned.Team!.TeamId.ShouldBeGreaterThan(0);
         assigned.Team.TeamName.ShouldNotBeNullOrWhiteSpace();
         assigned.ConcurrencyToken.ShouldBe(_tokens[0]);
+        var decision = assigned.SavedDecision.ShouldNotBeNull();
+        decision.PlayerCampaignAssignmentId.ShouldBe(assigned.PlayerCampaignAssignmentId);
+        decision.PlayerId.ShouldBe(assigned.PlayerId);
+        decision.CampaignId.ShouldBe(_campaignAId);
+        decision.SeasonId.ShouldBe(500);
+        decision.SeasonOpeningSequence.ShouldBe(1);
+        decision.Outcome.ShouldBe(PlacementOutcome.Assigned);
+        decision.TeamId.ShouldBe(assigned.Team.TeamId);
+        decision.RecordedAt.ShouldBe(DateTimeOffset.UnixEpoch);
+        decision.RecordedById.ShouldBe(ClubAMemberId);
+        decision.ActorDisplayName.ShouldBe("Deciding member");
+        decision.ConcurrencyToken.ShouldBe(_tokens[0]);
+        result.Value.Items.Where(item => item.PlacementOutcome == PlacementOutcome.Undecided)
+            .ShouldAllBe(item => item.SavedDecision == null);
 
         result.Value.Items.ShouldAllBe(item => item.ConcurrencyToken != Guid.Empty);
     }
@@ -371,8 +385,8 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
             new SeasonEntity { CreationOperationId = Guid.NewGuid(), SeasonId = 500, Name = "Season A", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubAId, CreatedById = ClubAMemberId },
             new SeasonEntity { CreationOperationId = Guid.NewGuid(), SeasonId = 501, Name = "Season B", StartDate = new DateOnly(2026, 1, 1), ClubId = ClubBId, CreatedById = ClubBMemberId });
 
-        var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign A", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
-        var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign B", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = 501, ClubId = ClubBId, CreatedById = ClubBMemberId };
+        var campaignA = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign A", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonOpeningSequence = 1, SeasonId = 500, ClubId = ClubAId, CreatedById = ClubAMemberId };
+        var campaignB = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Campaign B", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonOpeningSequence = 1, SeasonId = 501, ClubId = ClubBId, CreatedById = ClubBMemberId };
         db.Campaigns.AddRange(campaignA, campaignB);
 
         var teamA = new TeamEntity { CreationOperationId = Guid.NewGuid(), TeamId = 600, Name = "Alpha", GraduationYear = 2028, ClubId = ClubAId, CreatedById = ClubAMemberId };
@@ -395,6 +409,9 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
             CampaignId = campaignA.CampaignId,
             ClubId = ClubAId,
             CreatedById = ClubAMemberId,
+            DecisionRecordedAt = DateTimeOffset.UnixEpoch,
+            DecisionRecordedById = ClubAMemberId,
+            DecisionActorDisplayName = "Deciding member",
             PlacementOutcome = PlacementOutcome.Assigned,
             TeamId = teamA.TeamId,
             ConcurrencyToken = _tokens[0]
@@ -441,6 +458,9 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
             CampaignId = campaignB.CampaignId,
             ClubId = ClubBId,
             CreatedById = ClubBMemberId,
+            DecisionRecordedAt = DateTimeOffset.UnixEpoch,
+            DecisionRecordedById = ClubAMemberId,
+            DecisionActorDisplayName = "Deciding member",
             PlacementOutcome = PlacementOutcome.Assigned,
             TeamId = teamB.TeamId
         };
