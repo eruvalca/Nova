@@ -32,6 +32,13 @@ Canonical files:
   remains safe when names are exactly equal.
 - Register the HTTP implementation for WebAssembly DI wherever the feature's client services are registered.
 
+For mutations supporting recovery across HTTP requests, preserve the same operation ID and request
+payload on retry, including original upload bytes and confirmation token when present. Check the
+returned operation identity as well as payload invariants. Follow
+[client retries and reviewed batches](../../add-domain-persistence/references/retrying-mutations-and-locks.md#client-retries-and-reviewed-batches)
+for the server receipt contract; `HttpPlayerImportService` is the multipart example. A cancelled
+request or lost response leaves the commit outcome unknown until recovery succeeds.
+
 ## Canonical example
 
 ```csharp
