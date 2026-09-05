@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round five on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,478 passed. PostgreSQL/HTTP integration suite: 531 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags. Format verification and theme contrast/token checks passed. The final browser rerun passed after the initial run reported two creation-form attachment timeouts; build, unit, and format work had finished before the rerun.
+Validated for PR #244 review round six on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,489 passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round five; round six changes only UI state handling, with no provider or HTTP contract changes. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags. Format verification passed. Theme contrast/token checks passed in round five; theme inputs are unchanged. The complete browser run passed after build, unit tests, and formatting finished.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -61,3 +61,13 @@ The fifth review round adds an accessible recovery-storage retry that writes the
 | Ignore a previous club's late storage failure | `NewCampaign_IgnoresLateInputStorageFailure_AfterClubChanges` |
 | Reject missing/null Draft previews while accepting zero | `GetCampaignListAsync_RequiresPreviewForDraftRows` |
 | Hide Draft return links for members and after role loss | `Players_ReturnToDraft_RequiresCurrentAdministratorRole`, `Teams_ReturnToDraft_RequiresCurrentAdministratorRole` |
+
+The sixth review round completes Players identity rebinding: user, club, or role changes discard roster rows, derived filters, management forms, archive confirmation, and persisted snapshots before loading fresh data. Late query, edit, and mutation responses cannot publish into another identity's page. Prerender restoration checks the same scope, and club/user changes discard old directory return/filter context.
+
+| Requirement | Regression evidence in `PlayerComponentsTests` |
+|---|---|
+| Discard archive confirmation on role loss and require fresh confirmation when access returns | `Players_DiscardsArchiveConfirmation_WhenAdministratorRoleIsLost` |
+| Clear previous-club state immediately and query the new club | `Players_ClearsPreviousClubState_BeforeNewRosterCompletes` |
+| Ignore old roster successes, authorization failures, and transport failures | `Players_IgnoresPreviousClubRosterCompletion`, `Players_IgnoresPreviousClubTransportFailure` |
+| Ignore old edit and archive completions | `Players_IgnoresPreviousClubEditCompletion`, `Players_IgnoresPreviousClubArchiveCompletion` |
+| Restore only a matching user/club/role snapshot | `Players_RestoresOnlyMatchingPrerenderSnapshot` |

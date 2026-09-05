@@ -20,6 +20,204 @@ namespace Nova.Unit.Tests.Players;
 /// </summary>
 public sealed class PlayerComponentsTests : BunitContext
 {
+    /// <summary>Verifies role loss discards a checked archive confirmation and restoring access requires fresh consent.</summary>
+    [Fact]
+    public async Task Players_DiscardsArchiveConfirmation_WhenAdministratorRoleIsLost()
+    {
+        var lifecycle = Substitute.For<IPlayerLifecycleService>();
+        RegisterServices(isClubAdmin: true, lifecycleService: lifecycle);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Find("button.btn-outline-warning").Click();
+        cut.Find("#archive-confirm-checkbox").Change(true);
+
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
+
+        cut.WaitForAssertion(() => cut.FindAll("#archive-confirm-checkbox").ShouldBeEmpty());
+        cut.Markup.ShouldNotContain("Archive Avery Johnson?");
+        await lifecycle.DidNotReceive().ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true)));
+        cut.WaitForAssertion(() => cut.FindAll("#archive-confirm-checkbox").ShouldBeEmpty());
+        cut.Find("button.btn-outline-warning").Click();
+        cut.Find("#archive-confirm-checkbox").HasAttribute("checked").ShouldBeFalse();
+        cut.Find("button.btn-warning").HasAttribute("disabled").ShouldBeTrue();
+    }
+
+    /// <summary>Verifies a new club immediately discards roster-derived filters, edit state, snapshots, and old URL context.</summary>
+    [Fact]
+    public async Task Players_ClearsPreviousClubState_BeforeNewRosterCompletes()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PagedResult<PlayerListItem>>>();
+        var roster = Substitute.For<IPlayerService>();
+        roster.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.Arg<GetPlayerRosterInput>().ClubId == 42
+                ? Task.FromResult(SuccessRosterResult(CreateRosterItems())) : pending.Task);
+        RegisterServices(isClubAdmin: true, rosterService: roster);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/players?returnToDraft=10&tag=11");
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Find("button.btn-outline-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit player"));
+        cut.Instance.PersistedPageError = "Previous club error";
+
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Avery Johnson"));
+        cut.Markup.ShouldNotContain("Edit player");
+        cut.Markup.ShouldNotContain("Defender");
+        cut.FindAll("#players-grad-year option[value='2032']").ShouldBeEmpty();
+        cut.Instance.PersistedRoster.ShouldBeNull();
+        cut.Instance.PersistedPageError.ShouldBeNull();
+        navigation.Uri.ShouldBe("http://localhost/players");
+        await roster.Received().GetPlayerRosterAsync(Arg.Is<GetPlayerRosterInput>(input => input.ClubId == 43), Arg.Any<CancellationToken>());
+        await cut.InvokeAsync(() => pending.SetResult(SuccessRosterResult([])));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No players found"));
+        cut.Instance.SnapshotScope.ShouldBe("101:43:True");
+    }
+
+    /// <summary>Verifies obsolete roster success and authorization failures cannot replace the new club or redirect it.</summary>
+    /// <param name="forbidden">Whether the old request completes with an authorization failure.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Players_IgnoresPreviousClubRosterCompletion(bool forbidden)
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PagedResult<PlayerListItem>>>();
+        var roster = Substitute.For<IPlayerService>();
+        roster.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.Arg<GetPlayerRosterInput>().ClubId == 42
+                ? pending.Task : Task.FromResult(SuccessRosterResult([])));
+        RegisterServices(isClubAdmin: true, rosterService: roster);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<PlayersPage>();
+
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No players found"));
+        await cut.InvokeAsync(() => pending.SetResult(forbidden
+            ? new ServiceResult<PagedResult<PlayerListItem>>(ServiceProblem.Forbidden("Previous club forbidden"))
+            : SuccessRosterResult(CreateRosterItems())));
+
+        cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
+        cut.Markup.ShouldNotContain("Avery Johnson");
+        cut.Markup.ShouldNotContain("Previous club forbidden");
+        cut.Instance.PersistedRoster.ShouldNotBeNull().Items.ShouldBeEmpty();
+        Services.GetRequiredService<NavigationManager>().Uri.ShouldBe("http://localhost/players");
+    }
+
+    /// <summary>Verifies a completed old-club edit request cannot reopen the old player's form.</summary>
+    [Fact]
+    public async Task Players_IgnoresPreviousClubEditCompletion()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PlayerDetailDto>>();
+        var details = Substitute.For<IPlayerDetailService>();
+        details.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
+        RegisterServices(isClubAdmin: true, detailService: details);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var edit = cut.Find("button.btn-outline-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
+        await edit;
+
+        cut.Markup.ShouldNotContain("Edit player");
+        cut.FindAll("button[type='submit']").ShouldBeEmpty();
+    }
+
+    /// <summary>Verifies old-club archive completion cannot publish feedback or refresh the new club's roster.</summary>
+    /// <param name="success">Whether the old mutation eventually succeeds.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Players_IgnoresPreviousClubArchiveCompletion(bool success)
+    {
+        var pending = new TaskCompletionSource<ServiceResult<Success>>();
+        var lifecycle = Substitute.For<IPlayerLifecycleService>();
+        lifecycle.ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
+        RegisterServices(isClubAdmin: true, lifecycleService: lifecycle);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Find("button.btn-outline-warning").Click();
+        cut.Find("#archive-confirm-checkbox").Change(true);
+        var archive = cut.Find("button.btn-warning").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        await cut.InvokeAsync(() => pending.SetResult(success ? new ServiceResult<Success>(new Success())
+            : new ServiceResult<Success>(ServiceProblem.ServerError("Old archive failure"))));
+        await archive;
+
+        cut.Markup.ShouldNotContain("Old archive failure");
+        cut.Markup.ShouldNotContain("Player archived.");
+        cut.FindAll("#archive-confirm-checkbox").ShouldBeEmpty();
+        await Services.GetRequiredService<IPlayerService>().Received(1).GetPlayerRosterAsync(
+            Arg.Is<GetPlayerRosterInput>(input => input.ClubId == 43), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies prerender snapshots are reused only for an exact authenticated scope.</summary>
+    /// <param name="scope">The scope associated with the saved roster.</param>
+    /// <param name="reuse">Whether the saved roster belongs to the current club and user.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(null, false)]
+    [InlineData("101:42:True", false)]
+    [InlineData("101:43:True", true)]
+    public async Task Players_RestoresOnlyMatchingPrerenderSnapshot(string? scope, bool reuse)
+    {
+        var roster = Substitute.For<IPlayerService>();
+        roster.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult([])));
+        RegisterServices(isClubAdmin: true, rosterService: roster);
+        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(true, clubId: 43)));
+
+        var cut = Render<SnapshotPlayers>(parameters => parameters.Add(component => component.RestoredScope, scope));
+
+        if (reuse)
+        {
+            cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+            await roster.DidNotReceive().GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>());
+        }
+        else
+        {
+            cut.WaitForAssertion(() => cut.Markup.ShouldContain("No players found"));
+            cut.Markup.ShouldNotContain("Avery Johnson");
+            await roster.Received(1).GetPlayerRosterAsync(Arg.Is<GetPlayerRosterInput>(input => input.ClubId == 43), Arg.Any<CancellationToken>());
+        }
+        cut.Instance.SnapshotScope.ShouldBe("101:43:True");
+    }
+
+    /// <summary>Verifies an obsolete transport exception cannot replace the new club's successful roster.</summary>
+    [Fact]
+    public async Task Players_IgnoresPreviousClubTransportFailure()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<PagedResult<PlayerListItem>>>();
+        var roster = Substitute.For<IPlayerService>();
+        roster.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.Arg<GetPlayerRosterInput>().ClubId == 42
+                ? pending.Task : Task.FromResult(SuccessRosterResult([])));
+        RegisterServices(isClubAdmin: true, rosterService: roster);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<PlayersPage>();
+        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("No players found"));
+
+        await cut.InvokeAsync(() => pending.SetException(new HttpRequestException("Previous club transport failed")));
+
+        cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
+        cut.Instance.PersistedPageError.ShouldBeNull();
+        cut.Markup.ShouldNotContain("Previous club transport failed");
+        cut.Markup.ShouldContain("No players found");
+    }
+
     /// <summary>Verifies crafted Draft return context is hidden from members and disappears when administrator access is revoked.</summary>
     /// <param name="startsAsAdmin">Whether administrator access is initially granted before being revoked.</param>
     [Theory(IncludeTestCaseIndex = true)]
@@ -500,12 +698,16 @@ public sealed class PlayerComponentsTests : BunitContext
             currentTraits ?? [],
             []);
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin)
+    /// <summary>Builds an authenticated club principal for scope and authorization tests.</summary>
+    /// <param name="isClubAdmin">Whether to grant club administrator authority.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <returns>The authenticated principal.</returns>
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, long clubId = 42)
     {
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, "101"),
-            new(NovaClaimTypes.ClubId, "42")
+            new(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture))
         };
 
         if (isClubAdmin)
@@ -514,6 +716,31 @@ public sealed class PlayerComponentsTests : BunitContext
         }
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
+    /// <summary>Restores a synthetic prerender snapshot before normal page initialization.</summary>
+    /// <param name="roster">The roster query service.</param>
+    /// <param name="management">The player management service.</param>
+    /// <param name="lifecycle">The player lifecycle service.</param>
+    /// <param name="details">The player detail service.</param>
+    /// <param name="authentication">The current authentication provider.</param>
+    /// <param name="navigation">The test navigation manager.</param>
+    private sealed class SnapshotPlayers(IPlayerService roster, IPlayerManagementService management,
+        IPlayerLifecycleService lifecycle, IPlayerDetailService details,
+        AuthenticationStateProvider authentication, NavigationManager navigation)
+        : PlayersPage(roster, management, lifecycle, details, authentication, navigation)
+    {
+        /// <summary>Gets or sets the scope serialized with the old roster.</summary>
+        [Parameter] public string? RestoredScope { get; set; }
+
+        /// <inheritdoc />
+        protected override Task OnInitializedAsync()
+        {
+            Initialized = true;
+            SnapshotScope = RestoredScope;
+            PersistedRoster = new PagedResult<PlayerListItem>(CreateRosterItems(), 1, 50, 1);
+            return base.OnInitializedAsync();
+        }
     }
 
     /// <summary>

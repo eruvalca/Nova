@@ -77,6 +77,21 @@ public partial class Players(
     /// </summary>
     private long? _clubId;
 
+    /// <summary>Identifies the authenticated user owning the mounted roster.</summary>
+    private string? _userId;
+
+    /// <summary>Invalidates in-flight operations when user, club, or administrator authority changes.</summary>
+    private int _identityVersion;
+
+    /// <summary>Ensures only the most recent roster request can publish results.</summary>
+    private int _rosterVersion;
+
+    /// <summary>Orders asynchronous authentication notifications and startup authentication.</summary>
+    private int _authenticationVersion;
+
+    /// <summary>Gets the identity and authority that own the current persisted snapshot.</summary>
+    private string CurrentScope => $"{_userId}:{_clubId}:{_canManagePlayers}";
+
     /// <summary>
     /// Draft text from the search input.
     /// </summary>
@@ -175,6 +190,10 @@ public partial class Players(
     [PersistentState]
     public bool Initialized { get; set; }
 
+    /// <summary>Gets or sets the user, club, and authority associated with the prerender snapshot.</summary>
+    [PersistentState]
+    public string? SnapshotScope { get; set; }
+
     /// <summary>
     /// Gets or sets the incoming lifecycle view query parameter.
     /// </summary>
@@ -236,13 +255,19 @@ public partial class Players(
     protected override async Task OnInitializedAsync()
     {
         authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+        var authenticationVersion = _authenticationVersion;
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         var principal = authenticationState.User;
 
         _canManagePlayers = principal.IsInRole(Roles.ClubAdmin);
         _clubId = ReadClubIdClaim(principal);
+        _userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        if (Initialized)
+        if (Initialized && SnapshotScope == CurrentScope)
         {
             _roster = PersistedRoster;
             _pageError = PersistedPageError;
@@ -254,6 +279,9 @@ public partial class Players(
             return;
         }
 
+        PersistedRoster = null;
+        PersistedPageError = null;
+        SnapshotScope = null;
         _isLoading = true;
         if (_clubId is null)
         {
@@ -265,28 +293,98 @@ public partial class Players(
         }
 
         await LoadRosterAsync();
-        PersistStartupState();
-        Initialized = true;
     }
 
-    /// <summary>Updates role-shaped navigation and dismisses management forms when administrator rights are lost.</summary>
+    /// <summary>Rebinds user, club, and authority before loading a fresh roster owned by that identity.</summary>
     /// <param name="stateTask">The updated authentication state.</param>
     private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
         => _ = InvokeAsync(async () =>
         {
+            var authenticationVersion = ++_authenticationVersion;
             var state = await stateTask;
-            if (ComponentCancellationToken.IsCancellationRequested)
+            if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
             {
                 return;
             }
 
-            _canManagePlayers = state.User.IsInRole(Roles.ClubAdmin);
-            if (!_canManagePlayers)
+            var clubId = ReadClubIdClaim(state.User);
+            var userId = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var canManagePlayers = state.User.IsInRole(Roles.ClubAdmin);
+            if (clubId == _clubId && userId == _userId && canManagePlayers == _canManagePlayers)
             {
-                CancelMutationForm();
+                return;
+            }
+
+            var tenantChanged = clubId != _clubId || userId != _userId;
+            ++_identityVersion;
+            ++_rosterVersion;
+            _clubId = clubId;
+            _userId = userId;
+            _canManagePlayers = canManagePlayers;
+            ResetIdentityState();
+            _isLoading = _clubId is not null;
+            StateHasChanged();
+            if (tenantChanged)
+            {
+                navigationManager.NavigateTo("/players", replace: true);
+            }
+            if (_clubId is null)
+            {
+                _pageError = "You must join a club before viewing the player roster.";
+                PersistStartupState();
+            }
+            else
+            {
+                await LoadRosterAsync();
             }
             StateHasChanged();
         });
+
+    /// <summary>Clears all visible, derived, pending, and persisted state owned by the previous identity.</summary>
+    private void ResetIdentityState()
+    {
+        _searchDebounceSource?.Cancel();
+        _searchDebounceSource?.Dispose();
+        _searchDebounceSource = null;
+        _roster = null;
+        _availableGraduationYears = [];
+        _availableTags = [];
+        _searchDraft = string.Empty;
+        _searchApplied = string.Empty;
+        _lifecycleStatusFilter = "active";
+        _graduationYearFilter = null;
+        _playerTagFilter = null;
+        _pageError = null;
+        _statusMessage = null;
+        _isMutating = false;
+        _createForm = PlayerFormState.CreateDefault();
+        CancelMutationForm();
+        CancelArchive();
+        PersistedRoster = null;
+        PersistedPageError = null;
+        SnapshotScope = null;
+        Initialized = false;
+    }
+
+    /// <summary>Maps transport failures into results so request ownership is checked before publishing an error.</summary>
+    /// <typeparam name="T">The service's successful response type.</typeparam>
+    /// <param name="request">The in-flight service request.</param>
+    /// <returns>The response or a transport problem; component cancellation is preserved.</returns>
+    private async Task<ServiceResult<T>> ReceiveAsync<T>(Task<ServiceResult<T>> request)
+    {
+        try
+        {
+            return await request;
+        }
+        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        {
+            return ServiceProblem.ServerError("The request did not return a result. Reload to check the latest state.");
+        }
+    }
 
     /// <summary>
     /// Parses the club identifier claim from the current principal.
@@ -314,6 +412,7 @@ public partial class Players(
 
         _isLoading = true;
         _pageError = null;
+        var version = ++_rosterVersion;
 
         var input = new GetPlayerRosterInput
         {
@@ -326,7 +425,11 @@ public partial class Players(
             PageSize = RosterPageSize
         };
 
-        var result = await playerService.GetPlayerRosterAsync(input, ComponentCancellationToken);
+        var result = await ReceiveAsync(playerService.GetPlayerRosterAsync(input, ComponentCancellationToken));
+        if (version != _rosterVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         result.Switch(
             roster =>
             {
@@ -356,6 +459,8 @@ public partial class Players(
     {
         PersistedRoster = _roster;
         PersistedPageError = _pageError;
+        SnapshotScope = CurrentScope;
+        Initialized = true;
     }
 
     /// <summary>
@@ -458,6 +563,10 @@ public partial class Players(
     /// </summary>
     private void ShowCreateForm()
     {
+        if (!_canManagePlayers)
+        {
+            return;
+        }
         _showCreateForm = true;
         _editForm = null;
         _mutationError = null;
@@ -482,12 +591,21 @@ public partial class Players(
     /// <returns>A task that completes when the edit model is populated.</returns>
     private async Task BeginEditAsync(PlayerListItem player)
     {
+        if (!_canManagePlayers || _isMutating)
+        {
+            return;
+        }
+        var version = _identityVersion;
         _showCreateForm = false;
         _mutationError = null;
         _graduationYearBlockers = [];
         _isMutating = true;
 
-        var result = await playerDetailService.GetPlayerDetailAsync(player.PlayerId, ComponentCancellationToken);
+        var result = await ReceiveAsync(playerDetailService.GetPlayerDetailAsync(player.PlayerId, ComponentCancellationToken));
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         result.Switch(
             detail => _editForm = PlayerFormState.FromDetail(detail),
             problem => _mutationError = problem.Detail ?? "Could not load player details for editing.");
@@ -501,11 +619,20 @@ public partial class Players(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task CreatePlayerAsync()
     {
+        if (!_canManagePlayers || _isMutating)
+        {
+            return;
+        }
+        var version = _identityVersion;
         _isMutating = true;
         _mutationError = null;
         _graduationYearBlockers = [];
 
-        var result = await playerManagementService.CreateAsync(_createForm.ToCreateInput(), ComponentCancellationToken);
+        var result = await ReceiveAsync(playerManagementService.CreateAsync(_createForm.ToCreateInput(), ComponentCancellationToken));
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         result.Switch(
             _ =>
             {
@@ -528,7 +655,7 @@ public partial class Players(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task UpdatePlayerAsync()
     {
-        if (_editForm is null)
+        if (!_canManagePlayers || _isMutating || _editForm is null)
         {
             return;
         }
@@ -537,7 +664,12 @@ public partial class Players(
         _mutationError = null;
         _graduationYearBlockers = [];
 
-        var result = await playerManagementService.UpdateAsync(_editForm.ToUpdateInput(), ComponentCancellationToken);
+        var version = _identityVersion;
+        var result = await ReceiveAsync(playerManagementService.UpdateAsync(_editForm.ToUpdateInput(), ComponentCancellationToken));
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         result.Switch(
             _ =>
             {
@@ -566,6 +698,10 @@ public partial class Players(
     /// <param name="player">The selected player.</param>
     private void BeginArchive(PlayerListItem player)
     {
+        if (!_canManagePlayers || _isMutating)
+        {
+            return;
+        }
         _archiveCandidate = player;
         _archiveConfirmed = false;
         _archiveBlockers = [];
@@ -589,7 +725,7 @@ public partial class Players(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task ConfirmArchiveAsync()
     {
-        if (_archiveCandidate is null || !_archiveConfirmed)
+        if (!_canManagePlayers || _isMutating || _archiveCandidate is null || !_archiveConfirmed)
         {
             return;
         }
@@ -598,7 +734,12 @@ public partial class Players(
         _mutationError = null;
         _archiveBlockers = [];
 
-        var result = await playerLifecycleService.ArchiveAsync(_archiveCandidate.PlayerId, ComponentCancellationToken);
+        var version = _identityVersion;
+        var result = await ReceiveAsync(playerLifecycleService.ArchiveAsync(_archiveCandidate.PlayerId, ComponentCancellationToken));
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         result.Switch(
             _ =>
             {
@@ -629,10 +770,19 @@ public partial class Players(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task RestorePlayerAsync(PlayerListItem player)
     {
+        if (!_canManagePlayers || _isMutating)
+        {
+            return;
+        }
+        var version = _identityVersion;
         _isMutating = true;
         _mutationError = null;
 
-        var result = await playerLifecycleService.RestoreAsync(player.PlayerId, ComponentCancellationToken);
+        var result = await ReceiveAsync(playerLifecycleService.RestoreAsync(player.PlayerId, ComponentCancellationToken));
+        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         result.Switch(
             _ => _statusMessage = "Player restored. Missed campaign enrollment is not backfilled automatically.",
             problem => _mutationError = problem.Detail ?? "Could not restore player.");
@@ -818,6 +968,9 @@ public partial class Players(
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
+        ++_identityVersion;
+        ++_rosterVersion;
+        ++_authenticationVersion;
         authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();
