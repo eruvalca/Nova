@@ -2,6 +2,7 @@
 using Azure;
 using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Nova.Data;
 using Nova.Data.Interceptors;
 using Nova.Data.Tenancy;
@@ -74,6 +75,8 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     private static readonly TimeSpan AzuriteContainerProbeDelay = TimeSpan.FromMilliseconds(500);
 
     private DistributedApplication? App { get; set; }
+    private IDistributedApplicationTestingBuilder? _builder;
+    private FileStream? _capacityLock;
     private string? ConnectionStringValue { get; set; }
     private BlobContainerClient? ProfilePhotosContainerValue { get; set; }
     private BlobContainerClient? ClubCrestsContainerValue { get; set; }
@@ -140,14 +143,36 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// <inheritdoc />
     public async ValueTask InitializeAsync()
     {
-        using var cts = new CancellationTokenSource(StartupTimeout);
+        _capacityLock = await AspireTestCapacityLock.AcquireAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            await StartAppHostAsync();
+        }
+        catch (Exception initializationException)
+        {
+            try
+            {
+                await DisposeAsync();
+            }
+            catch (Exception cleanupException)
+            {
+                throw new AggregateException("AppHost initialization and cleanup both failed.", initializationException, cleanupException);
+            }
+            throw;
+        }
+    }
+
+    private async Task StartAppHostAsync()
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(StartupTimeout);
         var cancellationToken = cts.Token;
 
-        var builder = await DistributedApplicationTestingBuilder.CreateAsync<Projects.Nova_AppHost>(cancellationToken);
+        _builder = await DistributedApplicationTestingBuilder.CreateAsync<Projects.Nova_AppHost>(cancellationToken);
 
-        RemoveDataVolumes(builder);
+        RemoveDataVolumes(_builder);
 
-        App = await builder.BuildAsync(cancellationToken);
+        App = await _builder.BuildAsync(cancellationToken);
         await App.StartAsync(cancellationToken);
 
         // Healthy means the app is serving and the database is reachable.
@@ -181,9 +206,35 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (App is not null)
+        var app = App;
+        var builder = _builder;
+        var capacityLock = _capacityLock;
+        App = null;
+        _builder = null;
+        _capacityLock = null;
+        try
         {
-            await App.DisposeAsync();
+            if (app is not null)
+            {
+                await app.DisposeAsync();
+            }
+        }
+        finally
+        {
+            try
+            {
+                if (builder is not null)
+                {
+                    await builder.DisposeAsync();
+                }
+            }
+            finally
+            {
+                if (capacityLock is not null)
+                {
+                    await capacityLock.DisposeAsync();
+                }
+            }
         }
     }
 
@@ -200,6 +251,13 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// <returns>A new read context owned by the caller.</returns>
     public NovaReadDbContext CreateReadContext() =>
         new(Options<NovaReadDbContext>(withInterceptor: false), CurrentUser);
+
+    /// <summary>Creates a read context with per-test provider command observers.</summary>
+    /// <param name="interceptors">The interceptors attached only to the returned context.</param>
+    /// <returns>A new read context owned by the caller.</returns>
+    public NovaReadDbContext CreateReadContext(IReadOnlyCollection<IInterceptor> interceptors) =>
+        new(new DbContextOptionsBuilder<NovaReadDbContext>(Options<NovaReadDbContext>(withInterceptor: false))
+            .AddInterceptors(interceptors).Options, CurrentUser);
 
     /// <summary>
     /// Creates an unfiltered <see cref="NovaAdminDbContext"/> (interceptor on, filters bypassed) against the live database.

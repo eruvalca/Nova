@@ -365,7 +365,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
         var page = context.Pages[0];
-        var outputDirectory = Path.Combine(Path.GetTempPath(), "nova-a11y-screenshots");
+        var outputDirectory = BrowserTestArtifacts.ForCurrentTest("screenshots");
         Directory.CreateDirectory(outputDirectory);
 
         await OpenCloseoutAsync(page, seed.BlockedCampaignId);

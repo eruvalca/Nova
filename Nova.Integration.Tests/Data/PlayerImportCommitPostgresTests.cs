@@ -1,5 +1,4 @@
-﻿using System.Data.Common;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -599,26 +598,4 @@ public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
     /// <summary>Identifies the isolated club, real actor, and campaign used by one scenario.</summary>
     private sealed record Seed(long ClubId, long ActorUserId, long CampaignId);
 
-    /// <summary>Counts actual asynchronous provider readers, including batched write readers.</summary>
-    private sealed class CountingCommandInterceptor : DbCommandInterceptor
-    {
-        /// <summary>Gets the number of asynchronous relational readers executed.</summary>
-        public int ReaderExecutionCount { get; private set; }
-
-        /// <summary>Gets query readers independently of provider INSERT RETURNING batching.</summary>
-        public int SelectReaderExecutionCount { get; private set; }
-
-        /// <inheritdoc />
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            ReaderExecutionCount++;
-            if (command.CommandText.TrimStart().StartsWith("SELECT", StringComparison.Ordinal))
-            {
-                SelectReaderExecutionCount++;
-            }
-            return ValueTask.FromResult(result);
-        }
-    }
 }

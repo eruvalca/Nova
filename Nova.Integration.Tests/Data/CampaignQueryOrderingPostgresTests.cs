@@ -14,6 +14,67 @@ namespace Nova.Integration.Tests.Data;
 [Collection(NovaAppHostCollection.Name)]
 public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixture)
 {
+    /// <summary>Proves PostgreSQL obtains the exact active-team count and bounded preview in one reader.</summary>
+    [Fact]
+    public async Task GetOpeningReadiness_CountsAndPreviewsActiveTeams_WithOneTeamReader()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(1, cancellationToken);
+        long campaignId;
+        TeamEntity[] activeTeams;
+        await using (var db = fixture.CreateAdminContext())
+        {
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Readiness snapshot",
+                Status = CampaignStatus.Draft,
+                StartDate = new DateOnly(2026, 6, 1),
+                SeasonId = seed.CurrentSeasonId,
+                ClubId = seed.ClubId,
+                CreatedById = seed.MemberUserId
+            };
+            activeTeams = new[] { "Foxtrot", "Echo", "Delta", "Charlie", "Bravo", "Alpha" }
+                .Select(name => new TeamEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    Name = name,
+                    GraduationYear = 2030,
+                    ClubId = seed.ClubId,
+                    CreatedById = seed.MemberUserId
+                }).ToArray();
+            db.Campaigns.Add(campaign);
+            db.Teams.AddRange(activeTeams);
+            db.Teams.Add(new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "000 archived",
+                GraduationYear = 2030,
+                ClubId = seed.ClubId,
+                CreatedById = seed.MemberUserId,
+                LifecycleStatus = LifecycleStatus.Archived,
+                ArchivedAt = DateTimeOffset.UtcNow,
+                ArchivedById = seed.MemberUserId
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            campaignId = campaign.CampaignId;
+        }
+
+        ActAs(seed.MemberUserId, seed.ClubId, isAdmin: true);
+        var counter = new CountingCommandInterceptor();
+        var service = new CampaignQueryService(new PostgresReadContextFactory(fixture, counter), fixture.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+
+        var result = await service.GetOpeningReadinessAsync(campaignId, cancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ActiveTeamCount.ShouldBe(6);
+        result.Value.ActiveTeams.ShouldBe(activeTeams.OrderBy(team => team.Name, StringComparer.Ordinal).Take(5)
+            .Select(team => new CampaignOpeningTeam(team.TeamId, team.Name)));
+        counter.ReaderCommands.Count(command => command.Contains("\"Teams\"", StringComparison.Ordinal)).ShouldBe(1,
+            "the exact count and five-team preview must share one PostgreSQL reader");
+    }
+
     /// <summary>Verifies PostgreSQL pages Closed history by actual closure time before campaign start dates.</summary>
     [Fact]
     public async Task GetCampaignList_PagesClosedCampaigns_ByClosureTime()

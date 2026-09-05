@@ -149,7 +149,7 @@ public sealed class PlayerFormBrowserTests(BrowserSuiteFixture fixture)
         var playerId = await SeedPlayerInActiveCampaignAsync(seed, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, Password);
         var page = context.Pages[0];
-        var outputDirectory = Path.Combine(Path.GetTempPath(), "nova-a11y-screenshots");
+        var outputDirectory = BrowserTestArtifacts.ForCurrentTest("screenshots");
         Directory.CreateDirectory(outputDirectory);
 
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/players/{playerId}").ToString());

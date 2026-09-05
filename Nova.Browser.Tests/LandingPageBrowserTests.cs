@@ -341,7 +341,7 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
         }
 
         var cancellationToken = TestContext.Current.CancellationToken;
-        var outputDirectory = Path.Combine(Path.GetTempPath(), "nova-a11y-screenshots");
+        var outputDirectory = BrowserTestArtifacts.ForCurrentTest("screenshots");
         Directory.CreateDirectory(outputDirectory);
 
         await using (var wideContext = await fixture.NewAnonymousContextAsync(new ViewportSize { Width = 1280, Height = 800 }))

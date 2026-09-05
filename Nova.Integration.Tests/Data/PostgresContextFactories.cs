@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Nova.Data;
 
 namespace Nova.Integration.Tests.Data;
@@ -8,14 +9,15 @@ namespace Nova.Integration.Tests.Data;
 /// contract so read-only query services can be constructed directly in provider tests.
 /// </summary>
 /// <param name="fixture">The shared Aspire AppHost fixture.</param>
-internal sealed class PostgresReadContextFactory(NovaAppHostFixture fixture) : IDbContextFactory<NovaReadDbContext>
+/// <param name="interceptors">Optional per-test observers of the actual provider commands.</param>
+internal sealed class PostgresReadContextFactory(NovaAppHostFixture fixture, params IInterceptor[] interceptors) : IDbContextFactory<NovaReadDbContext>
 {
     /// <inheritdoc />
-    public NovaReadDbContext CreateDbContext() => fixture.CreateReadContext();
+    public NovaReadDbContext CreateDbContext() => fixture.CreateReadContext(interceptors);
 
     /// <inheritdoc />
     public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult(fixture.CreateReadContext());
+        => Task.FromResult(fixture.CreateReadContext(interceptors));
 }
 
 /// <summary>

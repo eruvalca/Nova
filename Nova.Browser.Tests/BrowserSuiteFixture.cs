@@ -7,7 +7,7 @@ namespace Nova.Browser.Tests;
 /// <summary>
 /// Aspire-hosted browser suite fixture: starts the Nova AppHost once per collection, launches a
 /// shared Chromium instance, and exposes helpers that seed an authenticated browser session for
-/// a club member. Browser tests are local-only (CI runs build and unit tests only).
+/// a club member. Context diagnostics are isolated under the verification artifact directory.
 /// </summary>
 public sealed class BrowserSuiteFixture : IAsyncLifetime
 {
@@ -24,22 +24,57 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
     /// <inheritdoc />
     public async ValueTask InitializeAsync()
     {
-        await _appHost.InitializeAsync();
-        _playwright = await Microsoft.Playwright.Playwright.CreateAsync();
-        var headed = Environment.GetEnvironmentVariable("NOVA_BROWSER_HEADED") == "1";
-        _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = !headed });
+        try
+        {
+            await _appHost.InitializeAsync();
+            _playwright = await Microsoft.Playwright.Playwright.CreateAsync();
+            var headed = Environment.GetEnvironmentVariable("NOVA_BROWSER_HEADED") == "1";
+            _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = !headed,
+                ArtifactsDir = BrowserTestArtifacts.RunDirectory,
+                TracesDir = Path.Combine(BrowserTestArtifacts.RunDirectory, "traces")
+            });
+        }
+        catch (Exception initializationException)
+        {
+            try
+            {
+                await DisposeAsync();
+            }
+            catch (Exception cleanupException)
+            {
+                throw new AggregateException("Browser initialization and cleanup both failed.", initializationException, cleanupException);
+            }
+            throw;
+        }
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_browser is not null)
+        var browser = _browser;
+        var playwright = _playwright;
+        _browser = null;
+        _playwright = null;
+        try
         {
-            await _browser.DisposeAsync();
+            if (browser is not null)
+            {
+                await browser.DisposeAsync();
+            }
         }
-
-        _playwright?.Dispose();
-        await _appHost.DisposeAsync();
+        finally
+        {
+            try
+            {
+                playwright?.Dispose();
+            }
+            finally
+            {
+                await _appHost.DisposeAsync();
+            }
+        }
     }
 
     /// <summary>
@@ -63,8 +98,16 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
         bool javaScriptEnabled = true)
     {
         var context = await NewAnonymousContextAsync(viewport, javaScriptEnabled);
-        await SignInAsync(context.Pages[0], email, password);
-        return context;
+        try
+        {
+            await SignInAsync(context.Pages[0], email, password);
+            return context;
+        }
+        catch
+        {
+            await context.DisposeAsync();
+            throw;
+        }
     }
 
     /// <summary>
@@ -84,8 +127,51 @@ public sealed class BrowserSuiteFixture : IAsyncLifetime
             JavaScriptEnabled = javaScriptEnabled,
             ViewportSize = viewport ?? new ViewportSize { Width = 1280, Height = 800 }
         });
-        _ = await context.NewPageAsync();
-        return context;
+        try
+        {
+            await AttachDiagnosticsAsync(context);
+            _ = await context.NewPageAsync();
+            return context;
+        }
+        catch
+        {
+            await context.DisposeAsync();
+            throw;
+        }
+    }
+
+    private static async Task AttachDiagnosticsAsync(IBrowserContext context)
+    {
+        var contextId = Guid.NewGuid().ToString("N");
+        var logPath = Path.Combine(BrowserTestArtifacts.ForCurrentTest("logs"), $"{contextId}.log");
+        var writeLock = new object();
+        void Write(string message)
+        {
+            lock (writeLock)
+            {
+                File.AppendAllText(logPath, $"{DateTimeOffset.UtcNow:O} {message}{Environment.NewLine}");
+            }
+        }
+
+        Write($"Context {contextId}; test {TestContext.Current.Test?.TestDisplayName}");
+        context.Console += (_, message) => Write($"console.{message.Type}: {message.Text}");
+        context.WebError += (_, error) => Write($"page-error: {error.Error}");
+        context.RequestFailed += (_, request) => Write($"request-failed: {request.Method} {request.Url}: {request.Failure}");
+        context.Close += (_, _) => Write("Context closed.");
+        if (Environment.GetEnvironmentVariable("NOVA_BROWSER_TRACE") == "1")
+        {
+            // Named intermediate traces survive context/browser disposal in the explicit TracesDir.
+            // Keeping native tracing avoids a second browser-context lifetime wrapper in every test.
+            await context.Tracing.StartAsync(new TracingStartOptions
+            {
+                Name = contextId,
+                Title = TestContext.Current.Test?.TestDisplayName,
+                Screenshots = true,
+                Snapshots = true,
+                Sources = true
+            });
+            Write($"Trace prefix: {Path.Combine(BrowserTestArtifacts.RunDirectory, "traces", contextId)}");
+        }
     }
 
     /// <summary>

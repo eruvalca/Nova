@@ -231,7 +231,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password);
         var page = context.Pages[0];
-        var outputDirectory = Path.Combine(Path.GetTempPath(), "nova-a11y-screenshots");
+        var outputDirectory = BrowserTestArtifacts.ForCurrentTest("screenshots");
         Directory.CreateDirectory(outputDirectory);
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();

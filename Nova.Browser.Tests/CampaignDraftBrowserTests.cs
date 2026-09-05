@@ -60,6 +60,24 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         await page.SetViewportSizeAsync(1505, 1045);
         await CaptureAsync(page, "roster-desktop");
         var rosterPath = new Uri(page.Url).AbsolutePath;
+
+        // History must not revive the Draft command, and an acknowledged receipt must not replay
+        // when a new workspace instance loads. The persisted participant count is checked below.
+        await page.WaitForFunctionAsync("""
+            () => !Object.keys(sessionStorage).some(key =>
+                key.startsWith('nova:campaign-recovery:') && key.includes(':receipt:'))
+            """);
+        await page.GoBackAsync(new() { WaitUntil = WaitUntilState.Commit });
+        page.Url.ShouldContain("review=open");
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Fall evaluation", Exact = true })).ToBeVisibleAsync();
+        await Expect(commit).ToHaveCountAsync(0);
+        await page.GoForwardAsync(new() { WaitUntil = WaitUntilState.Commit });
+        new Uri(page.Url).AbsolutePath.ShouldBe(rosterPath);
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster", Exact = true })).ToBeVisibleAsync();
+        await page.ReloadAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Status).Filter(new() { HasText = "Campaign opened and enrolled" })).ToHaveCountAsync(0);
+
         var drawer = page.Locator("aside.participant-drawer");
         await InteractionHelpers.ClickUntilAsync(page, page.Locator("tbody tr[id^='roster-row-']").First,
             () => drawer.IsVisibleAsync());
@@ -228,7 +246,7 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
 
     private static async Task CaptureAsync(IPage page, string name)
     {
-        var directory = Path.Combine(Path.GetTempPath(), "nova-issue-196");
+        var directory = BrowserTestArtifacts.ForCurrentTest("screenshots");
         Directory.CreateDirectory(directory);
         await page.Mouse.MoveAsync((page.ViewportSize?.Width ?? 1280) - 5, 5);
         await page.EvaluateAsync("window.scrollTo(0, 0)");

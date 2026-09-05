@@ -482,7 +482,7 @@ public sealed class CampaignEvaluationBrowserTests(BrowserSuiteFixture fixture)
 
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await EvaluationSeed.SeedAsync(fixture.AppHost, cancellationToken);
-        var outputDirectory = Path.Combine(Path.GetTempPath(), "nova-a11y-screenshots");
+        var outputDirectory = BrowserTestArtifacts.ForCurrentTest("screenshots");
         Directory.CreateDirectory(outputDirectory);
         var measurements = new List<string>();
 
