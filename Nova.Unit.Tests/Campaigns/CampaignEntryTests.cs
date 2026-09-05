@@ -329,6 +329,32 @@ public sealed class CampaignEntryTests : BunitContext
         cut.Markup.ShouldNotContain("Recovery storage is unavailable");
     }
 
+    /// <summary>Verifies abandoning an invalid edit clears server field errors before starting a new edit.</summary>
+    /// <param name="switchToTeam">Whether the edit is abandoned through team creation instead of Cancel.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CampaignEntry_ClearsFieldValidation_WhenStartingAnotherEdit(bool switchToTeam)
+    {
+        Register(ReadyWithoutTeams());
+        var metadata = Services.GetRequiredService<ICampaignMetadataService>();
+        metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.Validation(
+                new Dictionary<string, string[]> { ["Name"] = ["This name was rejected by the server."] })));
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("This name was rejected by the server."));
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == (switchToTeam ? "Create team" : "Cancel")).Click();
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+
+        cut.WaitForAssertion(() => cut.Find("#edit-campaign-name").GetAttribute("value").ShouldBe("Summer Draft"));
+        cut.Markup.ShouldNotContain("This name was rejected by the server.");
+        cut.FindAll(".validation-message").ShouldBeEmpty();
+    }
+
     /// <summary>Renders the URL-backed review board for the seeded Draft.</summary>
     /// <returns>The rendered page.</returns>
     private IRenderedComponent<CampaignEntry> RenderReview()

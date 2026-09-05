@@ -310,8 +310,10 @@ public partial class CampaignEntry(
         return false;
     }
 
+    /// <summary>Starts a metadata correction with a fresh validation state.</summary>
     private void BeginEdit()
     {
+        _fieldErrors = null;
         if (Detail is not null)
         {
             _edit = CampaignMetadataFormState.FromDetail(Detail);
@@ -320,8 +322,10 @@ public partial class CampaignEntry(
         _team = null;
         _mutationError = null;
     }
-    private void CancelEdit() { _edit = null; _mutationError = null; }
-    private void BeginTeam() { _team = TeamFormState.CreateDefault(); _edit = null; _mutationError = null; }
+    /// <summary>Discards the metadata edit and its server validation messages.</summary>
+    private void CancelEdit() { _edit = null; _mutationError = null; _fieldErrors = null; }
+    /// <summary>Switches to team creation and discards metadata validation messages.</summary>
+    private void BeginTeam() { _team = TeamFormState.CreateDefault(); _edit = null; _mutationError = null; _fieldErrors = null; }
     private void CancelTeam() { _team = null; _mutationError = null; }
     private void ConfirmDelete() => _confirmDelete = true;
     private void CancelDelete() => _confirmDelete = false;

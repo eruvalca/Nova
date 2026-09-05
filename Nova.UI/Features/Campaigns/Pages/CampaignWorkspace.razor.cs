@@ -105,6 +105,14 @@ public partial class CampaignWorkspace(
     [Parameter]
     public long CampaignId { get; set; }
 
+    /// <summary>Gets or sets the authorized detail already loaded by the lifecycle router.</summary>
+    [Parameter]
+    public CampaignDetailResult? InitialDetail { get; set; }
+
+    /// <summary>Gets or sets the user, club, and role scope that owns the initial detail.</summary>
+    [Parameter]
+    public string? InitialDetailScope { get; set; }
+
     /// <summary>
     /// Gets or sets the incoming tab query parameter.
     /// </summary>
@@ -568,7 +576,19 @@ public partial class CampaignWorkspace(
         }
 
         _isLoading = true;
-        await LoadDetailAsync();
+        var scope = $"{authenticationState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{authenticationState.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{_isClubAdmin}";
+        if (InitialDetail is { Status: CampaignStatus.Active or CampaignStatus.Closed } initial
+            && initial.CampaignId == CampaignId && InitialDetailScope == scope)
+        {
+            _detail = initial;
+            _isLoading = false;
+            await LoadChoicesAsync();
+            await LoadRosterAsync();
+        }
+        else
+        {
+            await LoadDetailAsync();
+        }
         PersistStartupState();
         Initialized = true;
     }
@@ -1483,11 +1503,13 @@ public partial class CampaignWorkspace(
             var scope = $"{state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
             try
             {
-                var receipt = await module.InvokeAsync<OpenCampaignResult?>("takeOpeningReceipt", ComponentCancellationToken, scope, CampaignId, _rosterHeading);
+                var receipt = await module.InvokeAsync<OpenCampaignResult?>("readOpeningReceipt", ComponentCancellationToken, scope, CampaignId, _rosterHeading);
+                ComponentCancellationToken.ThrowIfCancellationRequested();
                 if (receipt is not null && receipt.CampaignId == CampaignId && receipt.EnrolledPlayerCount > 0 && receipt.OperationId != Guid.Empty)
                 {
                     _openingReceiptMessage = $"Campaign opened and enrolled {receipt.EnrolledPlayerCount} players.";
                     StateHasChanged();
+                    await module.InvokeVoidAsync("acknowledgeOpeningReceipt", ComponentCancellationToken, scope, CampaignId, receipt.OperationId);
                 }
             }
             catch (JSException) { /* The roster remains usable if optional success feedback cannot be restored. */ }

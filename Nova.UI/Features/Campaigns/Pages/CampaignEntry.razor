@@ -33,7 +33,7 @@ else if (_unavailable)
 }
 else if (Detail is not null && Detail.Status != CampaignStatus.Draft && _openingId is null)
 {
-    <CampaignWorkspace @key="CampaignId" CampaignId="CampaignId" />
+    <CampaignWorkspace @key="CampaignId" CampaignId="CampaignId" InitialDetail="Detail" InitialDetailScope="@SnapshotScope" />
 }
 else
 {

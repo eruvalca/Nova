@@ -75,6 +75,29 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         (await context.PlayerCampaignAssignments.CountAsync(item => item.CampaignId == campaign.CampaignId, ct)).ShouldBe(24);
         await page.GotoAsync(draftUrl);
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Review opening", Exact = true })).ToHaveCountAsync(0);
+        var receiptHandoff = await page.EvaluateAsync<bool>("""
+            async () => {
+                const workspace = await import('/_content/Nova.UI/Features/Campaigns/Pages/CampaignWorkspace.razor.js');
+                const recovery = await import('/_content/Nova.UI/Features/Campaigns/Pages/CampaignEntry.razor.js');
+                const scope = 'receipt-regression:' + crypto.randomUUID();
+                const campaignId = 987654321;
+                const operationId = crypto.randomUUID();
+                const receipt = { campaignId, operationId, enrolledPlayerCount: 24 };
+                recovery.write(scope, 'receipt:' + campaignId, receipt);
+                try {
+                    const first = workspace.readOpeningReceipt(scope, campaignId);
+                    const second = workspace.readOpeningReceipt(scope, campaignId);
+                    if (JSON.stringify(first) !== JSON.stringify(receipt) || JSON.stringify(second) !== JSON.stringify(receipt)) return false;
+                    workspace.acknowledgeOpeningReceipt(scope, campaignId, crypto.randomUUID());
+                    if (workspace.readOpeningReceipt(scope, campaignId)?.operationId !== operationId) return false;
+                    workspace.acknowledgeOpeningReceipt(scope, campaignId, operationId);
+                    return workspace.readOpeningReceipt(scope, campaignId) === null;
+                } finally {
+                    recovery.clear(scope);
+                }
+            }
+            """);
+        receiptHandoff.ShouldBeTrue("reading preserves the receipt until its own operation is acknowledged");
     }
 
     [Fact]
