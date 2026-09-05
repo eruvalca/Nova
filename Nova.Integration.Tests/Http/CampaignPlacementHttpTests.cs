@@ -24,6 +24,151 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 {
     private const string Password = "Test#Passw0rd!";
 
+    /// <summary>Verifies same-season prior withdrawal requires administrator authority while other decisions permit members.</summary>
+    /// <param name="priorOutcome">The latest decision in the earlier campaign.</param>
+    /// <param name="isAdmin">Whether the caller administers the club.</param>
+    /// <param name="expectedStatus">The expected endpoint status.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(PlacementOutcome.Withdrawn, false, HttpStatusCode.Forbidden)]
+    [InlineData(PlacementOutcome.Withdrawn, true, HttpStatusCode.OK)]
+    [InlineData(PlacementOutcome.Assigned, false, HttpStatusCode.OK)]
+    [InlineData(PlacementOutcome.NotSelected, false, HttpStatusCode.OK)]
+    public async Task CampaignPlacementUpdate_EnforcesPriorWithdrawalAuthority_AndPreservesHistory(
+        PlacementOutcome priorOutcome, bool isAdmin, HttpStatusCode expectedStatus)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var adminClient = fixture.CreateNovaHttpClient();
+        var adminEmail = UniqueEmail("placement-supersession-admin");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(adminClient, adminEmail, Password, cancellationToken);
+        await UpdateUserAsync(adminEmail, null, cancellationToken);
+        var club = await CreateClubAsync(adminClient, cancellationToken);
+        await RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
+        var (assignmentId, teamId, token) = await SeedPlacementDataAsync(club.ClubId, adminEmail, cancellationToken);
+        var sourceId = await SeedPriorDecisionAsync(assignmentId, teamId, priorOutcome, cancellationToken);
+        using var memberClient = fixture.CreateNovaHttpClient();
+        var memberEmail = UniqueEmail("placement-supersession-member");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
+        await UpdateUserAsync(memberEmail, club.ClubId, cancellationToken);
+        await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
+        await using var before = fixture.CreateAdminContext();
+        var original = await before.PlayerCampaignAssignments.AsNoTracking().SingleAsync(row => row.PlayerCampaignAssignmentId == sourceId, cancellationToken);
+        var eventCount = await before.ActivityEvents.CountAsync(row => row.ClubId == club.ClubId, cancellationToken);
+
+        using var response = await (isAdmin ? adminClient : memberClient).PutAsJsonAsync(
+            CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
+            new UpdateCampaignPlacementInput(assignmentId, PlacementOutcome.Assigned, teamId, token), cancellationToken);
+        response.StatusCode.ShouldBe(expectedStatus);
+        await using var verify = fixture.CreateAdminContext();
+        var source = await verify.PlayerCampaignAssignments.SingleAsync(row => row.PlayerCampaignAssignmentId == sourceId, cancellationToken);
+        source.PlacementOutcome.ShouldBe(original.PlacementOutcome);
+        source.TeamId.ShouldBe(original.TeamId);
+        source.ConcurrencyToken.ShouldBe(original.ConcurrencyToken);
+        source.DecisionRecordedById.ShouldBe(original.DecisionRecordedById);
+        source.DecisionRecordedAt.ShouldBe(original.DecisionRecordedAt);
+        var target = await verify.PlayerCampaignAssignments.SingleAsync(row => row.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
+        if (expectedStatus == HttpStatusCode.OK)
+        {
+            var success = await response.Content.ReadFromJsonAsync<PlacementMutationSuccess>(cancellationToken);
+            target.ConcurrencyToken.ShouldBe(success.ConcurrencyToken);
+            target.ConcurrencyToken.ShouldNotBe(token);
+            target.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
+            target.DecisionRecordedAt.ShouldNotBeNull();
+            var lastEvent = await verify.ActivityEvents.Where(row => row.ClubId == club.ClubId)
+                .OrderByDescending(row => row.ActivityEventId).FirstAsync(cancellationToken);
+            lastEvent.EventKind.ShouldBe(ActivityEventKind.PlacementSuperseded);
+            (await verify.ActivityEvents.CountAsync(row => row.ClubId == club.ClubId, cancellationToken)).ShouldBe(eventCount + 1);
+        }
+        else
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken);
+            problem.ShouldNotBeNull();
+            problem.Status.ShouldBe((int)HttpStatusCode.Forbidden);
+            problem.Extensions.ShouldContainKey("traceId");
+            target.PlacementOutcome.ShouldBe(PlacementOutcome.Undecided);
+            target.ConcurrencyToken.ShouldBe(token);
+            (await verify.ActivityEvents.CountAsync(row => row.ClubId == club.ClubId, cancellationToken)).ShouldBe(eventCount);
+        }
+    }
+
+    /// <summary>Verifies owning withdrawal cannot be replaced and enrollment cannot be submitted as a saved decision.</summary>
+    /// <param name="initialOutcome">The campaign-local state.</param>
+    /// <param name="requestedOutcome">The requested replacement.</param>
+    /// <param name="expectedStatus">The expected endpoint status.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(PlacementOutcome.Withdrawn, PlacementOutcome.NotSelected, HttpStatusCode.Conflict)]
+    [InlineData(PlacementOutcome.Undecided, PlacementOutcome.Undecided, HttpStatusCode.BadRequest)]
+    public async Task CampaignPlacementUpdate_RejectsTerminalWithdrawalAndEnrollmentInput(
+        PlacementOutcome initialOutcome, PlacementOutcome requestedOutcome, HttpStatusCode expectedStatus)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var client = fixture.CreateNovaHttpClient();
+        var email = UniqueEmail("placement-terminal");
+        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
+        await UpdateUserAsync(email, null, cancellationToken);
+        var club = await CreateClubAsync(client, cancellationToken);
+        await RefreshClubMembershipCookieAsync(client, cancellationToken);
+        var (assignmentId, _, token) = await SeedPlacementDataAsync(club.ClubId, email, cancellationToken, initialOutcome: initialOutcome);
+
+        using var response = await client.PutAsJsonAsync(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
+            new UpdateCampaignPlacementInput(assignmentId, requestedOutcome, null, token), cancellationToken);
+        response.StatusCode.ShouldBe(expectedStatus);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken);
+        problem.ShouldNotBeNull();
+        problem.Status.ShouldBe((int)expectedStatus);
+        problem.Extensions.ShouldContainKey("traceId");
+        await using var verify = fixture.CreateAdminContext();
+        var target = await verify.PlayerCampaignAssignments.SingleAsync(row => row.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
+        target.PlacementOutcome.ShouldBe(initialOutcome);
+        target.ConcurrencyToken.ShouldBe(token);
+        (await verify.PlacementMutationReceipts.CountAsync(row => row.ClubId == club.ClubId, cancellationToken)).ShouldBe(0);
+    }
+
+    /// <summary>Seeds one earlier Closed decision with explicitly ordered opening metadata.</summary>
+    /// <param name="targetId">The current participation identifier.</param>
+    /// <param name="teamId">The team to use for a saved assignment.</param>
+    /// <param name="outcome">The saved earlier outcome.</param>
+    /// <param name="cancellationToken">The test cancellation token.</param>
+    /// <returns>The earlier participation identifier.</returns>
+    private async Task<long> SeedPriorDecisionAsync(long targetId, long teamId, PlacementOutcome outcome, CancellationToken cancellationToken)
+    {
+        await using var db = fixture.CreateAdminContext();
+        var target = await db.PlayerCampaignAssignments.Include(row => row.Campaign)
+            .SingleAsync(row => row.PlayerCampaignAssignmentId == targetId, cancellationToken);
+        target.Campaign.SeasonOpeningSequence = 2;
+        await db.SaveChangesAsync(cancellationToken);
+        var campaign = new CampaignEntity
+        {
+            CreationOperationId = Guid.NewGuid(),
+            Name = $"Earlier placement {Guid.NewGuid():N}",
+            StartDate = new DateOnly(2026, 5, 1),
+            Status = CampaignStatus.Closed,
+            SeasonId = target.Campaign.SeasonId,
+            ClubId = target.ClubId,
+            CreatedById = target.CreatedById,
+            SeasonOpeningSequence = 1,
+            ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
+            ClosedById = target.CreatedById
+        };
+        db.Campaigns.Add(campaign);
+        await db.SaveChangesAsync(cancellationToken);
+        var prior = new PlayerCampaignAssignmentEntity
+        {
+            CampaignId = campaign.CampaignId,
+            PlayerId = target.PlayerId,
+            ClubId = target.ClubId,
+            CreatedById = target.CreatedById,
+            PlacementOutcome = outcome,
+            TeamId = outcome == PlacementOutcome.Assigned ? teamId : null,
+            DecisionRecordedAt = DateTimeOffset.UtcNow.AddDays(-2),
+            DecisionRecordedById = target.CreatedById,
+            DecisionActorDisplayName = "Earlier recorder",
+            ConcurrencyToken = Guid.NewGuid()
+        };
+        db.PlayerCampaignAssignments.Add(prior);
+        await db.SaveChangesAsync(cancellationToken);
+        return prior.PlayerCampaignAssignmentId;
+    }
+
     /// <summary>
     /// Verifies anonymous callers receive an unauthorized response for placement updates.
     /// </summary>
@@ -1038,6 +1183,9 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
 
         context.AddRange(season, campaign, player, team);
         await context.SaveChangesAsync(cancellationToken);
+        var club = await context.Clubs.SingleAsync(row => row.ClubId == clubId, cancellationToken);
+        club.CurrentSeasonId = season.SeasonId;
+        await context.SaveChangesAsync(cancellationToken);
 
         var concurrencyToken = Guid.NewGuid();
         var assignment = new PlayerCampaignAssignmentEntity
@@ -1047,6 +1195,9 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
             ClubId = clubId,
             CreatedById = user.Id,
             PlacementOutcome = initialOutcome,
+            DecisionRecordedAt = initialOutcome == PlacementOutcome.Undecided ? null : DateTimeOffset.UtcNow,
+            DecisionRecordedById = initialOutcome == PlacementOutcome.Undecided ? null : user.Id,
+            DecisionActorDisplayName = initialOutcome == PlacementOutcome.Undecided ? null : "Seed recorder",
             TeamId = initialOutcome == PlacementOutcome.Assigned ? team.TeamId : null,
             TryoutNumber = 7,
             ConcurrencyToken = concurrencyToken

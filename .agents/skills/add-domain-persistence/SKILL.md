@@ -14,8 +14,8 @@ WebAssembly, or Razor surfaces, or as the persistence phase of `add-feature-slic
 
 Canonical examples:
 
-- Participation integrity and concurrency: `PlayerCampaignAssignmentEntity`,
-  `PlayerCampaignAssignmentEntityConfiguration`, `CampaignPlacementService`.
+- Placement participation, supersession, and commit receipts:
+  [placement foundation](../../../docs/placement-decision-foundation.md) (contracts, implementation, and tests).
 - Lifecycle and transaction races: `CampaignEntity`, `CampaignLifecycleService`,
   `LifecycleMutationLock`.
 - Immutable opening receipts and deletion tombstones: `CampaignLifecycleService.OpenAsync`,

@@ -3,7 +3,7 @@
 namespace Nova.Shared.Features.Campaigns;
 
 /// <summary>
-/// Reports the new concurrency token after a placement mutation succeeds.
+/// Reports the concurrency token after a placement save succeeds. An identical save returns the submitted token; a meaningful mutation returns a replacement.
 /// </summary>
 /// <param name="ConcurrencyToken">The token callers must use for the next mutation.</param>
 public readonly record struct PlacementMutationSuccess(Guid ConcurrencyToken);
@@ -18,7 +18,7 @@ public readonly record struct PlacementMutationSuccess(Guid ConcurrencyToken);
 /// <param name="FirstName">The participant first name, used to verify the server ordering contract.</param>
 /// <param name="LastName">The participant last name, used to verify the server ordering contract.</param>
 /// <param name="GraduationYear">The participant graduation year.</param>
-/// <param name="PlacementOutcome">The current placement outcome.</param>
+/// <param name="PlacementOutcome">The campaign-local state; Undecided denotes participation without a saved decision.</param>
 /// <param name="Team">The optional assigned team summary.</param>
 /// <param name="ConcurrencyToken">The optimistic-concurrency token required by <see cref="UpdateCampaignPlacementInput"/>.</param>
 public sealed record CampaignPlacementRosterItem(
@@ -30,7 +30,14 @@ public sealed record CampaignPlacementRosterItem(
     int GraduationYear,
     PlacementOutcome PlacementOutcome,
     CampaignParticipantTeamSummaryDto? Team,
-    Guid ConcurrencyToken);
+    Guid ConcurrencyToken)
+{
+    /// <summary>
+    /// Gets this campaign's explicit saved decision, or null for participation without a decision.
+    /// This is campaign-local history, not an effective-season roster projection.
+    /// </summary>
+    public CampaignSavedPlacementDecision? SavedDecision { get; init; }
+}
 
 /// <summary>
 /// Authoritative whole-campaign placement outcome counts, independent of paging and filters.

@@ -41,6 +41,15 @@ public class PlayerCampaignAssignmentEntity : BaseEntity, ITenantOwnedEntity
     /// </summary>
     public PlacementOutcome PlacementOutcome { get; set; } = PlacementOutcome.Undecided;
 
+    /// <summary>Gets or sets when the latest explicit decision was recorded, independently of enrollment.</summary>
+    public DateTimeOffset? DecisionRecordedAt { get; set; }
+
+    /// <summary>Gets or sets the deciding member's identifier, retained without an account foreign key.</summary>
+    public long? DecisionRecordedById { get; set; }
+
+    /// <summary>Gets or sets the deciding member's display-name snapshot.</summary>
+    public string? DecisionActorDisplayName { get; set; }
+
     /// <summary>
     /// Gets or sets the Team Id.
     /// </summary>

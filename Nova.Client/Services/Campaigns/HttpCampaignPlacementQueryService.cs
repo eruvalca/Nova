@@ -36,7 +36,7 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
 
         return await response.Content.ReadRequiredJsonAsync<PagedResult<CampaignPlacementRosterItem>>(
             "The server returned an invalid campaign placement roster response.",
-            result => IsValidRoster(result, expectedPage, expectedPageSize, input.GraduationYear, unresolvedOnly),
+            result => IsValidRoster(result, expectedPage, expectedPageSize, input.GraduationYear, unresolvedOnly, input.CampaignId),
             cancellationToken);
     }
 
@@ -74,19 +74,22 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
     /// <param name="expectedPageSize">The page size the client requested.</param>
     /// <param name="expectedGraduationYear">The optional exact graduation-year filter sent to the server.</param>
     /// <param name="expectedUnresolvedOnly">Whether the client requested unresolved rows only.</param>
+    /// <param name="campaignId">The campaign whose local decisions were requested.</param>
     /// <returns><see langword="true"/> when the page is structurally valid, bounded, and ordered.</returns>
     private static bool IsValidRoster(
         PagedResult<CampaignPlacementRosterItem> result,
         int expectedPage,
         int expectedPageSize,
         int? expectedGraduationYear,
-        bool expectedUnresolvedOnly)
+        bool expectedUnresolvedOnly,
+        long campaignId)
         => result.Items is not null
             && result.Page == expectedPage
             && result.PageSize == expectedPageSize
             && result.TotalCount >= 0
             && result.Items.Count <= result.PageSize
             && result.Items.All(item => IsValidRosterItem(item, expectedGraduationYear, expectedUnresolvedOnly))
+            && result.Items.All(item => IsValidSavedDecision(item, campaignId))
             && IsOrdered(result.Items);
 
     /// <summary>
@@ -160,6 +163,26 @@ public sealed class HttpCampaignPlacementQueryService(HttpClient http) : ICampai
 
         return false;
     }
+
+    /// <summary>Checks that an explicit decision agrees with its campaign-local participation row.</summary>
+    /// <param name="item">The validated participation row.</param>
+    /// <param name="campaignId">The requested source campaign.</param>
+    /// <returns>Whether the saved-decision snapshot is consistent with the row.</returns>
+    private static bool IsValidSavedDecision(CampaignPlacementRosterItem item, long campaignId)
+        => item.PlacementOutcome == PlacementOutcome.Undecided
+            ? item.SavedDecision is null
+            : item.SavedDecision is { } decision
+                && decision.PlayerCampaignAssignmentId == item.PlayerCampaignAssignmentId
+                && decision.PlayerId == item.PlayerId
+                && decision.CampaignId == campaignId
+                && decision.SeasonId > 0
+                && decision.SeasonOpeningSequence > 0
+                && decision.Outcome == item.PlacementOutcome
+                && decision.TeamId == item.Team?.TeamId
+                && decision.RecordedAt != default
+                && decision.RecordedById > 0
+                && !string.IsNullOrWhiteSpace(decision.ActorDisplayName)
+                && decision.ConcurrencyToken == item.ConcurrencyToken;
 
     /// <summary>
     /// Validates that a decoded placement summary carries internally consistent, non-negative counts.

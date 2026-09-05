@@ -16,7 +16,7 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>
 /// Tests administrator authorization, placement integrity, tenant isolation, and optimistic concurrency.
 /// </summary>
-public sealed class CampaignPlacementServiceTests : IDisposable
+public sealed partial class CampaignPlacementServiceTests : IDisposable
 {
     private const long ClubAId = 100;
     private const long ClubBId = 101;
@@ -733,6 +733,9 @@ public sealed class CampaignPlacementServiceTests : IDisposable
                 CreatedById = ClubAAdminId
             });
 
+        db.SaveChanges();
+        db.Clubs.Single(club => club.ClubId == ClubAId).CurrentSeasonId = 500;
+        db.Clubs.Single(club => club.ClubId == ClubBId).CurrentSeasonId = 501;
         db.SaveChanges();
     }
 }

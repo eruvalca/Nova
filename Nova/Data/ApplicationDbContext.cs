@@ -93,6 +93,9 @@ public abstract class ApplicationDbContext : IdentityDbContext<NovaUserEntity, I
     /// Gets the Player Campaign Assignments.
     /// </summary>
     public DbSet<PlayerCampaignAssignmentEntity> PlayerCampaignAssignments => Set<PlayerCampaignAssignmentEntity>();
+
+    /// <summary>Gets immutable placement commit receipts retained for retry verification.</summary>
+    public DbSet<PlacementMutationReceiptEntity> PlacementMutationReceipts => Set<PlacementMutationReceiptEntity>();
     /// <summary>
     /// Gets the Campaign Tag Applications.
     /// </summary>

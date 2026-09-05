@@ -101,6 +101,8 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
         };
         context.Seasons.Add(season);
         await context.SaveChangesAsync(cancellationToken);
+        club.CurrentSeasonId = season.SeasonId;
+        await context.SaveChangesAsync(cancellationToken);
 
         var campaign = new CampaignEntity
         {

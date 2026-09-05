@@ -81,7 +81,13 @@ public sealed partial class CampaignPlacementQueryService(
                 assignment.PlacementOutcome,
                 assignment.TeamId,
                 assignment.Team != null ? assignment.Team.Name : null,
-                assignment.ConcurrencyToken))
+                assignment.ConcurrencyToken,
+                assignment.CampaignId,
+                assignment.Campaign.SeasonId,
+                assignment.Campaign.SeasonOpeningSequence,
+                assignment.DecisionRecordedAt,
+                assignment.DecisionRecordedById,
+                assignment.DecisionActorDisplayName))
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -98,7 +104,14 @@ public sealed partial class CampaignPlacementQueryService(
                 row.TeamId is null
                     ? null
                     : new CampaignParticipantTeamSummaryDto(row.TeamId.Value, row.TeamName ?? string.Empty),
-                row.ConcurrencyToken))
+                row.ConcurrencyToken)
+            {
+                SavedDecision = row.PlacementOutcome == PlacementOutcome.Undecided ? null : new(
+                    row.PlayerCampaignAssignmentId, row.PlayerId, row.CampaignId, row.SeasonId,
+                    row.SeasonOpeningSequence!.Value, row.PlacementOutcome, row.TeamId,
+                    row.DecisionRecordedAt!.Value, row.DecisionRecordedById!.Value, row.DecisionActorDisplayName!,
+                    row.ConcurrencyToken),
+            })
             .ToList()
             .AsReadOnly();
 
@@ -185,7 +198,13 @@ public sealed partial class CampaignPlacementQueryService(
         PlacementOutcome PlacementOutcome,
         long? TeamId,
         string? TeamName,
-        Guid ConcurrencyToken);
+        Guid ConcurrencyToken,
+        long CampaignId,
+        long SeasonId,
+        long? SeasonOpeningSequence,
+        DateTimeOffset? DecisionRecordedAt,
+        long? DecisionRecordedById,
+        string? DecisionActorDisplayName);
 
     /// <summary>
     /// Projection of one outcome count from the grouped summary query.

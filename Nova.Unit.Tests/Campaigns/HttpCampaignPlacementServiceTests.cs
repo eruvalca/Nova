@@ -83,10 +83,10 @@ public sealed class HttpCampaignPlacementServiceTests
     }
 
     /// <summary>
-    /// Verifies a success payload that echoes the submitted token is treated as a contract defect.
+    /// Verifies an identical save succeeds when the server preserves the submitted token.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsServerError_WhenSuccessTokenEchoesSubmittedToken()
+    public async Task UpdatePlacementAsync_ReturnsSuccess_WhenNoOpPreservesSubmittedToken()
     {
         var expectedToken = Guid.NewGuid();
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -102,8 +102,8 @@ public sealed class HttpCampaignPlacementServiceTests
             ValidInput(expectedToken),
             TestContext.Current.CancellationToken);
 
-        result.IsProblem.ShouldBeTrue();
-        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ConcurrencyToken.ShouldBe(expectedToken);
     }
 
     /// <summary>

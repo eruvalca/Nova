@@ -143,7 +143,7 @@
                                     else
                                     {
                                         <select aria-label="@($"Outcome for {item.DisplayName}")" class="form-select form-select-sm placement-row-control" value="@((int)draft.Outcome)" disabled="@(_conflictActive || draft.IsSaving)" @onchange="args => OnOutcomeChanged(item, args)">
-                                            <option value="0">Undecided</option>
+                                            <option value="0" disabled>Undecided</option>
                                             <option value="1">Assigned</option>
                                             <option value="2">Not selected</option>
                                             <option value="3">Withdrawn</option>
@@ -227,7 +227,7 @@
                                     <div>
                                         <label for="@($"placement-card-outcome-{item.PlayerCampaignAssignmentId}")" class="visually-hidden">Outcome for @item.DisplayName</label>
                                         <select id="@($"placement-card-outcome-{item.PlayerCampaignAssignmentId}")" class="form-select form-select-sm placement-row-control" value="@((int)draft.Outcome)" disabled="@(_conflictActive || draft.IsSaving)" @onchange="args => OnOutcomeChanged(item, args)">
-                                            <option value="0">Undecided</option>
+                                            <option value="0" disabled>Undecided</option>
                                             <option value="1">Assigned</option>
                                             <option value="2">Not selected</option>
                                             <option value="3">Withdrawn</option>
