@@ -179,6 +179,14 @@ Rules:
 
 ## Pitfalls
 
+- **Navigation focus can be lost during interactive attach.** When attachment replaces the heading
+  focused by enhanced navigation, use the existing `ClubShell.razor.cs` / `.razor.js` pattern for
+  pages in that shell. It scopes the lookup to the hall and restores focus only while no other
+  control owns it. If asynchronous content has no heading yet, retain a pending flag and try on
+  the next normal render; do not spin a render loop or stop unconditionally after `firstRender`.
+  Success, empty/not-found, and terminal error branches need a heading. A reused shell also needs
+  an explicit close action for its mobile directory when a destination link is activated.
+
 - **RCL collocated modules are not auto-loaded.** The SDK ships `.razor.js` as a static asset, but
   nothing imports it until the component does `"import", "./_content/Nova.UI/..."`. A missing or
   mismatched path fails only at runtime, not at build time — and not silently: awaiting

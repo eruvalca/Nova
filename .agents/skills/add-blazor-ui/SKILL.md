@@ -29,7 +29,7 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
 | Pattern | File |
 | --- | --- |
 | Base class, `ComponentCancellationToken`, `DisposeAsyncCore` | `Nova.UI\Components\NovaComponentBase.cs` |
-| Static SSR page (no `@rendermode`) | `Nova.UI\Features\Clubs\Pages\ClubDetail.razor(.cs)` |
+| Static SSR redirect (no `@rendermode`) | `Nova.UI\Features\Clubs\Pages\ClubDetail.razor(.cs)` |
 | Interactive page: persisted state, query params, debounce, paging | `Nova.UI\Features\Players\Pages\Players.razor(.cs)` |
 | Interactive page with child callbacks | `Nova.UI\Features\Clubs\Pages\ClubOnboarding.razor(.cs)` |
 | Form component: `EditorRequired`, `EventCallback`, `IValidatableObject` | `Nova.UI\Features\Players\Components\PlayerForm.razor(.cs)` |
@@ -56,7 +56,8 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
    Directive order in the `.razor`: `@page` → `@rendermode` → `@attribute [Authorize...]` → `@using`.
 4. **Choose the lifecycle method and plan for prerender.** One-time load vs. reacting to parameters
    vs. DOM/JS work; add the `[PersistentState]` + `Initialized` guard when the component is
-   interactive and loads data. See [lifecycle-and-state.md](references/lifecycle-and-state.md).
+   interactive and loads data. For club-scoped pages, also handle authentication changes and
+   snapshot ownership. See [lifecycle-and-state.md](references/lifecycle-and-state.md).
 5. **Define parameters, callbacks, and binding.** Public properties for `[Parameter]`,
    `EventCallback` (never `Action`) for child→parent notification, private fields for internal state,
    and explicit `@` expressions when passing fields to child `string` parameters.

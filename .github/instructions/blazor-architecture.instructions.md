@@ -42,6 +42,10 @@ Interactive render modes (`InteractiveAuto`, `InteractiveWebAssembly`, `Interact
 - Use `[PersistentState]` only on **public component properties** so state can be serialized/restored across prerender and attach.
 - Prevent duplicate startup fetches by persisting an `Initialized` flag and returning early when it is already set. When restoring persisted source data, also rebuild any derived collections, filter options, or computed view state before returning. Recipe: `.agents/skills/add-blazor-ui/references/lifecycle-and-state.md`.
 - Keep explicit reload/refetch helper methods for user-triggered refresh actions; the `Initialized` guard is only for startup duplication.
+- Club-scoped interactive state belongs to the current authenticated club, not just its role set.
+  Invalidate visible and persisted data on club changes even when roles are unchanged; late work
+  from the previous club must not repopulate it. See the lifecycle recipe for authentication-event
+  dispatch, request ownership, and persisted snapshot checks.
 
 ## Onboarding Gates (claim-gated routes)
 

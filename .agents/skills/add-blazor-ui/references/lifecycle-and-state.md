@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Load data once for this component instance | `OnInitializedAsync` | Runs once per instance — but an interactive component is instantiated twice (prerender + attach). See below. |
 | React to a `[Parameter]` or `[SupplyParameterFromQuery]` value | `OnParametersSet` / `OnParametersSetAsync` | Runs after initialization **and every time the component receives parameters**, which includes every parent re-render. Never do unguarded work here. |
-| Touch the DOM, call JS, or use `@ref` element references | `OnAfterRenderAsync(bool firstRender)` | The only place the DOM and JS are safe. Guard one-time work with `if (!firstRender) return;`. Not called during static SSR/prerender. Never load data here. |
+| Touch rendered DOM or use `@ref` element references | `OnAfterRenderAsync(bool firstRender)` | Not called during static SSR/prerender. Use `firstRender` only when the target exists on that render; conditional content may need a later attempt. Interactive event handlers may also invoke JS. Never load data here. |
 | Async cleanup (timers, `CancellationTokenSource`, JS module references) | `DisposeAsyncCore()` | Override it; do not re-implement `IAsyncDisposable` — `NovaComponentBase` already does. |
 
 `SetParametersAsync` and `ShouldRender` are not used anywhere in Nova. Do not introduce them without
@@ -95,6 +95,23 @@ relabel successful neighbors. `ClubOverview.razor.cs` is the canonical example.
 
 ## Cancellation
 
+### Club changes while the component stays mounted
+
+For club-scoped pages reacting to `AuthenticationStateChanged`, compare the club claim as well as
+roles. Dispatch the entire reconciliation through `InvokeAsync`, including cancellation and state
+mutation. Clear previous-club rows, derived filters, open management panels, and mutation feedback,
+then render that cleared/loading state before awaiting replacement queries. Dispatching only the
+final `StateHasChanged` leaves earlier mutations outside the renderer and old data visible while
+the new request waits.
+
+Persist the snapshot's club id independently of its payload (an error can have no payload), and
+validate that id before honoring `Initialized`. Give each replacement load or mutation an owned
+request token/generation: cancellation stops cooperative work, while ownership checks prevent late
+results and `finally` blocks from overwriting a newer scope's data or busy flags. See
+`ClubOverview.razor.cs` for independent region loads and `Teams.razor.cs` for mutation ownership.
+
+### Disposal and transport cancellation
+
 Pass `ComponentCancellationToken` (from `NovaComponentBase`) into every async service call, HTTP
 call, delay, and stream so work stops when the component is disposed:
 
@@ -127,16 +144,19 @@ See `ClubSearchPanel.razor.cs` for the full debounce pattern (cancel pending →
 
 ## `StateHasChanged` — usually unnecessary
 
-`ComponentBase` re-renders automatically after lifecycle methods and after any event handler it
-invoked, including `EventCallback` invocations. Nova has only two `StateHasChanged` calls in the whole
-UI. Do **not** add it defensively.
+`ComponentBase` schedules renders for its lifecycle methods and component event handlers, including
+`EventCallback` invocations. Do not add `StateHasChanged` defensively; an intermediate state before
+another await or an external notification can require an explicit render.
 
-Call it only when state changes outside a lifecycle method or component event — e.g. a timer
-callback, a JS interop callback, or an event raised by a non-UI service. From those contexts marshal
-to the renderer's synchronization context:
+For a timer or non-UI service notification, marshal the state update and render together onto the
+renderer's synchronization context:
 
 ```csharp
-await InvokeAsync(StateHasChanged);
+await InvokeAsync(() =>
+{
+    _error = message;
+    StateHasChanged();
+});
 ```
 
 ## Field vs. property for state

@@ -136,6 +136,15 @@ and seed persisted state to prove interactive attach performs no duplicate start
 loader catches transport cancellation, also protect the distinction between component-token
 cancellation and a recoverable transport failure.
 
+## Testing authentication changes
+
+For authentication-reactive pages, use `ClubOverviewComponentTests` and `TeamComponentsTests` to
+exercise a same-role club change with replacement requests held pending. Assert the old club's
+markup disappears before completion, then complete an old request late and prove it cannot restore
+stale data or clear the new operation's busy state. Seed a persisted error with its original club
+id as well as a successful snapshot; a null payload still has tenant ownership. Browser focus and
+DOM replacement behavior belongs in the [browser suite](browser-suite.md), not a bUnit JS mock.
+
 ## Conventions
 
 - Name tests `Subject_Outcome_Condition`.
