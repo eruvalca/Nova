@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
 using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
@@ -102,7 +103,7 @@ public partial class CampaignEntry(
     /// <summary>Local Players correction link returning to this Draft.</summary>
     private string PlayersUrl => $"/players?returnToDraft={CampaignId}";
     /// <summary>Local Teams correction link returning to this Draft.</summary>
-    private string TeamsUrl => $"/club/teams?returnToDraft={CampaignId}";
+    private string TeamsUrl => $"{ClubRoutes.Teams}?returnToDraft={CampaignId}";
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
