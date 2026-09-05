@@ -854,11 +854,10 @@ export function splitFindingsByTier(findings) {
 }
 
 // Whether the per-edit pass for this harness should defer non-immediate
-// findings to a Stop deep pass. Claude Code, Codex, and Grok Build dispatch
-// our Stop hook; Cursor and GitHub Copilot have no deep pass wired, so
-// deferring for them would silently drop the non-immediate rules entirely.
+// findings to a Stop deep pass. Nova's Codex/Copilot/VS Code completion
+// hooks are reserved for bounded verification, so design stays post-edit.
 export function perEditTieringActive(config, harness) {
-  if (harness === 'cursor' || harness === 'github') return false;
+  if (harness === 'cursor' || harness === 'github' || harness === 'codex') return false;
   return (config?.perEditRules || DEFAULT_CONFIG.perEditRules) !== 'all';
 }
 
@@ -1247,7 +1246,7 @@ function relativize(filePath, cwd) {
 // `tool_input.file_path`. Claude Code may send both; parse the patch body
 // so we can scan the file(s) the tool actually touched.
 // https://developers.openai.com/codex/hooks#posttooluse
-const APPLY_PATCH_FILE_RE = /^\*\*\* (?:Update|Add) File: (.+)$/gm;
+const APPLY_PATCH_FILE_RE = /^\*\*\* (?:(?:Update|Add) File|Move to): (.+)$/gm;
 
 export function parseApplyPatchPaths(command, projectCwd) {
   if (!command || typeof command !== 'string') return [];
@@ -1486,7 +1485,7 @@ function envProjectDir(fallback) {
 // UI components often keep slop in a sibling/co-located stylesheet while the
 // JSX edit is what triggered PostToolUse. Scan those styles too so an App.jsx
 // patch doesn't report "clean" while styles.css still has Inter/bounce/etc.
-const UI_CODE_EXTS = new Set(['.jsx', '.tsx', '.vue', '.svelte', '.astro']);
+const UI_CODE_EXTS = new Set(['.jsx', '.tsx', '.vue', '.svelte', '.astro', '.razor']);
 const STYLE_EXTS = new Set(['.css', '.scss', '.sass', '.less']);
 const CO_SCAN_STYLE_NAMES = [
   'styles.css', 'styles.scss', 'styles.sass', 'styles.less',
@@ -1576,6 +1575,7 @@ export function coLocatedStylesheets(filePath) {
   const dir = path.dirname(filePath);
   const base = path.basename(filePath, path.extname(filePath));
   const candidates = new Set([
+    ...(path.extname(filePath).toLowerCase() === '.razor' ? [filePath + '.css'] : []),
     path.join(dir, `${base}.css`),
     path.join(dir, `${base}.module.css`),
     path.join(dir, `${base}.scss`),
@@ -2475,14 +2475,10 @@ export function payload(text, eventName = 'PostToolUse', harness = 'claude') {
   if (harness === 'github') {
     return JSON.stringify({ additionalContext: text });
   }
-  // Codex shares Claude Code's PostToolUse additional-context shape, but its
-  // Stop schema rejects unknown fields. Findings that should continue the
-  // turn must be a top-level blocking decision.
-  // https://developers.openai.com/codex/hooks#stop (schema of record:
-  // codex-rs/hooks/src/schema.rs, StopCommandOutputWire)
+  // Design heuristics must never independently force a Codex continuation.
+  // Nova reports them after edits; eng/hooks.mjs alone owns completion checks.
   if (harness === 'codex' && eventName === 'Stop') {
-    if (!String(text ?? '').trim()) return '';
-    return JSON.stringify({ decision: 'block', reason: text });
+    return '';
   }
   return JSON.stringify({
     hookSpecificOutput: { hookEventName: eventName, additionalContext: text },

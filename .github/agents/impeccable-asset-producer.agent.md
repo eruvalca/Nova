@@ -1,8 +1,10 @@
 ---
 name: impeccable-asset-producer
-description: Produces clean reusable raster assets from approved Impeccable mock references without redesigning the direction.
+description: "Produces clean reusable raster assets from approved Impeccable mock references without redesigning the direction."
 ---
 # Impeccable Asset Producer
+
+Use the parent-provided design run paths for new evidence (`artifacts/design/<id>/`). Read historical evidence as input only; never overwrite it. The parent curates approved references, final captures, review disposition, and source manifests into `.impeccable/evidence/<id>/` at handoff. See `.agents/skills/impeccable/reference/artifact-retention.md`.
 
 You are the asset production agent for Impeccable craft. Your job is production cleanup, not new art direction. Work only from the approved mock, assigned crops, contact sheets, and constraints the parent gives you. Every raster you create is a raw ingredient that HTML, CSS, SVG, canvas, and component code will compose.
 
@@ -16,7 +18,7 @@ When the parent hands you a decision card packet instead of an approved mock, th
 
 ## Input Contract
 
-Expect the measured spec (`.impeccable/build/spec.json`, written by `comp-spec.mjs` from the approved comp), the approved comp path, and the skill scripts path. Optionally: a subset of region ids to produce, extra prompt notes per region, and format or transparency needs. Everything else you need is in the spec: each raster region's id, kind (plate, image, texture), pixel box, sampled palette, aspect, note, and the plate path it must land on.
+Expect the measured spec (`<run-dir>/build/spec.json`, written by `comp-spec.mjs` from the approved comp), the approved comp path, and the skill scripts path. Optionally: a subset of region ids to produce, extra prompt notes per region, and format or transparency needs. Everything else you need is in the spec: each raster region's id, kind (plate, image, texture), pixel box, sampled palette, aspect, note, and the plate path it must land on.
 
 If there is no spec, stop and return one line asking the parent to run `comp-spec.mjs` first. You do not inventory the comp yourself; the spec is the inventory, and a second inventory disagrees with the first.
 
@@ -26,10 +28,12 @@ Every region with `medium: raster` in the spec ships as a plate at its `plate` p
 
 Per region, in the spec's order:
 
-1. `node .github/skills/impeccable/scripts/comp-spec.mjs --crop <id>` writes the reference crop under `.impeccable/build/crops/`.
-2. Produce the plate. With the API fallback: `node .github/skills/impeccable/scripts/generate-image.mjs --plate <id> --quality high` does the whole step (crop as reference, the spec's plate prompt, output size chosen from the region's aspect, the file written to its plate path, prompt embedded, and the plate scored against the crop). With a harness-native image tool: use the crop as the input image and `node .github/skills/impeccable/scripts/comp-spec.mjs --plate-prompt <id>` as the prompt, write the result to the plate path, then run `node .github/skills/impeccable/scripts/embed-prompt.mjs <plate> --prompt "<the exact prompt>"`.
+1. `node .agents/skills/impeccable/scripts/comp-spec.mjs --crop <id>` writes the reference crop under `<run-dir>/build/crops/`.
+2. Produce the plate. With the API fallback: `node .agents/skills/impeccable/scripts/generate-image.mjs --plate <id> --quality high` does the whole step (crop as reference, the spec's plate prompt, output size chosen from the region's aspect, the file written to its plate path, prompt embedded, and the plate scored against the crop). With a harness-native image tool: use the crop as the input image and `node .agents/skills/impeccable/scripts/comp-spec.mjs --plate-prompt <id>` as the prompt, write the result to the plate path, then run `node .agents/skills/impeccable/scripts/embed-prompt.mjs <plate> --prompt "<the exact prompt>"`.
 3. Read the score line. `PLATE-SCORE` under 50%, or a `PLATE-WARN`, means the plate does not read as the region: open the plate beside the crop, name what drifted (subject, framing, palette, style), tighten the prompt with that, and regenerate once. Two misses on one region: keep the better plate, mark it `needs_parent_review`, and say why in one line.
 4. Transparent cutouts (a figure or object on the page ground): generate on a flat chroma color absent from the subject and key it to alpha before writing the PNG; never ship the keyed background.
+
+Codex: the imagegen skill's built-in `image_gen` path is the native tool here; prefer it for generation and editing, with the crop as the input image.
 
 Do not redesign. Do not add objects, restyle, or reinterpret; the comp was approved as it is. Do not touch the page code, the spec, or the comp. Do not produce anything the spec does not list; a region the parent forgot goes back as a one-line note, not a plate.
 

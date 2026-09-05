@@ -1,18 +1,10 @@
 ---
 name: add-blazor-ui
 description: >-
-  Recipe for building Nova Blazor pages and components: placement, page-vs-component,
-  render-mode decision tree, lifecycle selection, prerender/persisted state, parameters,
-  EventCallbacks, binding, and EditForm validation.
-  USE FOR: add a Blazor page or component, new .razor file, choose render mode, @onclick not
-  firing, page vs component, [Parameter], string literal vs expression, EventCallback vs Action,
-  @bind / @bind:after, EditForm, duplicate data load, [PersistentState], StateHasChanged,
-  OnInitializedAsync vs OnParametersSet vs OnAfterRenderAsync, code-behind, CSS isolation,
-  JS interop, collocated .razor.js module.
-  DO NOT USE FOR: server services/ServiceResult (use add-feature-slice), HTTP endpoints or WASM
-  services (use add-api-endpoint), entities/EF/migrations (use add-domain-persistence),
-  writing tests only (use nova-testing).
-  INVOKES: nova-testing (component test step).
+  Build or change Nova Blazor pages/components: placement, render modes, lifecycle and persisted
+  state, parameters, callbacks, forms, CSS isolation, and collocated JS. Use for inactive handlers,
+  duplicate startup loads, validation correction, or async ownership/recovery flows. For server
+  features use add-feature-slice; for test-only work use nova-testing.
 ---
 
 # Add Blazor UI
@@ -46,6 +38,10 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
 
 ## Ordered checklist
 
+0. **For stateful boundaries, identify the owner and proving tests first.** Recoverable commands,
+   contextual server validation, and requests that can outlive user/club/route/permission changes
+   use the shared [transition mapping](../add-feature-slice/references/stateful-transitions.md).
+   Skip the mapping for ordinary presentation and CRUD work.
 1. **Decide placement and page-vs-component.** Which project, routable or not, which feature folder.
    See [placement-and-page-vs-component.md](references/placement-and-page-vs-component.md).
 2. **Decide the render mode** by running the decision tree top to bottom and stopping at the first
@@ -85,7 +81,7 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
 - Every async service call receives `ComponentCancellationToken`.
 - Data comes from a feature service; no `DbContext` and no `HttpContext` in the component.
 - No `@code` block; markup and logic are in the `.razor` / `.razor.cs` pair.
-- Any JS is a collocated `.razor.js` module consumed via `OnAfterRenderAsync` with module disposal
+- Any JS is a collocated `.razor.js` module consumed after interactive attachment or from event handlers, with module disposal
   in `DisposeAsyncCore()` — no `window.*` globals, no helpers in `Nova/wwwroot/js/`.
 - If it loads data and is interactive, prerender double-loading is handled and derived state is
   rebuilt on restore.

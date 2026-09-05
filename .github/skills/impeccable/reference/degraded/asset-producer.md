@@ -25,10 +25,12 @@ Every region with `medium: raster` in the spec ships as a plate at its `plate` p
 
 Per region, in the spec's order:
 
-1. `node .github/skills/impeccable/scripts/comp-spec.mjs --crop <id>` writes the reference crop under `.impeccable/build/crops/`.
-2. Produce the plate. With the API fallback: `node .github/skills/impeccable/scripts/generate-image.mjs --plate <id> --quality high` does the whole step (crop as reference, the spec's plate prompt, output size chosen from the region's aspect, the file written to its plate path, prompt embedded, and the plate scored against the crop). With a harness-native image tool: use the crop as the input image and `node .github/skills/impeccable/scripts/comp-spec.mjs --plate-prompt <id>` as the prompt, write the result to the plate path, then run `node .github/skills/impeccable/scripts/embed-prompt.mjs <plate> --prompt "<the exact prompt>"`.
+1. `node .agents/skills/impeccable/scripts/comp-spec.mjs --crop <id>` writes the reference crop under `.impeccable/build/crops/`.
+2. Produce the plate. With the API fallback: `node .agents/skills/impeccable/scripts/generate-image.mjs --plate <id> --quality high` does the whole step (crop as reference, the spec's plate prompt, output size chosen from the region's aspect, the file written to its plate path, prompt embedded, and the plate scored against the crop). With a harness-native image tool: use the crop as the input image and `node .agents/skills/impeccable/scripts/comp-spec.mjs --plate-prompt <id>` as the prompt, write the result to the plate path, then run `node .agents/skills/impeccable/scripts/embed-prompt.mjs <plate> --prompt "<the exact prompt>"`.
 3. Read the score line. `PLATE-SCORE` under 50%, or a `PLATE-WARN`, means the plate does not read as the region: open the plate beside the crop, name what drifted (subject, framing, palette, style), tighten the prompt with that, and regenerate once. Two misses on one region: keep the better plate, mark it `needs_parent_review`, and say why in one line.
 4. Transparent cutouts (a figure or object on the page ground): generate on a flat chroma color absent from the subject and key it to alpha before writing the PNG; never ship the keyed background.
+
+Codex: the imagegen skill's built-in `image_gen` path is the native tool here; prefer it for generation and editing, with the crop as the input image.
 
 Do not redesign. Do not add objects, restyle, or reinterpret; the comp was approved as it is. Do not touch the page code, the spec, or the comp. Do not produce anything the spec does not list; a region the parent forgot goes back as a one-line note, not a plate.
 

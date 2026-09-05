@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova/Features/Seasons/**/*.cs,Nova/Features/Campaigns/**/*.cs,Nova/Entities/ClubEntity.cs,Nova/Entities/SeasonEntity.cs,Nova/Data/Configurations/ClubEntityConfiguration.cs,Nova/Data/Configurations/SeasonEntityConfiguration.cs,Nova.Shared/Features/Seasons/**/*.cs,Nova.Shared/Features/Campaigns/**/*.cs,Nova.Unit.Tests/Seasons/**/*.cs,Nova.Unit.Tests/Campaigns/**/*.cs,Nova.Integration.Tests/**/*Season*.cs,Nova.Integration.Tests/**/*Campaign*.cs"
+applyTo: "**/Features/Seasons/**/*.cs,**/Features/Campaigns/**/*.cs,**/Features/Campaigns/**/*.razor,Nova/Entities/ClubEntity.cs,Nova/Entities/SeasonEntity.cs,Nova/Data/Configurations/ClubEntityConfiguration.cs,Nova/Data/Configurations/SeasonEntityConfiguration.cs,Nova.Unit.Tests/Seasons/**/*.cs,Nova.Unit.Tests/Campaigns/**/*.cs,Nova.Integration.Tests/**/*Season*.cs,Nova.Integration.Tests/**/*Campaign*.cs,Nova.Browser.Tests/**/*Campaign*.cs"
 description: "Season lifecycle invariants: authoritative currentness, campaign season selection, advancement, and historical-data preservation."
 ---
 

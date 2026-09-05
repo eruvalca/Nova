@@ -3,7 +3,7 @@
 ## The rule that matters most
 
 **Never re-declare business validation rules in the UI.** The DataAnnotations on the shared
-`Nova.Shared\{Feature}\{Name}Input.cs` record are the single source of truth. A form model bridges to
+`Nova.Shared\Features\{Feature}\{Name}Input.cs` record are the single source of truth. A form model bridges to
 them through `InputValidator` so the client and server can never disagree.
 
 See `.github/instructions/validation.instructions.md` for the rule set and
@@ -122,6 +122,12 @@ validates again. Show what the server returns:
   deadlocks retry because those messages prevent the callback. Detach field-change subscriptions
   when replacing the `EditContext` and on disposal. See `CampaignMetadataForm.razor.cs` and
   `CampaignEntryTests.CampaignEntry_ResubmitsMetadata_AfterCorrectingServerValidation`.
+
+For a form that receives contextual server errors, apply the
+[transition-to-test mapping](../../add-feature-slice/references/stateful-transitions.md) before
+wiring submission. If a shared error helper changes, enumerate its form consumers and test the
+recovery behavior at the helper boundary plus a representative rendered form; merely seeing the
+first error is incomplete evidence.
 
 Keep the success message from being wiped by the reload that follows a successful mutation — clear it
 at the next intentional user action instead.

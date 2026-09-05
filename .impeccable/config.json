@@ -1,5 +1,8 @@
 {
   "buildPath": "comp",
+  "detector": {
+    "extensions": [{ "ext": ".razor", "engine": "html" }]
+  },
   "hook": {
     "enabled": true,
     "limits": {

@@ -1,18 +1,20 @@
-> **Test gate**: before opening this PR, all three test suites must pass locally.
-> On pushes to this PR, re-run the suites the change can affect (unit always;
-> integration for provider/HTTP-boundary or EF changes; browser for interactive UI,
-> markup, or JS-interop changes) — when in doubt, run all three, and re-run all three
-> before merge. CI only builds and runs unit tests, so a green CI run is not proof the
-> full suite is green. See `AGENTS.md` → "Build & validation".
+## Behavior
 
-## Summary
+<!-- Explain the concrete trigger and resulting behavior. Link the feature contract or
+transition/test mapping for stateful work; ordinary changes do not need a new table. -->
 
-<!-- What does this change and why? Link issues or design docs if relevant. -->
+## Validation
 
-## Checklist
+<!-- Summarize the fresh `node eng/verify.mjs run --profile pre-pr` run: revision,
+run ID, executed suite counts, explicit optional skips, and any limits.
+Use the push profile with a current base for follow-ups and a fresh pre-merge run.
+Do not combine evidence from older runs or treat passing tests as coverage proof. -->
 
-- [ ] Format check passes: `dotnet format Nova.slnx --verify-no-changes`
-- [ ] Unit tests pass: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`
-- [ ] Integration tests pass: `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` (local, requires the Aspire AppHost)
-- [ ] Browser tests pass: `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` (local-only, Playwright)
-- [ ] If `Nova/scss/` or `Nova/package.json` changed: `npm run build:css` and `npm run check:contrast` pass (run from `Nova/`)
+- [ ] Fresh local pre-PR verification passed; hosted checks are passing for this revision.
+- [ ] For behavioral fixes, the regression and a neighboring scenario pass; relevant siblings have evidence-backed dispositions.
+- [ ] For consequential stateful changes, an independent reviewer examined the diff, behavioral contract, and test mapping; supported findings are resolved.
+
+<!-- Review preparation: include every review body (including suppressed entries),
+inline thread, and reply in a compact findings ledger. Batch coherent fixes before
+requesting another review, and avoid overlapping reviews of changing revisions.
+For design work, retain approved/final evidence and its source manifest in Git. -->

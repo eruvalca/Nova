@@ -153,3 +153,20 @@ private void ActAs(long? userId, long? clubId, bool isClubAdmin = false)
 ```
 
 See `nova-testing/SKILL.md` for xUnit v4, Shouldly, naming, and run commands that apply to both harnesses.
+
+## Local Aspire workflow
+
+- `dotnet run --project Nova.AppHost` is the supported manual developer entry point. The
+  `AspireUseCliBundle` setting delegates it to `aspire run` through `dnx`; the first run on a
+  machine may acquire the CLI bundle before the dashboard opens. Agents and automation still use
+  `aspire start --isolated --non-interactive`.
+- The dashboard exposes **Reset nova database** on the `postgres` resource and **Clear profile
+  photos** on the `storage` resource. Both require selecting `yes` in the confirmation dialog.
+  The CLI equivalents are:
+    - `aspire resource postgres reset-db --confirm yes`
+    - `aspire resource storage clear-profile-photos --confirm yes`
+- `aspire stop --force` is the broader destructive reset. It permanently deletes the
+  Postgres and Azurite volume data; prefer the targeted commands when only the database or profile
+  photos need resetting.
+- The VS Code Aspire extension no longer opens the dashboard automatically. Opt in with its
+  `dashboardBrowser` setting or configure dashboard launch behavior in `launch.json`.

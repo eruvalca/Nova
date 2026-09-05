@@ -1,6 +1,6 @@
 # Browser suite: Playwright against the Aspire AppHost
 
-`Nova.Browser.Tests` is the committed, local-only browser coverage for real UI flows. It boots the
+`Nova.Browser.Tests` is the committed browser coverage for real UI flows. It boots the
 Aspire AppHost (same as the integration tests), launches Playwright Chromium, and drives the real
 pages with real Identity logins. Write a browser test when bUnit cannot prove the behavior
 (interactive attach, focus/keyboard, history/URL state, multi-user sessions, real HTTP
@@ -141,7 +141,7 @@ when closing the participant drawer after opening it as a hydration proof.
 - Env-gated helpers must `Assert.Skip(...)` when their flag is unset — a green run must mean the
   assertions executed. Flags: `NOVA_BROWSER_HEADED=1` (visible browser),
   `NOVA_A11Y_SCREENSHOTS=1` (accessibility evidence: screenshots plus computed contrast and
-  touch-target measurements written to `%TEMP%\nova-a11y-screenshots`).
+  touch-target measurements written beneath the current verification run’s `browser/<test>/screenshots` directory).
 - Accessibility regression assertions stay in the scenario that exercises the control: touch
   targets ≥24×24 CSS px on drawer controls, tag chip text contrast ≥4.5:1 (WCAG AA) against its
   club-defined background.
@@ -176,4 +176,6 @@ dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --filter-clas
 NOVA_BROWSER_RETRY_MAX_ATTEMPTS=80 NOVA_BROWSER_RETRY_DELAY_MS=500 dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj --filter-class "*CampaignEvaluationBrowserTests"
 ```
 
-Local-only: CI runs build and unit tests only, so run the suite locally before opening a PR, before merge, and on pushes that change UI markup, styles, or JS interop.
+Follow `AGENTS.md` for the authoritative verification runner and PR/merge gate. Keep local browser
+evidence until the proposed hosted full-suite job is proven and its required-check configuration is
+verified. A green build/unit job alone does not establish browser coverage or success.

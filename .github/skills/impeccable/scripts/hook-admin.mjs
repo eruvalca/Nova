@@ -23,6 +23,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { repositoryRoot } from '../../../../eng/lib/git.mjs';
+import { codexEntry, copilotEntry } from '../../../../eng/lib/guidance-hooks.mjs';
 import { IMPECCABLE_COMMAND } from './lib/provider.mjs';
 
 import {
@@ -40,6 +43,9 @@ import {
 
 const ACTIONS = new Set(['status', 'on', 'off', 'ignore-rule', 'ignore-file', 'ignore-value', 'reset']);
 const IMPECCABLE_HOOK_COMMAND_MARKERS = [
+  'eng/hooks.mjs" --provider codex --event edit',
+  "eng/hooks.mjs') --provider copilot --event edit",
+  'eng/hooks.mjs" --provider copilot --event edit',
   'skills/impeccable/scripts/hook-probe.mjs',
   'skills/impeccable/scripts/hook.mjs',
   'skills/impeccable/scripts/hook-before-edit.mjs',
@@ -99,24 +105,7 @@ const HOOK_MANIFEST_TARGETS = [
     provider: '.agents',
     skillRel: '.agents/skills/impeccable',
     destRel: '.codex/hooks.json',
-    manifest: () => ({
-      hooks: {
-        PostToolUse: [
-          {
-            matcher: 'Edit|Write|apply_patch',
-            hooks: [
-              {
-                type: 'command',
-                command: 'node ".agents/skills/impeccable/scripts/hook.mjs"',
-                timeout: TIMEOUT_SECONDS,
-                statusMessage: STATUS_MESSAGE,
-              },
-            ],
-          },
-        ],
-        Stop: [stopManifestEntry('node ".agents/skills/impeccable/scripts/hook.mjs"')],
-      },
-    }),
+    manifest: () => ({ hooks: { PostToolUse: [codexEntry('edit')] } }),
   },
   {
     provider: '.cursor',
@@ -135,26 +124,12 @@ const HOOK_MANIFEST_TARGETS = [
     }),
   },
   {
-    // GitHub Copilot reads repo-level hooks from `.github/hooks/*.json`. The same
-    // manifest is honored by the CLI (once committed to the default branch) and
-    // the cloud/app agent. Schema differs: lowercase `postToolUse`, flat entries,
-    // `bash`/`timeoutSec`, and a `matcher` regex against the `edit`/`create` tools.
+    // Both ecosystems discover the canonical skill. Copilot/VS Code retain a
+    // native manifest adapter; no legacy skill-folder discovery is required.
     provider: '.github',
-    skillRel: '.github/skills/impeccable',
+    skillRel: '.agents/skills/impeccable',
     destRel: '.github/hooks/impeccable.json',
-    manifest: () => ({
-      version: 1,
-      hooks: {
-        postToolUse: [
-          {
-            type: 'command',
-            matcher: 'edit|create|apply_patch',
-            bash: 'node "$(git rev-parse --show-toplevel)/.github/skills/impeccable/scripts/hook.mjs"',
-            timeoutSec: TIMEOUT_SECONDS,
-          },
-        ],
-      },
-    }),
+    manifest: () => ({ version: 1, hooks: { postToolUse: [copilotEntry('edit')] } }),
   },
 ];
 
@@ -391,7 +366,7 @@ function setEnabled(cwd, value) {
   return parts.join(' ');
 }
 
-function repairHookManifests(cwd) {
+export function repairHookManifests(cwd) {
   const result = { written: [], already: [], backups: [] };
   for (const target of HOOK_MANIFEST_TARGETS) {
     if (!fs.existsSync(path.join(cwd, target.skillRel))) continue;
@@ -437,7 +412,7 @@ function safeReadText(filePath) {
   }
 }
 
-function mergeHookManifests(existing, fresh) {
+export function mergeHookManifests(existing, fresh) {
   const existingObject = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {};
   const freshObject = fresh && typeof fresh === 'object' && !Array.isArray(fresh) ? fresh : {};
   const existingHooks = existingObject.hooks && typeof existingObject.hooks === 'object' && !Array.isArray(existingObject.hooks)
@@ -744,7 +719,7 @@ function addIgnoreValue(cwd, args) {
   return `Added ${parsed.rule}=${parsed.value}${scopeSuffix} to ${scope} (${path.relative(cwd, target) || target}).`;
 }
 
-function reset(cwd) {
+export function reset(cwd) {
   const removed = [];
   // Unified files may hold non-hook keys (e.g. updateCheck); strip only the
   // hook/detector subtrees and keep the rest, deleting the file only if nothing remains.
@@ -791,7 +766,7 @@ function reset(cwd) {
 function main() {
   const [, , actionArg, ...rest] = process.argv;
   const action = (actionArg || 'status').toLowerCase();
-  const cwd = process.cwd();
+  const cwd = repositoryRoot();
 
   if (!ACTIONS.has(action)) {
     process.stderr.write(`Unknown action: ${action}\nValid: ${Array.from(ACTIONS).join(', ')}\n`);
@@ -816,4 +791,4 @@ function main() {
   }
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

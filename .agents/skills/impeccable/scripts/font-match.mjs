@@ -41,6 +41,7 @@ import { crop } from './lib/raster.mjs';
 import { fingerprint, distance } from './lib/font-fingerprint.mjs';
 import { loadFontIndex, candidatesFromIndex, MIN_RANK_CAP_PX } from './lib/font-index.mjs';
 import { loadSpec, SPEC_PATH } from './comp-spec.mjs';
+import { assertWritableArtifact } from './lib/design-run-paths.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -343,6 +344,7 @@ function compactFp(fp) {
 
 async function main() {
   const specPath = arg('spec', SPEC_PATH);
+  assertWritableArtifact(specPath);
   const spec = loadSpec(specPath);
   const measureId = arg('measure'), rankId = arg('rank');
   const id = measureId || rankId;

@@ -74,16 +74,17 @@ import { compare, verdictFor, alignBuild, bestShift } from './comp-diff.mjs';
 import { textRegionCheck, chromeStripCheck, inventedInk, plateClipCheck, svgIllustrations } from './lib/hero-checks.mjs';
 import { SPEC_PATH, BUILD_DIR, loadSpec, plateReference } from './comp-spec.mjs';
 import { choiceStamped } from './font-match.mjs';
+import { designArtifactPath, assertWritableArtifact, requireDesignRun } from './lib/design-run-paths.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const STATE_PATH = path.join(BUILD_DIR, 'state.json');
 export const PHASES = ['comps', 'spec', 'plates', 'hero', 'sections', 'motion', 'responsive', 'review'];
-export const MOCKS_DIR = path.join('.impeccable', 'mocks');
+export const MOCKS_DIR = designArtifactPath('mocks');
 export const HERO_MIN = 0.72;
 export const RESPONSIVE_MIN = 0.65;
 export const PLATE_MIN = 0.4;
 export const PLATE_STRUCTURE_MIN = 0.4;
-export const HERO_REPRO = path.join('.impeccable', 'review', 'hero-repro.png');
+export const HERO_REPRO = designArtifactPath('review', 'hero-repro.png');
 
 function arg(name, fallback = null) {
   const i = process.argv.indexOf(`--${name}`);
@@ -113,6 +114,7 @@ export function readBuildPath(cwd = process.cwd()) {
  * build path is code-led (no round owed) or nothing is pending.
  */
 export function compRoundOpen(cwd = process.cwd()) {
+  if (!process.env.IMPECCABLE_RUN_ID) return null; // Historical evidence is not an active workflow.
   const buildPath = readBuildPath(cwd);
   if (buildPath === 'code') return null;
   const pending = path.join(cwd, BUILD_DIR, 'pending.json');
@@ -135,6 +137,7 @@ export function loadState(statePath = STATE_PATH) {
 }
 
 export function saveState(state, statePath = STATE_PATH) {
+  assertWritableArtifact(statePath);
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
   fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
 }
@@ -458,6 +461,7 @@ export function writeScaffold(spec, state, { dir = path.join(BUILD_DIR, 'scaffol
     '',
   ].join('\n');
   const cssPath = path.join(dir, 'layout.css');
+  assertWritableArtifact(cssPath);
   fs.writeFileSync(cssPath, css);
   const link = fontLinks.size ? `  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?${[...fontLinks].map((f) => { const [fam, w] = f.split(':'); return `family=${encodeURIComponent(fam).replace(/%20/g, '+')}:wght@${w}`; }).join('&')}&display=swap">\n` : '';
   const html = `<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <title>Scaffold reference: ${path.basename(spec.comp)}</title>\n${link}  <link rel="stylesheet" href="layout.css">\n  <style>html,body{margin:0}body{background:${(spec.palette && spec.palette[0] && spec.palette[0].hex) || '#fff'}}.region{box-sizing:border-box}.region.text p{white-space:pre-wrap}</style>\n</head>\n<body>\n<!-- Reference only. Every region sits at its measured box inside a comp-aspect frame. Take the boxes (layout.css), keep your own semantic structure. -->\n<main class="comp-frame" style="max-width:${W}px">\n${bodyParts.join('\n')}\n</main>\n</body>\n</html>\n`;
@@ -496,7 +500,7 @@ export function heroReadings(state, spec, buildPath) {
   return { text, chrome, plates, invented };
 }
 
-export function gateHero(state, { buildPath = HERO_REPRO, specPath = SPEC_PATH, min = HERO_MIN, outDir = path.join('.impeccable', 'review', 'diff', 'hero'), artifact = null } = {}) {
+export function gateHero(state, { buildPath = HERO_REPRO, specPath = SPEC_PATH, min = HERO_MIN, outDir = designArtifactPath('review', 'diff', 'hero'), artifact = null } = {}) {
   if (!fs.existsSync(buildPath)) return { ok: false, reasons: [`no hero capture at ${buildPath}: screenshot the first viewport at the comp's own dimensions (${state.breakpoint || 'comp size'}) into that path`] };
   const specForRefs = loadSpec(specPath);
   // Resolve the page first: with an artifact in hand, unreferencedPlates
@@ -727,7 +731,7 @@ export function heroLoopVerdict(state, gate, artifactPath) {
   const scores = last3.map((h) => h.score ?? 0);
   const noProgress = Math.max(...scores) - Math.min(...scores) < 0.03;
   if (stuck && noProgress) {
-    return `region ${last3[0].worstIds[0]} has been the worst region for three attempts and the score moved less than 3 points: value edits are not reaching it. Open ${path.join('.impeccable', 'review', 'diff', 'hero', 'regions', `${last3[0].worstIds[0]}.png`)} and rebuild that region from the comp crop (place its plate, or produce one with generate-image.mjs --plate, or re-derive its structure from the spec box), then recapture.`;
+    return `region ${last3[0].worstIds[0]} has been the worst region for three attempts and the score moved less than 3 points: value edits are not reaching it. Open ${designArtifactPath('review', 'diff', 'hero', 'regions', `${last3[0].worstIds[0]}.png`)} and rebuild that region from the comp crop (place its plate, or produce one with generate-image.mjs --plate, or re-derive its structure from the spec box), then recapture.`;
   }
   return null;
 }
@@ -745,9 +749,9 @@ function hashFile(file) {
  * only holds at the comp's exact width and collapses to one column 96px
  * narrower passed every earlier gate in the first simulated round.
  */
-export function gateResponsive(state, { specPath = SPEC_PATH, min = RESPONSIVE_MIN, outDir = path.join('.impeccable', 'review', 'diff', 'desktop') } = {}) {
-  const desktop = path.join('.impeccable', 'review', 'desktop.png');
-  const mobile = path.join('.impeccable', 'review', 'mobile.png');
+export function gateResponsive(state, { specPath = SPEC_PATH, min = RESPONSIVE_MIN, outDir = designArtifactPath('review', 'diff', 'desktop') } = {}) {
+  const desktop = designArtifactPath('review', 'desktop.png');
+  const mobile = designArtifactPath('review', 'mobile.png');
   const reasons = [];
   if (!fs.existsSync(desktop)) reasons.push(`no ${desktop}: capture the page at a common desktop width (1440 wide, full page) into that path`);
   if (!fs.existsSync(mobile)) reasons.push(`no ${mobile}: capture the page at 390 wide, full page, into that path`);
@@ -856,6 +860,11 @@ export function advance(state, { force = false, reason = null, gateOpts = {} } =
 }
 
 export function nextInstruction(state) {
+  const invocation = process.env.IMPECCABLE_RUN_ID ? `Run artifact commands through design-run.mjs exec ${process.env.IMPECCABLE_RUN_ID} <tool.mjs> ... . ` : '';
+  return invocation + phaseInstruction(state).replaceAll('.impeccable/build', BUILD_DIR).replaceAll('.impeccable/review', designArtifactPath('review')).replaceAll('.impeccable/mocks', MOCKS_DIR);
+}
+
+function phaseInstruction(state) {
   switch (state.phase) {
     case 'comps': return `Comp round for the chosen direction${state.direction ? ` (seed ${state.direction})` : ''}: read reference/visualize.md, generate three compositional comps of the requested surface at its own viewport into ${MOCKS_DIR}/ (each with a prompt sidecar), put them in front of the user, and set "approved": true in the chosen comp's sidecar. Then build-phase.mjs advance. No page code before this closes.`;
     case 'spec': return `Measure the comp: node comp-spec.mjs --comp ${state.comp} --grid, open ${path.join(BUILD_DIR, 'comp-grid.png')}, write regions.json (every illustration, photo, texture as its own plate region; every text block its own text region), run comp-spec.mjs --comp ${state.comp} --regions regions.json. Then measure the type: node font-match.mjs --measure <id> for each text region (cap height, width class, weight class) and font-match.mjs --rank <lead text region> --text "<its first words>" to choose the headline face by metrics (the USE line is the CSS; with no browser it records the catalog's nearest face, which is the choice; do not install one, and do not write a chosen face into the spec by hand). Then build-phase.mjs advance.`;
@@ -890,6 +899,7 @@ async function main() {
     console.error('usage: build-phase.mjs start --comp <png> [--breakpoint WxH] | status [--json] | advance [--force --reason "..."] | record hero --build <png> | scaffold | note "<text>" | finish --disposition <word>');
     process.exit(1);
   }
+  if (cmd !== 'status') requireDesignRun();
   if (cmd === 'start') {
     const comp = arg('comp');
     const direction = arg('direction');

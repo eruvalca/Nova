@@ -1,10 +1,10 @@
 ---
 name: add-feature-slice
 description: >-
-  Orchestrates building a full vertical feature slice in Nova: input/query contract, service (ServiceResult/ServiceProblem), HTTP endpoint, WASM client, tests.
-  USE FOR: add a new feature, build a vertical slice end to end, add a read-only query API, new input record + service + endpoint, scaffold a feature, add a service that crosses the HTTP/WASM boundary.
-  DO NOT USE FOR: domain/persistence-only work (use add-domain-persistence), a single endpoint on an existing service (use add-api-endpoint), UI-only work such as adding a page or component (use add-blazor-ui), only writing/running tests (use nova-testing).
-  INVOKES: add-domain-persistence (when schema/domain persistence changes), add-api-endpoint (endpoint step), add-blazor-ui (UI step), nova-testing (test step).
+  Build a Nova feature across shared input/contracts, server service, HTTP, WASM client, and tests.
+  Use for an end-to-end mutation or bounded query, including recoverable stateful flows. For a
+  single endpoint use add-api-endpoint; for UI-only work use add-blazor-ui; for persistence-only
+  work use add-domain-persistence. Delegates those steps and harness selection to their skills.
 ---
 
 # Add Feature Slice
@@ -24,6 +24,10 @@ Canonical examples: Clubs for mutations and
 
 ## Ordered checklist
 
+0. **Map consequential transitions, when applicable** — before implementing a recoverable command,
+   contextual form validation, or async state whose authorization can change, use
+   [stateful-transitions.md](references/stateful-transitions.md). Map ownership, entry points,
+   effects, and proving tests in the existing task plan; skip this for ordinary CRUD.
 1. **Domain/persistence or decision policy, when needed** — invoke `add-domain-persistence` for entity,
    EF configuration, migration, tenancy, lifecycle, concurrency, or a non-trivial deterministic
    business-rule matrix. Logic-only policy work does not require entity or migration changes.
@@ -43,4 +47,6 @@ Canonical examples: Clubs for mutations and
 7. **UI (pages/components)** — invoke `add-blazor-ui` when the slice surfaces in the UI; it owns
    placement, the render-mode decision, lifecycle/persisted state, callbacks, and form wiring. Do not
    duplicate that skill's details here.
-8. **Tests** — invoke `nova-testing`; do not duplicate that skill's test-suite details here.
+8. **Tests and closure** — invoke `nova-testing`; map the new behavior to tests as well as recording
+   their execution. For a review finding or a complex stateful slice, use its
+   [finding-closure and independent-review reference](../nova-testing/references/review-and-finding-closure.md).

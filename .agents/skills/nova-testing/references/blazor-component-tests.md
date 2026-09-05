@@ -63,6 +63,9 @@ instead of the backing-field value. Use
 
 ## Testing correction and recovery
 
+Map the relevant entry points and ownership transitions before implementation with
+[stateful-transitions.md](../../add-feature-slice/references/stateful-transitions.md).
+
 - For server field validation, submit through the rendered form, receive a contextual error, edit
   the input, re-render with the unchanged parent error snapshot, and submit again. Assert the
   corrected payload reaches the service; seeing the first error alone does not prove recovery.
@@ -71,6 +74,9 @@ instead of the backing-field value. Use
   command once. See `CampaignEntryTests` for both patterns.
 - Supply `[SupplyParameterFromQuery]` values through the test `NavigationManager`, not
   `parameters.Add(...)`; the installed bUnit rejects direct query-parameter assignment.
+- For a shared form-error helper, cover field-specific clearing, unchanged-parent rerenders,
+  replacement error snapshots, and `EditContext` replacement/disposal, then prove corrected
+  resubmission through a rendered consuming form. Keep assertions on behavior, not helper fields.
 
 ## Render-mode assertion (required for interactive pages)
 
@@ -155,6 +161,11 @@ markup disappears before completion, then complete an old request late and prove
 stale data or clear the new operation's busy state. Seed a persisted error with its original club
 id as well as a successful snapshot; a null payload still has tenant ownership. Browser focus and
 DOM replacement behavior belongs in the [browser suite](browser-suite.md), not a bUnit JS mock.
+
+Apply the same held-completion test to JS/storage awaits that precede a service call. Change the
+user/club/route or required permission while JS is pending, then complete it and assert no stale
+dispatch or navigation. Test immediate visible-state invalidation independently of slow or failed
+storage cleanup. A cancellation token alone cannot prove these ownership checks.
 
 ## Conventions
 

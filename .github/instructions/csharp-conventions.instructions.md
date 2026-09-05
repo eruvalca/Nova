@@ -43,14 +43,9 @@ If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with `
 ## Extension Members (C# 14)
 
 - **Use C# 14 extension blocks** for all new extension members. Declare a static class containing one or more `extension(ReceiverType receiver) { ... }` blocks instead of classic `this`-parameter extension methods.
-- The receiver parameter is declared once on the `extension(...)` block; members inside reference it directly and omit both `static` and the `this` parameter.
-- Generic receivers and constraints go on the block: `extension<TBuilder>(TBuilder builder) where TBuilder : IHostApplicationBuilder { ... }`.
-- Use a receiver type without a parameter name (`extension(IEnumerable<T>)`) when defining static extension members or operators.
 - Group multiple extension blocks for different receiver types in one static class when they form a cohesive feature.
-- Private non-extension helpers stay as ordinary `private static` methods at class level.
 - Control visibility at the enclosing static class: `internal static class` when consumed only within the assembly; `public static class` when extending framework types consumed across projects.
 - Do not use `file static` for extension classes consumed from other files.
-- Document extension members with XML comments explaining the receiver type they extend and the behavior they add.
 - Canonical examples: `Nova/Features/Shared/ServiceResultExtensions.cs`, `Nova.Shared/Results/HttpResponseMessageExtensions.cs`, `Nova.ServiceDefaults/Extensions.cs`.
 
 ## Entity-to-DTO Mapping
@@ -60,16 +55,19 @@ Use **C# 14 extension blocks** to map domain entities to DTOs. Place one extensi
 - Use C# 14 extension block syntax (`extension(EntityType entity) { ... }`) rather than classic `this`-parameter methods.
 - Mark the containing static class `internal` — mapping extensions are server-only (entities live in `Nova`; DTOs in `Nova.Shared`).
 - Name each mapping method `To{DtoType}()` and return the DTO directly from an expression body.
-- Document every method with XML comments; when a navigation property must be loaded before calling the method, state that requirement explicitly in `<summary>`.
-- **Never call a mapping method directly in an EF LINQ query** (e.g. inside `Select` before `ToListAsync`). EF cannot translate C# extension methods to SQL. Always materialize first (`.ToListAsync()`), then project in memory (`entities.Select(e => e.ToDto())`).
+- Document required loaded navigation properties when callers must satisfy that precondition.
+- Do not call these mapping methods inside an EF query. Project the needed columns in SQL when
+  possible; when an entity mapper is appropriate, filter/order/bound in SQL before materializing
+  and mapping in memory. Do not load an unbounded entity set merely to use a mapper.
 - Canonical example: `Nova/Extensions/Clubs/ClubEntityExtensions.cs`.
 
 ## Documentation
 
-- Add XML documentation comments (`///`) for every C# type and member you add or modify, including `public`, `protected`, `internal`, and `private` declarations.
-- Required coverage includes classes, records, structs, interfaces, enums, delegates, services, constructors, methods, properties, fields, and events.
-- Every documented symbol must include a meaningful `<summary>` that explains purpose and behavior, not just a restatement of the symbol name.
-- Add `<param>` for each method or constructor parameter. Add `<returns>` for non-`void` return values, including `Task<T>` and `ValueTask<T>`.
+- Document shared/public contracts and non-obvious preconditions, invariants, effects, cancellation,
+  and recovery behavior. Explain what callers must know; include parameter and return details when
+  their semantics are not clear from the signature.
+- Private state fields, straightforward helpers, test arrangements, and ordinary DI constructors
+  do not need XML narration. Keep useful existing comments; do not bulk-remove documentation.
 - Keep documentation behavior-accurate. When behavior changes, update docs in the same change.
 - Generated or third-party sources are excluded unless their generator supports documentation customization.
 

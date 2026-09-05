@@ -17,11 +17,12 @@ All three test projects use **xUnit v4 on Microsoft.Testing.Platform (MTP)** wit
 | ------------- | ------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Pure policy   | `Nova.Unit.Tests`        | None                                        | Deterministic business decisions over constructed immutable facts; no harness, DI, mocks, or logger                                                    |
 | Service shell | `Nova.Unit.Tests`        | Shared in-memory SQLite (`EnsureCreated()`) | Query-filter composition, interceptor branching, authorization, tenancy, effects, OneOf state                                                          |
+| HTTP boundary | `Nova.Integration.Tests` | Real app through the Aspire AppHost | Route registration, middleware, policy enforcement, binding, response metadata/serialization, and usable Location headers |
 | Provider/race | `Nova.Integration.Tests` | Real PostgreSQL 18 via the Aspire AppHost   | Production migrations, mappings, constraints, advisory locks, transaction races, execution-strategy retries, ambiguous commits, filter SQL translation |
 | Browser flow  | `Nova.Browser.Tests`     | Real app via the Aspire AppHost + Playwright Chromium | Interactive UI flows that cross the server boundary: multi-user/role behavior, lifecycle conflicts, URL/history state, responsive layouts, keyboard/focus, and contrast/touch-target checks |
 
-**Default new tests to `Nova.Unit.Tests`.** Add an integration test only when behavior depends on the
-real provider (type mappings, migrations, constraints, advisory locks, transaction races,
+**Default new tests to `Nova.Unit.Tests`.** Use integration tests for the real HTTP boundary or
+provider behavior (type mappings, migrations, constraints, advisory locks, transaction races,
 execution-strategy retries, ambiguous commits, SQL translation, collation). SQLite will not catch
 `timestamptz` offsets, identity-column semantics, collation, advisory-lock behavior, provider retry
 semantics, or SQL-translation limits.
@@ -36,84 +37,20 @@ semantics, or SQL-translation limits.
 - Bare invocation such as `dotnet test <project>.csproj` can fail to discover tests in this xUnit v4/MTP setup, so avoid it in repo instructions and scripts.
 - **Do NOT pass VSTest-only flags** (`--nologo`, `--collect`, `--logger`) — MTP rejects them.
 - Filter by class with `--filter-class "*Name"`.
-- **CI runs build and unit tests only.** Run the integration and browser suites locally before opening a PR and again before merge; on intermediate pushes, re-run them only when the change affects the provider/HTTP boundary or interactive UI. A green CI run is not proof the full suite is green.
+- Follow the authoritative verification commands and PR gate in `AGENTS.md`. Development checks
+  use the affected tests; PR/merge verification includes all three suites. A successful selected
+  run proves execution, not coverage of a new behavior. The proposed full CI job is authoritative
+  only after its hosted-runner proof and required-check configuration are verified; until then,
+  retain local integration/browser evidence and do not infer their success from other green jobs.
 - Broad test-generation workflows may create `.testagent/` as temporary local state. The directory is
   gitignored and must not be committed; durable evidence belongs in the tests and the PR validation
   summary.
 
-## Local Aspire workflow
+## Browser suite
 
-- `dotnet run --project Nova.AppHost` is the supported manual developer entry point. The
-  `AspireUseCliBundle` setting delegates it to `aspire run` through `dnx`; the first run on a
-  machine may acquire the CLI bundle before the dashboard opens. Agents and automation still use
-  `aspire start --isolated --non-interactive`.
-- The dashboard exposes **Reset nova database** on the `postgres` resource and **Clear profile
-  photos** on the `storage` resource. Both require selecting `yes` in the confirmation dialog.
-  The CLI equivalents are:
-    - `aspire resource postgres reset-db --confirm yes`
-    - `aspire resource storage clear-profile-photos --confirm yes`
-- `aspire stop --force` is the broader destructive reset. It permanently deletes the
-  Postgres and Azurite volume data; prefer the targeted commands when only the database or profile
-  photos need resetting.
-- The VS Code Aspire extension no longer opens the dashboard automatically. Opt in with its
-  `dashboardBrowser` setting or configure dashboard launch behavior in `launch.json`.
-
-## Browser suite (`Nova.Browser.Tests`)
-
-Automated, committed browser coverage of real UI flows against the Aspire-hosted app (Playwright
-Chromium + `Microsoft.Playwright`). It reuses `NovaAppHostFixture`, `IdentityHttpClientHelper`,
-and `SeedingHelpers` from `Nova.Integration.Tests` via a project reference and
-`InternalsVisibleTo("Nova.Browser.Tests")`.
-
-Hard-won facts that are not discoverable from the code — follow them or you will rediscover each by failing:
-
-- Playwright assertions live in the static `Microsoft.Playwright.Assertions` class
-  (`using static Microsoft.Playwright.Assertions;`); there is no bare `Expect(...)`.
-- Blazor performs `NavigationManager.NavigateTo` client-side (no document load fires): use
-  `WaitUntilState.Commit` for `WaitForURLAsync`/`GoBackAsync`/`GoForwardAsync`, never the
-  default `Load`.
-- SSR-prerendered roster rows swallow clicks until the interactive circuit attaches: always
-  click-through with a retry helper that stops once the drawer actually opens (see
-  `OpenParticipantAsync` in `CampaignEvaluationBrowserTests`), and open+close a participant
-  before driving filters in URL-state tests to prove hydration.
-- **Playwright action methods throw `System.TimeoutException`, not `PlaywrightException`,** on
-  actionability timeouts (Click/Check/Select/Fill/Focus). Hydration-retry loops that catch only
-  `PlaywrightException` let these escapes turn latency into hard failures. Catch both:
-  `catch (Exception e) when (e is PlaywrightException or TimeoutException)` — the pattern
-  `InteractionHelpers.ActUntilAsync` already applies. `Expect`-only assertion catches should stay
-  `PlaywrightException` (assertion failures use that type).
-- **Never assert computed styles synchronously after triggering a CSS transition.** Bootstrap
-  transitions (e.g. `box-shadow` ~0.15s, or an async-loading stylesheet) mean a single
-  `getComputedStyle().backgroundColor`/`.boxShadow` read right after `focus()` observes the start
-  value. Poll through `BrowserRetryPolicy` (read, break when it matches, else
-  `WaitForTimeoutAsync(BrowserRetryPolicy.Delay)`).
-
-Conventions:
-
-- One-time setup per machine: `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`
-  (relocate the cache with `PLAYWRIGHT_BROWSERS_PATH` if needed).
-- Env-gated helpers must `Assert.Skip(...)` when their flag is unset, never pass silently:
-  `NOVA_BROWSER_HEADED=1` shows the browser, `NOVA_A11Y_SCREENSHOTS=1` captures accessibility
-  evidence to `%TEMP%\nova-a11y-screenshots` (screenshots + contrast/touch-target measurements).
-- Accessibility regression assertions (drawer control touch targets ≥24×24 px, tag chip text
-  contrast ≥4.5:1) belong in this suite; keep them in the scenario that exercises the control.
-- Seed users via `IdentityHttpClientHelper` (HTTP registration) and data via the fixture's
-  admin EF context — never through UI registration in automation; sign in through the real
-  `/Account/Login` page.
-- New shared seeding helpers go in `Nova.Integration.Tests\Http\SeedingHelpers.cs` (internal,
-  visible to the browser project); do not copy seeding helpers per file.
-- Hydration-retry windows are centralized in `Nova.Browser.Tests\BrowserRetryPolicy.cs`
-  (env-tunable `NOVA_BROWSER_RETRY_MAX_ATTEMPTS` / `NOVA_BROWSER_RETRY_DELAY_MS`) and consumed by
-  `Nova.Browser.Tests\InteractionHelpers.cs`; do not reintroduce per-file hard-coded
-  `ActUntilAsync`/`ClickUntilAsync`/`TabUntilFocusedAsync` copies. Defaults and the Azurite/upload
-  seeding-retry bounds live in `.agents/skills/nova-testing/references/browser-suite.md`.
-- The AppHost fixture (`Nova.Integration.Tests\Data\NovaAppHostFixture.cs`) best-effort waits for the
-  Azurite `storage` resource to report healthy and retries the `profile-photos` container probe
-  through a bounded hard-coded window before failing fast; `IdentityHttpClientHelper` retries the
-  profile-photo upload on transient failures (transport errors / 5xx) with a fresh multipart payload
-  per attempt.
-- **Machine-scoped serialization**: Aspire-backed integration and browser runs share the machine's single Docker engine, so a concurrent run from another worktree can push this suite's bounded retry windows (`BrowserRetryPolicy`, the fixture's Azurite probe) into flaky timeouts — wait for the other run instead. The runs' identities are already isolated: the testing builder randomizes host ports (`DcpPublisher:RandomizePorts=true` default), DCP appends per-run random suffixes to container and session-network names, the fixture strips all data volumes (`RemoveDataVolumes`), and dev-run volumes hash the checkout path — so the shared piece is capacity, not names or ports.
-- The full step-by-step recipe lives in `.agents/skills/nova-testing/references/browser-suite.md`.
+Browser-specific hydration, navigation, accessibility, and seeding constraints live in
+`.github/instructions/browser-testing.instructions.md`; load it for browser work. The shared
+AppHost and HTTP helper rules also appear in the integration/browser skill references.
 
 ## Aspire + Playwright validation (manual browser pass)
 
@@ -125,6 +62,14 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 
 ## Conventions
 
+- For recoverable commands, contextual form validation, or async state whose user/club/permission
+  can change, map the relevant transitions to tests before implementation. Use
+  `.agents/skills/add-feature-slice/references/stateful-transitions.md`; ordinary CRUD does not
+  require a transition document.
+- When fixing a behavioral finding, reproduce it, inspect sibling entry points/consumers, and
+  protect both the fix and a neighboring valid path. Use
+  `.agents/skills/nova-testing/references/review-and-finding-closure.md` for bounded closure and
+  an independent review brief. Passing the whole suite does not substitute for reproducing the miss.
 - One behavior per test; name `Subject_Outcome_Condition` (e.g. `Interceptor_Throws_OnCrossTenantAdd`).
   Use Shouldly (`ShouldBe`, `Should.Throw<T>`) and `[Theory]`/`[InlineData]` for case matrices.
   Theories use `[Theory(IncludeTestCaseIndex = true)]` (xUnit v4) so a failing data row is

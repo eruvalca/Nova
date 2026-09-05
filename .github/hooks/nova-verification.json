@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "node \"$(git rev-parse --show-toplevel)/eng/hooks.mjs\" --provider copilot --event start",
+        "powershell": "$novaHookRoot = git rev-parse --show-toplevel; if ($LASTEXITCODE -eq 0) { & node (Join-Path $novaHookRoot 'eng/hooks.mjs') --provider copilot --event start }",
+        "timeoutSec": 10
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "node \"$(git rev-parse --show-toplevel)/eng/hooks.mjs\" --provider copilot --event prompt",
+        "powershell": "$novaHookRoot = git rev-parse --show-toplevel; if ($LASTEXITCODE -eq 0) { & node (Join-Path $novaHookRoot 'eng/hooks.mjs') --provider copilot --event prompt }",
+        "timeoutSec": 10
+      }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "bash": "node \"$(git rev-parse --show-toplevel)/eng/hooks.mjs\" --provider copilot --event stop",
+        "powershell": "$novaHookRoot = git rev-parse --show-toplevel; if ($LASTEXITCODE -eq 0) { & node (Join-Path $novaHookRoot 'eng/hooks.mjs') --provider copilot --event stop }",
+        "timeoutSec": 30
+      }
+    ]
+  }
+}

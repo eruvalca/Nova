@@ -1,5 +1,5 @@
 ---
-applyTo: "**/Features/Campaigns/**/*.cs,**/*Placement*.cs,**/*PlayerCampaignAssignment*.cs,Nova/Features/Players/**/*.cs,Nova/Features/Teams/**/*.cs,Nova/Features/Attention/**/*.cs"
+applyTo: "**/Features/Campaigns/**/*.cs,**/Features/Campaigns/**/*.razor,**/*Placement*.cs,**/*PlayerCampaignAssignment*.cs,Nova/Features/Players/**/*.cs,Nova/Features/Teams/**/*.cs,Nova/Features/Attention/**/*.cs,Nova.Unit.Tests/Campaigns/**/*.cs,Nova.Integration.Tests/**/*Campaign*.cs,Nova.Browser.Tests/**/*Campaign*.cs"
 description: "Placement decision semantics: participation, same-season precedence, withdrawal authority, immutable history, and no-op saves."
 ---
 

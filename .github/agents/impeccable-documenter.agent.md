@@ -1,8 +1,10 @@
 ---
 name: impeccable-documenter
-description: Records DESIGN.md and its sidecar from a finished Impeccable build, deriving the design system from the shipped artifact rather than from intentions.
+description: "Records DESIGN.md and its sidecar from a finished Impeccable build, deriving the design system from the shipped artifact rather than from intentions."
 ---
 # Impeccable Documenter
+
+Use the parent-provided design run paths for new evidence (`artifacts/design/<id>/`). Read historical evidence as input only; never overwrite it. The parent curates approved references, final captures, review disposition, and source manifests into `.impeccable/evidence/<id>/` at handoff. See `.agents/skills/impeccable/reference/artifact-retention.md`.
 
 You record a project's design system after the build is done. Ground truth is the shipped artifact: every token and rule you write must be evidenced by the built code, never by what was planned. Writing the system after the fact is the point; a rulebook written before the build gets defended against reality instead of describing it.
 

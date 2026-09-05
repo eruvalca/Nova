@@ -11,22 +11,22 @@
 - The Blazor WebAssembly project for interactive components is `Nova.Client/Nova.Client.csproj`.
 - The shared UI library is `Nova.UI/Nova.UI.csproj`.
 - The shared models, interfaces, endpoints, results, validation, and utilities project is `Nova.Shared/Nova.Shared.csproj`.
-- The automated browser workflow suite (Playwright, local-only) is `Nova.Browser.Tests/Nova.Browser.Tests.csproj`.
+- The automated browser workflow suite (Playwright) is `Nova.Browser.Tests/Nova.Browser.Tests.csproj`.
 - Aspire instrumentation is configured in `Nova.AppHost/Nova.AppHost.csproj` and `Nova.ServiceDefaults/Nova.ServiceDefaults.csproj`.
 
 ## Build & validation
 
+- Use Node 24+ and the shared engineering command: `node eng/verify.mjs run --profile pre-pr` before opening a PR, and `--profile pre-merge` before merging. These are fresh build, engineering, format, contrast, unit, PostgreSQL integration, and browser runs. The fixture starts its own testing AppHost. See `eng/README.md` for prerequisites and diagnostic output.
+- For a push, inspect `node eng/verify.mjs plan --profile push --base <commit>`, then run the same profile/base. Unit tests always run; the selector conservatively adds affected suites. Focused development checks use `node eng/verify.mjs run --profile quick --suite unit --filter-class <pattern>`; quick never establishes full PR readiness. `status --profile <profile> --json` reports current execution evidence, not behavioral coverage.
 - Build: `dotnet build Nova.slnx`
 - Within one worktree, do not run build-capable `dotnet build` or `dotnet test` commands concurrently: building `Nova/Nova.csproj` may execute `npm ci`, which replaces the shared `Nova/node_modules` tree. Run `dotnet build Nova.slnx` first, then use `--no-build` for tests.
-- Keep the Aspire-backed integration and browser suites serial. Every run — in the same worktree or another — shares the machine's single Docker engine, and a concurrent suite's load can push the browser suite's bounded hydration/Azurite retry windows into flaky timeouts. Only that capacity is shared: container names, session networks, host ports, and Postgres/Azurite data volumes are already randomized per run or hashed per checkout path (`aspire start --isolated` covers dev-run ports and user secrets) — so treat serialization as a per-machine mutex, not a name-collision guard.
+- The runner serializes builds per checkout. The shared fixture holds an OS-backed machine lock through Aspire teardown, including for direct test commands. Integration/browser suites share Docker capacity across worktrees; container names, networks, ports, and data volumes are already isolated. Do not bypass the lock or launch competing build commands outside the runner.
 - Run: `dotnet run --project Nova.AppHost` (delegates through the Aspire 13.5 CLI bundle; Aspire provisions PostgreSQL 18 and the Azurite blob emulator for `profile-photos`, and exposes the dashboard plus `/health`/`/alive`). `Nova` has no usable connection string or blob client without the AppHost.
 - OpenAPI document: `/openapi` (Development only).
 - Format check (required before commit): `dotnet format Nova.slnx --verify-no-changes`; apply fixes with `dotnet format Nova.slnx`
 - Bootstrap theme: `npm ci` then `npm run build:css` (from `Nova/`) compiles the Sass theme to `Nova/wwwroot/css/bootstrap-theme.css`; `npm run check:contrast` validates WCAG contrast and asserts no Bootstrap-blue literals. Run both from `Nova/` after any `scss/` or `package.json` change.
-- Unit tests: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj`
-- Integration tests (require the Aspire AppHost for PostgreSQL): `dotnet test --project Nova.Integration.Tests/Nova.Integration.Tests.csproj` — CI runs build and unit tests only, so run these locally before opening a PR and before merge (see the pull request test gate below).
-- Browser tests (Playwright against the Aspire AppHost, local-only): `dotnet test --project Nova.Browser.Tests/Nova.Browser.Tests.csproj` — requires a one-time browser download per machine: `Nova.Browser.Tests\bin\Debug\net10.0\playwright.ps1 install chromium`.
-- **Pull request test gate**: before opening a PR, run all three suites locally — unit, integration, and browser — and ensure they pass. On pushes to an open PR, re-run the suites the change can affect: unit always (cheap, and CI runs them); integration for provider/HTTP-boundary or EF changes; browser for interactive UI, markup, CSS, or JS-interop changes. When in doubt, run all three. Re-run all three before merge. CI only builds and runs unit tests (the Aspire-dependent suites are local-only), so a green CI run is not proof the full suite is green. The PR template checklist in `.github/pull_request_template.md` restates this gate.
+- Direct suite commands after a build: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build` (or the integration/browser project). Browser setup: `pwsh -File Nova.Browser.Tests/bin/Debug/net10.0/playwright.ps1 install chromium` once per machine; Linux also requires Playwright system dependencies.
+- Full CI is defined in `.github/workflows/ci.yml`; its hosted rollout and required-check proof are recorded in `plans/pr-244-process-hardening.md`. Keep fresh local pre-PR/premerge gates. A successful run does not prove that a feature's consequential behaviors have adequate tests.
 
 ## Repository decisions
 
@@ -46,6 +46,8 @@ All agent-facing guidance — instructions, skills, custom agents, and hooks —
 - Skills use the open Agent Skills format. `.agents/skills/` is read by both Codex and Copilot and is the primary location; any skill that also ships a Copilot-specific copy under `.github/skills/` must keep the `.agents/skills/` copy complete and in sync (same version, same behavior).
 - Custom agents ship in both formats: `.github/agents/*.agent.md` for Copilot, matching TOML definitions in `.codex/agents/*.toml` for Codex.
 - Hooks ship in both formats: `.github/hooks/*.json` for Copilot, `.codex/hooks.json` for Codex.
+- Canonical adapter checks: `node eng/guidance.mjs check`; regenerate owned entries with `sync`, preserving unrelated hooks. `explain <path>` shows applicable scoped instructions.
+- For an implementation handoff or PR/merge checkpoint, explicitly arm `node eng/verify.mjs expect --session <native-id> --profile <profile> --base <commit>` using the session ID supplied by enabled hooks. Record a user wait or environmental blocker with `defer --session <native-id> --reason <reason>`. A new request expires that intent. Without a native session, use verification directly; hooks are advisory and cannot establish a pass.
 - When a rule, skill, agent, or hook changes, update every ecosystem copy in the same change — never let them drift.
 
 ## Targeted Instructions
@@ -58,14 +60,16 @@ If a targeted instruction file is referenced but not available in context, state
 - `.github/instructions/ef-core-tenancy.instructions.md` for EF Core setup, club-based multi-tenancy, DbContext selection (`NovaDbContext`/`NovaReadDbContext`/`NovaAdminDbContext`), entity/relationship rules, and migrations.
 - `.github/instructions/observability.instructions.md` for OpenTelemetry and correlation conventions: W3C/`Activity.Current` correlation, ServiceDefaults-owned wiring, Blazor tracing source inclusion, WASM HTTP trace propagation, and `ProblemDetails` trace IDs.
 - `.github/instructions/testing.instructions.md` for the test suite: unit vs Aspire integration vs Playwright browser tests, the SQLite tenancy harness, the AppHost fixture, the browser suite conventions, and how to run each project.
+- `.github/instructions/browser-testing.instructions.md` for browser fixtures, Playwright interaction, diagnostic output, and real navigation/focus checks.
 - `.github/instructions/validation.instructions.md` for DataAnnotations on input records, `NotWhitespace`, `InputValidator`, structural vs contextual validation, and dual-layer validation.
 - `.github/instructions/service-layer.instructions.md` for service-layer patterns: ServiceProblem/ServiceResult types, OneOf preference, validation, DI registration, lifecycle-mutation locking, trace IDs, and logging.
 - `.github/instructions/season-lifecycle.instructions.md` for season currentness and advancement invariants, campaign season selection, and preservation of historical club data.
 - `.github/instructions/placement-decisions.instructions.md` for participation versus saved decisions, same-season precedence, withdrawal authority, immutable Closed outcomes, and placement no-op semantics.
 - `.github/instructions/functional-core.instructions.md` for selectively extracting deterministic business decisions into feature-local policies while services retain authorization, EF, locking, persistence, and effects.
 - `.github/instructions/api-endpoints.instructions.md` for HTTP endpoint patterns: MapGroup organization, handler methods, ServiceResult conversion, ProblemDetails structure, authorization, and enum binding.
-- `.github/instructions/bootstrap-theme.instructions.md` for the Sass-compiled kelp-forest Bootstrap theme: `Nova/scss/_variables.scss` is the single source of truth for palette tokens, `npm run build:css` / `npm run check:contrast` are authoritative, Node 20+/npm only, the compiled `Nova/wwwroot/css/bootstrap-theme.css` is generated (never edit or commit it), and never re-add vendored Bootstrap CSS or Bootstrap-blue literals; DESIGN.md/PRODUCT.md are the source of truth for color *semantics*.
-- `.github/instructions/ui-design.instructions.md` for the Fieldhouse Wayfinding design system: DESIGN.md/PRODUCT.md as design sources of truth, semantic color roles, flat boards, navigation and route-marker semantics, touch/motion rules, and responsive collapse — applies to `**/*.razor`, `**/*.razor.css`, `Nova/scss/**`, `Nova/Components/Pages/**`, `Nova/Features/**`.
+- `.github/instructions/bootstrap-theme.instructions.md` for the Sass-compiled kelp-forest Bootstrap theme: `Nova/scss/_variables.scss` is the single source of truth for palette tokens, `npm run build:css` / `npm run check:contrast` are authoritative, Node 24+/npm only, the compiled `Nova/wwwroot/css/bootstrap-theme.css` is generated (never edit or commit it), and never re-add vendored Bootstrap CSS or Bootstrap-blue literals; DESIGN.md/PRODUCT.md are the source of truth for color *semantics*.
+- `.github/instructions/ui-design.instructions.md` for Fieldhouse Wayfinding visual rules on Razor, isolated CSS, and Sass.
+- `.github/instructions/navigation-design.instructions.md` for navigation/route-marker semantics, including code-behind and shared navigation contracts.
 
 ### Using targeted instructions
 

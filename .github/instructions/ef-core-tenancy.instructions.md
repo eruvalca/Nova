@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova/Data/**/*.cs,Nova/Entities/**/*.cs,Nova/Features/**/*Service*.cs,Nova/Program.cs,Nova.Unit.Tests/**/*.cs"
+applyTo: "Nova/Data/**/*.cs,Nova/Entities/**/*.cs,Nova/Features/**/*Service*.cs,Nova/Program.cs,Nova.Unit.Tests/Data/**/*.cs,Nova.Unit.Tests/**/*TenancyTests.cs,Nova.Integration.Tests/Data/**/*.cs"
 description: "EF Core setup, club-based multi-tenancy, tenant-safe query construction, provider behavior, entity/relationship rules, and migrations."
 ---
 
@@ -22,8 +22,9 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 - Default to `NovaDbContext`. Use `NovaReadDbContext` when you know you won't write. Use
   `NovaAdminDbContext` only behind `Policies.RequireAdmin` or in infrastructure (Identity,
   seeding) — never in user-facing tenant flows.
-- In Blazor components/services, inject `IDbContextFactory<T>` and `await factory.CreateDbContextAsync()`
-  with `await using`; do not inject the context directly.
+- In application services, inject `IDbContextFactory<T>` and `await factory.CreateDbContextAsync()`
+  with `await using`; do not inject the context directly. Components call feature services and do
+  not access a context or context factory.
 - Never call `IgnoreQueryFilters()` to "fix" a missing-data bug — switch to `NovaAdminDbContext`
   behind an admin policy instead, so the intent is auditable.
 

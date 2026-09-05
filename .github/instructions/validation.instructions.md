@@ -11,7 +11,7 @@ description: "Validation rules: DataAnnotations on input records as single sourc
 
 ## Annotated input records are the single source of truth
 
-- Every input record lives in `Nova.Shared/{Feature}/{Name}Input.cs` and carries its validation rules
+- Every input record lives in `Nova.Shared/Features/{Feature}/{Name}Input.cs` and carries its validation rules
   as DataAnnotations. Services do not hand-roll field checks; they run the same attributes.
 - **Use explicit init-only properties, not positional constructor parameters.** Attributes on
   positional record parameters land on the *constructor parameter*, which `Validator.TryValidateObject`
@@ -19,10 +19,13 @@ description: "Validation rules: DataAnnotations on input records as single sourc
 
 ## `[Required]` + `[NotWhitespace]`
 
-- `[Required]` rejects a missing value (`null`) but treats `"   "` as valid.
+- `[Required]` rejects `null`, empty strings, and whitespace-only strings by default in .NET 10.
+  `AllowEmptyStrings = true` changes its string behavior.
 - `[NotWhitespace]` (`Nova.Shared/Validation/NotWhitespaceAttribute.cs`) rejects empty/whitespace-only
-  strings and passes `null` (so `[Required]` owns "missing", `[NotWhitespace]` owns "present but blank").
-- **Always pair them** (`[Required, NotWhitespace]`) on every string that must contain non-blank text.
+  strings and passes `null`. It is an explicit Nova constraint, not a workaround for a gap in
+  `[Required]`; do not claim the pair guarantees separate missing/blank messages.
+- Keep the repository's `[Required, NotWhitespace]` convention for non-blank required strings and
+  preserve existing annotations and error contracts when correcting this guidance.
 - Add `[MaxLength]`, `[Range]`, `[EmailAddress]`, etc. as appropriate.
 
 ## `InputValidator.Validate<T>`

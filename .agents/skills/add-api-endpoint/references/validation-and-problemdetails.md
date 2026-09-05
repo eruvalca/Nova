@@ -61,7 +61,12 @@ public sealed record CreateClubInput
 }
 ```
 
-Pair `[Required]` with `[NotWhitespace]` (defined in `Nova.Shared/Validation/NotWhitespaceAttribute.cs`) on every string field that must contain non-blank text — `[Required]` alone treats `"   "` as valid. Use explicit init-only properties rather than positional constructor parameters so attributes land on the properties where `Validator.TryValidateObject` can reflect on them. The same attributes are re-run at the service layer via `InputValidator.Validate<T>`; see `.github/instructions/validation.instructions.md`.
+Keep the Nova `[Required, NotWhitespace]` convention for non-blank required strings. .NET 10's
+`[Required]` already rejects whitespace by default; preserve existing annotations and error
+contracts without describing the custom attribute as a framework workaround. Use explicit init-only
+properties rather than positional constructor parameters so attributes land where
+`Validator.TryValidateObject` reflects. The service re-runs the same attributes through
+`InputValidator.Validate<T>`; see `.github/instructions/validation.instructions.md`.
 
 When a request body fails DataAnnotations validation the framework returns an RFC 7807 `HttpValidationProblemDetails` (HTTP 400) **before the handler is invoked**. The `AddProblemDetails` customization in `Program.cs` injects the W3C `traceId` into all problem responses, including framework-generated ones.
 

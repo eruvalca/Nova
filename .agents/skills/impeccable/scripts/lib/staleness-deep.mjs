@@ -22,13 +22,14 @@ const VISUAL_SOURCE_DIRS = ['src', 'app', 'pages', 'components', 'site', 'styles
 const HOOK_MANIFESTS_BY_PROVIDER = Object.freeze({
   'claude-code': ['.claude/settings.local.json', '.claude/settings.json'],
   codex: ['.codex/hooks.json'],
-  agents: ['.codex/hooks.json'],
+  agents: ['.codex/hooks.json', '.github/hooks/impeccable.json'],
   cursor: ['.cursor/hooks.json'],
   github: ['.github/hooks/impeccable.json'],
   grok: ['.grok/hooks/impeccable.json'],
 });
 
 const HOOK_SCRIPT_MARKERS = [
+  'eng/hooks.mjs',
   'skills/impeccable/scripts/hook.mjs',
   'skills/impeccable/scripts/hook-before-edit.mjs',
 ];
@@ -253,6 +254,8 @@ const HOOK_MARKER = /skills\/impeccable\/scripts\/hook(?:-before-edit)?\.mjs/;
 // or `||`. Returns the token verbatim; resolution happens separately.
 function hookScriptTokenFrom(command) {
   const str = String(command);
+  // Nova's reviewed adapters always resolve this path from the Git root.
+  if (str.includes('eng/hooks.mjs')) return 'eng/hooks.mjs';
   if (!HOOK_MARKER.test(str)) return null;
   const quoted = str.match(/"([^"]*skills\/impeccable\/scripts\/hook(?:-before-edit)?\.mjs)"/);
   if (quoted) return quoted[1];

@@ -2,14 +2,12 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|apply_patch",
         "hooks": [
           {
             "type": "command",
-            "command": "[ ! -f \".agents/skills/impeccable/scripts/hook.mjs\" ] || node \".agents/skills/impeccable/scripts/hook.mjs\"",
-            "timeout": 5,
-            "statusMessage": "Checking UI changes",
-            "commandWindows": "if exist \".agents/skills/impeccable/scripts/hook.mjs\" (node \".agents/skills/impeccable/scripts/hook.mjs\" & exit /b)"
+            "command": "node \"$(git rev-parse --show-toplevel)/eng/hooks.mjs\" --provider codex --event edit",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -EncodedCommand JABuAG8AdgBhAEgAbwBvAGsAUgBvAG8AdAAgAD0AIABnAGkAdAAgAHIAZQB2AC0AcABhAHIAcwBlACAALQAtAHMAaABvAHcALQB0AG8AcABsAGUAdgBlAGwAOwAgAGkAZgAgACgAJABMAEEAUwBUAEUAWABJAFQAQwBPAEQARQAgAC0AZQBxACAAMAApACAAewAgACYAIABuAG8AZABlACAAKABKAG8AaQBuAC0AUABhAHQAaAAgACQAbgBvAHYAYQBIAG8AbwBrAFIAbwBvAHQAIAAnAGUAbgBnAC8AaABvAG8AawBzAC4AbQBqAHMAJwApACAALQAtAHAAcgBvAHYAaQBkAGUAcgAgAGMAbwBkAGUAeAAgAC0ALQBlAHYAZQBuAHQAIABlAGQAaQB0ACAAfQA=",
+            "timeout": 10
           }
         ]
       }
@@ -19,10 +17,33 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ ! -f \".agents/skills/impeccable/scripts/hook.mjs\" ] || node \".agents/skills/impeccable/scripts/hook.mjs\"",
-            "timeout": 30,
-            "statusMessage": "Design deep pass",
-            "commandWindows": "if exist \".agents/skills/impeccable/scripts/hook.mjs\" (node \".agents/skills/impeccable/scripts/hook.mjs\" & exit /b)"
+            "command": "node \"$(git rev-parse --show-toplevel)/eng/hooks.mjs\" --provider codex --event stop",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -EncodedCommand JABuAG8AdgBhAEgAbwBvAGsAUgBvAG8AdAAgAD0AIABnAGkAdAAgAHIAZQB2AC0AcABhAHIAcwBlACAALQAtAHMAaABvAHcALQB0AG8AcABsAGUAdgBlAGwAOwAgAGkAZgAgACgAJABMAEEAUwBUAEUAWABJAFQAQwBPAEQARQAgAC0AZQBxACAAMAApACAAewAgACYAIABuAG8AZABlACAAKABKAG8AaQBuAC0AUABhAHQAaAAgACQAbgBvAHYAYQBIAG8AbwBrAFIAbwBvAHQAIAAnAGUAbgBnAC8AaABvAG8AawBzAC4AbQBqAHMAJwApACAALQAtAHAAcgBvAHYAaQBkAGUAcgAgAGMAbwBkAGUAeAAgAC0ALQBlAHYAZQBuAHQAIABzAHQAbwBwACAAfQA=",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/eng/hooks.mjs\" --provider codex --event start",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -EncodedCommand JABuAG8AdgBhAEgAbwBvAGsAUgBvAG8AdAAgAD0AIABnAGkAdAAgAHIAZQB2AC0AcABhAHIAcwBlACAALQAtAHMAaABvAHcALQB0AG8AcABsAGUAdgBlAGwAOwAgAGkAZgAgACgAJABMAEEAUwBUAEUAWABJAFQAQwBPAEQARQAgAC0AZQBxACAAMAApACAAewAgACYAIABuAG8AZABlACAAKABKAG8AaQBuAC0AUABhAHQAaAAgACQAbgBvAHYAYQBIAG8AbwBrAFIAbwBvAHQAIAAnAGUAbgBnAC8AaABvAG8AawBzAC4AbQBqAHMAJwApACAALQAtAHAAcgBvAHYAaQBkAGUAcgAgAGMAbwBkAGUAeAAgAC0ALQBlAHYAZQBuAHQAIABzAHQAYQByAHQAIAB9AA==",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/eng/hooks.mjs\" --provider codex --event prompt",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -EncodedCommand JABuAG8AdgBhAEgAbwBvAGsAUgBvAG8AdAAgAD0AIABnAGkAdAAgAHIAZQB2AC0AcABhAHIAcwBlACAALQAtAHMAaABvAHcALQB0AG8AcABsAGUAdgBlAGwAOwAgAGkAZgAgACgAJABMAEEAUwBUAEUAWABJAFQAQwBPAEQARQAgAC0AZQBxACAAMAApACAAewAgACYAIABuAG8AZABlACAAKABKAG8AaQBuAC0AUABhAHQAaAAgACQAbgBvAHYAYQBIAG8AbwBrAFIAbwBvAHQAIAAnAGUAbgBnAC8AaABvAG8AawBzAC4AbQBqAHMAJwApACAALQAtAHAAcgBvAHYAaQBkAGUAcgAgAGMAbwBkAGUAeAAgAC0ALQBlAHYAZQBuAHQAIABwAHIAbwBtAHAAdAAgAH0A",
+            "timeout": 10
           }
         ]
       }

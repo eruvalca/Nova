@@ -26,14 +26,14 @@ Sass sources under `Nova/scss/`.
 
 ## Build toolchain prerequisites
 
-- Node.js 20+ is required (see `Nova/package.json` `engines.node`). `npm` is the package manager —
-  never `yarn`/`pnpm`.
+- Use the Node.js major recorded in `.node-version` (Node 24 for this toolchain); keep CI and
+  `Nova/package.json` aligned with it. `npm` is the package manager — never `yarn`/`pnpm`.
 - `package-lock.json` is committed and CI installs with `npm ci`.
 - `bootstrap` (5.3.3), `bootstrap-icons` (1.13.1) and `sass` (1.x) versions are pinned in
   `Nova/package.json`; the installed set must match `package-lock.json`.
 - **Node preflight**: `Nova/Nova.csproj` runs `Nova/scripts/check-node.mjs` before any npm work.
   A missing or too-old Node fails the build with a friendly
-  `Node.js 20+ is required to build the Nova theme` error instead of a cryptic MSB3073. Do not
+  required-version error instead of a cryptic MSB3073. Do not
   weaken or bypass this check.
 
 ## Build & validation (authoritative)

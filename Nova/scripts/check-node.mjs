@@ -2,7 +2,7 @@
 //
 // Zero-dependency Node.js version preflight for the Nova theme build
 // (npm ci / npm run build:css). Reads the `engines.node` requirement in
-// `Nova/package.json` (currently >= 20) and compares it against the
+// `Nova/package.json` (currently >= 24) and compares it against the
 // running Node.js major version.
 //
 // Exit code 0 = the installed Node.js major satisfies engines.node; the
@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// `engines.node` in Nova/package.json, e.g. ">=20". The repo uses the simple
+// `engines.node` in Nova/package.json, e.g. ">=24". The repo uses the simple
 // ">=" form; the preflight fails loudly if the form ever changes so it cannot
 // silently accept an unsupported Node.
 const requirement = JSON.parse(

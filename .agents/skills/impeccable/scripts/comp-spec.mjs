@@ -41,6 +41,7 @@ import { fileURLToPath } from 'node:url';
 import { decodePng, encodePng, loadRaster } from './lib/png.mjs';
 import { crop, resize, fillRect, strokeRect, drawLabel, drawText } from './lib/raster.mjs';
 import { dominantColors, horizontalBands, detailGrid } from './lib/image-metrics.mjs';
+import { designArtifactPath, assertWritableArtifact } from './lib/design-run-paths.mjs';
 
 function arg(name, fallback = null) {
   const i = process.argv.indexOf(`--${name}`);
@@ -50,7 +51,7 @@ function arg(name, fallback = null) {
 }
 const flag = (name) => process.argv.includes(`--${name}`);
 
-export const BUILD_DIR = path.join('.impeccable', 'build');
+export const BUILD_DIR = designArtifactPath('build');
 export const SPEC_PATH = path.join(BUILD_DIR, 'spec.json');
 export const GRID_PATH = path.join(BUILD_DIR, 'comp-grid.png');
 export const PLATES_DIR = path.join('assets', 'plates');
@@ -460,6 +461,7 @@ async function main() {
     const scale = parseFloat(arg('scale', '1'));
     if (scale > 1) c = resize(c, c.width * scale, c.height * scale);
     const out = arg('out', path.join(BUILD_DIR, 'crops', `${region.id}.png`));
+    assertWritableArtifact(out);
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, encodePng(c, { text: { 'impeccable:crop-of': `${spec.comp}#${region.id}` } }));
     console.log(`CROP ${out} (${c.width}x${c.height}) region ${region.id} of ${spec.comp}. Reference only: regenerate the plate from it, never ship it.`);
@@ -475,6 +477,7 @@ async function main() {
   try { comp = loadRaster(compPath).image; } catch (e) { console.error(`comp-spec: cannot read ${compPath}: ${e.message}`); process.exit(1); }
 
   if (flag('grid')) {
+    assertWritableArtifact(GRID_PATH);
     fs.mkdirSync(path.dirname(GRID_PATH), { recursive: true });
     fs.writeFileSync(GRID_PATH, encodePng(renderGrid(comp)));
     console.log(`GRID ${GRID_PATH} (${comp.width}x${comp.height} comp; cells A0 top-left to J9 bottom-right)`);
@@ -498,6 +501,7 @@ async function main() {
   }
   let spec;
   try { spec = measureRegions(comp, regionsInput, compPath); } catch (e) { console.error(`comp-spec: ${e.message}`); process.exit(1); }
+  assertWritableArtifact(specPath);
   fs.mkdirSync(path.dirname(specPath), { recursive: true });
   fs.writeFileSync(specPath, JSON.stringify(spec, null, 2));
   console.log(`WROTE ${specPath}`);

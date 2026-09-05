@@ -31,7 +31,7 @@ public sealed record CreateClubInput
 }
 ```
 
-- `[Required]` rejects a missing value (`null`).
+- `[Required]` rejects `null`, empty strings, and whitespace-only strings by default.
 - `[NotWhitespace]` rejects an empty or whitespace-only string (see below).
 - `[MaxLength(n)]` enforces the upper length bound.
 
@@ -45,11 +45,12 @@ Canonical file: `Nova.Shared\Features\Clubs\CreateClubInput.cs`.
 
 ## `[NotWhitespace]`
 
-Defined in `Nova.Shared/Validation/NotWhitespaceAttribute.cs`. `[Required]` considers a
-whitespace-only string (`"   "`) **valid**, but Nova services must reject blank input.
-`[NotWhitespace]` closes that gap: it returns invalid for empty and whitespace-only strings and
-valid for `null` (so `[Required]` owns the "missing" message and `[NotWhitespace]` owns the
-"present but blank" message). Always pair them: `[Required, NotWhitespace]`.
+Defined in `Nova.Shared/Validation/NotWhitespaceAttribute.cs`. It rejects empty and whitespace-only
+strings and accepts `null`. .NET 10's `[Required]` already rejects blank strings unless
+`AllowEmptyStrings` is enabled; the Nova attribute is an explicit constraint, not a framework-gap
+workaround. Keep the existing `[Required, NotWhitespace]` convention and its error contracts. Do
+not assume the pair produces separate missing/blank messages or remove annotations as a side effect
+of correcting the explanation.
 
 Canonical file: `Nova.Shared\Validation\NotWhitespaceAttribute.cs`.
 
@@ -92,7 +93,7 @@ record instead.
 
 ## Adding a new input record
 
-1. Create the record in `Nova.Shared/{Feature}/{Name}Input.cs`.
+1. Create the record in `Nova.Shared/Features/{Feature}/{Name}Input.cs`.
 2. Declare explicit required init-only properties (not positional constructor parameters — see the
    warning above).
 3. Annotate every member with the appropriate DataAnnotations

@@ -92,7 +92,9 @@ Nova.UI/
 - **Choose the lifecycle method by purpose**: `OnInitializedAsync` for one-time data loading;
   `OnParametersSet(Async)` to react to `[Parameter]`/`[SupplyParameterFromQuery]` values (it runs on
   every parameter set, so guard one-time projection behind a flag or an actual-change check);
-  `OnAfterRenderAsync(firstRender)` only for DOM, JS interop, and `@ref` access, never for data loading.
+  `OnAfterRenderAsync(firstRender)` for DOM, JS interop, and `@ref` access. Keep ordinary startup
+  queries in initialization; recovery that depends on browser storage may reconcile authorized
+  server state after interactive attachment makes JS available.
 - **Use `EventCallback`/`EventCallback<T>` for child-to-parent notification**, never `Action`,
   `Action<T>`, or `Func<Task>`. `EventCallback` re-renders the parent that supplied the handler;
   `Action` does not, so the parent's UI silently goes stale.

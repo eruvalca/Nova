@@ -30,7 +30,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { getCritiqueDir } from './lib/impeccable-paths.mjs';
+import { getCritiqueDir, getCritiqueReadDirs } from './lib/impeccable-paths.mjs';
+import { assertWritableArtifact, requireDesignRun } from './lib/design-run-paths.mjs';
 import { slugFromTarget } from './lib/target-slug.mjs';
 
 export { slugFromTarget } from './lib/target-slug.mjs';
@@ -100,6 +101,7 @@ export function fingerprintTarget(target, { cwd = process.cwd() } = {}) {
  */
 export function writeSnapshot({ slug, meta, body, cwd = process.cwd(), now = new Date() }) {
   if (!slug) throw new Error('writeSnapshot requires a slug');
+  requireDesignRun(cwd);
   const dir = getCritiqueDir(cwd);
   fs.mkdirSync(dir, { recursive: true });
   const timestamp = nowFilenameStamp(now);
@@ -166,12 +168,9 @@ function parseFrontmatter(text) {
 const SNAPSHOT_FILENAME = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z(?:~\d{4})?__.+\.md$/;
 
 function listSnapshots(suffix, cwd) {
-  const dir = getCritiqueDir(cwd);
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir)
-    .filter((f) => SNAPSHOT_FILENAME.test(f) && f.endsWith(suffix))
-    .sort()
-    .map((f) => path.join(dir, f));
+  return getCritiqueReadDirs(cwd).filter(dir => fs.existsSync(dir)).flatMap(dir => fs.readdirSync(dir)
+    .filter(file => SNAPSHOT_FILENAME.test(file) && file.endsWith(suffix)).map(file => path.join(dir, file)))
+    .sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 }
 
 function readSnapshot(filePath) {
@@ -237,6 +236,7 @@ export function closeSnapshot(snapshotFile, { cwd = process.cwd() } = {}) {
     return null;
   }
   if (!snapshot || snapshot.meta.closed === true) return null;
+  assertWritableArtifact(snapshot.path, cwd);
   const closedBody = snapshot.body.replace(
     /^(---\r?\n[\s\S]*?)(\r?\n---)/,
     '$1\nclosed: true$2',

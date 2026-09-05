@@ -17,6 +17,7 @@
 
 import fs from 'node:fs';
 import zlib from 'node:zlib';
+import { assertWritableArtifact } from './lib/design-run-paths.mjs';
 
 const KEYWORD = 'impeccable:prompt';
 const args = process.argv.slice(2);
@@ -136,6 +137,7 @@ if (args.includes('--read')) {
 const promptFile = argOf('--prompt-file');
 const prompt = argOf('--prompt') ?? (promptFile ? fs.readFileSync(promptFile, 'utf8') : null);
 if (!prompt) { console.error('embed-prompt: --prompt or --prompt-file required'); process.exit(1); }
+assertWritableArtifact(file);
 
 if (type === 'png') {
   // Insert (or replace) our tEXt chunk immediately before IEND.

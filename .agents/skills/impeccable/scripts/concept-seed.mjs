@@ -766,9 +766,11 @@ if (isMainModule()) {
       // direction is chosen but the build never started (COMP_ROUND_OPEN).
       try {
         const { mkdirSync, writeFileSync: wf } = await import('node:fs');
+        const { designArtifactPath, requireDesignRun } = await import('./lib/design-run-paths.mjs');
         if (scopeIdx !== -1 && args[scopeIdx + 1] === 'direction') {
-          mkdirSync(resolve(process.cwd(), '.impeccable', 'build'), { recursive: true });
-          wf(resolve(process.cwd(), '.impeccable', 'build', 'pending.json'), JSON.stringify({ scope: 'direction', at: new Date().toISOString() }, null, 2));
+          requireDesignRun();
+          mkdirSync(resolve(process.cwd(), designArtifactPath('build')), { recursive: true });
+          wf(resolve(process.cwd(), designArtifactPath('build', 'pending.json')), JSON.stringify({ scope: 'direction', at: new Date().toISOString() }, null, 2));
         }
       } catch { /* marker is best-effort */ }
       // Mechanical init gate: prose alone does not keep a model from dealing

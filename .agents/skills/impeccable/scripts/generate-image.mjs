@@ -32,6 +32,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
+import { designArtifactPath, assertWritableArtifact, requireDesignRun } from './lib/design-run-paths.mjs';
 
 function arg(name, fallback = null) {
   const i = process.argv.indexOf(`--${name}`);
@@ -206,6 +207,7 @@ function parseSize(sizeStr) {
 const plateId = arg('plate');
 let plateCtx = null;
 if (plateId) {
+  requireDesignRun();
   const { loadSpec, platePrompt, plateReference, SPEC_PATH } = await import('./comp-spec.mjs');
   const { decodePng, encodePng, loadRaster } = await import('./lib/png.mjs');
   const { crop, resize } = await import('./lib/raster.mjs');
@@ -218,10 +220,10 @@ if (plateId) {
   let comp;
   try { comp = loadRaster(spec.comp).image; } catch (e) { console.error(`generate-image: cannot read comp ${spec.comp}: ${e.message}`); process.exit(1); }
   const ref = plateReference(comp, spec, region);
-  const refPath = path.join(path.dirname(specPath), 'crops', `${region.id}.png`);
+  const refPath = designArtifactPath('build', 'crops', `${region.id}.png`);
   fs.mkdirSync(path.dirname(refPath), { recursive: true });
   fs.writeFileSync(refPath, encodePng(ref, { text: { 'impeccable:crop-of': `${spec.comp}#${region.id}` } }));
-  const out = arg('out', region.plate);
+  const out = assertWritableArtifact(arg('out', region.plate));
   fs.mkdirSync(path.dirname(out), { recursive: true });
   // Closest supported size to the region's aspect; the page crops the rest
   // with object-fit. The plates gate demands >= 1.5x the region's width
@@ -339,9 +341,10 @@ async function scorePlate(ctx, outFile) {
 // it. Refuse mock output until start has run (or --force-mock).
 {
   const outArg = arg('out') || (plateCtx && plateCtx.out) || '';
-  const intoMocks = /(^|[\\/])\.impeccable[\\/]mocks[\\/]/.test(outArg) && !/[\\/]decision[\\/]/.test(outArg);
-  const pending = fs.existsSync(path.join('.impeccable', 'build', 'pending.json'));
-  const state = fs.existsSync(path.join('.impeccable', 'build', 'state.json'));
+  const mockRelative = outArg ? path.relative(path.resolve(designArtifactPath('mocks')), path.resolve(outArg)) : '..';
+  const intoMocks = !mockRelative.startsWith('..') && !path.isAbsolute(mockRelative) && !/^decision[\\/]/.test(mockRelative);
+  const pending = fs.existsSync(designArtifactPath('build', 'pending.json'));
+  const state = fs.existsSync(designArtifactPath('build', 'state.json'));
   if (intoMocks && pending && !state && !process.argv.includes('--force-mock')) {
     console.error(`generate-image: a direction was chosen (concept-seed rolled) but build-phase.mjs start has not run, so this comp would be generated outside the build's state. Run: node ${path.dirname(fileURLToPath(import.meta.url))}/build-phase.mjs start --direction <seed key> --kind <assigned|pick|challenger|canon> first (it opens the comps phase), then generate. --force-mock overrides.`);
     process.exit(4);
@@ -356,6 +359,7 @@ if (process.env.IMPECCABLE_IMAGE_GEN_FAKE) {
     console.error('generate-image: --prompt (or --prompt-file) and --out are required.');
     process.exit(1);
   }
+  assertWritableArtifact(fakeOut);
   const dims = parseSize(arg('size', '1536x1024'));
   const bytes = fakeOut.endsWith('.svg')
     ? Buffer.from(svgFake(fakePrompt, dims), 'utf8')
@@ -373,6 +377,7 @@ if (!key) {
 const promptFile = arg('prompt-file');
 const prompt = plateCtx ? plateCtx.prompt : (promptFile ? fs.readFileSync(promptFile, 'utf8') : arg('prompt'));
 const out = plateCtx ? plateCtx.out : arg('out');
+if (out) assertWritableArtifact(out);
 if (!prompt || !out) {
   console.error('generate-image: --prompt (or --prompt-file) and --out are required.');
   process.exit(1);

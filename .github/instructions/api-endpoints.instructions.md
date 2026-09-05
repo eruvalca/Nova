@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova/Features/**/*.cs,Nova.Shared/Features/**/*Endpoints.cs,Nova.Shared/Features/**/*Input.cs,Nova.Client/Services/**/*.cs"
+applyTo: "Nova/Features/**/*EndpointRouteBuilderExtensions.cs,Nova/Features/Shared/*Http*.cs,Nova/Features/Shared/ServiceResultExtensions.cs,Nova.Shared/Features/**/*Endpoints.cs,Nova.Shared/Features/**/*Input.cs,Nova.Client/Services/**/*.cs"
 description: "HTTP endpoint and WASM client rules: routes, handlers, contract fidelity, ProblemDetails, validation, metadata, authorization, antiforgery, and query binding."
 ---
 

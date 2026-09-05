@@ -5,87 +5,97 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nova-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  engineering:
+    name: Engineering (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - run: node eng/test.mjs
+      - run: node eng/guidance.mjs check
+
+  engineering-checks:
+    name: Engineering Checks
+    needs: engineering
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require both operating systems
+        env:
+          RESULT: ${{ needs.engineering.result }}
+        run: test "$RESULT" = success
+
+  full-verification:
+    name: Full Verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      DOTNET_NOLOGO: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      NOVA_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      NOVA_PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: Nova/package-lock.json
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Verify Docker
+        run: docker info
+      - name: Build once and verify all suites serially
+        run: node eng/verify.mjs run --profile ci --install-browser
+      - name: Retain execution and browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/verification/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Preserve current required contexts until the two-run hosted proof succeeds.
   build:
     name: Build
-    runs-on: ubuntu-latest
+    needs: full-verification
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: Nova/package-lock.json
-
-      - name: Install npm dependencies
-        # npm ci installs node_modules exactly per package-lock.json, then we touch
-        # Nova/obj/npm-ci.stamp — the Outputs marker of RestoreNpmPackages in Nova/Nova.csproj.
-        # Without the stamp, `dotnet build` (and `dotnet test`, which builds Nova transitively)
-        # would run a second `npm ci`: the target's inputs (package.json, package-lock.json,
-        # node_modules/.package-lock.json) are newer than an absent stamp. touch runs after
-        # npm ci, so the stamp is newer than every input and RestoreNpmPackages is skipped.
-        run: |
-          npm ci
-          mkdir -p obj && touch obj/npm-ci.stamp
-        working-directory: Nova
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "10.0.x"
-
-      - name: Restore
-        run: dotnet restore Nova.slnx
-
-      - name: Build
-        # `dotnet build` itself triggers the BuildBootstrapTheme MSBuild target, which
-        # compiles the Sass into wwwroot/css/bootstrap-theme.css. The Install npm dependencies
-        # step above already ran npm ci per package-lock.json and touched obj/npm-ci.stamp, so
-        # RestoreNpmPackages is up-to-date and skipped — the CSS is compiled exactly once here.
-        # A separate `npm run build:css` step would compile the CSS a redundant second time, so
-        # we rely on the build and only run the contrast check next.
-        run: dotnet build Nova.slnx --no-restore
-
-      - name: Check contrast
-        run: npm run check:contrast
-        working-directory: Nova
-
+      - env:
+          RESULT: ${{ needs.full-verification.result }}
+        run: test "$RESULT" = success
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-latest
-    needs: build
+    needs: full-verification
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: Nova/package-lock.json
-
-      - name: Install npm dependencies
-        # npm ci installs node_modules exactly per package-lock.json, then we touch
-        # Nova/obj/npm-ci.stamp — the Outputs marker of RestoreNpmPackages in Nova/Nova.csproj.
-        # Without the stamp, `dotnet build` (and `dotnet test`, which builds Nova transitively)
-        # would run a second `npm ci`: the target's inputs (package.json, package-lock.json,
-        # node_modules/.package-lock.json) are newer than an absent stamp. touch runs after
-        # npm ci, so the stamp is newer than every input and RestoreNpmPackages is skipped.
-        run: |
-          npm ci
-          mkdir -p obj && touch obj/npm-ci.stamp
-        working-directory: Nova
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "10.0.x"
-
-      - name: Restore
-        run: dotnet restore Nova.slnx
-
-      - name: Test
-        run: dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-restore
+      - env:
+          RESULT: ${{ needs.full-verification.result }}
+        run: test "$RESULT" = success

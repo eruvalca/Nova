@@ -1,11 +1,10 @@
 ---
 name: add-api-endpoint
 description: >-
-  Recipe for adding a minimal-API HTTP endpoint in Nova with shared route constants,
-  MapGroup mapping, static handlers, ServiceResult-to-HTTP conversion, validation,
-  ProblemDetails, metadata, authorization, antiforgery, OpenAPI, and WASM client wiring.
-  USE FOR: add an API endpoint, remove a dead endpoint, audit duplicate mutation routes, map a new route, new MapPost/MapGet handler, wire a WASM client call to a server endpoint, ProblemDetails/ToHttpResult, ProducesProblem, antiforgery on WASM endpoints, optional AsParameters query binding, enum query binding, CreatedAtRoute, Location header testing, polymorphic payload DTOs, IValidatableObject cross-property validation (e.g. keyset cursors).
-  DO NOT USE FOR: building a full feature from scratch (use add-feature-slice), domain/persistence-only work (use add-domain-persistence), service-layer result types only, writing tests (use nova-testing).
+  Add, change, or remove a Nova minimal-API endpoint and its shared route/WASM client contract.
+  Covers handlers, ProblemDetails, authorization, metadata, validation/binding, Location headers,
+  and real HTTP verification. Use add-feature-slice for a whole feature and nova-testing for
+  test-only work.
 ---
 
 # Add API Endpoint
@@ -35,8 +34,10 @@ Use this skill when adding or changing Nova minimal-API endpoints that are share
    binding, and enum query binding — see
    [validation-and-problemdetails.md](references/validation-and-problemdetails.md).
 6. Wire the WASM client to consume shared route constants and deserialize failures with `ToServiceProblemAsync()`.
-7. Verify the endpoint uses the complete pattern before editing tests or callers. For
-   `CreatedAtRoute`, add the real HTTP `201` + `Location` + follow test.
+7. Use `nova-testing` for real HTTP boundary coverage of routing, policies, validation, and response
+   contracts. For `CreatedAtRoute`, assert `201`, `Location`, and a successful GET after following it.
+   For a behavioral finding, use its
+   [sibling-closure and independent-review brief](../nova-testing/references/review-and-finding-closure.md).
 
 ## Required references
 

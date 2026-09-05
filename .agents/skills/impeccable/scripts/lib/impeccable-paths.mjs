@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { resolveProjectRoot } from '../context.mjs';
 import { designSidecarCandidatesFor } from './staleness.mjs';
+import { designArtifactPath } from './design-run-paths.mjs';
 export { IMPECCABLE_COMMAND_PREFIX } from './provider.mjs';
 
 export const IMPECCABLE_DIR = '.impeccable';
@@ -125,7 +126,15 @@ export function getLiveAnnotationsDir(cwd = process.cwd(), options = {}) {
 }
 
 export function getCritiqueDir(cwd = process.cwd(), options = {}) {
-  return path.join(getImpeccableDir(cwd, options), CRITIQUE_DIR);
+  return path.join(resolveProjectRoot(cwd, options), designArtifactPath(CRITIQUE_DIR));
+}
+
+export function getCritiqueReadDirs(cwd = process.cwd(), options = {}) {
+  const root = resolveProjectRoot(cwd, options);
+  const runs = path.join(root, 'artifacts', 'design');
+  const directories = [path.join(root, IMPECCABLE_DIR, CRITIQUE_DIR)];
+  if (fs.existsSync(runs)) for (const entry of fs.readdirSync(runs, { withFileTypes: true })) if (entry.isDirectory()) directories.push(path.join(runs, entry.name, CRITIQUE_DIR));
+  return directories;
 }
 
 export function getLegacyLiveAnnotationsDir(cwd = process.cwd(), options = {}) {

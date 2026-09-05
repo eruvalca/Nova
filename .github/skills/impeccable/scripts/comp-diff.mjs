@@ -40,6 +40,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { designArtifactPath, assertWritableArtifact } from './lib/design-run-paths.mjs';
 import { decodePng, encodePng, loadRaster } from './lib/png.mjs';
 import { crop, resize, fit, blit, createImage, fillRect, strokeRect, drawLabel } from './lib/raster.mjs';
 import { structureScore, colorScore, detailScore, diffMap, horizontalBands, bandScore, dominantColors, toGray, blurGray, ssimShifted } from './lib/image-metrics.mjs';
@@ -305,6 +306,7 @@ function strip(s) {
 }
 
 export function writeArtifacts(result, comp, outDir) {
+  assertWritableArtifact(outDir);
   fs.mkdirSync(path.join(outDir, 'regions'), { recursive: true });
   const side = renderSideBySide(comp, result.aligned, result.label, result.whole);
   fs.writeFileSync(path.join(outDir, 'side-by-side.png'), encodePng(side));
@@ -367,7 +369,7 @@ async function main() {
   if (specPath) {
     try { spec = JSON.parse(fs.readFileSync(specPath, 'utf8')); } catch (e) { console.error(`comp-diff: cannot read spec ${specPath}: ${e.message}`); process.exit(1); }
   }
-  const outDir = arg('out-dir', path.join(path.dirname(buildPath), 'diff'));
+  const outDir = arg('out-dir', designArtifactPath('review', 'diff'));
   const label = arg('label', path.basename(buildPath, '.png'));
   const result = compare({ comp, build, spec, align: arg('align', 'top'), label });
   const files = flag('no-files') ? null : writeArtifacts(result, comp, outDir);
