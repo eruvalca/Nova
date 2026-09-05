@@ -12,6 +12,7 @@ using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Features.Campaigns.Pages;
+using Nova.Unit.Tests.Components;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -332,7 +333,7 @@ public sealed class CampaignEntryTests : BunitContext
     {
         Register(ReadyWithoutTeams());
         var older = new TaskCompletionSource<AuthenticationState>();
-        var authentication = new DeferredAuthentication(startup ? older.Task : Task.FromResult(DeferredAuthentication.State(42)));
+        var authentication = new ControlledAuthenticationStateProvider(startup ? older.Task : Task.FromResult(AdministratorState(42)));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = RenderReview();
         if (!startup)
@@ -340,14 +341,195 @@ public sealed class CampaignEntryTests : BunitContext
             cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
             await cut.InvokeAsync(() => authentication.Publish(older.Task));
         }
-        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(DeferredAuthentication.State(43))));
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(AdministratorState(43))));
         cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
 
-        await cut.InvokeAsync(() => older.SetResult(DeferredAuthentication.State(42)));
+        await cut.InvokeAsync(() => older.SetResult(AdministratorState(42)));
 
         cut.Instance.SnapshotScope.ShouldBe("101:43:True");
         cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse();
         JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "clear" && invocation.Arguments.Contains("101:43:True"));
+    }
+
+    /// <summary>Verifies pending and unchanged authentication retain the current edit and permit its owned mutation result and cleanup.</summary>
+    [Fact]
+    public async Task CampaignEntry_PreservesEditAndMutation_DuringPendingAndUnchangedAuthentication()
+    {
+        var (queries, _) = Register(ReadyWithoutTeams());
+        var authentication = new ControlledAuthenticationStateProvider(Task.FromResult(AdministratorState(42)));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var result = new TaskCompletionSource<ServiceResult<UpdateCampaignMetadataResult>>();
+        var metadata = Services.GetRequiredService<ICampaignMetadataService>();
+        metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>()).Returns(result.Task);
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        cut.Find("#edit-campaign-name").Change("Unsaved current edit");
+        var authenticationResult = new TaskCompletionSource<AuthenticationState>();
+
+        await cut.InvokeAsync(() => authentication.Publish(authenticationResult.Task));
+
+        cut.Find("#edit-campaign-name").GetAttribute("value").ShouldBe("Unsaved current edit");
+        var save = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+        cut.WaitForAssertion(() => metadata.Received(1).UpdateAsync(
+            Arg.Is<UpdateCampaignMetadataInput>(input => input.CampaignId == 10 && input.Name == "Unsaved current edit"), Arg.Any<CancellationToken>()));
+        await cut.InvokeAsync(() => result.SetResult(new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.ServerError("Current save failed"))));
+        await save;
+        cut.Markup.ShouldContain("Current save failed");
+        cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeFalse();
+        await cut.InvokeAsync(() => authenticationResult.SetResult(AdministratorState(42)));
+        cut.Find("#edit-campaign-name").GetAttribute("value").ShouldBe("Unsaved current edit");
+        cut.Markup.ShouldContain("Current save failed");
+        cut.Instance.SnapshotScope.ShouldBe("101:42:True");
+        _ = queries.Received(1).GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "clear");
+    }
+
+    /// <summary>Verifies a changed identity clears old state before its read completes and old mutation continuations cannot affect new work.</summary>
+    /// <param name="oldOutcome">The late result or exception from the previous club's save.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("success")]
+    [InlineData("forbidden")]
+    [InlineData("transport")]
+    public async Task CampaignEntry_RejectsOldMutationEffects_AfterChangedIdentityApplies(string oldOutcome)
+    {
+        var (queries, _) = Register(ReadyWithoutTeams());
+        var authentication = new ControlledAuthenticationStateProvider(Task.FromResult(AdministratorState(42)));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var replacement = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
+        queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Old club Draft"))), replacement.Task);
+        var oldResult = new TaskCompletionSource<ServiceResult<UpdateCampaignMetadataResult>>();
+        var newResult = new TaskCompletionSource<ServiceResult<UpdateCampaignMetadataResult>>();
+        var metadata = Services.GetRequiredService<ICampaignMetadataService>();
+        metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>()).Returns(oldResult.Task, newResult.Task);
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        var oldSave = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+        cut.WaitForAssertion(() => metadata.Received(1).UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>()));
+
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(AdministratorState(43))));
+
+        cut.Instance.Detail.ShouldBeNull();
+        cut.Instance.SnapshotScope.ShouldBeNull();
+        cut.Markup.ShouldNotContain("Old club Draft");
+        cut.FindAll("form").ShouldBeEmpty();
+        await cut.InvokeAsync(() => replacement.SetResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "New club Draft"))));
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        var newSave = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+        cut.WaitForAssertion(() => metadata.Received(2).UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>()));
+        await cut.InvokeAsync(() =>
+        {
+            if (oldOutcome == "transport")
+            {
+                oldResult.SetException(new HttpRequestException("Old transport failure"));
+            }
+            else
+            {
+                oldResult.SetResult(oldOutcome == "success"
+                    ? new ServiceResult<UpdateCampaignMetadataResult>(new UpdateCampaignMetadataResult(
+                        10, "Old club Draft", new DateOnly(2026, 6, 1), null, CampaignStatus.Draft, 5, "Summer 2026"))
+                    : new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.Forbidden("Old club forbidden")));
+            }
+        });
+        await oldSave;
+
+        cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("#edit-campaign-name").GetAttribute("value").ShouldBe("New club Draft");
+        cut.Markup.ShouldNotContain("Campaign details saved.");
+        cut.Markup.ShouldNotContain("Old club forbidden");
+        cut.Markup.ShouldNotContain("The result is uncertain.");
+        cut.Instance.SnapshotScope.ShouldBe("101:43:True");
+        _ = queries.Received(2).GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
+        Services.GetRequiredService<NavigationManager>().Uri.ShouldNotContain("AccessDenied");
+        await cut.InvokeAsync(() => newResult.SetResult(new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.ServerError("New save failed"))));
+        await newSave;
+        cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeFalse();
+        cut.Markup.ShouldContain("New save failed");
+    }
+
+    /// <summary>Verifies recovery focuses its current heading but an old identity's completion cannot focus or dispatch in the replacement page.</summary>
+    /// <param name="identityChanges">Whether another club takes ownership before recovery completes.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CampaignEntry_FocusesRecoveryContinuation_OnlyWhileItsIdentityStillOwnsPage(bool identityChanges)
+    {
+        var operationId = Guid.NewGuid();
+        var (queries, lifecycle) = Register(ReadyWithoutTeams(), persistedOpeningId: operationId, persistedScope: "101:42:True");
+        var authentication = new ControlledAuthenticationStateProvider(Task.FromResult(AdministratorState(42)));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var recovery = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
+        queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Old club Draft"))),
+                recovery.Task, Task.FromResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "New club Draft"))));
+        lifecycle.OpenAsync(10, Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<OpenCampaignResult>(ServiceProblem.ServerError("Current recovery is uncertain")));
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => queries.Received(2).GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>()));
+        if (identityChanges)
+        {
+            await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(AdministratorState(43))));
+            cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
+            cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        }
+        var focusCount = JSInterop.Invocations.Count(invocation => invocation.Identifier == "focus");
+        var writeCount = JSInterop.Invocations.Count(invocation => invocation.Identifier == "write");
+
+        await cut.InvokeAsync(() => recovery.SetResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Old club Draft"))));
+
+        if (identityChanges)
+        {
+            JSInterop.Invocations.Count(invocation => invocation.Identifier == "focus").ShouldBe(focusCount);
+            JSInterop.Invocations.Count(invocation => invocation.Identifier == "write").ShouldBe(writeCount);
+            _ = lifecycle.DidNotReceive().OpenAsync(Arg.Any<long>(), Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
+            cut.Markup.ShouldContain("New club Draft");
+        }
+        else
+        {
+            cut.WaitForAssertion(() => cut.Markup.ShouldContain("Current recovery is uncertain"));
+            // Initial recovery focuses preparation, then the URL-backed opening review heading.
+            JSInterop.Invocations.Count(invocation => invocation.Identifier == "focus").ShouldBe(focusCount + 2);
+            _ = lifecycle.Received(1).OpenAsync(10, Arg.Is<OpenCampaignInput>(input => input.OperationId == operationId), Arg.Any<CancellationToken>());
+        }
+    }
+
+    /// <summary>Verifies a heading-focus call finishing for the old identity cannot publish a render while replacement data is pending.</summary>
+    [Fact]
+    public async Task CampaignEntry_IgnoresOldHeadingFocusCompletion_AfterIdentityChanges()
+    {
+        var holdFocus = true;
+        Action? completeFocus = null;
+        var (queries, _) = Register(ReadyWithoutTeams(), configureModule: module =>
+        {
+            var pending = module.SetupVoid("focus", _ => holdFocus);
+            completeFocus = () => pending.SetVoidResult();
+        });
+        var authentication = new ControlledAuthenticationStateProvider(Task.FromResult(AdministratorState(42)));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var replacement = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
+        queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Old club Draft"))), replacement.Task);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10?review=open");
+        var cut = Render<ObservedCampaignEntry>(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.WaitForAssertion(() => JSInterop.Invocations.Count(invocation => invocation.Identifier == "focus").ShouldBe(1));
+        holdFocus = false;
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(AdministratorState(43))));
+        cut.Instance.Detail.ShouldBeNull();
+        var renderCount = cut.RenderCount;
+
+        await cut.InvokeAsync(() => completeFocus!());
+        await cut.Instance.FirstAfterRenderCompleted.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+
+        cut.RenderCount.ShouldBe(renderCount);
+        JSInterop.Invocations.Count(invocation => invocation.Identifier == "focus").ShouldBe(1);
+        cut.Instance.SnapshotScope.ShouldBeNull();
+        await cut.InvokeAsync(() => replacement.SetResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "New club Draft"))));
+        cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
+        cut.WaitForAssertion(() => JSInterop.Invocations.Count(invocation => invocation.Identifier == "focus").ShouldBe(3));
+        cut.Markup.ShouldContain("New club Draft");
     }
 
     /// <summary>Verifies authentication finishing after disposal cannot reload campaign data.</summary>
@@ -355,7 +537,7 @@ public sealed class CampaignEntryTests : BunitContext
     public async Task CampaignEntry_IgnoresAuthenticationCompletion_AfterDisposal()
     {
         var (queries, _) = Register(ReadyWithoutTeams());
-        var authentication = new DeferredAuthentication(Task.FromResult(DeferredAuthentication.State(42)));
+        var authentication = new ControlledAuthenticationStateProvider(Task.FromResult(AdministratorState(42)));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = RenderReview();
         cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
@@ -363,7 +545,7 @@ public sealed class CampaignEntryTests : BunitContext
         await cut.InvokeAsync(() => authentication.Publish(pending.Task));
         await cut.Instance.DisposeAsync();
         cut.Dispose();
-        await cut.InvokeAsync(() => pending.SetResult(DeferredAuthentication.State(43)));
+        await cut.InvokeAsync(() => pending.SetResult(AdministratorState(43)));
         _ = queries.Received(1).GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
     }
 
@@ -429,6 +611,47 @@ public sealed class CampaignEntryTests : BunitContext
         _ = queries.DidNotReceive().GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
         _ = queries.DidNotReceive().GetOpeningReadinessAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
         _ = queries.DidNotReceive().GetCreationSetupAsync(Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies settled metadata feedback belongs to its campaign and survives only that campaign's refresh.</summary>
+    /// <param name="successfulSave">Whether the first campaign saved successfully or returned field validation.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CampaignEntry_ClearsSettledFeedback_WhenCampaignChanges(bool successfulSave)
+    {
+        var (queries, _) = Register(ReadyWithoutTeams());
+        var metadata = Services.GetRequiredService<ICampaignMetadataService>();
+        const string rejectedMessage = "The first Draft's metadata was rejected.";
+        metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(successfulSave
+                ? new ServiceResult<UpdateCampaignMetadataResult>(new UpdateCampaignMetadataResult(
+                    10, "Summer Draft", new DateOnly(2026, 6, 1), null, CampaignStatus.Draft, 5, "Summer 2026"))
+                : new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.Validation(
+                    new Dictionary<string, string[]> { ["Name"] = [rejectedMessage] })));
+        queries.GetCampaignDetailAsync(Arg.Is<GetCampaignDetailInput>(input => input.CampaignId == 11), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignDetailResult>(DraftDetail(11, "Second Draft")));
+        queries.GetOpeningReadinessAsync(11, Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignOpeningReadinessResult>(ReadyWithoutTeams() with { CampaignId = 11 }));
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+
+        cut.Find("form").Submit();
+
+        var expectedFeedback = successfulSave ? "Campaign details saved." : rejectedMessage;
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain(expectedFeedback));
+        if (successfulSave)
+        {
+            _ = queries.Received(2).GetCampaignDetailAsync(
+                Arg.Is<GetCampaignDetailInput>(input => input.CampaignId == 10), Arg.Any<CancellationToken>());
+        }
+
+        cut.Render(parameters => parameters.Add(component => component.CampaignId, 11));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Second Draft"));
+        cut.Markup.ShouldNotContain(expectedFeedback);
+        cut.FindAll(".validation-message").ShouldBeEmpty();
     }
 
     /// <summary>Verifies a late request for the previous route cannot replace the newly selected Draft.</summary>
@@ -725,8 +948,10 @@ public sealed class CampaignEntryTests : BunitContext
     /// <param name="incompatibleRead">Controls whether a typed marker is incompatible.</param>
     /// <param name="incompatibleKey">The incompatible marker key.</param>
     /// <param name="incompatibleException">The typed deserialization failure.</param>
+    /// <param name="persistedScope">An optional identity owning the persisted opening marker.</param>
+    /// <param name="configureModule">Optional scenario-specific interop arranged before rendering.</param>
     /// <returns>The query and lifecycle doubles available for scenario-specific behavior.</returns>
-    private (ICampaignQueryService Queries, ICampaignLifecycleService Lifecycle) Register(CampaignOpeningReadinessResult readiness, bool isAdmin = true, Guid? persistedOpeningId = null, bool failStorageRemoval = false, Func<bool>? failOpeningStorageWrite = null, bool persistedDeletion = false, Func<bool>? storageReadFails = null, Func<bool>? incompatibleRead = null, string? incompatibleKey = null, Exception? incompatibleException = null)
+    private (ICampaignQueryService Queries, ICampaignLifecycleService Lifecycle) Register(CampaignOpeningReadinessResult readiness, bool isAdmin = true, Guid? persistedOpeningId = null, bool failStorageRemoval = false, Func<bool>? failOpeningStorageWrite = null, bool persistedDeletion = false, Func<bool>? storageReadFails = null, Func<bool>? incompatibleRead = null, string? incompatibleKey = null, Exception? incompatibleException = null, string? persistedScope = null, Action<BunitJSModuleInterop>? configureModule = null)
     {
         ComponentFactories.AddStub<CampaignWorkspace>();
         var queries = Substitute.For<ICampaignQueryService>();
@@ -788,7 +1013,8 @@ public sealed class CampaignEntryTests : BunitContext
         }
         if (persistedOpeningId is { } saved)
         {
-            module.Setup<string?>("read", invocation => hasPendingOpening && !(incompatibleKey == "open:10" && incompatibleRead?.Invoke() == true)
+            module.Setup<string?>("read", invocation => hasPendingOpening && (persistedScope is null || invocation.Arguments.Contains(persistedScope))
+                && !(incompatibleKey == "open:10" && incompatibleRead?.Invoke() == true)
                 && invocation.Arguments.Contains("open:10")).SetResult(saved.ToString());
         }
         if (persistedOpeningId is not null || persistedDeletion)
@@ -815,7 +1041,38 @@ public sealed class CampaignEntryTests : BunitContext
                 removal.SetVoidResult();
             }
         }
+        configureModule?.Invoke(module);
         return (queries, lifecycle);
+    }
+
+    /// <summary>Exposes completion of the first render continuation without changing page behavior.</summary>
+    /// <param name="queries">The campaign reads.</param>
+    /// <param name="lifecycle">The lifecycle mutations.</param>
+    /// <param name="metadata">The metadata mutations.</param>
+    /// <param name="teams">The durable-team mutations.</param>
+    /// <param name="authentication">The current identity.</param>
+    /// <param name="navigation">The test navigation service.</param>
+    /// <param name="js">The session interop service.</param>
+    private sealed class ObservedCampaignEntry(ICampaignQueryService queries, ICampaignLifecycleService lifecycle,
+        ICampaignMetadataService metadata, ITeamManagementService teams, AuthenticationStateProvider authentication,
+        NavigationManager navigation, IJSRuntime js)
+        : CampaignEntry(queries, lifecycle, metadata, teams, authentication, navigation, js)
+    {
+        /// <summary>Signals that the first render's awaited production continuation has actually returned.</summary>
+        private readonly TaskCompletionSource _firstAfterRender = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>Gets completion of the first render continuation for deterministic held-interop assertions.</summary>
+        public Task FirstAfterRenderCompleted => _firstAfterRender.Task;
+
+        /// <inheritdoc />
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            await base.OnAfterRenderAsync(firstRender);
+            if (firstRender)
+            {
+                _firstAfterRender.TrySetResult();
+            }
+        }
     }
 
     /// <summary>Seeds a matching prerender snapshot before normal page initialization.</summary>
@@ -842,24 +1099,12 @@ public sealed class CampaignEntryTests : BunitContext
         }
     }
 
-    /// <summary>Controls authentication completion independently of notification order.</summary>
-    /// <param name="initial">The startup authentication task.</param>
-    private sealed class DeferredAuthentication(Task<AuthenticationState> initial) : AuthenticationStateProvider
-    {
-        /// <inheritdoc />
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() => initial;
-
-        /// <summary>Publishes an authentication task.</summary>
-        /// <param name="state">The pending state.</param>
-        public void Publish(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
-
-        /// <summary>Creates an administrator state for the specified club.</summary>
-        /// <param name="clubId">The current club.</param>
-        /// <returns>The authenticated state.</returns>
-        public static AuthenticationState State(long clubId) => new(new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, "101"), new Claim(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                new Claim(ClaimTypes.Role, Roles.ClubAdmin)], "Test")));
-    }
+    /// <summary>Creates the administrator identity used by preparation recovery scenarios.</summary>
+    /// <param name="clubId">The current club claim.</param>
+    /// <returns>The authenticated state.</returns>
+    private static AuthenticationState AdministratorState(long clubId) => new(new ClaimsPrincipal(new ClaimsIdentity(
+        [new Claim(ClaimTypes.NameIdentifier, "101"), new Claim(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new Claim(ClaimTypes.Role, Roles.ClubAdmin)], "Test")));
 
     /// <summary>Provides the administrator identity used to own recovery state.</summary>
     /// <param name="isAdmin">Whether the test identity has administrator authority.</param>

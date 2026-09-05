@@ -4,9 +4,9 @@ using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Features.Seasons;
 using Nova.Shared.Results;
-using Nova.Shared.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Campaigns.Components;
+using Nova.UI.Shared.State;
 
 namespace Nova.UI.Features.Campaigns.Pages;
 
@@ -57,7 +57,7 @@ public partial class Campaigns(
     /// <summary>The normalized one-based page requested from the campaign directory.</summary>
     private int _page = 1;
     /// <summary>Identifies the user, club, and administrator authority owning the loaded directory.</summary>
-    private string? _identityScope;
+    private string? _identityScope => _identity.HasAppliedIdentity ? _identity.StorageKey : null;
 
     /// <summary>Gets or sets the raw directory page, normalized before use.</summary>
     [SupplyParameterFromQuery(Name = "page")] public string? DirectoryPage { get; set; }
@@ -67,18 +67,17 @@ public partial class Campaigns(
     [PersistentState] public string? PersistedIdentityScope { get; set; }
 
     /// <summary>
-    /// Version counter for edit-form selection; incremented whenever forms are closed or a new
-    /// edit begins so a stale begin-edit continuation cannot reopen a superseded form.
+    /// Owns edit-form selection so a closed or superseded edit cannot reopen from a stale continuation.
     /// </summary>
-    private int _editVersion;
+    private readonly UiRequestOwner _editOwner = new();
 
     /// <summary>
-    /// Version counter used to ignore stale list-load completions.
+    /// Owns list loads independently from edit selection and mutation progress.
     /// </summary>
-    private int _loadListVersion;
+    private readonly UiRequestOwner _listOwner = new();
 
     /// <summary>Ensures only the latest authentication notification can publish identity and role state.</summary>
-    private int _authenticationVersion;
+    private readonly UiIdentityScope _identity = new();
 
     /// <summary>
     /// Cancellation source for the in-flight list load; canceled and replaced by newer loads.
@@ -133,7 +132,7 @@ public partial class Campaigns(
     private bool _isMutating;
 
     /// <summary>Invalidates metadata completions when ownership changes or the component is disposed.</summary>
-    private int _mutationGeneration;
+    private readonly UiRequestOwner _mutationOwner = new();
 
     /// <summary>
     /// The current mutation-level error message shown inside the active form.
@@ -193,14 +192,14 @@ public partial class Campaigns(
         // SupplyParameterFromQuery properties are assigned before initialization, so the
         // requested view is available before the startup load and its persisted snapshot.
         authenticationStateProvider.AuthenticationStateChanged += DirectoryAuthenticationChanged;
-        var authenticationVersion = _authenticationVersion;
+        var authenticationVersion = _identity.BeginAuthentication();
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
-        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (ComponentCancellationToken.IsCancellationRequested
+            || !_identity.TryApply(authenticationVersion, UiIdentitySnapshot.FromPrincipal(authenticationState.User), out _))
         {
             return;
         }
-        _canManageCampaigns = authenticationState.User.IsInRole(Roles.ClubAdmin);
-        _identityScope = DirectoryIdentity(authenticationState);
+        _canManageCampaigns = _identity.Current.CanManage;
         _ = ApplyViewQueryToState();
         if (bool.TryParse(Deleted, out var wasDeleted) && wasDeleted)
         {
@@ -253,7 +252,7 @@ public partial class Campaigns(
     /// <returns>A task that completes when loading and state updates are finished.</returns>
     private async Task LoadListAsync()
     {
-        var version = Interlocked.Increment(ref _loadListVersion);
+        var version = _listOwner.Begin(_identity.Capture());
         _loadListSource?.Cancel();
         _loadListSource?.Dispose();
         _loadListSource = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
@@ -280,7 +279,7 @@ public partial class Campaigns(
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
-            if (version != _loadListVersion || requestToken.IsCancellationRequested)
+            if (!_listOwner.Owns(version) || requestToken.IsCancellationRequested)
             {
                 return;
             }
@@ -292,7 +291,7 @@ public partial class Campaigns(
             return;
         }
 
-        if (version != _loadListVersion || requestToken.IsCancellationRequested)
+        if (!_listOwner.Owns(version) || requestToken.IsCancellationRequested)
         {
             return;
         }
@@ -398,13 +397,13 @@ public partial class Campaigns(
         CancelMutationForm();
         _statusMessage = null;
         var viewAtStart = _statusFilter;
-        var editVersion = _editVersion;
+        var editVersion = _editOwner.Capture(_identity.Capture());
 
         if (!await EnsureSeasonChoicesLoadedAsync(editVersion, viewAtStart))
         {
             // Only the latest, same-view edit selection may install failure feedback or the
             // retry target; stale continuations exit quietly.
-            if (editVersion == _editVersion
+            if (_editOwner.Owns(editVersion)
                 && viewAtStart == _statusFilter
                 && !ComponentCancellationToken.IsCancellationRequested)
             {
@@ -417,7 +416,7 @@ public partial class Campaigns(
 
         // A view change or a newer edit selection while season choices loaded must not reopen
         // this form.
-        if (viewAtStart != _statusFilter || editVersion != _editVersion)
+        if (viewAtStart != _statusFilter || !_editOwner.Owns(editVersion))
         {
             return;
         }
@@ -464,14 +463,14 @@ public partial class Campaigns(
     /// <param name="editVersion">The edit-selection version captured by the caller.</param>
     /// <param name="viewAtStart">The view filter captured by the caller.</param>
     /// <returns><see langword="true"/> when season choices are available; otherwise <see langword="false"/>.</returns>
-    private async Task<bool> EnsureSeasonChoicesLoadedAsync(int editVersion, string viewAtStart)
+    private async Task<bool> EnsureSeasonChoicesLoadedAsync(UiRequestLease editVersion, string viewAtStart)
     {
         if (_seasonChoices.Count > 0)
         {
             return true;
         }
 
-        bool IsCurrent() => editVersion == _editVersion
+        bool IsCurrent() => _editOwner.Owns(editVersion)
             && viewAtStart == _statusFilter
             && !ComponentCancellationToken.IsCancellationRequested;
 
@@ -512,16 +511,17 @@ public partial class Campaigns(
             },
             problem =>
             {
+                if (!IsCurrent())
+                {
+                    return;
+                }
                 if (problem.Kind == ServiceProblemKind.Forbidden)
                 {
                     navigationManager.NavigateTo("/Account/AccessDenied", forceLoad: true);
                     return;
                 }
 
-                if (IsCurrent())
-                {
-                    _pageError = FirstNonBlank(problem.Detail, "Failed to load seasons. Please retry.");
-                }
+                _pageError = FirstNonBlank(problem.Detail, "Failed to load seasons. Please retry.");
             });
 
         return loaded;
@@ -539,8 +539,7 @@ public partial class Campaigns(
             return;
         }
 
-        var generation = ++_mutationGeneration;
-        var scope = _identityScope;
+        var generation = _mutationOwner.Begin(_identity.Capture());
         _isMutating = true;
         _mutationError = null;
         _mutationConflict = false;
@@ -548,7 +547,7 @@ public partial class Campaigns(
         try
         {
             var result = await campaignMetadataService.UpdateAsync(model.ToUpdateInput(), ComponentCancellationToken);
-            if (!OwnsMutation(generation, scope))
+            if (!OwnsMutation(generation))
             {
                 return;
             }
@@ -562,7 +561,7 @@ public partial class Campaigns(
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
-            if (!OwnsMutation(generation, scope))
+            if (!OwnsMutation(generation))
             {
                 return;
             }
@@ -571,7 +570,7 @@ public partial class Campaigns(
         }
         finally
         {
-            if (OwnsMutation(generation, scope))
+            if (OwnsMutation(generation))
             {
                 _isMutating = false;
             }
@@ -590,8 +589,7 @@ public partial class Campaigns(
             return;
         }
 
-        var generation = ++_mutationGeneration;
-        var scope = _identityScope;
+        var generation = _mutationOwner.Begin(_identity.Capture());
         _isMutating = true;
         _mutationError = null;
         _mutationConflict = false;
@@ -602,7 +600,7 @@ public partial class Campaigns(
                 model.SeasonId,
                 model.ToUpdateInput(),
                 ComponentCancellationToken);
-            if (!OwnsMutation(generation, scope))
+            if (!OwnsMutation(generation))
             {
                 return;
             }
@@ -618,7 +616,7 @@ public partial class Campaigns(
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
-            if (!OwnsMutation(generation, scope))
+            if (!OwnsMutation(generation))
             {
                 return;
             }
@@ -627,7 +625,7 @@ public partial class Campaigns(
         }
         finally
         {
-            if (OwnsMutation(generation, scope))
+            if (OwnsMutation(generation))
             {
                 _isMutating = false;
             }
@@ -636,10 +634,9 @@ public partial class Campaigns(
 
     /// <summary>Allows only the current identity's latest metadata mutation to publish state or navigation.</summary>
     /// <param name="generation">The mutation generation captured before submission.</param>
-    /// <param name="scope">The user, club, and authority that started the mutation.</param>
     /// <returns>Whether the completion still owns the current directory state.</returns>
-    private bool OwnsMutation(int generation, string? scope)
-        => generation == _mutationGeneration && scope == _identityScope && !ComponentCancellationToken.IsCancellationRequested;
+    private bool OwnsMutation(UiRequestLease generation)
+        => _mutationOwner.Owns(generation) && !ComponentCancellationToken.IsCancellationRequested;
 
     /// <summary>
     /// Applies shared mutation result handling: success callback, Forbidden redirect, conflict and
@@ -694,7 +691,7 @@ public partial class Campaigns(
         _editRetrySeason = null;
         _editFormSeasonChoices = [];
         _mutationConflict = false;
-        _editVersion++;
+        _editOwner.Invalidate();
     }
 
     /// <summary>
@@ -711,8 +708,8 @@ public partial class Campaigns(
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
-        ++_authenticationVersion;
-        ++_mutationGeneration;
+        _identity.Dispose();
+        _mutationOwner.Invalidate();
         authenticationStateProvider.AuthenticationStateChanged -= DirectoryAuthenticationChanged;
         _loadListSource?.Cancel();
         _loadListSource?.Dispose();
@@ -725,36 +722,27 @@ public partial class Campaigns(
     /// <returns>The local campaign directory URL.</returns>
     private string PageUrl(int page) => $"/campaigns?view={_statusFilter}&page={page}";
 
-    /// <summary>Scopes retained directory data to the authenticated user, club, and Draft visibility.</summary>
-    /// <param name="state">The authentication state whose claims own the directory.</param>
-    /// <returns>The identity and authority key used to invalidate stale directory state.</returns>
-    private static string DirectoryIdentity(AuthenticationState state) => string.Join(":",
-        state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
-        state.User.FindFirst(NovaClaimTypes.ClubId)?.Value, state.User.IsInRole(Roles.ClubAdmin));
-
     /// <summary>Applies only the newest authentication notification before replacing the scoped directory.</summary>
     /// <param name="task">The pending authentication state supplied by the provider.</param>
     private void DirectoryAuthenticationChanged(Task<AuthenticationState> task) => _ = InvokeAsync(async () =>
     {
-        var authenticationVersion = ++_authenticationVersion;
+        var authenticationVersion = _identity.BeginAuthentication();
         var state = await task;
-        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-        var identity = DirectoryIdentity(state);
-        if (identity == _identityScope)
+        if (ComponentCancellationToken.IsCancellationRequested
+            || !_identity.TryApply(authenticationVersion, UiIdentitySnapshot.FromPrincipal(state.User), out var changed)
+            || !changed)
         {
             return;
         }
 
-        ++_mutationGeneration;
+        _mutationOwner.Invalidate();
         _isMutating = false;
-        _identityScope = identity;
-        _canManageCampaigns = state.User.IsInRole(Roles.ClubAdmin);
+        _canManageCampaigns = _identity.Current.CanManage;
         _ = ApplyViewQueryToState();
         _list = null;
         PersistedList = null;
+        _seasonChoices = [];
+        _seasonChoiceTotalCount = 0;
         _loadListSource?.Cancel();
         CancelMutationForm();
         _statusMessage = null;

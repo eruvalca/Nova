@@ -8,6 +8,7 @@ using Nova.Shared.Enums;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
+using Nova.Unit.Tests.Components;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -28,14 +29,14 @@ public sealed class TeamComponentsTests : BunitContext
     public async Task Teams_DiscardsDraftReturnContext_WhenScopeChanges(bool clubChange)
     {
         RegisterServices(isClubAdmin: true);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true, false));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true, false));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/club/teams?returnToDraft=10&view=archived&search=Blue");
         var cut = Render<TeamsPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Return to draft"));
 
-        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(clubChange, false, clubChange ? 43 : 42)));
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(clubChange, false, clubChange ? 43 : 42)));
 
         cut.WaitForAssertion(() => navigation.Uri.ShouldNotContain("returnToDraft"));
         navigation.Uri.ShouldContain("view=archived");
@@ -45,9 +46,35 @@ public sealed class TeamComponentsTests : BunitContext
         cut.FindAll("a").ShouldNotContain(link => (link.GetAttribute("href") ?? string.Empty).Contains("returnToDraft", StringComparison.OrdinalIgnoreCase));
         if (!clubChange)
         {
-            await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, false)));
+            await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true, false)));
             cut.Markup.ShouldNotContain("Return to draft");
+            // Role-only changes keep the current club's roster and its independent request ownership.
+            cut.Markup.ShouldContain("U16 Blue");
+            await Services.GetRequiredService<ITeamRosterService>().Received(1)
+                .GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
         }
+    }
+
+    /// <summary>Verifies pending and unchanged authentication retain a team edit under the existing club-scoped ownership policy.</summary>
+    [Fact]
+    public async Task Teams_PreservesEdit_DuringPendingAndUnchangedAuthentication()
+    {
+        RegisterServices(isClubAdmin: true);
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true, false));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+        cut.Find("button.btn-outline-primary").Click();
+        cut.Find("#team-name").Change("Unsaved current team");
+        var pending = new TaskCompletionSource<AuthenticationState>();
+
+        await cut.InvokeAsync(() => authentication.Publish(pending.Task));
+
+        cut.Find("#team-name").GetAttribute("value").ShouldBe("Unsaved current team");
+        await cut.InvokeAsync(() => pending.SetResult(new AuthenticationState(CreatePrincipal(true, false))));
+        cut.Find("#team-name").GetAttribute("value").ShouldBe("Unsaved current team");
+        await Services.GetRequiredService<ITeamRosterService>().Received(1)
+            .GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Verifies an empty identity overtaking startup reaches the club-required state without a team query.</summary>
@@ -56,7 +83,7 @@ public sealed class TeamComponentsTests : BunitContext
     {
         RegisterServices(isClubAdmin: true);
         var pending = new TaskCompletionSource<AuthenticationState>();
-        var authentication = new DeferredAuthentication(pending.Task);
+        var authentication = new ControlledAuthenticationStateProvider(pending.Task);
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<TeamsPage>();
         var roster = Services.GetRequiredService<ITeamRosterService>();
@@ -81,7 +108,7 @@ public sealed class TeamComponentsTests : BunitContext
         RegisterServices(isClubAdmin: true);
         var older = new TaskCompletionSource<AuthenticationState>();
         var administrator = new AuthenticationState(CreatePrincipal(isClubAdmin: true, isAdmin: false));
-        var authentication = new DeferredAuthentication(startup ? older.Task : Task.FromResult(administrator));
+        var authentication = new ControlledAuthenticationStateProvider(startup ? older.Task : Task.FromResult(administrator));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         Services.GetRequiredService<NavigationManager>().NavigateTo("/club/teams?returnToDraft=10");
         var cut = Render<TeamsPage>();
@@ -109,7 +136,7 @@ public sealed class TeamComponentsTests : BunitContext
     public async Task Teams_IgnoresAuthenticationCompletion_AfterDisposal()
     {
         RegisterServices(isClubAdmin: true);
-        var authentication = new DeferredAuthentication(Task.FromResult(
+        var authentication = new ControlledAuthenticationStateProvider(Task.FromResult(
             new AuthenticationState(CreatePrincipal(isClubAdmin: true, isAdmin: false))));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<TeamsPage>();
@@ -135,7 +162,7 @@ public sealed class TeamComponentsTests : BunitContext
     public void Teams_ReturnToDraft_RequiresCurrentAdministratorRole(bool startsAsAdmin)
     {
         RegisterServices(isClubAdmin: startsAsAdmin);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(startsAsAdmin, isAdmin: false));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(startsAsAdmin, isAdmin: false));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         Services.GetRequiredService<NavigationManager>().NavigateTo("/club/teams?returnToDraft=10");
         var cut = Render<TeamsPage>();
@@ -145,7 +172,7 @@ public sealed class TeamComponentsTests : BunitContext
         {
             cut.FindAll("a").Single(link => link.TextContent.Trim() == "Return to draft")
                 .GetAttribute("href").ShouldBe("/campaigns/10");
-            authentication.Change(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+            authentication.Publish(CreatePrincipal(isClubAdmin: false, isAdmin: false));
         }
 
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Return to draft"));
@@ -294,14 +321,14 @@ public sealed class TeamComponentsTests : BunitContext
     public void Teams_ShowsMutationControls_WhenClubAdminRoleIsGrantedAfterLoad()
     {
         RegisterServices(isClubAdmin: false);
-        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+        var auth = new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin: false, isAdmin: false));
         Services.AddSingleton<AuthenticationStateProvider>(auth);
 
         var cut = Render<TeamsPage>();
         cut.WaitForState(() => !cut.Markup.Contains("Loading teams...", StringComparison.Ordinal));
         cut.Markup.ShouldNotContain("Add team");
 
-        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false));
+        auth.Publish(CreatePrincipal(isClubAdmin: true, isAdmin: false));
 
         cut.WaitForAssertion(() =>
         {
@@ -315,14 +342,14 @@ public sealed class TeamComponentsTests : BunitContext
     public void Teams_HidesMutationControls_WhenClubAdminRoleIsRevokedAfterLoad()
     {
         RegisterServices(isClubAdmin: true);
-        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false));
+        var auth = new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false));
         Services.AddSingleton<AuthenticationStateProvider>(auth);
 
         var cut = Render<TeamsPage>();
         cut.WaitForState(() => !cut.Markup.Contains("Loading teams...", StringComparison.Ordinal));
         cut.Markup.ShouldContain("Add team");
 
-        auth.Change(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+        auth.Publish(CreatePrincipal(isClubAdmin: false, isAdmin: false));
 
         cut.WaitForAssertion(() =>
         {
@@ -362,13 +389,13 @@ public sealed class TeamComponentsTests : BunitContext
                 ])));
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
-        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        var auth = new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
         Services.AddSingleton<AuthenticationStateProvider>(auth);
 
         var cut = Render<TeamsPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Orange"));
 
-        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+        auth.Publish(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
 
         cut.WaitForAssertion(() =>
         {
@@ -393,13 +420,13 @@ public sealed class TeamComponentsTests : BunitContext
                 pending.Task);
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
-        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        var auth = new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
         Services.AddSingleton<AuthenticationStateProvider>(auth);
 
         var cut = Render<TeamsPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Orange"));
 
-        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+        auth.Publish(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
 
         cut.WaitForAssertion(() =>
         {
@@ -430,7 +457,7 @@ public sealed class TeamComponentsTests : BunitContext
             .Returns(pendingCreate1.Task, pendingCreate2.Task);
 
         RegisterServices(managementService: managementService, isClubAdmin: true);
-        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        var auth = new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
         Services.AddSingleton<AuthenticationStateProvider>(auth);
 
         var cut = Render<TeamsPage>();
@@ -445,7 +472,7 @@ public sealed class TeamComponentsTests : BunitContext
         cut.WaitForAssertion(() => cut.Find("button[type='submit']").HasAttribute("disabled"));
 
         // Switch club while the mutation is still in flight.
-        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+        auth.Publish(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
 
         // The new club's controls must be usable again immediately, even though the old
         // mutation never completed.
@@ -521,7 +548,7 @@ public sealed class TeamComponentsTests : BunitContext
                 ])));
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
-        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        var auth = new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
         Services.AddSingleton<AuthenticationStateProvider>(auth);
 
         var cut = Render<TeamsPage>();
@@ -530,7 +557,7 @@ public sealed class TeamComponentsTests : BunitContext
         var firstFilter = cut.Find("#teams-grad-year");
         firstFilter.TextContent.ShouldContain("2032");
 
-        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+        auth.Publish(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U18 Crimson"));
         var secondFilter = cut.Find("#teams-grad-year");
@@ -561,7 +588,7 @@ public sealed class TeamComponentsTests : BunitContext
 
         RegisterServices(rosterService: rosterService, isClubAdmin: true);
         Services.AddSingleton<AuthenticationStateProvider>(
-            new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43)));
+            new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43)));
 
         var cut = Render<PersistedClubIdTeams>(parameters => parameters
             .Add(component => component.StartInitialized, true));
@@ -575,7 +602,7 @@ public sealed class TeamComponentsTests : BunitContext
     public void Teams_ClosesManagementPanels_WhenClubAdminRoleIsRevokedAfterLoad()
     {
         RegisterServices(isClubAdmin: true);
-        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false));
+        var auth = new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false));
         Services.AddSingleton<AuthenticationStateProvider>(auth);
 
         var cut = Render<TeamsPage>();
@@ -584,7 +611,7 @@ public sealed class TeamComponentsTests : BunitContext
         cut.Find("button.btn-outline-primary").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit team"));
 
-        auth.Change(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+        auth.Publish(CreatePrincipal(isClubAdmin: false, isAdmin: false));
 
         cut.WaitForAssertion(() =>
         {
@@ -1096,7 +1123,7 @@ public sealed class TeamComponentsTests : BunitContext
         Services.AddSingleton(rosterService);
         Services.AddSingleton(managementService);
         Services.AddSingleton(lifecycleService);
-        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin, isAdmin)));
+        Services.AddSingleton<AuthenticationStateProvider>(new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin, isAdmin)));
     }
 
     private static ServiceResult<IReadOnlyList<TeamRosterItem>> SuccessRosterResult(IReadOnlyList<TeamRosterItem> items)
@@ -1158,36 +1185,9 @@ public sealed class TeamComponentsTests : BunitContext
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
     }
 
-    /// <summary>Controls authentication completion independently of notification order.</summary>
-    /// <param name="initial">The initial authentication task.</param>
-    private sealed class DeferredAuthentication(Task<AuthenticationState> initial) : AuthenticationStateProvider
-    {
-        /// <inheritdoc />
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() => initial;
 
-        /// <summary>Publishes a pending authentication state.</summary>
-        /// <param name="state">The state task to publish.</param>
-        public void Publish(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
-    }
 
-    /// <summary>
-    /// Provides a fixed authentication state for bUnit component tests.
-    /// </summary>
-    /// <param name="principal">The principal to return from <see cref="GetAuthenticationStateAsync"/>.</param>
-    private sealed class FakeAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
-    {
-        private Task<AuthenticationState> _state = Task.FromResult(new AuthenticationState(principal));
 
-        /// <inheritdoc />
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() => _state;
-
-        /// <summary>
-        /// Raises an authentication-state change notification with a new principal.
-        /// </summary>
-        /// <param name="newPrincipal">The principal to publish to subscribers.</param>
-        public void Change(ClaimsPrincipal newPrincipal)
-            => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(newPrincipal)));
-    }
 
     /// <summary>
     /// Starts with a prerendered state already restored from the previous club (club 42), so tests can

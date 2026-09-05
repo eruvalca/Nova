@@ -1,11 +1,10 @@
-﻿using System.Security.Claims;
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
-using Nova.Shared.Security;
 using Nova.UI.Features.Campaigns.Components;
+using Nova.UI.Shared.State;
 
 namespace Nova.UI.Features.Campaigns.Pages;
 
@@ -44,12 +43,12 @@ public partial class NewCampaign(
     private CreateCampaignInput? _pending;
     /// <summary>Interop module for tab-scoped creation recovery.</summary>
     private IJSObjectReference? _module;
-    /// <summary>User, club, and authority key owning creation recovery.</summary>
-    private string _scope = "";
-    /// <summary>Request generation rejecting obsolete identity and setup results.</summary>
-    private int _version;
-    /// <summary>Orders authentication completions across startup, notifications, and disposal.</summary>
-    private int _authenticationVersion;
+    /// <summary>Orders authentication results independently of the applied recovery identity.</summary>
+    private readonly UiIdentityScope _identity = new();
+    /// <summary>Owns the existing setup, retry, and recovery-work generation.</summary>
+    private readonly UiRequestOwner _requestOwner = new();
+    /// <summary>Gets the unchanged user, club, and authority key owning creation recovery.</summary>
+    private string _scope => _identity.StorageKey;
     /// <summary>Server validation errors keyed by creation field.</summary>
     private IReadOnlyDictionary<string, string[]>? _fieldErrors;
 
@@ -66,13 +65,13 @@ public partial class NewCampaign(
     protected override async Task OnInitializedAsync()
     {
         authentication.AuthenticationStateChanged += AuthenticationChanged;
-        var authenticationVersion = _authenticationVersion;
+        var authenticationVersion = _identity.BeginAuthentication();
         var state = await authentication.GetAuthenticationStateAsync();
-        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (ComponentCancellationToken.IsCancellationRequested
+            || !_identity.TryApply(authenticationVersion, UiIdentitySnapshot.FromPrincipal(state.User), out _))
         {
             return;
         }
-        _scope = Identity(state);
         if (Initialized && SnapshotScope == _scope)
         {
             _setup = PersistedSetup;
@@ -82,30 +81,20 @@ public partial class NewCampaign(
         await LoadSetupAsync();
     }
 
-    /// <summary>Builds the user, club, and authority key for creation recovery.</summary>
-    /// <param name="state">The authenticated identity.</param>
-    /// <returns>The scoped recovery key.</returns>
-    private static string Identity(AuthenticationState state) => $"{state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
-
     /// <summary>Discards form, error, and recovery ownership before loading another identity's setup.</summary>
     /// <param name="task">The updated authentication state.</param>
     private void AuthenticationChanged(Task<AuthenticationState> task) => _ = InvokeAsync(async () =>
     {
-        var authenticationVersion = ++_authenticationVersion;
+        var authenticationVersion = _identity.BeginAuthentication();
         var state = await task;
-        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
-        {
-            return;
-        }
-        var next = Identity(state);
-        if (next == _scope)
-        {
-            return;
-        }
-
         var old = _scope;
-        var version = ++_version;
-        _scope = next;
+        if (ComponentCancellationToken.IsCancellationRequested
+            || !_identity.TryApply(authenticationVersion, UiIdentitySnapshot.FromPrincipal(state.User), out var changed)
+            || !changed)
+        {
+            return;
+        }
+        var version = _requestOwner.Begin(_identity.Capture());
         _setup = null;
         PersistedSetup = null;
         _pageError = null;
@@ -127,7 +116,7 @@ public partial class NewCampaign(
             catch (JSException) { /* New-scope initialization reports storage availability independently. */ }
         }
 
-        if (version != _version || ComponentCancellationToken.IsCancellationRequested)
+        if (!_requestOwner.Owns(version) || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -144,22 +133,22 @@ public partial class NewCampaign(
         }
 
         _storageAttempted = true;
-        var version = _version;
+        var version = _requestOwner.Capture(_identity.Capture());
         try
         {
             _module ??= await js.InvokeAsync<IJSObjectReference>("import", ComponentCancellationToken,
                 "./_content/Nova.UI/Features/Campaigns/Pages/NewCampaign.razor.js");
-            if (version != _version)
+            if (!_requestOwner.Owns(version))
             {
                 return;
             }
             var saved = await _module.InvokeAsync<CampaignCreateFormState?>("read", ComponentCancellationToken, _scope, "create-form");
-            if (version != _version)
+            if (!_requestOwner.Owns(version))
             {
                 return;
             }
             var pending = await _module.InvokeAsync<CreateCampaignInput?>("read", ComponentCancellationToken, _scope, "create-pending");
-            if (version != _version)
+            if (!_requestOwner.Owns(version))
             {
                 return;
             }
@@ -186,7 +175,7 @@ public partial class NewCampaign(
         }
         catch (Exception exception) when (exception is JSException or System.Text.Json.JsonException or NotSupportedException)
         {
-            if (version == _version)
+            if (_requestOwner.Owns(version))
             {
                 _sessionReady = false;
                 _pageError = exception is JSException
@@ -201,13 +190,13 @@ public partial class NewCampaign(
     /// <returns>The setup refresh task.</returns>
     private async Task LoadSetupAsync()
     {
-        var version = _version;
+        var version = _requestOwner.Capture(_identity.Capture());
         _isLoading = true;
         _pageError = null;
         try
         {
             var result = await campaignQueryService.GetCreationSetupAsync(ComponentCancellationToken);
-            if (version != _version)
+            if (!_requestOwner.Owns(version))
             {
                 return;
             }
@@ -229,14 +218,14 @@ public partial class NewCampaign(
         catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
         {
-            if (version == _version)
+            if (_requestOwner.Owns(version))
             {
                 _pageError = "Could not load campaign setup. Check your connection and retry.";
             }
         }
         finally
         {
-            if (version == _version)
+            if (_requestOwner.Owns(version))
             {
                 _isLoading = false;
                 PersistedSetup = _setup;
@@ -251,7 +240,7 @@ public partial class NewCampaign(
     /// <returns>The setup reload task.</returns>
     private Task ReloadAsync()
     {
-        ++_version;
+        _requestOwner.Invalidate();
         _storageAttempted = false;
         _sessionReady = false;
         return LoadSetupAsync();
@@ -269,11 +258,11 @@ public partial class NewCampaign(
 
         _createForm = model;
         _fieldErrors = null;
-        var version = _version;
+        var version = _requestOwner.Capture(_identity.Capture());
         try { await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-form", model); }
         catch (JSException)
         {
-            if (version == _version)
+            if (_requestOwner.Owns(version))
             {
                 _sessionReady = false;
                 _storageSaveFailed = true;
@@ -291,12 +280,12 @@ public partial class NewCampaign(
             return;
         }
 
-        var version = _version;
+        var version = _requestOwner.Capture(_identity.Capture());
         _isSubmitting = true;
         try
         {
             await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-form", _createForm);
-            if (version == _version)
+            if (_requestOwner.Owns(version))
             {
                 _storageSaveFailed = false;
                 _formError = null;
@@ -309,7 +298,7 @@ public partial class NewCampaign(
         }
         finally
         {
-            if (version == _version)
+            if (_requestOwner.Owns(version))
             {
                 _isSubmitting = false;
             }
@@ -326,7 +315,7 @@ public partial class NewCampaign(
             return;
         }
 
-        var version = _version;
+        var version = _requestOwner.Capture(_identity.Capture());
         _isSubmitting = true;
         _formError = null;
         _fieldErrors = null;
@@ -344,18 +333,18 @@ public partial class NewCampaign(
             }
             // Confirmation cannot bypass persistence after a failed initial write.
             await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-form", _createForm);
-            if (version != _version)
+            if (!_requestOwner.Owns(version))
             {
                 return;
             }
             await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-pending", _pending);
-            if (version != _version)
+            if (!_requestOwner.Owns(version))
             {
                 return;
             }
 
             var result = await campaignCreationService.CreateAsync(_pending, ComponentCancellationToken);
-            if (version != _version)
+            if (!_requestOwner.Owns(version))
             {
                 return;
             }
@@ -363,13 +352,13 @@ public partial class NewCampaign(
             if (result.IsSuccess)
             {
                 await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, "create-form");
-                if (version != _version)
+                if (!_requestOwner.Owns(version))
                 {
                     return;
                 }
 
                 await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, "create-pending");
-                if (version != _version)
+                if (!_requestOwner.Owns(version))
                 {
                     return;
                 }
@@ -382,7 +371,7 @@ public partial class NewCampaign(
             if (result.Problem.Kind != ServiceProblemKind.ServerError)
             {
                 await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, "create-pending");
-                if (version != _version)
+                if (!_requestOwner.Owns(version))
                 {
                     return;
                 }
@@ -399,14 +388,14 @@ public partial class NewCampaign(
         catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or JSException)
         {
-            if (version == _version)
+            if (_requestOwner.Owns(version))
             {
                 _formError = "The creation result is uncertain. Confirm the original request before editing or submitting another Draft.";
             }
         }
         finally
         {
-            if (version == _version)
+            if (_requestOwner.Owns(version))
             {
                 _isSubmitting = false;
             }
@@ -422,8 +411,8 @@ public partial class NewCampaign(
     /// <inheritdoc />
     protected override async ValueTask DisposeAsyncCore()
     {
-        ++_authenticationVersion;
-        ++_version;
+        _identity.Dispose();
+        _requestOwner.Invalidate();
         authentication.AuthenticationStateChanged -= AuthenticationChanged;
         if (_module is not null)
         {

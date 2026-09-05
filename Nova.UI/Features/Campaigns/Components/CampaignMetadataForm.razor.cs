@@ -13,10 +13,8 @@ public partial class CampaignMetadataForm
 {
     /// <summary>Owns validation and field notifications for the local metadata correction model.</summary>
     private EditContext _editContext = new(CampaignMetadataFormState.CreateDefault());
-    /// <summary>Holds command validation failures separately from DataAnnotations messages.</summary>
-    private ValidationMessageStore? _serverMessages;
-    /// <summary>Tracks the parent error snapshot so rerenders preserve cleared validation failures.</summary>
-    private IReadOnlyDictionary<string, string[]>? _lastServerErrors;
+    /// <summary>Owns server messages, parent snapshot identity, and correction subscriptions.</summary>
+    private readonly ServerValidationMessages _serverMessages = new();
 
     /// <summary>Gets or sets field-level validation from the metadata command.</summary>
     [Parameter] public IReadOnlyDictionary<string, string[]>? ServerErrors { get; set; }
@@ -91,43 +89,19 @@ public partial class CampaignMetadataForm
     {
         if (!ReferenceEquals(_lastModelReference, Model))
         {
-            _editContext.OnFieldChanged -= ClearServerErrors;
             _lastModelReference = Model;
             _localModel = Model.Clone();
             _editContext = new EditContext(_localModel);
-            _serverMessages = new ValidationMessageStore(_editContext);
-            _editContext.OnFieldChanged += ClearServerErrors;
+            _serverMessages.Attach(_editContext);
         }
-        if (!ReferenceEquals(_lastServerErrors, ServerErrors))
-        {
-            _lastServerErrors = ServerErrors;
-            _serverMessages?.Clear();
-            if (ServerErrors is not null)
-            {
-                foreach (var error in ServerErrors)
-                {
-                    _serverMessages?.Add(new FieldIdentifier(_localModel, error.Key), error.Value);
-                }
-            }
-            _editContext.NotifyValidationStateChanged();
-        }
-    }
 
-    /// <summary>Clears contextual command failures after an edit so corrected input can be resubmitted.</summary>
-    /// <param name="sender">The edit context reporting the change.</param>
-    /// <param name="args">The changed field notification.</param>
-    private void ClearServerErrors(object? sender, FieldChangedEventArgs args)
-    {
-        // Contextual failures can span fields (for example, the season and campaign dates).
-        // The unchanged parent error snapshot must not reinstall them after an edit.
-        _serverMessages?.Clear();
-        _editContext.NotifyValidationStateChanged();
+        _serverMessages.Apply(ServerErrors);
     }
 
     /// <inheritdoc />
     protected override async ValueTask DisposeAsyncCore()
     {
-        _editContext.OnFieldChanged -= ClearServerErrors;
+        _serverMessages.Dispose();
         await base.DisposeAsyncCore();
     }
 

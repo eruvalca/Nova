@@ -7,6 +7,7 @@ using Nova.Shared.Enums;
 using Nova.Shared.Features.Players;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
+using Nova.Unit.Tests.Components;
 using NSubstitute;
 using OneOf.Types;
 using Shouldly;
@@ -26,7 +27,7 @@ public sealed class PlayerComponentsTests : BunitContext
     {
         RegisterServices(isClubAdmin: true);
         var pending = new TaskCompletionSource<AuthenticationState>();
-        var authentication = new DeferredAuthentication(pending.Task);
+        var authentication = new ControlledAuthenticationStateProvider(pending.Task);
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<PlayersPage>();
 
@@ -40,25 +41,82 @@ public sealed class PlayerComponentsTests : BunitContext
         await Services.GetRequiredService<IPlayerService>().DidNotReceive().GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Verifies pending and unchanged identity preserve archive consent, including equivalent numeric club claims.</summary>
+    /// <param name="clubClaim">The unchanged club claim's equivalent textual representation.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("42")]
+    [InlineData("042")]
+    public async Task Players_PreservesConfirmation_DuringPendingAndUnchangedAuthentication(string clubClaim)
+    {
+        RegisterServices(isClubAdmin: true);
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Find("button.btn-outline-warning").Click();
+        cut.Find("#archive-confirm-checkbox").Change(true);
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        await cut.InvokeAsync(() => authentication.Publish(pending.Task));
+
+        cut.Find("#archive-confirm-checkbox").HasAttribute("checked").ShouldBeTrue();
+        var principal = CreatePrincipal(true);
+        var identity = (ClaimsIdentity)principal.Identity!;
+        identity.RemoveClaim(identity.FindFirst(NovaClaimTypes.ClubId)!);
+        identity.AddClaim(new Claim(NovaClaimTypes.ClubId, clubClaim));
+        await cut.InvokeAsync(() => pending.SetResult(new AuthenticationState(principal)));
+
+        cut.Find("#archive-confirm-checkbox").HasAttribute("checked").ShouldBeTrue();
+        cut.Find("button.btn-warning").HasAttribute("disabled").ShouldBeFalse();
+        cut.Instance.SnapshotScope.ShouldBe("101:42:True");
+        await Services.GetRequiredService<IPlayerService>().Received(1)
+            .GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies another user in the same club clears the previous user's confirmation and snapshot before reloading.</summary>
+    [Fact]
+    public async Task Players_ClearsConfirmation_WhenUserChangesWithinSameClub()
+    {
+        RegisterServices(isClubAdmin: true);
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        cut.Find("button.btn-outline-warning").Click();
+        cut.Find("#archive-confirm-checkbox").Change(true);
+        var pending = new TaskCompletionSource<ServiceResult<PagedResult<PlayerListItem>>>();
+        var roster = Services.GetRequiredService<IPlayerService>();
+        roster.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
+
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true, userId: "102")));
+
+        cut.FindAll("#archive-confirm-checkbox").ShouldBeEmpty();
+        cut.Markup.ShouldNotContain("Avery Johnson");
+        cut.Instance.PersistedRoster.ShouldBeNull();
+        cut.Instance.SnapshotScope.ShouldBeNull();
+        await cut.InvokeAsync(() => pending.SetResult(SuccessRosterResult([])));
+        cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("102:42:True"));
+        await roster.Received(2).GetPlayerRosterAsync(Arg.Is<GetPlayerRosterInput>(input => input.ClubId == 42), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Verifies role loss discards a checked archive confirmation and restoring access requires fresh consent.</summary>
     [Fact]
     public async Task Players_DiscardsArchiveConfirmation_WhenAdministratorRoleIsLost()
     {
         var lifecycle = Substitute.For<IPlayerLifecycleService>();
         RegisterServices(isClubAdmin: true, lifecycleService: lifecycle);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<PlayersPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
         cut.Find("button.btn-outline-warning").Click();
         cut.Find("#archive-confirm-checkbox").Change(true);
 
-        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(false)));
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(false)));
 
         cut.WaitForAssertion(() => cut.FindAll("#archive-confirm-checkbox").ShouldBeEmpty());
         cut.Markup.ShouldNotContain("Archive Avery Johnson?");
         await lifecycle.DidNotReceive().ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
-        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true)));
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true)));
         cut.WaitForAssertion(() => cut.FindAll("#archive-confirm-checkbox").ShouldBeEmpty());
         cut.Find("button.btn-outline-warning").Click();
         cut.Find("#archive-confirm-checkbox").HasAttribute("checked").ShouldBeFalse();
@@ -75,7 +133,7 @@ public sealed class PlayerComponentsTests : BunitContext
             .Returns(call => call.Arg<GetPlayerRosterInput>().ClubId == 42
                 ? Task.FromResult(SuccessRosterResult(CreateRosterItems())) : pending.Task);
         RegisterServices(isClubAdmin: true, rosterService: roster);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/players?returnToDraft=10&tag=11");
@@ -85,7 +143,7 @@ public sealed class PlayerComponentsTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit player"));
         cut.Instance.PersistedPageError = "Previous club error";
 
-        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true, clubId: 43)));
 
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Avery Johnson"));
         cut.Markup.ShouldNotContain("Edit player");
@@ -113,11 +171,11 @@ public sealed class PlayerComponentsTests : BunitContext
             .Returns(call => call.Arg<GetPlayerRosterInput>().ClubId == 42
                 ? pending.Task : Task.FromResult(SuccessRosterResult([])));
         RegisterServices(isClubAdmin: true, rosterService: roster);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<PlayersPage>();
 
-        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true, clubId: 43)));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("No players found"));
         await cut.InvokeAsync(() => pending.SetResult(forbidden
             ? new ServiceResult<PagedResult<PlayerListItem>>(ServiceProblem.Forbidden("Previous club forbidden"))
@@ -138,13 +196,13 @@ public sealed class PlayerComponentsTests : BunitContext
         var details = Substitute.For<IPlayerDetailService>();
         details.GetPlayerDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
         RegisterServices(isClubAdmin: true, detailService: details);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<PlayersPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
         var edit = cut.Find("button.btn-outline-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
-        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true, clubId: 43)));
         await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<PlayerDetailDto>(CreatePlayerDetail())));
         await edit;
 
@@ -163,7 +221,7 @@ public sealed class PlayerComponentsTests : BunitContext
         var lifecycle = Substitute.For<IPlayerLifecycleService>();
         lifecycle.ArchiveAsync(Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
         RegisterServices(isClubAdmin: true, lifecycleService: lifecycle);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<PlayersPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
@@ -171,7 +229,7 @@ public sealed class PlayerComponentsTests : BunitContext
         cut.Find("#archive-confirm-checkbox").Change(true);
         var archive = cut.Find("button.btn-warning").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
-        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true, clubId: 43)));
         await cut.InvokeAsync(() => pending.SetResult(success ? new ServiceResult<Success>(new Success())
             : new ServiceResult<Success>(ServiceProblem.ServerError("Old archive failure"))));
         await archive;
@@ -196,7 +254,7 @@ public sealed class PlayerComponentsTests : BunitContext
         roster.GetPlayerRosterAsync(Arg.Any<GetPlayerRosterInput>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(SuccessRosterResult([])));
         RegisterServices(isClubAdmin: true, rosterService: roster);
-        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(true, clubId: 43)));
+        Services.AddSingleton<AuthenticationStateProvider>(new ControlledAuthenticationStateProvider(CreatePrincipal(true, clubId: 43)));
 
         var cut = Render<SnapshotPlayers>(parameters => parameters.Add(component => component.RestoredScope, scope));
 
@@ -224,10 +282,10 @@ public sealed class PlayerComponentsTests : BunitContext
             .Returns(call => call.Arg<GetPlayerRosterInput>().ClubId == 42
                 ? pending.Task : Task.FromResult(SuccessRosterResult([])));
         RegisterServices(isClubAdmin: true, rosterService: roster);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<PlayersPage>();
-        await cut.InvokeAsync(() => authentication.Change(CreatePrincipal(true, clubId: 43)));
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true, clubId: 43)));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("No players found"));
 
         await cut.InvokeAsync(() => pending.SetException(new HttpRequestException("Previous club transport failed")));
@@ -246,7 +304,7 @@ public sealed class PlayerComponentsTests : BunitContext
     public void Players_ReturnToDraft_RequiresCurrentAdministratorRole(bool startsAsAdmin)
     {
         RegisterServices(isClubAdmin: startsAsAdmin);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(startsAsAdmin));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(startsAsAdmin));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/players?view=archived&search=Avery&graduationYear=2032&tag=11&returnToDraft=10");
@@ -257,7 +315,7 @@ public sealed class PlayerComponentsTests : BunitContext
         {
             cut.FindAll("a").Single(link => link.TextContent.Trim() == "Return to draft")
                 .GetAttribute("href").ShouldBe("/campaigns/10");
-            authentication.Change(CreatePrincipal(false));
+            authentication.Publish(CreatePrincipal(false));
             cut.WaitForAssertion(() => navigation.Uri.ShouldBe("http://localhost/players"));
             cut.Find("#players-view-filter").GetAttribute("value").ShouldBe("active");
             var latestRequest = Services.GetRequiredService<IPlayerService>().ReceivedCalls()
@@ -688,7 +746,7 @@ public sealed class PlayerComponentsTests : BunitContext
         Services.AddSingleton(managementService);
         Services.AddSingleton(lifecycleService);
         Services.AddSingleton(detailService);
-        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
+        Services.AddSingleton<AuthenticationStateProvider>(new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
     }
 
     private static ServiceResult<PagedResult<PlayerListItem>> SuccessRosterResult(
@@ -731,12 +789,13 @@ public sealed class PlayerComponentsTests : BunitContext
     /// <summary>Builds an authenticated club principal for scope and authorization tests.</summary>
     /// <param name="isClubAdmin">Whether to grant club administrator authority.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="userId">The current user identifier.</param>
     /// <returns>The authenticated principal.</returns>
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, long clubId = 42)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, long clubId = 42, string userId = "101")
     {
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, "101"),
+            new(ClaimTypes.NameIdentifier, userId),
             new(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture))
         };
 
@@ -773,34 +832,7 @@ public sealed class PlayerComponentsTests : BunitContext
         }
     }
 
-    /// <summary>Controls the startup identity independently of later notifications.</summary>
-    /// <param name="initial">The startup identity task.</param>
-    private sealed class DeferredAuthentication(Task<AuthenticationState> initial) : AuthenticationStateProvider
-    {
-        /// <inheritdoc />
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() => initial;
 
-        /// <summary>Publishes a newer identity task.</summary>
-        /// <param name="state">The state to publish.</param>
-        public void Publish(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
-    }
 
-    /// <summary>
-    /// Provides a mutable authentication state for bUnit component tests.
-    /// </summary>
-    /// <param name="principal">The principal to return from <see cref="GetAuthenticationStateAsync"/>.</param>
-    private sealed class FakeAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
-    {
-        /// <summary>The currently published authentication state.</summary>
-        private Task<AuthenticationState> _state = Task.FromResult(new AuthenticationState(principal));
 
-        /// <inheritdoc />
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
-            _state;
-
-        /// <summary>Publishes a changed principal to mounted components.</summary>
-        /// <param name="newPrincipal">The replacement authenticated principal.</param>
-        public void Change(ClaimsPrincipal newPrincipal)
-            => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(newPrincipal)));
-    }
 }

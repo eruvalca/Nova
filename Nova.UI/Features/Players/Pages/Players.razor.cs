@@ -7,6 +7,7 @@ using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Players.Components;
+using Nova.UI.Shared.State;
 
 namespace Nova.UI.Features.Players.Pages;
 
@@ -80,16 +81,11 @@ public partial class Players(
     /// <summary>Identifies the authenticated user owning the mounted roster.</summary>
     private string? _userId;
 
-    /// <summary>Invalidates in-flight operations when user, club, or administrator authority changes.</summary>
-    private int _identityVersion;
-
     /// <summary>Ensures only the most recent roster request can publish results.</summary>
-    private int _rosterVersion;
+    private readonly UiRequestOwner _rosterOwner = new();
 
     /// <summary>Orders asynchronous authentication notifications and startup authentication.</summary>
-    private int _authenticationVersion;
-    /// <summary>Distinguishes an applied clubless identity from uninitialized field defaults.</summary>
-    private bool _identityApplied;
+    private readonly UiIdentityScope _identity = new();
 
     /// <summary>Gets the identity and authority that own the current persisted snapshot.</summary>
     private string CurrentScope => $"{_userId}:{_clubId}:{_canManagePlayers}";
@@ -257,15 +253,15 @@ public partial class Players(
     protected override async Task OnInitializedAsync()
     {
         authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
-        var authenticationVersion = _authenticationVersion;
+        var authenticationVersion = _identity.BeginAuthentication();
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
-        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (ComponentCancellationToken.IsCancellationRequested
+            || !_identity.TryApply(authenticationVersion, ReadIdentity(authenticationState.User), out _))
         {
             return;
         }
         var principal = authenticationState.User;
 
-        _identityApplied = true;
         _canManagePlayers = principal.IsInRole(Roles.ClubAdmin);
         _clubId = ReadClubIdClaim(principal);
         _userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -303,9 +299,11 @@ public partial class Players(
     private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
         => _ = InvokeAsync(async () =>
         {
-            var authenticationVersion = ++_authenticationVersion;
+            var authenticationVersion = _identity.BeginAuthentication();
             var state = await stateTask;
-            if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+            if (ComponentCancellationToken.IsCancellationRequested
+                || !_identity.TryApply(authenticationVersion, ReadIdentity(state.User), out var changed)
+                || !changed)
             {
                 return;
             }
@@ -313,14 +311,7 @@ public partial class Players(
             var clubId = ReadClubIdClaim(state.User);
             var userId = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var canManagePlayers = state.User.IsInRole(Roles.ClubAdmin);
-            if (_identityApplied && clubId == _clubId && userId == _userId && canManagePlayers == _canManagePlayers)
-            {
-                return;
-            }
-
-            ++_identityVersion;
-            ++_rosterVersion;
-            _identityApplied = true;
+            _rosterOwner.Invalidate();
             _clubId = clubId;
             _userId = userId;
             _canManagePlayers = canManagePlayers;
@@ -386,6 +377,14 @@ public partial class Players(
         }
     }
 
+    /// <summary>Captures ownership with the roster's existing parsed-club comparison semantics.</summary>
+    /// <param name="principal">The authenticated principal.</param>
+    /// <returns>The user, normalized club, and management authority owning roster work.</returns>
+    private static UiIdentitySnapshot ReadIdentity(ClaimsPrincipal principal) => new(
+        principal.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+        ReadClubIdClaim(principal)?.ToString(CultureInfo.InvariantCulture),
+        principal.IsInRole(Roles.ClubAdmin));
+
     /// <summary>
     /// Parses the club identifier claim from the current principal.
     /// </summary>
@@ -412,7 +411,7 @@ public partial class Players(
 
         _isLoading = true;
         _pageError = null;
-        var version = ++_rosterVersion;
+        var version = _rosterOwner.Begin(_identity.Capture());
 
         var input = new GetPlayerRosterInput
         {
@@ -426,7 +425,7 @@ public partial class Players(
         };
 
         var result = await ReceiveAsync(playerService.GetPlayerRosterAsync(input, ComponentCancellationToken));
-        if (version != _rosterVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (!_rosterOwner.Owns(version) || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -595,14 +594,14 @@ public partial class Players(
         {
             return;
         }
-        var version = _identityVersion;
+        var version = _identity.Capture();
         _showCreateForm = false;
         _mutationError = null;
         _graduationYearBlockers = [];
         _isMutating = true;
 
         var result = await ReceiveAsync(playerDetailService.GetPlayerDetailAsync(player.PlayerId, ComponentCancellationToken));
-        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (!version.IsCurrent || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -623,13 +622,13 @@ public partial class Players(
         {
             return;
         }
-        var version = _identityVersion;
+        var version = _identity.Capture();
         _isMutating = true;
         _mutationError = null;
         _graduationYearBlockers = [];
 
         var result = await ReceiveAsync(playerManagementService.CreateAsync(_createForm.ToCreateInput(), ComponentCancellationToken));
-        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (!version.IsCurrent || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -664,9 +663,9 @@ public partial class Players(
         _mutationError = null;
         _graduationYearBlockers = [];
 
-        var version = _identityVersion;
+        var version = _identity.Capture();
         var result = await ReceiveAsync(playerManagementService.UpdateAsync(_editForm.ToUpdateInput(), ComponentCancellationToken));
-        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (!version.IsCurrent || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -734,9 +733,9 @@ public partial class Players(
         _mutationError = null;
         _archiveBlockers = [];
 
-        var version = _identityVersion;
+        var version = _identity.Capture();
         var result = await ReceiveAsync(playerLifecycleService.ArchiveAsync(_archiveCandidate.PlayerId, ComponentCancellationToken));
-        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (!version.IsCurrent || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -774,12 +773,12 @@ public partial class Players(
         {
             return;
         }
-        var version = _identityVersion;
+        var version = _identity.Capture();
         _isMutating = true;
         _mutationError = null;
 
         var result = await ReceiveAsync(playerLifecycleService.RestoreAsync(player.PlayerId, ComponentCancellationToken));
-        if (version != _identityVersion || ComponentCancellationToken.IsCancellationRequested)
+        if (!version.IsCurrent || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -968,9 +967,8 @@ public partial class Players(
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
-        ++_identityVersion;
-        ++_rosterVersion;
-        ++_authenticationVersion;
+        _rosterOwner.Invalidate();
+        _identity.Dispose();
         authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();

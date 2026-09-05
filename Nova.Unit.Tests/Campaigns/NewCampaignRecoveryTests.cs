@@ -9,6 +9,7 @@ using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Features.Campaigns.Components;
 using Nova.UI.Features.Campaigns.Pages;
+using Nova.Unit.Tests.Components;
 using NSubstitute;
 using Shouldly;
 
@@ -65,7 +66,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
     {
         Register();
         var older = new TaskCompletionSource<AuthenticationState>();
-        var authentication = new DeferredAuthentication(startup ? older.Task : Task.FromResult(DeferredAuthentication.State(42)));
+        var authentication = new ControlledAuthenticationStateProvider(startup ? older.Task : Task.FromResult(AdministratorState(42)));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<NewCampaign>();
         if (!startup)
@@ -73,14 +74,66 @@ public sealed class NewCampaignRecoveryTests : BunitContext
             cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
             await cut.InvokeAsync(() => authentication.Publish(older.Task));
         }
-        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(DeferredAuthentication.State(43))));
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(AdministratorState(43))));
         cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
 
-        await cut.InvokeAsync(() => older.SetResult(DeferredAuthentication.State(42)));
+        await cut.InvokeAsync(() => older.SetResult(AdministratorState(42)));
 
         cut.Instance.SnapshotScope.ShouldBe("101:43:True");
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
         JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "clear" && invocation.Arguments.Contains("101:43:True"));
+    }
+
+    /// <summary>Verifies a pending refresh and its unchanged result retain unsaved input without clearing recovery or reloading setup.</summary>
+    [Fact]
+    public async Task NewCampaign_PreservesEdits_DuringPendingAndUnchangedAuthentication()
+    {
+        var (_, authentication, _) = Register();
+        var cut = Render<NewCampaign>();
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#campaign-name").Change("Unsaved current Draft");
+        var pending = new TaskCompletionSource<AuthenticationState>();
+
+        await cut.InvokeAsync(() => authentication.Publish(pending.Task));
+
+        cut.Find("#campaign-name").GetAttribute("value").ShouldBe("Unsaved current Draft");
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+        await cut.InvokeAsync(() => pending.SetResult(AdministratorState(42)));
+        cut.Find("#campaign-name").GetAttribute("value").ShouldBe("Unsaved current Draft");
+        cut.Instance.SnapshotScope.ShouldBe("101:42:True");
+        _ = Services.GetRequiredService<ICampaignQueryService>().Received(1).GetCreationSetupAsync(Arg.Any<CancellationToken>());
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "clear");
+    }
+
+    /// <summary>Verifies pending authentication permits the current creation result and unchanged authentication retains its exact retry payload.</summary>
+    [Fact]
+    public async Task NewCampaign_PreservesPendingCreation_DuringUnchangedAuthenticationRefresh()
+    {
+        var (module, authentication, creation) = Register();
+        var form = SavedForm();
+        module.Setup<CampaignCreateFormState?>("read", invocation => invocation.Arguments.Contains("create-form")).SetResult(form);
+        var result = new TaskCompletionSource<ServiceResult<CreateCampaignResult>>();
+        creation.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns(result.Task, Task.FromResult(new ServiceResult<CreateCampaignResult>(ServiceProblem.ServerError("Still uncertain"))));
+        var cut = Render<NewCampaign>();
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        var create = cut.Find("button[type='submit']").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.WaitForAssertion(() => creation.Received(1).CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>()));
+        var authenticationResult = new TaskCompletionSource<AuthenticationState>();
+        await cut.InvokeAsync(() => authentication.Publish(authenticationResult.Task));
+
+        await cut.InvokeAsync(() => result.SetResult(new ServiceResult<CreateCampaignResult>(ServiceProblem.ServerError("Current creation is uncertain"))));
+        await create;
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Current creation is uncertain"));
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Confirm creation result").HasAttribute("disabled").ShouldBeFalse();
+        await cut.InvokeAsync(() => authenticationResult.SetResult(AdministratorState(42)));
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Confirm creation result").Click();
+        cut.WaitForAssertion(() => creation.Received(2).CreateAsync(
+            Arg.Is<CreateCampaignInput>(input => input.OperationId == form.OperationId && input.Name == form.Name
+                && input.StartDate == form.StartDate && input.PlannedEndDate == form.PlannedEndDate && input.ExistingSeasonId == form.ExistingSeasonId),
+            Arg.Any<CancellationToken>()));
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "clear" || invocation.Identifier == "remove");
     }
 
     /// <summary>Verifies a pending authentication notification cannot reload setup after disposal.</summary>
@@ -88,7 +141,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
     public async Task NewCampaign_IgnoresAuthenticationCompletion_AfterDisposal()
     {
         Register();
-        var authentication = new DeferredAuthentication(Task.FromResult(DeferredAuthentication.State(42)));
+        var authentication = new ControlledAuthenticationStateProvider(Task.FromResult(AdministratorState(42)));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<NewCampaign>();
         cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
@@ -96,7 +149,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         await cut.InvokeAsync(() => authentication.Publish(pending.Task));
         await cut.Instance.DisposeAsync();
         cut.Dispose();
-        await cut.InvokeAsync(() => pending.SetResult(DeferredAuthentication.State(43)));
+        await cut.InvokeAsync(() => pending.SetResult(AdministratorState(43)));
         _ = Services.GetRequiredService<ICampaignQueryService>().Received(1).GetCreationSetupAsync(Arg.Any<CancellationToken>());
     }
 
@@ -123,7 +176,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         cut.Find("#campaign-start-date").GetAttribute("value").ShouldBe("2026-06-15");
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
 
-        await cut.InvokeAsync(() => authentication.ChangeClub(43));
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(AdministratorState(43))));
 
         cut.WaitForAssertion(() => cut.Find("#campaign-name").GetAttribute("value").ShouldBe(string.Empty));
         JSInterop.Invocations.ShouldContain(invocation => invocation.Identifier == "clear"
@@ -286,7 +339,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         var pending = new TaskCompletionSource<ServiceResult<CampaignCreationSetupResult>>();
         Services.GetRequiredService<ICampaignQueryService>().GetCreationSetupAsync(Arg.Any<CancellationToken>()).Returns(pending.Task);
 
-        await cut.InvokeAsync(() => authentication.ChangeClub(43));
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(AdministratorState(43))));
 
         cut.Instance.PersistedPageError.ShouldBeNull();
         cut.Instance.SnapshotScope.ShouldBeNull();
@@ -322,7 +375,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         var change = cut.Find("section.campaign-create-board").TriggerEventAsync("onchange", new Microsoft.AspNetCore.Components.ChangeEventArgs());
         cut.WaitForAssertion(() => pendingWrite.Invocations.Count.ShouldBe(1));
 
-        await cut.InvokeAsync(() => authentication.ChangeClub(43));
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(AdministratorState(43))));
         cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
         pendingWrite.SetException(new JSException("Old storage failed late"));
         await change;
@@ -346,7 +399,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
 
     /// <summary>Registers successful setup, a mutable administrator identity, and session interop.</summary>
     /// <returns>The session module, identity provider, and mutation double.</returns>
-    private (BunitJSModuleInterop Module, ChangingAuthentication Authentication, ICampaignCreationService Creation) Register()
+    private (BunitJSModuleInterop Module, ControlledAuthenticationStateProvider Authentication, ICampaignCreationService Creation) Register()
     {
         var queries = Substitute.For<ICampaignQueryService>();
         queries.GetCreationSetupAsync(Arg.Any<CancellationToken>())
@@ -357,7 +410,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
                 ActiveTeamCount = 0
             }));
         var creation = Substitute.For<ICampaignCreationService>();
-        var authentication = new ChangingAuthentication();
+        var authentication = new ControlledAuthenticationStateProvider(Task.FromResult(AdministratorState(42)));
         Services.AddSingleton(queries);
         Services.AddSingleton(creation);
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
@@ -367,43 +420,11 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         return (module, authentication, creation);
     }
 
-    /// <summary>Controls authentication completion independently of notification order.</summary>
-    /// <param name="initial">The startup authentication task.</param>
-    private sealed class DeferredAuthentication(Task<AuthenticationState> initial) : AuthenticationStateProvider
-    {
-        /// <inheritdoc />
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() => initial;
+    /// <summary>Creates the administrator identity used by creation recovery scenarios.</summary>
+    /// <param name="clubId">The current club claim.</param>
+    /// <returns>The authenticated state.</returns>
+    private static AuthenticationState AdministratorState(long clubId) => new(new ClaimsPrincipal(new ClaimsIdentity(
+        [new Claim(ClaimTypes.NameIdentifier, "101"), new Claim(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new Claim(ClaimTypes.Role, Roles.ClubAdmin)], "Test")));
 
-        /// <summary>Publishes an authentication task.</summary>
-        /// <param name="state">The pending state.</param>
-        public void Publish(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
-
-        /// <summary>Creates an administrator state owned by a specific club.</summary>
-        /// <param name="clubId">The club identifier.</param>
-        /// <returns>The authenticated state.</returns>
-        public static AuthenticationState State(long clubId) => new(new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, "101"), new Claim(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                new Claim(ClaimTypes.Role, Roles.ClubAdmin)], "Test")));
-    }
-
-    /// <summary>Publishes same-role club changes without replacing the user's identity.</summary>
-    private sealed class ChangingAuthentication : AuthenticationStateProvider
-    {
-        /// <summary>Stores the current club claim.</summary>
-        private long _clubId = 42;
-
-        /// <inheritdoc />
-        public override Task<AuthenticationState> GetAuthenticationStateAsync()
-            => Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, "101"), new Claim(NovaClaimTypes.ClubId, _clubId.ToString()),
-                new Claim(ClaimTypes.Role, Roles.ClubAdmin)], "Test"))));
-
-        /// <summary>Notifies mounted components that their old club-owned state is no longer authorized.</summary>
-        /// <param name="clubId">The new current club.</param>
-        public void ChangeClub(long clubId)
-        {
-            _clubId = clubId;
-            NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
-        }
-    }
 }

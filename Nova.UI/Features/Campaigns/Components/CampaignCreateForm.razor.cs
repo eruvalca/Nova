@@ -13,10 +13,8 @@ public partial class CampaignCreateForm
 {
     /// <summary>Owns validation and field notifications for the local editable creation model.</summary>
     private EditContext _editContext = new(CampaignCreateFormState.CreateDefault());
-    /// <summary>Holds command validation failures separately from DataAnnotations messages.</summary>
-    private ValidationMessageStore? _serverMessages;
-    /// <summary>Tracks the parent error snapshot so a rerender does not reinstall cleared failures.</summary>
-    private IReadOnlyDictionary<string, string[]>? _lastErrors;
+    /// <summary>Owns server messages, parent snapshot identity, and correction subscriptions.</summary>
+    private readonly ServerValidationMessages _serverMessages = new();
 
     /// <summary>Gets or sets a callback preserving edited input.</summary>
     [Parameter] public EventCallback<CampaignCreateFormState> OnChanged { get; set; }
@@ -91,55 +89,34 @@ public partial class CampaignCreateForm
     {
         if (!ReferenceEquals(_lastModelReference, Model))
         {
-            _editContext.OnFieldChanged -= ClearServerErrors;
             _lastModelReference = Model;
             _localModel = Model.Clone();
             _editContext = new EditContext(_localModel);
-            _serverMessages = new ValidationMessageStore(_editContext);
-            _editContext.OnFieldChanged += ClearServerErrors;
+            _serverMessages.Attach(_editContext);
         }
 
         if (!AllowInlineSeasonCreation)
         {
             _localModel.UseInlineSeason = false;
         }
-        if (!ReferenceEquals(_lastErrors, ServerErrors))
-        {
-            _lastErrors = ServerErrors;
-            _serverMessages?.Clear();
-            if (ServerErrors is not null)
-            {
-                foreach (var error in ServerErrors)
-                {
-                    var field = error.Key switch
-                    {
-                        "InlineSeason.Name" => nameof(CampaignCreateFormState.InlineSeasonName),
-                        "InlineSeason.StartDate" => nameof(CampaignCreateFormState.InlineSeasonStartDate),
-                        "InlineSeason.EndDate" => nameof(CampaignCreateFormState.InlineSeasonEndDate),
-                        _ => error.Key
-                    };
-                    _serverMessages?.Add(new FieldIdentifier(_localModel, field), error.Value);
-                }
-            }
-            _editContext.NotifyValidationStateChanged();
-        }
+        _serverMessages.Apply(ServerErrors, MapServerFieldName);
     }
 
-    /// <summary>Clears contextual command failures after an edit so corrected input can be resubmitted.</summary>
-    /// <param name="sender">The edit context reporting the change.</param>
-    /// <param name="args">The changed field notification.</param>
-    private void ClearServerErrors(object? sender, FieldChangedEventArgs args)
+    /// <summary>Maps nested season command fields to the creation form's flattened controls.</summary>
+    /// <param name="field">The field path returned by the command.</param>
+    /// <returns>The matching local form field.</returns>
+    private static string MapServerFieldName(string field) => field switch
     {
-        // Cross-field failures must be revalidated by the command against the corrected input.
-        // Keep the snapshot reference so an unchanged parent rerender cannot reinstall them.
-        _serverMessages?.Clear();
-        _editContext.NotifyValidationStateChanged();
-    }
+        "InlineSeason.Name" => nameof(CampaignCreateFormState.InlineSeasonName),
+        "InlineSeason.StartDate" => nameof(CampaignCreateFormState.InlineSeasonStartDate),
+        "InlineSeason.EndDate" => nameof(CampaignCreateFormState.InlineSeasonEndDate),
+        _ => field
+    };
 
     /// <inheritdoc />
     protected override async ValueTask DisposeAsyncCore()
     {
-        _editContext.OnFieldChanged -= ClearServerErrors;
+        _serverMessages.Dispose();
         await base.DisposeAsyncCore();
     }
 

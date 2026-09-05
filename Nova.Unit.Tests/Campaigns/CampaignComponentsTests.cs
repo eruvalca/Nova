@@ -10,6 +10,7 @@ using Nova.Shared.Features.Seasons;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Features.Campaigns.Components;
+using Nova.Unit.Tests.Components;
 using NSubstitute;
 using Shouldly;
 using CampaignsPage = Nova.UI.Features.Campaigns.Pages.Campaigns;
@@ -194,14 +195,14 @@ public sealed class CampaignComponentsTests : BunitContext
         queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult(SuccessListResult(call.Arg<GetCampaignListInput>().Status == "draft" ? drafts : groups)));
         RegisterServices(isClubAdmin: true, queryService: queries);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/campaigns?view=draft");
         var cut = Render<CampaignsPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Hidden Draft"));
 
-        await cut.InvokeAsync(() => authentication.ChangePrincipal(CreatePrincipal(isClubAdmin: false)));
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(isClubAdmin: false)));
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
         cut.Markup.ShouldNotContain("Hidden Draft");
@@ -253,14 +254,14 @@ public sealed class CampaignComponentsTests : BunitContext
                 return pendingList.Task;
             });
         RegisterServices(isClubAdmin: true, queryService: queries);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<CampaignsPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
         var older = new TaskCompletionSource<AuthenticationState>();
         var newer = new TaskCompletionSource<AuthenticationState>();
-        await cut.InvokeAsync(() => authentication.NotifyPending(older.Task));
-        await cut.InvokeAsync(() => authentication.NotifyPending(newer.Task));
+        await cut.InvokeAsync(() => authentication.Publish(older.Task));
+        await cut.InvokeAsync(() => authentication.Publish(newer.Task));
         await cut.InvokeAsync(() => newer.SetResult(new AuthenticationState(CreatePrincipal(false, clubId: 43))));
         cut.WaitForAssertion(() => requests.ShouldBe(2));
 
@@ -274,6 +275,111 @@ public sealed class CampaignComponentsTests : BunitContext
         cut.Markup.ShouldNotContain("Create campaign");
     }
 
+    /// <summary>Verifies a pending authentication refresh and its unchanged result preserve an unsaved directory correction.</summary>
+    [Fact]
+    public async Task Campaigns_PreservesEdit_DuringPendingAndUnchangedAuthentication()
+    {
+        RegisterServices(isClubAdmin: true);
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit campaign metadata"));
+        cut.Find("#edit-campaign-name").Change("Unsaved directory correction");
+        var pending = new TaskCompletionSource<AuthenticationState>();
+
+        await cut.InvokeAsync(() => authentication.Publish(pending.Task));
+
+        cut.Find("#edit-campaign-name").GetAttribute("value").ShouldBe("Unsaved directory correction");
+        await cut.InvokeAsync(() => pending.SetResult(new AuthenticationState(CreatePrincipal(true))));
+        cut.Find("#edit-campaign-name").GetAttribute("value").ShouldBe("Unsaved directory correction");
+        await Services.GetRequiredService<ICampaignQueryService>().Received(1)
+            .GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies season choices are reused only within the same applied identity and reloaded for another club.</summary>
+    /// <param name="clubChanges">Whether the new authentication snapshot belongs to another club.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Campaigns_ReusesSeasonChoiceCache_OnlyForUnchangedIdentity(bool clubChanges)
+    {
+        var oldGroups = CreateSeasonGroups();
+        var newGroups = new[]
+        {
+            oldGroups[0] with
+            {
+                SeasonId = 6,
+                Name = "New club season",
+                Campaigns = [oldGroups[0].Campaigns[0] with { CampaignId = 11, Name = "New club campaign" }]
+            }
+        };
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(SuccessListResult(oldGroups), SuccessListResult(newGroups));
+        queries.GetCreationSetupAsync(Arg.Any<CancellationToken>())
+            .Returns(SuccessSetupResult(), SuccessSetupResult([new CampaignSeasonChoice
+            {
+                SeasonId = 6,
+                Name = "New club season",
+                StartDate = new DateOnly(2026, 6, 1)
+            }]));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.Find("tbody button").Click();
+        cut.WaitForAssertion(() => cut.Find("#edit-campaign-season").TextContent.ShouldContain("Summer 2026"));
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Cancel").Click();
+
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true, clubId: clubChanges ? 43 : 42)));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain(clubChanges ? "New club campaign" : "Summer Tryouts"));
+        cut.Find("tbody button").Click();
+
+        cut.WaitForAssertion(() => cut.Find("#edit-campaign-season").TextContent.ShouldContain(clubChanges ? "New club season" : "Summer 2026"));
+        if (clubChanges)
+        {
+            cut.Find("#edit-campaign-season").TextContent.ShouldNotContain("Summer 2026");
+        }
+        await queries.Received(clubChanges ? 2 : 1).GetCreationSetupAsync(Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies only the current user's season-choice failure may redirect the directory.</summary>
+    /// <param name="userChanges">Whether another user takes ownership before the setup request returns Forbidden.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Campaigns_RedirectsForbiddenSeasonChoices_OnlyForCurrentEditOwner(bool userChanges)
+    {
+        var pending = new TaskCompletionSource<ServiceResult<CampaignCreationSetupResult>>();
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(SuccessListResult(CreateSeasonGroups()));
+        queries.GetCreationSetupAsync(Arg.Any<CancellationToken>()).Returns(pending.Task);
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        var edit = cut.Find("tbody button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.WaitForAssertion(() => queries.Received(1).GetCreationSetupAsync(Arg.Any<CancellationToken>()));
+        if (userChanges)
+        {
+            await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true, userId: "102")));
+            cut.WaitForAssertion(() => cut.Instance.PersistedIdentityScope.ShouldBe("102:42:True"));
+        }
+
+        await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<CampaignCreationSetupResult>(ServiceProblem.Forbidden("Previous setup forbidden"))));
+        await edit;
+
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.Uri.Contains("AccessDenied", StringComparison.Ordinal).ShouldBe(!userChanges);
+        cut.Markup.ShouldNotContain("Edit campaign metadata");
+        await queries.Received(userChanges ? 2 : 1).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Verifies an authentication notification completing after disposal cannot start another directory query.</summary>
     [Fact]
     public async Task Campaigns_IgnoresPendingAuthentication_AfterDisposal()
@@ -282,12 +388,12 @@ public sealed class CampaignComponentsTests : BunitContext
         queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
             .Returns(SuccessListResult(CreateSeasonGroups()));
         RegisterServices(isClubAdmin: true, queryService: queries);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<CampaignsPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
         var pending = new TaskCompletionSource<AuthenticationState>();
-        await cut.InvokeAsync(() => authentication.NotifyPending(pending.Task));
+        await cut.InvokeAsync(() => authentication.Publish(pending.Task));
         await cut.Instance.DisposeAsync();
         cut.Dispose();
 
@@ -770,7 +876,7 @@ public sealed class CampaignComponentsTests : BunitContext
         var seasons = Substitute.For<ISeasonCommandService>();
         seasons.UpdateAsync(Arg.Any<long>(), Arg.Any<UpdateSeasonInput>(), Arg.Any<CancellationToken>()).Returns(oldSeason.Task);
         RegisterServices(isClubAdmin: true, metadataService: metadata, seasonMetadataService: seasons);
-        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        var authentication = new ControlledAuthenticationStateProvider(CreatePrincipal(true));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<CampaignsPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
@@ -783,7 +889,7 @@ public sealed class CampaignComponentsTests : BunitContext
             cut.Find("tbody button").Click();
         }
         var oldSave = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
-        await cut.InvokeAsync(() => authentication.ChangePrincipal(CreatePrincipal(true, 43)));
+        await cut.InvokeAsync(() => authentication.Publish(CreatePrincipal(true, 43)));
         cut.WaitForAssertion(() => cut.Find("tbody button").HasAttribute("disabled").ShouldBeFalse());
         cut.Find("tbody button").Click();
         var newSave = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
@@ -1595,7 +1701,7 @@ public sealed class CampaignComponentsTests : BunitContext
         Services.AddSingleton(creationService);
         Services.AddSingleton(metadataService);
         Services.AddSingleton(seasonMetadataService);
-        Services.AddSingleton<AuthenticationStateProvider>(new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
+        Services.AddSingleton<AuthenticationStateProvider>(new ControlledAuthenticationStateProvider(CreatePrincipal(isClubAdmin)));
     }
 
     private static ServiceResult<CampaignListResult> SuccessListResult(
@@ -1680,12 +1786,13 @@ public sealed class CampaignComponentsTests : BunitContext
     /// <summary>Builds a principal with explicit club and administrator scope.</summary>
     /// <param name="isClubAdmin">Whether the principal is a club administrator.</param>
     /// <param name="clubId">The current club identifier.</param>
+    /// <param name="userId">The current user identifier.</param>
     /// <returns>The authenticated test principal.</returns>
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, long clubId = 42)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, long clubId = 42, string userId = "101")
     {
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, "101"),
+            new(ClaimTypes.NameIdentifier, userId),
             new(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture))
         };
 
@@ -1714,32 +1821,7 @@ public sealed class CampaignComponentsTests : BunitContext
         throw new InvalidOperationException("Could not locate repository root for campaign route assertion.");
     }
 
-    /// <summary>
-    /// Provides a fixed authentication state for bUnit component tests.
-    /// </summary>
-    /// <param name="principal">The principal to return from <see cref="GetAuthenticationStateAsync"/>.</param>
-    private sealed class FakeAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
-    {
-        /// <summary>Stores the current identity for role-change scenarios.</summary>
-        private ClaimsPrincipal _principal = principal;
 
-        /// <inheritdoc />
-        public override Task<AuthenticationState> GetAuthenticationStateAsync()
-            => Task.FromResult(new AuthenticationState(_principal));
-
-        /// <summary>Publishes an identity change to mounted directory components.</summary>
-        /// <param name="next">The replacement identity.</param>
-        public void ChangePrincipal(ClaimsPrincipal next)
-        {
-            _principal = next;
-            NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
-        }
-
-        /// <summary>Publishes an unresolved authentication notification to exercise out-of-order completion.</summary>
-        /// <param name="pending">The authentication result that will complete later.</param>
-        public void NotifyPending(Task<AuthenticationState> pending)
-            => NotifyAuthenticationStateChanged(pending);
-    }
 
     /// <summary>
     /// A test-only <see cref="CampaignsPage"/> subclass that seeds persisted prerender state.
