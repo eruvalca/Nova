@@ -68,9 +68,10 @@ internal static class LifecycleMutationLock
             => AcquirePostgresLockAsync(db, (long.MinValue / 8) + joinRequestId, cancellationToken);
 
         /// <summary>
-        /// Acquires a transaction-scoped club-roster lock that serializes concurrent player creation
-        /// within the same club, preventing gaps in campaign enrollment. Campaign creation acquires
-        /// this lock after the club-season lock.
+        /// Acquires a transaction-scoped club-roster lock that serializes player creation and profile
+        /// identity updates within the same club, guarding enrollment and import duplicate checks.
+        /// Campaign creation acquires this after the club-season lock; profile updates acquire it
+        /// before the player lock.
         /// </summary>
         /// <param name="clubId">The club identifier whose roster mutations must be serialized.</param>
         /// <param name="cancellationToken">A token that cancels lock acquisition.</param>

@@ -697,6 +697,30 @@ public sealed class HttpPlayerImportServiceTests
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
     }
 
+    /// <summary>Preview success respects the same confirmation length bound as commit input.</summary>
+    /// <param name="excess">Characters beyond the inclusive maximum.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task PreviewAsync_EnforcesConfirmationTokenLength(int excess)
+    {
+        var preview = ValidPreview() with
+        {
+            ConfirmationToken = new string('x', PlayerImportConstraints.MaxConfirmationTokenCharacters + excess)
+        };
+        using var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(preview)
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        var result = await new HttpPlayerImportService(http).PreviewAsync(ValidUpload(), TestContext.Current.CancellationToken);
+        result.IsSuccess.ShouldBe(excess == 0);
+        if (excess > 0)
+        {
+            result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        }
+    }
+
     private static PlayerImportUploadInput ValidUpload() => new()
     {
         Content = Encoding.UTF8.GetBytes("content"),

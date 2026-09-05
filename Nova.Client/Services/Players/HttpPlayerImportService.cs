@@ -244,6 +244,7 @@ public sealed class HttpPlayerImportService(HttpClient httpClient) : IPlayerImpo
         if (preview.OperationId == Guid.Empty
             || preview.OperationId.Version != 7
             || string.IsNullOrWhiteSpace(preview.ConfirmationToken)
+            || preview.ConfirmationToken.Length > PlayerImportConstraints.MaxConfirmationTokenCharacters
             || preview.ExpiresAt == default
             || preview.TotalRows is < 1 or > PlayerImportConstraints.MaxDataRows
             || preview.ReadyRows < 0

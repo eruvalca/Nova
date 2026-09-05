@@ -413,7 +413,7 @@ public sealed class PlayerImportServiceTests : IDisposable
 
     /// <summary>Malformed signed claims cannot widen authorization or silently change reviewed eligibility.</summary>
     /// <param name="malformation">The signed claim to corrupt.</param>
-    [Theory]
+    [Theory(IncludeTestCaseIndex = true)]
     [InlineData("future")]
     [InlineData("lifetime")]
     [InlineData("missing rows")]

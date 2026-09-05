@@ -58,7 +58,7 @@ internal sealed partial class PlayerImportService
             async (request, token) =>
             {
                 await using var db = await dbContextFactory.CreateDbContextAsync(token);
-                return await CommitImportAttemptAsync(db, request, actorUserId, clubId, fileHash, tokenHash, token);
+                return await CommitImportAttemptAsync(db, request, actorUserId, clubId, fileHash, tokenHash, startedAt, token);
             },
             async (request, token) =>
             {
@@ -78,8 +78,7 @@ internal sealed partial class PlayerImportService
             cancellationToken);
 
         result.Switch(
-            completion => LogImportCompleted(completion.OperationId, clubId, actorUserId, completion.CreatedRows,
-                completion.BlockedRows, Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds),
+            _ => { },
             problem => LogImportFailed(input.OperationId, clubId, actorUserId, problem.Kind.ToString()));
         return result;
     }
@@ -91,11 +90,12 @@ internal sealed partial class PlayerImportService
     /// <param name="clubId">The requesting club.</param>
     /// <param name="fileHash">The frozen file digest.</param>
     /// <param name="tokenHash">The exact confirmation digest.</param>
+    /// <param name="startedAt">The monotonic request start timestamp for completion timing.</param>
     /// <param name="cancellationToken">Cancels the attempt.</param>
     /// <returns>A committed or recovered result, or a safe rejection.</returns>
     private async Task<ServiceResult<PlayerImportCompletion>> CommitImportAttemptAsync(
         NovaDbContext db, PlayerImportCommitInput input, long actorUserId, long clubId,
-        string fileHash, string tokenHash, CancellationToken cancellationToken)
+        string fileHash, string tokenHash, long startedAt, CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         if (!await AuthorizeImportAsync(db, actorUserId, clubId, cancellationToken))
@@ -217,6 +217,8 @@ internal sealed partial class PlayerImportService
                     });
                     await db.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
+                    LogImportCompleted(completion.OperationId, clubId, actorUserId, completion.CreatedRows,
+                        completion.BlockedRows, Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
                     return completion;
                 }
                 catch (DbUpdateConcurrencyException)

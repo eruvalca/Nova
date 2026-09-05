@@ -22,6 +22,7 @@ namespace Nova.Integration.Tests.Data;
 [Collection(NovaAppHostCollection.Name)]
 public sealed class PlayerImportCommitPostgresTests(NovaAppHostFixture fixture)
 {
+    /// <summary>Provides isolated data-protection keys for this test instance.</summary>
     private readonly EphemeralDataProtectionProvider _protection = new();
 
     /// <summary>Verifies that a late save failure rolls back players, enrollment, and proof together.</summary>

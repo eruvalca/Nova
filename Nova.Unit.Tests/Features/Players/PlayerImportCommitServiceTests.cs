@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
@@ -255,11 +256,22 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
             case "bytes": input = input with { Upload = input.Upload with { Content = [.. input.Upload.Content, (byte)'\n'] } }; break;
             case "operation": input = input with { OperationId = Guid.CreateVersion7() }; break;
             case "token": input = input with { ConfirmationToken = "tampered" }; break;
-            case "actor": _harness.CurrentUser.UserId = ActorId + 10; break;
-            case "club": _harness.CurrentUser.ClubId = OtherClubId; break;
+            case "actor":
+            case "club":
+                var retryClubId = changed == "actor" ? ClubId : OtherClubId;
+                using (var seed = _harness.CreateAdminContext())
+                {
+                    seed.Users.Add(new NovaUserEntity { Id = ActorId + 10, FirstName = "Retry", LastName = "Admin", ClubId = retryClubId });
+                    seed.UserRoles.Add(new IdentityUserRole<long> { RoleId = RoleId, UserId = ActorId + 10 });
+                    seed.SaveChanges();
+                }
+                _harness.CurrentUser.UserId = ActorId + 10;
+                _harness.CurrentUser.ClubId = retryClubId;
+                break;
         }
         var result = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
         using var db = _harness.CreateAdminContext();
         db.Players.Count().ShouldBe(1);
     }
@@ -428,11 +440,41 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
         after.PlayerImportReceipts.Count().ShouldBe(1);
     }
 
+    /// <summary>Recovery emits only its recovery event, without repeating completion counters.</summary>
+    [Fact]
+    public async Task CommitAsync_LogsCompletionOnce_WhenRequestIsRecovered()
+    {
+        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\n");
+        var logger = new ImportEventLogger();
+        var service = Service(logger);
+        (await service.CommitAsync(input, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+        (await service.CommitAsync(input, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+        logger.Events.ShouldBe(["LogImportCompleted", "LogImportRecovered"]);
+    }
+
+    /// <summary>Captures event identities without retaining CSV values or requiring dynamic proxies.</summary>
+    private sealed class ImportEventLogger : ILogger<PlayerImportService>
+    {
+        /// <summary>The emitted event names in call order.</summary>
+        public List<string?> Events { get; } = [];
+
+        /// <inheritdoc />
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        /// <inheritdoc />
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        /// <inheritdoc />
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Events.Add(eventId.Name);
+    }
+
     /// <summary>Builds the service with independent factories and the same clock and protection keys.</summary>
+    /// <param name="logger">Optional logger for observing operation events.</param>
     /// <returns>The service under test.</returns>
-    private PlayerImportService Service() => new(
+    private PlayerImportService Service(ILogger<PlayerImportService>? logger = null) => new(
         new PlayerImportReadContextFactory(_harness), _harness.CurrentUser, new PlayerImportCsvParser(),
-        _protector, _clock, NullLogger<PlayerImportService>.Instance,
+        _protector, _clock, logger ?? NullLogger<PlayerImportService>.Instance,
         new PlayerImportWriteContextFactory(_harness), new PlayerImportAdminContextFactory(_harness));
 
     /// <summary>Creates a genuine server-authorized confirmation for the supplied source rows.</summary>
