@@ -25,7 +25,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     public ClubOverviewComponentTests()
     {
         JSInterop.SetupModule("./_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js")
-            .SetupVoid("restoreHeadingFocusAfterAttach", _ => true).SetVoidResult();
+            .Setup<bool>("restoreHeadingFocusAfterAttach", _ => true).SetResult(true);
     }
 
     /// <summary>Verifies identity, culture-formatted season dates, and role-shaped campaign actions.</summary>

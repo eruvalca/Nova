@@ -15,6 +15,9 @@ public partial class ClubShell(AuthenticationStateProvider authenticationStatePr
     /// <summary>The current shell's working hall, which contains the destination heading.</summary>
     private ElementReference _hall;
 
+    /// <summary>Whether a destination heading still needs focus after asynchronous content appears.</summary>
+    private bool _headingFocusPending = true;
+
     /// <summary>The lazily imported module that restores focus lost when prerendered content is replaced.</summary>
     private readonly Lazy<Task<IJSObjectReference>> _moduleTask = new(() => jsRuntime
         .InvokeAsync<IJSObjectReference>("import", "./_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js")
@@ -23,10 +26,10 @@ public partial class ClubShell(AuthenticationStateProvider authenticationStatePr
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (_headingFocusPending)
         {
             var module = await _moduleTask.Value;
-            await module.InvokeVoidAsync("restoreHeadingFocusAfterAttach", ComponentCancellationToken, _hall);
+            _headingFocusPending = !await module.InvokeAsync<bool>("restoreHeadingFocusAfterAttach", ComponentCancellationToken, _hall);
         }
     }
 
@@ -57,6 +60,9 @@ public partial class ClubShell(AuthenticationStateProvider authenticationStatePr
     /// Toggles the club directory sheet between its collapsed and expanded states.
     /// </summary>
     private void ToggleDirectory() => _isDirectoryOpen = !_isDirectoryOpen;
+
+    /// <summary>Closes the mobile sheet when a directory link is activated, including reused page instances.</summary>
+    private void CloseDirectory() => _isDirectoryOpen = false;
 
     /// <inheritdoc />
     protected override void OnInitialized()

@@ -91,6 +91,12 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
 
             // A delayed focus-restoration call must not take focus from a control the user selected.
             var destinationToggle = page.Locator(".club-directory-toggle");
+            // Activate the destination once so this check uses its attached button, not the
+            // prerendered node that may still be replaced after the route heading first receives focus.
+            await InteractionHelpers.ActUntilAsync(page, () => destinationToggle.PressAsync("Enter"),
+                async () => await destinationToggle.GetAttributeAsync("aria-expanded") == "true");
+            await destinationToggle.PressAsync("Enter");
+            await Expect(destinationToggle).ToHaveAttributeAsync("aria-expanded", "false");
             await destinationToggle.FocusAsync();
             await page.Locator(".club-hall").EvaluateAsync("""
                 async hall => {
@@ -106,6 +112,29 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
         await noScriptPage.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Overview).ToString());
         await Expect(noScriptPage.Locator(".club-directory-toggle")).ToBeHiddenAsync();
         await Expect(noScriptPage.GetByRole(AriaRole.Link, new() { Name = "Crest", Exact = true })).ToBeVisibleAsync();
+    }
+
+    /// <summary>Verifies mobile link activation closes the directory between reserved routes sharing one page component.</summary>
+    /// <returns>A task that completes after the reused destination is visible with its directory collapsed.</returns>
+    [Fact]
+    public async Task ReservedRoutes_CloseMobileDirectory_WhenFollowingSectionLink()
+    {
+        var seed = await SeedAdminAsync(TestContext.Current.CancellationToken);
+        await using var context = await fixture.NewSignedInContextAsync(seed.Email, Password, new() { Width = 390, Height = 844 });
+        var page = context.Pages[0];
+        await page.GotoAsync(new Uri(fixture.BaseUri, ClubRoutes.Seasons).ToString());
+        await WasmWarmupHelper.ReloadAsWebAssemblyAsync(page);
+
+        var toggle = page.Locator(".club-directory-toggle");
+        await InteractionHelpers.ActUntilAsync(page, () => toggle.PressAsync("Enter"),
+            async () => await toggle.GetAttributeAsync("aria-expanded") == "true");
+        var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
+        await directory.GetByRole(AriaRole.Link, new() { Name = "Members", Exact = true }).PressAsync("Enter");
+        await page.WaitForURLAsync(url => new Uri(url).AbsolutePath == ClubRoutes.Members,
+            new() { WaitUntil = WaitUntilState.Commit });
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Members", Exact = true })).ToBeVisibleAsync();
+        await Expect(toggle).ToHaveAttributeAsync("aria-expanded", "false");
+        await Expect(directory).ToBeHiddenAsync();
     }
 
     [Fact]

@@ -22,21 +22,26 @@ namespace Nova.Unit.Tests.Teams;
 /// </summary>
 public sealed class TeamDetailComponentTests : BunitContext
 {
+    /// <summary>The focus result controlled by delayed-content scenarios.</summary>
+    private readonly JSRuntimeInvocationHandler<bool> _focusRestoration;
+
     /// <summary>Configures the shell's browser-only focus restoration while component tests exercise team details.</summary>
     public TeamDetailComponentTests()
     {
-        JSInterop.SetupModule("./_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js")
-            .SetupVoid("restoreHeadingFocusAfterAttach", _ => true).SetVoidResult();
+        _focusRestoration = JSInterop.SetupModule("./_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js")
+            .Setup<bool>("restoreHeadingFocusAfterAttach", _ => true);
+        _focusRestoration.SetResult(true);
     }
 
     // ── Loading state ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Verifies a loading spinner appears while the detail request is pending.
+    /// Verifies a loading spinner appears while the detail request is pending and heading focus retries when it completes.
     /// </summary>
     [Fact]
     public void TeamDetail_ShowsLoadingState_WhileDetailRequestIsPending()
     {
+        _focusRestoration.SetResult(false);
         var pending = new TaskCompletionSource<ServiceResult<TeamDetailDto>>();
         var detailService = Substitute.For<ITeamDetailService>();
         detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -46,9 +51,13 @@ public sealed class TeamDetailComponentTests : BunitContext
 
         var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
         cut.Markup.ShouldContain("Loading team details...");
+        cut.WaitForAssertion(() => _focusRestoration.Invocations.Count.ShouldBeGreaterThan(0));
+        var attemptsBeforeHeading = _focusRestoration.Invocations.Count;
 
+        _focusRestoration.SetResult(true);
         pending.SetResult(new ServiceResult<TeamDetailDto>(CreateTeamDetail()));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+        cut.WaitForAssertion(() => _focusRestoration.Invocations.Count.ShouldBeGreaterThan(attemptsBeforeHeading));
     }
 
     // ── Not-found state ───────────────────────────────────────────────────────

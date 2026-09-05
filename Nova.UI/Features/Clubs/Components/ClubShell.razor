@@ -14,7 +14,7 @@
             <span class="bi bi-chevron-down" aria-hidden="true"></span>
         </button>
         <nav class="@(_isDirectoryOpen ? "collapse show" : "collapse") club-route-directory"
-             id="club-route-directory" aria-label="Club directory">
+             id="club-route-directory" aria-label="Club directory" @onclick="CloseDirectory">
             <ul>
                 <li><NavLink href="@ClubRoutes.Overview" Match="NavLinkMatch.All">Overview</NavLink></li>
                 @if (_isClubAdmin)

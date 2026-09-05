@@ -24,7 +24,7 @@ public sealed class TeamComponentsTests : BunitContext
     public TeamComponentsTests()
     {
         JSInterop.SetupModule("./_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js")
-            .SetupVoid("restoreHeadingFocusAfterAttach", _ => true).SetVoidResult();
+            .Setup<bool>("restoreHeadingFocusAfterAttach", _ => true).SetResult(true);
     }
 
     [Fact]
