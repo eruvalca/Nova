@@ -53,8 +53,8 @@ same context and transaction as every domain effect, and verify that receipt by 
 a fresh context. Receipts with a durable aggregate FK can prune inline within the current tenant.
 Receipts that deliberately omit that FK so proof survives aggregate deletion need an independent
 age-based cleanup path reachable from later operations in any tenant (or a background worker) and a
-cutoff-leading index (`CreatedAt` or an explicit recovery-expiry timestamp). Bound each cleanup
-batch. A global cleanup may delete only expired receipt rows;
+cutoff-leading index (`CreatedAt` or an explicit recovery-expiry timestamp).
+A global cleanup may delete only expired receipt rows;
 never scan or delete live tenant data through an admin context. `ClubMemberService` is the canonical
 FK-less receipt and global age-retention example.
 
@@ -73,6 +73,8 @@ commit only when both the tenant-scoped tombstone exists and the aggregate is ab
 
 For recovery across HTTP requests, use `PlayerImportService.CommitAsync` and
 `PlayerImportCommitPostgresTests` as the canonical implementation and provider-test examples.
+Import recovery bounds each global cleanup batch in `PruneImportReceiptsAsync`; the membership
+receipt example above demonstrates global age retention, not bounded batches.
 The caller retains the operation ID across requests; generating a new ID per HTTP attempt only
 protects retries inside that attempt. A batch receipt owns the batch ID; do not copy it onto every
 created entity's uniquely constrained `CreationOperationId`.

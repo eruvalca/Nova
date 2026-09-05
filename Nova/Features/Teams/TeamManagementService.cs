@@ -258,7 +258,7 @@ public sealed partial class TeamManagementService(
         // Locking players first (ascending) and the team second matches the single global order
         // every writer of this invariant already follows: roster, campaign, players ascending, then
         // team. CampaignPlacementService takes campaign then player then team, the player service
-        // takes roster then player, and TeamLifecycleService takes only a team, so each path takes a
+        // takes roster then player, and TeamLifecycleService takes roster then team, so each path takes a
         // subsequence of that order and no cycle - and therefore no deadlock - is possible. Any new
         // placement-mutation path must follow the same order.
         var lockedPlayerIds = await db.PlayerCampaignAssignments
