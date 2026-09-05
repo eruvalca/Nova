@@ -58,8 +58,6 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
             await Expect(toggle).ToBeVisibleAsync();
             // Issue #201 keyboard acceptance: the sheet must open under keyboard activation
             // (focus + Enter, then tabbing reaches the directory links), not only pointer click.
-            await toggle.FocusAsync();
-            await Expect(toggle).ToBeFocusedAsync();
             var directory = page.GetByRole(AriaRole.Navigation, new() { Name = "Club directory" });
             // Resolve the current button on each retry: interactive attach can replace the
             // focused prerendered node, leaving a document-level Enter aimed at the body.
@@ -73,6 +71,8 @@ public sealed class ClubOverviewBrowserTests(BrowserSuiteFixture fixture)
             // transition its links are not yet reachable (focus bounces toggle -> body -> toggle),
             // so wait for the "show" state before walking the tab order.
             await Expect(page.Locator(".club-route-directory")).ToHaveClassAsync(new Regex(@"\bshow\b"));
+            // Keyboard activation proves attachment before asserting focus on the surviving node.
+            await Expect(toggle).ToBeFocusedAsync();
             // Successful activation proves attachment before measuring a node that SSR replacement could remove.
             var box = await toggle.BoundingBoxAsync();
             box.ShouldNotBeNull();

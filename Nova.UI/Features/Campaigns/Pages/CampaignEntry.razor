@@ -113,11 +113,11 @@ else
                         @if (_openingId is not null)
                         {
                             <p role="status">The opening result needs confirmation. Recover the original request before starting another action.</p>
-                            <button class="btn btn-primary draft-commit" disabled="@(_busy || !_sessionReady)" @onclick="RecoverOpeningAsync">Confirm opening result</button>
+                            <button class="btn btn-primary draft-commit" disabled="@(_busy || !_sessionReady || _confirmDelete)" @onclick="RecoverOpeningAsync">@(_isOpening ? "Opening campaign…" : "Confirm opening result")</button>
                         }
                         else if (Review == "open")
                         {
-                            <button class="btn btn-primary draft-commit" disabled="@(_busy || !_sessionReady || Readiness?.CanOpen != true || _edit is not null || _team is not null)" @onclick="OpenAsync">@(_busy ? "Opening campaign…" : $"Open campaign and enroll {Readiness?.ActivePlayerCount ?? 0} {(Readiness?.ActivePlayerCount == 1 ? "player" : "players")}")</button>
+                            <button class="btn btn-primary draft-commit" disabled="@(_busy || !_sessionReady || _confirmDelete || Readiness?.CanOpen != true || _edit is not null || _team is not null)" @onclick="OpenAsync">@(_isOpening ? "Opening campaign…" : $"Open campaign and enroll {Readiness?.ActivePlayerCount ?? 0} {(Readiness?.ActivePlayerCount == 1 ? "player" : "players")}")</button>
                         }
                         else { <a class="btn btn-primary draft-commit" href="@($"/campaigns/{CampaignId}?review=open")">Review opening</a> }
                         @if (_mutationError is not null && _edit is null && _team is null) { <p class="text-danger" role="alert">@_mutationError</p> }

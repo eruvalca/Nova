@@ -21,6 +21,64 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>Verifies Draft readiness and opening recovery through the rendered administrator controls.</summary>
 public sealed class CampaignEntryTests : BunitContext
 {
+    /// <summary>Verifies choosing deletion blocks opening until the administrator keeps the Draft.</summary>
+    [Fact]
+    public void CampaignEntry_BlocksOpening_DuringDeleteConfirmation()
+    {
+        var (_, lifecycle) = Register(ReadyWithoutTeams());
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Delete draft").Click();
+
+        cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue();
+        cut.Find("button.draft-commit").Click();
+        _ = lifecycle.DidNotReceive().OpenAsync(Arg.Any<long>(), Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Keep draft").Click();
+        cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse();
+    }
+
+    /// <summary>Verifies metadata submission disables opening without falsely announcing opening progress.</summary>
+    [Fact]
+    public async Task CampaignEntry_DoesNotAnnounceOpening_WhileMetadataSaveIsPending()
+    {
+        Register(ReadyWithoutTeams());
+        var pending = new TaskCompletionSource<ServiceResult<UpdateCampaignMetadataResult>>();
+        var metadata = Services.GetRequiredService<ICampaignMetadataService>();
+        metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+
+        var save = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
+
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue());
+        cut.Find("button.draft-commit").TextContent.ShouldNotContain("Opening");
+        cut.Find("button.draft-commit").TextContent.ShouldBe("Open campaign and enroll 3 players");
+        await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.ServerError("Save failed"))));
+        await save;
+    }
+
+    /// <summary>Verifies an actual pending opening operation displays its progress and prevents duplicate submission.</summary>
+    [Fact]
+    public async Task CampaignEntry_AnnouncesOpening_WhileOpeningCommandIsPending()
+    {
+        var (_, lifecycle) = Register(ReadyWithoutTeams());
+        var pending = new TaskCompletionSource<ServiceResult<OpenCampaignResult>>();
+        lifecycle.OpenAsync(10, Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+
+        var opening = cut.Find("button.draft-commit").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").TextContent.ShouldContain("Opening"));
+        cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue();
+        _ = lifecycle.Received(1).OpenAsync(10, Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
+        await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<OpenCampaignResult>(ServiceProblem.ServerError("Uncertain opening"))));
+        await opening;
+        cut.Find("button.draft-commit").TextContent.ShouldBe("Confirm opening result");
+    }
+
     /// <summary>Verifies preparation readiness labels use the correct player and team nouns.</summary>
     /// <param name="count">The readiness count.</param>
     /// <param name="suffix">The expected plural suffix.</param>

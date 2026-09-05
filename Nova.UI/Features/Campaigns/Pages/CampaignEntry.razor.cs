@@ -13,6 +13,13 @@ using Nova.UI.Features.Teams.Components;
 namespace Nova.UI.Features.Campaigns.Pages;
 
 /// <summary>Routes campaign lifecycle state and owns administrator Draft preparation and retry recovery.</summary>
+/// <param name="queries">The authorized campaign detail and readiness queries.</param>
+/// <param name="lifecycle">The idempotent opening and Draft deletion commands.</param>
+/// <param name="metadata">The campaign metadata update service.</param>
+/// <param name="teams">The durable-team creation service.</param>
+/// <param name="authentication">The current identity and its change notifications.</param>
+/// <param name="navigation">The local route navigation service.</param>
+/// <param name="js">The runtime used for recovery storage and heading focus.</param>
 public partial class CampaignEntry(
     ICampaignQueryService queries,
     ICampaignLifecycleService lifecycle,
@@ -35,35 +42,64 @@ public partial class CampaignEntry(
 
     /// <summary>Gets or sets the authorized current-season setup across prerender.</summary>
     [PersistentState] public CampaignCreationSetupResult? Setup { get; set; }
+    /// <summary>Unsaved campaign metadata while its editor is open.</summary>
     private CampaignMetadataFormState? _edit;
+    /// <summary>Input for durable-team creation.</summary>
     private TeamFormState? _team;
+    /// <summary>Detail-loading or recovery-storage failure shown to the administrator.</summary>
     private string? _error;
+    /// <summary>Failure from the latest opening-readiness refresh.</summary>
     private string? _readinessError;
+    /// <summary>Current command failure or uncertain outcome.</summary>
     private string? _mutationError;
+    /// <summary>Server validation errors keyed by metadata field.</summary>
     private IReadOnlyDictionary<string, string[]>? _fieldErrors;
+    /// <summary>Successful preparation feedback retained across refreshes.</summary>
     private string? _message;
+    /// <summary>User, club, and authority key owning recovery state.</summary>
     private string _scope = "";
+    /// <summary>Whether the current identity may prepare and open Drafts.</summary>
     private bool _admin;
+    /// <summary>Whether campaign data is missing or no longer authorized.</summary>
     private bool _unavailable;
+    /// <summary>Whether scoped recovery storage permits mutation dispatch.</summary>
     private bool _sessionReady;
+    /// <summary>Whether recovery initialization has already been attempted.</summary>
     private bool _storageAttempted;
+    /// <summary>Whether any preparation or lifecycle mutation is running.</summary>
     private bool _busy;
+    /// <summary>Identifies opening work so unrelated mutations cannot show opening progress.</summary>
+    private bool _isOpening;
+    /// <summary>Whether inline deletion confirmation is open.</summary>
     private bool _confirmDelete;
+    /// <summary>Uncertain deletion intent retained for tombstone replay.</summary>
     private bool _deletePending;
+    /// <summary>Original opening operation identifier retained for exact replay.</summary>
     private Guid? _openingId;
+    /// <summary>Campaign identifier whose route parameters were last applied.</summary>
     private long _loadedId;
+    /// <summary>Last route used to distinguish preparation and Roster transitions.</summary>
     private string? _loadedRoute;
+    /// <summary>Request generation rejecting obsolete route or identity results.</summary>
     private int _version;
     /// <summary>Orders authentication completions across startup, notifications, and disposal.</summary>
     private int _authenticationVersion;
+    /// <summary>Mutation generation protecting newer operations from older completions.</summary>
     private int _mutationVersion;
+    /// <summary>Scoped recovery-storage and focus interop module.</summary>
     private IJSObjectReference? _module;
+    /// <summary>Preparation heading used for initial focus.</summary>
     private ElementReference _heading;
+    /// <summary>Opening-review heading used for URL-backed focus.</summary>
     private ElementReference _reviewHeading;
+    /// <summary>Whether to focus review after its board has rendered.</summary>
     private bool _focusReview;
+    /// <summary>Previously applied review query value.</summary>
     private string? _previousReview;
 
+    /// <summary>Local Players correction link returning to this Draft.</summary>
     private string PlayersUrl => $"/players?returnToDraft={CampaignId}";
+    /// <summary>Local Teams correction link returning to this Draft.</summary>
     private string TeamsUrl => $"/club/teams?returnToDraft={CampaignId}";
 
     /// <inheritdoc />
@@ -79,6 +115,8 @@ public partial class CampaignEntry(
         ApplyIdentity(state);
     }
 
+    /// <summary>Applies administrator authority and recovery ownership from claims.</summary>
+    /// <param name="state">The authenticated identity.</param>
     private void ApplyIdentity(AuthenticationState state)
     {
         var user = state.User;
@@ -115,6 +153,7 @@ public partial class CampaignEntry(
         _sessionReady = false;
         _storageAttempted = false;
         _busy = false;
+        _isOpening = false;
         _confirmDelete = false;
         _deletePending = false;
         _error = null;
@@ -161,6 +200,7 @@ public partial class CampaignEntry(
         _edit = null;
         _team = null;
         _busy = false;
+        _isOpening = false;
         _confirmDelete = false;
         _deletePending = false;
         if (routeChanged || Detail?.CampaignId != CampaignId || SnapshotScope != _scope)
@@ -247,6 +287,8 @@ public partial class CampaignEntry(
         }
     }
 
+    /// <summary>Fetches authorized campaign details, setup, and readiness.</summary>
+    /// <returns>The campaign refresh task.</returns>
     private async Task ReloadAsync()
     {
         var version = ++_version;
@@ -305,6 +347,8 @@ public partial class CampaignEntry(
         }
     }
 
+    /// <summary>Retries loading and probes preserved recovery storage again.</summary>
+    /// <returns>The retry task.</returns>
     private Task RetryAsync()
     {
         _storageAttempted = false;
@@ -312,6 +356,9 @@ public partial class CampaignEntry(
         return ReloadAsync();
     }
 
+    /// <summary>Refreshes readiness only for the request that still owns the page.</summary>
+    /// <param name="version">The owning route and identity generation.</param>
+    /// <returns>Whether fresh readiness was applied.</returns>
     private async Task<bool> RefreshReadinessAsync(int version)
     {
         Readiness = null;
@@ -353,10 +400,16 @@ public partial class CampaignEntry(
     private void CancelEdit() { _edit = null; _mutationError = null; _fieldErrors = null; }
     /// <summary>Switches to team creation and discards metadata validation messages.</summary>
     private void BeginTeam() { _team = TeamFormState.CreateDefault(); _edit = null; _mutationError = null; _fieldErrors = null; }
+    /// <summary>Discards unsaved team input and its mutation error.</summary>
     private void CancelTeam() { _team = null; _mutationError = null; }
+    /// <summary>Opens inline Draft deletion confirmation.</summary>
     private void ConfirmDelete() => _confirmDelete = true;
+    /// <summary>Closes confirmation without deleting the Draft.</summary>
     private void CancelDelete() => _confirmDelete = false;
 
+    /// <summary>Saves campaign metadata and refreshes authorized preparation.</summary>
+    /// <param name="model">The metadata to validate and save.</param>
+    /// <returns>The guarded metadata mutation task.</returns>
     private Task SaveDetailsAsync(CampaignMetadataFormState model) => MutateAsync(async version =>
     {
         var result = await metadata.UpdateAsync(model.ToUpdateInput(), ComponentCancellationToken);
@@ -371,6 +424,9 @@ public partial class CampaignEntry(
         await ReloadAsync();
     });
 
+    /// <summary>Creates a durable club team and refreshes readiness.</summary>
+    /// <param name="model">The durable-team input.</param>
+    /// <returns>The guarded team-creation task.</returns>
     private Task CreateTeamAsync(TeamFormState model) => MutateAsync(async version =>
     {
         var result = await teams.CreateAsync(model.ToCreateInput(), ComponentCancellationToken);
@@ -385,6 +441,8 @@ public partial class CampaignEntry(
         await RefreshReadinessAsync(version);
     });
 
+    /// <summary>Refreshes readiness and starts one durably retained opening operation.</summary>
+    /// <returns>The guarded opening task.</returns>
     private Task OpenAsync() => MutateAsync(async version =>
     {
         if (_openingId is not null)
@@ -399,8 +457,10 @@ public partial class CampaignEntry(
 
         _openingId = Guid.CreateVersion7();
         await SubmitOpeningAsync(version);
-    });
+    }, opening: true);
 
+    /// <summary>Reconciles lifecycle state before replaying the original opening operation.</summary>
+    /// <returns>The guarded receipt-recovery task.</returns>
     private Task RecoverOpeningAsync() => MutateAsync(async version =>
     {
         // Refresh lifecycle first; the exact receipt is recovered by replay, even after a later close.
@@ -425,8 +485,11 @@ public partial class CampaignEntry(
         }
         Detail = current.Value;
         await SubmitOpeningAsync(version);
-    });
+    }, opening: true);
 
+    /// <summary>Persists and submits the exact opening operation and hands off its immutable receipt.</summary>
+    /// <param name="version">The owning route and identity generation.</param>
+    /// <returns>The opening and reconciliation task.</returns>
     private async Task SubmitOpeningAsync(int version)
     {
         // Every submission, including recovery after a failed storage write, must first
@@ -499,6 +562,8 @@ public partial class CampaignEntry(
         }
     }
 
+    /// <summary>Removes the completed opening marker without clearing a newer operation.</summary>
+    /// <returns>The marker cleanup task.</returns>
     private async Task ClearOpeningAsync()
     {
         var version = _version;
@@ -509,6 +574,8 @@ public partial class CampaignEntry(
         }
     }
 
+    /// <summary>Retains deletion intent and executes tombstone-backed Draft deletion.</summary>
+    /// <returns>The guarded deletion task.</returns>
     private Task DeleteAsync() => MutateAsync(async version =>
     {
         _deletePending = true;
@@ -555,6 +622,9 @@ public partial class CampaignEntry(
         }
     });
 
+    /// <summary>Removes resolved deletion intent only for its owning generation.</summary>
+    /// <param name="version">The generation owning deletion.</param>
+    /// <returns>The deletion-marker cleanup task.</returns>
     private async Task ClearDeletionAsync(int version)
     {
         await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, $"delete:{CampaignId}");
@@ -564,9 +634,13 @@ public partial class CampaignEntry(
         }
     }
 
-    private async Task MutateAsync(Func<int, Task> operation)
+    /// <summary>Serializes authorized mutations and retains operation-specific progress and recovery feedback.</summary>
+    /// <param name="operation">The command to run with its owning page generation.</param>
+    /// <param name="opening">Whether the command opens a campaign or recovers an opening receipt.</param>
+    /// <returns>The guarded mutation task.</returns>
+    private async Task MutateAsync(Func<int, Task> operation, bool opening = false)
     {
-        if (_busy || !_sessionReady || !_admin)
+        if (_busy || !_sessionReady || !_admin || (opening && (_confirmDelete || _deletePending)))
         {
             return;
         }
@@ -574,6 +648,7 @@ public partial class CampaignEntry(
         var version = _version;
         var mutationVersion = ++_mutationVersion;
         _busy = true;
+        _isOpening = opening;
         _mutationError = null;
         _fieldErrors = null;
         try { await operation(version); }
@@ -592,14 +667,21 @@ public partial class CampaignEntry(
             if (mutationVersion == _mutationVersion)
             {
                 _busy = false;
+                _isOpening = false;
             }
         }
     }
 
+    /// <summary>Selects validation messages or problem detail for command feedback.</summary>
+    /// <param name="problem">The service failure.</param>
+    /// <returns>The user-facing failure description.</returns>
     private static string Explain(ServiceProblem problem) => problem.Errors is { Count: > 0 }
         ? string.Join(" ", problem.Errors.Values.SelectMany(messages => messages))
         : problem.Detail ?? "The action could not be completed. Refresh and try again.";
 
+    /// <summary>Formats campaign start and optional planned end dates.</summary>
+    /// <param name="detail">The campaign dates to display.</param>
+    /// <returns>The date-range label.</returns>
     private static string FormatDates(CampaignDetailResult detail) => detail.PlannedEndDate is { } end
         ? $"{detail.StartDate:MMM d} – {end:MMM d, yyyy}" : $"{detail.StartDate:MMM d, yyyy} · No planned end";
 

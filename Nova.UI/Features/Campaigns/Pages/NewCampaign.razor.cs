@@ -10,6 +10,11 @@ using Nova.UI.Features.Campaigns.Components;
 namespace Nova.UI.Features.Campaigns.Pages;
 
 /// <summary>Creates a saved Draft with tab-scoped input and exact-request recovery.</summary>
+/// <param name="campaignQueryService">The authorized current-season and enrollment setup queries.</param>
+/// <param name="campaignCreationService">The idempotent Draft creation service.</param>
+/// <param name="navigationManager">The local route navigation service.</param>
+/// <param name="authentication">The current identity and its change notifications.</param>
+/// <param name="js">The runtime used for tab-scoped creation recovery.</param>
 public partial class NewCampaign(
     ICampaignQueryService campaignQueryService,
     ICampaignCreationService campaignCreationService,
@@ -17,22 +22,35 @@ public partial class NewCampaign(
     AuthenticationStateProvider authentication,
     IJSRuntime js)
 {
+    /// <summary>Authorized current-season and enrollment setup.</summary>
     private CampaignCreationSetupResult? _setup;
+    /// <summary>Setup-loading or recovery-storage failure.</summary>
     private string? _pageError;
+    /// <summary>Creation validation, persistence, or uncertain-outcome feedback.</summary>
     private string? _formError;
+    /// <summary>Whether current-identity setup is being fetched.</summary>
     private bool _isLoading;
+    /// <summary>Whether creation or recovery-storage retry is in flight.</summary>
     private bool _isSubmitting;
+    /// <summary>Whether recovery storage allows creation submission.</summary>
     private bool _sessionReady;
+    /// <summary>Whether scoped recovery reads have already been attempted.</summary>
     private bool _storageAttempted;
     /// <summary>Records an input write failure until the current form is durably saved again.</summary>
     private bool _storageSaveFailed;
+    /// <summary>Editable creation input separate from the pending command.</summary>
     private CampaignCreateFormState _createForm = CampaignCreateFormState.CreateDefault();
+    /// <summary>Original creation payload retained until its outcome is resolved.</summary>
     private CreateCampaignInput? _pending;
+    /// <summary>Interop module for tab-scoped creation recovery.</summary>
     private IJSObjectReference? _module;
+    /// <summary>User, club, and authority key owning creation recovery.</summary>
     private string _scope = "";
+    /// <summary>Request generation rejecting obsolete identity and setup results.</summary>
     private int _version;
     /// <summary>Orders authentication completions across startup, notifications, and disposal.</summary>
     private int _authenticationVersion;
+    /// <summary>Server validation errors keyed by creation field.</summary>
     private IReadOnlyDictionary<string, string[]>? _fieldErrors;
 
     /// <summary>Gets or sets the persisted setup.</summary>
@@ -64,6 +82,9 @@ public partial class NewCampaign(
         await LoadSetupAsync();
     }
 
+    /// <summary>Builds the user, club, and authority key for creation recovery.</summary>
+    /// <param name="state">The authenticated identity.</param>
+    /// <returns>The scoped recovery key.</returns>
     private static string Identity(AuthenticationState state) => $"{state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
 
     /// <summary>Discards form, error, and recovery ownership before loading another identity's setup.</summary>
@@ -226,6 +247,8 @@ public partial class NewCampaign(
         }
     }
 
+    /// <summary>Invalidates setup work and retries setup and recovery reads.</summary>
+    /// <returns>The setup reload task.</returns>
     private Task ReloadAsync()
     {
         ++_version;
@@ -293,6 +316,9 @@ public partial class NewCampaign(
         }
     }
 
+    /// <summary>Persists and submits the original payload, retaining uncertain creation for replay.</summary>
+    /// <param name="model">The editable input used only when no original request is pending.</param>
+    /// <returns>The creation or exact-request recovery task.</returns>
     private async Task CreateCampaignAsync(CampaignCreateFormState model)
     {
         if (_isSubmitting || !_sessionReady)
@@ -387,7 +413,10 @@ public partial class NewCampaign(
         }
     }
 
+    /// <summary>Replays retained creation without accepting an edited replacement.</summary>
+    /// <returns>The creation recovery task.</returns>
     private Task RecoverAsync() => CreateCampaignAsync(_createForm);
+    /// <summary>Returns to the directory without submitting the form.</summary>
     private void Cancel() => navigationManager.NavigateTo("/campaigns");
 
     /// <inheritdoc />

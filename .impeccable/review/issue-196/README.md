@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round twelve on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,534 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through twelve change UI state/rendering only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
+Validated for PR #244 review round thirteen on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,537 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through thirteen change UI state/rendering and tests only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -125,3 +125,15 @@ The twelfth review round ensures an empty non-first directory page always moves 
 | Use singular/plural preparation player/team readiness labels | `CampaignEntry_UsesCountAwareReadinessLabels` |
 
 Round twelve focused validation passed with `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignComponentsTests'` (65 tests) and the equivalent `'*CampaignEntryTests'` filter (31 tests).
+
+The thirteenth review round blocks opening while deletion confirmation is open and tracks opening progress separately from other mutations. Opening and recovery submissions also enforce the confirmation boundary in code. Both Draft code-behind files now document their private state, helpers, and constructor dependencies, including ownership and replay semantics.
+
+| Requirement | Regression evidence |
+|---|---|
+| Block opening until deletion confirmation is dismissed | `CampaignEntry_BlocksOpening_DuringDeleteConfirmation` |
+| Avoid opening progress during metadata saves | `CampaignEntry_DoesNotAnnounceOpening_WhileMetadataSaveIsPending` |
+| Show opening progress and retain confirmation after an uncertain opening | `CampaignEntry_AnnouncesOpening_WhileOpeningCommandIsPending` |
+
+Round thirteen focused validation passed with `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignEntryTests'` (34 tests). A declaration scan found no undocumented private or protected members in `CampaignEntry.razor.cs` or `NewCampaign.razor.cs`.
+
+The initial round-thirteen browser run exposed a prerender focus race in `Overview_MobileSheet_OpensCompleteDirectory_AndNoScriptShowsRoutes`: it asserted focus before interactive attachment could replace the button. The test now asserts focus after its existing keyboard activation retry opens the menu, preserving the focus and keyboard assertions on the surviving interactive element.
