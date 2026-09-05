@@ -278,6 +278,7 @@ public sealed partial class PlayerManagementService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.AcquireClubRosterLockAsync(clubId, cancellationToken);
         await db.AcquirePlayerMutationLockAsync(input.PlayerId, cancellationToken);
 
         var player = await db.Players
