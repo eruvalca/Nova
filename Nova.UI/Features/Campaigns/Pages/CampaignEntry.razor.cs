@@ -343,12 +343,6 @@ public partial class CampaignEntry(
         }
 
         _openingId = Guid.CreateVersion7();
-        await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, $"open:{CampaignId}", _openingId.ToString());
-        if (version != _version)
-        {
-            return;
-        }
-
         await SubmitOpeningAsync(version);
     });
 
@@ -380,6 +374,14 @@ public partial class CampaignEntry(
 
     private async Task SubmitOpeningAsync(int version)
     {
+        // Every submission, including recovery after a failed storage write, must first
+        // retain the exact operation so an ambiguous commit can be recovered after reload.
+        await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, $"open:{CampaignId}", _openingId.ToString());
+        if (version != _version)
+        {
+            return;
+        }
+
         var result = await lifecycle.OpenAsync(CampaignId, new OpenCampaignInput { OperationId = _openingId!.Value }, ComponentCancellationToken);
         if (version != _version)
         {

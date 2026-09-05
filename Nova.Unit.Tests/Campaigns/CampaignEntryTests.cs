@@ -138,6 +138,63 @@ public sealed class CampaignEntryTests : BunitContext
         _ = lifecycle.DidNotReceive().OpenAsync(Arg.Any<long>(), Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Verifies corrected contextual metadata errors do not block the next valid submission.</summary>
+    [Fact]
+    public void CampaignEntry_ResubmitsMetadata_AfterCorrectingServerValidation()
+    {
+        Register(ReadyWithoutTeams());
+        var metadata = Services.GetRequiredService<ICampaignMetadataService>();
+        metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.Validation(
+                new Dictionary<string, string[]> { ["StartDate"] = ["Start date is outside the season."] })));
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        cut.FindAll("button").Single(button => button.TextContent == "Edit").Click();
+        cut.Find("#edit-campaign-start-date").Change("2025-12-01");
+        cut.Find("form").Submit();
+        cut.WaitForAssertion(() => cut.FindAll(".validation-message")
+            .ShouldContain(message => message.TextContent == "Start date is outside the season."));
+
+        cut.Find("#edit-campaign-start-date").Change("2026-06-02");
+        // Re-supply parent parameters with the same error snapshot before attempting submission.
+        cut.Render(parameters => parameters.Add(component => component.CampaignId, 10));
+        cut.FindAll(".validation-message").ShouldNotContain(message => message.TextContent == "Start date is outside the season.");
+        cut.Find("form").Submit();
+
+        cut.WaitForAssertion(() => metadata.Received(1).UpdateAsync(
+            Arg.Is<UpdateCampaignMetadataInput>(input => input.StartDate == new DateOnly(2026, 6, 2)), Arg.Any<CancellationToken>()));
+        _ = metadata.Received(2).UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies initial and recovery submissions cannot bypass failed operation persistence.</summary>
+    [Fact]
+    public void CampaignEntry_RetriesStorageBeforeOpening_WithTheSameOperation()
+    {
+        var storageFails = true;
+        var (_, lifecycle) = Register(ReadyWithoutTeams(), failOpeningStorageWrite: () => storageFails);
+        lifecycle.OpenAsync(10, Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => new ServiceResult<OpenCampaignResult>(new OpenCampaignResult(
+                call.ArgAt<OpenCampaignInput>(1).OperationId, 10, DateTimeOffset.UtcNow, 101, 3, 0,
+                [CampaignOpeningWarning.NoActiveTeams])));
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+
+        cut.Find("button.draft-commit").Click();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").TextContent.ShouldBe("Confirm opening result"));
+        cut.Find("button.draft-commit").Click();
+        _ = lifecycle.DidNotReceive().OpenAsync(Arg.Any<long>(), Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
+
+        storageFails = false;
+        cut.Find("button.draft-commit").Click();
+        cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/campaigns/10/roster"));
+        var attempts = JSInterop.Invocations.Where(invocation => invocation.Identifier == "write"
+            && invocation.Arguments.Contains("open:10")).Select(invocation => (string)invocation.Arguments[2]!).ToList();
+        attempts.Count.ShouldBe(3);
+        attempts.Distinct().Count().ShouldBe(1);
+        _ = lifecycle.Received(1).OpenAsync(10,
+            Arg.Is<OpenCampaignInput>(input => input.OperationId == Guid.Parse(attempts[0])), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Verifies an uncertain opening retries the original operation and uses the actual receipt count.</summary>
     [Fact]
     public void CampaignEntry_ReusesOpeningOperation_WhenResponseIsAmbiguous()
@@ -256,8 +313,9 @@ public sealed class CampaignEntryTests : BunitContext
     /// <param name="isAdmin">Whether the caller has campaign-management authority.</param>
     /// <param name="persistedOpeningId">The pending opening operation recovered from session storage.</param>
     /// <param name="failStorageRemoval">Whether session removal throws to exercise unavailable browser storage.</param>
+    /// <param name="failOpeningStorageWrite">Whether the opening-operation write should fail.</param>
     /// <returns>The query and lifecycle doubles available for scenario-specific behavior.</returns>
-    private (ICampaignQueryService Queries, ICampaignLifecycleService Lifecycle) Register(CampaignOpeningReadinessResult readiness, bool isAdmin = true, Guid? persistedOpeningId = null, bool failStorageRemoval = false)
+    private (ICampaignQueryService Queries, ICampaignLifecycleService Lifecycle) Register(CampaignOpeningReadinessResult readiness, bool isAdmin = true, Guid? persistedOpeningId = null, bool failStorageRemoval = false, Func<bool>? failOpeningStorageWrite = null)
     {
         ComponentFactories.AddStub<CampaignWorkspace>();
         var queries = Substitute.For<ICampaignQueryService>();
@@ -290,6 +348,11 @@ public sealed class CampaignEntryTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         var module = JSInterop.SetupModule("./_content/Nova.UI/Features/Campaigns/Pages/CampaignEntry.razor.js");
         module.Mode = JSRuntimeMode.Loose;
+        if (failOpeningStorageWrite is not null)
+        {
+            module.SetupVoid("write", invocation => invocation.Arguments.Contains("open:10") && failOpeningStorageWrite())
+                .SetException(new JSException("Session storage quota exceeded"));
+        }
         if (persistedOpeningId is { } saved)
         {
             var hasPendingOpening = true;

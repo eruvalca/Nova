@@ -31,8 +31,19 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Solution build: passed with zero warnings. Unit suite: 2,271 passed. PostgreSQL/HTTP integration suite: 474 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three new journey tests execute without flags. Format verification and theme contrast/token checks passed.
+Solution build: passed with zero warnings. Unit suite: 2,273 passed. PostgreSQL/HTTP integration suite: 474 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three new journey tests execute without flags. Format verification and theme contrast/token checks passed.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
 The approved hero checkpoint is also persisted at `../hero-repro.png`: the 1505×1045 `hero.png` capture associated with the passed 89% hero gate in `.impeccable/build/state.json`. The final packet refresh preserves this checkpoint association.
+
+## Code-review corrections
+
+Metadata edits clear contextual server validation on input changes without reintroducing the unchanged error snapshot. Opening confirmation now persists the retained operation ID before every submission, so a failed storage write cannot be bypassed by recovery. These are behavior corrections; the approved composition is unchanged.
+
+| Requirement | Regression evidence in `CampaignEntryTests` |
+|---|---|
+| Correct a server-rejected date and submit again, including after a parent render | `CampaignEntry_ResubmitsMetadata_AfterCorrectingServerValidation` |
+| Block initial and recovery opening calls while storage fails; then submit the same operation once | `CampaignEntry_RetriesStorageBeforeOpening_WithTheSameOperation` |
+
+The focused command `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignEntryTests'` passed all 14 cases. The full unit and browser suites and format verification were rerun successfully after the corrections. Provider contracts and persistence services are unchanged.

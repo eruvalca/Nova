@@ -13,6 +13,7 @@ public partial class CampaignMetadataForm
 {
     private EditContext _editContext = new(CampaignMetadataFormState.CreateDefault());
     private ValidationMessageStore? _serverMessages;
+    private IReadOnlyDictionary<string, string[]>? _lastServerErrors;
 
     /// <summary>Gets or sets field-level validation from the metadata command.</summary>
     [Parameter] public IReadOnlyDictionary<string, string[]>? ServerErrors { get; set; }
@@ -87,20 +88,41 @@ public partial class CampaignMetadataForm
     {
         if (!ReferenceEquals(_lastModelReference, Model))
         {
+            _editContext.OnFieldChanged -= ClearServerErrors;
             _lastModelReference = Model;
             _localModel = Model.Clone();
             _editContext = new EditContext(_localModel);
             _serverMessages = new ValidationMessageStore(_editContext);
+            _editContext.OnFieldChanged += ClearServerErrors;
         }
-        _serverMessages?.Clear();
-        if (ServerErrors is not null)
+        if (!ReferenceEquals(_lastServerErrors, ServerErrors))
         {
-            foreach (var error in ServerErrors)
+            _lastServerErrors = ServerErrors;
+            _serverMessages?.Clear();
+            if (ServerErrors is not null)
             {
-                _serverMessages?.Add(new FieldIdentifier(_localModel, error.Key), error.Value);
+                foreach (var error in ServerErrors)
+                {
+                    _serverMessages?.Add(new FieldIdentifier(_localModel, error.Key), error.Value);
+                }
             }
+            _editContext.NotifyValidationStateChanged();
         }
+    }
+
+    private void ClearServerErrors(object? sender, FieldChangedEventArgs args)
+    {
+        // Contextual failures can span fields (for example, the season and campaign dates).
+        // The unchanged parent error snapshot must not reinstall them after an edit.
+        _serverMessages?.Clear();
         _editContext.NotifyValidationStateChanged();
+    }
+
+    /// <inheritdoc />
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        _editContext.OnFieldChanged -= ClearServerErrors;
+        await base.DisposeAsyncCore();
     }
 
     /// <summary>
