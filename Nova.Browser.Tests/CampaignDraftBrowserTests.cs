@@ -107,6 +107,8 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         receiptHandoff.ShouldBeTrue("reading preserves the receipt until its own operation is acknowledged");
     }
 
+    /// <summary>Verifies Draft exclusion, non-blocking team warnings, and safe directory query normalization.</summary>
+    /// <returns>The member and administrator browser validation task.</returns>
     [Fact]
     public async Task Draft_IsUnavailableToOrdinaryMember_AndWarningDoesNotBlockAdministrator()
     {
@@ -144,6 +146,11 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         await Expect(memberPage.GetByRole(AriaRole.Option, new() { Name = "Draft", Exact = true })).ToHaveCountAsync(0);
         await Expect(memberPage.GetByText(name, new() { Exact = true })).ToHaveCountAsync(0);
         await CaptureAsync(memberPage, "directory-member-empty");
+        await memberPage.GotoAsync(new Uri(fixture.BaseUri, "/campaigns?page=abc&deleted=abc").ToString());
+        await Expect(memberPage.GetByRole(AriaRole.Heading, new() { Name = "No campaigns available", Exact = true })).ToBeVisibleAsync();
+        await Expect(memberPage.GetByText("Draft deleted. Your club's teams remain.", new() { Exact = true })).ToHaveCountAsync(0);
+        await Expect(memberPage).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"[?&]page=1(?:&|$)"));
+        memberPage.Url.ShouldNotContain("deleted=");
     }
 
     [Fact]

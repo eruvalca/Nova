@@ -1496,7 +1496,7 @@ public partial class CampaignWorkspace(
 
         var module = await _moduleTask.Value;
 
-        // The region element is recreated across loading/error/loaded renders, so re-attach the
+        // Check optional opening feedback once when the Roster landing is ready.
         if (IsRosterLanding && !_receiptChecked)
         {
             _receiptChecked = true;
@@ -1508,13 +1508,17 @@ public partial class CampaignWorkspace(
                 ComponentCancellationToken.ThrowIfCancellationRequested();
                 if (receipt is not null && receipt.CampaignId == CampaignId && receipt.EnrolledPlayerCount > 0 && receipt.OperationId != Guid.Empty)
                 {
-                    _openingReceiptMessage = $"Campaign opened and enrolled {receipt.EnrolledPlayerCount} players.";
+                    var playerNoun = receipt.EnrolledPlayerCount == 1 ? "player" : "players";
+                    _openingReceiptMessage = $"Campaign opened and enrolled {receipt.EnrolledPlayerCount} {playerNoun}.";
                     StateHasChanged();
                     await module.InvokeVoidAsync("focus", ComponentCancellationToken, _rosterHeading);
                     await module.InvokeVoidAsync("acknowledgeOpeningReceipt", ComponentCancellationToken, scope, CampaignId, receipt.OperationId);
                 }
             }
-            catch (JSException) { /* The roster remains usable if optional success feedback cannot be restored. */ }
+            catch (Exception exception) when (exception is JSException or System.Text.Json.JsonException or NotSupportedException)
+            {
+                // Optional feedback cannot prevent using the roster, including incompatible stored JSON.
+            }
         }
 
         // The region element is recreated across loading/error/loaded renders, so re-attach the

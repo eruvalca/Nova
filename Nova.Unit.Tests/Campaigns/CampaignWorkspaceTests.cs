@@ -339,8 +339,12 @@ public sealed class CampaignWorkspaceTests : BunitContext
     }
 
     /// <summary>Verifies the opening receipt is acknowledged separately only after its actual count is displayed.</summary>
-    [Fact]
-    public void CampaignWorkspace_AcknowledgesValidOpeningReceipt_AfterApplyingCount()
+    /// <param name="count">The immutable number enrolled by the opening operation.</param>
+    /// <param name="noun">The grammatically appropriate enrollment noun.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(1, "player")]
+    [InlineData(7, "players")]
+    public void CampaignWorkspace_AcknowledgesValidOpeningReceipt_AfterApplyingCount(int count, string noun)
     {
         RegisterServices();
         Services.GetRequiredService<NavigationManager>().NavigateTo("/campaigns/10/roster");
@@ -348,11 +352,11 @@ public sealed class CampaignWorkspaceTests : BunitContext
         var module = JSInterop.SetupModule(WorkspaceModulePath);
         module.Mode = JSRuntimeMode.Loose;
         module.Setup<OpenCampaignResult?>("readOpeningReceipt", _ => true).SetResult(
-            new OpenCampaignResult(operationId, 10, DateTimeOffset.UtcNow, 101, 7, 0, [CampaignOpeningWarning.NoActiveTeams]));
+            new OpenCampaignResult(operationId, 10, DateTimeOffset.UtcNow, 101, count, 0, [CampaignOpeningWarning.NoActiveTeams]));
 
         var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
 
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Campaign opened and enrolled 7 players."));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain($"Campaign opened and enrolled {count} {noun}."));
         module.Invocations.Count(invocation => invocation.Identifier == "focus").ShouldBe(1);
         module.Invocations.Where(invocation => invocation.Identifier == "acknowledgeOpeningReceipt").Count().ShouldBe(1);
         var arguments = module.Invocations.Single(invocation => invocation.Identifier == "acknowledgeOpeningReceipt").Arguments;
@@ -365,6 +369,8 @@ public sealed class CampaignWorkspaceTests : BunitContext
     /// <param name="kind">The invalid receipt partition.</param>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("read-failure")]
+    [InlineData("json-failure")]
+    [InlineData("unsupported-failure")]
     [InlineData("no-receipt")]
     [InlineData("wrong-campaign")]
     [InlineData("empty-operation")]
@@ -379,6 +385,14 @@ public sealed class CampaignWorkspaceTests : BunitContext
         if (kind == "read-failure")
         {
             read.SetException(new JSException("Storage unavailable"));
+        }
+        else if (kind == "json-failure")
+        {
+            read.SetException(new System.Text.Json.JsonException("Malformed receipt"));
+        }
+        else if (kind == "unsupported-failure")
+        {
+            read.SetException(new NotSupportedException("Unsupported receipt"));
         }
         else if (kind == "no-receipt")
         {

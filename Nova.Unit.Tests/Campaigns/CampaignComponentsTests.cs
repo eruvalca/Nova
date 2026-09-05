@@ -212,6 +212,90 @@ public sealed class CampaignComponentsTests : BunitContext
             Arg.Is<GetCampaignListInput>(input => input.Status == null && input.Page == 1), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Verifies malformed optional directory query values fall back to the normal first page.</summary>
+    /// <param name="page">The raw page value tested alongside an invalid deletion marker.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("abc")]
+    [InlineData("2147483648")]
+    [InlineData("-4")]
+    [InlineData("1")]
+    public void Campaigns_DefaultsMalformedOptionalQueryValues(string page)
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(SuccessListResult(CreateSeasonGroups()));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/campaigns?page={page}&deleted=abc");
+
+        var cut = Render<CampaignsPage>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.Markup.ShouldNotContain("Draft deleted.");
+        _ = queries.Received(1).GetCampaignListAsync(Arg.Is<GetCampaignListInput>(input => input.Page == 1), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Verifies an older authentication notification cannot restore administrator authority or cancel the newer scope's pending query.</summary>
+    [Fact]
+    public async Task Campaigns_IgnoresOlderAuthenticationCompletion_WhileNewMemberListLoads()
+    {
+        var pendingList = new TaskCompletionSource<ServiceResult<CampaignListResult>>();
+        var requests = 0;
+        var newerRequestToken = CancellationToken.None;
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (++requests == 1)
+                {
+                    return Task.FromResult(SuccessListResult(CreateSeasonGroups()));
+                }
+                newerRequestToken = call.Arg<CancellationToken>();
+                return pendingList.Task;
+            });
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        var older = new TaskCompletionSource<AuthenticationState>();
+        var newer = new TaskCompletionSource<AuthenticationState>();
+        await cut.InvokeAsync(() => authentication.NotifyPending(older.Task));
+        await cut.InvokeAsync(() => authentication.NotifyPending(newer.Task));
+        await cut.InvokeAsync(() => newer.SetResult(new AuthenticationState(CreatePrincipal(false, clubId: 43))));
+        cut.WaitForAssertion(() => requests.ShouldBe(2));
+
+        await cut.InvokeAsync(() => older.SetResult(new AuthenticationState(CreatePrincipal(true))));
+
+        requests.ShouldBe(2);
+        newerRequestToken.IsCancellationRequested.ShouldBeFalse();
+        await cut.InvokeAsync(() => pendingList.SetResult(SuccessListResult(CreateSeasonGroups())));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        cut.FindAll("#campaigns-view-filter option[value='draft']").ShouldBeEmpty();
+        cut.Markup.ShouldNotContain("Create campaign");
+    }
+
+    /// <summary>Verifies an authentication notification completing after disposal cannot start another directory query.</summary>
+    [Fact]
+    public async Task Campaigns_IgnoresPendingAuthentication_AfterDisposal()
+    {
+        var queries = Substitute.For<ICampaignQueryService>();
+        queries.GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>())
+            .Returns(SuccessListResult(CreateSeasonGroups()));
+        RegisterServices(isClubAdmin: true, queryService: queries);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(true));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<CampaignsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Tryouts"));
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        await cut.InvokeAsync(() => authentication.NotifyPending(pending.Task));
+        await cut.Instance.DisposeAsync();
+        cut.Dispose();
+
+        await cut.InvokeAsync(() => pending.SetResult(new AuthenticationState(CreatePrincipal(false, clubId: 43))));
+
+        await queries.Received(1).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public void Campaigns_SwitchesToClosedView_WhenFilterChanges()
     {
@@ -1402,12 +1486,16 @@ public sealed class CampaignComponentsTests : BunitContext
         }
     ];
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin)
+    /// <summary>Builds a principal with explicit club and administrator scope.</summary>
+    /// <param name="isClubAdmin">Whether the principal is a club administrator.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <returns>The authenticated test principal.</returns>
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, long clubId = 42)
     {
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, "101"),
-            new(NovaClaimTypes.ClubId, "42")
+            new(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture))
         };
 
         if (isClubAdmin)
@@ -1455,6 +1543,11 @@ public sealed class CampaignComponentsTests : BunitContext
             _principal = next;
             NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
         }
+
+        /// <summary>Publishes an unresolved authentication notification to exercise out-of-order completion.</summary>
+        /// <param name="pending">The authentication result that will complete later.</param>
+        public void NotifyPending(Task<AuthenticationState> pending)
+            => NotifyAuthenticationStateChanged(pending);
     }
 
     /// <summary>

@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round seven on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,496 passed. PostgreSQL/HTTP integration suite: 531 passed. Latest full browser suite (round six): 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags. Round seven changes only client response validation. Format verification passed. Theme contrast/token checks passed in round five; theme inputs are unchanged. Browser/UI code is unchanged from that passing run.
+Validated for PR #244 review round eight on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,505 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; round eight changes UI state/rendering only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -78,3 +78,13 @@ The seventh review round requires exactly `min(5, ActiveTeamCount)` readiness pr
 |---|---|
 | Reject omitted and empty previews when active teams exist | `GetOpeningReadinessAsync_ReturnsServerError_ForInvalidPayload` |
 | Accept zero/singleton/capped previews and reject a short capped preview | `GetOpeningReadinessAsync_RequiresCompleteBoundedPreview` |
+
+The eighth review round orders campaign-directory authentication notifications before publishing their results, including startup and disposal. Raw page/deletion query values are parsed and normalized instead of throwing during binding. Optional opening receipts tolerate JSON/schema incompatibility, use the singular noun for one player, and have an accurate one-time-read comment.
+
+| Requirement | Regression evidence |
+|---|---|
+| Ignore older authentication notifications without cancelling the newest member query | `Campaigns_IgnoresOlderAuthenticationCompletion_WhileNewMemberListLoads` |
+| Ignore notifications completed after component disposal | `Campaigns_IgnoresPendingAuthentication_AfterDisposal` |
+| Normalize malformed page/deletion values | `Campaigns_DefaultsMalformedOptionalQueryValues`; real-browser `Draft_IsUnavailableToOrdinaryMember_AndWarningDoesNotBlockAdministrator` |
+| Ignore incompatible receipt data without focus or acknowledgment | `CampaignWorkspace_DoesNotAcknowledgeUnusableReceipt` |
+| Use singular/plural receipt wording while preserving immutable counts and acknowledgment | `CampaignWorkspace_AcknowledgesValidOpeningReceipt_AfterApplyingCount` |

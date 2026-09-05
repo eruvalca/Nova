@@ -57,10 +57,10 @@ public partial class Campaigns(
     private int _page = 1;
     private string? _identityScope;
 
-    /// <summary>Gets or sets the directory page from its URL.</summary>
-    [SupplyParameterFromQuery(Name = "page")] public int? DirectoryPage { get; set; }
-    /// <summary>Gets or sets deletion feedback from a completed Draft deletion.</summary>
-    [SupplyParameterFromQuery(Name = "deleted")] public bool Deleted { get; set; }
+    /// <summary>Gets or sets the raw directory page, normalized before use.</summary>
+    [SupplyParameterFromQuery(Name = "page")] public string? DirectoryPage { get; set; }
+    /// <summary>Gets or sets the raw deletion-feedback marker, parsed before use.</summary>
+    [SupplyParameterFromQuery(Name = "deleted")] public string? Deleted { get; set; }
     /// <summary>Gets or sets the identity owning the persisted list.</summary>
     [PersistentState] public string? PersistedIdentityScope { get; set; }
 
@@ -74,6 +74,9 @@ public partial class Campaigns(
     /// Version counter used to ignore stale list-load completions.
     /// </summary>
     private int _loadListVersion;
+
+    /// <summary>Ensures only the latest authentication notification can publish identity and role state.</summary>
+    private int _authenticationVersion;
 
     /// <summary>
     /// Cancellation source for the in-flight list load; canceled and replaced by newer loads.
@@ -184,12 +187,17 @@ public partial class Campaigns(
     {
         // SupplyParameterFromQuery properties are assigned before initialization, so the
         // requested view is available before the startup load and its persisted snapshot.
+        authenticationStateProvider.AuthenticationStateChanged += DirectoryAuthenticationChanged;
+        var authenticationVersion = _authenticationVersion;
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         _canManageCampaigns = authenticationState.User.IsInRole(Roles.ClubAdmin);
         _identityScope = DirectoryIdentity(authenticationState);
         _ = ApplyViewQueryToState();
-        authenticationStateProvider.AuthenticationStateChanged += DirectoryAuthenticationChanged;
-        if (Deleted)
+        if (bool.TryParse(Deleted, out var wasDeleted) && wasDeleted)
         {
             _statusMessage = "Draft deleted. Your club's teams remain.";
         }
@@ -204,8 +212,6 @@ public partial class Campaigns(
 
         _isLoading = true;
         await LoadListAsync();
-        PersistStartupState();
-        Initialized = true;
     }
 
     /// <summary>
@@ -221,11 +227,14 @@ public partial class Campaigns(
             viewFromQuery = "all";
         }
 
-        var nextPage = unsupportedDraft ? 1 : Math.Max(1, DirectoryPage ?? 1);
+        var validPage = int.TryParse(DirectoryPage, System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out var requestedPage) && requestedPage > 0;
+        var nextPage = unsupportedDraft || !validPage ? 1 : requestedPage;
         var hasChanged = !string.Equals(_statusFilter, viewFromQuery, StringComparison.Ordinal) || nextPage != _page;
         _page = nextPage;
         _statusFilter = viewFromQuery;
-        if (unsupportedDraft)
+        if (unsupportedDraft || (DirectoryPage is not null && !validPage)
+            || (Deleted is not null && !bool.TryParse(Deleted, out _)))
         {
             SyncViewToUrl();
         }
@@ -313,6 +322,7 @@ public partial class Campaigns(
         PersistedList = _list;
         PersistedPageError = _pageError;
         PersistedIdentityScope = _identityScope;
+        Initialized = true;
     }
 
     /// <summary>
@@ -337,7 +347,12 @@ public partial class Campaigns(
     private void SyncViewToUrl()
     {
         var uri = navigationManager.GetUriWithQueryParameters(
-            new Dictionary<string, object?> { ["view"] = _statusFilter, ["page"] = _page });
+            new Dictionary<string, object?>
+            {
+                ["view"] = _statusFilter,
+                ["page"] = _page,
+                ["deleted"] = bool.TryParse(Deleted, out var deleted) ? deleted : null
+            });
 
         if (!string.Equals(uri, navigationManager.Uri, StringComparison.Ordinal))
         {
@@ -664,6 +679,7 @@ public partial class Campaigns(
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
+        ++_authenticationVersion;
         authenticationStateProvider.AuthenticationStateChanged -= DirectoryAuthenticationChanged;
         _loadListSource?.Cancel();
         _loadListSource?.Dispose();
@@ -677,9 +693,16 @@ public partial class Campaigns(
         state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
         state.User.FindFirst(NovaClaimTypes.ClubId)?.Value, state.User.IsInRole(Roles.ClubAdmin));
 
+    /// <summary>Applies only the newest authentication notification before replacing the scoped directory.</summary>
+    /// <param name="task">The pending authentication state supplied by the provider.</param>
     private void DirectoryAuthenticationChanged(Task<AuthenticationState> task) => _ = InvokeAsync(async () =>
     {
+        var authenticationVersion = ++_authenticationVersion;
         var state = await task;
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         var identity = DirectoryIdentity(state);
         if (identity == _identityScope)
         {
