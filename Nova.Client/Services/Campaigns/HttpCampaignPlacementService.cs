@@ -26,19 +26,15 @@ public sealed class HttpCampaignPlacementService(HttpClient http) : ICampaignPla
 
         return await response.Content.ReadRequiredJsonAsync<PlacementMutationSuccess>(
             "The server returned an invalid campaign placement update response.",
-            result => IsValidSuccessPayload(result, input.ExpectedConcurrencyToken),
+            IsValidSuccessPayload,
             cancellationToken);
     }
 
     /// <summary>
-    /// Validates that a placement success payload carries a fresh concurrency token.
+    /// Validates the token for the next save. An identical save preserves the submitted token.
     /// </summary>
     /// <param name="result">The success payload to validate.</param>
-    /// <param name="expectedConcurrencyToken">The token submitted with the request, which the response token must replace.</param>
-    /// <returns><see langword="true"/> when the token is a valid replacement for the submitted token.</returns>
-    private static bool IsValidSuccessPayload(
-        PlacementMutationSuccess result,
-        Guid expectedConcurrencyToken)
-        => result.ConcurrencyToken != Guid.Empty
-            && result.ConcurrencyToken != expectedConcurrencyToken;
+    /// <returns>Whether the payload contains a usable concurrency token.</returns>
+    private static bool IsValidSuccessPayload(PlacementMutationSuccess result)
+        => result.ConcurrencyToken != Guid.Empty;
 }

@@ -71,3 +71,6 @@ queries are not converted by #213; #214 owns those consumers and their query/pro
 | Receipt retention, including deleted tenants | `PlacementMutationReceipts_PruneExpiredReceipts_WithinCurrentTenantOnly`, `PlacementMutationReceipts_GlobalCleanupRemovesExpiredDeletedClubEvidence` |
 | Atomic writes and retry proof despite later mutations | `UpdatePlacement_RetriesFailedCommit_AndPersistsReplacementToken`, `UpdatePlacement_RecoversOriginalToken_WhenLaterSavePrecedesCommitVerification`, `UpdatePlacement_RecoversOriginalSuccess_WhenClubDeletionPrecedesCommitVerification` |
 | Contended season/opening/team locks | `UpdatePlacement_RejectsNonCurrentSeason_AfterWaitingForSeasonLock`, `UpdatePlacement_SerializesCompetingOpening_WithoutCreatingAnotherDecision`, `UpdatePlacement_RejectsArchivedTarget_AfterWaitingForTeamLock`, `UpdatePlacement_LocksPriorTeam_AndSupersedesItsDecisionAfterArchival` |
+| WASM no-op success | `UpdatePlacementAsync_ReturnsSuccess_WhenNoOpPreservesSubmittedToken` |
+| Enrollment display without a clearing action | `OutcomeOptions_DisableUndecided_ForEnrollmentAndSavedDecision`, `OutcomeChange_ClearsTeam_AndDisablesTeamSelect_WhenLeavingAssigned` |
+| Strict supersession feed contract | `GetClubActivityAsync_AcceptsSupersession_ForSavedOutcomes`, `GetClubActivityAsync_RejectsSupersession_ForMalformedDecision` |

@@ -510,7 +510,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         await Expect(row).ToBeVisibleAsync();
         var outcomeSelect = row.Locator("select[aria-label^='Outcome for']");
         var outcomeValue = ((int)outcome).ToString();
-        var undecidedValue = ((int)PlacementOutcome.Undecided).ToString();
+        var alternateValue = ((int)(outcome == PlacementOutcome.NotSelected ? PlacementOutcome.Assigned : PlacementOutcome.NotSelected)).ToString();
         var teamSelect = row.Locator("select[aria-label^='Team for']");
         var save = row.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
 
@@ -521,7 +521,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
         {
             try
             {
-                await outcomeSelect.SelectOptionAsync(undecidedValue);
+                await outcomeSelect.SelectOptionAsync(alternateValue);
                 await outcomeSelect.SelectOptionAsync(outcomeValue);
 
                 if (outcome == PlacementOutcome.Assigned)
