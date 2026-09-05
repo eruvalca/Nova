@@ -24,6 +24,8 @@ public partial class NewCampaign(
     private bool _isSubmitting;
     private bool _sessionReady;
     private bool _storageAttempted;
+    /// <summary>Records an input write failure until the current form is durably saved again.</summary>
+    private bool _storageSaveFailed;
     private CampaignCreateFormState _createForm = CampaignCreateFormState.CreateDefault();
     private CreateCampaignInput? _pending;
     private IJSObjectReference? _module;
@@ -57,6 +59,8 @@ public partial class NewCampaign(
 
     private static string Identity(AuthenticationState state) => $"{state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
 
+    /// <summary>Discards form, error, and recovery ownership before loading another identity's setup.</summary>
+    /// <param name="task">The updated authentication state.</param>
     private void AuthenticationChanged(Task<AuthenticationState> task) => _ = InvokeAsync(async () =>
     {
         var next = Identity(await task);
@@ -70,10 +74,17 @@ public partial class NewCampaign(
         _scope = next;
         _setup = null;
         PersistedSetup = null;
+        _pageError = null;
+        _formError = null;
+        _fieldErrors = null;
+        PersistedPageError = null;
+        SnapshotScope = null;
+        Initialized = false;
         _pending = null;
         _createForm = CampaignCreateFormState.CreateDefault();
         _sessionReady = false;
         _storageAttempted = false;
+        _storageSaveFailed = false;
         _isSubmitting = false;
         StateHasChanged();
         if (_module is not null)
@@ -137,6 +148,8 @@ public partial class NewCampaign(
         }
     }
 
+    /// <summary>Loads and persists setup only for the identity that owns this request.</summary>
+    /// <returns>The setup refresh task.</returns>
     private async Task LoadSetupAsync()
     {
         var version = _version;
@@ -180,6 +193,7 @@ public partial class NewCampaign(
                 PersistedSetup = _setup;
                 PersistedPageError = _pageError;
                 SnapshotScope = _scope;
+                Initialized = true;
             }
         }
     }
@@ -192,6 +206,9 @@ public partial class NewCampaign(
         return LoadSetupAsync();
     }
 
+    /// <summary>Saves edited input, retaining it in memory if recovery storage fails.</summary>
+    /// <param name="model">The current form input.</param>
+    /// <returns>The recovery write task.</returns>
     private async Task SaveInputAsync(CampaignCreateFormState model)
     {
         if (!_sessionReady || _pending is not null)
@@ -201,11 +218,50 @@ public partial class NewCampaign(
 
         _createForm = model;
         _fieldErrors = null;
+        var version = _version;
         try { await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-form", model); }
         catch (JSException)
         {
-            _sessionReady = false;
-            _formError = "Your input could not be saved for recovery. Reload before submitting.";
+            if (version == _version)
+            {
+                _sessionReady = false;
+                _storageSaveFailed = true;
+                _formError = "Your input could not be saved for recovery. Retry recovery storage before submitting.";
+            }
+        }
+    }
+
+    /// <summary>Retries saving the current in-memory input without restoring an older stored form.</summary>
+    /// <returns>The retry task; submission stays disabled until the write succeeds.</returns>
+    private async Task RetryStorageAsync()
+    {
+        if (_isSubmitting || !_storageSaveFailed)
+        {
+            return;
+        }
+
+        var version = _version;
+        _isSubmitting = true;
+        try
+        {
+            await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-form", _createForm);
+            if (version == _version)
+            {
+                _storageSaveFailed = false;
+                _formError = null;
+                _sessionReady = true;
+            }
+        }
+        catch (JSException)
+        {
+            // Keep the current form and recovery action available until storage accepts the write.
+        }
+        finally
+        {
+            if (version == _version)
+            {
+                _isSubmitting = false;
+            }
         }
     }
 

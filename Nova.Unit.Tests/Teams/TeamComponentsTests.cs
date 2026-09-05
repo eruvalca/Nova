@@ -20,6 +20,30 @@ namespace Nova.Unit.Tests.Teams;
 /// </summary>
 public sealed class TeamComponentsTests : BunitContext
 {
+    /// <summary>Verifies crafted Draft return context is hidden from members and disappears when administrator access is revoked.</summary>
+    /// <param name="startsAsAdmin">Whether administrator access is initially granted before being revoked.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Teams_ReturnToDraft_RequiresCurrentAdministratorRole(bool startsAsAdmin)
+    {
+        RegisterServices(isClubAdmin: startsAsAdmin);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(startsAsAdmin, isAdmin: false));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/club/teams?returnToDraft=10");
+        var cut = Render<TeamsPage>();
+        cut.WaitForState(() => !cut.Markup.Contains("Loading teams...", StringComparison.Ordinal));
+
+        if (startsAsAdmin)
+        {
+            cut.FindAll("a").Single(link => link.TextContent.Trim() == "Return to draft")
+                .GetAttribute("href").ShouldBe("/campaigns/10");
+            authentication.Change(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+        }
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Return to draft"));
+    }
+
     /// <summary>Configures the shell's browser-only focus restoration while component tests exercise team workflows.</summary>
     public TeamComponentsTests()
     {

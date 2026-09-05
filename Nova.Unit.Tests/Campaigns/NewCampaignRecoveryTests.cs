@@ -148,6 +148,108 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "remove" && invocation.Arguments.Contains("create-pending"));
     }
 
+    /// <summary>Verifies failed input persistence can be retried without reverting edits or changing the logical operation.</summary>
+    [Fact]
+    public void NewCampaign_RetryRecoveryStorage_PreservesCurrentEditsUntilWriteSucceeds()
+    {
+        var (module, _, creation) = Register();
+        var saved = SavedForm();
+        module.Setup<CampaignCreateFormState?>("read", invocation => invocation.Arguments.Contains("create-form")).SetResult(saved);
+        var failWrite = true;
+        module.SetupVoid("write", invocation => failWrite && invocation.Arguments.Contains("create-form"))
+            .SetException(new JSException("Storage unavailable"));
+        creation.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CreateCampaignResult>(ServiceProblem.ServerError("Uncertain response")));
+        var cut = Render<NewCampaign>();
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+
+        cut.Find("#campaign-name").Change("Current unsaved edit");
+        cut.Find("section.campaign-create-board").TriggerEvent("onchange", new Microsoft.AspNetCore.Components.ChangeEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
+        var retry = cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry recovery storage");
+        retry.Closest("fieldset").ShouldBeNull();
+        retry.Click();
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        module.Invocations.Count(invocation => invocation.Identifier == "write" && invocation.Arguments.Contains("create-form")).ShouldBe(2);
+
+        failWrite = false;
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry recovery storage").Click();
+
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#campaign-name").GetAttribute("value").ShouldBe("Current unsaved edit");
+        cut.Find("#campaign-start-date").GetAttribute("value").ShouldBe("2026-06-15");
+        module.Invocations.Count(invocation => invocation.Identifier == "read" && invocation.Arguments.Contains("create-form")).ShouldBe(1);
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => creation.Received(1).CreateAsync(
+            Arg.Is<CreateCampaignInput>(input => input.Name == "Current unsaved edit" && input.OperationId == saved.OperationId), Arg.Any<CancellationToken>()));
+    }
+
+    /// <summary>Verifies changing club invalidates persisted and form errors before new setup finishes loading.</summary>
+    [Fact]
+    public async Task NewCampaign_ClearsErrorsAndSnapshot_BeforeNewClubSetupCompletes()
+    {
+        var (module, authentication, creation) = Register();
+        module.Setup<CampaignCreateFormState?>("read", invocation => invocation.Arguments.Contains("101:42:True")
+            && invocation.Arguments.Contains("create-form")).SetResult(SavedForm());
+        creation.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CreateCampaignResult>(ServiceProblem.Validation(
+                new Dictionary<string, string[]> { ["Name"] = ["Old club name error"] })));
+        var cut = Render<NewCampaign>();
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Old club name error"));
+        cut.Instance.PersistedPageError = "Old club setup error";
+        var pending = new TaskCompletionSource<ServiceResult<CampaignCreationSetupResult>>();
+        Services.GetRequiredService<ICampaignQueryService>().GetCreationSetupAsync(Arg.Any<CancellationToken>()).Returns(pending.Task);
+
+        await cut.InvokeAsync(() => authentication.ChangeClub(43));
+
+        cut.Instance.PersistedPageError.ShouldBeNull();
+        cut.Instance.SnapshotScope.ShouldBeNull();
+        cut.Markup.ShouldNotContain("Old club name error");
+        await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
+        {
+            CurrentSeason = new CampaignSeasonChoice { SeasonId = 6, Name = "New club season", StartDate = new DateOnly(2026, 1, 1) },
+            ActivePlayerCount = 1,
+            ActiveTeamCount = 0
+        })));
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        cut.Markup.ShouldNotContain("Old club name error");
+        cut.Markup.ShouldNotContain("Old club setup error");
+        cut.FindComponent<CampaignCreateForm>().Instance.ServerErrors.ShouldBeNull();
+        cut.FindComponent<CampaignCreateForm>().Instance.ErrorMessage.ShouldBeNull();
+        cut.Find("#campaign-name").GetAttribute("value").ShouldBe(string.Empty);
+        cut.Find("#campaign-name").Change("New club Draft");
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => creation.Received().CreateAsync(
+            Arg.Is<CreateCampaignInput>(input => input.Name == "New club Draft" && input.ExistingSeasonId == 6), Arg.Any<CancellationToken>()));
+    }
+
+    /// <summary>Verifies a failed input write from the previous club cannot disable the newly attached form.</summary>
+    [Fact]
+    public async Task NewCampaign_IgnoresLateInputStorageFailure_AfterClubChanges()
+    {
+        var (module, authentication, _) = Register();
+        var pendingWrite = module.SetupVoid("write", invocation => invocation.Arguments.Contains("101:42:True")
+            && invocation.Arguments.Contains("create-form"));
+        var cut = Render<NewCampaign>();
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("#campaign-name").Change("Old club edit");
+        var change = cut.Find("section.campaign-create-board").TriggerEventAsync("onchange", new Microsoft.AspNetCore.Components.ChangeEventArgs());
+        cut.WaitForAssertion(() => pendingWrite.Invocations.Count.ShouldBe(1));
+
+        await cut.InvokeAsync(() => authentication.ChangeClub(43));
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        pendingWrite.SetException(new JSException("Old storage failed late"));
+        await change;
+
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+        cut.Find("#campaign-name").GetAttribute("value").ShouldBe(string.Empty);
+        cut.Markup.ShouldNotContain("Retry recovery storage");
+        cut.FindComponent<CampaignCreateForm>().Instance.ErrorMessage.ShouldBeNull();
+    }
+
     /// <summary>Builds distinctive saved input to detect replacement by newly initialized defaults.</summary>
     /// <returns>The session-restored form.</returns>
     private static CampaignCreateFormState SavedForm() => new()

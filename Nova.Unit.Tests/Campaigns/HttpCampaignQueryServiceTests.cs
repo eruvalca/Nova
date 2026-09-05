@@ -254,7 +254,7 @@ public sealed class HttpCampaignQueryServiceTests
     public async Task GetCampaignListAsync_AcceptsDraftLifecycleOrder()
     {
         const string payload = """
-            {"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01",
+            {"draftActivePlayerCount":0,"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01",
             "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
             {"campaignId":1,"name":"Active","startDate":"2026-06-01","status":0,"participantCount":1,"unresolvedCount":0},
             {"campaignId":2,"name":"Draft","startDate":"2026-06-01","status":2,"participantCount":0,"unresolvedCount":0},
@@ -272,7 +272,7 @@ public sealed class HttpCampaignQueryServiceTests
     public async Task GetCampaignListAsync_AcceptsCurrentSeasonBeforeNewerHistory()
     {
         const string payload = """
-            {"currentSeasonId":1,"seasons":[
+            {"currentSeasonId":1,"draftActivePlayerCount":0,"seasons":[
             {"seasonId":1,"name":"Current","startDate":"2026-01-01",
             "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
             {"campaignId":1,"name":"Draft","startDate":"2026-06-01","status":2,"participantCount":0,"unresolvedCount":0}]},
@@ -409,6 +409,34 @@ public sealed class HttpCampaignQueryServiceTests
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies Draft rows require an enrollment preview while a legitimate zero count is accepted.</summary>
+    /// <param name="previewProperty">The optional JSON property fragment.</param>
+    /// <param name="valid">Whether the preview is present and valid.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("", false)]
+    [InlineData("\"draftActivePlayerCount\":null,", false)]
+    [InlineData("\"draftActivePlayerCount\":0,", true)]
+    public async Task GetCampaignListAsync_RequiresPreviewForDraftRows(string previewProperty, bool valid)
+    {
+        var payload = $$"""
+            { {{previewProperty}} "seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01",
+            "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
+            {"campaignId":1,"name":"Draft","startDate":"2026-06-01","status":2,"participantCount":0,"unresolvedCount":0}]}],"totalCount":1}
+            """;
+
+        var result = await GetCampaignListFromJsonAsync(payload);
+
+        result.IsSuccess.ShouldBe(valid);
+        if (valid)
+        {
+            result.Value.DraftActivePlayerCount.ShouldBe(0);
+        }
+        else
+        {
+            result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+        }
     }
 
     /// <summary>Verifies missing required paging metadata is rejected rather than replaced with CLR defaults.</summary>

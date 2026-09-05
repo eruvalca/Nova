@@ -61,6 +61,10 @@ FORM: Main-column form; opening review belongs to the saved Draft. -->
                 <button class="btn btn-primary" disabled="@(_isSubmitting || !_sessionReady)" @onclick="RecoverAsync">Confirm creation result</button>
             </div>
         }
+        @if (_storageSaveFailed)
+        {
+            <button type="button" class="btn btn-outline-primary mb-3" disabled="@_isSubmitting" @onclick="RetryStorageAsync">Retry recovery storage</button>
+        }
         <fieldset disabled="@(!_sessionReady || _pending is not null)">
         <CampaignCreateForm Heading="Campaign details"
                             Model="_createForm"

@@ -235,6 +235,7 @@ public partial class Players(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authenticationState.User;
 
@@ -267,6 +268,25 @@ public partial class Players(
         PersistStartupState();
         Initialized = true;
     }
+
+    /// <summary>Updates role-shaped navigation and dismisses management forms when administrator rights are lost.</summary>
+    /// <param name="stateTask">The updated authentication state.</param>
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
+        => _ = InvokeAsync(async () =>
+        {
+            var state = await stateTask;
+            if (ComponentCancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _canManagePlayers = state.User.IsInRole(Roles.ClubAdmin);
+            if (!_canManagePlayers)
+            {
+                CancelMutationForm();
+            }
+            StateHasChanged();
+        });
 
     /// <summary>
     /// Parses the club identifier claim from the current principal.
@@ -798,6 +818,7 @@ public partial class Players(
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
+        authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();
         _searchDebounceSource = null;

@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round four on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,468 passed. PostgreSQL/HTTP integration suite: 531 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags. Format verification and theme contrast/token checks passed. The browser rerun passed after replacing an immediate closeout-checklist read with a retrying assertion that waits for the existing post-reopen refresh.
+Validated for PR #244 review round five on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,478 passed. PostgreSQL/HTTP integration suite: 531 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags. Format verification and theme contrast/token checks passed. The final browser rerun passed after the initial run reported two creation-form attachment timeouts; build, unit, and format work had finished before the rerun.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -51,3 +51,13 @@ Subsequent PR review rounds added scoped deletion replay, durable creation retri
 Opening receipts remain stored until .NET validates and applies the immutable count and acknowledges the matching operation. Only that validated receipt handoff moves focus to the Roster heading; ordinary visits retain normal navigation focus. Abandoned metadata edits discard server validation errors. JSON responses must contain both paging fields, Active/Closed directory requests omit the unused Draft player-count query, and creation links back to the root-relative directory path.
 
 Regression coverage includes `CampaignEntryTests`, `CampaignWorkspaceTests`, `HttpCampaignQueryServiceTests`, and `CampaignQueryServiceTests`, plus the real-browser Draft journey. The query tests assert the actual reader count for views without Drafts. The browser checks receipt retention and acknowledgment using the real JavaScript modules, along with Roster routing and mobile header semantics. The verification totals above describe the complete suites, not the original focused test subset.
+
+The fifth review round adds an accessible recovery-storage retry that writes the current in-memory creation form before enabling submission. Identity changes clear form and persisted errors before loading new setup; late writes cannot restore an old identity's error. Draft return links require current administrator rights, including live role changes on Players and Teams. A Draft list row now requires its enrollment preview, with zero remaining valid.
+
+| Requirement | Regression evidence |
+|---|---|
+| Recover from repeated input-storage failures without replacing current edits or the operation ID | `NewCampaign_RetryRecoveryStorage_PreservesCurrentEditsUntilWriteSucceeds` |
+| Clear old form and persisted errors before another club's setup completes | `NewCampaign_ClearsErrorsAndSnapshot_BeforeNewClubSetupCompletes` |
+| Ignore a previous club's late storage failure | `NewCampaign_IgnoresLateInputStorageFailure_AfterClubChanges` |
+| Reject missing/null Draft previews while accepting zero | `GetCampaignListAsync_RequiresPreviewForDraftRows` |
+| Hide Draft return links for members and after role loss | `Players_ReturnToDraft_RequiresCurrentAdministratorRole`, `Teams_ReturnToDraft_RequiresCurrentAdministratorRole` |

@@ -20,6 +20,30 @@ namespace Nova.Unit.Tests.Players;
 /// </summary>
 public sealed class PlayerComponentsTests : BunitContext
 {
+    /// <summary>Verifies crafted Draft return context is hidden from members and disappears when administrator access is revoked.</summary>
+    /// <param name="startsAsAdmin">Whether administrator access is initially granted before being revoked.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Players_ReturnToDraft_RequiresCurrentAdministratorRole(bool startsAsAdmin)
+    {
+        RegisterServices(isClubAdmin: startsAsAdmin);
+        var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(startsAsAdmin));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/players?returnToDraft=10");
+        var cut = Render<PlayersPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+
+        if (startsAsAdmin)
+        {
+            cut.FindAll("a").Single(link => link.TextContent.Trim() == "Return to draft")
+                .GetAttribute("href").ShouldBe("/campaigns/10");
+            authentication.Change(CreatePrincipal(false));
+        }
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Return to draft"));
+    }
+
     [Fact]
     public void Players_ShowsLoadingState_WhileRosterRequestIsPending()
     {
@@ -493,12 +517,21 @@ public sealed class PlayerComponentsTests : BunitContext
     }
 
     /// <summary>
-    /// Provides a fixed authentication state for bUnit component tests.
+    /// Provides a mutable authentication state for bUnit component tests.
     /// </summary>
     /// <param name="principal">The principal to return from <see cref="GetAuthenticationStateAsync"/>.</param>
     private sealed class FakeAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
     {
+        /// <summary>The currently published authentication state.</summary>
+        private Task<AuthenticationState> _state = Task.FromResult(new AuthenticationState(principal));
+
+        /// <inheritdoc />
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
-            Task.FromResult(new AuthenticationState(principal));
+            _state;
+
+        /// <summary>Publishes a changed principal to mounted components.</summary>
+        /// <param name="newPrincipal">The replacement authenticated principal.</param>
+        public void Change(ClaimsPrincipal newPrincipal)
+            => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(newPrincipal)));
     }
 }

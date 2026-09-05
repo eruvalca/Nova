@@ -187,7 +187,8 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         // the total briefly lag the returned rows; validate bounds without rejecting that state.
         if (rows.Count > limit || result.TotalCount < 0 || result.Page < 1
             || result.Limit != limit
-            || result.CurrentSeasonId is <= 0 || result.DraftActivePlayerCount is < 0)
+            || result.CurrentSeasonId is <= 0 || result.DraftActivePlayerCount is < 0
+            || (result.DraftActivePlayerCount is null && rows.Any(row => row.Status == CampaignStatus.Draft)))
         {
             return false;
         }
