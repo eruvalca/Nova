@@ -1,0 +1,123 @@
+@page "/club"
+@rendermode InteractiveAuto
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Features.Clubs
+@using Nova.Shared.Features.Photos
+@using Nova.Shared.Security
+@using Nova.UI.Features.Clubs.Components
+
+<PageTitle>Club overview</PageTitle>
+
+<!--
+THESIS: The Club overview is a vertical wayfinding spine, not a dashboard of interchangeable cards.
+OWN-WORLD: Fieldhouse Wayfinding uses a pale directory, ink-forward working hall, enamel route markers, and restrained kelp/gold state.
+STORY: Members establish where they are, confirm the current season, then enter the one authoritative active campaign workspace.
+FIRST VIEWPORT: A stable Club directory sits beside a broad hall whose identity, season, and active-work waypoints read top to bottom.
+FORM: Stacked Waypoints, user-selected; surface seed 896dce4e, assigned.
+-->
+<ClubShell CurrentLabel="Overview">
+    <article class="club-overview">
+        <header class="overview-heading">
+            <h1>Overview</h1>
+            <p>Your club, the season in play, and the route into active work.</p>
+        </header>
+
+        @if (Notice == ClubRoutes.PermissionsChangedNotice)
+        {
+            <div class="alert alert-info" role="status">You don't have access to that section. Club navigation reflects your current permissions.</div>
+        }
+
+        <section class="club-identity" aria-label="Club identity">
+            <div class="identity-content">
+                @if (_identityLoading) { <p role="status" aria-live="polite">Loading club identity…</p> }
+                else if (_identityError is not null) { <RegionFailure Message="@_identityError" Retry="RetryIdentityAsync" /> }
+                else if (_identity is not null)
+                {
+                    <div class="identity-lockup">
+                        @if (_identity.HasCrest)
+                        {
+                            <img src="@ClubCrestEndpoints.GetCrestUrl(_identity.ClubId, ProfilePhotoSize.Medium)" alt="@_identity.Name crest" />
+                        }
+                        else
+                        {
+                            <span class="crest-fallback" role="img" aria-label="No club crest">@ClubInitials</span>
+                        }
+                        <div>
+                            <h2 id="club-identity-heading">@_identity.Name</h2>
+                            <p>@_identity.City, @_identity.State</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <div class="club-route-spine">
+        <section class="club-waypoint" aria-labelledby="current-season-heading">
+            <span class="waypoint-marker" aria-hidden="true"></span>
+            <div class="waypoint-content">
+                <h2 id="current-season-heading">Current season</h2>
+                @if (_seasonLoading) { <p role="status" aria-live="polite">Loading current season…</p> }
+                else if (_seasonError is not null) { <RegionFailure Message="@_seasonError" Retry="RetrySeasonAsync" /> }
+                else if (_currentSeason is not null)
+                {
+                    <h3>@_currentSeason.Name</h3>
+                    <p><strong>Current</strong> · @FormatDateWindow(_currentSeason.StartDate, _currentSeason.EndDate)</p>
+                }
+                else
+                {
+                    <h3>No current season</h3>
+                    @if (_isClubAdmin)
+                    {
+                        <p>Establish a current season before campaign work begins.</p>
+                        <a class="text-action" href="@ClubRoutes.Seasons">Go to Seasons</a>
+                    }
+                    else
+                    {
+                        <p>A club administrator establishes the current season.</p>
+                        <a class="text-action" href="@ClubRoutes.Teams">Browse teams</a>
+                    }
+                }
+            </div>
+        </section>
+
+        <section class="club-waypoint active-work last" aria-labelledby="active-work-heading">
+            <span class="waypoint-marker" aria-hidden="true"></span>
+            <div class="waypoint-content">
+                <div class="active-work-copy">
+                    <h2 id="active-work-heading">Active work</h2>
+                    @if (_campaignLoading) { <p role="status" aria-live="polite">Loading active work…</p> }
+                    else if (_campaignError is not null) { <RegionFailure Message="@_campaignError" Retry="RetryCampaignAsync" /> }
+                    else if (ActiveCampaign is not null)
+                    {
+                        <h3>@ActiveCampaign.Value.Campaign.Name</h3>
+                        <p>@ActiveCampaign.Value.SeasonName · <strong>Active</strong></p>
+                    }
+                    else if (_seasonError is null && !_seasonLoading && _currentSeason is null)
+                    {
+                        <h3>Season required</h3>
+                        <p>Active campaign work begins after the club has a current season.</p>
+                    }
+                    else
+                    {
+                        <h3>No campaign is active</h3>
+                        <p>There is no active campaign for the current season.</p>
+                        <div class="d-flex flex-wrap gap-3">
+                            <a class="text-action" href="/campaigns">View campaigns</a>
+                            @if (_isClubAdmin && _currentSeason is not null)
+                            {
+                                <a class="text-action" href="/campaigns/new">Create campaign</a>
+                            }
+                        </div>
+                    }
+                </div>
+                @if (!_campaignLoading && _campaignError is null && ActiveCampaign is not null)
+                {
+                    <a class="btn btn-primary active-work-action" href="@($"/campaigns/{ActiveCampaign.Value.Campaign.CampaignId}")">Open campaign</a>
+                }
+            </div>
+        </section>
+        </div>
+        <p class="visually-hidden" role="status" aria-live="polite">@_announcement</p>
+    </article>
+</ClubShell>

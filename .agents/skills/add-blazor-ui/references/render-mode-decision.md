@@ -16,8 +16,8 @@ post. Enhanced navigation and enhanced form handling (`<EditForm>` with `FormNam
 `[SupplyParameterFromForm]`) cover a great deal without any render mode.
 
 → **No interactivity needed: use static SSR — no `@rendermode` directive at all.**
-Example: `Nova.UI\Features\Clubs\Pages\ClubDetail.razor` loads and renders club detail with zero
-handlers, so it has no render mode.
+Example: `Nova.UI\Features\Clubs\Pages\ClubDetail.razor` validates the membership claim and redirects
+a legacy route with zero interactive handlers, so it has no render mode.
 
 **Q2 — Can it run in WebAssembly?**
 

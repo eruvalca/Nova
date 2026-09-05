@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Globalization;
+using System.Security.Claims;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -19,6 +20,13 @@ namespace Nova.Unit.Tests.Teams;
 /// </summary>
 public sealed class TeamComponentsTests : BunitContext
 {
+    /// <summary>Configures the shell's browser-only focus restoration while component tests exercise team workflows.</summary>
+    public TeamComponentsTests()
+    {
+        JSInterop.SetupModule("./_content/Nova.UI/Features/Clubs/Components/ClubShell.razor.js")
+            .Setup<bool>("restoreHeadingFocusAfterAttach", _ => true).SetResult(true);
+    }
+
     [Fact]
     public void Teams_ShowsLoadingState_WhileRosterRequestIsPending()
     {
@@ -149,6 +157,310 @@ public sealed class TeamComponentsTests : BunitContext
         cut.Markup.ShouldNotContain("Add team");
         cut.Markup.ShouldNotContain("btn-outline-primary");
         cut.Markup.ShouldNotContain("btn-outline-warning");
+    }
+
+    [Fact]
+    public void Teams_ShowsMutationControls_WhenClubAdminRoleIsGrantedAfterLoad()
+    {
+        RegisterServices(isClubAdmin: false);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForState(() => !cut.Markup.Contains("Loading teams...", StringComparison.Ordinal));
+        cut.Markup.ShouldNotContain("Add team");
+
+        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Add team");
+            cut.Markup.ShouldContain("Edit");
+            cut.Markup.ShouldContain("Archive");
+        });
+    }
+
+    [Fact]
+    public void Teams_HidesMutationControls_WhenClubAdminRoleIsRevokedAfterLoad()
+    {
+        RegisterServices(isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForState(() => !cut.Markup.Contains("Loading teams...", StringComparison.Ordinal));
+        cut.Markup.ShouldContain("Add team");
+
+        auth.Change(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldNotContain("Add team");
+            cut.Markup.ShouldNotContain("btn-outline-primary");
+            cut.Markup.ShouldNotContain("btn-outline-warning");
+        });
+    }
+
+    [Fact]
+    public void Teams_RebindsRoster_WhenClubMembershipChangesAfterLoad()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(SuccessRosterResult(
+                [
+                    new TeamRosterItem
+                    {
+                        TeamId = 7,
+                        Name = "U16 Orange",
+                        GraduationYear = 2032,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ActivePlacementCount = 1
+                    }
+                ])),
+                Task.FromResult(SuccessRosterResult(
+                [
+                    new TeamRosterItem
+                    {
+                        TeamId = 9,
+                        Name = "U18 Crimson",
+                        GraduationYear = 2034,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ActivePlacementCount = 2
+                    }
+                ])));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Orange"));
+
+        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("U18 Crimson");
+            cut.Markup.ShouldNotContain("U16 Orange");
+        });
+        rosterService.Received(2).GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// When club membership changes, the page must render the loading state before the new
+    /// club's roster request completes instead of leaving the previous club's roster visible.
+    /// </summary>
+    [Fact]
+    public void Teams_ShowsLoadingState_WhenClubMembershipChangesBeforeReloadCompletes()
+    {
+        var pending = new TaskCompletionSource<ServiceResult<IReadOnlyList<TeamRosterItem>>>();
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(SuccessRosterResult(CreateRosterItems(name: "U16 Orange"))),
+                pending.Task);
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Orange"));
+
+        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("Loading teams...");
+            cut.Markup.ShouldNotContain("U16 Orange");
+        });
+
+        pending.SetResult(SuccessRosterResult(CreateRosterItems(name: "U18 Crimson", teamId: 9)));
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("U18 Crimson");
+            cut.Markup.ShouldNotContain("U16 Orange");
+        });
+    }
+
+    /// <summary>
+    /// A club switch cancels the previous club's in-flight mutation and must release mutation
+    /// ownership so the new club's management controls are not disabled by a stalled operation.
+    /// A stale mutation completing later must not clear the flag of a newer mutation.
+    /// </summary>
+    [Fact]
+    public void Teams_ReenablesMutationControls_WhenClubChangesDuringInFlightMutation()
+    {
+        var pendingCreate1 = new TaskCompletionSource<ServiceResult<TeamDto>>();
+        var pendingCreate2 = new TaskCompletionSource<ServiceResult<TeamDto>>();
+        var managementService = Substitute.For<ITeamManagementService>();
+        managementService.CreateAsync(Arg.Any<CreateTeamInput>(), Arg.Any<CancellationToken>())
+            .Returns(pendingCreate1.Task, pendingCreate2.Task);
+
+        RegisterServices(managementService: managementService, isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        // Start a create mutation that stalls on the pending task.
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Add team"));
+        cut.Find("#team-name").Change("U14 White");
+        cut.Find("#team-grad-year").Change(2034);
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Find("button[type='submit']").HasAttribute("disabled"));
+
+        // Switch club while the mutation is still in flight.
+        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+
+        // The new club's controls must be usable again immediately, even though the old
+        // mutation never completed.
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldContain("U16 Blue");
+            cut.Markup.ShouldNotContain("Loading teams...");
+        });
+        cut.Find("button.btn-primary").HasAttribute("disabled").ShouldBeFalse();
+
+        // Start a second mutation for the new club, then complete the stale one. Its finally
+        // must not clear the newer mutation's flag.
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Add team"));
+        cut.Find("#team-name").Change("U18 Crimson");
+        cut.Find("#team-grad-year").Change(2032);
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Find("button[type='submit']").HasAttribute("disabled"));
+
+        pendingCreate1.SetResult(new ServiceResult<TeamDto>(new TeamDto
+        {
+            TeamId = 22,
+            ClubId = 43,
+            Name = "U16 Blue",
+            GraduationYear = 2032,
+            LifecycleStatus = LifecycleStatus.Active
+        }));
+        cut.Render();
+        cut.Find("button[type='submit']").HasAttribute("disabled").ShouldBeTrue();
+
+        pendingCreate2.SetResult(new ServiceResult<TeamDto>(new TeamDto
+        {
+            TeamId = 23,
+            ClubId = 43,
+            Name = "U18 Crimson",
+            GraduationYear = 2032,
+            LifecycleStatus = LifecycleStatus.Active
+        }));
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Team created successfully."));
+    }
+
+    /// <summary>
+    /// When club membership changes, graduation-year filter options must be derived from the
+    /// new club's roster only — years from the previous club must not leak into the dropdown.
+    /// </summary>
+    [Fact]
+    public void Teams_ClearsGraduationYearOptions_WhenClubMembershipChanges()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(SuccessRosterResult(
+                [
+                    new TeamRosterItem
+                    {
+                        TeamId = 7,
+                        Name = "U16 Orange",
+                        GraduationYear = 2032,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ActivePlacementCount = 1
+                    }
+                ])),
+                Task.FromResult(SuccessRosterResult(
+                [
+                    new TeamRosterItem
+                    {
+                        TeamId = 9,
+                        Name = "U18 Crimson",
+                        GraduationYear = 2034,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ActivePlacementCount = 2
+                    }
+                ])));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 42));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Orange"));
+
+        var firstFilter = cut.Find("#teams-grad-year");
+        firstFilter.TextContent.ShouldContain("2032");
+
+        auth.Change(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U18 Crimson"));
+        var secondFilter = cut.Find("#teams-grad-year");
+        secondFilter.TextContent.ShouldContain("2034");
+        secondFilter.TextContent.ShouldNotContain("2032");
+    }
+
+    /// <summary>
+    /// On an interactive attach after a club change, the prerendered roster snapshot from the
+    /// previous club must not be restored; the page must reload against the new club scope instead.
+    /// </summary>
+    [Fact]
+    public void Teams_ReloadsRoster_WhenPersistedSnapshotBelongsToDifferentClub()
+    {
+        var rosterService = Substitute.For<ITeamRosterService>();
+        rosterService.GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(SuccessRosterResult(
+            [
+                new TeamRosterItem
+                {
+                    TeamId = 9,
+                    Name = "U18 Crimson",
+                    GraduationYear = 2034,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ActivePlacementCount = 2
+                }
+            ])));
+
+        RegisterServices(rosterService: rosterService, isClubAdmin: true);
+        Services.AddSingleton<AuthenticationStateProvider>(
+            new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false, clubId: 43)));
+
+        var cut = Render<PersistedClubIdTeams>(parameters => parameters
+            .Add(component => component.StartInitialized, true));
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U18 Crimson"));
+        cut.Markup.ShouldNotContain("U14 Emerald");
+        rosterService.Received(1).GetRosterAsync(Arg.Any<GetTeamRosterInput>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Teams_ClosesManagementPanels_WhenClubAdminRoleIsRevokedAfterLoad()
+    {
+        RegisterServices(isClubAdmin: true);
+        var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true, isAdmin: false));
+        Services.AddSingleton<AuthenticationStateProvider>(auth);
+
+        var cut = Render<TeamsPage>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+
+        cut.Find("button.btn-outline-primary").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Edit team"));
+
+        auth.Change(CreatePrincipal(isClubAdmin: false, isAdmin: false));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.ShouldNotContain("Edit team");
+            cut.Markup.ShouldNotContain("Add team");
+            cut.Markup.ShouldNotContain("Save changes");
+        });
     }
 
     [Fact]
@@ -659,14 +971,17 @@ public sealed class TeamComponentsTests : BunitContext
     private static ServiceResult<IReadOnlyList<TeamRosterItem>> SuccessRosterResult(IReadOnlyList<TeamRosterItem> items)
         => new(items.ToList().AsReadOnly());
 
-    private static List<TeamRosterItem> CreateRosterItems(LifecycleStatus lifecycleStatus = LifecycleStatus.Active)
+    private static List<TeamRosterItem> CreateRosterItems(
+        LifecycleStatus lifecycleStatus = LifecycleStatus.Active,
+        string name = "U16 Blue",
+        long teamId = 7)
     {
         return
         [
             new TeamRosterItem
             {
-                TeamId = 7,
-                Name = "U16 Blue",
+                TeamId = teamId,
+                Name = name,
                 GraduationYear = 2032,
                 LifecycleStatus = lifecycleStatus,
                 ActivePlacementCount = 1
@@ -691,12 +1006,12 @@ public sealed class TeamComponentsTests : BunitContext
         throw new InvalidOperationException("Could not locate repository root for Teams route assertion.");
     }
 
-    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool isAdmin)
+    private static ClaimsPrincipal CreatePrincipal(bool isClubAdmin, bool isAdmin, long clubId = 42)
     {
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, "101"),
-            new(NovaClaimTypes.ClubId, "42")
+            new(NovaClaimTypes.ClubId, clubId.ToString(CultureInfo.InvariantCulture))
         };
 
         if (isClubAdmin)
@@ -718,7 +1033,54 @@ public sealed class TeamComponentsTests : BunitContext
     /// <param name="principal">The principal to return from <see cref="GetAuthenticationStateAsync"/>.</param>
     private sealed class FakeAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
     {
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
-            Task.FromResult(new AuthenticationState(principal));
+        private Task<AuthenticationState> _state = Task.FromResult(new AuthenticationState(principal));
+
+        /// <inheritdoc />
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => _state;
+
+        /// <summary>
+        /// Raises an authentication-state change notification with a new principal.
+        /// </summary>
+        /// <param name="newPrincipal">The principal to publish to subscribers.</param>
+        public void Change(ClaimsPrincipal newPrincipal)
+            => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(newPrincipal)));
+    }
+
+    /// <summary>
+    /// Starts with a prerendered state already restored from the previous club (club 42), so tests can
+    /// exercise the interactive-attach path where the persisted snapshot's club differs from the current one.
+    /// </summary>
+    private sealed class PersistedClubIdTeams(
+        ITeamRosterService rosterService,
+        ITeamManagementService managementService,
+        ITeamLifecycleService lifecycleService,
+        AuthenticationStateProvider authenticationStateProvider,
+        NavigationManager navigationManager)
+        : TeamsPage(rosterService, managementService, lifecycleService, authenticationStateProvider, navigationManager)
+    {
+        [Parameter] public bool StartInitialized { get; set; }
+
+        protected override Task OnInitializedAsync()
+        {
+            if (StartInitialized)
+            {
+                Initialized = true;
+                PersistedClubId = 42;
+                PersistedRoster =
+                [
+                    new TeamRosterItem
+                    {
+                        TeamId = 5,
+                        Name = "U14 Emerald",
+                        GraduationYear = 2031,
+                        LifecycleStatus = LifecycleStatus.Active,
+                        ActivePlacementCount = 1
+                    }
+                ];
+                PersistedPageError = null;
+            }
+
+            return base.OnInitializedAsync();
+        }
     }
 }

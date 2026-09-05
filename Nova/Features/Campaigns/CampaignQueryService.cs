@@ -13,7 +13,7 @@ namespace Nova.Features.Campaigns;
 /// </summary>
 /// <param name="readDbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club context.</param>
-/// <param name="logger">The logger for rejected access attempts.</param>
+/// <param name="logger">The logger for rejected access attempts and read failures.</param>
 public sealed partial class CampaignQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
@@ -47,79 +47,92 @@ public sealed partial class CampaignQueryService(
             _ => (CampaignStatus?)null
         };
 
-        await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-        var query = db.Campaigns.AsQueryable();
-        if (status is CampaignStatus selectedStatus)
+        try
         {
-            query = query.Where(campaign => campaign.Status == selectedStatus);
-        }
+            await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var query = db.Campaigns.AsQueryable();
+            if (status is CampaignStatus selectedStatus)
+            {
+                query = query.Where(campaign => campaign.Status == selectedStatus);
+            }
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var rows = await query
-            .OrderByDescending(campaign => campaign.Season.StartDate)
-            .ThenByDescending(campaign => campaign.SeasonId)
-            .ThenBy(campaign => campaign.Status == CampaignStatus.Active
-                ? 0
-                : campaign.Status == CampaignStatus.Draft ? 1 : 2)
-            .ThenByDescending(campaign => campaign.StartDate)
-            .ThenByDescending(campaign => campaign.EndDate.HasValue)
-            .ThenByDescending(campaign => campaign.EndDate)
-            .ThenBy(campaign => campaign.Name)
-            .ThenByDescending(campaign => campaign.CampaignId)
-            .Take(limit)
-            .Select(campaign => new CampaignListProjection
-            {
-                CampaignId = campaign.CampaignId,
-                CampaignName = campaign.Name,
-                CampaignStartDate = campaign.StartDate,
-                CampaignPlannedEndDate = campaign.EndDate,
-                CampaignStatus = campaign.Status,
-                SeasonId = campaign.SeasonId,
-                SeasonName = campaign.Season.Name,
-                SeasonStartDate = campaign.Season.StartDate,
-                SeasonEndDate = campaign.Season.EndDate,
-                SeasonConcurrencyToken = campaign.Season.ConcurrencyToken,
-                ParticipantCount = campaign.PlayerAssignments.Count,
-                UnresolvedCount = campaign.PlayerAssignments.Count(
-                    assignment => assignment.PlacementOutcome == PlacementOutcome.Undecided)
-            })
-            .ToListAsync(cancellationToken);
-
-        var seasons = rows
-            .GroupBy(row => new
-            {
-                row.SeasonId,
-                row.SeasonName,
-                row.SeasonStartDate,
-                row.SeasonEndDate,
-                row.SeasonConcurrencyToken
-            })
-            .Select(group => new CampaignSeasonGroup
-            {
-                SeasonId = group.Key.SeasonId,
-                Name = group.Key.SeasonName,
-                StartDate = group.Key.SeasonStartDate,
-                EndDate = group.Key.SeasonEndDate,
-                ConcurrencyToken = group.Key.SeasonConcurrencyToken,
-                Campaigns = group.Select(row => new CampaignListItem
+            var totalCount = await query.CountAsync(cancellationToken);
+            var rows = await query
+                .OrderByDescending(campaign => campaign.Season.StartDate)
+                .ThenByDescending(campaign => campaign.SeasonId)
+                .ThenBy(campaign => campaign.Status == CampaignStatus.Active
+                    ? 0
+                    : campaign.Status == CampaignStatus.Draft ? 1 : 2)
+                .ThenByDescending(campaign => campaign.StartDate)
+                .ThenByDescending(campaign => campaign.EndDate.HasValue)
+                .ThenByDescending(campaign => campaign.EndDate)
+                .ThenBy(campaign => campaign.Name)
+                .ThenByDescending(campaign => campaign.CampaignId)
+                .Take(limit)
+                .Select(campaign => new CampaignListProjection
                 {
-                    CampaignId = row.CampaignId,
-                    Name = row.CampaignName,
-                    StartDate = row.CampaignStartDate,
-                    PlannedEndDate = row.CampaignPlannedEndDate,
-                    Status = row.CampaignStatus,
-                    ParticipantCount = row.ParticipantCount,
-                    UnresolvedCount = row.UnresolvedCount
-                }).ToList().AsReadOnly()
-            })
-            .ToList()
-            .AsReadOnly();
+                    CampaignId = campaign.CampaignId,
+                    CampaignName = campaign.Name,
+                    CampaignStartDate = campaign.StartDate,
+                    CampaignPlannedEndDate = campaign.EndDate,
+                    CampaignStatus = campaign.Status,
+                    SeasonId = campaign.SeasonId,
+                    SeasonName = campaign.Season.Name,
+                    SeasonStartDate = campaign.Season.StartDate,
+                    SeasonEndDate = campaign.Season.EndDate,
+                    SeasonConcurrencyToken = campaign.Season.ConcurrencyToken,
+                    ParticipantCount = campaign.PlayerAssignments.Count,
+                    UnresolvedCount = campaign.PlayerAssignments.Count(
+                        assignment => assignment.PlacementOutcome == PlacementOutcome.Undecided)
+                })
+                .ToListAsync(cancellationToken);
 
-        return new CampaignListResult
+            var seasons = rows
+                .GroupBy(row => new
+                {
+                    row.SeasonId,
+                    row.SeasonName,
+                    row.SeasonStartDate,
+                    row.SeasonEndDate,
+                    row.SeasonConcurrencyToken
+                })
+                .Select(group => new CampaignSeasonGroup
+                {
+                    SeasonId = group.Key.SeasonId,
+                    Name = group.Key.SeasonName,
+                    StartDate = group.Key.SeasonStartDate,
+                    EndDate = group.Key.SeasonEndDate,
+                    ConcurrencyToken = group.Key.SeasonConcurrencyToken,
+                    Campaigns = group.Select(row => new CampaignListItem
+                    {
+                        CampaignId = row.CampaignId,
+                        Name = row.CampaignName,
+                        StartDate = row.CampaignStartDate,
+                        PlannedEndDate = row.CampaignPlannedEndDate,
+                        Status = row.CampaignStatus,
+                        ParticipantCount = row.ParticipantCount,
+                        UnresolvedCount = row.UnresolvedCount
+                    }).ToList().AsReadOnly()
+                })
+                .ToList()
+                .AsReadOnly();
+
+            return new CampaignListResult
+            {
+                TotalCount = totalCount,
+                Seasons = seasons
+            };
+        }
+        catch (Exception exception)
         {
-            TotalCount = totalCount,
-            Seasons = seasons
-        };
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            LogCampaignListReadFailed(exception, currentUserProvider.UserId ?? 0, clubId);
+            return ServiceProblem.ServerError("The campaign list is unavailable.");
+        }
     }
 
     /// <inheritdoc />
@@ -139,48 +152,61 @@ public sealed partial class CampaignQueryService(
             return ServiceProblem.Forbidden("You must be an approved club member to view campaign details.");
         }
 
-        await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-        var campaign = await db.Campaigns
-            .AsNoTracking()
-            .Where(campaign => campaign.ClubId == clubId && campaign.CampaignId == input.CampaignId)
-            .Select(campaign => new CampaignDetailProjection
+        try
+        {
+            await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var campaign = await db.Campaigns
+                .AsNoTracking()
+                .Where(campaign => campaign.ClubId == clubId && campaign.CampaignId == input.CampaignId)
+                .Select(campaign => new CampaignDetailProjection
+                {
+                    CampaignId = campaign.CampaignId,
+                    Name = campaign.Name,
+                    Status = campaign.Status,
+                    StartDate = campaign.StartDate,
+                    PlannedEndDate = campaign.EndDate,
+                    ParticipantCount = campaign.PlayerAssignments.Count,
+                    SeasonId = campaign.SeasonId,
+                    SeasonName = campaign.Season.Name,
+                    ClosedAt = campaign.ClosedAt,
+                    ClosedByUserId = campaign.ClosedById
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (campaign is null)
+            {
+                return ServiceProblem.NotFound();
+            }
+
+            var closedByDisplayName = campaign.ClosedByUserId is long closedByUserId
+                ? await ResolveClosedByDisplayNameAsync(db, clubId, closedByUserId, cancellationToken)
+                : null;
+
+            return new CampaignDetailResult
             {
                 CampaignId = campaign.CampaignId,
                 Name = campaign.Name,
                 Status = campaign.Status,
                 StartDate = campaign.StartDate,
-                PlannedEndDate = campaign.EndDate,
-                ParticipantCount = campaign.PlayerAssignments.Count,
+                PlannedEndDate = campaign.PlannedEndDate,
+                ParticipantCount = campaign.ParticipantCount,
                 SeasonId = campaign.SeasonId,
-                SeasonName = campaign.Season.Name,
+                SeasonName = campaign.SeasonName,
                 ClosedAt = campaign.ClosedAt,
-                ClosedByUserId = campaign.ClosedById
-            })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (campaign is null)
-        {
-            return ServiceProblem.NotFound();
+                ClosedByUserId = campaign.ClosedByUserId,
+                ClosedByDisplayName = closedByDisplayName
+            };
         }
-
-        var closedByDisplayName = campaign.ClosedByUserId is long closedByUserId
-            ? await ResolveClosedByDisplayNameAsync(db, clubId, closedByUserId, cancellationToken)
-            : null;
-
-        return new CampaignDetailResult
+        catch (Exception exception)
         {
-            CampaignId = campaign.CampaignId,
-            Name = campaign.Name,
-            Status = campaign.Status,
-            StartDate = campaign.StartDate,
-            PlannedEndDate = campaign.PlannedEndDate,
-            ParticipantCount = campaign.ParticipantCount,
-            SeasonId = campaign.SeasonId,
-            SeasonName = campaign.SeasonName,
-            ClosedAt = campaign.ClosedAt,
-            ClosedByUserId = campaign.ClosedByUserId,
-            ClosedByDisplayName = closedByDisplayName
-        };
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            LogCampaignDetailReadFailed(exception, currentUserProvider.UserId ?? 0, clubId, input.CampaignId);
+            return ServiceProblem.ServerError("The campaign detail is unavailable.");
+        }
     }
 
     /// <summary>
@@ -212,30 +238,43 @@ public sealed partial class CampaignQueryService(
             return ServiceProblem.Forbidden("You must be a club administrator to view campaign setup.");
         }
 
-        await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-        var currentSeason = await db.Seasons
-            .AsNoTracking()
-            .Where(season => season.ClubId == clubId
-                && season.Club.CurrentSeasonId == season.SeasonId)
-            .Select(season => new CampaignSeasonChoice
-            {
-                SeasonId = season.SeasonId,
-                Name = season.Name,
-                StartDate = season.StartDate,
-                EndDate = season.EndDate
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-        var activePlayerCount = await db.Players
-            .CountAsync(player => player.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
-        var activeTeamCount = await db.Teams
-            .CountAsync(team => team.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
-
-        return new CampaignCreationSetupResult
+        try
         {
-            CurrentSeason = currentSeason,
-            ActivePlayerCount = activePlayerCount,
-            ActiveTeamCount = activeTeamCount
-        };
+            await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
+            var currentSeason = await db.Seasons
+                .AsNoTracking()
+                .Where(season => season.ClubId == clubId
+                    && season.Club.CurrentSeasonId == season.SeasonId)
+                .Select(season => new CampaignSeasonChoice
+                {
+                    SeasonId = season.SeasonId,
+                    Name = season.Name,
+                    StartDate = season.StartDate,
+                    EndDate = season.EndDate
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+            var activePlayerCount = await db.Players
+                .CountAsync(player => player.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
+            var activeTeamCount = await db.Teams
+                .CountAsync(team => team.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
+
+            return new CampaignCreationSetupResult
+            {
+                CurrentSeason = currentSeason,
+                ActivePlayerCount = activePlayerCount,
+                ActiveTeamCount = activeTeamCount
+            };
+        }
+        catch (Exception exception)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            LogCreationSetupReadFailed(exception, currentUserProvider.UserId ?? 0, clubId);
+            return ServiceProblem.ServerError("Campaign creation setup is unavailable.");
+        }
     }
 
     /// <inheritdoc />
@@ -400,6 +439,28 @@ public sealed partial class CampaignQueryService(
     /// <param name="userId">The current user identifier, or zero when unavailable.</param>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Campaign creation setup access forbidden for UserId={UserId}.")]
     private partial void LogCreationSetupForbidden(long userId);
+
+    /// <summary>Logs a campaign-list read failure.</summary>
+    /// <param name="exception">The thrown exception.</param>
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Campaign list read failed for UserId={UserId}, ClubId={ClubId}.")]
+    private partial void LogCampaignListReadFailed(Exception exception, long userId, long clubId);
+
+    /// <summary>Logs a campaign-detail read failure.</summary>
+    /// <param name="exception">The thrown exception.</param>
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="campaignId">The requested campaign identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Campaign detail read failed for UserId={UserId}, ClubId={ClubId}, CampaignId={CampaignId}.")]
+    private partial void LogCampaignDetailReadFailed(Exception exception, long userId, long clubId, long campaignId);
+
+    /// <summary>Logs a creation-setup read failure.</summary>
+    /// <param name="exception">The thrown exception.</param>
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Campaign creation setup read failed for UserId={UserId}, ClubId={ClubId}.")]
+    private partial void LogCreationSetupReadFailed(Exception exception, long userId, long clubId);
 
     /// <summary>Logs an opening-readiness request rejected because the caller is not a club administrator.</summary>
     /// <param name="campaignId">The requested campaign identifier.</param>

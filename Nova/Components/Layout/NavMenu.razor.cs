@@ -38,6 +38,67 @@ public partial class NavMenu(
     protected string? CurrentUrl => currentUrl;
 
     /// <summary>
+    /// Gets a value indicating whether the current route is inside the club area but not the
+    /// Teams subsection, so the Club link stays active on every club route except the Teams
+    /// routes that carry their own link.
+    /// </summary>
+    protected bool ClubSectionActive => IsClubActive(currentUrl);
+
+    /// <summary>
+    /// Determines whether a URL activates the Club link, including legacy numeric club routes
+    /// and excluding the Teams subsection, which has its own navigation item.
+    /// </summary>
+    /// <param name="baseRelativeUrl">The base-relative URL, optionally including a query or fragment, or null.</param>
+    /// <returns>True for a Club destination outside Teams; otherwise false.</returns>
+    private static bool IsClubActive(string? baseRelativeUrl)
+    {
+        if (baseRelativeUrl is null)
+        {
+            return false;
+        }
+
+        var path = baseRelativeUrl.Split('?', '#')[0].TrimStart('/').TrimEnd('/');
+        if (path.Length == 0)
+        {
+            return false;
+        }
+
+        var isClubArea = path.Equals("club", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("club/", StringComparison.OrdinalIgnoreCase)
+            || IsLegacyClubRoute(path);
+        var isTeamsArea = path.Equals("club/teams", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("club/teams/", StringComparison.OrdinalIgnoreCase);
+        return isClubArea && !isTeamsArea;
+    }
+
+    /// <summary>
+    /// Recognizes legacy pre-shell club routes (<c>Clubs/{clubId}</c> and
+    /// <c>Clubs/{clubId}/admin</c>) so the Club link stays active there too. The numeric
+    /// route constraint excludes <c>Clubs/Onboarding</c>, which is not part of the club area.
+    /// </summary>
+    private static bool IsLegacyClubRoute(string path)
+    {
+        const string prefix = "clubs/";
+        if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var heading = path.AsSpan(prefix.Length);
+        var firstSlash = heading.IndexOf('/');
+        var clubId = firstSlash < 0 ? heading : heading[..firstSlash];
+        if (clubId.Length == 0 || !long.TryParse(clubId, out _))
+        {
+            return false;
+        }
+
+        // Allow both Clubs/{clubId} and Clubs/{clubId}/admin; anything deeper (e.g. a
+        // potential future Clubs/{clubId}/something-else) is outside the club shell area's
+        // known surface, so it stays inactive rather than guessing.
+        return firstSlash < 0 || heading.Slice(firstSlash).Equals("/admin", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Gets the URL for the current user's small profile photo, or null if the user has no photo.
     /// </summary>
     protected string? PhotoUrl => currentUserProvider.UserId.HasValue
@@ -45,10 +106,10 @@ public partial class NavMenu(
         : null;
 
     /// <summary>
-    /// Gets the URL for the current user's club detail page, or null if the user has no club.
+    /// Gets the canonical URL for the current user's club, or null if the user has no club.
     /// </summary>
     protected string? ClubDetailUrl => currentUserProvider.ClubId.HasValue
-        ? $"Clubs/{currentUserProvider.ClubId.Value}"
+        ? ClubRoutes.Overview
         : null;
 
     /// <summary>

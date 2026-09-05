@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Components;
+using Nova.Shared.Security;
 using NSubstitute;
 using Shouldly;
 
@@ -46,10 +47,50 @@ public class RedirectToLoginOrAccessDeniedTests : BunitContext
         navigationManager.Uri.ShouldBe(expectedUri);
     }
 
-    private void SetAuthenticationState(bool isAuthenticated)
+    [Fact]
+    public void OnInitializedAsync_NavigatesDemotedMemberToClubNotice_OnAdministratorRoute()
+    {
+        SetAuthenticationState(isAuthenticated: true, hasClub: true);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/club/seasons");
+
+        Render<RedirectToLoginOrAccessDenied>();
+
+        navigationManager.Uri.ShouldBe(navigationManager.ToAbsoluteUri("/club?notice=permissions-changed").ToString());
+    }
+
+    [Fact]
+    public void OnInitializedAsync_NavigatesDemotedMemberToClubNotice_OnLegacyAdministratorRoute()
+    {
+        SetAuthenticationState(isAuthenticated: true, hasClub: true);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/Clubs/42/admin");
+
+        Render<RedirectToLoginOrAccessDenied>();
+
+        navigationManager.Uri.ShouldBe(navigationManager.ToAbsoluteUri("/club?notice=permissions-changed").ToString());
+    }
+
+    [Fact]
+    public void OnInitializedAsync_NavigatesDemotedMemberToAccessDenied_OnLegacyMemberRoute()
+    {
+        SetAuthenticationState(isAuthenticated: true, hasClub: false);
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/Clubs/42");
+
+        Render<RedirectToLoginOrAccessDenied>();
+
+        navigationManager.Uri.ShouldBe(navigationManager.ToAbsoluteUri("/Account/AccessDenied").ToString());
+    }
+
+    private void SetAuthenticationState(bool isAuthenticated, bool hasClub = false)
     {
         var identity = isAuthenticated
-            ? new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "123")], "TestAuth")
+            ? new ClaimsIdentity(
+                hasClub
+                    ? [new Claim(ClaimTypes.NameIdentifier, "123"), new Claim(NovaClaimTypes.ClubId, "42")]
+                    : [new Claim(ClaimTypes.NameIdentifier, "123")],
+                "TestAuth")
             : new ClaimsIdentity();
 
         var authProvider = Substitute.For<AuthenticationStateProvider>();

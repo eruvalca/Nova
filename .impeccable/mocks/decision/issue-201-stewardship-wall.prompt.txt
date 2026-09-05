@@ -1,0 +1,21 @@
+Use case: ui-mockup
+Asset type: full-fidelity desktop web decision comp for Nova issue #201, exact landscape canvas 1440x900
+Primary request: Render one polished first-viewport desktop web application comp titled by its visual concept “Stewardship Wall”. This is a Nova authenticated Club Overview surface in the established Fieldhouse Wayfinding design system. The composition must feel like a fieldhouse operations hall with one bounded stewardship wall, never a generic SaaS dashboard or card grid.
+
+Scene and structure, in strict order:
+1. Global Nova application navigation context across the top or outer shell, quiet and secondary, with the Nova wordmark and primary destinations; Club is visibly the current global destination.
+2. Inside the app content, a stable exactly 15rem-wide Club directory on the left, full height of the working area. It contains these full admin labels in this exact order: “Overview”, “Seasons”, “Teams”, “Members”, “Requests”, “Tags”, “Crest”. Overview is the active route, expressed by a teal edge marker and stronger ink, not a pill.
+3. To the right, one broad working hall. Its strong lead element is a painted club identity sign for “Northstar United” with “Madison, Wisconsin” and a believable simple crest. The crest should look like a real restrained club emblem anchor, not ornamental sports clip-art.
+4. Directly beneath the identity sign, create two structurally connected work bays that clearly share the same bounded wall construction. Left bay: exact heading “Current season”, exact content “2026–27”, “August 2026–June 2027”, and readable status “Current”. Right bay: exact heading “Active work”, exact content “Fall Supplemental Tryouts”, readable status “Active”, and exactly one primary action labeled “Open campaign”. These bays must read as joined operational sections of one stewardship wall using shared hairlines, rails, or framing—not detached floating cards.
+
+Style/medium: high-fidelity flat responsive web UI comp, crisp vector-like interface rendering, editorial information hierarchy, confident product-specific design.
+Color palette: Sea Glass painted sign field; Paper White sheets and work surfaces; Foam Mist page ground; restrained ochre club accent used only as a minor identity paint detail; Wayfinding Teal only for the active route marker and the single Open campaign action; ink-dark typography; muted secondary ink.
+Typography: sturdy condensed/display character for major identity and section headings, highly readable humanist sans serif for labels and body copy, disciplined scale hierarchy.
+Materials/textures: restrained painted fieldhouse sign character, subtle paper and painted-board tactility, one-pixel metal/hairline dividers. Flat operations surface.
+Composition/framing: exact 1440x900 landscape desktop viewport, realistically spaced product UI, all content inside frame, first viewport fully visible. The left directory remains visually stable and narrow; the working hall dominates. The two lower bays are connected to the identity sign and to one another as a single stewardship wall.
+Text (verbatim and spelled exactly): “Nova”; “Club”; “Overview”; “Seasons”; “Teams”; “Members”; “Requests”; “Tags”; “Crest”; “Northstar United”; “Madison, Wisconsin”; “Current season”; “2026–27”; “August 2026–June 2027”; “Current”; “Active work”; “Fall Supplemental Tryouts”; “Active”; “Open campaign”.
+Constraints: preserve full labels; use compact squared radii; status must be expressed in words; clear 44px-equivalent touch targets; visible current-route identity; one primary CTA only. The UI must be plausible to implement in Blazor and Bootstrap.
+Avoid: generic card dashboard, grids of interchangeable summary tiles, floating cards, ambient shadows, gradients, glass effects, huge empty hero treatment, stadium or soccer decoration, decorative pills, excessive rounded containers, teal used decoratively, invented metrics/counts/charts/activity, body copy not specified, prices, dates other than specified, sidebars wider than 15rem, cropped labels, lorem ipsum, browser chrome, device mockup, watermark.
+
+Generator: OpenAI built-in image generation tool.
+Native output: 1586x992 PNG; final comp resized proportionally to 1440x900 with high-quality bicubic interpolation.

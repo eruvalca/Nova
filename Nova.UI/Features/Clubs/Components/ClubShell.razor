@@ -1,0 +1,38 @@
+@using Nova.Shared.Features.Clubs
+@using Nova.Shared.Security
+@using Microsoft.AspNetCore.Components.Routing
+
+<div class="club-shell">
+    <aside class="club-directory" aria-label="Club sections">
+        <div class="club-directory-heading">
+            <span class="club-directory-mark" aria-hidden="true"></span>
+            <strong>Club</strong>
+        </div>
+        <button class="club-directory-toggle" type="button" @onclick="ToggleDirectory"
+                aria-controls="club-route-directory" aria-expanded="@(_isDirectoryOpen ? "true" : "false")">
+            <span>@CurrentLabel</span>
+            <span class="bi bi-chevron-down" aria-hidden="true"></span>
+        </button>
+        <nav class="@(_isDirectoryOpen ? "collapse show" : "collapse") club-route-directory"
+             id="club-route-directory" aria-label="Club directory" @onclick="CloseDirectory">
+            <ul>
+                <li><NavLink href="@ClubRoutes.Overview" Match="NavLinkMatch.All">Overview</NavLink></li>
+                @if (_isClubAdmin)
+                {
+                    <li><NavLink href="@ClubRoutes.Seasons" Match="NavLinkMatch.Prefix">Seasons</NavLink></li>
+                }
+                <li><NavLink href="@ClubRoutes.Teams" Match="NavLinkMatch.Prefix">Teams</NavLink></li>
+                @if (_isClubAdmin)
+                {
+                    <li><NavLink href="@ClubRoutes.Members" Match="NavLinkMatch.Prefix">Members</NavLink></li>
+                    <li><NavLink href="@ClubRoutes.Requests" Match="NavLinkMatch.Prefix">Requests</NavLink></li>
+                    <li><NavLink href="@ClubRoutes.Tags" Match="NavLinkMatch.Prefix">Tags</NavLink></li>
+                    <li><NavLink href="@ClubRoutes.Crest" Match="NavLinkMatch.Prefix">Crest</NavLink></li>
+                }
+            </ul>
+        </nav>
+    </aside>
+    <div class="club-hall" tabindex="-1" @ref="_hall">
+        @ChildContent
+    </div>
+</div>

@@ -1,16 +1,19 @@
-@page "/teams/{TeamId:long}"
+@page "/club/teams/{TeamId:long}"
 @rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
 @using Nova.Shared.Enums
 @using Nova.Shared.Security
 @using Nova.Shared.Features.Teams
+@using Nova.Shared.Features.Clubs
 @using Nova.UI.Features.Teams.Components
+@using Nova.UI.Features.Clubs.Components
 
 <PageTitle>@(_detail is null ? "Team details" : _detail.Name)</PageTitle>
 
+<ClubShell CurrentLabel="Teams">
 <div class="container py-4">
-    <a class="btn btn-outline-secondary btn-sm mb-3" href="@(_returnUrl ?? "/teams")">← Back to teams</a>
+    <a class="btn btn-outline-secondary btn-sm mb-3" href="@(_returnUrl ?? ClubRoutes.Teams)">← Back to teams</a>
 
     @if (!string.IsNullOrWhiteSpace(_statusMessage))
     {
@@ -23,12 +26,13 @@
             <div class="card-body text-center py-5">
                 <h1 class="h4 mb-2">Team not found</h1>
                 <p class="text-muted mb-3">This team does not exist or is not visible to your account.</p>
-                <a class="btn btn-outline-secondary btn-sm" href="@(_returnUrl ?? "/teams")">Return to teams</a>
+                <a class="btn btn-outline-secondary btn-sm" href="@(_returnUrl ?? ClubRoutes.Teams)">Return to teams</a>
             </div>
         </div>
     }
     else if (!string.IsNullOrWhiteSpace(_error))
     {
+        <h1 class="h4 mb-3">Team details unavailable</h1>
         <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
             <span>@_error</span>
             <button type="button" class="btn btn-sm btn-outline-danger" @onclick="RetryLoadAsync">Retry</button>
@@ -243,3 +247,4 @@
         </section>
     }
 </div>
+</ClubShell>

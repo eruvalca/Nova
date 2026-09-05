@@ -71,11 +71,17 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var club = nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true });
         await Expect(club).ToBeVisibleAsync();
         await Expect(club.Locator("img.nav-avatar")).ToHaveCountAsync(1);
+        var clubLabel = club.Locator("span.nav-label");
+        var labelWhiteSpace = await clubLabel.EvaluateAsync<string>("element => getComputedStyle(element).whiteSpace");
+        labelWhiteSpace.ShouldBe("normal", "the canonical Club route must wrap its full label in the desktop rail");
+        var labelFits = await clubLabel.EvaluateAsync<bool>("element => element.scrollWidth <= element.clientWidth");
+        labelFits.ShouldBeTrue("the full club name must not be clipped or ellipsized");
 
-        // Campaigns / Players / Teams icon + label items.
+        // Campaigns and Players remain global icon + label items; Teams is Club-local, so it
+        // sits inside the club-gated block beside them.
         await AssertIconLinkAsync(nav, "Campaigns", "campaigns", "bi-calendar-check");
         await AssertIconLinkAsync(nav, "Players", "players", "bi-people");
-        await AssertIconLinkAsync(nav, "Teams", "teams", "bi-shield");
+        await AssertIconLinkAsync(nav, "Teams", "/club/teams", "bi-shield");
 
         // Manage keeps the avatar (the seeded admin has a completed profile photo) and text.
         var manage = nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false });
@@ -221,7 +227,6 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true }), 32.0);
         await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }), 32.0);
         await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }), 32.0);
-        await AssertInlineRowLayoutAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }), 32.0);
 
         // All seven rows (Dashboard, club crest, Campaigns, Players, Teams, Manage, Logout)
         // share one uniform leading lane at md+ — identical box, identical x-offset — so the
@@ -325,7 +330,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         // Every sheet row is a full-width, left-aligned menu row — not a shrink-to-fit tab.
         await AssertMenuSheetRowAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true }));
         await AssertMenuSheetRowAsync(nav.GetByRole(AriaRole.Link, new() { Name = clubName, Exact = true }));
-        await AssertMenuSheetRowAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }));
+        await AssertMenuSheetRowAsync(nav.GetByRole(AriaRole.Link, new() { Name = "Players", Exact = true }));
         await AssertMenuSheetRowAsync(nav.GetByRole(AriaRole.Button, new() { Name = "Logout", Exact = true }));
 
         // The collapse container itself never forces horizontal scrolling at <md; the menu
@@ -958,7 +963,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
         // The routes are not in the accessibility tree while the sheet is closed — proving the
         // strip is not implicitly showing inline tabs.
-        foreach (var label in new[] { "Dashboard", "Campaigns", "Players", "Teams" })
+        foreach (var label in new[] { "Dashboard", "Campaigns", "Players" })
         {
             await Expect(nav.GetByRole(AriaRole.Link, new() { Name = label, Exact = true })).ToHaveCountAsync(0);
         }

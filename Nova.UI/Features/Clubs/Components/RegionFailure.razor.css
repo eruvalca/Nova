@@ -1,0 +1,3 @@
+.region-failure { padding: 1rem; border: 1px solid var(--bs-danger-border-subtle); color: var(--bs-danger-text-emphasis); background: var(--bs-danger-bg-subtle); }
+.region-failure p { color: inherit; }
+.region-failure a { display: inline-flex; min-height: 2.75rem; align-items: center; color: inherit; font-weight: 700; }

@@ -1,6 +1,9 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using System.Globalization;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Nova.Shared.Enums;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
@@ -85,6 +88,12 @@ public partial class TeamDetail(
     private bool _canManageTeams;
 
     /// <summary>
+    /// The club identifier from the current principal's claims, used to detect club-membership changes
+    /// while the page is mounted and rebind club-scoped state accordingly.
+    /// </summary>
+    private long? _clubId;
+
+    /// <summary>
     /// Indicates whether the edit form is currently visible.
     /// </summary>
     private bool _showEditForm;
@@ -149,6 +158,12 @@ public partial class TeamDetail(
     public TeamDetailDto? PersistedDetail { get; set; }
 
     /// <summary>
+    /// Gets or sets the club identifier the persisted detail payload was sourced from.
+    /// </summary>
+    [PersistentState]
+    public long? PersistedClubId { get; set; }
+
+    /// <summary>
     /// Gets or sets the persisted startup page-error message used across prerender and interactive attach.
     /// </summary>
     [PersistentState]
@@ -167,6 +182,10 @@ public partial class TeamDetail(
     public bool Initialized { get; set; }
 
     /// <inheritdoc />
+    protected override void OnInitialized()
+        => authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+
+    /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
         _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
@@ -174,6 +193,7 @@ public partial class TeamDetail(
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
         var principal = authState.User;
         _canManageTeams = principal.IsInRole(Roles.ClubAdmin);
+        _clubId = ReadClubIdClaim(principal);
 
         _lastLoadedTeamId = TeamId;
         _lastReturnUrl = ReturnUrl;
@@ -181,11 +201,19 @@ public partial class TeamDetail(
 
         if (Initialized)
         {
-            _detail = PersistedDetail;
-            _error = PersistedError;
-            _isNotFound = PersistedIsNotFound;
-            _isLoading = false;
-            return;
+            // Only restore the prerendered snapshot when it belongs to the still-current club.
+            // On an interactive attach after a club change, reload against the new scope
+            // instead of surfacing the previous club's detail.
+            if (PersistedClubId is not null && PersistedClubId == _clubId)
+            {
+                _detail = PersistedDetail;
+                _error = PersistedError;
+                _isNotFound = PersistedIsNotFound;
+                _isLoading = false;
+                return;
+            }
+
+            Initialized = false;
         }
 
         await LoadDetailAsync();
@@ -565,6 +593,7 @@ public partial class TeamDetail(
         PersistedDetail = _detail;
         PersistedError = _error;
         PersistedIsNotFound = _isNotFound;
+        PersistedClubId = _clubId;
     }
 
     /// <summary>
@@ -589,18 +618,19 @@ public partial class TeamDetail(
         _archiveBlockers = [];
         _mutationError = null;
         _statusMessage = null;
+        _isMutating = false;
     }
 
     /// <summary>
     /// Normalizes the inbound return URL to a safe local path within this application.
     /// </summary>
     /// <param name="returnUrl">The incoming return URL query value.</param>
-    /// <returns>A safe local path for the teams back link, defaulting to <c>/teams</c>.</returns>
+    /// <returns>A safe local path for the teams back link, defaulting to <c>/club/teams</c>.</returns>
     private static string NormalizeReturnUrl(string? returnUrl)
     {
         if (string.IsNullOrWhiteSpace(returnUrl))
         {
-            return "/teams";
+            return ClubRoutes.Teams;
         }
 
         var candidate = returnUrl.Trim();
@@ -608,10 +638,99 @@ public partial class TeamDetail(
             || candidate.StartsWith("//", StringComparison.Ordinal)
             || candidate.Contains('\\'))
         {
-            return "/teams";
+            return ClubRoutes.Teams;
         }
 
         return candidate.StartsWith('/') ? candidate : $"/{candidate}";
+    }
+
+    /// <summary>
+    /// Handles an authentication-state change event by scheduling the state application on the dispatcher.
+    /// </summary>
+    /// <param name="stateTask">The authentication state task produced by the change event.</param>
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
+        => _ = InvokeAsync(() => ApplyAuthenticationStateAsync(stateTask));
+
+    /// <summary>
+    /// Applies an authentication-state change by rebinding the claimed club and management
+    /// permission, cancelling in-flight work and reloading the detail when the club scope changes.
+    /// </summary>
+    /// <param name="stateTask">The authentication state task produced by the change event.</param>
+    private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
+    {
+        var authState = await stateTask;
+        var principal = authState.User;
+        var canManageTeams = principal.IsInRole(Roles.ClubAdmin);
+        var clubId = ReadClubIdClaim(principal);
+
+        var roleChanged = canManageTeams != _canManageTeams;
+        var clubChanged = clubId != _clubId;
+
+        _canManageTeams = canManageTeams;
+        _clubId = clubId;
+
+        if (clubChanged)
+        {
+            // Rebind to the newly claimed club: cancel in-flight work, close any open
+            // management panels, drop the stale detail, and reload against the new scope.
+            ResetTeamScopedState();
+            // AuthenticationStateChanged is an external event, so render the cleared/loading
+            // state before the reload's first await to avoid showing the previous team.
+            _isLoading = true;
+            await InvokeAsync(StateHasChanged);
+            await LoadDetailAsync();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (roleChanged)
+        {
+            if (!canManageTeams)
+            {
+                // Permission loss must not leave edit/archive panels open on a page the
+                // user can no longer mutate.
+                CloseManagementState();
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Closes every open management interaction (edit form, archive confirmation, mutation
+    /// feedback) without touching the loaded detail, used when management permission is lost.
+    /// </summary>
+    private void CloseManagementState()
+    {
+        _showEditForm = false;
+        _editForm = null;
+        _formError = null;
+        _cutoffBlockers = [];
+        _showArchiveConfirm = false;
+        _archiveConfirmed = false;
+        _archiveBlockers = [];
+        _mutationError = null;
+        _statusMessage = null;
+    }
+
+    /// <summary>
+    /// Parses the club identifier claim from the current principal.
+    /// </summary>
+    /// <param name="principal">The current principal.</param>
+    /// <returns>The parsed club identifier when present; otherwise <see langword="null"/>.</returns>
+    private static long? ReadClubIdClaim(ClaimsPrincipal principal)
+    {
+        var clubIdText = principal.FindFirst(NovaClaimTypes.ClubId)?.Value;
+        return long.TryParse(clubIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var clubId)
+            ? clubId
+            : null;
+    }
+
+    /// <inheritdoc />
+    protected override async ValueTask DisposeAsyncCore()
+    {
+        authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        await base.DisposeAsyncCore();
     }
 }
 

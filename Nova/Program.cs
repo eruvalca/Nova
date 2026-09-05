@@ -39,6 +39,7 @@ using Nova.Shared.Features.Players;
 using Nova.Shared.Features.Seasons;
 using Nova.Shared.Features.Tags;
 using Nova.Shared.Features.Teams;
+using Nova.Shared.Security;
 using Nova.UI.Shared;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -97,6 +98,13 @@ builder.Services.ConfigureApplicationCookie(options =>
             return Task.CompletedTask;
         }
 
+        if (ClubRoutes.IsAdministratorRoute(context.Request.Path.Value ?? string.Empty)
+            && context.HttpContext.User.HasClaim(claim => claim.Type == NovaClaimTypes.ClubId))
+        {
+            context.Response.Redirect(ClubRoutes.OverviewWithPermissionsChanged);
+            return Task.CompletedTask;
+        }
+
         context.Response.Redirect(context.RedirectUri);
         return Task.CompletedTask;
     };
@@ -114,7 +122,7 @@ builder.Services.AddScoped<IProfilePhotoService, ProfilePhotoService>();
 builder.Services.AddScoped<IClubService, ClubService>();
 builder.Services.AddScoped<IClubCrestService, ClubCrestService>();
 builder.Services.AddScoped<ICropperCanvasExporter, CropperCanvasExporter>();
-builder.Services.AddScoped<IClubDetailService, ClubDetailService>();
+builder.Services.AddScoped<IClubIdentityQueryService, ClubIdentityQueryService>();
 builder.Services.AddScoped<IClubAdminService, ClubAdminService>();
 builder.Services.AddScoped<IClubJoinRequestService, ClubJoinRequestService>();
 builder.Services.AddScoped<IPlayerDetailService, PlayerDetailQueryService>();

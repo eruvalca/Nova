@@ -30,10 +30,9 @@ Canonical files:
   reuses `NovaBaseUri`. It also best-effort waits for Azurite `storage` readiness and retries the
   `profile-photos` container probe (see "Seeding" below).
 
-## The three Blazor interaction pitfalls
+## Blazor interaction pitfalls
 
-These were each discovered by a failing browser run; they are not inferable from the code. Follow
-them when writing any browser test:
+Use these patterns when the scenario crosses prerender, interactive attachment, or navigation:
 
 1. **Assertions entry point.** Playwright .NET has no bare `Expect(...)`. The static class is
    `Microsoft.Playwright.Assertions` — add `using static Microsoft.Playwright.Assertions;` (or a
@@ -60,6 +59,13 @@ them when writing any browser test:
    `getComputedStyle().backgroundColor`/`.boxShadow` read right after `focus()` observes the
    transparent/empty start value under load. Poll through `BrowserRetryPolicy` (read, break when
    it matches, else `WaitForTimeoutAsync(BrowserRetryPolicy.Delay)`).
+6. **Attachment can replace a visible or focused element.** For bounded keyboard retries, use
+   `locator.PressAsync("Enter")` on each attempt so Playwright resolves and focuses the current
+   control. A one-time `FocusAsync` followed by document-level key presses can target the body
+   after replacement. Prove attachment with a successful interaction before reading a bounding box
+   or testing preservation of user focus. For navigation-focus regressions, exercise the real
+   destination through attachment, including delayed content and navigation between routes that
+   reuse a shell; immediate SSR focus alone is insufficient. See `ClubOverviewBrowserTests`.
 
 ## Parallelization
 

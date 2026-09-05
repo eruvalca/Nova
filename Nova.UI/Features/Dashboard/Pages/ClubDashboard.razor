@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = Policies.RequireClubMember)]
 @using Microsoft.AspNetCore.Authorization
 @using Nova.Shared.Enums
+@using Nova.Shared.Features.Clubs
 @using Nova.Shared.Security
 @using Nova.UI.Features.Dashboard
 
@@ -117,7 +118,7 @@ FORM: Campaign map, ranked 1; two-zone operations-board staging; seed key assign
                         </span>
                         <span aria-hidden="true">→</span>
                     </a>
-                    <a class="status-row" href="teams">
+                    <a class="status-row" href="@ClubRoutes.Teams">
                         <span class="status-icon bi bi-shield" aria-hidden="true"></span>
                         <span>
                             <strong>Teams</strong>

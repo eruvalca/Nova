@@ -34,6 +34,15 @@ internal static class ClubEndpointRouteBuilderExtensions
 
             var group = endpoints.MapGroup(ClubEndpoints.GroupPrefix).RequireAuthorization();
 
+            group.MapGet(ClubEndpoints.GetCurrentRelative, GetCurrentClubHandler)
+                .Produces<ClubIdentityResult>()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status500InternalServerError)
+                .RequireAuthorization(Policies.RequireClubMember)
+                .WithName("GetCurrentClubIdentity");
+
             // Create a new club with a required crest upload; the current user becomes the club admin.
             // The WASM client posts with the Identity cookie but without a Razor antiforgery token;
             // SameSite=Lax on the Identity cookie protects this multipart API post from CSRF.
@@ -204,6 +213,15 @@ internal static class ClubEndpointRouteBuilderExtensions
             return endpoints;
         }
     }
+
+    /// <summary>Handles the signed-in member's current-club identity read.</summary>
+    /// <param name="clubIdentityQueryService">The service that loads identity from the trusted membership context.</param>
+    /// <param name="cancellationToken">The token that cancels the identity read when the request is aborted.</param>
+    /// <returns>The club identity HTTP response or the service problem mapped to an HTTP result.</returns>
+    private static async Task<IResult> GetCurrentClubHandler(
+        IClubIdentityQueryService clubIdentityQueryService,
+        CancellationToken cancellationToken)
+        => (await clubIdentityQueryService.GetCurrentAsync(cancellationToken)).ToHttpResult();
 
     /// <summary>
     /// Handles club creation requests (multipart form: name, city, state, and required crest file).

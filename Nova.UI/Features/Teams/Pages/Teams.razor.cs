@@ -2,11 +2,13 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Nova.Shared.Features.Clubs;
 using Nova.Shared.Features.Teams;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Teams.Components;
+using OneOf.Types;
 
 namespace Nova.UI.Features.Teams.Pages;
 
@@ -64,6 +66,13 @@ public partial class Teams(
     /// Indicates whether a create/edit/archive/restore mutation is in progress.
     /// </summary>
     private bool _isMutating;
+
+    /// <summary>
+    /// Monotonic guard incremented on every club-scope reset. A mutation's <c>finally</c> only clears
+    /// <see cref="_isMutating"/> when its captured generation is still current, so a previously
+    /// cancelled (or stalled) operation can never clear the flag of a newer mutation.
+    /// </summary>
+    private long _mutationGeneration;
 
     /// <summary>
     /// Indicates whether the current user can create/edit/archive/restore teams.
@@ -151,6 +160,13 @@ public partial class Teams(
     private CancellationTokenSource? _loadRosterSource;
 
     /// <summary>
+    /// Scoped cancellation token source for the current club's in-flight mutations; cancelled and
+    /// replaced when an authentication change moves to a different club so stale mutation results
+    /// cannot apply to the newly scoped UI.
+    /// </summary>
+    private CancellationTokenSource _teamScopedCts = new();
+
+    /// <summary>
     /// Monotonic request version used to ignore stale roster results.
     /// </summary>
     private long _loadRosterVersion;
@@ -160,6 +176,12 @@ public partial class Teams(
     /// </summary>
     [PersistentState]
     public IReadOnlyList<TeamRosterItem>? PersistedRoster { get; set; }
+
+    /// <summary>
+    /// Gets or sets the club identifier the persisted roster snapshot was sourced from.
+    /// </summary>
+    [PersistentState]
+    public long? PersistedClubId { get; set; }
 
     /// <summary>
     /// Gets or sets the persisted startup page error used across prerender and interactive attach.
@@ -206,9 +228,13 @@ public partial class Teams(
         }
     }
 
+    protected override void OnInitialized()
+        => authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
         _ = ApplyQueryFiltersToState();
 
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
@@ -219,12 +245,20 @@ public partial class Teams(
 
         if (Initialized)
         {
-            _roster = PersistedRoster;
-            _pageError = PersistedPageError;
-            RefreshAvailableGraduationYears(_roster ?? []);
+            // Only restore the prerendered snapshot when it belongs to the still-current club.
+            // On an interactive attach after a club change, reload against the new scope
+            // instead of surfacing the previous club's roster.
+            if (PersistedClubId is not null && PersistedClubId == _clubId)
+            {
+                _roster = PersistedRoster;
+                _pageError = PersistedPageError;
+                RefreshAvailableGraduationYears(_roster ?? []);
 
-            _isLoading = false;
-            return;
+                _isLoading = false;
+                return;
+            }
+
+            Initialized = false;
         }
 
         _isLoading = true;
@@ -396,6 +430,7 @@ public partial class Teams(
     {
         PersistedRoster = _roster;
         PersistedPageError = _pageError;
+        PersistedClubId = _clubId;
     }
 
     /// <summary>
@@ -588,38 +623,56 @@ public partial class Teams(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task CreateTeamAsync(TeamFormState formState)
     {
+        var teamToken = _teamScopedCts.Token;
+        var generation = _mutationGeneration;
         _isMutating = true;
         _formError = null;
         _actionError = null;
         _cutoffBlockers = [];
 
-        var shouldReloadRoster = false;
+        ServiceResult<TeamDto> result;
         try
         {
-            var result = await teamManagementService.CreateAsync(formState.ToCreateInput(), ComponentCancellationToken);
-            result.Switch(
-                _ =>
-                {
-                    _showCreateForm = false;
-                    _createForm = TeamFormState.CreateDefault();
-                    _statusMessage = "Team created successfully.";
-                },
-                problem => _formError = problem.Detail ?? "Could not create team.");
-            shouldReloadRoster = result.IsSuccess;
+            result = await teamManagementService.CreateAsync(formState.ToCreateInput(), teamToken);
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _formError = "Could not create team. Please retry.";
             return;
         }
         finally
         {
-            _isMutating = false;
+            if (generation == _mutationGeneration)
+            {
+                _isMutating = false;
+            }
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var shouldReloadRoster = false;
+        result.Switch(
+            _ =>
+            {
+                _showCreateForm = false;
+                _createForm = TeamFormState.CreateDefault();
+                _statusMessage = "Team created successfully.";
+            },
+            problem => _formError = problem.Detail ?? "Could not create team.");
+        shouldReloadRoster = result.IsSuccess;
 
         if (shouldReloadRoster)
         {
@@ -634,45 +687,63 @@ public partial class Teams(
     /// <returns>A task that completes when the mutation finishes.</returns>
     private async Task UpdateTeamAsync(TeamFormState formState)
     {
+        var teamToken = _teamScopedCts.Token;
+        var generation = _mutationGeneration;
         _isMutating = true;
         _formError = null;
         _actionError = null;
         _cutoffBlockers = [];
 
-        var shouldReloadRoster = false;
+        ServiceResult<TeamDto> result;
         try
         {
-            var result = await teamManagementService.UpdateAsync(formState.ToUpdateInput(), ComponentCancellationToken);
-            result.Switch(
-                _ =>
-                {
-                    _editForm = null;
-                    _statusMessage = "Team updated successfully.";
-                },
-                problem =>
-                {
-                    _formError = problem.Detail ?? "Could not update team.";
-                    if (problem.Kind == ServiceProblemKind.Conflict
-                        && problem.TryGetGraduationYearBlockers(out var blockers))
-                    {
-                        _cutoffBlockers = blockers;
-                    }
-                });
-            shouldReloadRoster = result.IsSuccess;
+            result = await teamManagementService.UpdateAsync(formState.ToUpdateInput(), teamToken);
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _formError = "Could not update team. Please retry.";
             return;
         }
         finally
         {
-            _isMutating = false;
+            if (generation == _mutationGeneration)
+            {
+                _isMutating = false;
+            }
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var shouldReloadRoster = false;
+        result.Switch(
+            _ =>
+            {
+                _editForm = null;
+                _statusMessage = "Team updated successfully.";
+            },
+            problem =>
+            {
+                _formError = problem.Detail ?? "Could not update team.";
+                if (problem.Kind == ServiceProblemKind.Conflict
+                    && problem.TryGetGraduationYearBlockers(out var blockers))
+                {
+                    _cutoffBlockers = blockers;
+                }
+            });
+        shouldReloadRoster = result.IsSuccess;
 
         if (shouldReloadRoster)
         {
@@ -738,43 +809,60 @@ public partial class Teams(
         }
 
         _isMutating = true;
+        var teamToken = _teamScopedCts.Token;
+        var generation = _mutationGeneration;
         _actionError = null;
         _archiveBlockers = [];
 
-        var shouldReloadRoster = false;
+        ServiceResult<Success> result;
         try
         {
-            var result = await teamLifecycleService.ArchiveAsync(_archiveCandidate.TeamId, ComponentCancellationToken);
-            result.Switch(
-                _ =>
-                {
-                    _statusMessage = "Team archived.";
-                    ClearArchiveState();
-                },
-                problem =>
-                {
-                    _actionError = problem.Detail ?? "Could not archive team.";
-                    if (problem.Kind == ServiceProblemKind.Conflict
-                        && problem.TryGetArchiveBlockers(out var blockers))
-                    {
-                        _archiveBlockers = blockers;
-                    }
-                });
-            shouldReloadRoster = result.IsSuccess;
+            result = await teamLifecycleService.ArchiveAsync(_archiveCandidate.TeamId, teamToken);
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _actionError = "Could not archive team. Please retry.";
             return;
         }
         finally
         {
-            _isMutating = false;
+            if (generation == _mutationGeneration)
+            {
+                _isMutating = false;
+            }
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        result.Switch(
+            _ =>
+            {
+                _statusMessage = "Team archived.";
+                ClearArchiveState();
+            },
+            problem =>
+            {
+                _actionError = problem.Detail ?? "Could not archive team.";
+                if (problem.Kind == ServiceProblemKind.Conflict
+                    && problem.TryGetArchiveBlockers(out var blockers))
+                {
+                    _archiveBlockers = blockers;
+                }
+            });
+        var shouldReloadRoster = result.IsSuccess;
 
         if (shouldReloadRoster)
         {
@@ -795,30 +883,48 @@ public partial class Teams(
         }
 
         _isMutating = true;
+        var teamToken = _teamScopedCts.Token;
+        var generation = _mutationGeneration;
         _statusMessage = null;
         _actionError = null;
-        var shouldReloadRoster = false;
+
+        ServiceResult<Success> result;
         try
         {
-            var result = await teamLifecycleService.RestoreAsync(team.TeamId, ComponentCancellationToken);
-            result.Switch(
-                _ => _statusMessage = "Team restored.",
-                problem => _actionError = problem.Detail ?? "Could not restore team.");
-            shouldReloadRoster = result.IsSuccess;
+            result = await teamLifecycleService.RestoreAsync(team.TeamId, teamToken);
         }
-        catch (OperationCanceledException) when (ComponentCancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (teamToken.IsCancellationRequested
+            || ComponentCancellationToken.IsCancellationRequested)
         {
             return;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
+            if (teamToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             _actionError = "Could not restore team. Please retry.";
             return;
         }
         finally
         {
-            _isMutating = false;
+            if (generation == _mutationGeneration)
+            {
+                _isMutating = false;
+            }
         }
+
+        if (teamToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        result.Switch(
+            _ => _statusMessage = "Team restored.",
+            problem => _actionError = problem.Detail ?? "Could not restore team.");
+        var shouldReloadRoster = result.IsSuccess;
 
         if (shouldReloadRoster)
         {
@@ -832,7 +938,7 @@ public partial class Teams(
     /// <param name="teamId">The target team identifier.</param>
     /// <returns>A relative team-detail URL with an encoded return URL query parameter.</returns>
     private string BuildTeamDetailUrl(long teamId)
-        => $"/teams/{teamId}?returnUrl={Uri.EscapeDataString(BuildCurrentRosterUrl())}";
+        => $"{ClubRoutes.TeamDetail(teamId)}?returnUrl={Uri.EscapeDataString(BuildCurrentRosterUrl())}";
 
     /// <summary>
     /// Builds the current roster URL with active filter state for use as a return URL.
@@ -855,18 +961,132 @@ public partial class Teams(
             querySegments.Add($"graduationYear={_graduationYearFilter.Value.ToString(CultureInfo.InvariantCulture)}");
         }
 
-        return $"/teams?{string.Join("&", querySegments)}";
+        return $"{ClubRoutes.Teams}?{string.Join("&", querySegments)}";
+    }
+
+    /// <summary>
+    /// Handles an authentication state change by applying it on the component's renderer.
+    /// </summary>
+    /// <param name="stateTask">The pending authentication state.</param>
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
+        => _ = InvokeAsync(() => ApplyAuthenticationStateAsync(stateTask));
+
+    /// <summary>
+    /// Applies the latest authentication state, cancelling in-flight mutations and reloading the
+    /// roster when the authenticated club changes, or hiding management when admin rights are lost.
+    /// </summary>
+    /// <param name="stateTask">The pending authentication state.</param>
+    /// <returns>A task that completes when the club/role rebind and any reload are finished.</returns>
+    private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
+    {
+        var authState = await stateTask;
+        var principal = authState.User;
+        var canManageTeams = principal.IsInRole(Roles.ClubAdmin);
+        var clubId = ReadClubIdClaim(principal);
+
+        var roleChanged = canManageTeams != _canManageTeams;
+        var clubChanged = clubId != _clubId;
+
+        _canManageTeams = canManageTeams;
+        _clubId = clubId;
+
+        if (clubChanged)
+        {
+            ResetTeamScopedState();
+            ResetManagementState();
+            ResetRosterState();
+
+            if (_clubId is null)
+            {
+                _pageError = "You must join a club before viewing the team roster.";
+                PersistStartupState();
+            }
+            else
+            {
+                // AuthenticationStateChanged is an external event, so render the loading
+                // state before the reload's first await to avoid showing the old club's roster.
+                _isLoading = true;
+                await InvokeAsync(StateHasChanged);
+                await LoadRosterAsync();
+            }
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (roleChanged)
+        {
+            if (!canManageTeams)
+            {
+                ResetManagementState();
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Cancels and recreates the club-scoped mutation token source so in-flight mutations
+    /// cannot apply stale results to the newly scoped UI after a club change, and releases
+    /// mutation ownership so a stalled or cancelled operation cannot keep the new club's
+    /// management controls disabled.
+    /// </summary>
+    private void ResetTeamScopedState()
+    {
+        _mutationGeneration++;
+        _isMutating = false;
+        _teamScopedCts.Cancel();
+        _teamScopedCts.Dispose();
+        _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
+    }
+
+    /// <summary>
+    /// Closes every open management interaction (create/edit/archive panel and mutation
+    /// feedback) without touching the loaded roster.
+    /// </summary>
+    private void ResetManagementState()
+    {
+        _showCreateForm = false;
+        _editForm = null;
+        _createForm = TeamFormState.CreateDefault();
+        _formError = null;
+        _actionError = null;
+        _statusMessage = null;
+        _cutoffBlockers = [];
+        _archiveCandidate = null;
+        _archiveConfirmed = false;
+        _archiveBlockers = [];
+    }
+
+    /// <summary>
+    /// Cancels any in-flight roster load and clears the currently displayed roster/error state,
+    /// including club-scoped graduation-year options inherited from the previous club.
+    /// </summary>
+    private void ResetRosterState()
+    {
+        _loadRosterSource?.Cancel();
+        _loadRosterSource?.Dispose();
+        _loadRosterSource = null;
+        _loadRosterVersion++;
+        _roster = null;
+        _pageError = null;
+        _isLoading = false;
+        _knownGraduationYears.Clear();
+        _availableGraduationYears = [];
     }
 
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
+        authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         _searchDebounceSource?.Cancel();
         _searchDebounceSource?.Dispose();
         _searchDebounceSource = null;
         _loadRosterSource?.Cancel();
         _loadRosterSource?.Dispose();
         _loadRosterSource = null;
+        _teamScopedCts?.Cancel();
+        _teamScopedCts?.Dispose();
         return ValueTask.CompletedTask;
     }
 }

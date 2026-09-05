@@ -10,7 +10,7 @@ namespace Nova.Features.Seasons;
 /// <summary>Provides tenant-safe, bounded season list and detail projections.</summary>
 /// <param name="dbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club state.</param>
-/// <param name="logger">The logger used for denied season reads.</param>
+/// <param name="logger">The logger used for denied and failed season reads.</param>
 public sealed partial class SeasonQueryService(
     IDbContextFactory<NovaReadDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
@@ -36,33 +36,46 @@ public sealed partial class SeasonQueryService(
         var page = input.Page ?? GetSeasonListInput.DefaultPage;
         var pageSize = input.PageSize ?? GetSeasonListInput.DefaultPageSize;
         var offset = GetOffset(page, pageSize);
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var totalCount = await db.Seasons.CountAsync(cancellationToken);
-        var items = await db.Seasons
-            .AsNoTracking()
-            .OrderByDescending(season => season.Club.CurrentSeasonId == season.SeasonId)
-            .ThenByDescending(season => season.StartDate)
-            .ThenByDescending(season => season.SeasonId)
-            .Skip(offset)
-            .Take(pageSize)
-            .Select(season => new SeasonSummary
-            {
-                SeasonId = season.SeasonId,
-                Name = season.Name,
-                StartDate = season.StartDate,
-                EndDate = season.EndDate,
-                IsCurrent = season.Club.CurrentSeasonId == season.SeasonId,
-                ConcurrencyToken = season.ConcurrencyToken
-            })
-            .ToListAsync(cancellationToken);
-
-        return new SeasonPageResult
+        try
         {
-            Items = items.AsReadOnly(),
-            Page = page,
-            PageSize = pageSize,
-            TotalCount = totalCount
-        };
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            var totalCount = await db.Seasons.CountAsync(cancellationToken);
+            var items = await db.Seasons
+                .AsNoTracking()
+                .OrderByDescending(season => season.Club.CurrentSeasonId == season.SeasonId)
+                .ThenByDescending(season => season.StartDate)
+                .ThenByDescending(season => season.SeasonId)
+                .Skip(offset)
+                .Take(pageSize)
+                .Select(season => new SeasonSummary
+                {
+                    SeasonId = season.SeasonId,
+                    Name = season.Name,
+                    StartDate = season.StartDate,
+                    EndDate = season.EndDate,
+                    IsCurrent = season.Club.CurrentSeasonId == season.SeasonId,
+                    ConcurrencyToken = season.ConcurrencyToken
+                })
+                .ToListAsync(cancellationToken);
+
+            return new SeasonPageResult
+            {
+                Items = items.AsReadOnly(),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount
+            };
+        }
+        catch (Exception exception)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            LogSeasonListReadFailed(exception, currentUserProvider.UserId ?? 0, clubId);
+            return ServiceProblem.ServerError("The season list is unavailable.");
+        }
     }
 
     /// <inheritdoc />
@@ -85,53 +98,66 @@ public sealed partial class SeasonQueryService(
         var page = input.CampaignPage ?? GetSeasonListInput.DefaultPage;
         var pageSize = input.CampaignPageSize ?? GetSeasonListInput.DefaultPageSize;
         var offset = GetOffset(page, pageSize);
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var season = await db.Seasons
-            .AsNoTracking()
-            .Where(season => season.SeasonId == input.SeasonId)
-            .Select(season => new SeasonSummary
-            {
-                SeasonId = season.SeasonId,
-                Name = season.Name,
-                StartDate = season.StartDate,
-                EndDate = season.EndDate,
-                IsCurrent = season.Club.CurrentSeasonId == season.SeasonId,
-                ConcurrencyToken = season.ConcurrencyToken
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-        if (season is null)
+        try
         {
-            return ServiceProblem.NotFound();
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            var season = await db.Seasons
+                .AsNoTracking()
+                .Where(season => season.SeasonId == input.SeasonId)
+                .Select(season => new SeasonSummary
+                {
+                    SeasonId = season.SeasonId,
+                    Name = season.Name,
+                    StartDate = season.StartDate,
+                    EndDate = season.EndDate,
+                    IsCurrent = season.Club.CurrentSeasonId == season.SeasonId,
+                    ConcurrencyToken = season.ConcurrencyToken
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (season is null)
+            {
+                return ServiceProblem.NotFound();
+            }
+
+            var campaignsQuery = db.Campaigns
+                .AsNoTracking()
+                .Where(campaign => campaign.SeasonId == input.SeasonId);
+            var totalCount = await campaignsQuery.CountAsync(cancellationToken);
+            var campaigns = await campaignsQuery
+                .OrderByDescending(campaign => campaign.StartDate)
+                .ThenByDescending(campaign => campaign.CampaignId)
+                .Skip(offset)
+                .Take(pageSize)
+                .Select(campaign => new SeasonCampaignSummary
+                {
+                    CampaignId = campaign.CampaignId,
+                    Name = campaign.Name,
+                    Status = campaign.Status,
+                    StartDate = campaign.StartDate,
+                    EndDate = campaign.EndDate,
+                    ParticipantCount = campaign.PlayerAssignments.Count
+                })
+                .ToListAsync(cancellationToken);
+
+            return new SeasonDetailResult
+            {
+                Season = season,
+                Campaigns = campaigns.AsReadOnly(),
+                CampaignPage = page,
+                CampaignPageSize = pageSize,
+                CampaignTotalCount = totalCount
+            };
         }
-
-        var campaignsQuery = db.Campaigns
-            .AsNoTracking()
-            .Where(campaign => campaign.SeasonId == input.SeasonId);
-        var totalCount = await campaignsQuery.CountAsync(cancellationToken);
-        var campaigns = await campaignsQuery
-            .OrderByDescending(campaign => campaign.StartDate)
-            .ThenByDescending(campaign => campaign.CampaignId)
-            .Skip(offset)
-            .Take(pageSize)
-            .Select(campaign => new SeasonCampaignSummary
-            {
-                CampaignId = campaign.CampaignId,
-                Name = campaign.Name,
-                Status = campaign.Status,
-                StartDate = campaign.StartDate,
-                EndDate = campaign.EndDate,
-                ParticipantCount = campaign.PlayerAssignments.Count
-            })
-            .ToListAsync(cancellationToken);
-
-        return new SeasonDetailResult
+        catch (Exception exception)
         {
-            Season = season,
-            Campaigns = campaigns.AsReadOnly(),
-            CampaignPage = page,
-            CampaignPageSize = pageSize,
-            CampaignTotalCount = totalCount
-        };
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            LogSeasonDetailReadFailed(exception, currentUserProvider.UserId ?? 0, clubId, input.SeasonId);
+            return ServiceProblem.ServerError("The season detail is unavailable.");
+        }
     }
 
     /// <summary>Resolves an approved member's current club identifier.</summary>
@@ -158,4 +184,19 @@ public sealed partial class SeasonQueryService(
     /// <summary>Logs season-detail access rejected because the caller is not a club member.</summary>
     [LoggerMessage(Level = LogLevel.Warning, Message = "Season detail access forbidden for UserId={UserId}, SeasonId={SeasonId}.")]
     private partial void LogSeasonDetailForbidden(long userId, long seasonId);
+
+    /// <summary>Logs a season-list read failure.</summary>
+    /// <param name="exception">The thrown exception.</param>
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Season list read failed for UserId={UserId}, ClubId={ClubId}.")]
+    private partial void LogSeasonListReadFailed(Exception exception, long userId, long clubId);
+
+    /// <summary>Logs a season-detail read failure.</summary>
+    /// <param name="exception">The thrown exception.</param>
+    /// <param name="userId">The current user identifier, or zero when unavailable.</param>
+    /// <param name="clubId">The current club identifier.</param>
+    /// <param name="seasonId">The requested season identifier.</param>
+    [LoggerMessage(Level = LogLevel.Error, Message = "Season detail read failed for UserId={UserId}, ClubId={ClubId}, SeasonId={SeasonId}.")]
+    private partial void LogSeasonDetailReadFailed(Exception exception, long userId, long clubId, long seasonId);
 }

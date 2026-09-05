@@ -16,7 +16,7 @@ Use this skill when writing or running Nova tests. Read the relevant reference b
   restore coverage.
 - [Aspire integration harness](references/aspire-integration-harness.md) for `Nova.Integration.Tests`, real PostgreSQL 18 via Aspire AppHost, `NovaAppHostFixture`, HTTP e2e, and provider-specific checks.
 - [Browser suite](references/browser-suite.md) for `Nova.Browser.Tests` — Playwright against the
-  Aspire-hosted app, the browser fixture and seed, the three Blazor interaction pitfalls, and the
+  Aspire-hosted app, the browser fixture and seed, Blazor attachment/navigation pitfalls, and the
   accessibility regression conventions.
 - [Aspire + Playwright validation](../aspire-playwright-validation/SKILL.md) for one-off manual
   browser acceptance passes; for committed regression coverage, add a `Nova.Browser.Tests`
