@@ -118,8 +118,10 @@ public sealed class TeamDetailComponentTests : BunitContext
 
         var cut = Render<TeamDetailPage>(p => p.Add(c => c.TeamId, 7));
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Failed to load team details. Please retry."));
+        cut.Find("h1").TextContent.ShouldBe("Team details unavailable");
         cut.Find("button.btn-outline-danger").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U16 Blue"));
+        cut.Find("h1").TextContent.ShouldBe("U16 Blue");
     }
 
     // ── Profile fields ────────────────────────────────────────────────────────
