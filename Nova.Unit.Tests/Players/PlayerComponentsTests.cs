@@ -218,7 +218,7 @@ public sealed class PlayerComponentsTests : BunitContext
         cut.Markup.ShouldContain("No players found");
     }
 
-    /// <summary>Verifies crafted Draft return context is hidden from members and disappears when administrator access is revoked.</summary>
+    /// <summary>Verifies members cannot return to Drafts and role loss resets the URL together with roster filters.</summary>
     /// <param name="startsAsAdmin">Whether administrator access is initially granted before being revoked.</param>
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
@@ -228,7 +228,8 @@ public sealed class PlayerComponentsTests : BunitContext
         RegisterServices(isClubAdmin: startsAsAdmin);
         var authentication = new FakeAuthenticationStateProvider(CreatePrincipal(startsAsAdmin));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
-        Services.GetRequiredService<NavigationManager>().NavigateTo("/players?returnToDraft=10");
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/players?view=archived&search=Avery&graduationYear=2032&tag=11&returnToDraft=10");
         var cut = Render<PlayersPage>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
 
@@ -237,6 +238,15 @@ public sealed class PlayerComponentsTests : BunitContext
             cut.FindAll("a").Single(link => link.TextContent.Trim() == "Return to draft")
                 .GetAttribute("href").ShouldBe("/campaigns/10");
             authentication.Change(CreatePrincipal(false));
+            cut.WaitForAssertion(() => navigation.Uri.ShouldBe("http://localhost/players"));
+            cut.Find("#players-view-filter").GetAttribute("value").ShouldBe("active");
+            var latestRequest = Services.GetRequiredService<IPlayerService>().ReceivedCalls()
+                .Last(call => call.GetMethodInfo().Name == nameof(IPlayerService.GetPlayerRosterAsync))
+                .GetArguments()[0].ShouldBeOfType<GetPlayerRosterInput>();
+            latestRequest.LifecycleStatus.ShouldBe("active");
+            latestRequest.Search.ShouldBe(string.Empty);
+            latestRequest.GraduationYear.ShouldBeNull();
+            latestRequest.PlayerTagId.ShouldBeNull();
         }
 
         cut.WaitForAssertion(() => cut.Markup.ShouldNotContain("Return to draft"));

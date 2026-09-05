@@ -295,7 +295,7 @@ public partial class Players(
         await LoadRosterAsync();
     }
 
-    /// <summary>Rebinds user, club, and authority before loading a fresh roster owned by that identity.</summary>
+    /// <summary>Rebinds user, club, and authority, resetting URL context with the roster filters before reloading.</summary>
     /// <param name="stateTask">The updated authentication state.</param>
     private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
         => _ = InvokeAsync(async () =>
@@ -315,7 +315,6 @@ public partial class Players(
                 return;
             }
 
-            var tenantChanged = clubId != _clubId || userId != _userId;
             ++_identityVersion;
             ++_rosterVersion;
             _clubId = clubId;
@@ -324,10 +323,7 @@ public partial class Players(
             ResetIdentityState();
             _isLoading = _clubId is not null;
             StateHasChanged();
-            if (tenantChanged)
-            {
-                navigationManager.NavigateTo("/players", replace: true);
-            }
+            navigationManager.NavigateTo("/players", replace: true);
             if (_clubId is null)
             {
                 _pageError = "You must join a club before viewing the player roster.";

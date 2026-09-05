@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round eight on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,505 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; round eight changes UI state/rendering only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
+Validated for PR #244 review round nine on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,505 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight and nine change UI state/rendering only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -88,3 +88,9 @@ The eighth review round orders campaign-directory authentication notifications b
 | Normalize malformed page/deletion values | `Campaigns_DefaultsMalformedOptionalQueryValues`; real-browser `Draft_IsUnavailableToOrdinaryMember_AndWarningDoesNotBlockAdministrator` |
 | Ignore incompatible receipt data without focus or acknowledgment | `CampaignWorkspace_DoesNotAcknowledgeUnusableReceipt` |
 | Use singular/plural receipt wording while preserving immutable counts and acknowledgment | `CampaignWorkspace_AcknowledgesValidOpeningReceipt_AfterApplyingCount` |
+
+The ninth review round resets the Players URL on role changes as well as user/club changes. Replacing the URL with `/players` removes stale filter and Draft-return parameters when the in-memory roster filters reset, so refresh cannot reapply the previous authority's context.
+
+| Requirement | Regression evidence in `PlayerComponentsTests` |
+|---|---|
+| Reset the URL and query lifecycle/search/year/tag values when administrator access is revoked | `Players_ReturnToDraft_RequiresCurrentAdministratorRole` |
