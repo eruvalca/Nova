@@ -642,6 +642,10 @@ public partial class Players(
         {
             $"view={Uri.EscapeDataString(_lifecycleStatusFilter)}"
         };
+        if (DraftReturnId is { } draftId)
+        {
+            querySegments.Add($"returnToDraft={draftId}");
+        }
 
         if (!string.IsNullOrWhiteSpace(_searchApplied))
         {
@@ -660,6 +664,10 @@ public partial class Players(
 
         return $"/players?{string.Join('&', querySegments)}";
     }
+
+    /// <summary>Gets or sets the optional local Draft correction handoff.</summary>
+    [SupplyParameterFromQuery(Name = "returnToDraft")] public string? ReturnToDraft { get; set; }
+    private long? DraftReturnId => long.TryParse(ReturnToDraft, out var id) && id > 0 ? id : null;
 
     /// <summary>
     /// Builds the inline CSS style string for one roster tag pill.

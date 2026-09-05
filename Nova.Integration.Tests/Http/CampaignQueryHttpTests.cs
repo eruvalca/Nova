@@ -112,6 +112,34 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         var adminDrafts = await adminDraftList.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
         adminDrafts.ShouldNotBeNull();
         adminDrafts.TotalCount.ShouldBe(1);
+        adminDrafts.DraftActivePlayerCount.ShouldBe(0);
+
+        using var adminSecondPage = await adminClient.GetAsync(
+            $"{CampaignEndpoints.GetCampaignList}?limit=1&page=2", cancellationToken);
+        adminSecondPage.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var secondPage = await adminSecondPage.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
+        secondPage.ShouldNotBeNull();
+        secondPage.Page.ShouldBe(2);
+        secondPage.Limit.ShouldBe(1);
+        secondPage.TotalCount.ShouldBe(2);
+        secondPage.CurrentSeasonId.ShouldBe(campaign.SeasonId);
+        secondPage.Seasons.Single().Campaigns.Single().CampaignId.ShouldBe(draft.CampaignId);
+
+        using var memberSecondPage = await client.GetAsync(
+            $"{CampaignEndpoints.GetCampaignList}?limit=1&page=2", cancellationToken);
+        memberSecondPage.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var concealedPage = await memberSecondPage.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
+        concealedPage.ShouldNotBeNull();
+        concealedPage.TotalCount.ShouldBe(1);
+        concealedPage.Seasons.ShouldBeEmpty();
+        concealedPage.DraftActivePlayerCount.ShouldBeNull();
+
+        using var invalidPage = await client.GetAsync(
+            $"{CampaignEndpoints.GetCampaignList}?page=0", cancellationToken);
+        invalidPage.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        using var problem = await invalidPage.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
+        problem.ShouldNotBeNull();
+        problem.RootElement.GetProperty("errors").TryGetProperty("Page", out _).ShouldBeTrue();
     }
 
     /// <summary>Verifies authenticated callers without a club receive forbidden responses.</summary>

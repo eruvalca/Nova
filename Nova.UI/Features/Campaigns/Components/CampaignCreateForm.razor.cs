@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Validation;
 
@@ -10,6 +11,14 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// </summary>
 public partial class CampaignCreateForm
 {
+    private EditContext _editContext = new(CampaignCreateFormState.CreateDefault());
+    private ValidationMessageStore? _serverMessages;
+    private IReadOnlyDictionary<string, string[]>? _lastErrors;
+
+    /// <summary>Gets or sets a callback preserving edited input.</summary>
+    [Parameter] public EventCallback<CampaignCreateFormState> OnChanged { get; set; }
+    /// <summary>Gets or sets authoritative field validation failures.</summary>
+    [Parameter] public IReadOnlyDictionary<string, string[]>? ServerErrors { get; set; }
     /// <summary>
     /// The local editable copy bound by this form.
     /// </summary>
@@ -81,13 +90,37 @@ public partial class CampaignCreateForm
         {
             _lastModelReference = Model;
             _localModel = Model.Clone();
+            _editContext = new EditContext(_localModel);
+            _serverMessages = new ValidationMessageStore(_editContext);
         }
 
         if (!AllowInlineSeasonCreation)
         {
             _localModel.UseInlineSeason = false;
         }
+        if (!ReferenceEquals(_lastErrors, ServerErrors))
+        {
+            _lastErrors = ServerErrors;
+            _serverMessages?.Clear();
+            if (ServerErrors is not null)
+            {
+                foreach (var error in ServerErrors)
+                {
+                    var field = error.Key switch
+                    {
+                        "InlineSeason.Name" => nameof(CampaignCreateFormState.InlineSeasonName),
+                        "InlineSeason.StartDate" => nameof(CampaignCreateFormState.InlineSeasonStartDate),
+                        "InlineSeason.EndDate" => nameof(CampaignCreateFormState.InlineSeasonEndDate),
+                        _ => error.Key
+                    };
+                    _serverMessages?.Add(new FieldIdentifier(_localModel, field), error.Value);
+                }
+            }
+            _editContext.NotifyValidationStateChanged();
+        }
     }
+
+    private Task HandleChangeAsync() => OnChanged.InvokeAsync(_localModel.Clone());
 
     /// <summary>
     /// Submits a cloned local model to the parent callback.

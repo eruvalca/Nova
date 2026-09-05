@@ -1,3 +1,22 @@
 .campaigns-view-select {
     min-width: 8rem;
 }
+.campaign-directory-board { background: var(--bs-white); border: 1px solid var(--bs-border-color); border-radius: .375rem; padding: 1.5rem; }
+.campaign-directory-board a, .campaign-directory-board button { display: inline-flex; align-items: center; min-height: 2.75rem; }
+td { overflow-wrap: anywhere; }
+@media (max-width: 575.98px) {
+    .campaign-directory-board { padding: 1rem; }
+    thead { display: none; }
+    table, tbody, tr, td { display: block; }
+    tr { border-bottom: 1px solid var(--bs-border-color); padding-block: 1rem; }
+    td { border: 0; padding: .25rem 0; }
+    td.text-end { text-align: start !important; }
+}
+
+.campaign-season-group + .campaign-season-group { border-top: 1px solid var(--bs-border-color); padding-top: 1.5rem; margin-top: 1.5rem; }
+
+.campaigns-view-select { width: auto; min-height: 2.75rem; }
+.campaign-pagination { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; }
+.campaign-pagination p { margin: 0; }
+.campaign-pagination nav { display: flex; gap: .5rem; }
+.btn { min-height: 2.75rem; }

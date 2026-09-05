@@ -1,6 +1,7 @@
 ﻿using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Nova.Data;
 using Nova.Data.Interceptors;
 using Nova.Data.Tenancy;
@@ -69,6 +70,7 @@ public sealed class TenancyTestHarness : IDisposable
     {
         // Attach the pinned Identity options so the model matches the running app.
         var builder = new DbContextOptionsBuilder<TContext>()
+            .ReplaceService<IModelCustomizer, CampaignClosureSqliteModelCustomizer>()
             .UseSqlite(_connection)
             .UseApplicationServiceProvider(IdentityStoreServiceProvider.Instance)
             .AddInterceptors(new CampaignTestSeedInterceptor());

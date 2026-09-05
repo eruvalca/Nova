@@ -34,6 +34,10 @@ public partial class CampaignWorkspace(
     NavigationManager navigationManager,
     IJSRuntime jsRuntime) : NovaComponentBase
 {
+    private bool IsRosterLanding => new Uri(navigationManager.Uri).AbsolutePath.EndsWith("/roster", StringComparison.OrdinalIgnoreCase);
+    private string? _openingReceiptMessage;
+    private bool _receiptChecked;
+    private ElementReference _rosterHeading;
     /// <summary>
     /// The debounce interval for search input updates.
     /// </summary>
@@ -653,6 +657,11 @@ public partial class CampaignWorkspace(
 
         _isLoading = false;
 
+        if (detailLoaded && _detail?.Status == CampaignStatus.Draft)
+        {
+            navigationManager.NavigateTo($"/campaigns/{CampaignId}", replace: true);
+            return;
+        }
         if (detailLoaded)
         {
             await LoadChoicesAsync();
@@ -787,6 +796,11 @@ public partial class CampaignWorkspace(
         _reloadRosterPending = true;
 
         var targetUrl = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, next, _activeTab, _selectedParticipantId);
+        if (IsRosterLanding)
+        {
+            targetUrl = targetUrl.Replace($"/campaigns/{CampaignId}?", $"/campaigns/{CampaignId}/roster?", StringComparison.Ordinal);
+        }
+
         var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
 
         if (string.Equals(targetUrl, currentPathAndQuery, StringComparison.Ordinal))
@@ -1456,6 +1470,24 @@ public partial class CampaignWorkspace(
         }
 
         var module = await _moduleTask.Value;
+
+        // The region element is recreated across loading/error/loaded renders, so re-attach the
+        if (IsRosterLanding && !_receiptChecked)
+        {
+            _receiptChecked = true;
+            var state = await authenticationStateProvider.GetAuthenticationStateAsync();
+            var scope = $"{state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
+            try
+            {
+                var receipt = await module.InvokeAsync<OpenCampaignResult?>("takeOpeningReceipt", ComponentCancellationToken, scope, CampaignId, _rosterHeading);
+                if (receipt is not null && receipt.CampaignId == CampaignId && receipt.EnrolledPlayerCount > 0 && receipt.OperationId != Guid.Empty)
+                {
+                    _openingReceiptMessage = $"Campaign opened and enrolled {receipt.EnrolledPlayerCount} players.";
+                    StateHasChanged();
+                }
+            }
+            catch (JSException) { /* The roster remains usable if optional success feedback cannot be restored. */ }
+        }
 
         // The region element is recreated across loading/error/loaded renders, so re-attach the
         // keydown suppression on every pass that renders the loaded roster. The module replaces

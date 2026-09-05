@@ -1,0 +1,128 @@
+@page "/campaigns/{CampaignId:long}"
+@page "/campaigns/{CampaignId:long}/roster"
+@rendermode InteractiveAuto
+@attribute [Authorize(Policy = Policies.RequireClubMember)]
+@using Microsoft.AspNetCore.Authorization
+@using Nova.Shared.Enums
+@using Nova.Shared.Features.Campaigns
+@using Nova.Shared.Security
+@using Nova.UI.Features.Campaigns.Components
+@using Nova.UI.Features.Teams.Components
+
+<PageTitle>@(Detail?.Name ?? "Campaign")</PageTitle>
+<!--
+THESIS: Campaign details and durable teams sit beside the consequence of opening.
+OWN-WORLD: Flat Fieldhouse boards, system type, ink labels, teal commitment.
+STORY: Save essentials, correct readiness, review enrollment, open explicitly.
+FIRST VIEWPORT: Identity above a broad preparation column and narrow readiness board.
+FORM: Details and readiness; seed cb82d130; approved comp issue-196-readiness-split.png.
+-->
+@if (_unavailable)
+{
+    <h1>Campaign not found</h1>
+    <p>This campaign does not exist or is not visible to your club.</p>
+    <a href="/campaigns">Return to campaigns</a>
+}
+else if (Detail is not null && Detail.Status != CampaignStatus.Draft && _openingId is null)
+{
+    <CampaignWorkspace @key="CampaignId" CampaignId="CampaignId" />
+}
+else
+{
+    <div class="draft-field">
+        <a class="draft-back" href="/campaigns"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m12 19-7-7 7-7M5 12h14" /></svg> Back to campaigns</a>
+        <h1 tabindex="-1" @ref="_heading">@(Detail?.Name ?? "Campaign preparation")</h1>
+        @if (Detail is not null)
+        {
+            <p class="draft-status">@Detail.Status</p>
+            <p>@Detail.SeasonName @if (Setup?.CurrentSeason?.SeasonId == Detail.SeasonId) { <strong> · Current</strong> }</p>
+            <p>@FormatDates(Detail)</p>
+        }
+        @if (_message is not null) { <p role="status">@_message</p> }
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger" role="alert">@_error <button class="btn btn-outline-danger" @onclick="ReloadAsync" disabled="@_busy">Retry</button></div>
+        }
+        @if (Detail is null)
+        {
+            <p role="status">Loading campaign…</p>
+        }
+        else
+        {
+            <div class="draft-grid">
+                <div class="draft-preparation">
+                    <section class="draft-board draft-details" aria-labelledby="draft-details-heading">
+                        <div class="draft-section-heading"><h2 id="draft-details-heading">Campaign details</h2><button class="btn btn-outline-primary" disabled="@(!_sessionReady || _busy || _openingId is not null)" @onclick="BeginEdit">Edit</button></div>
+                        @if (_edit is not null)
+                        {
+                            <CampaignMetadataForm Heading="Edit campaign details" Model="_edit" Seasons="@(Setup?.CurrentSeason is { } season ? [season] : [])" IsSubmitting="_busy" ErrorMessage="@_mutationError" ServerErrors="_fieldErrors" OnValidSubmit="SaveDetailsAsync" OnCancel="CancelEdit" />
+                        }
+                        else
+                        {
+                            <div class="draft-detail-copy"><strong>@Detail.Name</strong><p>@Detail.SeasonName</p><p>@FormatDates(Detail)</p></div>
+                        }
+                    </section>
+                    <section class="draft-board draft-teams" aria-labelledby="draft-teams-heading">
+                        <div class="draft-section-heading"><h2 id="draft-teams-heading">Active teams</h2><div class="draft-actions"><button class="btn btn-link" disabled="@(!_sessionReady || _busy || _openingId is not null)" @onclick="BeginTeam">Create team</button><a href="@TeamsUrl">View teams</a></div></div>
+                        @if (_team is not null)
+                        {
+                            <TeamForm Heading="Create durable team" Model="_team" SubmitButtonText="Create team" IsSubmitting="_busy" ErrorMessage="@_mutationError" OnValidSubmit="CreateTeamAsync" OnCancel="CancelTeam" />
+                        }
+                        @if (Readiness is not null)
+                        {
+                            @foreach (var team in Readiness.ActiveTeams)
+                            {
+                                <div class="draft-team-row">@team.Name</div>
+                            }
+                            @if (Readiness.ActiveTeamCount == 0) { <p>No active teams. You can add teams before placement.</p> }
+                            @if (Readiness.ActiveTeamCount > Readiness.ActiveTeams.Count) { <p>Showing @Readiness.ActiveTeams.Count of @Readiness.ActiveTeamCount active teams.</p> }
+                        }
+                        else { <p>Team readiness is unavailable until refreshed.</p> }
+                    </section>
+                </div>
+                <section class="draft-board draft-readiness" aria-labelledby="draft-roster-heading" aria-busy="@_busy">
+                    <h2 id="draft-roster-heading">Roster preview</h2>
+                    @if (Readiness is not null)
+                    {
+                        <p class="draft-count">@Readiness.ActivePlayerCount</p><p>active players will enroll</p>
+                        <a href="@PlayersUrl">View players</a>
+                        <div class="draft-team-summary"><p class="draft-count">@Readiness.ActiveTeamCount</p><p>active teams</p></div>
+                    }
+                    else { <p>Refresh readiness to see the current enrollment scale.</p> }
+                    <div class="draft-opening">
+                        <h2 tabindex="-1" @ref="_reviewHeading">Opening review</h2>
+                        @if (_readinessError is not null) { <p class="text-danger" role="alert">@_readinessError</p><button class="btn btn-outline-primary" disabled="@_busy" @onclick="ReloadAsync">Refresh readiness</button> }
+                        @if (Readiness is not null)
+                        {
+                            @if (Readiness.CanOpen) { <p class="draft-ready">Ready to open</p> }
+                            @if (Readiness.Blockers.Contains(CampaignOpeningBlocker.NoActivePlayers)) { <p class="text-warning-emphasis">Add an active player before opening. <a href="@PlayersUrl">Go to players</a></p> }
+                            @if (Readiness.BlockingCampaign is { } blocking) { <p class="text-warning-emphasis"><a href="@($"/campaigns/{blocking.CampaignId}")">@blocking.CampaignName</a> is Active. Close it before opening this campaign.</p> }
+                            @if (Readiness.Warnings.Contains(CampaignOpeningWarning.NoActiveTeams)) { <p class="text-warning-emphasis">No active teams. Evaluation can begin; add teams before placement.</p> }
+                        }
+                        <p>Every active club player will be enrolled immediately. An opened campaign cannot return to Draft.</p>
+                        @if (_openingId is not null)
+                        {
+                            <p role="status">The opening result needs confirmation. Recover the original request before starting another action.</p>
+                            <button class="btn btn-primary draft-commit" disabled="@(_busy || !_sessionReady)" @onclick="RecoverOpeningAsync">Confirm opening result</button>
+                        }
+                        else if (Review == "open")
+                        {
+                            <button class="btn btn-primary draft-commit" disabled="@(_busy || !_sessionReady || Readiness?.CanOpen != true || _edit is not null || _team is not null)" @onclick="OpenAsync">@(_busy ? "Opening campaign…" : $"Open campaign and enroll {Readiness?.ActivePlayerCount ?? 0} {(Readiness?.ActivePlayerCount == 1 ? "player" : "players")}")</button>
+                        }
+                        else { <a class="btn btn-primary draft-commit" href="@($"/campaigns/{CampaignId}?review=open")">Review opening</a> }
+                        @if (_mutationError is not null && _edit is null && _team is null) { <p class="text-danger" role="alert">@_mutationError</p> }
+                    </div>
+                </section>
+            </div>
+            <div class="draft-delete">
+                @if (_confirmDelete)
+                {
+                    <p>Delete <strong>@Detail.Name</strong> permanently? Your club's teams will remain.</p>
+                    <button class="btn btn-danger" disabled="@_busy" @onclick="DeleteAsync">Delete draft permanently</button>
+                    <button class="btn btn-outline-secondary" disabled="@_busy" @onclick="CancelDelete">Keep draft</button>
+                }
+                else { <button class="btn btn-link text-danger" disabled="@(_busy || !_sessionReady || _openingId is not null)" @onclick="ConfirmDelete">Delete draft</button> }
+            </div>
+        }
+    </div>
+}

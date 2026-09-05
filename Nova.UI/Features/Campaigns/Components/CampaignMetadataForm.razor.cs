@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Validation;
 
@@ -10,6 +11,11 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// </summary>
 public partial class CampaignMetadataForm
 {
+    private EditContext _editContext = new(CampaignMetadataFormState.CreateDefault());
+    private ValidationMessageStore? _serverMessages;
+
+    /// <summary>Gets or sets field-level validation from the metadata command.</summary>
+    [Parameter] public IReadOnlyDictionary<string, string[]>? ServerErrors { get; set; }
     /// <summary>
     /// The local editable copy bound by this form.
     /// </summary>
@@ -83,7 +89,18 @@ public partial class CampaignMetadataForm
         {
             _lastModelReference = Model;
             _localModel = Model.Clone();
+            _editContext = new EditContext(_localModel);
+            _serverMessages = new ValidationMessageStore(_editContext);
         }
+        _serverMessages?.Clear();
+        if (ServerErrors is not null)
+        {
+            foreach (var error in ServerErrors)
+            {
+                _serverMessages?.Add(new FieldIdentifier(_localModel, error.Key), error.Value);
+            }
+        }
+        _editContext.NotifyValidationStateChanged();
     }
 
     /// <summary>

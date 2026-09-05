@@ -7,6 +7,11 @@
 @using Nova.UI.Features.Campaigns.Components
 
 <PageTitle>Campaigns</PageTitle>
+<!-- THESIS: A season-grouped board leads with current work and gives each campaign one next action.
+OWN-WORLD: Flat Fieldhouse boards, compact ruled rows, semantic teal actions.
+STORY: Find current work, prepare a Draft, or reach bounded history.
+FIRST VIEWPORT: Current season and its Active/Draft rows precede history.
+FORM: Directory companion to the approved Details and readiness system. -->
 
 <div class="container py-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
@@ -14,6 +19,8 @@
         <div class="d-flex flex-wrap align-items-center gap-2">
             <label for="campaigns-view-filter" class="visually-hidden">Campaign view</label>
             <select id="campaigns-view-filter" class="form-select campaigns-view-select" value="@_statusFilter" disabled="@_isMutating" @onchange="OnStatusFilterChangedAsync">
+                <option value="all">All campaigns</option>
+                @if (_canManageCampaigns) { <option value="draft">Draft</option> }
                 <option value="active">Active</option>
                 <option value="closed">Closed</option>
             </select>
@@ -75,7 +82,7 @@
 
     @if (_isLoading)
     {
-        <div class="card shadow-sm border-0">
+        <div class="campaign-directory-board">
             <div class="card-body d-flex align-items-center gap-2">
                 <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
                 <span>Loading campaigns...</span>
@@ -84,19 +91,19 @@
     }
     else if (_list is not null && _list.Seasons.Count == 0)
     {
-        <div class="card shadow-sm border-0">
+        <div class="campaign-directory-board">
             <div class="card-body">
-                @if (_statusFilter == "active")
+                @if (_statusFilter != "closed")
                 {
-                    <h2 class="h5 mb-2">No active campaigns</h2>
+                    <h2 class="h5 mb-2">No campaigns available</h2>
                     @if (_canManageCampaigns)
                     {
-                        <p class="text-muted mb-3">Create your first campaign to enroll active players and begin evaluations.</p>
+                        <p class="text-muted mb-3">Create a Draft to prepare your campaign. Players enroll when you explicitly open it.</p>
                         <a class="btn btn-primary" href="campaigns/new">Create campaign</a>
                     }
                     else
                     {
-                        <p class="text-muted mb-0">There are no active campaigns right now. Check back once an administrator creates one.</p>
+                        <p class="text-muted mb-0">No campaigns are available in this view. An administrator can open a campaign for club work.</p>
                     }
                 }
                 else
@@ -109,16 +116,18 @@
     }
     else if (_list is not null)
     {
+        <div class="campaign-directory-board">
         @foreach (var season in _list.Seasons)
         {
-            <section class="card shadow-sm border-0 mb-3" aria-labelledby="season-heading-@season.SeasonId">
+            <section class="campaign-season-group" aria-labelledby="season-heading-@season.SeasonId">
                 <div class="card-body">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                         <div>
                             <h2 class="h5 mb-0" id="season-heading-@season.SeasonId">@season.Name</h2>
+                            @if (season.SeasonId == _list.CurrentSeasonId) { <span>Current season</span> }
                             <div class="text-muted small">@FormatSeasonDates(season)</div>
                         </div>
-                        @if (_canManageCampaigns && _statusFilter == "active")
+                        @if (_canManageCampaigns && _statusFilter != "closed")
                         {
                             <button type="button" class="btn btn-sm btn-outline-primary" aria-label="Edit season @season.Name" disabled="@_isMutating" @onclick="() => BeginEditSeason(season)">
                                 Edit season
@@ -133,8 +142,8 @@
                                     <th scope="col">Dates</th>
                                     <th scope="col">Status</th>
                                     <th scope="col">Participants</th>
-                                    <th scope="col">Unresolved</th>
-                                    @if (_canManageCampaigns)
+                                    <th scope="col">Next action</th>
+                                    @if (_canManageCampaigns && season.Campaigns.Any(item => item.Status == CampaignStatus.Active))
                                     {
                                         <th scope="col" class="text-end">Actions</th>
                                     }
@@ -150,12 +159,12 @@
                                             <span class="badge @CampaignStatusBadgeClass(campaign.Status)">@campaign.Status</span>
                                             @if (campaign.Status == CampaignStatus.Closed)
                                             {
-                                                <div class="text-muted small">Closed campaigns are read-only; reopen to edit.</div>
+                                                <div class="text-muted small">Immutable campaign record</div>
                                             }
                                         </td>
-                                        <td>@campaign.ParticipantCount</td>
-                                        <td>@campaign.UnresolvedCount</td>
-                                        @if (_canManageCampaigns)
+                                        <td>@(campaign.Status == CampaignStatus.Draft ? $"{_list.DraftActivePlayerCount} active players will enroll" : $"{campaign.ParticipantCount} participants")</td>
+                                        <td><a href="@($"/campaigns/{campaign.CampaignId}")">@(campaign.Status == CampaignStatus.Draft ? "Prepare draft" : campaign.Status == CampaignStatus.Active ? "Continue campaign" : "View record")</a></td>
+                                        @if (_canManageCampaigns && season.Campaigns.Any(item => item.Status == CampaignStatus.Active))
                                         {
                                             <td class="text-end">
                                                 @if (campaign.Status == CampaignStatus.Active)
@@ -174,11 +183,16 @@
                 </div>
             </section>
         }
+        </div>
 
-        @if (IsListTruncated)
+        @if (_list.TotalCount > 0)
         {
-            <div class="alert alert-info" role="status">
-                Showing the most recent @LoadedCampaignCount of @_list.TotalCount campaigns. Refine the view to narrow results.
+            <div class="campaign-pagination" role="status">
+                <p>Page @_page · Showing @LoadedCampaignCount of @_list.TotalCount campaigns</p>
+                <nav aria-label="Campaign pages">
+                    @if (_page > 1) { <a class="btn btn-outline-primary" href="@PageUrl(_page - 1)">Previous</a> }
+                    @if ((long)_page * 20 < _list.TotalCount) { <a class="btn btn-outline-primary" href="@PageUrl(_page + 1)">Next</a> }
+                </nav>
             </div>
         }
     }

@@ -1,7 +1,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Nova.Shared.Features.Campaigns
 
-<section class="card shadow-sm border-0">
+<section class="card border-0">
     <div class="card-body">
         <h2 class="h5 mb-3">@Heading</h2>
 
@@ -10,7 +10,7 @@
             <div class="alert alert-danger" role="alert" aria-live="assertive">@ErrorMessage</div>
         }
 
-        <EditForm Model="_localModel" OnValidSubmit="HandleValidSubmit">
+        <EditForm EditContext="_editContext" OnValidSubmit="HandleValidSubmit">
             <DataAnnotationsValidator />
             <ValidationSummary class="visually-hidden" aria-live="polite" />
             <div class="row g-3">

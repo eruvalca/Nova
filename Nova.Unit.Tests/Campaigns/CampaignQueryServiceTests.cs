@@ -422,7 +422,68 @@ public sealed class CampaignQueryServiceTests : IDisposable
             .Single(season => season.Name == "Ordering Season")
             .Campaigns;
         rows.Select(campaign => campaign.Name).Take(6)
-            .ShouldBe(["Open", "Later", "A", "Z", "Earlier End", "Closed"]);
+            .ShouldBe(["Open", "Later", "A", "Earlier End", "Z", "Closed"]);
+        result.Value.Seasons[0].Name.ShouldBe("Season 1");
+        result.Value.CurrentSeasonId.ShouldBe(result.Value.Seasons[0].SeasonId);
+    }
+
+    /// <summary>Verifies paging retains authorized totals and reaches the final row without repetition.</summary>
+    [Fact]
+    public async Task GetCampaignList_PagesAuthorizedRows_AndReturnsEmptyAfterLastPage()
+    {
+        _ = AddDraftCampaign();
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = false;
+        var service = new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness), _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance);
+        var observed = new List<long>();
+
+        for (var page = 1; page <= 4; page++)
+        {
+            var result = await service.GetCampaignListAsync(
+                new GetCampaignListInput { Page = page, Limit = 1 }, TestContext.Current.CancellationToken);
+
+            result.IsSuccess.ShouldBeTrue();
+            result.Value.Page.ShouldBe(page);
+            result.Value.Limit.ShouldBe(1);
+            result.Value.TotalCount.ShouldBe(3);
+            result.Value.DraftActivePlayerCount.ShouldBeNull();
+            var rows = result.Value.Seasons.SelectMany(season => season.Campaigns).ToArray();
+            rows.Length.ShouldBe(page <= 3 ? 1 : 0);
+            rows.ShouldAllBe(row => row.Status != CampaignStatus.Draft);
+            observed.AddRange(rows.Select(row => row.CampaignId));
+        }
+
+        observed.Distinct().Count().ShouldBe(3);
+
+        var beyondIntegerOffset = await service.GetCampaignListAsync(
+            new GetCampaignListInput { Page = int.MaxValue, Limit = 100 }, TestContext.Current.CancellationToken);
+        beyondIntegerOffset.IsSuccess.ShouldBeTrue();
+        beyondIntegerOffset.Value.TotalCount.ShouldBe(3);
+        beyondIntegerOffset.Value.Seasons.ShouldBeEmpty();
+    }
+
+    /// <summary>Verifies Draft enrollment previews count active players independently of participants.</summary>
+    [Fact]
+    public async Task GetCampaignList_ReturnsActivePlayerPreview_ForAdministrator()
+    {
+        var draftId = AddDraftCampaign();
+        _harness.CurrentUser.UserId = ClubAMemberId;
+        _harness.CurrentUser.ClubId = ClubAId;
+        _harness.CurrentUser.IsClubAdmin = true;
+        var result = await new CampaignQueryService(
+            new CampaignReadHarnessDbContextFactory(_harness), _harness.CurrentUser,
+            NullLogger<CampaignQueryService>.Instance).GetCampaignListAsync(
+                new GetCampaignListInput { Status = "draft", Limit = 1 }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.TotalCount.ShouldBe(1);
+        result.Value.DraftActivePlayerCount.ShouldBe(1);
+        var draft = result.Value.Seasons.Single().Campaigns.Single();
+        draft.CampaignId.ShouldBe(draftId);
+        draft.ParticipantCount.ShouldBe(0);
     }
 
     /// <summary>Verifies the detail query returns the club's campaign header payload.</summary>
@@ -517,6 +578,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         result.Value.CampaignId.ShouldBe(draftCampaignId);
         result.Value.ActivePlayerCount.ShouldBe(1);
         result.Value.ActiveTeamCount.ShouldBe(0);
+        result.Value.ActiveTeams.ShouldBeEmpty();
         result.Value.CanOpen.ShouldBeFalse();
         result.Value.Blockers.ShouldBe([CampaignOpeningBlocker.AnotherCampaignActive]);
         result.Value.Warnings.ShouldBe([CampaignOpeningWarning.NoActiveTeams]);

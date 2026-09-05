@@ -39,13 +39,13 @@ public sealed class HttpCampaignQueryServiceTests
     [Fact]
     public async Task GetCampaignListAsync_RequestsSharedRoute_AndRespectsQuery()
     {
-        var sample = new CampaignListResult { TotalCount = 0, Seasons = new List<CampaignSeasonGroup>() };
+        var sample = new CampaignListResult { TotalCount = 0, Page = 2, Limit = 10, Seasons = new List<CampaignSeasonGroup>() };
         using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(sample) };
         var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var svc = new HttpCampaignQueryService(http);
-        var input = new GetCampaignListInput { Status = "active", Limit = 10 };
+        var input = new GetCampaignListInput { Status = "active", Limit = 10, Page = 2 };
         var result = await svc.GetCampaignListAsync(input, TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
@@ -54,6 +54,7 @@ public sealed class HttpCampaignQueryServiceTests
         handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe(CampaignEndpoints.GetCampaignList);
         handler.LastRequest.RequestUri!.Query.ShouldContain("status=active");
         handler.LastRequest.RequestUri!.Query.ShouldContain("limit=10");
+        handler.LastRequest.RequestUri!.Query.ShouldContain("page=2");
     }
 
     /// <summary>Verifies an empty successful list body maps to a server error.</summary>
@@ -205,6 +206,12 @@ public sealed class HttpCampaignQueryServiceTests
     [InlineData("""{"campaignId":42,"activePlayerCount":0,"activeTeamCount":1,"canOpen":true,"blockers":[0],"warnings":[]}""")]
     [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":false,"blockers":[0],"warnings":[]}""")]
     [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[0]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":null}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[null]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":0,"name":"Team"}]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":" "}]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":2,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":"A"},{"teamId":1,"name":"B"}]}""")]
+    [InlineData("""{"campaignId":42,"activePlayerCount":1,"activeTeamCount":1,"canOpen":true,"blockers":[],"warnings":[],"activeTeams":[{"teamId":1,"name":"A"},{"teamId":2,"name":"B"}]}""")]
     public async Task GetOpeningReadinessAsync_ReturnsServerError_ForInvalidPayload(string payload)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -259,6 +266,27 @@ public sealed class HttpCampaignQueryServiceTests
         result.IsSuccess.ShouldBeTrue();
     }
 
+    /// <summary>Verifies the authoritative current-season group may precede a newer dated historical season.</summary>
+    [Fact]
+    public async Task GetCampaignListAsync_AcceptsCurrentSeasonBeforeNewerHistory()
+    {
+        const string payload = """
+            {"currentSeasonId":1,"seasons":[
+            {"seasonId":1,"name":"Current","startDate":"2026-01-01",
+            "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
+            {"campaignId":1,"name":"Draft","startDate":"2026-06-01","status":2,"participantCount":0,"unresolvedCount":0}]},
+            {"seasonId":2,"name":"History","startDate":"2027-01-01",
+            "concurrencyToken":"22222222-2222-2222-2222-222222222222","campaigns":[
+            {"campaignId":2,"name":"Closed","startDate":"2027-06-01","closedAt":"2027-07-01T00:00:00Z","status":1,"participantCount":0,"unresolvedCount":0}]}
+            ],"totalCount":2}
+            """;
+
+        var result = await GetCampaignListFromJsonAsync(payload);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Seasons.Select(season => season.SeasonId).ShouldBe([1L, 2L]);
+    }
+
     /// <summary>Verifies an empty season metadata token is rejected as a malformed success payload.</summary>
     [Fact]
     public async Task GetCampaignListAsync_ReturnsServerError_ForEmptySeasonConcurrencyToken()
@@ -283,6 +311,11 @@ public sealed class HttpCampaignQueryServiceTests
     [InlineData("""{"seasons":[null],"totalCount":0}""")]
     [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","campaigns":null}],"totalCount":0}""")]
     [InlineData("""{"seasons":[],"totalCount":-1}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"page":0}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"limit":0}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"limit":101}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"currentSeasonId":0}""")]
+    [InlineData("""{"seasons":[],"totalCount":0,"draftActivePlayerCount":-1}""")]
     [InlineData("""{"seasons":[{"seasonId":0,"name":"Season","startDate":"2026-01-01","campaigns":[]}],"totalCount":0}""")]
     [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-02","endDate":"2026-01-01","campaigns":[]}],"totalCount":0}""")]
     [InlineData("""{"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01","campaigns":[{"campaignId":1,"name":"Campaign","startDate":"2026-06-02","plannedEndDate":"2026-06-01","status":0,"participantCount":0,"unresolvedCount":0}]}],"totalCount":1}""")]

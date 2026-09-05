@@ -11,6 +11,7 @@
 
 <ClubShell CurrentLabel="Teams">
 <div class="container py-4">
+    @if (DraftReturnId is { } draftId) { <a class="btn btn-outline-primary mb-3" href="@($"/campaigns/{draftId}")">Return to draft</a> }
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <h1 class="mb-0">Teams</h1>
         <div class="d-flex flex-wrap align-items-center gap-2">

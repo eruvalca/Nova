@@ -355,10 +355,15 @@ public static class CampaignEndpoints
     /// </summary>
     /// <param name="status">The optional campaign status filter.</param>
     /// <param name="limit">The optional bounded result limit.</param>
+    /// <param name="page">The optional one-based page number.</param>
     /// <returns>The campaign-list URL.</returns>
-    public static string GetCampaignListUrl(string? status = null, int? limit = null)
+    public static string GetCampaignListUrl(string? status = null, int? limit = null, int? page = null)
     {
         var querySegments = new List<string>();
+        if (page is > 0)
+        {
+            querySegments.Add($"page={page.Value}");
+        }
         var normalizedStatus = status?.Trim().ToLowerInvariant() switch
         {
             "active" => "active",

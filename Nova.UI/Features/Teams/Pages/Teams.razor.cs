@@ -950,6 +950,10 @@ public partial class Teams(
         {
             $"view={Uri.EscapeDataString(_lifecycleStatusFilter)}"
         };
+        if (DraftReturnId is { } draftId)
+        {
+            querySegments.Add($"returnToDraft={draftId}");
+        }
 
         if (!string.IsNullOrWhiteSpace(_searchApplied))
         {
@@ -963,6 +967,10 @@ public partial class Teams(
 
         return $"{ClubRoutes.Teams}?{string.Join("&", querySegments)}";
     }
+
+    /// <summary>Gets or sets the optional local Draft correction handoff.</summary>
+    [SupplyParameterFromQuery(Name = "returnToDraft")] public string? ReturnToDraft { get; set; }
+    private long? DraftReturnId => long.TryParse(ReturnToDraft, out var id) && id > 0 ? id : null;
 
     /// <summary>
     /// Handles an authentication state change by applying it on the component's renderer.

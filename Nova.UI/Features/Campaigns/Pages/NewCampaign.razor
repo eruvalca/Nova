@@ -6,10 +6,15 @@
 @using Nova.UI.Features.Campaigns.Components
 
 <PageTitle>Create campaign</PageTitle>
+<!-- THESIS: Save essentials as a Draft before making any enrollment commitment.
+OWN-WORLD: Flat working sheet within the approved Details and readiness system.
+STORY: Name the campaign, confirm the current season, save preparation.
+FIRST VIEWPORT: Campaign essentials and a clear saved-Draft consequence.
+FORM: Main-column form; opening review belongs to the saved Draft. -->
 
 <div class="container py-4">
     <div class="mb-3">
-        <a href="campaigns" class="text-decoration-none">&larr; Back to campaigns</a>
+        <a href="campaigns" class="text-decoration-none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m12 19-7-7 7-7M5 12h14" /></svg> Back to campaigns</a>
     </div>
 
     <h1 class="mb-3">Create campaign</h1>
@@ -24,7 +29,7 @@
 
     @if (_isLoading)
     {
-        <div class="card shadow-sm border-0">
+        <div class="border rounded p-3">
             <div class="card-body d-flex align-items-center gap-2">
                 <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
                 <span>Loading creation setup...</span>
@@ -33,11 +38,11 @@
     }
     else if (_setup is not null)
     {
-        <div class="card shadow-sm border-0 mb-3">
+        <div class="border rounded p-3 mb-3">
             <div class="card-body">
                 <h2 class="h6 mb-2">Current enrollment preview</h2>
                 <p class="mb-1">
-                    <strong>@_setup.ActivePlayerCount</strong> active players will be enrolled as participants.
+                    <strong>@_setup.ActivePlayerCount</strong> active players will enroll when you open the campaign.
                 </p>
                 <p class="mb-0">
                     <strong>@_setup.ActiveTeamCount</strong> active teams will be available for placement.
@@ -46,10 +51,17 @@
         </div>
 
         <div class="alert alert-info" role="note">
-            The campaign becomes <strong>Active</strong> immediately upon creation. The planned end date is
-            informational and does not close the campaign.
+            Saving creates a <strong>Draft</strong>. Review preparation and explicitly open it to enroll players.
+            Dates never open or close a campaign automatically.
         </div>
 
+        @if (_pending is not null)
+        {
+            <div class="alert alert-warning" role="status">A previous creation request needs confirmation. Your original input is preserved.
+                <button class="btn btn-primary" disabled="@(_isSubmitting || !_sessionReady)" @onclick="RecoverAsync">Confirm creation result</button>
+            </div>
+        }
+        <fieldset disabled="@(!_sessionReady || _pending is not null)">
         <CampaignCreateForm Heading="Campaign details"
                             Model="_createForm"
                             Seasons="@(_setup.CurrentSeason is null ? [] : [_setup.CurrentSeason])"
@@ -57,7 +69,10 @@
                             SubmitButtonText="Create campaign"
                             IsSubmitting="_isSubmitting"
                             ErrorMessage="@_formError"
+                            ServerErrors="_fieldErrors"
+                            OnChanged="SaveInputAsync"
                             OnValidSubmit="CreateCampaignAsync"
                             OnCancel="Cancel" />
+        </fieldset>
     }
 </div>

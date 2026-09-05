@@ -7,6 +7,9 @@ namespace Nova.Shared.Features.Campaigns;
 /// </summary>
 public sealed record CampaignListItem
 {
+    /// <summary>Gets the closure time used to order historical campaigns.</summary>
+    public DateTimeOffset? ClosedAt { get; init; }
+
     /// <summary>
     /// Gets the campaign identifier.
     /// </summary>
@@ -84,6 +87,18 @@ public sealed record CampaignSeasonGroup
 /// </summary>
 public sealed record CampaignListResult
 {
+    /// <summary>Gets the requested one-based page.</summary>
+    public int Page { get; init; } = 1;
+
+    /// <summary>Gets the applied page size.</summary>
+    public int Limit { get; init; } = GetCampaignListInput.DefaultLimit;
+
+    /// <summary>Gets the club's authoritative current season.</summary>
+    public long? CurrentSeasonId { get; init; }
+
+    /// <summary>Gets the enrollment preview for administrators; absent for members.</summary>
+    public int? DraftActivePlayerCount { get; init; }
+
     /// <summary>
     /// Gets the number of campaigns matching the optional status filter before bounding.
     /// </summary>

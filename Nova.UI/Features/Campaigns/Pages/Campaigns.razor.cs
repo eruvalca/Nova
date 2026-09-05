@@ -53,7 +53,16 @@ public partial class Campaigns(
     /// <summary>
     /// The active campaign lifecycle-status filter ("active" or "closed").
     /// </summary>
-    private string _statusFilter = "active";
+    private string _statusFilter = "all";
+    private int _page = 1;
+    private string? _identityScope;
+
+    /// <summary>Gets or sets the directory page from its URL.</summary>
+    [SupplyParameterFromQuery(Name = "page")] public int? DirectoryPage { get; set; }
+    /// <summary>Gets or sets deletion feedback from a completed Draft deletion.</summary>
+    [SupplyParameterFromQuery(Name = "deleted")] public bool Deleted { get; set; }
+    /// <summary>Gets or sets the identity owning the persisted list.</summary>
+    [PersistentState] public string? PersistedIdentityScope { get; set; }
 
     /// <summary>
     /// Version counter for edit-form selection; incremented whenever forms are closed or a new
@@ -175,12 +184,17 @@ public partial class Campaigns(
     {
         // SupplyParameterFromQuery properties are assigned before initialization, so the
         // requested view is available before the startup load and its persisted snapshot.
-        _ = ApplyViewQueryToState();
-
         var authenticationState = await authenticationStateProvider.GetAuthenticationStateAsync();
         _canManageCampaigns = authenticationState.User.IsInRole(Roles.ClubAdmin);
+        _identityScope = DirectoryIdentity(authenticationState);
+        _ = ApplyViewQueryToState();
+        authenticationStateProvider.AuthenticationStateChanged += DirectoryAuthenticationChanged;
+        if (Deleted)
+        {
+            _statusMessage = "Draft deleted. Your club's teams remain.";
+        }
 
-        if (Initialized)
+        if (Initialized && PersistedIdentityScope == _identityScope)
         {
             _list = PersistedList;
             _pageError = PersistedPageError;
@@ -200,12 +214,21 @@ public partial class Campaigns(
     /// <returns><see langword="true"/> when the filter value changed; otherwise <see langword="false"/>.</returns>
     private bool ApplyViewQueryToState()
     {
-        var viewFromQuery = string.Equals(ViewQuery, "closed", StringComparison.OrdinalIgnoreCase)
-            ? "closed"
-            : "active";
+        var viewFromQuery = ViewQuery?.ToLowerInvariant() is "active" or "closed" or "draft" ? ViewQuery.ToLowerInvariant() : "all";
+        var unsupportedDraft = viewFromQuery == "draft" && !_canManageCampaigns;
+        if (unsupportedDraft)
+        {
+            viewFromQuery = "all";
+        }
 
-        var hasChanged = !string.Equals(_statusFilter, viewFromQuery, StringComparison.Ordinal);
+        var nextPage = unsupportedDraft ? 1 : Math.Max(1, DirectoryPage ?? 1);
+        var hasChanged = !string.Equals(_statusFilter, viewFromQuery, StringComparison.Ordinal) || nextPage != _page;
+        _page = nextPage;
         _statusFilter = viewFromQuery;
+        if (unsupportedDraft)
+        {
+            SyncViewToUrl();
+        }
         return hasChanged;
     }
 
@@ -227,8 +250,9 @@ public partial class Campaigns(
 
         var input = new GetCampaignListInput
         {
-            Status = _statusFilter,
-            Limit = GetCampaignListInput.MaxLimit
+            Status = _statusFilter == "all" ? null : _statusFilter,
+            Limit = 20,
+            Page = _page
         };
 
         ServiceResult<CampaignListResult> result;
@@ -275,6 +299,10 @@ public partial class Campaigns(
 
         PersistStartupState();
         _isLoading = false;
+        if (_list is not null && _page > 1 && LoadedCampaignCount == 0)
+        {
+            navigationManager.NavigateTo(PageUrl(Math.Max(1, (int)Math.Ceiling(_list.TotalCount / 20d))), replace: true);
+        }
     }
 
     /// <summary>
@@ -284,6 +312,7 @@ public partial class Campaigns(
     {
         PersistedList = _list;
         PersistedPageError = _pageError;
+        PersistedIdentityScope = _identityScope;
     }
 
     /// <summary>
@@ -294,9 +323,8 @@ public partial class Campaigns(
     /// <returns>A task that completes when the reload finishes.</returns>
     private async Task OnStatusFilterChangedAsync(ChangeEventArgs args)
     {
-        _statusFilter = string.Equals(args.Value?.ToString(), "closed", StringComparison.OrdinalIgnoreCase)
-            ? "closed"
-            : "active";
+        _statusFilter = args.Value?.ToString()?.ToLowerInvariant() is "active" or "closed" or "draft" ? args.Value.ToString()!.ToLowerInvariant() : "all";
+        _page = 1;
         CancelMutationForm();
         _statusMessage = null;
         SyncViewToUrl();
@@ -309,7 +337,7 @@ public partial class Campaigns(
     private void SyncViewToUrl()
     {
         var uri = navigationManager.GetUriWithQueryParameters(
-            new Dictionary<string, object?> { ["view"] = _statusFilter });
+            new Dictionary<string, object?> { ["view"] = _statusFilter, ["page"] = _page });
 
         if (!string.Equals(uri, navigationManager.Uri, StringComparison.Ordinal))
         {
@@ -636,11 +664,41 @@ public partial class Campaigns(
     /// <inheritdoc />
     protected override ValueTask DisposeAsyncCore()
     {
+        authenticationStateProvider.AuthenticationStateChanged -= DirectoryAuthenticationChanged;
         _loadListSource?.Cancel();
         _loadListSource?.Dispose();
         _loadListSource = null;
         return ValueTask.CompletedTask;
     }
+
+    private string PageUrl(int page) => $"/campaigns?view={_statusFilter}&page={page}";
+
+    private static string DirectoryIdentity(AuthenticationState state) => string.Join(":",
+        state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+        state.User.FindFirst(NovaClaimTypes.ClubId)?.Value, state.User.IsInRole(Roles.ClubAdmin));
+
+    private void DirectoryAuthenticationChanged(Task<AuthenticationState> task) => _ = InvokeAsync(async () =>
+    {
+        var state = await task;
+        var identity = DirectoryIdentity(state);
+        if (identity == _identityScope)
+        {
+            return;
+        }
+
+        _identityScope = identity;
+        _canManageCampaigns = state.User.IsInRole(Roles.ClubAdmin);
+        _ = ApplyViewQueryToState();
+        _list = null;
+        PersistedList = null;
+        _loadListSource?.Cancel();
+        CancelMutationForm();
+        _statusMessage = null;
+        _page = 1;
+        StateHasChanged();
+        await LoadListAsync();
+        StateHasChanged();
+    });
 
     /// <summary>
     /// Returns the first non-blank message from the supplied candidates.

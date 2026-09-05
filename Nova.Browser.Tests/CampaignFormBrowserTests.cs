@@ -43,7 +43,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task CampaignForm_Success_CreatesCampaign_AndRedirectsToCampaignList()
+    public async Task CampaignForm_Success_CreatesCampaign_AndRedirectsToSavedDraft()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -64,8 +64,8 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
             () => submit.ClickAsync(new() { Timeout = 3000 }),
             () => Task.FromResult(page.Url.Contains("/campaigns", StringComparison.OrdinalIgnoreCase) && !page.Url.Contains("/new", StringComparison.OrdinalIgnoreCase)));
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByText(campaignName)).ToHaveCountAsync(0);
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = campaignName, Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview", Exact = true })).ToBeVisibleAsync();
         await AssertDraftPersistedWithoutEnrollmentAsync(campaignName, cancellationToken);
     }
 
@@ -113,9 +113,9 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await InteractionHelpers.TabUntilFocusedAsync(page, submit);
         await page.Keyboard.PressAsync("Enter");
 
-        // A valid keyboard submission creates the campaign and redirects to the campaign list.
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByText(campaignName)).ToHaveCountAsync(0);
+        // A valid keyboard submission creates the campaign and opens its saved preparation board.
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = campaignName, Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview", Exact = true })).ToBeVisibleAsync();
         await AssertDraftPersistedWithoutEnrollmentAsync(campaignName, cancellationToken);
     }
 
@@ -187,8 +187,8 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await Expect(submit.Locator(".spinner-border")).ToBeVisibleAsync();
 
         release.TrySetResult(null);
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByText(campaignName)).ToHaveCountAsync(0);
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = campaignName, Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview", Exact = true })).ToBeVisibleAsync();
         await AssertDraftPersistedWithoutEnrollmentAsync(campaignName, cancellationToken);
         await page.UnrouteAsync(IsCampaignCreateUrl);
     }
@@ -219,14 +219,14 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
 
         var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
         await submit.ClickAsync();
-        await Expect(page.Locator("div.alert-danger[role=alert]")).ToContainTextAsync("Failed to create the campaign");
+        await Expect(page.Locator("div.alert-danger[role=alert]")).ToContainTextAsync("The Draft could not be saved.");
         page.Url.ShouldContain("/campaigns/new");
 
         await page.UnrouteAsync(IsCampaignCreateUrl);
-        await submit.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Confirm creation result", Exact = true }).ClickAsync();
 
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Campaigns", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByText(campaignName)).ToHaveCountAsync(0);
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = campaignName, Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster preview", Exact = true })).ToBeVisibleAsync();
         await AssertDraftPersistedWithoutEnrollmentAsync(campaignName, cancellationToken);
     }
 
@@ -269,6 +269,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
     /// </summary>
     private static async Task CheckInlineSeasonAsync(IPage page)
     {
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true })).ToBeEnabledAsync();
         var radio = page.Locator("#season-mode-inline");
         var inlineName = page.Locator("#inline-season-name");
         for (var attempt = 0; attempt < 20; attempt++)

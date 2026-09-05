@@ -9,6 +9,22 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class CampaignQueryContractTests
 {
+    /// <summary>Verifies campaign pages are one-based, including the largest supported integer.</summary>
+    /// <param name="page">The requested page.</param>
+    /// <param name="isValid">Whether the page satisfies the contract.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(-1, false)]
+    [InlineData(0, false)]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    [InlineData(int.MaxValue, true)]
+    public void GetCampaignListInput_ValidatesPageBounds(int page, bool isValid)
+    {
+        var errors = InputValidator.Validate(new GetCampaignListInput { Page = page });
+
+        errors.ContainsKey(nameof(GetCampaignListInput.Page)).ShouldBe(!isValid);
+    }
+
     /// <summary>Verifies accepted filters produce the expected normalized URL.</summary>
     [Fact]
     public void GetCampaignListUrl_BuildsExpectedUrl()
@@ -16,6 +32,14 @@ public sealed class CampaignQueryContractTests
         var url = CampaignEndpoints.GetCampaignListUrl(" Active ", 25);
 
         url.ShouldBe("/api/campaigns?status=active&limit=25");
+    }
+
+    /// <summary>Verifies directory continuation forwards its page together with filters and bounds.</summary>
+    [Fact]
+    public void GetCampaignListUrl_IncludesRequestedPage()
+    {
+        CampaignEndpoints.GetCampaignListUrl("draft", 20, 2)
+            .ShouldBe("/api/campaigns?page=2&status=draft&limit=20");
     }
 
     /// <summary>Verifies omitted filters satisfy the shared input contract.</summary>
