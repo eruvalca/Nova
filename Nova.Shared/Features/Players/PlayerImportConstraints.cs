@@ -5,6 +5,18 @@
 /// </summary>
 public static class PlayerImportConstraints
 {
+    /// <summary>The bounded protected confirmation size, including all preview classifications.</summary>
+    public const int MaxConfirmationTokenCharacters = 32 * 1024;
+
+    /// <summary>The number of hours a completed import can be recovered.</summary>
+    public const int RecoveryLifetimeHours = 24;
+
+    /// <summary>The multipart preview identity field.</summary>
+    public const string OperationIdFormFieldName = "operationId";
+
+    /// <summary>The multipart protected confirmation field.</summary>
+    public const string ConfirmationTokenFormFieldName = "confirmationToken";
+
     /// <summary>The maximum number of data rows accepted in one upload.</summary>
     public const int MaxDataRows = 1_000;
 

@@ -27,7 +27,7 @@ public sealed class PlayerImportEndpointTests
             .SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
             .ToList();
-        endpoints.Count.ShouldBe(2);
+        endpoints.Count.ShouldBe(3);
         endpoints.ShouldAllBe(endpoint => endpoint.Metadata
             .GetOrderedMetadata<IProducesResponseTypeMetadata>()
             .Select(metadata => metadata.StatusCode)
@@ -56,6 +56,11 @@ public sealed class PlayerImportEndpointTests
 
     private sealed class FakePlayerImportService : IPlayerImportService
     {
+        /// <inheritdoc />
+        public Task<ServiceResult<PlayerImportCompletion>> CommitAsync(
+            PlayerImportCommitInput input,
+            CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
         /// <inheritdoc />
         public Task<ServiceResult<PlayerImportTemplate>> GetTemplateAsync(
             CancellationToken cancellationToken = default) => throw new NotImplementedException();
