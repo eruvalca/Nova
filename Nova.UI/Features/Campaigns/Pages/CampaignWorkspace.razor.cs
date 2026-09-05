@@ -34,11 +34,20 @@ public partial class CampaignWorkspace(
     NavigationManager navigationManager,
     IJSRuntime jsRuntime) : NovaComponentBase
 {
+    /// <summary>Identifies the focused Roster route so its navigation retains the landing destination.</summary>
     private bool IsRosterLanding => new Uri(navigationManager.Uri).AbsolutePath.EndsWith("/roster", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Announces the enrollment count from the validated immutable opening receipt.</summary>
     private string? _openingReceiptMessage;
+    /// <summary>Prevents repeated receipt consumption within this workspace component instance.</summary>
     private bool _receiptChecked;
+    /// <summary>Targets keyboard focus when a validated opening receipt reaches the Roster landing.</summary>
     private ElementReference _rosterHeading;
 
+    /// <summary>Builds roster navigation while retaining the focused landing route when it is active.</summary>
+    /// <param name="state">The roster filters, sorting, and paging to preserve.</param>
+    /// <param name="tab">The workspace tab encoded in the destination.</param>
+    /// <param name="participantId">The participant to open in the detail drawer, if any.</param>
+    /// <returns>The local workspace or focused Roster URL.</returns>
     private string BuildRosterUrl(CampaignWorkspaceRosterState state, string tab, long? participantId = null)
     {
         var url = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, state, tab, participantId);

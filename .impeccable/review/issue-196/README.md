@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round fourteen on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,540 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL and embedded form touch-target coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through fourteen change UI state/rendering and tests only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
+Validated for PR #244 review round fifteen on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,541 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL and embedded form touch-target coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through fifteen change UI state/rendering and tests only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -149,3 +149,12 @@ The fourteenth review round distinguishes an applied clubless identity from defa
 Initial round-fourteen validation corrected missing required fixture counts and narrowed the Teams empty-roster assertion to table rows because the search placeholder contains the sample team's name. An unrelated workspace debounce test failed during the first full unit run with concurrent format verification; all 78 workspace tests passed in isolation and the subsequent full unit run passed all 2,540 tests.
 
 The first browser run passed 118 tests and failed the Draft keyboard transition and an account-photo interaction timeout. The Draft test now waits for the canceled metadata form to disappear before pressing Enter on the opening button; its Roster focus assertion remains intact. The subsequent full browser run passed all 120 tests with seven optional screenshot checks skipped, including the account-photo scenario without changes to that test or feature.
+
+The fifteenth review round documents the private state and helpers added to creation, metadata correction, the workspace, and the directory. Its requested creation-form regression exposed a real retry defect: command validation messages survived field corrections and prevented the next valid submission. The form now clears contextual server failures on field changes, retains the error snapshot reference across parent rerenders, and detaches the field handler on model replacement and disposal.
+
+| Requirement | Regression evidence |
+|---|---|
+| Resubmit corrected creation input after server field errors and an unchanged parent error snapshot | `CampaignCreateForm_ResubmitsCorrectedField_WithUnchangedParentErrorSnapshot` |
+| Document private state, handlers, and URL helpers in all four flagged files | Declaration scan found no undocumented private/protected members in `CampaignCreateForm`, `CampaignMetadataForm`, `CampaignWorkspace`, or `Campaigns` |
+
+The new regression failed before the behavior fix because only the original submission reached the callback. After the fix, all 66 `CampaignComponentsTests` passed, including assertions on the corrected payload and retained operation ID.

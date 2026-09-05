@@ -54,7 +54,9 @@ public partial class Campaigns(
     /// The campaign view filter ("all", "draft", "active", or "closed").
     /// </summary>
     private string _statusFilter = "all";
+    /// <summary>The normalized one-based page requested from the campaign directory.</summary>
     private int _page = 1;
+    /// <summary>Identifies the user, club, and administrator authority owning the loaded directory.</summary>
     private string? _identityScope;
 
     /// <summary>Gets or sets the raw directory page, normalized before use.</summary>
@@ -689,8 +691,14 @@ public partial class Campaigns(
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>Builds directory pagination links retaining the current status filter.</summary>
+    /// <param name="page">The one-based destination page.</param>
+    /// <returns>The local campaign directory URL.</returns>
     private string PageUrl(int page) => $"/campaigns?view={_statusFilter}&page={page}";
 
+    /// <summary>Scopes retained directory data to the authenticated user, club, and Draft visibility.</summary>
+    /// <param name="state">The authentication state whose claims own the directory.</param>
+    /// <returns>The identity and authority key used to invalidate stale directory state.</returns>
     private static string DirectoryIdentity(AuthenticationState state) => string.Join(":",
         state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
         state.User.FindFirst(NovaClaimTypes.ClubId)?.Value, state.User.IsInRole(Roles.ClubAdmin));

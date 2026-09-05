@@ -11,8 +11,11 @@ namespace Nova.UI.Features.Campaigns.Components;
 /// </summary>
 public partial class CampaignMetadataForm
 {
+    /// <summary>Owns validation and field notifications for the local metadata correction model.</summary>
     private EditContext _editContext = new(CampaignMetadataFormState.CreateDefault());
+    /// <summary>Holds command validation failures separately from DataAnnotations messages.</summary>
     private ValidationMessageStore? _serverMessages;
+    /// <summary>Tracks the parent error snapshot so rerenders preserve cleared validation failures.</summary>
     private IReadOnlyDictionary<string, string[]>? _lastServerErrors;
 
     /// <summary>Gets or sets field-level validation from the metadata command.</summary>
@@ -110,6 +113,9 @@ public partial class CampaignMetadataForm
         }
     }
 
+    /// <summary>Clears contextual command failures after an edit so corrected input can be resubmitted.</summary>
+    /// <param name="sender">The edit context reporting the change.</param>
+    /// <param name="args">The changed field notification.</param>
     private void ClearServerErrors(object? sender, FieldChangedEventArgs args)
     {
         // Contextual failures can span fields (for example, the season and campaign dates).

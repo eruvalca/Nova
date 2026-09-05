@@ -1018,6 +1018,40 @@ public sealed class CampaignComponentsTests : BunitContext
         formMarkup.ShouldNotContain("Old 2020");
     }
 
+    /// <summary>Verifies correcting a server-rejected field permits resubmission even when the parent repeats the same error snapshot.</summary>
+    [Fact]
+    public void CampaignCreateForm_ResubmitsCorrectedField_WithUnchangedParentErrorSnapshot()
+    {
+        var submissions = new List<CampaignCreateFormState>();
+        var model = new CampaignCreateFormState
+        {
+            OperationId = Guid.NewGuid(),
+            Name = "Original Draft",
+            StartDate = new DateOnly(2026, 6, 1),
+            ExistingSeasonId = 5
+        };
+        var cut = Render<CampaignCreateForm>(parameters => parameters
+            .Add(component => component.Model, model)
+            .Add(component => component.Seasons, CreateSeasonChoices())
+            .Add(component => component.AllowInlineSeasonCreation, false)
+            .Add(component => component.OnValidSubmit, EventCallback.Factory.Create<CampaignCreateFormState>(this, submissions.Add)));
+        cut.Find("form").Submit();
+        submissions.Count.ShouldBe(1);
+        var errors = new Dictionary<string, string[]> { ["Name"] = ["A campaign already has this name."] };
+        cut.Render(parameters => parameters.Add(component => component.ServerErrors, errors));
+        cut.FindAll(".validation-message").ShouldContain(message => message.TextContent == "A campaign already has this name.");
+
+        cut.Find("#campaign-name").Change("Corrected Draft");
+        cut.Render(parameters => parameters.Add(component => component.ServerErrors, errors));
+        cut.Find("form").Submit();
+
+        submissions.Count.ShouldBe(2);
+        submissions[0].Name.ShouldBe("Original Draft");
+        submissions[1].Name.ShouldBe("Corrected Draft");
+        submissions[1].OperationId.ShouldBe(model.OperationId);
+        cut.FindAll(".validation-message").ShouldNotContain(message => message.TextContent == "A campaign already has this name.");
+    }
+
     [Fact]
     public void CampaignCreateForm_ShowsValidationMessages_WhenSubmittedInvalid()
     {
