@@ -10,7 +10,7 @@ internal static class ClubMembershipMutationReceipts
     private const int RetentionDays = 1;
 
     /// <summary>
-    /// Removes membership mutation receipts older than the verification window across every club,
+    /// Removes membership and placement mutation receipts older than the verification window across every club,
     /// including snapshots whose club aggregate has since been deleted.
     /// </summary>
     /// <param name="db">The admin context participating in the current mutation transaction.</param>
@@ -26,6 +26,9 @@ internal static class ClubMembershipMutationReceipts
             await db.ClubMembershipMutationReceipts
                 .Where(receipt => receipt.CreatedAt < cutoff)
                 .ExecuteDeleteAsync(cancellationToken);
+            await db.PlacementMutationReceipts
+                .Where(receipt => receipt.CreatedAt < cutoff)
+                .ExecuteDeleteAsync(cancellationToken);
             return;
         }
 
@@ -37,5 +40,10 @@ internal static class ClubMembershipMutationReceipts
         {
             db.ClubMembershipMutationReceipts.RemoveRange(expired);
         }
+
+        var expiredPlacements = (await db.PlacementMutationReceipts.ToListAsync(cancellationToken))
+            .Where(receipt => receipt.CreatedAt < cutoff)
+            .ToList();
+        db.PlacementMutationReceipts.RemoveRange(expiredPlacements);
     }
 }

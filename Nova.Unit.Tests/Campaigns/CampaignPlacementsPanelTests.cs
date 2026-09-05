@@ -19,6 +19,27 @@ namespace Nova.Unit.Tests.Campaigns;
 /// </summary>
 public sealed class CampaignPlacementsPanelTests : BunitContext
 {
+    /// <summary>Both responsive editors display enrollment without offering a decision-clearing action.</summary>
+    /// <param name="outcome">The currently displayed enrollment or saved outcome.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(PlacementOutcome.Undecided)]
+    [InlineData(PlacementOutcome.Assigned)]
+    public void OutcomeOptions_DisableUndecided_ForEnrollmentAndSavedDecision(PlacementOutcome outcome)
+    {
+        var item = CreateRosterItem(outcome: outcome);
+        RegisterServices(rosterResult: new ServiceResult<PagedResult<CampaignPlacementRosterItem>>(CreateRoster(item)));
+        var cut = RenderPanel();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Avery Johnson"));
+        var selects = cut.FindAll("select[aria-label='Outcome for Avery Johnson'], select[id^='placement-card-outcome-']");
+        selects.Count.ShouldBe(2);
+        foreach (var select in selects)
+        {
+            select.GetAttribute("value").ShouldBe(((int)outcome).ToString());
+            select.QuerySelector("option[value='0']")!.HasAttribute("disabled").ShouldBeTrue();
+            select.QuerySelectorAll("option:not([disabled])").Select(option => option.GetAttribute("value"))
+                .ShouldBe(new[] { "1", "2", "3" });
+        }
+    }
     // ── Loading, empty, error, retry ──────────────────────────────────────────
 
     [Fact]
@@ -214,7 +235,7 @@ public sealed class CampaignPlacementsPanelTests : BunitContext
 
         cut.Find("select[aria-label=\"Team for Avery Johnson\"]").HasAttribute("disabled").ShouldBeFalse();
 
-        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("0");
+        cut.Find("select[aria-label=\"Outcome for Avery Johnson\"]").Change("2");
         cut.Find("select[aria-label=\"Team for Avery Johnson\"]").HasAttribute("disabled").ShouldBeTrue();
         cut.Find("select[aria-label=\"Team for Avery Johnson\"]").GetAttribute("value").ShouldBeEmpty();
     }

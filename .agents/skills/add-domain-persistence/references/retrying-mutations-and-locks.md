@@ -50,13 +50,20 @@ When another operation can replace the target state before `verifySucceeded` run
 immutable operation receipt instead; a mutable security or concurrency stamp is not proof. Generate
 one stable operation ID before the first attempt, add a uniquely constrained receipt through the
 same context and transaction as every domain effect, and verify that receipt by operation ID through
-a fresh context. Receipts with a durable aggregate FK can prune inline within the current tenant.
-Receipts that deliberately omit that FK so proof survives aggregate deletion need an independent
-age-based cleanup path reachable from later operations in any tenant (or a background worker) and a
-cutoff-leading index (`CreatedAt` or an explicit recovery-expiry timestamp).
-A global cleanup may delete only expired receipt rows;
-never scan or delete live tenant data through an admin context. `ClubMemberService` is the canonical
-FK-less receipt and global age-retention example.
+a fresh context. Check aggregate and club deletion as well as later updates: cascading receipt
+deletion can erase proof between commit and verification. Nova's FK-less receipt ownership rules
+are in `.github/instructions/ef-core-tenancy.instructions.md`; do not copy an older receipt's FK
+configuration without checking this boundary. `CampaignPlacementService` and
+`CampaignPlacementRetryTests` demonstrate recovery after both a later save and club deletion.
+
+Receipts with a durable aggregate FK can prune inline within the current tenant. Tenant-local
+pruning cannot reach FK-less receipts of deleted clubs: provide an age-based cleanup path reachable
+from operations in any tenant (or a background worker), with a cutoff-leading index (`CreatedAt` or
+an explicit recovery-expiry timestamp). The existing
+`ClubMembershipMutationReceipts.PruneExpiredAsync` handles membership and placement receipts globally;
+it removes only expired receipt evidence through an admin context. Never scan or delete live tenant
+data through that context. Receipts are commit proof, not history or effective-state inputs, and are
+not rewritten by later saves.
 
 When the aggregate itself can retain immutable opening evidence, store the receipt on the aggregate
 and reconstruct the original result from those persisted fields. Do not verify by recounting mutable

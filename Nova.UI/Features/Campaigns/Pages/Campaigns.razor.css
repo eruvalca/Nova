@@ -6,7 +6,7 @@
 td { overflow-wrap: anywhere; }
 @media (max-width: 575.98px) {
     .campaign-directory-board { padding: 1rem; }
-    thead { display: none; }
+    thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     table, tbody, tr, td { display: block; }
     tr { border-bottom: 1px solid var(--bs-border-color); padding-block: 1rem; }
     td { border: 0; padding: .25rem 0; }

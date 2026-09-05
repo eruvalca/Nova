@@ -186,7 +186,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         // Count and bounded rows are separate reads, so a concurrent mutation may make
         // the total briefly lag the returned rows; validate bounds without rejecting that state.
         if (rows.Count > limit || result.TotalCount < 0 || result.Page < 1
-            || result.Limit is < 1 or > GetCampaignListInput.MaxLimit
+            || result.Limit != limit
             || result.CurrentSeasonId is <= 0 || result.DraftActivePlayerCount is < 0)
         {
             return false;
@@ -242,7 +242,8 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
             && campaign.ParticipantCount >= 0
             && campaign.UnresolvedCount >= 0
             && campaign.UnresolvedCount <= campaign.ParticipantCount
-            && campaign.Status is CampaignStatus.Active or CampaignStatus.Draft or CampaignStatus.Closed;
+            && campaign.Status is CampaignStatus.Active or CampaignStatus.Draft or CampaignStatus.Closed
+            && (campaign.Status == CampaignStatus.Closed ? campaign.ClosedAt is not null : campaign.ClosedAt is null);
 
     /// <summary>
     /// Compares adjacent campaign rows using the portable response-order keys.

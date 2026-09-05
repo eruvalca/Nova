@@ -5,7 +5,7 @@ using Nova.Shared.Validation;
 namespace Nova.Shared.Features.Campaigns;
 
 /// <summary>
-/// Describes an administrator request to update a campaign participant's placement.
+/// Describes an approved member's request to record an explicit campaign placement decision.
 /// </summary>
 public sealed record UpdateCampaignPlacementInput
 {
@@ -38,6 +38,8 @@ public sealed record UpdateCampaignPlacementInput
     /// Gets the new placement outcome.
     /// </summary>
     [EnumDataType(typeof(PlacementOutcome), ErrorMessage = "The placement outcome is invalid.")]
+    [AllowedValues(PlacementOutcome.Assigned, PlacementOutcome.NotSelected, PlacementOutcome.Withdrawn,
+        ErrorMessage = "Record Assigned, NotSelected, or Withdrawn; Undecided is participation without a saved decision.")]
     public PlacementOutcome Outcome { get; init; }
 
     /// <summary>

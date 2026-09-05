@@ -7,7 +7,7 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>
 /// Tests campaign placement lifecycle and eligibility decisions without persistence dependencies.
 /// </summary>
-public sealed class CampaignPlacementPolicyTests
+public sealed partial class CampaignPlacementPolicyTests
 {
     /// <summary>
     /// Verifies every non-active campaign has the highest rejection precedence.

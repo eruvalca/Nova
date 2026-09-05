@@ -24,6 +24,11 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         await CaptureAsync(page, "directory-desktop");
         await page.SetViewportSizeAsync(390, 844);
         await CaptureAsync(page, "directory-mobile");
+        await Expect(page.GetByRole(AriaRole.Columnheader)).ToHaveCountAsync(5);
+        foreach (var header in new[] { "Name", "Dates", "Status", "Participants", "Next action" })
+        {
+            await Expect(page.GetByRole(AriaRole.Columnheader, new() { Name = header, Exact = true })).ToHaveCountAsync(1);
+        }
         (await page.EvaluateAsync<bool>("document.documentElement.scrollWidth <= innerWidth")).ShouldBeTrue();
         await page.SetViewportSizeAsync(1505, 1045);
         await page.GetByRole(AriaRole.Link, new() { Name = "Prepare draft", Exact = true }).ClickAsync();
@@ -50,6 +55,20 @@ public sealed class CampaignDraftBrowserTests(BrowserSuiteFixture fixture)
         await CaptureAsync(page, "roster-mobile");
         await page.SetViewportSizeAsync(1505, 1045);
         await CaptureAsync(page, "roster-desktop");
+        var rosterPath = new Uri(page.Url).AbsolutePath;
+        var drawer = page.Locator("aside.participant-drawer");
+        await InteractionHelpers.ClickUntilAsync(page, page.Locator("tbody tr[id^='roster-row-']").First,
+            () => drawer.IsVisibleAsync());
+        await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("1 of 24");
+        new Uri(page.Url).AbsolutePath.ShouldBe(rosterPath);
+        await page.GetByRole(AriaRole.Button, new() { Name = "Next participant", Exact = true }).ClickAsync();
+        await Expect(page.Locator("#participant-drawer-position")).ToHaveTextAsync("2 of 24");
+        new Uri(page.Url).AbsolutePath.ShouldBe(rosterPath);
+        await InteractionHelpers.ClickUntilAsync(page,
+            page.GetByRole(AriaRole.Button, new() { Name = "Close participant details", Exact = true }),
+            () => drawer.IsHiddenAsync());
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Roster", Exact = true })).ToBeVisibleAsync();
+        new Uri(page.Url).AbsolutePath.ShouldBe(rosterPath);
         await using var context = fixture.AppHost.CreateAdminContext();
         var campaign = await context.Campaigns.SingleAsync(item => item.ClubId == seed.ClubId, ct);
         campaign.Status.ShouldBe(CampaignStatus.Active);

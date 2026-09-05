@@ -257,7 +257,7 @@ public sealed class HttpCampaignQueryServiceTests
             "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
             {"campaignId":1,"name":"Active","startDate":"2026-06-01","status":0,"participantCount":1,"unresolvedCount":0},
             {"campaignId":2,"name":"Draft","startDate":"2026-06-01","status":2,"participantCount":0,"unresolvedCount":0},
-            {"campaignId":3,"name":"Closed","startDate":"2026-06-01","status":1,"participantCount":1,"unresolvedCount":0}
+            {"campaignId":3,"name":"Closed","startDate":"2026-06-01","closedAt":"2026-07-01T00:00:00Z","status":1,"participantCount":1,"unresolvedCount":0}
             ]}],"totalCount":3}
             """;
 
@@ -343,6 +343,43 @@ public sealed class HttpCampaignQueryServiceTests
             """;
 
         var result = await GetCampaignListFromJsonAsync(payload, limit: 1);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies successful list responses echo the exact requested bound, including empty pages.</summary>
+    /// <param name="responseLimit">The bound reported by the server.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(19)]
+    [InlineData(21)]
+    public async Task GetCampaignListAsync_RejectsDifferentResponseLimit(int responseLimit)
+    {
+        var payload = $$"""{"seasons":[],"totalCount":0,"limit":{{responseLimit}}}""";
+
+        var result = await GetCampaignListFromJsonAsync(payload, limit: 20);
+
+        result.IsProblem.ShouldBeTrue();
+        result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);
+    }
+
+    /// <summary>Verifies closure metadata agrees with the declared lifecycle status.</summary>
+    /// <param name="status">The wire lifecycle status.</param>
+    /// <param name="closedAt">The JSON closure timestamp or null.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(0, "\"2026-07-01T00:00:00Z\"")]
+    [InlineData(2, "\"2026-07-01T00:00:00Z\"")]
+    [InlineData(1, "null")]
+    public async Task GetCampaignListAsync_RejectsInconsistentClosureMetadata(int status, string closedAt)
+    {
+        var payload = $$"""
+            {"seasons":[{"seasonId":1,"name":"Season","startDate":"2026-01-01",
+            "concurrencyToken":"11111111-1111-1111-1111-111111111111","campaigns":[
+            {"campaignId":1,"name":"Campaign","startDate":"2026-06-01","status":{{status}},
+            "closedAt":{{closedAt}},"participantCount":0,"unresolvedCount":0}]}],"totalCount":1}
+            """;
+
+        var result = await GetCampaignListFromJsonAsync(payload);
 
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.ServerError);

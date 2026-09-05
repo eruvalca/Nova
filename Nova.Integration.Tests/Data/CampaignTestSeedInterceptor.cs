@@ -44,6 +44,22 @@ internal sealed class CampaignTestSeedInterceptor : SaveChangesInterceptor
             return;
         }
 
+        // Direct test seeds represent explicit decisions without invoking the placement service.
+        // Fill only wholly absent attribution; partial or invalid metadata must still fail constraints.
+        foreach (var entry in context.ChangeTracker.Entries<PlayerCampaignAssignmentEntity>()
+            .Where(entry => entry.State is EntityState.Added or EntityState.Modified))
+        {
+            var assignment = entry.Entity;
+            if (assignment.PlacementOutcome != PlacementOutcome.Undecided
+                && assignment.DecisionRecordedAt is null
+                && assignment.DecisionRecordedById is null
+                && assignment.DecisionActorDisplayName is null)
+            {
+                assignment.DecisionRecordedAt = DateTimeOffset.UtcNow;
+                assignment.DecisionRecordedById = assignment.CreatedById > 0 ? assignment.CreatedById : 1;
+                assignment.DecisionActorDisplayName = "Seeded decision actor";
+            }
+        }
         foreach (var entry in context.ChangeTracker.Entries<CampaignEntity>()
             .Where(entry => entry.State is EntityState.Added or EntityState.Modified))
         {

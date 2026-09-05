@@ -38,6 +38,14 @@ public partial class CampaignWorkspace(
     private string? _openingReceiptMessage;
     private bool _receiptChecked;
     private ElementReference _rosterHeading;
+
+    private string BuildRosterUrl(CampaignWorkspaceRosterState state, string tab, long? participantId = null)
+    {
+        var url = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, state, tab, participantId);
+        return IsRosterLanding
+            ? url.Replace($"/campaigns/{CampaignId}?", $"/campaigns/{CampaignId}/roster?", StringComparison.Ordinal)
+            : url;
+    }
     /// <summary>
     /// The debounce interval for search input updates.
     /// </summary>
@@ -795,11 +803,7 @@ public partial class CampaignWorkspace(
         _appliedQueryString = CampaignWorkspaceUrlState.BuildQueryString(next);
         _reloadRosterPending = true;
 
-        var targetUrl = CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, next, _activeTab, _selectedParticipantId);
-        if (IsRosterLanding)
-        {
-            targetUrl = targetUrl.Replace($"/campaigns/{CampaignId}?", $"/campaigns/{CampaignId}/roster?", StringComparison.Ordinal);
-        }
+        var targetUrl = BuildRosterUrl(next, _activeTab, _selectedParticipantId);
 
         var currentPathAndQuery = new Uri(navigationManager.Uri).PathAndQuery;
 
@@ -973,7 +977,7 @@ public partial class CampaignWorkspace(
     {
         if (!string.Equals(TabQuery, EvaluateTabName, StringComparison.OrdinalIgnoreCase))
         {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, EvaluateTabName, _selectedParticipantId));
+            navigationManager.NavigateTo(BuildRosterUrl(_filters, EvaluateTabName, _selectedParticipantId));
         }
 
         return Task.CompletedTask;
@@ -1050,7 +1054,7 @@ public partial class CampaignWorkspace(
     {
         if (!string.Equals(TabQuery, EvaluateTabName, StringComparison.OrdinalIgnoreCase))
         {
-            navigationManager.NavigateTo(CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, EvaluateTabName, _selectedParticipantId));
+            navigationManager.NavigateTo(BuildRosterUrl(_filters, EvaluateTabName, _selectedParticipantId));
         }
 
         return Task.CompletedTask;
@@ -1312,7 +1316,7 @@ public partial class CampaignWorkspace(
         await CaptureRosterScrollAsync();
         _selectedParticipantId = item.PlayerCampaignAssignmentId;
         navigationManager.NavigateTo(
-            CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab, _selectedParticipantId));
+            BuildRosterUrl(_filters, _activeTab, _selectedParticipantId));
     }
 
     /// <summary>
@@ -1364,7 +1368,7 @@ public partial class CampaignWorkspace(
             await CaptureRosterScrollAsync();
             _selectedParticipantId = items[targetIndex].PlayerCampaignAssignmentId;
             navigationManager.NavigateTo(
-                CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab, _selectedParticipantId));
+                BuildRosterUrl(_filters, _activeTab, _selectedParticipantId));
             return;
         }
 
@@ -1424,7 +1428,7 @@ public partial class CampaignWorkspace(
         var target = move.Edge == BoundaryIntent.First ? _roster.Items[0] : _roster.Items[^1];
         _selectedParticipantId = target.PlayerCampaignAssignmentId;
         navigationManager.NavigateTo(
-            CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab, _selectedParticipantId),
+            BuildRosterUrl(_filters, _activeTab, _selectedParticipantId),
             new NavigationOptions { ReplaceHistoryEntry = true });
     }
 
@@ -1437,7 +1441,7 @@ public partial class CampaignWorkspace(
         await CaptureRosterScrollAsync();
         _selectedParticipantId = null;
         navigationManager.NavigateTo(
-            CampaignWorkspaceUrlState.BuildWorkspaceUrl(CampaignId, _filters, _activeTab));
+            BuildRosterUrl(_filters, _activeTab));
     }
 
     /// <summary>

@@ -2,6 +2,8 @@
 using Bunit;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
+using Nova.Shared.Enums;
 using Nova.Shared.Features.Campaigns;
 using Nova.Shared.Results;
 using Nova.Shared.Security;
@@ -16,10 +18,17 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class NewCampaignRecoveryTests : BunitContext
 {
     /// <summary>Verifies restored input remains editable and is removed immediately on a same-role club change.</summary>
-    [Fact]
-    public async Task NewCampaign_RestoresInput_AndInvalidatesItWhenClubChanges()
+    /// <param name="cleanupFails">Whether old-club browser cleanup is unavailable.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NewCampaign_RestoresInput_AndInvalidatesItWhenClubChanges(bool cleanupFails)
     {
         var (module, authentication, _) = Register();
+        if (cleanupFails)
+        {
+            module.SetupVoid("clear", _ => true).SetException(new JSException("Storage unavailable"));
+        }
         module.Setup<CampaignCreateFormState?>("read", invocation => Equals(invocation.Arguments[0], "101:42:True")
                 && Equals(invocation.Arguments[1], "create-form"))
             .SetResult(SavedForm());
@@ -63,6 +72,78 @@ public sealed class NewCampaignRecoveryTests : BunitContext
                 && input.ExistingSeasonId == pending.ExistingSeasonId), Arg.Any<CancellationToken>()));
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
         cut.Markup.ShouldContain("Still uncertain");
+    }
+
+    /// <summary>Verifies the visible Retry action retries browser recovery storage after a transient read failure.</summary>
+    [Fact]
+    public void NewCampaign_RetriesSessionStorage_AfterReadFailure()
+    {
+        var (module, _, _) = Register();
+        var readFails = true;
+        module.Setup<CampaignCreateFormState?>("read", _ => readFails)
+            .SetException(new JSException("Storage unavailable"));
+        var cut = Render<NewCampaign>();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Recovery storage is unavailable"));
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+
+        readFails = false;
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry").Click();
+
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        cut.Markup.ShouldNotContain("Recovery storage is unavailable");
+    }
+
+    /// <summary>Verifies recovery makes the exact request durable again before contacting the server.</summary>
+    [Fact]
+    public void NewCampaign_RepersistsRequest_BeforeRetryingFailedStorageWrite()
+    {
+        var (module, _, creation) = Register();
+        module.Setup<CampaignCreateFormState?>("read", invocation => invocation.Arguments.Contains("create-form"))
+            .SetResult(SavedForm());
+        var writeFails = true;
+        module.SetupVoid("write", invocation => writeFails && invocation.Arguments.Contains("create-pending"))
+            .SetException(new JSException("Storage temporarily unavailable"));
+        creation.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            JSInterop.Invocations.Count(invocation => invocation.Identifier == "write" && invocation.Arguments.Contains("create-form"))
+                .ShouldBeGreaterThanOrEqualTo(2);
+            JSInterop.Invocations.Count(invocation => invocation.Identifier == "write" && invocation.Arguments.Contains("create-pending"))
+                .ShouldBe(2);
+            return Task.FromResult(new ServiceResult<CreateCampaignResult>(ServiceProblem.ServerError("Still uncertain")));
+        });
+        var cut = Render<NewCampaign>();
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        cut.Find("button[type='submit']").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Confirm creation result"));
+        _ = creation.DidNotReceive().CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>());
+
+        writeFails = false;
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Confirm creation result").Click();
+
+        cut.WaitForAssertion(() => creation.Received(1).CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>()));
+    }
+
+    /// <summary>Verifies failed success cleanup leaves the pending request recoverable until saved input is removed.</summary>
+    [Fact]
+    public void NewCampaign_RetainsPendingRequest_WhenSuccessfulFormCleanupFails()
+    {
+        var (module, _, creation) = Register();
+        var form = SavedForm();
+        module.Setup<CampaignCreateFormState?>("read", invocation => invocation.Arguments.Contains("create-form")).SetResult(form);
+        module.SetupVoid("remove", invocation => invocation.Arguments.Contains("create-form"))
+            .SetException(new JSException("Storage unavailable"));
+        creation.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CreateCampaignResult>(new CreateCampaignResult(form.OperationId, 10,
+                form.Name, form.StartDate, form.PlannedEndDate, CampaignStatus.Draft,
+                5, "Current", new DateOnly(2026, 1, 1), null, false)));
+        var cut = Render<NewCampaign>();
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+
+        cut.Find("button[type='submit']").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Confirm creation result"));
+        JSInterop.Invocations.ShouldContain(invocation => invocation.Identifier == "remove" && invocation.Arguments.Contains("create-form"));
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "remove" && invocation.Arguments.Contains("create-pending"));
     }
 
     /// <summary>Builds distinctive saved input to detect replacement by newly initialized defaults.</summary>

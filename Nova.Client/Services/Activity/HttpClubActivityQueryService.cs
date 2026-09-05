@@ -173,12 +173,32 @@ public sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivit
                     && (placement.Outcome == PlacementOutcome.Assigned
                         ? !string.IsNullOrWhiteSpace(placement.TeamName)
                         : placement.TeamName is null),
-            // PlacementSuperseded is not yet emitted (future #178): the superseding assignment's
-            // outcome/team shape is not fully specified, so only the base fields are validated.
-            ActivityEventKind.PlacementSuperseded => true,
+            ActivityEventKind.PlacementSuperseded
+                => placement.PlayerId > 0
+                    && placement.SeasonId > 0
+                    && placement.PreviousCampaignId > 0
+                    && placement.PreviousCampaignId != placement.CampaignId
+                    && !string.IsNullOrWhiteSpace(placement.PreviousCampaignName)
+                    && placement.PreviousPlayerCampaignAssignmentId > 0
+                    && placement.PreviousPlayerCampaignAssignmentId != placement.PlayerCampaignAssignmentId
+                    && IsSavedDecision(placement.Outcome, placement.TeamId, placement.TeamName)
+                    && IsSavedDecision(placement.PreviousOutcome, placement.PreviousTeamId, placement.PreviousTeamName),
             _ => false,
         };
     }
+
+    /// <summary>Checks a saved outcome and its paired team identifier/name snapshots.</summary>
+    /// <param name="outcome">The saved decision outcome.</param>
+    /// <param name="teamId">The assigned team's identifier, if assigned.</param>
+    /// <param name="teamName">The assigned team's display-name snapshot, if assigned.</param>
+    /// <returns>Whether the decision has a consistent saved outcome and team.</returns>
+    private static bool IsSavedDecision(PlacementOutcome? outcome, long? teamId, string? teamName)
+        => outcome switch
+        {
+            PlacementOutcome.Assigned => teamId > 0 && !string.IsNullOrWhiteSpace(teamName),
+            PlacementOutcome.NotSelected or PlacementOutcome.Withdrawn => teamId is null && teamName is null,
+            _ => false,
+        };
 
     /// <summary>
     /// Verifies the portable ordering contract: <c>OccurredAt</c>, then <c>ActivityEventId</c> must

@@ -325,8 +325,16 @@ public sealed partial class CampaignQueryService(
 
         var activePlayerCount = await db.Players
             .CountAsync(player => player.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
-        var activeTeamCount = await db.Teams
-            .CountAsync(team => team.LifecycleStatus == LifecycleStatus.Active, cancellationToken);
+        // One statement keeps the bounded preview and its total on the same database snapshot.
+        var teamSnapshot = await db.Clubs.Where(club => club.ClubId == clubId).AsSingleQuery()
+            .Select(club => new
+            {
+                Count = club.Teams.Count(team => team.LifecycleStatus == LifecycleStatus.Active),
+                Preview = club.Teams.Where(team => team.LifecycleStatus == LifecycleStatus.Active)
+                    .OrderBy(team => team.Name).ThenBy(team => team.TeamId).Take(5)
+                    .Select(team => new CampaignOpeningTeam(team.TeamId, team.Name)).ToList()
+            }).SingleAsync(cancellationToken);
+        var activeTeamCount = teamSnapshot.Count;
         var blockingCampaign = await db.Campaigns
             .Where(campaign => campaign.CampaignId != campaignId && campaign.Status == CampaignStatus.Active)
             .OrderBy(campaign => campaign.CampaignId)
@@ -357,12 +365,7 @@ public sealed partial class CampaignQueryService(
             warnings,
             blockingCampaign)
         {
-            ActiveTeams = await db.Teams
-                .Where(team => team.LifecycleStatus == LifecycleStatus.Active)
-                .OrderBy(team => team.Name).ThenBy(team => team.TeamId)
-                .Take(5)
-                .Select(team => new CampaignOpeningTeam(team.TeamId, team.Name))
-                .ToListAsync(cancellationToken)
+            ActiveTeams = teamSnapshot.Preview
         };
     }
 

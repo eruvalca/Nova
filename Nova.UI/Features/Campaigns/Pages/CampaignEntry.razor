@@ -17,11 +17,19 @@ STORY: Save essentials, correct readiness, review enrollment, open explicitly.
 FIRST VIEWPORT: Identity above a broad preparation column and narrow readiness board.
 FORM: Details and readiness; seed cb82d130; approved comp issue-196-readiness-split.png.
 -->
-@if (_unavailable)
+@if (_deletePending && _admin)
+{
+    <h1>Confirm draft deletion</h1>
+    <p>The deletion result needs confirmation. Your club's teams remain.</p>
+    @if (_mutationError is not null) { <p role="alert">@_mutationError</p> }
+    <button class="btn btn-danger" disabled="@(_busy || !_sessionReady)" @onclick="DeleteAsync">Confirm deletion result</button>
+}
+else if (_unavailable)
 {
     <h1>Campaign not found</h1>
     <p>This campaign does not exist or is not visible to your club.</p>
     <a href="/campaigns">Return to campaigns</a>
+    @if (_error is not null) { <p role="alert">@_error <button class="btn btn-outline-primary" @onclick="RetryAsync">Retry</button></p> }
 }
 else if (Detail is not null && Detail.Status != CampaignStatus.Draft && _openingId is null)
 {
@@ -41,7 +49,7 @@ else
         @if (_message is not null) { <p role="status">@_message</p> }
         @if (_error is not null)
         {
-            <div class="alert alert-danger" role="alert">@_error <button class="btn btn-outline-danger" @onclick="ReloadAsync" disabled="@_busy">Retry</button></div>
+            <div class="alert alert-danger" role="alert">@_error <button class="btn btn-outline-danger" @onclick="RetryAsync" disabled="@_busy">Retry</button></div>
         }
         @if (Detail is null)
         {

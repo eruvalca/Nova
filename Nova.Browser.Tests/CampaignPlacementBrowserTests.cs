@@ -213,13 +213,14 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
                 // The focus did not land or was lost to a rerender; the next attempt refocuses.
             }
 
-            // Reset to Undecided first so a single ArrowDown deterministically reaches Assigned.
+            // Reset to NotSelected so ArrowUp deterministically reaches Assigned.
             // Without the reset, a queued change from a previous attempt can move the select past
             // Assigned while the team-enabled check still observes the stale enabled state, and the
             // subsequent change disables the team select again. Retry until the team actually
             // enables so a swallowed prerender change event recovers once the circuit attaches.
-            await outcome.SelectOptionAsync("0");
-            await page.Keyboard.PressAsync("ArrowDown");
+            await Expect(outcome.Locator("option[value='0']")).ToBeDisabledAsync();
+            await outcome.SelectOptionAsync("2");
+            await page.Keyboard.PressAsync("ArrowUp");
             await page.Keyboard.PressAsync("Enter");
             if (await outcome.InputValueAsync() == "1" && await team.IsEnabledAsync())
             {
@@ -508,7 +509,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
         {
             try
             {
-                await outcomeSelect.SelectOptionAsync("0");
+                await outcomeSelect.SelectOptionAsync(outcomeValue == "2" ? "1" : "2");
                 await outcomeSelect.SelectOptionAsync(outcomeValue);
                 await Expect(outcomeSelect).ToHaveValueAsync(outcomeValue, new() { Timeout = 1500 });
                 if (outcome != PlacementOutcome.Assigned)
@@ -594,7 +595,7 @@ public sealed class CampaignPlacementBrowserTests(BrowserSuiteFixture fixture)
             {
                 // Force a value change on every attempt so the change event always fires, even if a
                 // previous swallowed select left the DOM value already at "1".
-                await outcomeSelect.SelectOptionAsync("0");
+                await outcomeSelect.SelectOptionAsync("2");
                 await outcomeSelect.SelectOptionAsync("1");
             }
             catch (Exception exception) when (exception is PlaywrightException or TimeoutException)

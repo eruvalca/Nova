@@ -51,7 +51,7 @@ public partial class Campaigns(
     private bool _canManageCampaigns;
 
     /// <summary>
-    /// The active campaign lifecycle-status filter ("active" or "closed").
+    /// The campaign view filter ("all", "draft", "active", or "closed").
     /// </summary>
     private string _statusFilter = "all";
     private int _page = 1;
@@ -696,6 +696,7 @@ public partial class Campaigns(
         _statusMessage = null;
         _page = 1;
         StateHasChanged();
+        SyncViewToUrl();
         await LoadListAsync();
         StateHasChanged();
     });

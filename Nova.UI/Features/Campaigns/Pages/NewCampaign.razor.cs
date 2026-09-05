@@ -78,7 +78,8 @@ public partial class NewCampaign(
         StateHasChanged();
         if (_module is not null)
         {
-            await _module!.InvokeVoidAsync("clear", ComponentCancellationToken, old);
+            try { await _module.InvokeVoidAsync("clear", ComponentCancellationToken, old); }
+            catch (JSException) { /* New-scope initialization reports storage availability independently. */ }
         }
 
         await LoadSetupAsync();
@@ -97,7 +98,7 @@ public partial class NewCampaign(
         var version = _version;
         try
         {
-            _module = await js.InvokeAsync<IJSObjectReference>("import", ComponentCancellationToken,
+            _module ??= await js.InvokeAsync<IJSObjectReference>("import", ComponentCancellationToken,
                 "./_content/Nova.UI/Features/Campaigns/Pages/NewCampaign.razor.js");
             var saved = await _module.InvokeAsync<CampaignCreateFormState?>("read", ComponentCancellationToken, _scope, "create-form");
             var pending = await _module.InvokeAsync<CreateCampaignInput?>("read", ComponentCancellationToken, _scope, "create-pending");
@@ -183,7 +184,13 @@ public partial class NewCampaign(
         }
     }
 
-    private Task ReloadAsync() => LoadSetupAsync();
+    private Task ReloadAsync()
+    {
+        ++_version;
+        _storageAttempted = false;
+        _sessionReady = false;
+        return LoadSetupAsync();
+    }
 
     private async Task SaveInputAsync(CampaignCreateFormState model)
     {
@@ -224,14 +231,14 @@ public partial class NewCampaign(
                 }
 
                 _pending = _createForm.ToCreateInput();
-                await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-form", _createForm);
-                if (version != _version)
-                {
-                    return;
-                }
-
-                await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-pending", _pending);
             }
+            // Confirmation cannot bypass persistence after a failed initial write.
+            await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-form", _createForm);
+            if (version != _version)
+            {
+                return;
+            }
+            await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, "create-pending", _pending);
             if (version != _version)
             {
                 return;
@@ -245,13 +252,13 @@ public partial class NewCampaign(
 
             if (result.IsSuccess)
             {
-                await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, "create-pending");
+                await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, "create-form");
                 if (version != _version)
                 {
                     return;
                 }
 
-                await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, "create-form");
+                await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, "create-pending");
                 if (version != _version)
                 {
                     return;

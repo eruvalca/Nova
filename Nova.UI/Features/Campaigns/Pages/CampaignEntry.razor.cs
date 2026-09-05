@@ -49,6 +49,7 @@ public partial class CampaignEntry(
     private bool _storageAttempted;
     private bool _busy;
     private bool _confirmDelete;
+    private bool _deletePending;
     private Guid? _openingId;
     private long _loadedId;
     private string? _loadedRoute;
@@ -100,13 +101,15 @@ public partial class CampaignEntry(
         _storageAttempted = false;
         _busy = false;
         _confirmDelete = false;
+        _deletePending = false;
         _mutationError = null;
         _fieldErrors = null;
         _message = null;
         StateHasChanged();
         if (_module is not null)
         {
-            await _module.InvokeVoidAsync("clear", ComponentCancellationToken, oldScope);
+            try { await _module.InvokeVoidAsync("clear", ComponentCancellationToken, oldScope); }
+            catch (JSException) { /* New-scope initialization independently probes recovery storage. */ }
         }
 
         await ReloadAsync();
@@ -139,6 +142,7 @@ public partial class CampaignEntry(
         _team = null;
         _busy = false;
         _confirmDelete = false;
+        _deletePending = false;
         if (routeChanged || Detail?.CampaignId != CampaignId || SnapshotScope != _scope)
         {
             Detail = null;
@@ -161,7 +165,7 @@ public partial class CampaignEntry(
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!_storageAttempted && !_unavailable && Detail is not null)
+        if (!_storageAttempted && (Detail is not null || (_admin && _unavailable)))
         {
             _storageAttempted = true;
             var version = _version;
@@ -174,15 +178,28 @@ public partial class CampaignEntry(
                 {
                     return;
                 }
+                var deleting = await _module.InvokeAsync<bool?>("read", ComponentCancellationToken, _scope, $"delete:{CampaignId}");
+                if (version != _version)
+                {
+                    return;
+                }
 
-                _openingId = Guid.TryParse(pending, out var id) && id != Guid.Empty ? id : null;
+                _openingId = Guid.TryParse(pending, out var id) && id != Guid.Empty ? id : _openingId;
+                _deletePending = deleting == true || _deletePending;
                 _sessionReady = true;
-                if (_openingId is not null && _admin)
+                if (_deletePending && _admin)
+                {
+                    await DeleteAsync();
+                }
+                else if (_openingId is not null && _admin)
                 {
                     await RecoverOpeningAsync();
                 }
 
-                await _module.InvokeVoidAsync("focus", ComponentCancellationToken, _heading);
+                if (!_unavailable && Detail?.Status == CampaignStatus.Draft)
+                {
+                    await _module.InvokeVoidAsync("focus", ComponentCancellationToken, _heading);
+                }
                 StateHasChanged();
             }
             catch (JSException)
@@ -259,6 +276,13 @@ public partial class CampaignEntry(
                 _error = "Could not load the campaign. Check your connection and retry.";
             }
         }
+    }
+
+    private Task RetryAsync()
+    {
+        _storageAttempted = false;
+        _sessionReady = false;
+        return ReloadAsync();
     }
 
     private async Task<bool> RefreshReadinessAsync(int version)
@@ -456,6 +480,12 @@ public partial class CampaignEntry(
 
     private Task DeleteAsync() => MutateAsync(async version =>
     {
+        _deletePending = true;
+        await _module!.InvokeVoidAsync("write", ComponentCancellationToken, _scope, $"delete:{CampaignId}", true);
+        if (version != _version)
+        {
+            return;
+        }
         var result = await lifecycle.DeleteDraftAsync(CampaignId, ComponentCancellationToken);
         if (version != _version)
         {
@@ -470,17 +500,38 @@ public partial class CampaignEntry(
                 return;
             }
 
-            navigation.NavigateTo("/campaigns?deleted=true");
+            await ClearDeletionAsync(version);
+            if (version == _version)
+            {
+                navigation.NavigateTo("/campaigns?deleted=true");
+            }
         }
         else
         {
             _mutationError = Explain(result.Problem);
+            if (result.Problem.Kind != ServiceProblemKind.ServerError)
+            {
+                await ClearDeletionAsync(version);
+                if (version != _version)
+                {
+                    return;
+                }
+            }
             if (result.Problem.Kind is ServiceProblemKind.Conflict or ServiceProblemKind.Forbidden or ServiceProblemKind.NotFound)
             {
                 await ReloadAsync();
             }
         }
     });
+
+    private async Task ClearDeletionAsync(int version)
+    {
+        await _module!.InvokeVoidAsync("remove", ComponentCancellationToken, _scope, $"delete:{CampaignId}");
+        if (version == _version)
+        {
+            _deletePending = false;
+        }
+    }
 
     private async Task MutateAsync(Func<int, Task> operation)
     {

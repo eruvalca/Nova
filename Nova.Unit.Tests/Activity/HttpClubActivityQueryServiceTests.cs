@@ -13,7 +13,7 @@ namespace Nova.Unit.Tests.Activity;
 /// Verifies route building, cursor emission, and strict success-payload validation for the club
 /// activity HTTP client.
 /// </summary>
-public sealed class HttpClubActivityQueryServiceTests
+public sealed partial class HttpClubActivityQueryServiceTests
 {
     /// <summary>Verifies the feed request uses the shared route and reads a populated payload.</summary>
     [Fact]

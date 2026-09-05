@@ -1,9 +1,9 @@
 let activeContainer = null;
 import { read, remove } from './CampaignEntry.razor.js';
 export function takeOpeningReceipt(scope, campaignId, heading) {
+    heading?.focus();
     const receipt = read(scope, 'receipt:' + campaignId);
     remove(scope, 'receipt:' + campaignId);
-    heading?.focus();
     return receipt;
 }
 let keydownListener = null;

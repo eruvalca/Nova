@@ -13,6 +13,7 @@ using Nova.Shared.Results;
 using Nova.Shared.Security;
 using Nova.UI.Features.Campaigns.Pages;
 using NSubstitute;
+using OneOf.Types;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -295,6 +296,39 @@ public sealed class CampaignEntryTests : BunitContext
         _ = lifecycle.DidNotReceive().OpenAsync(Arg.Any<long>(), Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>Verifies reload reconciles a completed Draft deletion through its tombstone despite missing detail.</summary>
+    [Fact]
+    public void CampaignEntry_ReplaysPendingDeletion_WhenDetailIsAlreadyNotFound()
+    {
+        var (queries, lifecycle) = Register(ReadyWithoutTeams(), persistedDeletion: true);
+        queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CampaignDetailResult>(ServiceProblem.NotFound()));
+        lifecycle.DeleteDraftAsync(10, Arg.Any<CancellationToken>()).Returns(new ServiceResult<Success>(new Success()));
+
+        var cut = RenderReview();
+
+        cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.ShouldContain("/campaigns?deleted=true"));
+        _ = lifecycle.Received(1).DeleteDraftAsync(10, Arg.Any<CancellationToken>());
+        JSInterop.Invocations.ShouldContain(invocation => invocation.Identifier == "remove" && invocation.Arguments.Contains("delete:10"));
+    }
+
+    /// <summary>Verifies Retry restores mutation controls after a transient recovery-storage read failure.</summary>
+    [Fact]
+    public void CampaignEntry_RetriesStorage_AfterTransientReadFailure()
+    {
+        var failRead = true;
+        Register(ReadyWithoutTeams(), storageReadFails: () => failRead);
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Recovery storage is unavailable"));
+        cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue();
+
+        failRead = false;
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry").Click();
+
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        cut.Markup.ShouldNotContain("Recovery storage is unavailable");
+    }
+
     /// <summary>Renders the URL-backed review board for the seeded Draft.</summary>
     /// <returns>The rendered page.</returns>
     private IRenderedComponent<CampaignEntry> RenderReview()
@@ -314,8 +348,10 @@ public sealed class CampaignEntryTests : BunitContext
     /// <param name="persistedOpeningId">The pending opening operation recovered from session storage.</param>
     /// <param name="failStorageRemoval">Whether session removal throws to exercise unavailable browser storage.</param>
     /// <param name="failOpeningStorageWrite">Whether the opening-operation write should fail.</param>
+    /// <param name="persistedDeletion">Whether the tab contains a pending deletion.</param>
+    /// <param name="storageReadFails">Controls whether the opening-marker read fails.</param>
     /// <returns>The query and lifecycle doubles available for scenario-specific behavior.</returns>
-    private (ICampaignQueryService Queries, ICampaignLifecycleService Lifecycle) Register(CampaignOpeningReadinessResult readiness, bool isAdmin = true, Guid? persistedOpeningId = null, bool failStorageRemoval = false, Func<bool>? failOpeningStorageWrite = null)
+    private (ICampaignQueryService Queries, ICampaignLifecycleService Lifecycle) Register(CampaignOpeningReadinessResult readiness, bool isAdmin = true, Guid? persistedOpeningId = null, bool failStorageRemoval = false, Func<bool>? failOpeningStorageWrite = null, bool persistedDeletion = false, Func<bool>? storageReadFails = null)
     {
         ComponentFactories.AddStub<CampaignWorkspace>();
         var queries = Substitute.For<ICampaignQueryService>();
@@ -353,16 +389,33 @@ public sealed class CampaignEntryTests : BunitContext
             module.SetupVoid("write", invocation => invocation.Arguments.Contains("open:10") && failOpeningStorageWrite())
                 .SetException(new JSException("Session storage quota exceeded"));
         }
+        var hasPendingOpening = persistedOpeningId.HasValue;
+        var hasPendingDeletion = persistedDeletion;
+        if (storageReadFails is not null)
+        {
+            module.Setup<string?>("read", invocation => storageReadFails() && invocation.Arguments.Contains("open:10"))
+                .SetException(new JSException("Storage temporarily unavailable"));
+        }
+        if (persistedDeletion)
+        {
+            module.Setup<bool?>("read", invocation => hasPendingDeletion && invocation.Arguments.Contains("delete:10")).SetResult(true);
+        }
         if (persistedOpeningId is { } saved)
         {
-            var hasPendingOpening = true;
             module.Setup<string?>("read", invocation => hasPendingOpening
                 && invocation.Arguments.Contains("open:10")).SetResult(saved.ToString());
+        }
+        if (persistedOpeningId is not null || persistedDeletion)
+        {
             var removal = module.SetupVoid("remove", invocation =>
             {
                 if (!failStorageRemoval && invocation.Arguments.Contains("open:10"))
                 {
                     hasPendingOpening = false;
+                }
+                if (!failStorageRemoval && invocation.Arguments.Contains("delete:10"))
+                {
+                    hasPendingDeletion = false;
                 }
 
                 return true;
