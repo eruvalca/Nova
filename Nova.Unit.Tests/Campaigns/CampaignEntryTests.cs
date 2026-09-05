@@ -21,6 +21,91 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>Verifies Draft readiness and opening recovery through the rendered administrator controls.</summary>
 public sealed class CampaignEntryTests : BunitContext
 {
+    /// <summary>Verifies incompatible recovery markers prevent mutation and remain available for corrected retry.</summary>
+    /// <param name="key">The typed recovery marker that fails to deserialize.</param>
+    /// <param name="unsupported">Whether the failure is unsupported data rather than malformed JSON.</param>
+    /// <param name="active">Whether the campaign was already opened before recovery.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("open:10", false, false)]
+    [InlineData("open:10", true, false)]
+    [InlineData("delete:10", false, false)]
+    [InlineData("delete:10", true, false)]
+    [InlineData("open:10", false, true)]
+    [InlineData("open:10", true, true)]
+    public void CampaignEntry_PreservesIncompatibleRecovery_UntilCorrectedRetry(string key, bool unsupported, bool active)
+    {
+        var corrupt = true;
+        var operationId = Guid.NewGuid();
+        Exception failure = unsupported ? new NotSupportedException("Unsupported marker") : new System.Text.Json.JsonException("Malformed marker");
+        var (queries, lifecycle) = Register(ReadyWithoutTeams(), persistedOpeningId: operationId,
+            incompatibleRead: () => corrupt, incompatibleKey: key, incompatibleException: failure);
+        if (active)
+        {
+            queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
+                .Returns(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Summer Draft") with { Status = CampaignStatus.Active }));
+        }
+        lifecycle.OpenAsync(10, Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<OpenCampaignResult>(ServiceProblem.ServerError("Still uncertain")));
+        var cut = RenderReview();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Stored campaign recovery data is incompatible"));
+        if (!active)
+        {
+            cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue();
+        }
+        _ = lifecycle.DidNotReceive().OpenAsync(Arg.Any<long>(), Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
+        _ = lifecycle.DidNotReceive().DeleteDraftAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "remove" || invocation.Identifier == "clear");
+        corrupt = false;
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry").Click();
+        cut.WaitForAssertion(() => lifecycle.Received(1).OpenAsync(10,
+            Arg.Is<OpenCampaignInput>(input => input.OperationId == operationId), Arg.Any<CancellationToken>()));
+    }
+
+    /// <summary>Verifies startup and notification tasks cannot restore an obsolete authentication scope.</summary>
+    /// <param name="startup">Whether the older result belongs to startup authentication.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CampaignEntry_IgnoresOvertakenAuthentication(bool startup)
+    {
+        Register(ReadyWithoutTeams());
+        var older = new TaskCompletionSource<AuthenticationState>();
+        var authentication = new DeferredAuthentication(startup ? older.Task : Task.FromResult(DeferredAuthentication.State(42)));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = RenderReview();
+        if (!startup)
+        {
+            cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+            await cut.InvokeAsync(() => authentication.Publish(older.Task));
+        }
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(DeferredAuthentication.State(43))));
+        cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
+
+        await cut.InvokeAsync(() => older.SetResult(DeferredAuthentication.State(42)));
+
+        cut.Instance.SnapshotScope.ShouldBe("101:43:True");
+        cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse();
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "clear" && invocation.Arguments.Contains("101:43:True"));
+    }
+
+    /// <summary>Verifies authentication finishing after disposal cannot reload campaign data.</summary>
+    [Fact]
+    public async Task CampaignEntry_IgnoresAuthenticationCompletion_AfterDisposal()
+    {
+        var (queries, _) = Register(ReadyWithoutTeams());
+        var authentication = new DeferredAuthentication(Task.FromResult(DeferredAuthentication.State(42)));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = RenderReview();
+        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        await cut.InvokeAsync(() => authentication.Publish(pending.Task));
+        await cut.Instance.DisposeAsync();
+        cut.Dispose();
+        await cut.InvokeAsync(() => pending.SetResult(DeferredAuthentication.State(43)));
+        _ = queries.Received(1).GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Verifies the deployed page can attach the callbacks exercised by these tests.</summary>
     [Fact]
     public void CampaignEntry_DeclaresInteractiveAutoRenderMode()
@@ -376,8 +461,11 @@ public sealed class CampaignEntryTests : BunitContext
     /// <param name="failOpeningStorageWrite">Whether the opening-operation write should fail.</param>
     /// <param name="persistedDeletion">Whether the tab contains a pending deletion.</param>
     /// <param name="storageReadFails">Controls whether the opening-marker read fails.</param>
+    /// <param name="incompatibleRead">Controls whether a typed marker is incompatible.</param>
+    /// <param name="incompatibleKey">The incompatible marker key.</param>
+    /// <param name="incompatibleException">The typed deserialization failure.</param>
     /// <returns>The query and lifecycle doubles available for scenario-specific behavior.</returns>
-    private (ICampaignQueryService Queries, ICampaignLifecycleService Lifecycle) Register(CampaignOpeningReadinessResult readiness, bool isAdmin = true, Guid? persistedOpeningId = null, bool failStorageRemoval = false, Func<bool>? failOpeningStorageWrite = null, bool persistedDeletion = false, Func<bool>? storageReadFails = null)
+    private (ICampaignQueryService Queries, ICampaignLifecycleService Lifecycle) Register(CampaignOpeningReadinessResult readiness, bool isAdmin = true, Guid? persistedOpeningId = null, bool failStorageRemoval = false, Func<bool>? failOpeningStorageWrite = null, bool persistedDeletion = false, Func<bool>? storageReadFails = null, Func<bool>? incompatibleRead = null, string? incompatibleKey = null, Exception? incompatibleException = null)
     {
         ComponentFactories.AddStub<CampaignWorkspace>();
         var queries = Substitute.For<ICampaignQueryService>();
@@ -410,6 +498,17 @@ public sealed class CampaignEntryTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         var module = JSInterop.SetupModule("./_content/Nova.UI/Features/Campaigns/Pages/CampaignEntry.razor.js");
         module.Mode = JSRuntimeMode.Loose;
+        if (incompatibleRead is not null)
+        {
+            if (incompatibleKey == "open:10")
+            {
+                module.Setup<string?>("read", invocation => incompatibleRead() && invocation.Arguments.Contains(incompatibleKey)).SetException(incompatibleException!);
+            }
+            else
+            {
+                module.Setup<bool?>("read", invocation => incompatibleRead() && invocation.Arguments.Contains(incompatibleKey)).SetException(incompatibleException!);
+            }
+        }
         if (failOpeningStorageWrite is not null)
         {
             module.SetupVoid("write", invocation => invocation.Arguments.Contains("open:10") && failOpeningStorageWrite())
@@ -428,7 +527,7 @@ public sealed class CampaignEntryTests : BunitContext
         }
         if (persistedOpeningId is { } saved)
         {
-            module.Setup<string?>("read", invocation => hasPendingOpening
+            module.Setup<string?>("read", invocation => hasPendingOpening && !(incompatibleKey == "open:10" && incompatibleRead?.Invoke() == true)
                 && invocation.Arguments.Contains("open:10")).SetResult(saved.ToString());
         }
         if (persistedOpeningId is not null || persistedDeletion)
@@ -480,6 +579,25 @@ public sealed class CampaignEntryTests : BunitContext
             SnapshotScope = "101:42:True";
             return base.OnInitializedAsync();
         }
+    }
+
+    /// <summary>Controls authentication completion independently of notification order.</summary>
+    /// <param name="initial">The startup authentication task.</param>
+    private sealed class DeferredAuthentication(Task<AuthenticationState> initial) : AuthenticationStateProvider
+    {
+        /// <inheritdoc />
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => initial;
+
+        /// <summary>Publishes an authentication task.</summary>
+        /// <param name="state">The pending state.</param>
+        public void Publish(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
+
+        /// <summary>Creates an administrator state for the specified club.</summary>
+        /// <param name="clubId">The current club.</param>
+        /// <returns>The authenticated state.</returns>
+        public static AuthenticationState State(long clubId) => new(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "101"), new Claim(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                new Claim(ClaimTypes.Role, Roles.ClubAdmin)], "Test")));
     }
 
     /// <summary>Provides the administrator identity used to own recovery state.</summary>

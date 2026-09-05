@@ -31,7 +31,7 @@ The detector reported eight advisory type-ramp differences and no failures. The 
 
 ## Verification
 
-Validated for PR #244 review round nine on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,505 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight and nine change UI state/rendering only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
+Validated for PR #244 review round ten on September 5, 2026, including the code in this commit. Solution build: passed with zero warnings. Unit suite: 2,521 passed. Full browser suite: 120 passed, seven existing optional screenshot-only checks skipped; the three Draft journey tests execute without flags, including malformed directory URL coverage. Format verification passed. Latest PostgreSQL/HTTP integration suite: 531 passed in round seven; rounds eight through ten change UI state/rendering only. Theme contrast/token checks passed in round five; theme inputs are unchanged.
 
 Provider tests verify visibility before counts/paging, current-season ordering, closure ordering, bounded team preview and existing lifecycle/activity contracts. Component tests cover readiness freshness, replay and immutable counts, persisted creation recovery and identity invalidation, and late-route response suppression. Browser tests cover first-season creation, correction returns, opening by keyboard and focused Roster feedback, inline team creation, team-preserving deletion, long/mobile content, and member direct-link exclusion.
 
@@ -94,3 +94,13 @@ The ninth review round resets the Players URL on role changes as well as user/cl
 | Requirement | Regression evidence in `PlayerComponentsTests` |
 |---|---|
 | Reset the URL and query lifecycle/search/year/tag values when administrator access is revoked | `Players_ReturnToDraft_RequiresCurrentAdministratorRole` |
+
+The tenth review round orders authentication completions in Draft creation and preparation, including startup and disposal. Stale work cannot replace the latest identity or resume recovery from its previous scope. Typed recovery schema failures leave commands disabled and preserve the original markers; Retry can resume the original operation once compatible data is available. The preparation error remains visible for an already Active campaign as well.
+
+| Requirement | Regression evidence |
+|---|---|
+| Ignore older startup/notification authentication completions | `NewCampaign_IgnoresOvertakenAuthentication`, `CampaignEntry_IgnoresOvertakenAuthentication` |
+| Ignore authentication finishing after component disposal | `NewCampaign_IgnoresAuthenticationCompletion_AfterDisposal`, `CampaignEntry_IgnoresAuthenticationCompletion_AfterDisposal` |
+| Preserve incompatible form/pending/open/delete data, block commands, and retry the original operation | `NewCampaign_PreservesIncompatibleRecovery_UntilCorrectedRetry`, `CampaignEntry_PreservesIncompatibleRecovery_UntilCorrectedRetry` |
+
+Focused validation passed: `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build --filter-class '*CampaignEntryTests'` (27 tests) and the equivalent `'*NewCampaignRecoveryTests'` filter (16 tests).

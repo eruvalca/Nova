@@ -31,6 +31,8 @@ public partial class NewCampaign(
     private IJSObjectReference? _module;
     private string _scope = "";
     private int _version;
+    /// <summary>Orders authentication completions across startup, notifications, and disposal.</summary>
+    private int _authenticationVersion;
     private IReadOnlyDictionary<string, string[]>? _fieldErrors;
 
     /// <summary>Gets or sets the persisted setup.</summary>
@@ -46,7 +48,13 @@ public partial class NewCampaign(
     protected override async Task OnInitializedAsync()
     {
         authentication.AuthenticationStateChanged += AuthenticationChanged;
-        _scope = Identity(await authentication.GetAuthenticationStateAsync());
+        var authenticationVersion = _authenticationVersion;
+        var state = await authentication.GetAuthenticationStateAsync();
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        _scope = Identity(state);
         if (Initialized && SnapshotScope == _scope)
         {
             _setup = PersistedSetup;
@@ -54,7 +62,6 @@ public partial class NewCampaign(
             return;
         }
         await LoadSetupAsync();
-        Initialized = true;
     }
 
     private static string Identity(AuthenticationState state) => $"{state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value}:{state.User.FindFirst(NovaClaimTypes.ClubId)?.Value}:{state.User.IsInRole(Roles.ClubAdmin)}";
@@ -63,14 +70,20 @@ public partial class NewCampaign(
     /// <param name="task">The updated authentication state.</param>
     private void AuthenticationChanged(Task<AuthenticationState> task) => _ = InvokeAsync(async () =>
     {
-        var next = Identity(await task);
+        var authenticationVersion = ++_authenticationVersion;
+        var state = await task;
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        var next = Identity(state);
         if (next == _scope)
         {
             return;
         }
 
         var old = _scope;
-        ++_version;
+        var version = ++_version;
         _scope = next;
         _setup = null;
         PersistedSetup = null;
@@ -93,6 +106,10 @@ public partial class NewCampaign(
             catch (JSException) { /* New-scope initialization reports storage availability independently. */ }
         }
 
+        if (version != _version || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         await LoadSetupAsync();
         StateHasChanged();
     });
@@ -111,7 +128,15 @@ public partial class NewCampaign(
         {
             _module ??= await js.InvokeAsync<IJSObjectReference>("import", ComponentCancellationToken,
                 "./_content/Nova.UI/Features/Campaigns/Pages/NewCampaign.razor.js");
+            if (version != _version)
+            {
+                return;
+            }
             var saved = await _module.InvokeAsync<CampaignCreateFormState?>("read", ComponentCancellationToken, _scope, "create-form");
+            if (version != _version)
+            {
+                return;
+            }
             var pending = await _module.InvokeAsync<CreateCampaignInput?>("read", ComponentCancellationToken, _scope, "create-pending");
             if (version != _version)
             {
@@ -138,11 +163,14 @@ public partial class NewCampaign(
             _sessionReady = true;
             StateHasChanged();
         }
-        catch (JSException)
+        catch (Exception exception) when (exception is JSException or System.Text.Json.JsonException or NotSupportedException)
         {
             if (version == _version)
             {
-                _pageError = "Recovery storage is unavailable. Enable session storage and reload before creating a Draft.";
+                _sessionReady = false;
+                _pageError = exception is JSException
+                    ? "Recovery storage is unavailable. Enable session storage and reload before creating a Draft."
+                    : "Stored creation recovery data is incompatible. Creation is disabled and the original recovery data is preserved. Restore compatible recovery data before retrying; check Campaigns for a previously created Draft.";
                 StateHasChanged();
             }
         }
@@ -365,6 +393,7 @@ public partial class NewCampaign(
     /// <inheritdoc />
     protected override async ValueTask DisposeAsyncCore()
     {
+        ++_authenticationVersion;
         ++_version;
         authentication.AuthenticationStateChanged -= AuthenticationChanged;
         if (_module is not null)

@@ -17,6 +17,89 @@ namespace Nova.Unit.Tests.Campaigns;
 /// <summary>Verifies tab-scoped creation input and exact pending requests survive reload only for their owner.</summary>
 public sealed class NewCampaignRecoveryTests : BunitContext
 {
+    /// <summary>Verifies incompatible typed recovery data stays intact and retry restores the original operation.</summary>
+    /// <param name="key">The stored payload that fails deserialization.</param>
+    /// <param name="unsupported">Whether interop rejects the payload type instead of its JSON.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("create-form", false)]
+    [InlineData("create-form", true)]
+    [InlineData("create-pending", false)]
+    [InlineData("create-pending", true)]
+    public void NewCampaign_PreservesIncompatibleRecovery_UntilCorrectedRetry(string key, bool unsupported)
+    {
+        var (module, _, creation) = Register();
+        var form = SavedForm();
+        var corrupt = true;
+        Exception failure = unsupported ? new NotSupportedException("Unsupported payload") : new System.Text.Json.JsonException("Malformed payload");
+        if (key == "create-form")
+        {
+            module.Setup<CampaignCreateFormState?>("read", invocation => corrupt && invocation.Arguments.Contains(key)).SetException(failure);
+        }
+        else
+        {
+            module.Setup<CreateCampaignInput?>("read", invocation => corrupt && invocation.Arguments.Contains(key)).SetException(failure);
+        }
+        module.Setup<CampaignCreateFormState?>("read", invocation => (!corrupt || key != "create-form") && invocation.Arguments.Contains("create-form")).SetResult(form);
+        module.Setup<CreateCampaignInput?>("read", invocation => !corrupt && invocation.Arguments.Contains("create-pending")).SetResult(form.ToCreateInput());
+        creation.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<CreateCampaignResult>(ServiceProblem.ServerError("Uncertain response")));
+        var cut = Render<NewCampaign>();
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Stored creation recovery data is incompatible"));
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
+        _ = creation.DidNotReceive().CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>());
+        module.Invocations.ShouldNotContain(invocation => invocation.Identifier == "clear" || invocation.Identifier == "remove");
+        corrupt = false;
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry").Click();
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Confirm creation result"));
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Confirm creation result").Click();
+        cut.WaitForAssertion(() => creation.Received(1).CreateAsync(Arg.Is<CreateCampaignInput>(input => input.OperationId == form.OperationId), Arg.Any<CancellationToken>()));
+    }
+
+    /// <summary>Verifies startup and notification authentication tasks cannot restore an obsolete identity.</summary>
+    /// <param name="startup">Whether the older task is the initial authentication read.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NewCampaign_IgnoresOvertakenAuthentication(bool startup)
+    {
+        Register();
+        var older = new TaskCompletionSource<AuthenticationState>();
+        var authentication = new DeferredAuthentication(startup ? older.Task : Task.FromResult(DeferredAuthentication.State(42)));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<NewCampaign>();
+        if (!startup)
+        {
+            cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+            await cut.InvokeAsync(() => authentication.Publish(older.Task));
+        }
+        await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(DeferredAuthentication.State(43))));
+        cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
+
+        await cut.InvokeAsync(() => older.SetResult(DeferredAuthentication.State(42)));
+
+        cut.Instance.SnapshotScope.ShouldBe("101:43:True");
+        cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse();
+        JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "clear" && invocation.Arguments.Contains("101:43:True"));
+    }
+
+    /// <summary>Verifies a pending authentication notification cannot reload setup after disposal.</summary>
+    [Fact]
+    public async Task NewCampaign_IgnoresAuthenticationCompletion_AfterDisposal()
+    {
+        Register();
+        var authentication = new DeferredAuthentication(Task.FromResult(DeferredAuthentication.State(42)));
+        Services.AddSingleton<AuthenticationStateProvider>(authentication);
+        var cut = Render<NewCampaign>();
+        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        var pending = new TaskCompletionSource<AuthenticationState>();
+        await cut.InvokeAsync(() => authentication.Publish(pending.Task));
+        await cut.Instance.DisposeAsync();
+        cut.Dispose();
+        await cut.InvokeAsync(() => pending.SetResult(DeferredAuthentication.State(43)));
+        _ = Services.GetRequiredService<ICampaignQueryService>().Received(1).GetCreationSetupAsync(Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Verifies restored input remains editable and is removed immediately on a same-role club change.</summary>
     /// <param name="cleanupFails">Whether old-club browser cleanup is unavailable.</param>
     [Theory(IncludeTestCaseIndex = true)]
@@ -282,6 +365,25 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         var module = JSInterop.SetupModule("./_content/Nova.UI/Features/Campaigns/Pages/NewCampaign.razor.js");
         module.Mode = JSRuntimeMode.Loose;
         return (module, authentication, creation);
+    }
+
+    /// <summary>Controls authentication completion independently of notification order.</summary>
+    /// <param name="initial">The startup authentication task.</param>
+    private sealed class DeferredAuthentication(Task<AuthenticationState> initial) : AuthenticationStateProvider
+    {
+        /// <inheritdoc />
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => initial;
+
+        /// <summary>Publishes an authentication task.</summary>
+        /// <param name="state">The pending state.</param>
+        public void Publish(Task<AuthenticationState> state) => NotifyAuthenticationStateChanged(state);
+
+        /// <summary>Creates an administrator state owned by a specific club.</summary>
+        /// <param name="clubId">The club identifier.</param>
+        /// <returns>The authenticated state.</returns>
+        public static AuthenticationState State(long clubId) => new(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "101"), new Claim(NovaClaimTypes.ClubId, clubId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                new Claim(ClaimTypes.Role, Roles.ClubAdmin)], "Test")));
     }
 
     /// <summary>Publishes same-role club changes without replacing the user's identity.</summary>

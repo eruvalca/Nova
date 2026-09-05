@@ -54,6 +54,8 @@ public partial class CampaignEntry(
     private long _loadedId;
     private string? _loadedRoute;
     private int _version;
+    /// <summary>Orders authentication completions across startup, notifications, and disposal.</summary>
+    private int _authenticationVersion;
     private int _mutationVersion;
     private IJSObjectReference? _module;
     private ElementReference _heading;
@@ -68,7 +70,13 @@ public partial class CampaignEntry(
     protected override async Task OnInitializedAsync()
     {
         authentication.AuthenticationStateChanged += AuthenticationChanged;
-        ApplyIdentity(await authentication.GetAuthenticationStateAsync());
+        var authenticationVersion = _authenticationVersion;
+        var state = await authentication.GetAuthenticationStateAsync();
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        ApplyIdentity(state);
     }
 
     private void ApplyIdentity(AuthenticationState state)
@@ -78,9 +86,16 @@ public partial class CampaignEntry(
         _scope = $"{user.FindFirst(ClaimTypes.NameIdentifier)?.Value}:{user.FindFirst(NovaClaimTypes.ClubId)?.Value}:{_admin}";
     }
 
+    /// <summary>Applies only the latest identity before replacing its recovery and campaign state.</summary>
+    /// <param name="stateTask">The pending authentication notification.</param>
     private void AuthenticationChanged(Task<AuthenticationState> stateTask) => _ = InvokeAsync(async () =>
     {
+        var authenticationVersion = ++_authenticationVersion;
         var state = await stateTask;
+        if (authenticationVersion != _authenticationVersion || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         var oldScope = _scope;
         ApplyIdentity(state);
         if (oldScope == _scope)
@@ -88,7 +103,7 @@ public partial class CampaignEntry(
             return;
         }
 
-        ++_version;
+        var version = ++_version;
         ++_mutationVersion;
         Detail = null;
         Readiness = null;
@@ -102,6 +117,7 @@ public partial class CampaignEntry(
         _busy = false;
         _confirmDelete = false;
         _deletePending = false;
+        _error = null;
         _mutationError = null;
         _fieldErrors = null;
         _message = null;
@@ -112,6 +128,10 @@ public partial class CampaignEntry(
             catch (JSException) { /* New-scope initialization independently probes recovery storage. */ }
         }
 
+        if (version != _version || ComponentCancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
         await ReloadAsync();
         StateHasChanged();
     });
@@ -173,6 +193,10 @@ public partial class CampaignEntry(
             {
                 _module ??= await js.InvokeAsync<IJSObjectReference>("import", ComponentCancellationToken,
                     "./_content/Nova.UI/Features/Campaigns/Pages/CampaignEntry.razor.js");
+                if (version != _version)
+                {
+                    return;
+                }
                 var pending = await _module.InvokeAsync<string?>("read", ComponentCancellationToken, _scope, $"open:{CampaignId}");
                 if (version != _version)
                 {
@@ -202,14 +226,17 @@ public partial class CampaignEntry(
                 }
                 StateHasChanged();
             }
-            catch (JSException)
+            catch (Exception exception) when (exception is JSException or System.Text.Json.JsonException or NotSupportedException)
             {
                 if (version != _version)
                 {
                     return;
                 }
 
-                _error = "Recovery storage is unavailable. Enable session storage and reload before changing this campaign.";
+                _sessionReady = false;
+                _error = exception is JSException
+                    ? "Recovery storage is unavailable. Enable session storage and reload before changing this campaign."
+                    : "Stored campaign recovery data is incompatible. Opening and deletion recovery is paused, and the original markers are preserved. Restore compatible recovery data before retrying.";
                 StateHasChanged();
             }
         }
@@ -579,6 +606,7 @@ public partial class CampaignEntry(
     /// <inheritdoc />
     protected override async ValueTask DisposeAsyncCore()
     {
+        ++_authenticationVersion;
         ++_version;
         authentication.AuthenticationStateChanged -= AuthenticationChanged;
         if (_module is not null)
