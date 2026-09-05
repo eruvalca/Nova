@@ -488,7 +488,8 @@ public partial class CampaignWorkspace(
         // Re-derive the active tab on every parameter set. In-app tab clicks perform a client-side,
         // query-only navigation that reuses this component instance and re-supplies TabQuery, so a
         // one-shot guard would leave the rendered view stuck on the initially loaded tab.
-        _activeTab = CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
+        // The focused Roster route always owns the roster panel, regardless of workspace tab input.
+        _activeTab = IsRosterLanding ? EvaluateTabName : CampaignWorkspaceUrlState.NormalizeTab(TabQuery);
 
         // The placements state is independent of the roster state; parse it on every parameter
         // set so the placements panel receives the URL-backed filters regardless of roster state.

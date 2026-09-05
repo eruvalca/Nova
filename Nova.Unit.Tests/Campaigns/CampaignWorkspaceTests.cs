@@ -391,6 +391,28 @@ public sealed class CampaignWorkspaceTests : BunitContext
         module.Invocations.ShouldNotContain(invocation => invocation.Identifier == "acknowledgeOpeningReceipt");
     }
 
+    /// <summary>Verifies stale canonical-workspace tab values cannot replace the dedicated Roster panel.</summary>
+    /// <param name="tab">A conflicting tab retained in the query string.</param>
+    [Theory(IncludeTestCaseIndex = true)]
+    [InlineData("placements")]
+    [InlineData("overview")]
+    [InlineData("closeout")]
+    public void CampaignWorkspace_RosterLandingIgnoresConflictingTab(string tab)
+    {
+        RegisterServices();
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/campaigns/10/roster?tab={tab}");
+
+        var cut = Render<CampaignWorkspacePage>(parameters => parameters.Add(component => component.CampaignId, 10));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Find("#roster-region-heading").TextContent.Trim().ShouldBe("Roster");
+            cut.Find("#roster-search").ShouldNotBeNull();
+            cut.Find(".roster-scroll-region").ShouldNotBeNull();
+            cut.FindAll("tbody tr[id^='roster-row-']").ShouldNotBeEmpty();
+        });
+    }
+
     // ── Edit metadata ──────────────────────────────────────────────────────────
 
     [Fact]
