@@ -6,14 +6,15 @@ differences and regressions; they cannot establish a reliable reduction in futur
 
 ## Handoff and current state
 
-Prepared on 2026-09-05. Root subsequently completed all six serial control builds and test runs;
-no evaluation client has been launched. Root coordinates .NET validation and model execution. Raw fixtures/output are ignored under
+Prepared on 2026-09-05. Root completed all six serial control builds and test runs; native model
+evaluation is now running. Root grants one serial .NET grading lane while the clients implement
+without running builds/tests. Raw fixtures/output are ignored under
 artifacts/evaluation; this document retains the procedure and final compact results.
 
 - [x] Select historical starting code and focused unit acceptance source.
 - [x] Prepare fresh repositories without original Git history or evaluator acceptance tests.
 - [x] Keep application/tests and shared tooling byte-identical across each task's four agent runs.
-- [ ] Freeze final candidate guidance after implementation settles; refresh if it changed.
+- [x] Freeze candidate guidance and shared tooling for the paired runs (p3 snapshot below).
 - [x] Prove negative/positive controls and inspect their exact assertion failures.
 - [ ] Run both clients under both conditions, then apply the frozen acceptance files separately.
 - [ ] Record results and retain, simplify, or revise guidance based on observed behavior.
@@ -53,6 +54,21 @@ The manifest records application, guidance, shared-tool, prompt, and acceptance 
 an application mismatch. Short names use case v/a/d, client x (Codex) or p (Copilot), and condition
 b/c. Controls use v-n/v-p, etc. Evaluator files and prompts are outside agent workdirs.
 
+Actual runs use p3, frozen at 2026-09-05T21:54:55.977Z. All acceptance hashes match the proven p2
+controls. Task-relevant reference audit found all 11 entry documents and 25 direct relative Markdown
+links per candidate tree; the shared scope resolver succeeded. Frozen SHA256 identities:
+
+- Candidate guidance: b9893a0a8c4b0ea0123947d78c72967208b8c8ed84deda2f8315d0b70fd692cb
+- Baseline guidance: e357c9d988127fb4913ed35c80e55c09c2b568d165f564923c4ef64de6e5af86
+- Shared tooling: 0d895c2c3becba096c65b94d9d7217ec4d7f678800e845deeedfa303c9cf9e67
+
+Later repository/tooling edits do not alter these frozen comparisons. The p3 prompt explicitly
+reserves build/test execution for the controller, prohibits other agents and outside-workdir reads,
+and asks for implementation plus regression tests followed by a handoff. Both clients receive the
+same restriction. PATH shims block ordinary build-tool invocations; Copilot also denies those tools
+through native permissions. This measures first-pass implementation quality with execution withheld,
+not the effectiveness of a complete local red/green development loop or full verification gate.
+
 Root runs these commands one at a time, substituting the chosen preparation:
 
     pwsh -File artifacts/evaluation/run-control.ps1 -Preparation p2 -Case v -Control negative
@@ -88,26 +104,36 @@ state and any host-injected personal guidance identically within pairs.
 ## Client execution
 
 Installed help checked: Codex CLI 0.153.4 and Copilot CLI 1.0.83. Recheck help if versions change.
-Choose an explicit available model and reasoning setting per client and keep them fixed within
-pairs. Alternate condition order. Use fresh sessions, serial execution, and the same 30-minute
+Root requested each client's configured default model, with no model/effort override. Codex's
+configured default is gpt-6-astra/ultra; Copilot native events resolve to claude-opus-4.8. Record
+native model/usage events where available; configured settings alone do not reveal hidden server
+selection. Alternate condition order. Use fresh sessions and the same 30-minute
 limit per pair. Preserve native exit/timeout status and events. Never replace an initial result
 with an automatic retry; one optional correction turn is scored separately.
 
-Set $evaluationWorkdir, $evaluationOutput, $evaluationPrompt, and $evaluationModel to the manifest
-directory, a separate private output directory, frozen prompt text, and recorded model. Create
-the output directory first. These PowerShell invocations preserve native event output:
+The actual controller runs one sequential lane per client; the two clients may overlap while doing
+implementation-only work. The same concurrency and restrictions apply to both conditions:
 
-    $evaluationPrompt | codex exec --cd $evaluationWorkdir --model $evaluationModel --sandbox workspace-write --config 'approval_policy="never"' --ephemeral --json --color never --output-last-message (Join-Path $evaluationOutput 'final.md') - 1> (Join-Path $evaluationOutput 'events.jsonl') 2> (Join-Path $evaluationOutput 'stderr.log')
-    $evaluationExitCode = $LASTEXITCODE
+    node artifacts/evaluation/run-sequence.mjs p3 codex
+    node artifacts/evaluation/run-sequence.mjs p3 copilot
 
-    copilot -C $evaluationWorkdir --model $evaluationModel --effort high --prompt $evaluationPrompt --allow-tool 'write,shell' --deny-tool 'shell(git push),shell(gh:*)' --disable-builtin-mcps --no-ask-user --no-auto-update --no-remote-export --output-format json --no-color --log-dir (Join-Path $evaluationOutput 'client-logs') --usage-output-file (Join-Path $evaluationOutput 'usage.json') 1> (Join-Path $evaluationOutput 'events.jsonl') 2> (Join-Path $evaluationOutput 'stderr.log')
-    $evaluationExitCode = $LASTEXITCODE
+run-model.mjs preserves exact native arguments, prompt, timings, exit status, events, and initial
+tracked/untracked changes under p3/_results. Codex uses workspace-write, never approvals, ephemeral
+JSONL, and disables the host node_repl MCP. Copilot permits local read/write/shell work, disables
+built-in MCPs and remote exports, and explicitly denies publication and build-tool commands.
+These permissions and private-test separation limit what this comparison establishes.
 
 The controller imposes the wall-clock limit, preserves the patch before grading, and cleans only
 that run's resources. A working directory is not a security sandbox. Keep evaluator files, other
 outputs, retrospective, and this document outside it. After completion, copy that case's _acceptance
 files into Nova.Unit.Tests/Evaluation, build, and run the exact manifest classes plus relevant
-existing regressions. Agent-authored tests do not replace evaluator assertions.
+existing and agent-authored classes. Agent-authored tests do not replace evaluator assertions.
+Root grants the .NET lane before invoking:
+
+    pwsh -File artifacts/evaluation/grade-model.ps1 -Preparation p3 -RunName v-x-b
+
+Do not change a model output to make grading pass. The grader checks the expected acceptance count
+(V: 2, A: 9, D: 3), neighbors, skips, and infrastructure errors. Preserve every initial result.
 
 Options were checked against installed help and the official
 [Codex noninteractive documentation](https://learn.chatgpt.com/docs/non-interactive-mode) and
@@ -117,7 +143,15 @@ Options were checked against installed help and the official
 
 | Case/client/condition | Acceptance passed/total | New neighboring failures | New coverage and sibling disposition | Correction turns / repeated family | Time / usage | Discovery evidence / limits |
 | --- | --- | --- | --- | --- | --- | --- |
-| Pending all 12 runs | Unrun | Unrun | Unrun | Unrun | Unrun | Unrun |
+| V / Codex / baseline | 2/2 | One newly authored disposal test fails; existing neighbors pass | Creation repaired, metadata inspected and retained; three test classes extended/added | 0 / none yet | 527 seconds; usage in native events | Explicit scoped-instruction/skill reads; full context injection not observable |
+| Remaining 11 runs | Pending | Pending | Pending | 0 | Pending | Native events retained |
+
+The first grading wrapper concatenated a scalar neighbor-class name and discovered only the two
+private tests. It refused completion because neighbors were absent. The original grading artifacts
+remain; a separate supplemental class run on unchanged model source executed 127 tests (126 passed,
+one new disposal test failed). That run also repeated the already-passing private cases because of
+a broad suffix filter. The wrapper's array handling was corrected; this harness defect is separate
+from the model-authored test failure. See p3/_results/v-x-b/grading and grading-neighbors.
 
 Discovery evidence means actual file reads, scope explanation, skill invocation, hook output, or
 named sibling inspection tied to a decision. Self-report does not prove discovery; absent read
@@ -129,6 +163,6 @@ families, not comment volume or added prose. Separate infrastructure failures an
 unchanged-input runs; retain every outcome. If both conditions pass, record no measured benefit.
 Record which rules changed useful decisions and which added only work before revising guidance.
 
-Final recap: definitions, fixtures, and all six discriminating controls are complete; final guidance
-freeze and model runs remain pending.
+Final recap: definitions, frozen fixtures, and all six discriminating controls are complete. Paired
+model execution and independent grading are in progress; no overall benefit conclusion is drawn yet.
 This exercise publishes nothing and creates no repository rollout or CI requirement.
