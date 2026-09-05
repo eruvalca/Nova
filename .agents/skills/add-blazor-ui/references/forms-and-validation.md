@@ -117,6 +117,11 @@ validates again. Show what the server returns:
   them into one string.
 - Field-level server errors that map to a specific input should be surfaced through the model's
   `Validate` results or a `ValidationMessageStore`, not by concatenating into the page error.
+  A custom store has its own lifetime: clear stale contextual errors when input changes and do not
+  re-add the unchanged parent error snapshot on every render. Clearing only inside `OnValidSubmit`
+  deadlocks retry because those messages prevent the callback. Detach field-change subscriptions
+  when replacing the `EditContext` and on disposal. See `CampaignMetadataForm.razor.cs` and
+  `CampaignEntryTests.CampaignEntry_ResubmitsMetadata_AfterCorrectingServerValidation`.
 
 Keep the success message from being wiped by the reload that follows a successful mutation — clear it
 at the next intentional user action instead.

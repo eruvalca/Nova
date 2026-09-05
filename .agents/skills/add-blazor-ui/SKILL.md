@@ -57,7 +57,8 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
 4. **Choose the lifecycle method and plan for prerender.** One-time load vs. reacting to parameters
    vs. DOM/JS work; add the `[PersistentState]` + `Initialized` guard when the component is
    interactive and loads data. For club-scoped pages, also handle authentication changes and
-   snapshot ownership. See [lifecycle-and-state.md](references/lifecycle-and-state.md).
+   snapshot ownership. For reload-safe commands, use that reference's pending-command recovery
+   section. See [lifecycle-and-state.md](references/lifecycle-and-state.md).
 5. **Define parameters, callbacks, and binding.** Public properties for `[Parameter]`,
    `EventCallback` (never `Action`) for child→parent notification, private fields for internal state,
    and explicit `@` expressions when passing fields to child `string` parameters.

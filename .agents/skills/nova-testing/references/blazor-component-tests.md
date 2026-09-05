@@ -61,6 +61,17 @@ The negative assertion catches `ErrorMessage="_formError"`, which compiles but p
 instead of the backing-field value. Use
 `TeamComponentsTests.Teams_ShowsServerErrorText_WhenUpdateReturnsConflict` as the canonical example.
 
+## Testing correction and recovery
+
+- For server field validation, submit through the rendered form, receive a contextual error, edit
+  the input, re-render with the unchanged parent error snapshot, and submit again. Assert the
+  corrected payload reaches the service; seeing the first error alone does not prove recovery.
+- For persisted commands, fail the operation-storage write on both the initial and confirmation
+  paths and assert no mutation call. Then allow persistence and assert the retained ID reaches the
+  command once. See `CampaignEntryTests` for both patterns.
+- Supply `[SupplyParameterFromQuery]` values through the test `NavigationManager`, not
+  `parameters.Add(...)`; the installed bUnit rejects direct query-parameter assignment.
+
 ## Render-mode assertion (required for interactive pages)
 
 **bUnit invokes callbacks regardless of the deployed render mode.** A green callback test therefore
