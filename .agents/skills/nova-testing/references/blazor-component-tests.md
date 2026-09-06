@@ -112,11 +112,13 @@ For query-backed component tests:
 ## Render-mode assertion (required for interactive pages)
 
 **bUnit invokes callbacks regardless of the deployed render mode.** A green callback test therefore
-does *not* prove the button works in the app — a page missing `@rendermode` renders correct markup,
-passes every component test, and does nothing in the browser.
+does *not* prove the button works in the app. Verify the effective mode through the actual host and
+call sites, including inherited or per-instance modes. A missing local `@rendermode` does not by
+itself mean that a child component is static SSR.
 
-`@rendermode X` compiles to a compiler-generated attribute deriving from `RenderModeAttribute`, so
-assert it by reflection over the page type:
+When a page or component owns its render-mode declaration, `@rendermode X` compiles to a
+compiler-generated attribute deriving from `RenderModeAttribute`. Assert that local declaration
+by reflection over its type, as with `Players`:
 
 ```csharp
 [Fact]
@@ -132,11 +134,15 @@ public void PlayersPage_DeclaresInteractiveAutoRenderMode()
 }
 ```
 
-`GetCustomAttributes` returns the attribute for a page declaring `@rendermode InteractiveAuto` and
-nothing for a static SSR page such as `ClubDetail`, so the same shape asserts either intent.
+`GetCustomAttributes` verifies only the local declaration. Its absence on `ClubDetail` is consistent
+with that page's intended static SSR behavior; it does not prove the effective mode of a component
+whose host or call site supplies interactivity. For such children, inspect and verify that composition
+instead of requiring an attribute on the child.
 
-Add this whenever a page or component gains its first event handler. For flows where interactivity
-must be proven end to end (auth/claims propagation, role-gated controls), add a
+When adding the first browser event handler, revisit the
+[render-mode decision](../../add-blazor-ui/references/render-mode-decision.md) and verify the mode
+at its owner. For flows where interactivity must be proven end to end (auth/claims propagation,
+role-gated controls), add a
 [browser suite](browser-suite.md) scenario, or use the one-off
 [Aspire + Playwright validation](../../aspire-playwright-validation/SKILL.md) pass.
 

@@ -64,6 +64,28 @@ import syntax, undocumented precedence, or a fallback-filename list to load ever
 rule. Codex's documented startup discovery is based on root-to-working-directory ancestry,
 not arbitrary edited-file globs.
 
+## Start substantial Copilot work with explicit recipes
+
+For substantial implementation or review, choose the existing recipes from AGENTS.md's routing
+table and name them in the opening request. Copilot supports a skill name prefixed with `/` in
+the prompt ([official invocation guidance](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills#using-agent-skills)).
+For example:
+
+~~~text
+Use /add-blazor-ui and /nova-testing to review the changes in <paths>.
+The intended behavior is <brief description>.
+~~~
+
+Use `/add-api-endpoint` for HTTP-contract work; select the other recipes by the actual task.
+This makes selection explicit while leaving automatic discovery available. Native invocation
+spelling belongs in this setup guide; the shared `.agents/skills` recipes and root routing remain
+authoritative for both Copilot and Codex.
+
+Verify actual skill-body loading and applicable reference reads using the fresh-session checks
+above. Explicit invocation does not prove correct application: assess the behavioral evidence
+and use the existing separate-review gate. Record omissions or incorrect findings in the PR's
+validation record rather than treating a skill invocation as a successful review.
+
 ## Hooks: execution, trust, and fallback
 
 The design hooks are advisory. Their event adapters support different output envelopes in

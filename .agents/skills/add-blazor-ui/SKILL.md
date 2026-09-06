@@ -68,27 +68,30 @@ pairs forms, identity, recovery, and URL patterns with tests. No entire page is 
 7. **Style to the design system** (`DESIGN.md` / `.github/instructions/ui-design.instructions.md`):
    component-specific rules go in `{Name}.razor.css` using `rem` units. No global stylesheet edits
    for feature UI, no user-controlled strings in inline `style`.
-8. **Add JavaScript only if needed**: collocated `{Component}.razor.js` ES module, lazy
-   `Lazy<Task<IJSObjectReference>>` import, `ElementReference` arguments, listener detach in
-   `DisposeAsyncCore()`. See [js-interop.md](references/js-interop.md).
+8. **Add JavaScript only if needed**: use a collocated `{Component}.razor.js` ES module and the
+   appropriate C# interop or browser-native lifecycle in [js-interop.md](references/js-interop.md).
 9. **Test** — invoke the `nova-testing` skill and use its
-   [Blazor component tests reference](../nova-testing/references/blazor-component-tests.md). An
-   interactive page needs a render-mode assertion: bUnit fires callbacks even when the deployed page
-   would render as static SSR, so a passing callback test does **not** prove the button works.
+   [Blazor component tests reference](../nova-testing/references/blazor-component-tests.md). Verify
+   effective interactivity through the actual page/host and call sites, including inherited or
+   per-instance render modes. A local attribute assertion covers only a mode owned by that component;
+   bUnit callback success does not prove deployed interaction.
 10. **Complete the changed behavior** — select the applicable transitions in that reference, inspect
     sibling forms/loads/mutations for the same invariant, and record the outcomes actually proved.
     Apply the separate-review requirement in root `AGENTS.md` before PR creation.
 
 ## Self-check before finishing
 
-- The component has an effective interactive render mode if it has **any** `@onclick`,
-  `@onchange`, `@bind`, timer, or JS interop. (Silent-failure #1.)
-- If interactive, the file lives in `Nova.UI` or `Nova.Client` — never in `Nova`.
-- Every async service call receives `ComponentCancellationToken`.
-- Data comes from a feature service; no `DbContext` and no `HttpContext` in the component.
+- Placement and effective render mode follow the [placement rules](references/placement-and-page-vs-component.md)
+  and [render-mode decision](references/render-mode-decision.md), including static form-post binding,
+  the Auto/WebAssembly project limits, and inherited or per-instance interactivity.
+- Nova's cancellable APIs receive `ComponentCancellationToken`; framework calls use their supported
+  overloads, including Identity operations without a token parameter.
+- Data comes from a feature service; no direct `DbContext`. `HttpContext` stays within server-host
+  static SSR request/response behavior, as defined by the architecture rules.
 - No `@code` block; markup and logic are in the `.razor` / `.razor.cs` pair.
-- Any JS is a collocated `.razor.js` module consumed via `OnAfterRenderAsync` with module disposal
-  in `DisposeAsyncCore()` — no `window.*` globals, no helpers in `Nova/wwwroot/js/`.
+- JS follows the [interop reference](references/js-interop.md): C# interop uses the interactive
+  component lifecycle; browser-native static SSR enhancements retain explicit loading and element
+  cleanup. Both use collocated modules, scoped listeners, and no arbitrary `window.*` globals.
 - If it loads data and is interactive, prerender double-loading is handled and derived state is
   rebuilt on restore.
 - `StateHasChanged` is present only where genuinely required (see the lifecycle reference).

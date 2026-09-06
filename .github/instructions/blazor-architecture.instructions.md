@@ -29,10 +29,12 @@ Build SSR-first; opt into interactivity only when functionality or UX requires i
 4. Apply render modes at the component or page level, not globally. Do not make the whole app interactive.
 
 Run the ordered decision tree in `.agents/skills/add-blazor-ui/references/render-mode-decision.md`
-before writing markup; it also covers per-instance `@rendermode` islands on static SSR pages.
+when adding, changing, or reviewing markup; it also covers per-instance `@rendermode` islands on
+static SSR pages. Verify the effective mode through the actual host and call sites, including
+inherited modes; a component's local render-mode attribute alone does not establish that composition.
 
 Interactive (Auto/WebAssembly) components must live in a project referenced by `Nova.Client` — i.e. `Nova.UI` or `Nova.Client` — never in `Nova`.
-Any page or component that relies on event handlers, timers, or interactive behavior must have an effective interactive render mode; static SSR markup can compile and pass tests while its handlers remain non-functional in the deployed app.
+Blazor event handlers, timers, or component state updates without a form post require an effective interactive render mode; `@bind` used with a static SSR form post does not. Static SSR markup can compile and pass callback tests while Blazor event handlers remain non-functional in the deployed app.
 
 ## Prerendering and Persistent State
 
@@ -81,10 +83,17 @@ Nova.UI/
 
 ## Component Conventions
 
+- **Maintained scaffolds follow current conventions**: code scaffolded once and maintained here
+  follows these rules when touched; it is not a regenerated output. Preserve documented Identity
+  static SSR request/response mechanics (`HttpContext`, cookies, `SignInManager`, form posts, and
+  redirects), and keep convention cleanup scoped to the affected behavior.
 - **Always use a code-behind file**: every component/page is a pair of `{Name}.razor` (markup only) and `{Name}.razor.cs` (a `partial class` with parameters, state, and logic). Do not use `@code` blocks.
 - **Inherit `NovaComponentBase` by default**: `_Imports.razor` sets `NovaComponentBase` as the default base type for components and pages. Keep this default unless a component has a clear reason to use a different base class.
 - **DI in code-behind**: prefer constructor injection with primary constructors in the `.razor.cs` file over `@inject`/`[Inject]` when possible. Constructor injection requires the component to be instantiated by DI-aware rendering (.NET 10 supports this); use `[Inject]` properties only when constructor injection is not viable (e.g., generated base-class constraints).
-- **Flow cancellation through async work**: pass `ComponentCancellationToken` to async operations (service methods, HTTP calls, EF/query calls exposed via services, delays, streams, etc.) so work stops promptly when the component is disposed.
+- **Flow cancellation through supported contracts**: pass `ComponentCancellationToken` through
+  Nova's cancellable service/HTTP APIs, delays, streams, and other operations accepting a token.
+  Framework operations without a token overload retain their supported contract, including
+  request-bound Identity sign-in/sign-out calls.
 - **Preserve lifecycle cancellation**: when a component catches transport failures, re-throw
   `OperationCanceledException` when `ComponentCancellationToken` (or the operation's owned request
   token) is canceled. Only map unrelated transport cancellation to user-visible unavailability.
@@ -117,12 +126,17 @@ Nova.UI/
 
 ## JavaScript Interop
 
-- Reach for JavaScript only when a DOM behavior cannot be expressed declaratively (Bootstrap data API, CSS, Blazor events). Static SSR markup must function without custom JS; custom JS belongs to interactive components.
+- Reach for JavaScript only when a DOM behavior cannot be expressed declaratively (Bootstrap data API, CSS, Blazor events).
+- C# `IJSRuntime` interop requires interactive attachment. Browser-native enhancements can run over
+  static SSR through an explicitly loaded collocated module; preserve documented integrations such
+  as `PasskeySubmit.razor.js` loaded by `App.razor`, including their form-post and element lifecycle.
 - Collocate component JS as an ES module: `{Component}.razor.js` next to the owning component. Feature components live in `Nova.UI`, so their JS ships with the RCL and is imported from `./_content/Nova.UI/...`. Do not add `window.*` globals or page-wide helpers to `Nova/wwwroot/js/`.
 - **No speculative site-wide JS**: do not create an empty `site.js` (or any page-wide script under `Nova/wwwroot/js/`) "just in case" — an empty script still costs a request and invites page-global helpers back. Do not add a new site-wide custom script without a concrete app-wide requirement; inspect `App.razor` for the current script set instead of assuming it. A genuinely app-wide behavior belongs in a layout-collocated module (`App.razor.js` / `MainLayout.razor.js`), a lazily imported interop service, or the `blazor.web.js` loader callbacks (`beforeBlazorStarts`) for code that must run before Blazor initializes. Adding a script tag later costs nothing.
-- Consume modules with a lazily imported `IJSObjectReference` (`Lazy<Task<IJSObjectReference>>` wrapping `"import"`), dispose the module reference in `DisposeAsyncCore()`, and invoke module functions only from `OnAfterRenderAsync(firstRender)` or event handlers — never `OnInitializedAsync`.
-- Pass `ElementReference` (via `@ref`), not hard-coded element `id` strings.
-- Any listener that outlives a single event must attach scoped to the component's subtree and detach in `DisposeAsyncCore()`.
+- For C# interop, consume modules with a lazily imported `IJSObjectReference` (`Lazy<Task<IJSObjectReference>>` wrapping `"import"`), dispose the module reference in `DisposeAsyncCore()`, and invoke module functions only from `OnAfterRenderAsync(firstRender)` or event handlers — never `OnInitializedAsync`.
+- Pass `ElementReference` (via `@ref`) to C#-invoked module functions, not hard-coded element `id` strings.
+- Scope persistent listeners to the owning component's subtree. Detach C#-owned listeners in
+  `DisposeAsyncCore()` before module disposal; browser-native custom elements use their matching
+  connect/disconnect lifecycle so replacement or removal does not leak listeners.
 - Step-by-step recipe with code examples: `.agents/skills/add-blazor-ui/references/js-interop.md`.
 
 ## Recoverable lifecycle commands

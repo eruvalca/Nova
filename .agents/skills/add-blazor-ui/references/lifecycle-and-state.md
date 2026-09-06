@@ -115,8 +115,10 @@ reference's identity and async-ownership examples for the relevant components an
 
 ### Disposal and transport cancellation
 
-Pass `ComponentCancellationToken` (from `NovaComponentBase`) into every async service call, HTTP
-call, delay, and stream so work stops when the component is disposed:
+Pass `ComponentCancellationToken` (from `NovaComponentBase`) through Nova's cancellable service/HTTP
+APIs, delays, streams, and other operations that accept a token. Framework operations without a
+token overload, including request-bound Identity sign-in/sign-out calls, retain their supported
+contract. For example:
 
 ```csharp
 var result = await playerService.GetPlayerRosterAsync(input, ComponentCancellationToken);

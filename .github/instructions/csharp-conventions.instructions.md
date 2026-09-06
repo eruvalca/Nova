@@ -75,7 +75,8 @@ Use **C# 14 extension blocks** to map domain entities to DTOs. Place one extensi
 - Use a meaningful `<summary>` and document parameters and return values when needed to explain
   their contract; do not merely restate names or types.
 - Keep documentation behavior-accurate. When behavior changes, update docs in the same change.
-- Generated or third-party sources are excluded unless their generator supports documentation customization.
+- Generator-maintained outputs and third-party sources are excluded unless their generator supports
+  documentation customization. One-time scaffolds maintained as application code follow these conventions.
 
 ## Logging
 

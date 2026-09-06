@@ -11,7 +11,8 @@ description: >-
 
 # Nova Testing
 
-Use this skill when writing or running Nova tests. Read the relevant reference before editing tests:
+Use this skill when writing, running, or reviewing Nova tests and behavioral evidence. Read the
+relevant reference before editing tests or assessing what their outcomes prove:
 
 - [Unit SQLite tenancy harness](references/unit-sqlite-harness.md) for `Nova.Unit.Tests`, shared in-memory SQLite, `TenancyTestHarness`, `FakeCurrentUserProvider`, and `ActAs`.
 - [Blazor component tests](references/blazor-component-tests.md) for bUnit + NSubstitute component

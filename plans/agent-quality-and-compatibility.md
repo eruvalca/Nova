@@ -43,7 +43,7 @@ Implemented concise routing, content-based applicability, sibling completion, se
 
 ## Phase 2: Behavioral recipes and contradictions
 
-Status: Implemented; follow-up checklist clarification remains open
+Status: Implemented; follow-up corrections and verification below
 
 - [x] Resolve lifecycle rule: startup server queries in initialization; browser-dependent recovery may reconcile after attachment; retain ownership checks after JS and HTTP awaits.
 - [x] Update Blazor skill discovery for existing forms, async state, navigation, authentication, recovery.
@@ -52,9 +52,10 @@ Status: Implemented; follow-up checklist clarification remains open
 - [x] Pair canonical examples with tests of the specific invariant rather than endorsing a whole page.
 - [x] Strengthen producer -> serialization -> client -> UI contract checks in existing endpoint/testing recipes.
 - [x] Narrow XML-doc policy to public/shared contracts and meaningful APIs; explain non-obvious internal ownership/invariants/effects; no bulk comment deletion.
-- [ ] Complete affected contradiction cleanup: the later review found the retained Blazor
-  self-check overstates interactivity, placement, and HttpContext prohibitions. Its correction
-  remains open while scaffolded Account guidance is discussed; no Account refactor is implied.
+- [x] Complete affected contradiction cleanup: align the Blazor self-check and linked references
+  on static form posts, effective host interactivity, server placement, request-bound HttpContext,
+  supported cancellation contracts, and browser-native JS. Clarify maintained scaffold ownership
+  without an Account exemption or authentication refactor.
 
 | Changed behavior | Applicable evidence |
 | --- | --- |
@@ -72,7 +73,7 @@ Map substantive PR #244 families to rule, recipe, and actual behavioral-test exe
 
 ### Phase Summary
 
-Implemented transition evidence and scoped regression examples, full contract-chain checks, improved skill triggers, and proportional XML documentation. Also resolved the component/DbContext contradiction and corrected an obsolete lifecycle example. Frontmatter/reference checks passed.
+Implemented transition evidence and scoped regression examples, full contract-chain checks, improved skill triggers, and proportional XML documentation. Also resolved the component/DbContext contradiction and corrected an obsolete lifecycle example. The follow-up closes the retained checklist contradictions and their linked reference copies; its verification is recorded below.
 
 ## Phase 3: Custom-agent alignment and drift prevention
 
@@ -309,8 +310,9 @@ trusted-checkout probes are under `nova-agent-native-probes`. This plan is the d
 Status: Evaluation complete; full cross-CLI behavioral acceptance **not met** (2026-09-06).
 
 The user approved reopening the two outcomes and completing smaller, separate reviews. These
-runs used guidance at `6fd33f62c4bf02f1eeefa69c52b4a86f213bd91d`; subsequent changes only update this
-verification record. Observed executables remain Codex CLI 0.153.4, Copilot CLI 1.0.83, and Node
+runs used guidance at `6fd33f62c4bf02f1eeefa69c52b4a86f213bd91d`; the evidence-only follow-up
+`2f3a971270a3f79caed30a221211647b69572987` recorded these results. Observed executables were
+Codex CLI 0.153.4, Copilot CLI 1.0.83, and Node
 24.15.0. Existing model choices were inherited. No trust, personal settings, runtime, or application
 changes were made.
 
@@ -368,29 +370,102 @@ absent. This section is the durable result summary.
 
 Post-exercise maintenance checks passed: `dotnet format Nova.slnx --verify-no-changes --no-restore`,
 `dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`, and `git diff --check`.
-Only this plan changed after the tested guidance revision. Integration/browser results above remain
-at their recorded revision; this intermediate documentation-only push does not rerun those suites.
+Only this plan changed in that evidence-only follow-up. Integration/browser results above remain
+at their recorded revision; that intermediate documentation-only push did not rerun those suites.
 
-Handoff: the requested valid reviews are finished; the outcome checkboxes above intentionally remain
+Disposition at `2f3a971`: the requested valid reviews finished; the outcome checkboxes above remained
 open. The evidence supports retaining behavior-based tests and separate review, not asserting that
-correct instructions alone ensure consistent agent execution. No new instruction text, agent
-framework, or model pin was added to chase these results. Authentication scaffold treatment was
-discussed separately; neither Account code nor the outstanding Blazor checklist wording was changed.
+correct instructions alone ensure consistent agent execution. That follow-up added no instruction
+text, agent framework, or model pin. The subsequently authorized guidance corrections are recorded
+in the next section; Account implementation remains outside this work.
+
+### Follow-up guidance corrections and explicit skill invocation
+
+Status: Completed (2026-09-06); broader behavioral conformance remains incomplete.
+
+- [x] Correct the Blazor self-check and add one scoped scaffold-ownership clarification, preserving
+  static Identity request/response requirements and keeping cleanup within the changed task.
+- [x] Align API/testing recipe introductions with their existing review-capable descriptions.
+- [x] Document supported explicit Copilot skill invocation for substantial tasks using existing
+  recipes; preserve automatic discovery, shared source ownership, and personal settings.
+- [x] Independently review the changes and assess one different bounded native-invocation exercise.
+- [x] Validate changed sources, formatting, unit tests, fixture cleanup, and updated PR evidence.
+
+Verification: check static form-post binding, browser/server placement, effective host render mode,
+and static Identity HttpContext use against the canonical references. Check modified skill metadata
+and links; run the existing parity checker. The fresh exercise uses a temporary ignored sample in
+the existing checkout and a neutral prompt with named skills. Inspect actual loading and the final
+findings/regression scenarios; do not infer automatic routing or universal conformance from a pass.
+Run formatting and unit checks sequentially after removing the fixture. No app changes, broad
+scaffold refactor, new matrix, framework, model pin, dependencies, or personal trust changes.
+
+Source verification: the separate reviewer checked the complete follow-up diff against the accepted
+scope and instruction-hygiene guidance. The corrections preserve Login's static form-post binding,
+request-bound Identity operations without cancellation-token overloads, and PasskeySubmit's
+host-loaded browser-native module. Related placement, lifecycle, JS, and testing references now
+agree; render-mode reflection is explicitly limited to a component's own declaration. These are
+guidance checks against existing source, not a new authentication behavior test or endorsement of
+the entire scaffold as a canonical example.
+
+The known frontmatter is unchanged and 36 relative links/anchors validate. The existing parity
+validator passes. The general skill validator cannot run because its pre-existing PyYAML dependency
+is unavailable; focused structure/link checks passed without installing it. No provider mirror
+exists for these shared Nova recipes. The setup guide uses the documented Copilot `/skill-name`
+syntax while keeping native invocation spelling out of shared recipes and root rules.
+
+The single fresh Copilot exercise ran from `Nova.UI` against a different practice type-ahead sample.
+Its neutral request named `/add-blazor-ui` and `/nova-testing`; it did not disclose expected defects.
+The sample included an explicit `InteractiveAuto` host, a guarded success path, late failure/cleanup,
+and a Clear action. A separate reviewer inspected the prompt and source before the frozen rubric.
+Copilot CLI 1.0.83 used the existing model/settings. The run used `2f3a971` plus the nine guidance-file
+edits in this follow-up; all 35 frozen guidance hashes matched afterward. Exact command, patch,
+versions, source snapshots, and native evidence remain in temporary
+`nova-native-recipe-acceptance-4000459df9094966888e16a22f599cba`.
+
+- Native events contain current root guidance; both named skill calls succeeded and returned their
+  full frozen bodies. The lifecycle and component-testing references and all six sample files were
+  actually read. This establishes explicit invocation for this task, not automatic selection.
+- The completed review correctly identified stale busy cleanup, stale error publication, and
+  Clear failing to invalidate in-flight work. It respected the guarded success and actual host
+  render mode and proposed rendered-event tests with controlled delayed tasks. No regression or
+  browser test was executed by the review, and its final did not claim one.
+- Coverage still has limits: its recommended guards omit disposal ownership, and its disposal
+  scenario covers cooperative cancellation rather than late failure/cleanup after disposal. No
+  explicit C#/UI/testing scoped-rule or component-base/import reads were observed; the trace does
+  not establish that native automatic scoped-instruction injection was absent. This is useful
+  coverage of the seeded effects, not exhaustive ownership or instruction-application acceptance.
+- The independent reviewer checked tool results, final findings and regression proposals, frozen
+  source hashes, and cleanup.
+  All six sample files retained their hashes and the owned fixture directory is absent. No repeat
+  review was run to obtain a more favorable outcome.
+
+Post-cleanup `dotnet format Nova.slnx --verify-no-changes --no-restore`, unit tests with `--no-build`,
+and `git diff --check` passed. Earlier build/contrast/integration/browser evidence remains at its
+recorded revisions: this intermediate guidance-only push changes no application sources. The PR
+validation record identifies the delivered revision and its live CI results.
+
+Handoff: the authorized source corrections, setup documentation, fresh exercise, and separate review
+are complete. Keep the earlier partial outcomes and native-hook limitations visible; use ordinary
+PR review and behavioral tests to assess future work rather than adding another rule matrix or
+treating this one sample as proof of reliable automatic routing.
 
 ## Final Recap
 
-Implementation changes across all five phases are delivered; the phase 2 checklist clarification
-and full behavioral acceptance remain open. Separate review caught and closed three concrete
+Implementation changes across all five phases and the follow-up checklist corrections are delivered;
+full behavioral acceptance remains open. Separate review caught and closed three concrete
 setup defects before publication: ambiguous Markdown descriptions, Unicode Git-root decoding,
 and early-event nested audit configuration. Application build/format/contrast and all three suites
 passed; final guidance/hook checks passed on Windows, with Linux hook evidence recorded above.
-Ubuntu setup checks passed after publication and are linked above. Later changes only update this
-verification record; the PR validation record identifies the tested revision and final CI status.
+Ubuntu setup checks passed after publication and are linked above. The later guidance follow-up
+preserves Identity requirements and aligns the checklist with its linked references; the PR
+validation record identifies the tested revisions and final CI status.
 
 Remaining limitations are explicit: Codex native hooks need trust review; desktop execution was
 not verified; optional detector parsers are absent. The earlier disposable-copy evidence retains
 its trust qualification; valid follow-up reviews now establish incomplete Copilot recipe application
-and behavioral coverage despite available guidance. The named-recipe diagnostic is also partial.
+and behavioral coverage despite available guidance. The earlier named-recipe diagnostic is partial;
+the new native-invocation sample covers its three seeded effects but retains disposal-coverage and
+source-read limitations, as recorded above.
 The known simple skill frontmatters were checked without adding the unavailable PyYAML dependency.
 These are not clean-scan or universal agent-conformance claims.
 

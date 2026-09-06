@@ -7,7 +7,8 @@ Answer these in order. Each answer constrains the next.
 | Question | Answer |
 | --- | --- |
 | Default for anything new | **`Nova.UI`** |
-| Needs `HttpContext`, cookies, `SignInManager`, or other server-only services with no client abstraction | `Nova` (and it must be static SSR) |
+| Needs request-bound `HttpContext`, cookie, or `SignInManager` request/response operations | `Nova` as static SSR |
+| Needs other server-only services with no client abstraction | `Nova`; use the [render-mode decision](render-mode-decision.md) to choose static SSR or, when required, `InteractiveServer` |
 | Exclusively client-side, WASM-only bootstrap concerns | `Nova.Client` — keep it thin (today it holds only `Auth.razor` and `RedirectToLogin.razor`) |
 
 Hard constraints:
@@ -101,10 +102,10 @@ Features/{Feature}/Pages/{Name}.razor.css    # optional, component-scoped styles
 
 ## 5. Data access
 
-Components call **feature services** resolved from DI. They never touch `DbContext`, and they never
-touch `HttpContext` (it exists only during static SSR in `Nova`, and using it makes the component
-un-hostable in WASM). Flow user/tenant state through `AuthenticationStateProvider` or
-`CurrentUserState`.
+Components call **feature services** resolved from DI and never touch `DbContext` directly.
+Request-bound static SSR Identity handling in `Nova` may use `HttpContext`; interactive components
+(including server circuits) and components in `Nova.UI`/`Nova.Client` must not. Flow user/tenant state
+in those components through `AuthenticationStateProvider` or `CurrentUserState`.
 
 Service contracts live in `Nova.Shared`; a server implementation lives in `Nova` and an HTTP
 implementation in `Nova.Client`. Both must be registered — see the render-mode reference for why

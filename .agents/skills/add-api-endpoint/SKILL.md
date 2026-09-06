@@ -11,7 +11,9 @@ description: >-
 
 # Add API Endpoint
 
-Use this skill when adding or changing Nova minimal-API endpoints that are shared between the server and the Blazor WebAssembly client.
+Use this skill when adding, changing, debugging, reviewing, or removing Nova minimal-API endpoints
+and HTTP client contracts. For existing behavior, inspect the producer, consumers, and applicable
+checklist steps without recreating unrelated endpoint structure.
 
 ## Canonical Nova examples
 
