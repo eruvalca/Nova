@@ -32,13 +32,13 @@ No new review skill, custom agent, framework, dependency, or personal-configurat
 
 ## Phase 3 — Review and delivery
 
-Status: In progress.
+Status: Local verification and publication complete. Current CI disposition is recorded in the PR.
 
 - [x] Obtain separate review of the full diff, diagnostic dispositions, and enforcement evidence.
 - [x] Run the solution build, formatting verification, and unit tests sequentially. Run affected
   integration/browser suites with --no-build and respect machine-wide Aspire serialization.
 - [x] Verify guidance parity and clean fixture/artifact boundaries.
-- [ ] Commit, push the existing PR, and update its validation record with the tested revision and CI.
+- [x] Commit, push the existing PR, and update its validation record with the tested revision and CI.
 
 ## Evidence and handoff
 
@@ -151,7 +151,7 @@ not change the compiled inputs. All dotnet operations and Aspire suites ran sequ
 | `npm run check:contrast` from `Nova/` | Passed |
 | `scripts/Test-AgentGuidance.ps1` and `-SelfTest` | Passed parity and negative fixtures |
 | Separate review, links, and diff/artifact check | Passed; no material finding in the final bounded change |
-| Current-head CI | Pending push; final result belongs in the PR validation record |
+| Current-head CI | Runs on the published revision; see the PR validation record for its latest disposition |
 
 The reviewer independently checked the complete diff, source/configuration hashes, exact fixture
 results, mock semantics, naming-baseline counts, and shared-rule ownership. Review removed an
@@ -170,3 +170,15 @@ parallel. Resume with the current phase and recorded diagnostics after any inter
 No application deployment or schema/API migration is intended. Deliver through the existing PR;
 any substantial behavioral fix discovered during the baseline must receive its own behavioral
 evidence and separate review. Preserve existing pre-merge all-suite gates.
+
+## Delivery handoff
+
+Implementation and local evidence were committed as `0f6abca195f730f9723d58b432d715763d04b3f2` and
+pushed to [PR #249](https://github.com/eruvalca/Nova/pull/249). Its validation record owns the latest
+tested revision and CI result, including this evidence-only handoff update; the compiled inputs
+and enforcement configuration are unchanged. All required local checks passed and the separate
+review is clear. No additional implementation remains within the bounded profile.
+
+The naming migration above remains deferred, and the original compatibility plan retains the
+unverified native CLI/hook outcomes. Neither is silently treated as complete. Use the existing
+pre-merge gate when this PR is ready to merge.
