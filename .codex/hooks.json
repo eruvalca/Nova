@@ -6,10 +6,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ ! -f \".agents/skills/impeccable/scripts/hook.mjs\" ] || node \".agents/skills/impeccable/scripts/hook.mjs\"",
+            "command": "impeccable_root=$(git rev-parse --show-toplevel 2>/dev/null) || { printf '%s\\n' '[impeccable-hook] Scan skipped: Git root unavailable.' >&2; exit 0; }; impeccable_hook=\"$impeccable_root/.agents/skills/impeccable/scripts/hook.mjs\"; [ -f \"$impeccable_hook\" ] || { printf '%s\\n' '[impeccable-hook] Scan skipped: hook file unavailable.' >&2; exit 0; }; command -v node >/dev/null 2>&1 && node -e 'process.exit(parseInt(process.versions.node,10)>=22?0:1)' 2>/dev/null || { printf '%s\\n' '[impeccable-hook] Scan skipped: Node 22+ unavailable; run the detector with a supported existing runtime.' >&2; exit 0; }; IMPECCABLE_HOOK_PROJECT_ROOT=\"$impeccable_root\" node \"$impeccable_hook\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -Command \"& { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); $impeccableRoot = & git rev-parse --show-toplevel 2>$null; if ($LASTEXITCODE -ne 0 -or !$impeccableRoot) { [Console]::Error.WriteLine('[impeccable-hook] Scan skipped: Git root unavailable.'); exit 0 }; $impeccableHook = Join-Path $impeccableRoot '.agents/skills/impeccable/scripts/hook.mjs'; if (!(Test-Path -LiteralPath $impeccableHook -PathType Leaf)) { [Console]::Error.WriteLine('[impeccable-hook] Scan skipped: hook file unavailable.'); exit 0 }; $impeccableNode = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1; if (!$impeccableNode) { [Console]::Error.WriteLine('[impeccable-hook] Scan skipped: Node 22+ unavailable; run the detector with a supported existing runtime.'); exit 0 }; & $impeccableNode.Source -e 'process.exit(parseInt(process.versions.node,10)>=22?0:1)'; if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('[impeccable-hook] Scan skipped: Node 22+ unavailable; run the detector with a supported existing runtime.'); exit 0 }; $env:IMPECCABLE_HOOK_PROJECT_ROOT = $impeccableRoot; & $impeccableNode.Source $impeccableHook }\"",
             "timeout": 5,
-            "statusMessage": "Checking UI changes",
-            "commandWindows": "if exist \".agents/skills/impeccable/scripts/hook.mjs\" (node \".agents/skills/impeccable/scripts/hook.mjs\" & exit /b)"
+            "statusMessage": "Checking UI changes"
           }
         ]
       }
@@ -19,10 +19,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ ! -f \".agents/skills/impeccable/scripts/hook.mjs\" ] || node \".agents/skills/impeccable/scripts/hook.mjs\"",
+            "command": "impeccable_root=$(git rev-parse --show-toplevel 2>/dev/null) || { printf '%s\\n' '[impeccable-hook] Scan skipped: Git root unavailable.' >&2; exit 0; }; impeccable_hook=\"$impeccable_root/.agents/skills/impeccable/scripts/hook.mjs\"; [ -f \"$impeccable_hook\" ] || { printf '%s\\n' '[impeccable-hook] Scan skipped: hook file unavailable.' >&2; exit 0; }; command -v node >/dev/null 2>&1 && node -e 'process.exit(parseInt(process.versions.node,10)>=22?0:1)' 2>/dev/null || { printf '%s\\n' '[impeccable-hook] Scan skipped: Node 22+ unavailable; run the detector with a supported existing runtime.' >&2; exit 0; }; IMPECCABLE_HOOK_PROJECT_ROOT=\"$impeccable_root\" node \"$impeccable_hook\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -Command \"& { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); $impeccableRoot = & git rev-parse --show-toplevel 2>$null; if ($LASTEXITCODE -ne 0 -or !$impeccableRoot) { [Console]::Error.WriteLine('[impeccable-hook] Scan skipped: Git root unavailable.'); exit 0 }; $impeccableHook = Join-Path $impeccableRoot '.agents/skills/impeccable/scripts/hook.mjs'; if (!(Test-Path -LiteralPath $impeccableHook -PathType Leaf)) { [Console]::Error.WriteLine('[impeccable-hook] Scan skipped: hook file unavailable.'); exit 0 }; $impeccableNode = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1; if (!$impeccableNode) { [Console]::Error.WriteLine('[impeccable-hook] Scan skipped: Node 22+ unavailable; run the detector with a supported existing runtime.'); exit 0 }; & $impeccableNode.Source -e 'process.exit(parseInt(process.versions.node,10)>=22?0:1)'; if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('[impeccable-hook] Scan skipped: Node 22+ unavailable; run the detector with a supported existing runtime.'); exit 0 }; $env:IMPECCABLE_HOOK_PROJECT_ROOT = $impeccableRoot; & $impeccableNode.Source $impeccableHook }\"",
             "timeout": 30,
-            "statusMessage": "Design deep pass",
-            "commandWindows": "if exist \".agents/skills/impeccable/scripts/hook.mjs\" (node \".agents/skills/impeccable/scripts/hook.mjs\" & exit /b)"
+            "statusMessage": "Design deep pass"
           }
         ]
       }
