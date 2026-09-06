@@ -43,7 +43,7 @@ Implemented concise routing, content-based applicability, sibling completion, se
 
 ## Phase 2: Behavioral recipes and contradictions
 
-Status: Implemented; verification below
+Status: Implemented; follow-up checklist clarification remains open
 
 - [x] Resolve lifecycle rule: startup server queries in initialization; browser-dependent recovery may reconcile after attachment; retain ownership checks after JS and HTTP awaits.
 - [x] Update Blazor skill discovery for existing forms, async state, navigation, authentication, recovery.
@@ -52,7 +52,9 @@ Status: Implemented; verification below
 - [x] Pair canonical examples with tests of the specific invariant rather than endorsing a whole page.
 - [x] Strengthen producer -> serialization -> client -> UI contract checks in existing endpoint/testing recipes.
 - [x] Narrow XML-doc policy to public/shared contracts and meaningful APIs; explain non-obvious internal ownership/invariants/effects; no bulk comment deletion.
-- [x] Remove affected duplication/contradictions without arbitrary length targets.
+- [ ] Complete affected contradiction cleanup: the later review found the retained Blazor
+  self-check overstates interactivity, placement, and HttpContext prohibitions. Its correction
+  remains open while scaffolded Account guidance is discussed; no Account refactor is implied.
 
 | Changed behavior | Applicable evidence |
 | --- | --- |
@@ -149,9 +151,11 @@ Added CI parity/self-tests, hook tests, formatting, PR validation evidence, and 
 Fresh sessions in both CLIs, at root and a nested directory:
 
 - [x] Root/scoped instruction discovery checked in fresh sessions; actual matching-source reads
-  captured in CLI traces. Copilot disposable-copy configuration trust limits the behavioral inference.
-- [ ] Full recipe-loading conformance in both CLIs: Codex reads verified; Copilot fixture
-  application remains unverified without native configuration trust. No catalog-only claim.
+  captured in CLI traces. Follow-up checkout sessions confirm current root guidance injection;
+  the earlier disposable-copy trust limitation does not invalidate these later observations.
+- [ ] Full recipe-loading conformance in both CLIs: not met. Codex reads verified; Copilot skipped
+  selected recipes in valid follow-up sessions despite their availability. An explicit-recipe
+  diagnostic loaded them but still produced incomplete behavioral analysis. No catalog-only claim.
 - [x] Intended custom-agent definition selected in root/nested sessions of both CLIs.
 - [ ] Native hook verification across both CLIs: Copilot root/nested advisory verified in the
   trusted checkout; Codex pending native hook trust review. Direct transport tests pass.
@@ -163,8 +167,8 @@ Fresh sessions in both CLIs, at root and a nested directory:
 Disposable copies with updated guidance, no expected defect revealed:
 
 - [x] Both CLIs repaired seeded sibling validation stores; independent rendered resubmission passed.
-- [x] Both CLIs attempted delayed completion review; partial findings and bounded cutoff recorded below.
-- [x] Both CLIs inspected preview/paging contracts; incomplete review coverage recorded below.
+- [ ] Full delayed-completion review coverage in both CLIs: completed follow-up reviews leave Copilot findings and regression scenarios incomplete.
+- [ ] Full preview/paging contract coverage in both CLIs: completed follow-up reviews leave Copilot producer-to-consumer analysis incomplete.
 - [x] Both policy controls found the boundary defect without invoking a visual-design workflow.
 
 Evaluate actual source loading, sibling checks, outcome evidence, and scope. No permanent benchmark service or seeded application defect.
@@ -300,9 +304,83 @@ All exercise processes were closed. Raw prompts, fixture code, source-read index
 under the temporary `nova-agent-exercises-6df0f2805e664807bca2c1939528afd4` directory; custom-role and
 trusted-checkout probes are under `nova-agent-native-probes`. This plan is the durable evidence summary.
 
+### Follow-up behavioral acceptance
+
+Status: Evaluation complete; full cross-CLI behavioral acceptance **not met** (2026-09-06).
+
+The user approved reopening the two outcomes and completing smaller, separate reviews. These
+runs used guidance at `6fd33f62c4bf02f1eeefa69c52b4a86f213bd91d`; subsequent changes only update this
+verification record. Observed executables remain Codex CLI 0.153.4, Copilot CLI 1.0.83, and Node
+24.15.0. Existing model choices were inherited. No trust, personal settings, runtime, or application
+changes were made.
+
+- [x] Complete and independently assess async-ownership reviews in both CLIs.
+- [x] Complete and independently assess contract-consistency reviews in both CLIs.
+- [x] Verify final evidence wording and exact fixture cleanup independently.
+
+Method: place temporary ignored samples in this checkout, run async reviews from the root and
+contract reviews from `Nova.UI`, and obtain final verdicts without a time cutoff. Neutral prompts
+identify intended behavior and scope, not seeded defects. Native session records confirm the
+current root `AGENTS.md` body and skill availability; successful tool results establish actual
+source reads. Source inspection and proposed regression scenarios are the evidence: these review
+exercises do not execute regressions or establish deployed/browser behavior.
+
+| Review | Verified source use | Independently assessed result |
+| --- | --- | --- |
+| Codex async | Both Blazor/testing skill bodies, focused lifecycle/transition guidance, and direct Players/CampaignEntry implementation and regression reads. | Expected ownership families covered: identity changes, storage-before-concealment/failure, stale storage continuations, obsolete save success/failure/cleanup, disposal, and current busy ownership. Controlled-delay scenarios supplied. |
+| Copilot async | Current root guidance and native skill tool available; Blazor rules and lifecycle reference read, but neither selected skill body nor testing transition reference loaded. | Partial. Found same-role club changes, delayed concealment, stale failure, and overlapping reconciliation. Missed stale `finally`/newer busy ownership; some reproduction reasoning was inaccurate. |
+| Codex contract | Selected API/feature/Blazor/testing recipes and focused contract/transition references; complete supplied producer, serializer, DTO, client, and markup read. | All four expected families covered: required field presence, nested row validation, exact snapshot cardinality, and rendered truncation. Correctly distinguished malformed-payload acceptance from producer output and rejected invented sorting/uniqueness guarantees. |
+| Copilot contract | Current root guidance and native skill tool available; API/service/Blazor rules and complete supplied chain read, but selected recipes and focused contract/testing references not loaded. | Partial. Found rendered truncation, but missed absent required fields and exact count/page relationships; dismissed null/invalid rows as unreachable with a trusted producer despite the required client validation contract. |
+
+One fresh **explicit-recipe diagnostic** added only the Blazor/testing `SKILL.md` paths to the
+neutral async request. Copilot then read both bodies and the lifecycle/transition references.
+It identified stale catch/finally ownership and removed the first run's incorrect rendering claim,
+but omitted storage-delay/failure concealment and stale post-storage continuations. It also asserted
+a missing render mode despite the sample's absent host composition. Its proposed busy-state test
+did not explicitly hold a newer save pending. This is partial coverage, not proof that explicit
+recipe activation resolves reasoning gaps or that automatic routing works.
+
+Scoring qualifications:
+
+- The first `(null, "")` identity notification is skipped by the sample. Codex and the named-recipe
+  diagnostic noticed the transition-matrix case, but the sample does not establish persisted startup
+  state or an initial-notification effect contract. Its omission alone is not a demonstrated
+  production defect, and asserting already-empty rows would not prove reconciliation occurred.
+- Copilot's baseline claim that `_busy = true` never renders during the first incomplete await is
+  false: [.NET 10 ComponentBase.HandleEventAsync](https://github.com/dotnet/aspnetcore/blob/v10.0.0/src/Components/Components/src/ComponentBase.cs#L326-L338)
+  schedules that initial render. Its older-reconciliation example also incorrectly described an old
+  club payload, although the real continuation clears current state and dispatches using the current
+  club. Findings were assessed by the actual code, not by severity labels or finding counts.
+- Codex's async final named Teams among inspected examples; the trace establishes it as referenced
+  by guidance, not directly inspected. The table credits only verified direct example reads.
+- The first Copilot contract launcher accidentally hid the native skill tool with a read-only tool
+  allowlist. Its completed result is retained as supplementary harness evidence only. The scored
+  fresh run exposed the skill tool; the recipe omissions persisted. No failed or partial run was
+  replaced by a later success claim.
+
+Raw prompts, unchanged fixture snapshots/hashes, CLI commands, native events, final verdicts, and
+scored reports remain in temporary `nova-async-acceptance-b0ed046e614b4030a3c85d4cd0aa3c13` and
+`nova-contract-acceptance-a3f98962b1ac48b4b1a7df8884627eac` directories. The independent reviewer read
+the actual prompts, source, tool evidence, and finals, then checked this final summary. Both
+`async-acceptance-report.md` and `contract-acceptance-report.md` exist there. All nine owned sample
+files retained their hashes; their three fixture directories were removed and independently checked
+absent. This section is the durable result summary.
+
+Post-exercise maintenance checks passed: `dotnet format Nova.slnx --verify-no-changes --no-restore`,
+`dotnet test --project Nova.Unit.Tests/Nova.Unit.Tests.csproj --no-build`, and `git diff --check`.
+Only this plan changed after the tested guidance revision. Integration/browser results above remain
+at their recorded revision; this intermediate documentation-only push does not rerun those suites.
+
+Handoff: the requested valid reviews are finished; the outcome checkboxes above intentionally remain
+open. The evidence supports retaining behavior-based tests and separate review, not asserting that
+correct instructions alone ensure consistent agent execution. No new instruction text, agent
+framework, or model pin was added to chase these results. Authentication scaffold treatment was
+discussed separately; neither Account code nor the outstanding Blazor checklist wording was changed.
+
 ## Final Recap
 
-All five implementation phases are delivered. Separate review caught and closed three concrete
+Implementation changes across all five phases are delivered; the phase 2 checklist clarification
+and full behavioral acceptance remain open. Separate review caught and closed three concrete
 setup defects before publication: ambiguous Markdown descriptions, Unicode Git-root decoding,
 and early-event nested audit configuration. Application build/format/contrast and all three suites
 passed; final guidance/hook checks passed on Windows, with Linux hook evidence recorded above.
@@ -310,13 +388,15 @@ Ubuntu setup checks passed after publication and are linked above. Later changes
 verification record; the PR validation record identifies the tested revision and final CI status.
 
 Remaining limitations are explicit: Codex native hooks need trust review; desktop execution was
-not verified; optional detector parsers are absent; Copilot disposable-copy trust limits those
-behavioral exercises; the bounded async/contract exercise did not establish complete coverage.
+not verified; optional detector parsers are absent. The earlier disposable-copy evidence retains
+its trust qualification; valid follow-up reviews now establish incomplete Copilot recipe application
+and behavioral coverage despite available guidance. The named-recipe diagnostic is also partial.
 The known simple skill frontmatters were checked without adding the unavailable PyYAML dependency.
 These are not clean-scan or universal agent-conformance claims.
 
-Handoff: source changes and independent findings are complete. Preserve personal configuration,
-start fresh sessions, and consult the PR's final CI status. Future substantial work must use the
+Handoff: implementation changes are delivered; behavioral acceptance was evaluated and remains
+unmet as recorded above. Preserve personal configuration, start fresh sessions, and consult the
+PR's final CI status. Future substantial work must use the
 source/transition/sibling evidence record and separate review rather than assuming a skill catalog
 entry proves correct behavior. Revisit results through ordinary PRs, with no monitoring framework.
 
