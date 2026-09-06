@@ -1,30 +1,29 @@
 ---
 name: add-blazor-ui
 description: >-
-  Recipe for building Nova Blazor pages and components: placement, page-vs-component,
-  render-mode decision tree, lifecycle selection, prerender/persisted state, parameters,
-  EventCallbacks, binding, and EditForm validation.
-  USE FOR: add a Blazor page or component, new .razor file, choose render mode, @onclick not
-  firing, page vs component, [Parameter], string literal vs expression, EventCallback vs Action,
-  @bind / @bind:after, EditForm, duplicate data load, [PersistentState], StateHasChanged,
-  OnInitializedAsync vs OnParametersSet vs OnAfterRenderAsync, code-behind, CSS isolation,
-  JS interop, collocated .razor.js module.
-  DO NOT USE FOR: server services/ServiceResult (use add-feature-slice), HTTP endpoints or WASM
-  services (use add-api-endpoint), entities/EF/migrations (use add-domain-persistence),
-  writing tests only (use nova-testing).
-  INVOKES: nova-testing (component test step).
+  Add, change, debug, or review Nova Blazor pages and components, including existing forms,
+  asynchronous state, navigation, authentication changes, and command recovery. Guides placement,
+  render modes, lifecycle/prerender state, parameters, EventCallbacks, binding, EditForm validation,
+  CSS isolation, and collocated JS interop. Use for non-firing handlers and corrected form retries.
+  Server services use add-feature-slice; endpoints/HTTP clients use add-api-endpoint;
+  persistence uses add-domain-persistence; tests-only work uses nova-testing.
 ---
 
 # Add Blazor UI
 
-Use this skill when creating or changing a Nova page or component. It resolves the four decisions
-agents most often get wrong — **where it goes**, **page or component**, **which render mode**, and
-**which lifecycle method** — before any markup is written.
+Use this skill when creating, changing, debugging, or reviewing a Nova page or component. Resolve
+placement, render mode, lifecycle, and state ownership for the affected behavior before editing.
+For existing UI, inspect its current composition and sibling paths; apply the relevant checklist
+steps without recreating unrelated structure.
 
 Always-on rules live in `.github/instructions/blazor-architecture.instructions.md`. This skill is the
 procedure; that file is the rulebook. Where both apply, they agree — do not contradict either.
 
-## Canonical Nova examples
+## Scoped implementation examples
+
+Examples establish the named pattern only. Inspect their relevant regression before copying
+behavior; the [transition coverage reference](../nova-testing/references/blazor-component-tests.md#transition-coverage)
+pairs forms, identity, recovery, and URL patterns with tests. No entire page is a universal template.
 
 | Pattern | File |
 | --- | --- |
@@ -76,6 +75,9 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
    [Blazor component tests reference](../nova-testing/references/blazor-component-tests.md). An
    interactive page needs a render-mode assertion: bUnit fires callbacks even when the deployed page
    would render as static SSR, so a passing callback test does **not** prove the button works.
+10. **Complete the changed behavior** — select the applicable transitions in that reference, inspect
+    sibling forms/loads/mutations for the same invariant, and record the outcomes actually proved.
+    Apply the separate-review requirement in root `AGENTS.md` before PR creation.
 
 ## Self-check before finishing
 

@@ -1,17 +1,20 @@
 ---
 name: add-feature-slice
 description: >-
-  Orchestrates building a full vertical feature slice in Nova: input/query contract, service (ServiceResult/ServiceProblem), HTTP endpoint, WASM client, tests.
-  USE FOR: add a new feature, build a vertical slice end to end, add a read-only query API, new input record + service + endpoint, scaffold a feature, add a service that crosses the HTTP/WASM boundary.
+  Build, change, debug, or review a complete Nova feature across input/query contracts, services, HTTP endpoints, WASM clients, and tests.
+  USE FOR: end-to-end features, cross-tier behavior changes, bounded read-only query APIs, shared input and service contracts, and consistent server/client behavior.
   DO NOT USE FOR: domain/persistence-only work (use add-domain-persistence), a single endpoint on an existing service (use add-api-endpoint), UI-only work such as adding a page or component (use add-blazor-ui), only writing/running tests (use nova-testing).
   INVOKES: add-domain-persistence (when schema/domain persistence changes), add-api-endpoint (endpoint step), add-blazor-ui (UI step), nova-testing (test step).
 ---
 
 # Add Feature Slice
 
-Use this orchestrator when adding a complete Nova vertical slice that crosses the HTTP/WASM boundary. It owns the input/validation and service-layer recipes, then delegates detailed endpoint and test work to the dedicated skills.
+Use this orchestrator when adding or changing a complete Nova vertical slice across the HTTP/WASM
+boundary, including diagnosis and review. It owns the input/validation and service-layer recipes,
+then delegates detailed endpoint and test work. For existing slices, trace the affected behavior
+through all tiers and apply the relevant steps without rebuilding unrelated structure.
 
-Canonical examples: Clubs for mutations and
+Structural examples: Clubs for mutations and
 `Nova\Features\Campaigns\CampaignQueryService.cs` /
 `Nova.Client\Services\Campaigns\HttpCampaignQueryService.cs` for a bounded read-only slice.
 
@@ -44,3 +47,8 @@ Canonical examples: Clubs for mutations and
    placement, the render-mode decision, lifecycle/persisted state, callbacks, and form wiring. Do not
    duplicate that skill's details here.
 8. **Tests** — invoke `nova-testing`; do not duplicate that skill's test-suite details here.
+9. **Complete the behavior across tiers** — use the
+   [contract check](references/wasm-client.md#producer-to-ui-contract-check) and applicable
+   [transition coverage](../nova-testing/references/blazor-component-tests.md#transition-coverage).
+   Inspect sibling implementations for the fixed invariant and verify each affected path. Record
+   behavioral evidence and apply root `AGENTS.md`'s separate-review requirement before PR creation.

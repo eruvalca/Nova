@@ -39,6 +39,31 @@ returned operation identity as well as payload invariants. Follow
 for the server receipt contract; `HttpPlayerImportService` is the multipart example. A cancelled
 request or lost response leaves the commit outcome unknown until recovery succeeds.
 
+## Producer-to-UI contract check
+
+For a changed response or stricter client validation, inspect the whole chain before writing the
+regression: service/query producer → shared DTO and JSON serialization → HTTP client → rendered
+consumer. State which guarantees come from one snapshot and which totals are eventually consistent.
+
+1. Check required field presence, explicit nulls, identity, count relationships, shared limits, and
+   portable ordering against the producer's actual query/transaction. Do not invent a client-only
+   invariant or silently weaken a promised server guarantee.
+2. Verify the endpoint serializes a populated valid response through the production DTOs. Exercise
+   omission/malformed input and declared failure shapes at HTTP boundaries when applicable.
+3. Exercise the client with a populated valid response and missing required fields, nested nulls,
+   malformed JSON, invalid relationships, and limit edges. Reject invalid success bodies as a
+   protocol failure; retain the legitimate zero/empty cases.
+4. Verify the UI consumes the same guarantees: complete bounded previews, visible truncation, and
+   receipt-based committed counts. Prove recovery from a rejected payload when the UI offers retry.
+
+For bounded opening previews, inspect `CampaignQueryService.cs`, `CampaignOpeningContracts.cs`,
+`HttpCampaignQueryService.cs`, and `CampaignEntry.razor(.cs)` together. The focused evidence is
+`CampaignOpeningHttpTests.CampaignOpeningReadiness_ReturnsBoundedActiveTeamPreview` for real HTTP,
+`HttpCampaignQueryServiceTests.GetOpeningReadinessAsync_RequiresCompleteBoundedPreview` for zero,
+singleton, and capped client bounds, and
+`CampaignEntryTests.CampaignEntry_UsesCountAwareReadinessLabels` for rendered count wording.
+These tests prove their named contracts; add the missing boundary evidence for the current change.
+
 ## Canonical example
 
 ```csharp

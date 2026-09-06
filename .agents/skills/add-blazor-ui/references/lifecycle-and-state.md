@@ -14,8 +14,8 @@ a measured reason.
 
 ## Reacting to parameters without re-running work
 
-`OnParametersSet` fires on every parameter set, so guard one-time projection with a flag. `Players`
-projects query-string filters exactly once:
+`OnParametersSet` fires on every parameter set. Guard startup-only projection with a flag; this
+example is appropriate only when later query changes must not affect the mounted component:
 
 ```csharp
 [SupplyParameterFromQuery(Name = "search")]
@@ -34,8 +34,10 @@ protected override void OnParametersSet()
 }
 ```
 
-If the component *should* react to later parameter changes, compare against the last applied value
-and act only on an actual change — never unconditionally.
+If the component should react to later parameter changes (including same-route navigation and
+history), compare against the last applied value and act only on an actual change. Verify the
+rendered filters and URL together; see the testing reference's
+[transition coverage](../../nova-testing/references/blazor-component-tests.md#transition-coverage).
 
 ## Prerender + interactive attach
 
@@ -91,7 +93,8 @@ Rules:
 When a page loads independent regions, start their loaders together but keep each region's loading,
 data, empty, and error state separate. Persist every region's startup result or error plus the shared
 initialization flag. A local retry reloads and re-persists only its region; it must not clear or
-relabel successful neighbors. `ClubOverview.razor.cs` is the canonical example.
+relabel successful neighbors. Pair `ClubOverview.razor.cs` with
+`ClubOverviewComponentTests.RetryIdentity_ReloadsOnlyIdentity_AndPreservesSuccessfulRegions`.
 
 ## Cancellation
 
@@ -107,8 +110,8 @@ the new request waits.
 Persist the snapshot's club id independently of its payload (an error can have no payload), and
 validate that id before honoring `Initialized`. Give each replacement load or mutation an owned
 request token/generation: cancellation stops cooperative work, while ownership checks prevent late
-results and `finally` blocks from overwriting a newer scope's data or busy flags. See
-`ClubOverview.razor.cs` for independent region loads and `Teams.razor.cs` for mutation ownership.
+results and `finally` blocks from overwriting a newer scope's data or busy flags. See the testing
+reference's identity and async-ownership examples for the relevant components and regressions.
 
 ### Disposal and transport cancellation
 

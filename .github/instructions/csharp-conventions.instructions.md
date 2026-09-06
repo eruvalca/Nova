@@ -66,10 +66,14 @@ Use **C# 14 extension blocks** to map domain entities to DTOs. Place one extensi
 
 ## Documentation
 
-- Add XML documentation comments (`///`) for every C# type and member you add or modify, including `public`, `protected`, `internal`, and `private` declarations.
-- Required coverage includes classes, records, structs, interfaces, enums, delegates, services, constructors, methods, properties, fields, and events.
-- Every documented symbol must include a meaningful `<summary>` that explains purpose and behavior, not just a restatement of the symbol name.
-- Add `<param>` for each method or constructor parameter. Add `<returns>` for non-`void` return values, including `Task<T>` and `ValueTask<T>`.
+- Add XML documentation (`///`) for public/shared contracts and APIs intended for callers, including
+  extension members and mapping methods. Explain meaningful behavior, required inputs, returned
+  outcomes, and constraints; use `<inheritdoc />` when the inherited contract applies unchanged.
+- Document non-obvious internal ownership, invariants, preconditions, and side effects with XML
+  comments on a callable contract or ordinary comments next to the relevant implementation.
+  Obvious private fields, constructors, helpers, and test members do not require ceremonial XML.
+- Use a meaningful `<summary>` and document parameters and return values when needed to explain
+  their contract; do not merely restate names or types.
 - Keep documentation behavior-accurate. When behavior changes, update docs in the same change.
 - Generated or third-party sources are excluded unless their generator supports documentation customization.
 

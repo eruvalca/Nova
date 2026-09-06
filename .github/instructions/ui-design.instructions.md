@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.razor,**/*.razor.css,Nova/scss/**,Nova/Components/Pages/**,Nova/Features/**"
+applyTo: "**/*.razor,**/*.razor.cs,**/*.razor.css,**/*.razor.js,Nova/scss/**"
 description: "UI design rules for the Fieldhouse Wayfinding design system: PRODUCT.md/DESIGN.md and .impeccable/surfaces are the sources of truth, semantic color roles, flat boards, radii, navigation and route-marker semantics, comment-block convention, motion/touch-target rules, and responsive collapse behavior."
 ---
 
