@@ -90,7 +90,7 @@ Run positive/negative validator tests on Windows and Ubuntu CI. Normalize line e
 
 ### Phase Summary
 
-Canonical and installed definitions now align; the checker covers exact provider differences and installer mirrors. Windows parity and negative fixtures pass. Separate review caught and closed invalid YAML scalar acceptance. Ubuntu execution remains pending CI.
+Canonical and installed definitions now align; the checker covers exact provider differences and installer mirrors. Windows and Ubuntu parity and negative fixtures pass. Separate review caught and closed invalid YAML scalar acceptance.
 
 ## Phase 4: Hook portability and Razor coverage
 
@@ -200,11 +200,14 @@ this branch changes setup/documentation only. Final commit/CI results follow bel
 - Unit: 2,558 passed; integration: 531 passed; browser: 120 passed and seven explicitly
   skipped opt-in screenshot helpers (`NOVA_A11Y_SCREENSHOTS` was unset). No failures.
 - Guidance parity and normalized positive/17 negative fixture checks passed on Windows,
-  including invalid YAML scalars discovered during separate review. Ubuntu CI pending.
+  including invalid YAML scalars discovered during separate review. The same checks passed on
+  Ubuntu in [CI run 34007396788](https://github.com/eruvalca/Nova/actions/runs/34007396788),
+  tested commit `f58f2e21e120afcd733171ea6e9f29436023716f`.
 - Hook suite: Windows Node 24, 14 passed; Linux Node 24 container, 11 passed and three explicit
   Windows transport skips. Existing Ubuntu CI uses Node 20: launchers require Node 22+,
   so dispatch cases explicitly skip there and test the honest unavailable-runtime guard.
-  No runtime was installed or upgraded.
+  The existing Ubuntu Node 20 adapter/installer job also passed in that CI run, retaining the
+  explicit unsupported-runtime dispatch skips. No runtime was installed or upgraded locally.
 - The real detector found broken Razor markup and processed clean conditional Razor. It emitted
   `DEGRADED`: optional HTML parser modules are absent. Regex analysis ran; custom properties,
   selector matching, and computed contrast remain outside that evidence.
@@ -255,8 +258,8 @@ this branch changes setup/documentation only. Final commit/CI results follow bel
 | Documentation noise | Blanket XML policy | Meaningful public/shared contracts and non-obvious internal invariants replace ceremonial documentation. |
 
 Canonical transition examples live in the existing testing skill reference; this ledger does not
-duplicate their changing test names/counts. Independent final reviews are complete. Ubuntu CI
-results will be added after the PR opens.
+duplicate their changing test names/counts. Independent final reviews and Ubuntu setup checks are
+complete. The live application-CI status is attached to [PR #249](https://github.com/eruvalca/Nova/pull/249).
 
 ### Bounded CLI exercises and their limits
 
@@ -303,7 +306,8 @@ All five implementation phases are delivered. Separate review caught and closed 
 setup defects before publication: ambiguous Markdown descriptions, Unicode Git-root decoding,
 and early-event nested audit configuration. Application build/format/contrast and all three suites
 passed; final guidance/hook checks passed on Windows, with Linux hook evidence recorded above.
-Ubuntu CI verification follows publication and is recorded in the PR validation record.
+Ubuntu setup checks passed after publication and are linked above. Later changes only update this
+verification record; the PR validation record identifies the tested revision and final CI status.
 
 Remaining limitations are explicit: Codex native hooks need trust review; desktop execution was
 not verified; optional detector parsers are absent; Copilot disposable-copy trust limits those
