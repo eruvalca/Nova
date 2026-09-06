@@ -32,6 +32,26 @@ four maintained agents and hook installers, with only explicit provider substitu
 Hook tests use the existing Node runtime and temporary fixtures. Neither command proves
 that an agent loaded the files or that a user's tool trusted the hooks.
 
+## Build diagnostics and limits
+
+Normal `dotnet build Nova.slnx` uses [Directory.Build.props](../Directory.Build.props) to enable
+[build-time code-style analysis](https://learn.microsoft.com/en-us/dotnet/core/project-sdk/msbuild-props#enforcecodestyleinbuild)
+and treat emitted compiler/analyzer warnings as errors. [.editorconfig](../.editorconfig) enables
+CA2012 and CA2016; the existing xUnit analyzers remain in place.
+[TreatWarningsAsErrors](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/compiler-options/errors-warnings#treatwarningsaserrors)
+does not promote suggestions, enable every analyzer, or turn every other MSBuild task's warnings
+into errors.
+
+Naming diagnostic IDE1006 remains advisory pending a coordinated migration of existing code and
+recipe examples. Public test-project methods, including public helpers, share the async-suffix
+exception; non-public helpers and other naming rules remain covered. These naming suggestions
+do not block the build.
+
+Record the baseline, scoped fixes, and diagnostic failure/pass evidence in the
+[build-enforcement plan](../plans/build-quality-enforcement.md). Mechanical checks do not prove component ownership,
+retry behavior, or rendered interaction; retain behavioral tests and separate review. Changes that
+weaken checks follow the repo-wide [quality-control rule](../AGENTS.md#completion-and-review).
+
 ## Verify a fresh session
 
 After changing instructions, start a fresh session. Repeat from the repository root and

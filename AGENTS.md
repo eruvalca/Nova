@@ -85,6 +85,10 @@ were applied. Generic Aspire, .NET inspection, and Playwright recipes also live 
 
 ## Completion and review
 
+- Diagnostic suppressions, weakened validation, skipped tests, and disabled checks are quality-control
+  changes: require an explicit rationale and review of their effect on coverage and enforcement.
+  Keep legitimate exceptions narrowly scoped and preserve justified existing exceptions. Fix the
+  underlying failure; do not hide or bypass it merely to make verification green.
 - For a defect fix, identify the violated invariant, inspect related implementations and call sites,
   and verify each affected path before completion. Report the behavioral evidence and checks run.
 - Before opening a PR, obtain a separate local review for changes affecting authentication or

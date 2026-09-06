@@ -19,6 +19,13 @@ indent_size = 2
 [*.cs]
 charset = utf-8-bom
 
+# Naming remains advisory pending the coordinated migration recorded in
+# plans/build-quality-enforcement.md; do not exempt maintained scaffold code.
+dotnet_diagnostic.IDE1006.severity = suggestion
+# Build-enforced SDK reliability checks.
+dotnet_diagnostic.CA2012.severity = warning
+dotnet_diagnostic.CA2016.severity = warning
+
 #### Organize using directives ####
 dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = false
@@ -103,6 +110,7 @@ dotnet_naming_symbols.interface_symbols.applicable_kinds           = interface
 dotnet_naming_symbols.interface_symbols.applicable_accessibilities = *
 
 dotnet_naming_style.interface_style.required_prefix = I
+dotnet_naming_style.interface_style.capitalization = pascal_case
 
 # Type parameters must start with T (e.g. TResult)
 dotnet_naming_rule.type_parameters_must_begin_with_t.symbols   = type_parameter_symbols
@@ -110,8 +118,10 @@ dotnet_naming_rule.type_parameters_must_begin_with_t.style     = type_parameter_
 dotnet_naming_rule.type_parameters_must_begin_with_t.severity  = suggestion
 
 dotnet_naming_symbols.type_parameter_symbols.applicable_kinds = type_parameter
+dotnet_naming_symbols.type_parameter_symbols.applicable_accessibilities = *
 
 dotnet_naming_style.type_parameter_style.required_prefix = T
+dotnet_naming_style.type_parameter_style.capitalization = pascal_case
 
 # Async methods must end in Async
 dotnet_naming_rule.async_methods_must_end_in_async.symbols   = async_method_symbols
@@ -123,6 +133,7 @@ dotnet_naming_symbols.async_method_symbols.applicable_accessibilities = *
 dotnet_naming_symbols.async_method_symbols.required_modifiers       = async
 
 dotnet_naming_style.async_method_style.required_suffix = Async
+dotnet_naming_style.async_method_style.capitalization = pascal_case
 
 # Private/protected fields use _camelCase
 dotnet_naming_rule.private_fields_use_underscore_prefix.symbols   = private_field_symbols
@@ -133,6 +144,7 @@ dotnet_naming_symbols.private_field_symbols.applicable_kinds           = field
 dotnet_naming_symbols.private_field_symbols.applicable_accessibilities = private, protected, private_protected
 
 dotnet_naming_style.private_field_style.required_prefix = _
+dotnet_naming_style.private_field_style.capitalization = camel_case
 
 # Constants are PascalCase
 dotnet_naming_rule.constants_are_pascal_case.symbols   = constant_symbols
@@ -140,4 +152,20 @@ dotnet_naming_rule.constants_are_pascal_case.style     = pascal_case_style
 dotnet_naming_rule.constants_are_pascal_case.severity  = warning
 
 dotnet_naming_symbols.constant_symbols.applicable_kinds        = field, local
+dotnet_naming_symbols.constant_symbols.applicable_accessibilities = *
 dotnet_naming_symbols.constant_symbols.required_modifiers      = const
+
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+# Constants must win over the more accessibility-specific underscore-field rule.
+dotnet_naming_rule.private_constants_are_pascal_case.symbols = private_constant_symbols
+dotnet_naming_rule.private_constants_are_pascal_case.style = pascal_case_style
+dotnet_naming_rule.private_constants_are_pascal_case.severity = warning
+dotnet_naming_symbols.private_constant_symbols.applicable_kinds = field
+dotnet_naming_symbols.private_constant_symbols.applicable_accessibilities = private, protected, private_protected
+dotnet_naming_symbols.private_constant_symbols.required_modifiers = const
+
+[{Nova.Unit.Tests,Nova.Integration.Tests,Nova.Browser.Tests}/**.cs]
+# Public tests retain Subject_Outcome_Condition names. EditorConfig cannot select Fact/Theory
+# attributes, so public test-project helpers share this exception; non-public helpers still use Async.
+dotnet_naming_symbols.async_method_symbols.applicable_accessibilities = private, internal, protected, protected_internal, private_protected

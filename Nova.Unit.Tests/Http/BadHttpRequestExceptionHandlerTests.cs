@@ -44,7 +44,7 @@ public sealed class BadHttpRequestExceptionHandlerTests
         ProblemDetailsContext? capturedContext = null;
         problemDetailsService.TryWriteAsync(
                 Arg.Do<ProblemDetailsContext>(context => capturedContext = context))
-            .Returns(ValueTask.FromResult(true));
+            .Returns(true);
         var handler = new BadHttpRequestExceptionHandler(problemDetailsService);
         var httpContext = new DefaultHttpContext();
         var exception = new BadHttpRequestException("payload", StatusCodes.Status400BadRequest);
@@ -71,7 +71,7 @@ public sealed class BadHttpRequestExceptionHandlerTests
         ProblemDetailsContext? capturedContext = null;
         problemDetailsService.TryWriteAsync(
                 Arg.Do<ProblemDetailsContext>(context => capturedContext = context))
-            .Returns(ValueTask.FromResult(true));
+            .Returns(true);
         var handler = new BadHttpRequestExceptionHandler(problemDetailsService);
         var httpContext = new DefaultHttpContext();
         var exception = new BadHttpRequestException("payload too large", PayloadTooLargeStatusCode);
