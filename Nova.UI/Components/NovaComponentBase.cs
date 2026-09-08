@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
+using Microsoft.AspNetCore.Components;
 
 namespace Nova.UI.Components;
 
@@ -10,17 +11,17 @@ public abstract class NovaComponentBase : ComponentBase, IAsyncDisposable
     /// <summary>
     /// Represents a canceled token returned when the component has already been disposed.
     /// </summary>
-    private static readonly CancellationToken DisposedCancellationToken = new(canceled: true);
+    private static readonly CancellationToken _disposedCancellationToken = new(canceled: true);
 
     /// <summary>
     /// Stores the component-scoped cancellation token source and is created only when first needed.
     /// </summary>
-    private CancellationTokenSource? componentCancellationTokenSource;
+    private CancellationTokenSource? _componentCancellationTokenSource;
 
     /// <summary>
     /// Indicates whether asynchronous disposal has started for this component instance.
     /// </summary>
-    private bool isDisposed;
+    private bool _isDisposed;
 
     /// <summary>
     /// Gets a cancellation token that is active while the component is alive.
@@ -32,13 +33,13 @@ public abstract class NovaComponentBase : ComponentBase, IAsyncDisposable
     {
         get
         {
-            if (isDisposed)
+            if (_isDisposed)
             {
-                return DisposedCancellationToken;
+                return _disposedCancellationToken;
             }
 
-            componentCancellationTokenSource ??= new CancellationTokenSource();
-            return componentCancellationTokenSource.Token;
+            _componentCancellationTokenSource ??= new CancellationTokenSource();
+            return _componentCancellationTokenSource.Token;
         }
     }
 
@@ -50,19 +51,19 @@ public abstract class NovaComponentBase : ComponentBase, IAsyncDisposable
     /// </returns>
     public async ValueTask DisposeAsync()
     {
-        if (isDisposed)
+        if (_isDisposed)
         {
             return;
         }
 
-        isDisposed = true;
+        _isDisposed = true;
 
-        if (componentCancellationTokenSource is not null)
+        if (_componentCancellationTokenSource is not null)
         {
-            componentCancellationTokenSource.Cancel();
-            componentCancellationTokenSource.Dispose();
+            _componentCancellationTokenSource.Cancel();
+            _componentCancellationTokenSource.Dispose();
 
-            componentCancellationTokenSource = null;
+            _componentCancellationTokenSource = null;
         }
 
         await DisposeAsyncCore();
@@ -77,3 +78,6 @@ public abstract class NovaComponentBase : ComponentBase, IAsyncDisposable
     /// </returns>
     protected virtual ValueTask DisposeAsyncCore() => ValueTask.CompletedTask;
 }
+
+
+#pragma warning restore CA1849, S6966

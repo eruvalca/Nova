@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Features.Clubs;
 
 namespace Nova.UI.Features.Clubs.Components;
 
@@ -84,7 +85,7 @@ public partial class ClubSearchPanel(IClubService clubService, IClubJoinRequestS
     /// <param name="args">The keyboard event arguments.</param>
     private async Task HandleKeyDownAsync(KeyboardEventArgs args)
     {
-        if (args.Key == "Enter")
+        if (string.Equals(args.Key, "Enter", StringComparison.Ordinal))
         {
             await SearchAsync();
         }
@@ -160,6 +161,9 @@ public partial class ClubSearchPanel(IClubService clubService, IClubJoinRequestS
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();
         _debounceCts = null;
-        return ValueTask.CompletedTask;
+        return base.DisposeAsyncCore();
     }
 }
+
+
+#pragma warning restore CA1849, S6966

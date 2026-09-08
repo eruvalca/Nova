@@ -4,9 +4,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Photos;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Photos;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -29,7 +29,7 @@ public sealed class TraceCorrelationHttpTests(NovaAppHostFixture fixture)
     /// <c>traceId</c> equal to the client-sent <c>traceparent</c> trace id.
     /// </summary>
     [Fact]
-    public async Task ServiceProblem_ReturnsTraceIdMatchingSentTraceparent()
+    public async Task ServiceProblemReturnsTraceIdMatchingSentTraceparentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -59,7 +59,7 @@ public sealed class TraceCorrelationHttpTests(NovaAppHostFixture fixture)
     /// client-sent <c>traceparent</c> trace id.
     /// </summary>
     [Fact]
-    public async Task MalformedForm_ReturnsTraceIdMatchingSentTraceparent()
+    public async Task MalformedFormReturnsTraceIdMatchingSentTraceparentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -92,7 +92,7 @@ public sealed class TraceCorrelationHttpTests(NovaAppHostFixture fixture)
     /// <c>traceparent</c> trace id.
     /// </summary>
     [Fact]
-    public async Task StatusCodePage_ReturnsTraceIdMatchingSentTraceparent()
+    public async Task StatusCodePageReturnsTraceIdMatchingSentTraceparentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -138,7 +138,9 @@ public sealed class TraceCorrelationHttpTests(NovaAppHostFixture fixture)
     /// <returns>The multipart payload for the <c>file</c> form field.</returns>
     private static MultipartFormDataContent CreateUploadContent(byte[] bytes, string contentType)
     {
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         var fileContent = new ByteArrayContent(bytes);
+#pragma warning restore CA2000
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
         return new MultipartFormDataContent { { fileContent, "file", "photo.jpg" } };
     }

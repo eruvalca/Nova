@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddNoteCreationOperationId : Migration
+internal partial class AddNoteCreationOperationId : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -24,7 +24,9 @@ public partial class AddNoteCreationOperationId : Migration
         migrationBuilder.CreateIndex(
             name: "IX_Notes_ClubId_CreationOperationId",
             table: "Notes",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreationOperationId" },
+#pragma warning restore CA1861
             unique: true,
             filter: "\"CreationOperationId\" IS NOT NULL");
     }

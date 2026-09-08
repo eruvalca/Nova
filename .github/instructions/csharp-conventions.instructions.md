@@ -11,6 +11,13 @@ C# style is enforced by `.editorconfig`; do not hand-format. Run the formatting 
 committing any C# changes: `dotnet format Nova.slnx --verify-no-changes --verbosity diagnostic`.
 If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with `--verify-no-changes`.
 
+## Await continuations
+
+- Use ordinary `await`, `await using`, and `await foreach` by default. CA2007 and the equivalent MA0004
+  rule are disabled solution-wide; do not add `ConfigureAwait` calls or disposal aliases solely to satisfy these rules.
+- Introduce `ConfigureAwait(false)` only for an explicit context-independent requirement,
+  and verify affected callers. Blazor component continuations must preserve renderer context.
+
 ## `Try*` contracts
 
 - A method named `TryParse*`, `TryGet*`, or similar must return `false` with safe out values for
@@ -25,7 +32,7 @@ If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with `
 - Prefer the `OneOf` library for discriminated-union style modeling instead of custom inheritance hierarchies, flag enums with payload side channels, or tuple-based outcome patterns.
 - Use `OneOf<T1, … , TN>` for method return types that can produce one of several known result shapes (success, validation failure, not found, conflict).
 - **Prefer native OneOf types** (Success, Error<T>, NotFound, Conflict) for service operations within a single tier or that do not cross boundaries.
-- **Use ServiceResult<T>** (defined in `Nova.Shared.Results`) only when the operation crosses service boundaries: HTTP endpoints, WebAssembly client calls, or shared interfaces that span tiers.
+- **Use ServiceResult<T>** (defined in `Nova.SharedKernel.Results`) only when the operation crosses service boundaries: HTTP endpoints, WebAssembly client calls, or shared interfaces that span tiers.
     - Example: `ClubMembershipClaimRefresher` (internal, single tier) → native OneOf.
     - Example: `IProfilePhotoService` (boundary-crossing interface) → ServiceResult.
 - Handle unions exhaustively with `Match` when branches produce a value and `Switch` for side-effect-only branches. Prefer named handlers or domain-named lambda parameters for multi-case flows.
@@ -51,14 +58,14 @@ If it fails, run `dotnet format Nova.slnx` to apply fixes, then re-verify with `
 - Control visibility at the enclosing static class: `internal static class` when consumed only within the assembly; `public static class` when extending framework types consumed across projects.
 - Do not use `file static` for extension classes consumed from other files.
 - Document extension members with XML comments explaining the receiver type they extend and the behavior they add.
-- Canonical examples: `Nova/Features/Shared/ServiceResultExtensions.cs`, `Nova.Shared/Results/HttpResponseMessageExtensions.cs`, `Nova.ServiceDefaults/Extensions.cs`.
+- Canonical examples: `Nova/Features/Common/ServiceResultExtensions.cs`, `Nova.SharedKernel/Results/HttpResponseMessageExtensions.cs`, `Nova.ServiceDefaults/Extensions.cs`.
 
 ## Entity-to-DTO Mapping
 
 Use **C# 14 extension blocks** to map domain entities to DTOs. Place one extension class per entity in `Nova/Extensions/{Feature}/`, named `{EntityType}Extensions.cs`.
 
 - Use C# 14 extension block syntax (`extension(EntityType entity) { ... }`) rather than classic `this`-parameter methods.
-- Mark the containing static class `internal` — mapping extensions are server-only (entities live in `Nova`; DTOs in `Nova.Shared`).
+- Mark the containing static class `internal` — mapping extensions are server-only (entities live in `Nova`; DTOs in `Nova.SharedKernel`).
 - Name each mapping method `To{DtoType}()` and return the DTO directly from an expression body.
 - Document every method with XML comments; when a navigation property must be loaded before calling the method, state that requirement explicitly in `<summary>`.
 - **Never call a mapping method directly in an EF LINQ query** (e.g. inside `Select` before `ToListAsync`). EF cannot translate C# extension methods to SQL. Always materialize first (`.ToListAsync()`), then project in memory (`entities.Select(e => e.ToDto())`).
@@ -66,12 +73,17 @@ Use **C# 14 extension blocks** to map domain entities to DTOs. Place one extensi
 
 ## Documentation
 
-- Add XML documentation comments (`///`) for every C# type and member you add or modify, including `public`, `protected`, `internal`, and `private` declarations.
-- Required coverage includes classes, records, structs, interfaces, enums, delegates, services, constructors, methods, properties, fields, and events.
-- Every documented symbol must include a meaningful `<summary>` that explains purpose and behavior, not just a restatement of the symbol name.
-- Add `<param>` for each method or constructor parameter. Add `<returns>` for non-`void` return values, including `Task<T>` and `ValueTask<T>`.
+- Add XML documentation (`///`) for public/shared contracts and APIs intended for callers, including
+  extension members and mapping methods. Explain meaningful behavior, required inputs, returned
+  outcomes, and constraints; use `<inheritdoc />` when the inherited contract applies unchanged.
+- Document non-obvious internal ownership, invariants, preconditions, and side effects with XML
+  comments on a callable contract or ordinary comments next to the relevant implementation.
+  Obvious private fields, constructors, helpers, and test members do not require ceremonial XML.
+- Use a meaningful `<summary>` and document parameters and return values when needed to explain
+  their contract; do not merely restate names or types.
 - Keep documentation behavior-accurate. When behavior changes, update docs in the same change.
-- Generated or third-party sources are excluded unless their generator supports documentation customization.
+- Generator-maintained outputs and third-party sources are excluded unless their generator supports
+  documentation customization. One-time scaffolds maintained as application code follow these conventions.
 
 ## Logging
 

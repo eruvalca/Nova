@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Dashboard;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Dashboard;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Dashboard;
 
@@ -23,7 +23,7 @@ internal static class DashboardEndpointRouteBuilderExtensions
                 .MapGroup(DashboardEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubMember);
 
-            group.MapGet(DashboardEndpoints.GetSummaryRelative, GetDashboardHandler)
+            group.MapGet(DashboardEndpoints.GetSummaryRelative, GetDashboardHandlerAsync)
                 .Produces<ClubDashboardResult>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -40,7 +40,7 @@ internal static class DashboardEndpointRouteBuilderExtensions
     /// <param name="dashboardQueryService">The service that resolves the dashboard summary.</param>
     /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
     /// <returns>The HTTP result for the dashboard summary.</returns>
-    private static async Task<IResult> GetDashboardHandler(
+    private static async Task<IResult> GetDashboardHandlerAsync(
         IDashboardQueryService dashboardQueryService,
         CancellationToken cancellationToken)
     {

@@ -2,9 +2,9 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Players;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Players;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -26,7 +26,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     /// with the new player's details in the response body.
     /// </summary>
     [Fact]
-    public async Task Create_ReturnsCreated_ForClubAdmin()
+    public async Task CreateReturnsCreatedForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -52,7 +52,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     /// a player.
     /// </summary>
     [Fact]
-    public async Task Create_ReturnsForbidden_ForClubMember()
+    public async Task CreateReturnsForbiddenForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -79,7 +79,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     /// 400 Bad Request before the service executes.
     /// </summary>
     [Fact]
-    public async Task Create_ReturnsBadRequest_ForInvalidInput()
+    public async Task CreateReturnsBadRequestForInvalidInputAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -107,7 +107,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     /// Verifies that an unauthenticated request to create a player returns 401 Unauthorized.
     /// </summary>
     [Fact]
-    public async Task Create_ReturnsUnauthorized_ForAnonymous()
+    public async Task CreateReturnsUnauthorizedForAnonymousAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -123,7 +123,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     /// Verifies that an authenticated club admin can update a player's profile and receives 200 OK.
     /// </summary>
     [Fact]
-    public async Task Update_ReturnsOk_ForClubAdmin()
+    public async Task UpdateReturnsOkForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -158,7 +158,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     /// Verifies that attempting to update a player belonging to another club returns 404 Not Found.
     /// </summary>
     [Fact]
-    public async Task Update_ReturnsNotFound_ForOtherClubPlayer()
+    public async Task UpdateReturnsNotFoundForOtherClubPlayerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminAClient = fixture.CreateNovaHttpClient();
@@ -199,7 +199,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     /// a player in their own club.
     /// </summary>
     [Fact]
-    public async Task Update_ReturnsForbidden_ForClubMember()
+    public async Task UpdateReturnsForbiddenForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -236,7 +236,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
     /// placement ineligible returns 409 Conflict with structured blocker information.
     /// </summary>
     [Fact]
-    public async Task Update_ReturnsConflictWithBlockers_ForIneligibleGraduationYearChange()
+    public async Task UpdateReturnsConflictWithBlockersForIneligibleGraduationYearChangeAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -306,53 +306,56 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         int teamGraduationYear,
         CancellationToken cancellationToken)
     {
-        await using var db = fixture.CreateAdminContext();
-        var actorUserId = fixture.CurrentUser.UserId ?? 1L;
-
-        var season = new Nova.Entities.SeasonEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Blocker Season {Guid.NewGuid():N}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        db.Seasons.Add(season);
-        await db.SaveChangesAsync(cancellationToken);
+            var actorUserId = fixture.CurrentUser.UserId ?? 1L;
 
-        var campaign = new Nova.Entities.CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Blocker Campaign {Guid.NewGuid():N}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = Nova.Shared.Enums.CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        db.Campaigns.Add(campaign);
+            var season = new Nova.Entities.SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Blocker Season {Guid.NewGuid():N}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            db.Seasons.Add(season);
+            await db.SaveChangesAsync(cancellationToken);
 
-        var team = new Nova.Entities.TeamEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Blocker Team {teamGraduationYear}",
-            GraduationYear = teamGraduationYear,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        db.Teams.Add(team);
-        await db.SaveChangesAsync(cancellationToken);
+            var campaign = new Nova.Entities.CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Blocker Campaign {Guid.NewGuid():N}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = Nova.SharedKernel.Enums.CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            db.Campaigns.Add(campaign);
 
-        db.PlayerCampaignAssignments.Add(new Nova.Entities.PlayerCampaignAssignmentEntity
-        {
-            PlayerId = playerId,
-            CampaignId = campaign.CampaignId,
-            TeamId = team.TeamId,
-            PlacementOutcome = Nova.Shared.Enums.PlacementOutcome.Assigned,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        });
-        await db.SaveChangesAsync(cancellationToken);
+            var team = new Nova.Entities.TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Blocker Team {teamGraduationYear}",
+                GraduationYear = teamGraduationYear,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            db.Teams.Add(team);
+            await db.SaveChangesAsync(cancellationToken);
+
+            db.PlayerCampaignAssignments.Add(new Nova.Entities.PlayerCampaignAssignmentEntity
+            {
+                PlayerId = playerId,
+                CampaignId = campaign.CampaignId,
+                TeamId = team.TeamId,
+                PlacementOutcome = Nova.SharedKernel.Enums.PlacementOutcome.Assigned,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            });
+            await db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static async Task<ClubDto> CreateClubAsync(
@@ -362,10 +365,11 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         string state,
         CancellationToken cancellationToken)
     {
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent(name, city, state);
         using var response = await client.PostAsync(
-            Nova.Shared.Features.Clubs.ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent(name, city, state),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
@@ -375,7 +379,7 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
 
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{Nova.Shared.Features.Clubs.ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -386,14 +390,17 @@ public sealed class PlayerManagementHttpTests(NovaAppHostFixture fixture)
         long? clubId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var normalizedEmail = email.ToUpperInvariant();
-        var user = await context.Users.SingleAsync(u => u.NormalizedEmail == normalizedEmail, cancellationToken);
-        user.FirstName = firstName;
-        user.LastName = lastName;
-        user.ClubId = clubId;
-        context.Users.Update(user);
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var normalizedEmail = email.ToUpperInvariant();
+            var user = await context.Users.SingleAsync(u => u.NormalizedEmail == normalizedEmail, cancellationToken);
+            user.FirstName = firstName;
+            user.LastName = lastName;
+            user.ClubId = clubId;
+            context.Users.Update(user);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";

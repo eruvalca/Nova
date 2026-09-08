@@ -2,10 +2,10 @@
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Campaigns;
 
@@ -15,13 +15,15 @@ namespace Nova.Features.Campaigns;
 /// <param name="readDbContextFactory">The read-only tenant-scoped context factory.</param>
 /// <param name="currentUserProvider">The current user provider used for authorization checks.</param>
 /// <param name="logger">The logger for expected authorization failures.</param>
-public sealed partial class CampaignPlacementQueryService(
+internal sealed partial class CampaignPlacementQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignPlacementQueryService> logger) : ICampaignPlacementQueryService
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<PagedResult<CampaignPlacementRosterItem>>> GetPlacementRosterAsync(
+#pragma warning restore MA0051
         GetCampaignPlacementRosterInput input,
         CancellationToken cancellationToken = default)
     {

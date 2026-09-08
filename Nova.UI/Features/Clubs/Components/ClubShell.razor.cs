@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 
 namespace Nova.UI.Features.Clubs.Components;
 

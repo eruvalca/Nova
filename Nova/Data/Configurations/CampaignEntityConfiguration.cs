@@ -1,14 +1,14 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Data.Configurations;
 
 /// <summary>
 /// Configures EF Core mapping for Campaign Entity Configuration.
 /// </summary>
-public class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEntity>
+internal class CampaignEntityConfiguration : IEntityTypeConfiguration<CampaignEntity>
 {
     /// <summary>
     /// Gets the database constraint name that enforces one Active campaign per club.

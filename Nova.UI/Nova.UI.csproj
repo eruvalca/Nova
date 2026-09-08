@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Nova.Shared\Nova.Shared.csproj" />
+    <ProjectReference Include="..\Nova.SharedKernel\Nova.SharedKernel.csproj" />
   </ItemGroup>
 
 </Project>

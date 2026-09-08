@@ -1,38 +1,38 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>aspnet-Nova-ff5614db-51cf-4f78-a241-602e7627a567</UserSecretsId>
-    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UserSecretsId>aspnet-Nova-ff5614db-51cf-4f78-a241-602e7627a567</UserSecretsId>
+        <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
-    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="CsvHelper" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="SixLabors.ImageSharp" />
-    <ProjectReference Include="..\Nova.ServiceDefaults\Nova.ServiceDefaults.csproj" />
-    <ProjectReference Include="..\Nova.Client\Nova.Client.csproj" />
-    <ProjectReference Include="..\Nova.Shared\Nova.Shared.csproj" />
-    <ProjectReference Include="..\Nova.UI\Nova.UI.csproj" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
-    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Aspire.Azure.Storage.Blobs" />
+        <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+        <PackageReference Include="CsvHelper" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+        <PackageReference Include="SixLabors.ImageSharp" />
+        <ProjectReference Include="..\Nova.ServiceDefaults\Nova.ServiceDefaults.csproj" />
+        <ProjectReference Include="..\Nova.Client\Nova.Client.csproj" />
+        <ProjectReference Include="..\Nova.SharedKernel\Nova.SharedKernel.csproj" />
+        <ProjectReference Include="..\Nova.UI\Nova.UI.csproj" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
+        <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    </ItemGroup>
 
-  <!-- Sass sources for the kelp-forest Bootstrap theme (issue #132). Referenced from the
+    <!-- Sass sources for the kelp-forest Bootstrap theme (issue #132). Referenced from the
        BuildBootstrapTheme target's Inputs so MSBuild can evaluate incrementality. -->
-  <ItemGroup>
-    <ThemeScssFiles Include="scss\**\*.scss" />
-  </ItemGroup>
+    <ItemGroup>
+        <ThemeScssFiles Include="scss\**\*.scss" />
+    </ItemGroup>
 
-  <!--
+    <!--
     Builds the kelp-forest Bootstrap theme from the Sass sources in scss/ into
     wwwroot/css/bootstrap-theme.css. The compiled output is gitignored and is
     regenerated on every build (incrementally: the target reruns only when the
@@ -55,35 +55,37 @@
     detect wwwroot assets) ensures the file exists on disk AND is registered as a Content
     item before discovery runs.
   -->
-  <Target Name="BuildBootstrapTheme" BeforeTargets="ResolveProjectStaticWebAssets"
-          DependsOnTargets="CheckNodePrerequisite;RestoreNpmPackages"
-          Inputs="@(ThemeScssFiles);$(MSBuildProjectDirectory)\package.json;$(MSBuildProjectDirectory)\package-lock.json"
-          Outputs="$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css;$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2;$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff">
-    <Exec Command="npm run build:css" WorkingDirectory="$(MSBuildProjectDirectory)" />
-    <ItemGroup>
-      <Content Include="wwwroot\css\bootstrap-theme.css"
-               Condition="Exists('$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css')" />
-      <FileWrites Include="$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css" />
-    </ItemGroup>
-    <!--
+    <Target Name="BuildBootstrapTheme" BeforeTargets="ResolveProjectStaticWebAssets"
+        DependsOnTargets="CheckNodePrerequisite;RestoreNpmPackages"
+        Inputs="@(ThemeScssFiles);$(MSBuildProjectDirectory)\package.json;$(MSBuildProjectDirectory)\package-lock.json"
+        Outputs="$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css;$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2;$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff">
+        <Exec Command="npm run build:css" WorkingDirectory="$(MSBuildProjectDirectory)" />
+        <ItemGroup>
+            <Content Include="wwwroot\css\bootstrap-theme.css"
+                Condition="Exists('$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css')" />
+            <FileWrites Include="$(MSBuildProjectDirectory)\wwwroot\css\bootstrap-theme.css" />
+        </ItemGroup>
+        <!--
       Copy the bootstrap-icons font files next to the compiled theme so the
       `@font-face` in bootstrap-theme.css (which references
       `./fonts/bootstrap-icons.woff2`) resolves under static-web-asset serving.
       The fonts are generated from node_modules, so they are registered as
       Content for static-web-asset discovery and as FileWrites for clean.
     -->
-    <Copy SourceFiles="$(MSBuildProjectDirectory)\node_modules\bootstrap-icons\font\fonts\bootstrap-icons.woff2;
-                        $(MSBuildProjectDirectory)\node_modules\bootstrap-icons\font\fonts\bootstrap-icons.woff"
-          DestinationFolder="$(MSBuildProjectDirectory)\wwwroot\css\fonts" SkipUnchangedFiles="true" />
-    <ItemGroup>
-      <Content Include="wwwroot\css\fonts\bootstrap-icons.woff2;wwwroot\css\fonts\bootstrap-icons.woff"
-               Condition="Exists('$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2')" />
-      <FileWrites Include="$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2;
-                           $(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff" />
-    </ItemGroup>
-  </Target>
+        <Copy
+            SourceFiles="$(MSBuildProjectDirectory)\node_modules\bootstrap-icons\font\fonts\bootstrap-icons.woff2;&#xD;&#xA;                        $(MSBuildProjectDirectory)\node_modules\bootstrap-icons\font\fonts\bootstrap-icons.woff"
+            DestinationFolder="$(MSBuildProjectDirectory)\wwwroot\css\fonts"
+            SkipUnchangedFiles="true" />
+        <ItemGroup>
+            <Content
+                Include="wwwroot\css\fonts\bootstrap-icons.woff2;wwwroot\css\fonts\bootstrap-icons.woff"
+                Condition="Exists('$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2')" />
+            <FileWrites
+                Include="$(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff2;&#xD;&#xA;                           $(MSBuildProjectDirectory)\wwwroot\css\fonts\bootstrap-icons.woff" />
+        </ItemGroup>
+    </Target>
 
-  <!--
+    <!--
     Preflight for the npm/Sass toolchain. Runs `node scripts/check-node.mjs`
     (which reads engines.node from package.json, currently >= 20) and fails the
     build with a friendly message when Node.js is missing or too old, instead of
@@ -92,16 +94,16 @@
     target is skipped as up-to-date — the theme is gitignored and must compile on
     every clean clone, so a Node-less machine can never build Nova anyway.
   -->
-  <Target Name="CheckNodePrerequisite">
-    <Exec Command="node scripts/check-node.mjs" WorkingDirectory="$(MSBuildProjectDirectory)"
-          IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="NodeCheckExitCode" />
-    </Exec>
-    <Error Condition="'$(NodeCheckExitCode)' != '0'"
-           Text="Node.js 20+ is required to build the Nova theme (npm ci / npm run build:css). Install from https://nodejs.org and rebuild." />
-  </Target>
+    <Target Name="CheckNodePrerequisite">
+        <Exec Command="node scripts/check-node.mjs" WorkingDirectory="$(MSBuildProjectDirectory)"
+            IgnoreExitCode="true">
+            <Output TaskParameter="ExitCode" PropertyName="NodeCheckExitCode" />
+        </Exec>
+        <Error Condition="'$(NodeCheckExitCode)' != '0'"
+            Text="Node.js 20+ is required to build the Nova theme (npm ci / npm run build:css). Install from https://nodejs.org and rebuild." />
+    </Target>
 
-  <!--
+    <!--
     Installs npm packages, incrementally: `npm ci` runs when package.json or
     package-lock.json is newer than the obj\npm-ci.stamp output, so a manifest or
     lockfile change re-installs even when node_modules already exists (a stale
@@ -113,16 +115,17 @@
     even when the stamp survives. The stamp is registered with FileWrites so Clean
     removes it with the rest of obj/.
   -->
-  <Target Name="RestoreNpmPackages"
-          Inputs="$(MSBuildProjectDirectory)\package.json;$(MSBuildProjectDirectory)\package-lock.json;$(MSBuildProjectDirectory)\node_modules\.package-lock.json"
-          Outputs="$(MSBuildProjectDirectory)\obj\npm-ci.stamp">
-    <MakeDir Directories="$(MSBuildProjectDirectory)\obj" />
-    <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)" />
-    <WriteLinesToFile File="$(MSBuildProjectDirectory)\obj\npm-ci.stamp"
-                      Lines="npm ci completed for the package.json / package-lock.json snapshot." Overwrite="true" />
-    <ItemGroup>
-      <FileWrites Include="$(MSBuildProjectDirectory)\obj\npm-ci.stamp" />
-    </ItemGroup>
-  </Target>
+    <Target Name="RestoreNpmPackages"
+        Inputs="$(MSBuildProjectDirectory)\package.json;$(MSBuildProjectDirectory)\package-lock.json;$(MSBuildProjectDirectory)\node_modules\.package-lock.json"
+        Outputs="$(MSBuildProjectDirectory)\obj\npm-ci.stamp">
+        <MakeDir Directories="$(MSBuildProjectDirectory)\obj" />
+        <Exec Command="npm ci" WorkingDirectory="$(MSBuildProjectDirectory)" />
+        <WriteLinesToFile File="$(MSBuildProjectDirectory)\obj\npm-ci.stamp"
+            Lines="npm ci completed for the package.json / package-lock.json snapshot."
+            Overwrite="true" />
+        <ItemGroup>
+            <FileWrites Include="$(MSBuildProjectDirectory)\obj\npm-ci.stamp" />
+        </ItemGroup>
+    </Target>
 
 </Project>

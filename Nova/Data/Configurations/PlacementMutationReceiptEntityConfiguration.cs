@@ -5,7 +5,7 @@ using Nova.Entities;
 namespace Nova.Data.Configurations;
 
 /// <summary>Maps tenant-owned, uniquely identified placement commit evidence.</summary>
-public class PlacementMutationReceiptEntityConfiguration : IEntityTypeConfiguration<PlacementMutationReceiptEntity>
+internal class PlacementMutationReceiptEntityConfiguration : IEntityTypeConfiguration<PlacementMutationReceiptEntity>
 {
     /// <summary>Configures receipt identity, retention lookup, and tenant ownership.</summary>
     /// <param name="builder">The receipt entity builder.</param>

@@ -8,7 +8,7 @@ namespace Nova.Unit.Tests;
 /// Produces small, valid image byte arrays for unit tests that exercise the shared
 /// ImageSharp processing pipeline (club crest creation, profile photo validation).
 /// </summary>
-public static class TestImages
+internal static class TestImages
 {
     /// <summary>
     /// Creates an in-memory JPEG of the requested dimensions filled with the request color.

@@ -1,4 +1,4 @@
-﻿using Nova.Shared.Features.Photos;
+﻿using Nova.SharedKernel.Features.Photos;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -14,7 +14,7 @@ namespace Nova.Features.Photos;
 /// add small, medium, and large center-cropped WebP square variants; club crests add a
 /// 64px square small variant plus medium and large aspect-preserving WebP variants.
 /// </summary>
-public static class ImageVariantProcessor
+internal static class ImageVariantProcessor
 {
     /// <summary>
     /// The maximum pixel dimension accepted for a source image, guarding against decompression bombs.
@@ -170,5 +170,5 @@ public static class ImageVariantProcessor
     /// <param name="Small">The encoded small variant.</param>
     /// <param name="Medium">The encoded medium variant.</param>
     /// <param name="Large">The encoded large variant.</param>
-    public sealed record ProcessedVariants(byte[] Original, byte[] Small, byte[] Medium, byte[] Large);
+    internal sealed record ProcessedVariants(byte[] Original, byte[] Small, byte[] Medium, byte[] Large);
 }

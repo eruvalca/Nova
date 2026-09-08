@@ -1,11 +1,13 @@
-﻿using System.Globalization;
+﻿#pragma warning disable CA1724 // The Razor page name identifies its routed feature; namespaces remain fully qualified where ambiguous.
+#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Teams.Components;
 using OneOf.Types;
@@ -358,7 +360,9 @@ public partial class Teams(
     /// Reloads the roster using the currently selected filters.
     /// </summary>
     /// <returns>A task that completes when loading and state updates are finished.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task LoadRosterAsync()
+#pragma warning restore MA0051
     {
         if (_clubId is null)
         {
@@ -470,7 +474,7 @@ public partial class Teams(
     private void SyncFiltersToUrl()
     {
         var uri = navigationManager.GetUriWithQueryParameters(
-            new Dictionary<string, object?>
+            new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["view"] = _lifecycleStatusFilter,
                 ["search"] = string.IsNullOrWhiteSpace(_searchApplied) ? null : _searchApplied,
@@ -694,7 +698,9 @@ public partial class Teams(
     /// </summary>
     /// <param name="formState">The validated edit form state.</param>
     /// <returns>A task that completes when the mutation finishes.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task UpdateTeamAsync(TeamFormState formState)
+#pragma warning restore MA0051
     {
         var teamToken = _teamScopedCts.Token;
         var generation = _mutationGeneration;
@@ -810,7 +816,9 @@ public partial class Teams(
     /// Archives the currently selected team after explicit user confirmation.
     /// </summary>
     /// <returns>A task that completes when the mutation finishes.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task ConfirmArchiveAsync()
+#pragma warning restore MA0051
     {
         if (_archiveCandidate is null || !_archiveConfirmed || _isMutating)
         {
@@ -980,7 +988,7 @@ public partial class Teams(
     /// <summary>Gets or sets the optional local Draft correction handoff.</summary>
     [SupplyParameterFromQuery(Name = "returnToDraft")] public string? ReturnToDraft { get; set; }
     /// <summary>Accepts only a positive local campaign identifier for the correction return link.</summary>
-    private long? DraftReturnId => long.TryParse(ReturnToDraft, out var id) && id > 0 ? id : null;
+    private long? DraftReturnId => long.TryParse(ReturnToDraft, CultureInfo.InvariantCulture, out var id) && id > 0 ? id : null;
 
     /// <summary>
     /// Handles an authentication state change by applying it on the component's renderer.
@@ -995,7 +1003,9 @@ public partial class Teams(
     /// </summary>
     /// <param name="stateTask">The pending authentication state.</param>
     /// <returns>A task that completes when the club/role rebind and any reload are finished.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task ApplyAuthenticationStateAsync(Task<AuthenticationState> stateTask)
+#pragma warning restore MA0051
     {
         var authenticationVersion = ++_authenticationVersion;
         var authState = await stateTask;
@@ -1122,6 +1132,11 @@ public partial class Teams(
         _loadRosterSource = null;
         _teamScopedCts?.Cancel();
         _teamScopedCts?.Dispose();
-        return ValueTask.CompletedTask;
+        return base.DisposeAsyncCore();
     }
 }
+
+
+#pragma warning restore CA1849, S6966
+
+#pragma warning restore CA1724

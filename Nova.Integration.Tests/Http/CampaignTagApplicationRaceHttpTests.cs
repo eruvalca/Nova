@@ -2,8 +2,8 @@
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -24,7 +24,7 @@ public sealed class CampaignTagApplicationRaceHttpTests(NovaAppHostFixture fixtu
     /// one Created response, one Conflict response, and a single durable database row.
     /// </summary>
     [Fact]
-    public async Task ParallelTagApplication_ForSameAssignmentAndTag_YieldsOneCreatedOneConflict_WithSingleDurableRow()
+    public async Task ParallelTagApplicationForSameAssignmentAndTagYieldsOneCreatedOneConflictWithSingleDurableRowAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var (firstClient, secondClient, adminEmail, assignmentId) = await SeedTwoMemberClubWithTagAsync(
@@ -39,8 +39,30 @@ public sealed class CampaignTagApplicationRaceHttpTests(NovaAppHostFixture fixtu
 
         // Start both requests before awaiting either so they race through the server
         // simultaneously; either request may win, so both orderings are tolerated.
+#pragma warning disable CA2025 // Both concurrent requests are awaited with Task.WhenAll before client disposal; successful responses are also disposed on failure.
         var applyA = firstClient.PostAsJsonAsync(CampaignEndpoints.ApplyCampaignTagApplication, applyInput(), cancellationToken);
+#pragma warning restore CA2025
+#pragma warning disable CA2025 // Both concurrent requests are awaited with Task.WhenAll before client disposal; successful responses are also disposed on failure.
         var applyB = secondClient.PostAsJsonAsync(CampaignEndpoints.ApplyCampaignTagApplication, applyInput(), cancellationToken);
+#pragma warning restore CA2025
+        try
+        {
+            await Task.WhenAll(applyA, applyB);
+        }
+        catch
+        {
+            // Both requests have finished; dispose any successful response before propagating the failure.
+            if (applyA.IsCompletedSuccessfully)
+            {
+                (await applyA).Dispose();
+            }
+            if (applyB.IsCompletedSuccessfully)
+            {
+                (await applyB).Dispose();
+            }
+            throw;
+        }
+
         using var responseA = await applyA;
         using var responseB = await applyB;
 
@@ -72,20 +94,34 @@ public sealed class CampaignTagApplicationRaceHttpTests(NovaAppHostFixture fixtu
         var club = await SeedingHelpers.CreateClubAsync(adminClient, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
+#pragma warning disable CA2000 // Setup transfers clients to the caller on success and disposes both in the catch block on failure.
         var firstClient = fixture.CreateNovaHttpClient();
-        var firstEmail = SeedingHelpers.UniqueEmail($"{prefix}-first");
-        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(firstClient, firstEmail, Password, cancellationToken);
-        await SeedingHelpers.UpdateUserAsync(fixture, firstEmail, club.ClubId, cancellationToken);
-        await SeedingHelpers.RefreshClubMembershipCookieAsync(firstClient, cancellationToken);
+#pragma warning restore CA2000
+        HttpClient? secondClient = null;
+        try
+        {
+            var firstEmail = SeedingHelpers.UniqueEmail($"{prefix}-first");
+            await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(firstClient, firstEmail, Password, cancellationToken);
+            await SeedingHelpers.UpdateUserAsync(fixture, firstEmail, club.ClubId, cancellationToken);
+            await SeedingHelpers.RefreshClubMembershipCookieAsync(firstClient, cancellationToken);
 
-        var secondClient = fixture.CreateNovaHttpClient();
-        var secondEmail = SeedingHelpers.UniqueEmail($"{prefix}-second");
-        await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(secondClient, secondEmail, Password, cancellationToken);
-        await SeedingHelpers.UpdateUserAsync(fixture, secondEmail, club.ClubId, cancellationToken);
-        await SeedingHelpers.RefreshClubMembershipCookieAsync(secondClient, cancellationToken);
+#pragma warning disable CA2000 // Setup transfers clients to the caller on success and disposes both in the catch block on failure.
+            secondClient = fixture.CreateNovaHttpClient();
+#pragma warning restore CA2000
+            var secondEmail = SeedingHelpers.UniqueEmail($"{prefix}-second");
+            await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(secondClient, secondEmail, Password, cancellationToken);
+            await SeedingHelpers.UpdateUserAsync(fixture, secondEmail, club.ClubId, cancellationToken);
+            await SeedingHelpers.RefreshClubMembershipCookieAsync(secondClient, cancellationToken);
 
-        var seeded = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
-            fixture, club.ClubId, adminEmail, prefix, participantCount: 1, placementOutcome: PlacementOutcome.Undecided, cancellationToken);
-        return (firstClient, secondClient, adminEmail, seeded.AssignmentIds[0]);
+            var seeded = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
+                fixture, club.ClubId, adminEmail, prefix, participantCount: 1, placementOutcome: PlacementOutcome.Undecided, cancellationToken);
+            return (firstClient, secondClient, adminEmail, seeded.AssignmentIds[0]);
+        }
+        catch
+        {
+            secondClient?.Dispose();
+            firstClient.Dispose();
+            throw;
+        }
     }
 }

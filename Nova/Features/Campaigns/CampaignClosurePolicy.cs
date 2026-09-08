@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using OneOf;
 
 namespace Nova.Features.Campaigns;
@@ -9,7 +9,7 @@ namespace Nova.Features.Campaigns;
 /// </summary>
 /// <param name="Detail">A human-readable summary of the blockers.</param>
 /// <param name="Errors">A condition-keyed list of blocker messages.</param>
-public readonly record struct CampaignCloseBlocked(
+internal readonly record struct CampaignCloseBlocked(
     string Detail,
     IReadOnlyDictionary<string, string[]> Errors)
 {

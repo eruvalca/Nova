@@ -1,5 +1,5 @@
 ﻿using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -13,7 +13,7 @@ public sealed class CampaignClosurePolicyTests
     /// Verifies a campaign with no participation records may close.
     /// </summary>
     [Fact]
-    public void Evaluate_AllowsClosure_WhenCampaignHasNoAssignments()
+    public void EvaluateAllowsClosureWhenCampaignHasNoAssignments()
     {
         var result = CampaignClosurePolicy.Evaluate([]);
 
@@ -24,7 +24,7 @@ public sealed class CampaignClosurePolicyTests
     /// Verifies every supported final outcome passes when assigned players remain eligible.
     /// </summary>
     [Fact]
-    public void Evaluate_AllowsClosure_WhenEveryOutcomeIsFinalAndValid()
+    public void EvaluateAllowsClosureWhenEveryOutcomeIsFinalAndValid()
     {
         CampaignAssignmentClosureState[] states =
         [
@@ -42,7 +42,7 @@ public sealed class CampaignClosurePolicyTests
     /// Verifies undecided participation records block closure.
     /// </summary>
     [Fact]
-    public void Evaluate_BlocksClosure_WhenOutcomeIsUndecided()
+    public void EvaluateBlocksClosureWhenOutcomeIsUndecided()
     {
         CampaignAssignmentClosureState[] states =
         [
@@ -66,7 +66,7 @@ public sealed class CampaignClosurePolicyTests
     /// Verifies an assigned outcome without a team blocks closure.
     /// </summary>
     [Fact]
-    public void Evaluate_BlocksClosure_WhenAssignedOutcomeHasNoTeam()
+    public void EvaluateBlocksClosureWhenAssignedOutcomeHasNoTeam()
     {
         var result = CampaignClosurePolicy.Evaluate(
         [
@@ -84,7 +84,7 @@ public sealed class CampaignClosurePolicyTests
     /// Verifies an assigned outcome without a team graduation year blocks closure.
     /// </summary>
     [Fact]
-    public void Evaluate_BlocksClosure_WhenAssignedTeamHasNoGraduationYear()
+    public void EvaluateBlocksClosureWhenAssignedTeamHasNoGraduationYear()
     {
         var result = CampaignClosurePolicy.Evaluate(
         [
@@ -99,7 +99,7 @@ public sealed class CampaignClosurePolicyTests
     /// Verifies a player below the team's graduation-year cutoff blocks closure.
     /// </summary>
     [Fact]
-    public void Evaluate_BlocksClosure_WhenAssignedPlayerIsIneligible()
+    public void EvaluateBlocksClosureWhenAssignedPlayerIsIneligible()
     {
         var result = CampaignClosurePolicy.Evaluate(
         [
@@ -118,7 +118,7 @@ public sealed class CampaignClosurePolicyTests
     /// Verifies an assigned participation referencing an archived team blocks closure.
     /// </summary>
     [Fact]
-    public void Evaluate_BlocksClosure_WhenAssignedTeamIsArchived()
+    public void EvaluateBlocksClosureWhenAssignedTeamIsArchived()
     {
         var result = CampaignClosurePolicy.Evaluate(
         [
@@ -142,7 +142,7 @@ public sealed class CampaignClosurePolicyTests
     /// Verifies archived team facts do not affect a participation without an assigned outcome.
     /// </summary>
     [Fact]
-    public void Evaluate_AllowsClosure_WhenArchivedTeamIsNotAssignedOutcome()
+    public void EvaluateAllowsClosureWhenArchivedTeamIsNotAssignedOutcome()
     {
         var result = CampaignClosurePolicy.Evaluate(
         [
@@ -162,7 +162,7 @@ public sealed class CampaignClosurePolicyTests
     /// Verifies closure returns every applicable blocker group in one decision.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsAllBlockerGroups_WhenMultipleRulesFail()
+    public void EvaluateReturnsAllBlockerGroupsWhenMultipleRulesFail()
     {
         CampaignAssignmentClosureState[] states =
         [
@@ -194,7 +194,7 @@ public sealed class CampaignClosurePolicyTests
     /// and that both blocker groups are populated for the same assignment.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsEligibilityAndArchivedTeamBlockers_ForSameAssignment()
+    public void EvaluateReturnsEligibilityAndArchivedTeamBlockersForSameAssignment()
     {
         var result = CampaignClosurePolicy.Evaluate(
         [
@@ -219,7 +219,7 @@ public sealed class CampaignClosurePolicyTests
     /// eligible, exercising the greater-than boundary of the eligibility rule.
     /// </summary>
     [Fact]
-    public void Evaluate_AllowsClosure_WhenAssignedPlayerGraduatesAfterTeamYear()
+    public void EvaluateAllowsClosureWhenAssignedPlayerGraduatesAfterTeamYear()
     {
         var result = CampaignClosurePolicy.Evaluate(
         [
@@ -234,7 +234,7 @@ public sealed class CampaignClosurePolicyTests
     /// assignment-id evaluation order (including undecided rows) and never scrambled.
     /// </summary>
     [Fact]
-    public void Evaluate_PopulatesStableAssignmentIdCollections_InAscendingInputOrder()
+    public void EvaluatePopulatesStableAssignmentIdCollectionsInAscendingInputOrder()
     {
         CampaignAssignmentClosureState[] states =
         [

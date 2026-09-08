@@ -2,16 +2,16 @@
 
 After `add-api-endpoint` defines route constants and maps the endpoint, add a WebAssembly HTTP client
 service in `Nova.Client\Services\{Feature}\Http{Feature}Service.cs`. The service should implement the shared
-`I{Feature}Service` interface from `Nova.Shared\Features\{Feature}\`, use `HttpClient`, and return the same
+`I{Feature}Service` interface from `Nova.SharedKernel\Features\{Feature}\`, use `HttpClient`, and return the same
 `ServiceResult<T>` contract as the server service.
 
 Canonical files:
 
 - `Nova.Client\Services\Campaigns\HttpCampaignCreationService.cs`
 - `Nova.Client\Services\Campaigns\HttpCampaignQueryService.cs`
-- `Nova.Client\Services\HttpSuccessContentExtensions.cs`
-- `Nova.Shared\Features\Campaigns\CampaignEndpoints.cs`
-- `Nova.Shared\Features\Campaigns\ICampaignQueryService.cs`
+- `Nova.SharedKernel\Results\HttpSuccessContentExtensions.cs`
+- `Nova.SharedKernel\Features\Campaigns\CampaignEndpoints.cs`
+- `Nova.SharedKernel\Features\Campaigns\ICampaignQueryService.cs`
 
 ## Pattern
 
@@ -39,12 +39,37 @@ returned operation identity as well as payload invariants. Follow
 for the server receipt contract; `HttpPlayerImportService` is the multipart example. A cancelled
 request or lost response leaves the commit outcome unknown until recovery succeeds.
 
+## Producer-to-UI contract check
+
+For a changed response or stricter client validation, inspect the whole chain before writing the
+regression: service/query producer → shared DTO and JSON serialization → HTTP client → rendered
+consumer. State which guarantees come from one snapshot and which totals are eventually consistent.
+
+1. Check required field presence, explicit nulls, identity, count relationships, shared limits, and
+   portable ordering against the producer's actual query/transaction. Do not invent a client-only
+   invariant or silently weaken a promised server guarantee.
+2. Verify the endpoint serializes a populated valid response through the production DTOs. Exercise
+   omission/malformed input and declared failure shapes at HTTP boundaries when applicable.
+3. Exercise the client with a populated valid response and missing required fields, nested nulls,
+   malformed JSON, invalid relationships, and limit edges. Reject invalid success bodies as a
+   protocol failure; retain the legitimate zero/empty cases.
+4. Verify the UI consumes the same guarantees: complete bounded previews, visible truncation, and
+   receipt-based committed counts. Prove recovery from a rejected payload when the UI offers retry.
+
+For bounded opening previews, inspect `CampaignQueryService.cs`, `CampaignOpeningContracts.cs`,
+`HttpCampaignQueryService.cs`, and `CampaignEntry.razor(.cs)` together. The focused evidence is
+`CampaignOpeningHttpTests.CampaignOpeningReadinessReturnsBoundedActiveTeamPreviewAsync` for real HTTP,
+`HttpCampaignQueryServiceTests.GetOpeningReadinessAsyncRequiresCompleteBoundedPreviewAsync` for zero,
+singleton, and capped client bounds, and
+`CampaignEntryTests.CampaignEntryUsesCountAwareReadinessLabels` for rendered count wording.
+These tests prove their named contracts; add the missing boundary evidence for the current change.
+
 ## Canonical example
 
 ```csharp
 using System.Net.Http.Json;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services;
 

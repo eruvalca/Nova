@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authentication;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
@@ -23,22 +24,22 @@ public partial class ExternalLogins(
     /// <summary>
     /// Stores the current user entity.
     /// </summary>
-    private NovaUserEntity? user;
+    private NovaUserEntity? _user;
 
     /// <summary>
     /// Stores the list of currently linked external logins for the user.
     /// </summary>
-    private IList<UserLoginInfo>? currentLogins;
+    private IList<UserLoginInfo>? _currentLogins;
 
     /// <summary>
     /// Stores the list of available external authentication schemes not yet linked.
     /// </summary>
-    private IList<AuthenticationScheme>? otherLogins;
+    private IList<AuthenticationScheme>? _otherLogins;
 
     /// <summary>
     /// Indicates whether the user can remove an external login.
     /// </summary>
-    private bool showRemoveButton;
+    private bool _showRemoveButton;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -70,27 +71,27 @@ public partial class ExternalLogins(
     /// <returns>A task representing the asynchronous operation.</returns>
     protected override async Task OnInitializedAsync()
     {
-        user = await userManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await userManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        currentLogins = await userManager.GetLoginsAsync(user);
-        otherLogins = (await signInManager.GetExternalAuthenticationSchemesAsync())
-            .Where(auth => currentLogins.All(ul => auth.Name != ul.LoginProvider))
+        _currentLogins = await userManager.GetLoginsAsync(_user);
+        _otherLogins = (await signInManager.GetExternalAuthenticationSchemesAsync())
+            .Where(auth => _currentLogins.All(ul => !string.Equals(auth.Name, ul.LoginProvider, StringComparison.Ordinal)))
             .ToList();
 
         string? passwordHash = null;
         if (userStore is IUserPasswordStore<NovaUserEntity> userPasswordStore)
         {
-            passwordHash = await userPasswordStore.GetPasswordHashAsync(user, HttpContext.RequestAborted);
+            passwordHash = await userPasswordStore.GetPasswordHashAsync(_user, HttpContext.RequestAborted);
         }
 
-        showRemoveButton = passwordHash is not null || currentLogins.Count > 1;
+        _showRemoveButton = passwordHash is not null || _currentLogins.Count > 1;
 
-        if (HttpMethods.IsGet(HttpContext.Request.Method) && Action == LinkLoginCallbackAction)
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && string.Equals(Action, LinkLoginCallbackAction, StringComparison.Ordinal))
         {
             await OnGetLinkLoginCallbackAsync();
         }
@@ -102,20 +103,20 @@ public partial class ExternalLogins(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnSubmitAsync()
     {
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        var result = await userManager.RemoveLoginAsync(user, LoginProvider!, ProviderKey!);
+        var result = await userManager.RemoveLoginAsync(_user, LoginProvider!, ProviderKey!);
         if (!result.Succeeded)
         {
             redirectManager.RedirectToCurrentPageWithStatus("Error: The external login was not removed.", HttpContext);
         }
         else
         {
-            await signInManager.RefreshSignInAsync(user);
+            await signInManager.RefreshSignInAsync(_user);
             redirectManager.RedirectToCurrentPageWithStatus("The external login was removed.", HttpContext);
         }
     }
@@ -126,13 +127,13 @@ public partial class ExternalLogins(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnGetLinkLoginCallbackAsync()
     {
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        var userId = await userManager.GetUserIdAsync(user);
+        var userId = await userManager.GetUserIdAsync(_user);
         var info = await signInManager.GetExternalLoginInfoAsync(userId);
         if (info is null)
         {
@@ -140,7 +141,7 @@ public partial class ExternalLogins(
             return;
         }
 
-        var result = await userManager.AddLoginAsync(user, info);
+        var result = await userManager.AddLoginAsync(_user, info);
         if (result.Succeeded)
         {
             // Clear the existing external cookie to ensure a clean login process

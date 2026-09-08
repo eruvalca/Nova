@@ -1,12 +1,13 @@
-﻿using System.Globalization;
+﻿#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Teams.Components;
 using OneOf.Types;
@@ -188,6 +189,7 @@ public partial class TeamDetail(
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        _teamScopedCts.Dispose();
         _teamScopedCts = CancellationTokenSource.CreateLinkedTokenSource(ComponentCancellationToken);
 
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
@@ -224,7 +226,7 @@ public partial class TeamDetail(
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
-        if (TeamId == _lastLoadedTeamId && ReturnUrl == _lastReturnUrl)
+        if (TeamId == _lastLoadedTeamId && string.Equals(ReturnUrl, _lastReturnUrl, StringComparison.Ordinal))
         {
             return;
         }
@@ -466,7 +468,9 @@ public partial class TeamDetail(
     /// Archives the team after explicit user confirmation, then refreshes detail.
     /// </summary>
     /// <returns>A task that completes when the mutation finishes.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task ConfirmArchiveAsync()
+#pragma warning restore MA0051
     {
         if (!_archiveConfirmed)
         {
@@ -636,7 +640,7 @@ public partial class TeamDetail(
         var candidate = returnUrl.Trim();
         if (!Uri.IsWellFormedUriString(candidate, UriKind.Relative)
             || candidate.StartsWith("//", StringComparison.Ordinal)
-            || candidate.Contains('\\'))
+            || candidate.Contains('\\', StringComparison.Ordinal))
         {
             return ClubRoutes.Teams;
         }
@@ -730,6 +734,8 @@ public partial class TeamDetail(
     protected override async ValueTask DisposeAsyncCore()
     {
         authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        _teamScopedCts.Cancel();
+        _teamScopedCts.Dispose();
         await base.DisposeAsyncCore();
     }
 }
@@ -748,3 +754,6 @@ public sealed record TeamPlacementCampaignGroup(
     CampaignStatus CampaignStatus,
     DateOnly CampaignStartDate,
     IReadOnlyList<TeamPlacementImpactDto> Placements);
+
+
+#pragma warning restore CA1849, S6966

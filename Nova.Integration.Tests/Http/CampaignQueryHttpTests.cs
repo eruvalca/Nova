@@ -3,9 +3,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -22,19 +22,21 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies anonymous rejection, member reads, and administrator-only creation setup.</summary>
     [Fact]
-    public async Task GetEndpoints_RejectAnonymous_AndAllowApprovedMember()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task GetEndpointsRejectAnonymousAndAllowApprovedMemberAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymous = fixture.CreateNovaHttpClient();
-        using (var anonResp = await anonymous.GetAsync(CampaignEndpoints.GetCampaignList, cancellationToken))
+        using (var anonResp = await anonymous.GetAsync(new Uri(CampaignEndpoints.GetCampaignList, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             anonResp.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
-        using (var anonResp = await anonymous.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken))
+        using (var anonResp = await anonymous.GetAsync(new Uri(CampaignEndpoints.GetCreationSetup, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             anonResp.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
-        using (var anonResp = await anonymous.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(1), cancellationToken))
+        using (var anonResp = await anonymous.GetAsync(new Uri(CampaignEndpoints.GetCampaignDetailUrl(1), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             anonResp.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
@@ -55,9 +57,13 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         // Seed a season and campaign
         CampaignEntity campaign;
         CampaignEntity draft;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             var userId = await context.Users.Where(u => u.NormalizedEmail == email.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
+#pragma warning restore CA1862
             var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "S", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = userId };
             campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "C", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = userId };
             draft = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Draft C", StartDate = new DateOnly(2026, 7, 1), Status = CampaignStatus.Draft, Season = season, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = userId };
@@ -70,20 +76,20 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        using var resp = await client.GetAsync(CampaignEndpoints.GetCampaignList, cancellationToken);
+        using var resp = await client.GetAsync(new Uri(CampaignEndpoints.GetCampaignList, UriKind.RelativeOrAbsolute), cancellationToken);
         resp.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        using var setupResp = await client.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
+        using var setupResp = await client.GetAsync(new Uri(CampaignEndpoints.GetCreationSetup, UriKind.RelativeOrAbsolute), cancellationToken);
         setupResp.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
-        using var adminSetupResp = await adminClient.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
+        using var adminSetupResp = await adminClient.GetAsync(new Uri(CampaignEndpoints.GetCreationSetup, UriKind.RelativeOrAbsolute), cancellationToken);
         adminSetupResp.StatusCode.ShouldBe(HttpStatusCode.OK);
         var setup = await adminSetupResp.Content.ReadFromJsonAsync<CampaignCreationSetupResult>(cancellationToken);
         setup.ShouldNotBeNull();
         setup.CurrentSeason.ShouldNotBeNull();
         setup.CurrentSeason.Name.ShouldBe("S");
 
-        using var detailResp = await client.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(campaign.CampaignId), cancellationToken);
+        using var detailResp = await client.GetAsync(new Uri(CampaignEndpoints.GetCampaignDetailUrl(campaign.CampaignId), UriKind.RelativeOrAbsolute), cancellationToken);
         detailResp.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await detailResp.Content.ReadFromJsonAsync<CampaignDetailResult>(cancellationToken);
         detail.ShouldNotBeNull();
@@ -93,7 +99,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         detail.SeasonName.ShouldBe("S");
 
         using var memberDraftList = await client.GetAsync(
-            CampaignEndpoints.GetCampaignListUrl("draft"),
+new Uri(CampaignEndpoints.GetCampaignListUrl("draft"), UriKind.RelativeOrAbsolute),
             cancellationToken);
         memberDraftList.StatusCode.ShouldBe(HttpStatusCode.OK);
         var memberDrafts = await memberDraftList.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
@@ -101,12 +107,12 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         memberDrafts.TotalCount.ShouldBe(0);
 
         using var memberDraftDetail = await client.GetAsync(
-            CampaignEndpoints.GetCampaignDetailUrl(draft.CampaignId),
+new Uri(CampaignEndpoints.GetCampaignDetailUrl(draft.CampaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         memberDraftDetail.StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         using var adminDraftList = await adminClient.GetAsync(
-            CampaignEndpoints.GetCampaignListUrl("draft"),
+new Uri(CampaignEndpoints.GetCampaignListUrl("draft"), UriKind.RelativeOrAbsolute),
             cancellationToken);
         adminDraftList.StatusCode.ShouldBe(HttpStatusCode.OK);
         var adminDrafts = await adminDraftList.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
@@ -115,7 +121,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         adminDrafts.DraftActivePlayerCount.ShouldBe(0);
 
         using var adminSecondPage = await adminClient.GetAsync(
-            $"{CampaignEndpoints.GetCampaignList}?limit=1&page=2", cancellationToken);
+new Uri($"{CampaignEndpoints.GetCampaignList}?limit=1&page=2", UriKind.RelativeOrAbsolute), cancellationToken);
         adminSecondPage.StatusCode.ShouldBe(HttpStatusCode.OK);
         var secondPage = await adminSecondPage.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
         secondPage.ShouldNotBeNull();
@@ -126,7 +132,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         secondPage.Seasons.Single().Campaigns.Single().CampaignId.ShouldBe(draft.CampaignId);
 
         using var memberSecondPage = await client.GetAsync(
-            $"{CampaignEndpoints.GetCampaignList}?limit=1&page=2", cancellationToken);
+new Uri($"{CampaignEndpoints.GetCampaignList}?limit=1&page=2", UriKind.RelativeOrAbsolute), cancellationToken);
         memberSecondPage.StatusCode.ShouldBe(HttpStatusCode.OK);
         var concealedPage = await memberSecondPage.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
         concealedPage.ShouldNotBeNull();
@@ -135,7 +141,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         concealedPage.DraftActivePlayerCount.ShouldBeNull();
 
         using var invalidPage = await client.GetAsync(
-            $"{CampaignEndpoints.GetCampaignList}?page=0", cancellationToken);
+new Uri($"{CampaignEndpoints.GetCampaignList}?page=0", UriKind.RelativeOrAbsolute), cancellationToken);
         invalidPage.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         using var problem = await invalidPage.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         problem.ShouldNotBeNull();
@@ -144,7 +150,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies authenticated callers without a club receive forbidden responses.</summary>
     [Fact]
-    public async Task GetEndpoints_ReturnForbidden_ForAuthenticatedUserWithoutClub()
+    public async Task GetEndpointsReturnForbiddenForAuthenticatedUserWithoutClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -153,29 +159,29 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using var listResponse = await client.GetAsync(CampaignEndpoints.GetCampaignList, cancellationToken);
+        using var listResponse = await client.GetAsync(new Uri(CampaignEndpoints.GetCampaignList, UriKind.RelativeOrAbsolute), cancellationToken);
         listResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
-        using var setupResponse = await client.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
+        using var setupResponse = await client.GetAsync(new Uri(CampaignEndpoints.GetCreationSetup, UriKind.RelativeOrAbsolute), cancellationToken);
         setupResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
-        using var detailResponse = await client.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(1), cancellationToken);
+        using var detailResponse = await client.GetAsync(new Uri(CampaignEndpoints.GetCampaignDetailUrl(1), UriKind.RelativeOrAbsolute), cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     /// <summary>Verifies invalid status binding returns correlated validation ProblemDetails.</summary>
     [Fact]
-    public async Task GetCampaigns_InvalidStatus_ReturnsValidationProblem_WithTraceId()
+    public async Task GetCampaignsInvalidStatusReturnsValidationProblemWithTraceIdAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         var email = UniqueEmail("campaign-bad");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, clubId: null, cancellationToken);
-        var club = await CreateClubAsync(client, cancellationToken);
+        _ = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using var response = await client.GetAsync($"{CampaignEndpoints.GetCampaignList}?status=bogus", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{CampaignEndpoints.GetCampaignList}?status=bogus", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var doc = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         doc.ShouldNotBeNull();
@@ -186,7 +192,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
     /// Verifies an invalid limit independently produces validation ProblemDetails with correlation.
     /// </summary>
     [Fact]
-    public async Task GetCampaigns_InvalidLimit_ReturnsValidationProblem_WithTraceId()
+    public async Task GetCampaignsInvalidLimitReturnsValidationProblemWithTraceIdAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -196,7 +202,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         _ = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using var response = await client.GetAsync($"{CampaignEndpoints.GetCampaignList}?limit=0", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{CampaignEndpoints.GetCampaignList}?limit=0", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var doc = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         doc.ShouldNotBeNull();
@@ -205,7 +211,9 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies campaign and setup projections cannot leak data across clubs.</summary>
     [Fact]
-    public async Task TenantIsolation_CannotSeeOtherClubsCampaigns()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task TenantIsolationCannotSeeOtherClubsCampaignsAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -224,10 +232,16 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
         // Seed campaigns across both clubs
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             var adminUserId = await context.Users.Where(u => u.NormalizedEmail == adminEmail.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             var memberUserId = await context.Users.Where(u => u.NormalizedEmail == memberEmail.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
+#pragma warning restore CA1862
 
             var seasonA = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "SA", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = adminUserId };
             var seasonB = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "SB", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = memberUserId };
@@ -247,15 +261,15 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         }
 
         // MemberClient should only see clubB campaigns
-        using var resp = await memberClient.GetAsync(CampaignEndpoints.GetCampaignList, cancellationToken);
+        using var resp = await memberClient.GetAsync(new Uri(CampaignEndpoints.GetCampaignList, UriKind.RelativeOrAbsolute), cancellationToken);
         resp.StatusCode.ShouldBe(HttpStatusCode.OK);
         var list = await resp.Content.ReadFromJsonAsync<CampaignListResult>(cancellationToken);
         list.ShouldNotBeNull();
         var campaignNames = list.Seasons.SelectMany(s => s.Campaigns).Select(c => c.Name).ToList();
-        campaignNames.ShouldNotContain("CA");
-        campaignNames.ShouldContain("CB");
+        campaignNames.ShouldNotContain("CA", StringComparer.Ordinal);
+        campaignNames.ShouldContain("CB", StringComparer.Ordinal);
 
-        using var setupResp = await memberClient.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
+        using var setupResp = await memberClient.GetAsync(new Uri(CampaignEndpoints.GetCreationSetup, UriKind.RelativeOrAbsolute), cancellationToken);
         setupResp.StatusCode.ShouldBe(HttpStatusCode.OK);
         var setup = await setupResp.Content.ReadFromJsonAsync<CampaignCreationSetupResult>(cancellationToken);
         setup.ShouldNotBeNull();
@@ -270,7 +284,9 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
     /// and missing campaigns behind 404 responses.
     /// </summary>
     [Fact]
-    public async Task GetCampaignDetail_ReturnsOwnCampaign_AndNotFoundForOtherClubAndMissingIds()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task GetCampaignDetailReturnsOwnCampaignAndNotFoundForOtherClubAndMissingIdsAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -290,10 +306,16 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
 
         CampaignEntity campaignA;
         CampaignEntity campaignB;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             var adminUserId = await context.Users.Where(u => u.NormalizedEmail == adminEmail.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             var memberUserId = await context.Users.Where(u => u.NormalizedEmail == memberEmail.ToUpperInvariant()).Select(u => u.Id).SingleAsync(cancellationToken);
+#pragma warning restore CA1862
 
             var seasonA = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "SA", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = adminUserId };
             var seasonB = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "SB", StartDate = new DateOnly(2026, 1, 1), ClubId = clubB.ClubId, CreatedById = memberUserId };
@@ -306,7 +328,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        using var detailResp = await memberClient.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(campaignB.CampaignId), cancellationToken);
+        using var detailResp = await memberClient.GetAsync(new Uri(CampaignEndpoints.GetCampaignDetailUrl(campaignB.CampaignId), UriKind.RelativeOrAbsolute), cancellationToken);
         detailResp.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await detailResp.Content.ReadFromJsonAsync<CampaignDetailResult>(cancellationToken);
         detail.ShouldNotBeNull();
@@ -318,10 +340,10 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
         detail.ParticipantCount.ShouldBe(1);
         detail.SeasonName.ShouldBe("SB");
 
-        using var otherClubResp = await memberClient.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(campaignA.CampaignId), cancellationToken);
+        using var otherClubResp = await memberClient.GetAsync(new Uri(CampaignEndpoints.GetCampaignDetailUrl(campaignA.CampaignId), UriKind.RelativeOrAbsolute), cancellationToken);
         otherClubResp.StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
-        using var missingResp = await memberClient.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(999999), cancellationToken);
+        using var missingResp = await memberClient.GetAsync(new Uri(CampaignEndpoints.GetCampaignDetailUrl(999999), UriKind.RelativeOrAbsolute), cancellationToken);
         missingResp.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
@@ -336,7 +358,8 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
     /// <returns>The created club.</returns>
     private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.PostAsync(ClubEndpoints.Create, SeedingHelpers.CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX"), cancellationToken);
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX");
+        using var response = await client.PostAsync(new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute), responseRequestContent, cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;
     }
@@ -347,7 +370,7 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
     /// <returns>A task representing the refresh operation.</returns>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -358,9 +381,14 @@ public sealed class CampaignQueryHttpTests(NovaAppHostFixture fixture)
     /// <returns>A task representing the update.</returns>
     private async Task UpdateUserAsync(string email, long? clubId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        user.ClubId = clubId;
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            user.ClubId = clubId;
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

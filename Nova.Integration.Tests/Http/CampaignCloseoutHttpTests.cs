@@ -4,11 +4,11 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -25,17 +25,17 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies anonymous callers receive unauthorized for both read routes.</summary>
     [Fact]
-    public async Task ReadinessAndActivity_ReturnUnauthorized_ForAnonymousCaller()
+    public async Task ReadinessAndActivityReturnUnauthorizedForAnonymousCallerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymous = fixture.CreateNovaHttpClient();
 
-        using (var readiness = await anonymous.GetAsync(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(1), cancellationToken))
+        using (var readiness = await anonymous.GetAsync(new Uri(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(1), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             readiness.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
 
-        using (var activity = await anonymous.GetAsync(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = 1 }), cancellationToken))
+        using (var activity = await anonymous.GetAsync(new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = 1 }), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             activity.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
@@ -43,7 +43,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies authenticated users without a club receive forbidden for both read routes.</summary>
     [Fact]
-    public async Task ReadinessAndActivity_ReturnForbidden_ForAuthenticatedUserWithoutClub()
+    public async Task ReadinessAndActivityReturnForbiddenForAuthenticatedUserWithoutClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -52,12 +52,12 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using (var readiness = await client.GetAsync(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(1), cancellationToken))
+        using (var readiness = await client.GetAsync(new Uri(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(1), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             readiness.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
-        using (var activity = await client.GetAsync(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = 1 }), cancellationToken))
+        using (var activity = await client.GetAsync(new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = 1 }), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             activity.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
@@ -65,7 +65,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies a blocked campaign's readiness carries the seeded undecided assignment ids.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsBlockedReadiness_WithSeededAssignmentIds()
+    public async Task GetCloseoutReadinessReturnsBlockedReadinessWithSeededAssignmentIdsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -91,7 +91,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
             PlacementOutcome.Undecided,
             cancellationToken);
 
-        using var response = await memberClient.GetAsync(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(seeded.CampaignId), cancellationToken);
+        using var response = await memberClient.GetAsync(new Uri(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var readiness = await response.Content.ReadFromJsonAsync<CampaignCloseoutReadinessDto>(cancellationToken);
         readiness.ShouldNotBeNull();
@@ -108,7 +108,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies another club's campaign readiness and activity return non-disclosing not-found.</summary>
     [Fact]
-    public async Task ReadinessAndActivity_ReturnNotFound_ForCrossTenantCampaign()
+    public async Task ReadinessAndActivityReturnNotFoundForCrossTenantCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -123,7 +123,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
         var memberEmail = UniqueEmail("closeout-cross-member");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
         await UpdateUserAsync(memberEmail, clubId: null, cancellationToken);
-        var clubB = await CreateClubAsync(memberClient, cancellationToken);
+        _ = await CreateClubAsync(memberClient, cancellationToken);
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
         var seeded = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
@@ -135,13 +135,13 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
             PlacementOutcome.Undecided,
             cancellationToken);
 
-        using (var readiness = await memberClient.GetAsync(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(seeded.CampaignId), cancellationToken))
+        using (var readiness = await memberClient.GetAsync(new Uri(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             readiness.StatusCode.ShouldBe(HttpStatusCode.NotFound);
             await AssertNoDetailAsync(readiness, cancellationToken);
         }
 
-        using (var activity = await memberClient.GetAsync(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = seeded.CampaignId }), cancellationToken))
+        using (var activity = await memberClient.GetAsync(new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = seeded.CampaignId }), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             activity.StatusCode.ShouldBe(HttpStatusCode.NotFound);
             await AssertNoDetailAsync(activity, cancellationToken);
@@ -153,7 +153,9 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ClosedCampaign_IsReadableByEvaluatorAndAdmin_AcrossReadSurfaces(bool isAdmin)
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task ClosedCampaignIsReadableByEvaluatorAndAdminAcrossReadSurfacesAsync(bool isAdmin)
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -184,7 +186,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
         using var viewer = isAdmin ? adminClient : viewerClient;
 
         // Closeout readiness.
-        using (var readinessResponse = await viewer.GetAsync(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(seeded.CampaignId), cancellationToken))
+        using (var readinessResponse = await viewer.GetAsync(new Uri(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             readinessResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var readiness = await readinessResponse.Content.ReadFromJsonAsync<CampaignCloseoutReadinessDto>(cancellationToken);
@@ -195,7 +197,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
         }
 
         // Activity carries the closed transition.
-        using (var activityResponse = await viewer.GetAsync(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = seeded.CampaignId }), cancellationToken))
+        using (var activityResponse = await viewer.GetAsync(new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = seeded.CampaignId }), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             activityResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var activity = await activityResponse.Content.ReadFromJsonAsync<CampaignActivityResult>(cancellationToken);
@@ -205,7 +207,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
         }
 
         // Detail carries closure fields.
-        using (var detailResponse = await viewer.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(seeded.CampaignId), cancellationToken))
+        using (var detailResponse = await viewer.GetAsync(new Uri(CampaignEndpoints.GetCampaignDetailUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignDetailResult>(cancellationToken);
@@ -216,12 +218,12 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
         }
 
         // Placement roster and summary remain readable.
-        using (var rosterResponse = await viewer.GetAsync(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = seeded.CampaignId }), cancellationToken))
+        using (var rosterResponse = await viewer.GetAsync(new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = seeded.CampaignId }), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             rosterResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         }
 
-        using (var summaryResponse = await viewer.GetAsync(CampaignEndpoints.GetCampaignPlacementSummaryUrl(seeded.CampaignId), cancellationToken))
+        using (var summaryResponse = await viewer.GetAsync(new Uri(CampaignEndpoints.GetCampaignPlacementSummaryUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             summaryResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var summary = await summaryResponse.Content.ReadFromJsonAsync<CampaignPlacementSummaryDto>(cancellationToken);
@@ -233,7 +235,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies the activity endpoint returns bounded, ordered close+reopen events.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsBoundedOrderedEvents_AfterCloseAndReopen()
+    public async Task GetActivityReturnsBoundedOrderedEventsAfterCloseAndReopenAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -262,7 +264,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.CloseCampaignThroughServiceAsync(fixture, club.ClubId, adminUserId, seeded.CampaignId, cancellationToken);
         await SeedingHelpers.ReopenCampaignThroughServiceAsync(fixture, club.ClubId, adminUserId, seeded.CampaignId, cancellationToken);
 
-        using var response = await memberClient.GetAsync(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = seeded.CampaignId }), cancellationToken);
+        using var response = await memberClient.GetAsync(new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = seeded.CampaignId }), UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var activity = await response.Content.ReadFromJsonAsync<CampaignActivityResult>(cancellationToken);
         activity.ShouldNotBeNull();
@@ -292,7 +294,8 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
     /// <returns>The created club.</returns>
     private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.PostAsync(ClubEndpoints.Create, SeedingHelpers.CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX"), cancellationToken);
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX");
+        using var response = await client.PostAsync(new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute), responseRequestContent, cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;
     }
@@ -303,7 +306,7 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
     /// <returns>A task representing the refresh operation.</returns>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -321,20 +324,25 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
         string? firstName = null,
         string? lastName = null)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        user.ClubId = clubId;
-        if (firstName is not null)
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            user.FirstName = firstName;
-        }
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            user.ClubId = clubId;
+            if (firstName is not null)
+            {
+                user.FirstName = firstName;
+            }
 
-        if (lastName is not null)
-        {
-            user.LastName = lastName;
-        }
+            if (lastName is not null)
+            {
+                user.LastName = lastName;
+            }
 
-        await context.SaveChangesAsync(cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>Gets the user identifier for the specified email.</summary>
@@ -343,11 +351,16 @@ public sealed class CampaignCloseoutHttpTests(NovaAppHostFixture fixture)
     /// <returns>The user identifier.</returns>
     private async Task<long> GetUserIdByEmailAsync(string email, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        return await context.Users
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            return await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             .Where(candidate => candidate.NormalizedEmail == email.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(candidate => candidate.Id)
             .SingleAsync(cancellationToken);
+        }
     }
 
     /// <summary>Asserts a not-found response carries no non-disclosing <c>detail</c> property.</summary>

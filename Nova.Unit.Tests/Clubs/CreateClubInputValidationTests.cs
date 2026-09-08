@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Clubs;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Clubs;
@@ -14,53 +14,53 @@ namespace Nova.Unit.Tests.Clubs;
 public class CreateClubInputValidationTests
 {
     [Fact]
-    public void CreateClubInput_IsSealed() =>
+    public void CreateClubInputIsSealed() =>
         // Verify the record is sealed
         typeof(CreateClubInput).IsSealed.ShouldBeTrue();
 
     [Fact]
-    public void CreateClubInput_HasNameProperty()
+    public void CreateClubInputHasNameProperty()
     {
         // Verify the record has the Name property
         var nameProperty = typeof(CreateClubInput).GetProperty("Name");
         nameProperty.ShouldNotBeNull();
-        nameProperty!.PropertyType.ShouldBe(typeof(string));
+        nameProperty.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
-    public void CreateClubInput_HasCityProperty()
+    public void CreateClubInputHasCityProperty()
     {
         // Verify the record has the City property
         var cityProperty = typeof(CreateClubInput).GetProperty("City");
         cityProperty.ShouldNotBeNull();
-        cityProperty!.PropertyType.ShouldBe(typeof(string));
+        cityProperty.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
-    public void CreateClubInput_HasStateProperty()
+    public void CreateClubInputHasStateProperty()
     {
         // Verify the record has the State property
         var stateProperty = typeof(CreateClubInput).GetProperty("State");
         stateProperty.ShouldNotBeNull();
-        stateProperty!.PropertyType.ShouldBe(typeof(string));
+        stateProperty.PropertyType.ShouldBe(typeof(string));
     }
 
     [Fact]
-    public void CreateClubInput_HasCrestContentProperty()
+    public void CreateClubInputHasCrestContentProperty()
     {
         // Verify the record has the CrestContent property
         var crestContentProperty = typeof(CreateClubInput).GetProperty("CrestContent");
         crestContentProperty.ShouldNotBeNull();
-        crestContentProperty!.PropertyType.ShouldBe(typeof(byte[]));
+        crestContentProperty.PropertyType.ShouldBe(typeof(byte[]));
     }
 
     [Fact]
-    public void CreateClubInput_HasCrestContentTypeProperty()
+    public void CreateClubInputHasCrestContentTypeProperty()
     {
         // Verify the record has the CrestContentType property
         var crestContentTypeProperty = typeof(CreateClubInput).GetProperty("CrestContentType");
         crestContentTypeProperty.ShouldNotBeNull();
-        crestContentTypeProperty!.PropertyType.ShouldBe(typeof(string));
+        crestContentTypeProperty.PropertyType.ShouldBe(typeof(string));
     }
 
     #region Validation Tests
@@ -69,7 +69,7 @@ public class CreateClubInputValidationTests
     /// Valid input with all required properties set passes validation.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsEmpty_WithValidInput()
+    public void ValidateReturnsEmptyWithValidInput()
     {
         // Arrange
         var input = new CreateClubInput
@@ -92,7 +92,7 @@ public class CreateClubInputValidationTests
     /// Null Name violates Required attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsNameError_WhenNameIsNull()
+    public void ValidateContainsNameErrorWhenNameIsNull()
     {
         // Arrange
 #pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
@@ -118,7 +118,7 @@ public class CreateClubInputValidationTests
     /// Whitespace-only Name violates NotWhitespace attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsNameError_WhenNameIsWhitespace()
+    public void ValidateContainsNameErrorWhenNameIsWhitespace()
     {
         // Arrange
         var input = new CreateClubInput
@@ -142,7 +142,7 @@ public class CreateClubInputValidationTests
     /// Name exceeding MaxLength(200) violates MaxLength attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsNameError_WhenNameExceedsMaxLength()
+    public void ValidateContainsNameErrorWhenNameExceedsMaxLength()
     {
         // Arrange
         var input = new CreateClubInput
@@ -166,7 +166,7 @@ public class CreateClubInputValidationTests
     /// Null City violates Required attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsCityError_WhenCityIsNull()
+    public void ValidateContainsCityErrorWhenCityIsNull()
     {
         // Arrange
 #pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
@@ -192,7 +192,7 @@ public class CreateClubInputValidationTests
     /// Whitespace-only City violates NotWhitespace attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsCityError_WhenCityIsWhitespace()
+    public void ValidateContainsCityErrorWhenCityIsWhitespace()
     {
         // Arrange
         var input = new CreateClubInput
@@ -216,7 +216,7 @@ public class CreateClubInputValidationTests
     /// City exceeding MaxLength(100) violates MaxLength attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsCityError_WhenCityExceedsMaxLength()
+    public void ValidateContainsCityErrorWhenCityExceedsMaxLength()
     {
         // Arrange
         var input = new CreateClubInput
@@ -240,7 +240,7 @@ public class CreateClubInputValidationTests
     /// Null State violates Required attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsStateError_WhenStateIsNull()
+    public void ValidateContainsStateErrorWhenStateIsNull()
     {
         // Arrange
 #pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
@@ -266,7 +266,7 @@ public class CreateClubInputValidationTests
     /// Whitespace-only State violates NotWhitespace attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsStateError_WhenStateIsWhitespace()
+    public void ValidateContainsStateErrorWhenStateIsWhitespace()
     {
         // Arrange
         var input = new CreateClubInput
@@ -290,7 +290,7 @@ public class CreateClubInputValidationTests
     /// State exceeding MaxLength(100) violates MaxLength attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsStateError_WhenStateExceedsMaxLength()
+    public void ValidateContainsStateErrorWhenStateExceedsMaxLength()
     {
         // Arrange
         var input = new CreateClubInput
@@ -314,7 +314,7 @@ public class CreateClubInputValidationTests
     /// Null CrestContent violates Required attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsCrestContentError_WhenCrestContentIsNull()
+    public void ValidateContainsCrestContentErrorWhenCrestContentIsNull()
     {
         // Arrange
 #pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
@@ -340,7 +340,7 @@ public class CreateClubInputValidationTests
     /// Null CrestContentType violates Required attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsCrestContentTypeError_WhenCrestContentTypeIsNull()
+    public void ValidateContainsCrestContentTypeErrorWhenCrestContentTypeIsNull()
     {
         // Arrange
 #pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
@@ -366,7 +366,7 @@ public class CreateClubInputValidationTests
     /// Whitespace-only CrestContentType violates NotWhitespace attribute.
     /// </summary>
     [Fact]
-    public void Validate_ContainsCrestContentTypeError_WhenCrestContentTypeIsWhitespace()
+    public void ValidateContainsCrestContentTypeErrorWhenCrestContentTypeIsWhitespace()
     {
         // Arrange
         var input = new CreateClubInput
@@ -390,7 +390,7 @@ public class CreateClubInputValidationTests
     /// Multiple validation errors are all reported.
     /// </summary>
     [Fact]
-    public void Validate_ReportsMultipleErrors_WhenMultiplePropertiesAreInvalid()
+    public void ValidateReportsMultipleErrorsWhenMultiplePropertiesAreInvalid()
     {
         // Arrange
         var input = new CreateClubInput

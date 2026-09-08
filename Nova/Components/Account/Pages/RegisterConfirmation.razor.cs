@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.Text;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
@@ -22,12 +23,12 @@ public partial class RegisterConfirmation(
     /// <summary>
     /// Stores the email confirmation link for display when no real email sender is configured.
     /// </summary>
-    private string? emailConfirmationLink;
+    private string? _emailConfirmationLink;
 
     /// <summary>
     /// Stores the status message to display to the user.
     /// </summary>
-    private string? statusMessage;
+    private string? _statusMessage;
 
     /// <summary>
     /// Gets or sets the cascading HTTP context from the parent component.
@@ -64,7 +65,7 @@ public partial class RegisterConfirmation(
         if (user is null)
         {
             HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;
-            statusMessage = "Error finding user for unspecified email";
+            _statusMessage = "Error finding user for unspecified email";
         }
         else if (emailSender is IdentityNoOpEmailSender)
         {
@@ -72,9 +73,9 @@ public partial class RegisterConfirmation(
             var userId = await userManager.GetUserIdAsync(user);
             var code = await userManager.GenerateEmailConfirmationTokenAsync(user);
             code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-            emailConfirmationLink = navigationManager.GetUriWithQueryParameters(
+            _emailConfirmationLink = navigationManager.GetUriWithQueryParameters(
                 navigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
-                new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
+                new Dictionary<string, object?>(StringComparer.Ordinal) { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
         }
     }
 }

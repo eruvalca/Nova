@@ -5,7 +5,7 @@ namespace Nova.Client.Telemetry;
 /// <summary>
 /// Provides telemetry constants and activity sources for the Blazor WebAssembly client.
 /// </summary>
-public static class ClientTelemetry
+internal static class ClientTelemetry
 {
     /// <summary>
     /// The activity name used for outbound HTTP requests initiated by the client.

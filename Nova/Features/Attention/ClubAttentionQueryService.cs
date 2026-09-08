@@ -3,9 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Attention;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Attention;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Features.Attention;
 
@@ -17,7 +17,7 @@ namespace Nova.Features.Attention;
 /// <param name="readDbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club context.</param>
 /// <param name="logger">The logger for rejected access attempts and region failures.</param>
-public sealed partial class ClubAttentionQueryService(
+internal sealed partial class ClubAttentionQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<ClubAttentionQueryService> logger) : IClubAttentionQueryService
@@ -72,7 +72,7 @@ public sealed partial class ClubAttentionQueryService(
             }
             else
             {
-                aggregate = await ReadSqliteAggregateAsync(pendingQuery, cancellationToken);
+                aggregate = await ReadSqlitePendingRequestsAggregateAsync(pendingQuery, cancellationToken);
             }
 
             return new PendingJoinRequestsRegion
@@ -102,7 +102,7 @@ public sealed partial class ClubAttentionQueryService(
     /// <param name="pendingQuery">The pending join-requests query.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The pending aggregate, or null when no rows qualify.</returns>
-    private static async Task<AggregateRow?> ReadSqliteAggregateAsync(
+    private static async Task<AggregateRow?> ReadSqlitePendingRequestsAggregateAsync(
         IQueryable<ClubJoinRequestEntity> pendingQuery,
         CancellationToken cancellationToken)
     {
@@ -140,7 +140,7 @@ public sealed partial class ClubAttentionQueryService(
 
             var (count, newest) = db.Database.IsNpgsql()
                 ? await ReadNpgsqlAggregateAsync(clubId, cancellationToken)
-                : await ReadSqliteAggregateAsync(undecidedQuery, cancellationToken);
+                : await ReadSqlitePlacementAggregateAsync(undecidedQuery, cancellationToken);
 
             return new NeedsPlacementRegion
             {
@@ -197,8 +197,7 @@ public sealed partial class ClubAttentionQueryService(
                         && assignment.TeamId == null
                         && assignment.Player.LifecycleStatus == LifecycleStatus.Active);
 
-                await using var transaction =
-                    await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
+                await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
 
                 // Select the target Active campaign first (the newest one with an unresolved
                 // assignment), then count only that campaign's assignments so the count and the
@@ -237,7 +236,7 @@ public sealed partial class ClubAttentionQueryService(
     /// <param name="undecidedQuery">The undecided-assignment query.</param>
     /// <param name="cancellationToken">A token that cancels the operation.</param>
     /// <returns>The count and the newest campaign row.</returns>
-    private static async Task<(int Count, CampaignRow? Newest)> ReadSqliteAggregateAsync(
+    private static async Task<(int Count, CampaignRow? Newest)> ReadSqlitePlacementAggregateAsync(
         IQueryable<PlayerCampaignAssignmentEntity> undecidedQuery,
         CancellationToken cancellationToken)
     {

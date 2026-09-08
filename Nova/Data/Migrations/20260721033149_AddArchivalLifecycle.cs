@@ -5,10 +5,12 @@
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddArchivalLifecycle : Migration
+internal partial class AddArchivalLifecycle : Migration
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the generated migration operations ordered within their Up/Down method.
     protected override void Up(MigrationBuilder migrationBuilder)
+#pragma warning restore MA0051
     {
         migrationBuilder.AddColumn<DateTimeOffset>(
             name: "ArchivedAt",

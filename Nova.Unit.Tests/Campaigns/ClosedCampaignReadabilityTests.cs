@@ -3,10 +3,10 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -28,10 +28,7 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
 
     private readonly TenancyTestHarness _harness = new();
     private long _closedCampaignId;
-    private long _activeCampaignId;
-    private long _closedCampaignBId;
     private long _histPlayerId;
-    private long _histAssignmentId;
 
     /// <summary>Initializes seeded club, user, season, team, campaign, player, note, and event data.</summary>
     public ClosedCampaignReadabilityTests() => Seed();
@@ -47,7 +44,7 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task EvaluatorAndAdmin_CanReadClosedCampaign_AcrossAllReadSurfaces(bool isClubAdmin)
+    public async Task EvaluatorAndAdminCanReadClosedCampaignAcrossAllReadSurfacesAsync(bool isClubAdmin)
     {
         ActAs(ClubAViewerId, ClubAId, isClubAdmin);
 
@@ -99,14 +96,14 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
         history.CampaignStatus.ShouldBe(CampaignStatus.Closed);
         history.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
         history.Team.ShouldNotBeNull();
-        history.Team!.Name.ShouldBe("Alpha");
+        history.Team.Name.ShouldBe("Alpha");
         history.Notes.ShouldHaveSingleItem();
         history.Notes[0].Content.ShouldBe("Closed campaign note.");
     }
 
     /// <summary>Verifies another club's Closed campaign is invisible and absent from lists/history.</summary>
     [Fact]
-    public async Task CrossTenantClosedCampaign_IsInvisible_AcrossReadSurfaces()
+    public async Task CrossTenantClosedCampaignIsInvisibleAcrossReadSurfacesAsync()
     {
         ActAs(ClubBMemberId, ClubBId, isClubAdmin: false);
 
@@ -146,8 +143,8 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
             TestContext.Current.CancellationToken);
         list.IsSuccess.ShouldBeTrue();
         var campaignNames = list.Value.Seasons.SelectMany(season => season.Campaigns).Select(campaign => campaign.Name).ToList();
-        campaignNames.ShouldNotContain("Closed A");
-        campaignNames.ShouldContain("Closed B");
+        campaignNames.ShouldNotContain("Closed A", StringComparer.Ordinal);
+        campaignNames.ShouldContain("Closed B", StringComparer.Ordinal);
     }
 
     /// <summary>Sets the simulated current user for the next tenant/read context.</summary>
@@ -195,7 +192,9 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
             NullLogger<PlayerDetailQueryService>.Instance);
 
     /// <summary>Seeds closed and active campaigns for two clubs with history, notes, and lifecycle events.</summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var admin = _harness.CreateAdminContext();
 
@@ -256,9 +255,9 @@ public sealed class ClosedCampaignReadabilityTests : IDisposable
         admin.SaveChanges();
 
         _closedCampaignId = closedCampaign.CampaignId;
-        _activeCampaignId = activeCampaign.CampaignId;
-        _closedCampaignBId = closedCampaignB.CampaignId;
+        _ = activeCampaign.CampaignId;
+        _ = closedCampaignB.CampaignId;
         _histPlayerId = histPlayer.PlayerId;
-        _histAssignmentId = histAssignment.PlayerCampaignAssignmentId;
+        _ = histAssignment.PlayerCampaignAssignmentId;
     }
 }

@@ -31,6 +31,8 @@ Per region, in the spec's order:
 3. Read the score line. `PLATE-SCORE` under 50%, or a `PLATE-WARN`, means the plate does not read as the region: open the plate beside the crop, name what drifted (subject, framing, palette, style), tighten the prompt with that, and regenerate once. Two misses on one region: keep the better plate, mark it `needs_parent_review`, and say why in one line.
 4. Transparent cutouts (a figure or object on the page ground): generate on a flat chroma color absent from the subject and key it to alpha before writing the PNG; never ship the keyed background.
 
+When the harness provides a native image tool, prefer it for generation and editing, with the crop as the input image.
+
 Do not redesign. Do not add objects, restyle, or reinterpret; the comp was approved as it is. Do not touch the page code, the spec, or the comp. Do not produce anything the spec does not list; a region the parent forgot goes back as a one-line note, not a plate.
 
 ## Output Contract

@@ -1,10 +1,11 @@
-﻿using System.Globalization;
+﻿
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 using Nova.UI.Components;
 using Nova.UI.Features.Campaigns.Services;
 
@@ -710,7 +711,9 @@ public partial class CampaignPlacementsPanel(
     /// Internal for the unit-test suite (<see cref="InternalsVisibleToAttribute"/>) so the
     /// deferred-reload guard can be exercised directly.
     /// </remarks>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     internal async Task SaveRowAsync(CampaignPlacementRosterItem item)
+#pragma warning restore MA0051
     {
         // _isLoading guards the deferred-reload window after a save: the row controls are hidden
         // while it is set, and a click already queued for that window must not start a save whose
@@ -826,11 +829,14 @@ public partial class CampaignPlacementsPanel(
     /// <param name="draft">The draft whose snapshot should adopt the saved values.</param>
     private void ApplySavedToDraft(PlacementRowDraft draft)
     {
-        var savedTeam = draft.Outcome == PlacementOutcome.Assigned && draft.TeamId is { } savedTeamId
-            ? _teamChoices.FirstOrDefault(team => team.TeamId == savedTeamId) is { } team
+        CampaignParticipantTeamSummaryDto? savedTeam = null;
+        if (draft.Outcome == PlacementOutcome.Assigned && draft.TeamId is { } savedTeamId)
+        {
+            var team = _teamChoices.FirstOrDefault(team => team.TeamId == savedTeamId);
+            savedTeam = team is not null
                 ? new CampaignParticipantTeamSummaryDto(team.TeamId, team.Name)
-                : draft.Snapshot.Team
-            : null;
+                : draft.Snapshot.Team;
+        }
 
         draft.Snapshot = draft.Snapshot with { PlacementOutcome = draft.Outcome, Team = savedTeam };
     }

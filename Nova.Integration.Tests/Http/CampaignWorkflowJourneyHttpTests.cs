@@ -3,13 +3,13 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -35,14 +35,14 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
     /// A club admin creating a Draft after players already exist gets no implicit participation rows.
     /// </summary>
     [Fact]
-    public async Task CreationJourney_PersistsDraftWithoutEnrollment()
+    public async Task CreationJourneyPersistsDraftWithoutEnrollmentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
         _ = await RegisterClubAdminAsync(adminClient, "journey-creation", cancellationToken);
 
-        var firstPlayer = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"First {Guid.CreateVersion7():N}"), cancellationToken);
-        var secondPlayer = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Second {Guid.CreateVersion7():N}"), cancellationToken);
+        _ = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"First {Guid.CreateVersion7():N}"), cancellationToken);
+        _ = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Second {Guid.CreateVersion7():N}"), cancellationToken);
 
         var created = await CreateDraftCampaignViaHttpAsync(adminClient, cancellationToken);
         created.Status.ShouldBe(CampaignStatus.Draft);
@@ -66,7 +66,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
     /// campaign: the roster and participant detail are reachable, and a participation row persists.
     /// </summary>
     [Fact]
-    public async Task LateEnrollmentJourney_NewPlayerEntersActiveCampaign()
+    public async Task LateEnrollmentJourneyNewPlayerEntersActiveCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -100,12 +100,12 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
     /// administrator through the participant detail payload.
     /// </summary>
     [Fact]
-    public async Task EvaluationJourney_EvaluatorNote_IsConsumedByAdmin()
+    public async Task EvaluationJourneyEvaluatorNoteIsConsumedByAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
         var admin = await RegisterClubAdminAsync(adminClient, "journey-eval", cancellationToken);
-        var evaluatorClient = await RegisterClubEvaluatorAsync("journey-eval", admin.Club.ClubId, "Eva", "Evaluator", cancellationToken);
+        using var evaluatorClient = await RegisterClubEvaluatorAsync("journey-eval", admin.Club.ClubId, "Eva", "Evaluator", cancellationToken);
 
         var created = await SeedActiveCampaignForWorkflowAsync(adminClient, cancellationToken);
         var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Eval {Guid.CreateVersion7():N}"), cancellationToken);
@@ -144,7 +144,9 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
     /// reflect the final outcome and team.
     /// </summary>
     [Fact]
-    public async Task PlacementJourney_ReplacementTokenChain_UpdatesRosterAndSummary()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task PlacementJourneyReplacementTokenChainUpdatesRosterAndSummaryAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -199,7 +201,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         var assignedItem = assignedRoster.Items.ShouldHaveSingleItem();
         assignedItem.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
         assignedItem.Team.ShouldNotBeNull();
-        assignedItem.Team!.TeamId.ShouldBe(team.TeamId);
+        assignedItem.Team.TeamId.ShouldBe(team.TeamId);
         var assignedSummary = await GetPlacementSummaryAsync(adminClient, created.CampaignId, cancellationToken);
         assignedSummary.TotalCount.ShouldBe(1);
         assignedSummary.AssignedCount.ShouldBe(1);
@@ -220,12 +222,14 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
     /// placed and the campaign closed, the evaluator retains read access while all writes conflict.
     /// </summary>
     [Fact]
-    public async Task CloseJourney_ReadinessToClosed_EvaluatorReadSurfacePreserved()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task CloseJourneyReadinessToClosedEvaluatorReadSurfacePreservedAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
         var admin = await RegisterClubAdminAsync(adminClient, "journey-close", cancellationToken);
-        var evaluatorClient = await RegisterClubEvaluatorAsync("journey-close", admin.Club.ClubId, "Casey", "Evaluator", cancellationToken);
+        using var evaluatorClient = await RegisterClubEvaluatorAsync("journey-close", admin.Club.ClubId, "Casey", "Evaluator", cancellationToken);
 
         var created = await SeedActiveCampaignForWorkflowAsync(adminClient, cancellationToken);
         var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Close {Guid.CreateVersion7():N}"), cancellationToken);
@@ -251,12 +255,14 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         ready.IsReady.ShouldBeTrue();
         ready.Blockers.ShouldBeEmpty();
 
-        using (var closeResponse = await adminClient.PostAsync(CampaignEndpoints.CloseUrl(created.CampaignId), content: null, cancellationToken))
+        using (var closeResponse = await adminClient.PostAsync(new Uri(CampaignEndpoints.CloseUrl(created.CampaignId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             closeResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var campaign = await context.Campaigns
                 .SingleAsync(candidate => candidate.CampaignId == created.CampaignId, cancellationToken);
@@ -275,13 +281,13 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
             events[2].EventKind.ShouldBe(ActivityEventKind.CampaignClosed);
         }
 
-        using (var detailResponse = await evaluatorClient.GetAsync(CampaignEndpoints.GetCampaignDetailUrl(created.CampaignId), cancellationToken))
+        using (var detailResponse = await evaluatorClient.GetAsync(new Uri(CampaignEndpoints.GetCampaignDetailUrl(created.CampaignId), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         }
 
         using (var participantResponse = await evaluatorClient.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(created.CampaignId, assignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(created.CampaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken))
         {
             participantResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -312,12 +318,14 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
     /// Close-then-Reopen activity feed.
     /// </summary>
     [Fact]
-    public async Task ReopenJourney_RestoresWritability_PreservesOutcomes()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task ReopenJourneyRestoresWritabilityPreservesOutcomesAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
         var admin = await RegisterClubAdminAsync(adminClient, "journey-reopen", cancellationToken);
-        var evaluatorClient = await RegisterClubEvaluatorAsync("journey-reopen", admin.Club.ClubId, "Reese", "Evaluator", cancellationToken);
+        using var evaluatorClient = await RegisterClubEvaluatorAsync("journey-reopen", admin.Club.ClubId, "Reese", "Evaluator", cancellationToken);
 
         var created = await SeedActiveCampaignForWorkflowAsync(adminClient, cancellationToken);
         var player = await CreatePlayerViaHttpAsync(adminClient, ValidCreatePlayerInput($"Reopen {Guid.CreateVersion7():N}"), cancellationToken);
@@ -333,17 +341,19 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
             placeResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         }
 
-        using (var closeResponse = await adminClient.PostAsync(CampaignEndpoints.CloseUrl(created.CampaignId), content: null, cancellationToken))
+        using (var closeResponse = await adminClient.PostAsync(new Uri(CampaignEndpoints.CloseUrl(created.CampaignId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             closeResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
-        using (var reopenResponse = await adminClient.PostAsync(CampaignEndpoints.ReopenUrl(created.CampaignId), content: null, cancellationToken))
+        using (var reopenResponse = await adminClient.PostAsync(new Uri(CampaignEndpoints.ReopenUrl(created.CampaignId), UriKind.RelativeOrAbsolute), content: null, cancellationToken))
         {
             reopenResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var campaign = await context.Campaigns
                 .SingleAsync(candidate => candidate.CampaignId == created.CampaignId, cancellationToken);
@@ -378,7 +388,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         }
 
         using var activityResponse = await adminClient.GetAsync(
-            CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = created.CampaignId }),
+new Uri(CampaignEndpoints.GetCampaignActivityUrl(new GetCampaignActivityInput { CampaignId = created.CampaignId }), UriKind.RelativeOrAbsolute),
             cancellationToken);
         activityResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var activity = await activityResponse.Content.ReadFromJsonAsync<CampaignActivityResult>(cancellationToken);
@@ -395,7 +405,9 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
     /// double-enroll.
     /// </summary>
     [Fact]
-    public async Task LateEnrollment_ConcurrentCreates_BothPersistWithSingleDurableRow()
+#pragma warning disable MA0051 // Keep this test scenario's setup, action, and assertions together so its invariant is reviewable.
+    public async Task LateEnrollmentConcurrentCreatesBothPersistWithSingleDurableRowAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -405,8 +417,30 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
 
         var input = ValidCreatePlayerInput($"Concurrent {Guid.CreateVersion7():N}");
 
+#pragma warning disable CA2025 // Both concurrent requests are awaited with Task.WhenAll before client disposal; successful responses are also disposed on failure.
         var task1 = adminClient.PostAsJsonAsync(PlayerEndpoints.Create, input, cancellationToken);
+#pragma warning restore CA2025
+#pragma warning disable CA2025 // Both concurrent requests are awaited with Task.WhenAll before client disposal; successful responses are also disposed on failure.
         var task2 = adminClient.PostAsJsonAsync(PlayerEndpoints.Create, input, cancellationToken);
+#pragma warning restore CA2025
+
+        try
+        {
+            await Task.WhenAll(task1, task2);
+        }
+        catch
+        {
+            // Both requests have finished; dispose any successful response before propagating the failure.
+            if (task1.IsCompletedSuccessfully)
+            {
+                (await task1).Dispose();
+            }
+            if (task2.IsCompletedSuccessfully)
+            {
+                (await task2).Dispose();
+            }
+            throw;
+        }
 
         using var response1 = await task1;
         using var response2 = await task2;
@@ -494,31 +528,34 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken)
     {
         var created = await CreateDraftCampaignViaHttpAsync(client, cancellationToken);
-        await using var context = fixture.CreateAdminContext();
-        var campaign = await context.Campaigns.SingleAsync(
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var campaign = await context.Campaigns.SingleAsync(
             candidate => candidate.CampaignId == created.CampaignId,
             cancellationToken);
-        campaign.Status = CampaignStatus.Active;
+            campaign.Status = CampaignStatus.Active;
 
-        var playerIds = await context.Players
-            .Where(player => player.ClubId == campaign.ClubId
-                && player.LifecycleStatus == LifecycleStatus.Active)
-            .Select(player => player.PlayerId)
-            .ToListAsync(cancellationToken);
-        foreach (var playerId in playerIds)
-        {
-            context.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+            var playerIds = await context.Players
+                .Where(player => player.ClubId == campaign.ClubId
+                    && player.LifecycleStatus == LifecycleStatus.Active)
+                .Select(player => player.PlayerId)
+                .ToListAsync(cancellationToken);
+            foreach (var playerId in playerIds)
             {
-                CampaignId = campaign.CampaignId,
-                PlayerId = playerId,
-                ClubId = campaign.ClubId,
-                PlacementOutcome = PlacementOutcome.Undecided,
-                CreatedById = campaign.CreatedById
-            });
-        }
+                context.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+                {
+                    CampaignId = campaign.CampaignId,
+                    PlayerId = playerId,
+                    ClubId = campaign.ClubId,
+                    PlacementOutcome = PlacementOutcome.Undecided,
+                    CreatedById = campaign.CreatedById
+                });
+            }
 
-        await context.SaveChangesAsync(cancellationToken);
-        return created with { Status = CampaignStatus.Active };
+            await context.SaveChangesAsync(cancellationToken);
+            return created with { Status = CampaignStatus.Active };
+        }
     }
 
     private static async Task<PlayerDto> CreatePlayerViaHttpAsync(HttpClient client, CreatePlayerInput input, CancellationToken cancellationToken)
@@ -556,7 +593,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = campaignId }),
+new Uri(CampaignEndpoints.GetCampaignParticipantRosterUrl(new GetCampaignParticipantRosterInput { CampaignId = campaignId }), UriKind.RelativeOrAbsolute),
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var roster = await response.Content.ReadFromJsonAsync<PagedResult<CampaignParticipantRosterItem>>(cancellationToken);
@@ -571,7 +608,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await response.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
@@ -585,7 +622,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = campaignId }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = campaignId }), UriKind.RelativeOrAbsolute),
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var roster = await response.Content.ReadFromJsonAsync<PagedResult<CampaignPlacementRosterItem>>(cancellationToken);
@@ -599,7 +636,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementSummaryUrl(campaignId),
+new Uri(CampaignEndpoints.GetCampaignPlacementSummaryUrl(campaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var summary = await response.Content.ReadFromJsonAsync<CampaignPlacementSummaryDto>(cancellationToken);
@@ -613,7 +650,7 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
         CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync(
-            CampaignEndpoints.GetCampaignCloseoutReadinessUrl(campaignId),
+new Uri(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(campaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var readiness = await response.Content.ReadFromJsonAsync<CampaignCloseoutReadinessDto>(cancellationToken);
@@ -623,20 +660,28 @@ public sealed class CampaignWorkflowJourneyHttpTests(NovaAppHostFixture fixture)
 
     private async Task<long> GetUserIdByEmailAsync(string email, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        return await context.Users
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            return await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             .Where(candidate => candidate.NormalizedEmail == email.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(candidate => candidate.Id)
             .SingleAsync(cancellationToken);
+        }
     }
 
     private async Task<long> GetSingleAssignmentIdAsync(long campaignId, long playerId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        return await context.PlayerCampaignAssignments
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            return await context.PlayerCampaignAssignments
             .Where(assignment => assignment.CampaignId == campaignId && assignment.PlayerId == playerId)
             .Select(assignment => assignment.PlayerCampaignAssignmentId)
             .SingleAsync(cancellationToken);
+        }
     }
 
     private sealed record ClubAdmin(long UserId, ClubDto Club);

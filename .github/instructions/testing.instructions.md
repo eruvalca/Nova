@@ -9,6 +9,21 @@ description: "Testing rules: project and harness selection, HTTP/UI boundary cov
 > `TenancyTestHarness`, Aspire `NovaAppHostFixture`, HTTP e2e bootstrap), use the **`nova-testing`**
 > skill (`.agents/skills/nova-testing/`).
 
+## Behavior-based routing and evidence
+
+- Read the rules for the production behavior under test even when the test's filename does not
+  match their globs. Tests using EF, a context factory, or `TenancyTestHarness` must read
+  `ef-core-tenancy.instructions.md`; database-free bUnit and pure-policy tests do not need it.
+  HTTP/serialization tests need API rules; component tests need the applicable Blazor rules.
+- Select relevant transitions from
+  `.agents/skills/nova-testing/references/blazor-component-tests.md#transition-coverage` when
+  modifying forms, async UI, identity/permissions, recovery, URL state, or consumed HTTP contracts.
+  Verify the observable outcome the test claims. Calling a callback directly does not prove form
+  resubmission, and showing an initial error does not prove a corrected retry succeeds.
+- Use controlled delayed tasks to exercise ordering; assert obsolete successes, failures, and
+  cleanup cannot affect newer work. Demonstrate a regression fails before the fix when practical,
+  and record any limitation rather than claiming unobserved behavior.
+
 ## Which project
 
 All three test projects use **xUnit v4 on Microsoft.Testing.Platform (MTP)** with **Shouldly** assertions.
@@ -125,7 +140,7 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
 
 ## Conventions
 
-- One behavior per test; name `Subject_Outcome_Condition` (e.g. `Interceptor_Throws_OnCrossTenantAdd`).
+- One behavior per test; use PascalCase names such as `InterceptorThrowsOnCrossTenantAdd`. Append `Async` for async methods.
   Use Shouldly (`ShouldBe`, `Should.Throw<T>`) and `[Theory]`/`[InlineData]` for case matrices.
   Theories use `[Theory(IncludeTestCaseIndex = true)]` (xUnit v4) so a failing data row is
   identifiable by its zero-padded `_NNN` display-name suffix.
@@ -150,7 +165,12 @@ Rules: never guess the frontend URL (always read it from `aspire describe --form
   invocations are not reader-command evidence. The interceptor does not observe synchronous,
   scalar, or non-query commands, so do not use it to claim an exact total SQL-command count.
 - Exercise every route independently; prove the least-privileged role (a creator or admin does not establish ordinary-member access). Test independent query-validation paths separately.
-- For clients validating success bodies: cover a populated payload, explicit nested nulls, malformed JSON, invalid ID/date/count relationships, shared-bound violations, and incorrect ordering. Use exact expected counts when proving lifecycle or tenant exclusion.
+- For clients validating success bodies, trace producer guarantees through serialization, client
+  validation, and rendered use. Cover populated valid payloads, missing required fields, explicit
+  nested nulls, malformed JSON, invalid ID/date/count relationships, shared-bound violations, and
+  portable ordering. Never reject relationships the producer's consistency contract cannot
+  guarantee. Use exact expected counts when proving lifecycle or tenant exclusion; see the
+  `add-feature-slice` WASM client reference's contract check.
 - For `CreatedAtRoute`, assert `201 Created`, the exact `Location`, and a successful GET after
   following it. Route metadata alone cannot prove the generated URL is usable.
 - For uniqueness-probe patterns, add a PostgreSQL race test that commits a conflicting row through an independent context after the probe, asserting the unique constraint is the final guard and the exception maps to `Conflict`.

@@ -1,4 +1,4 @@
-﻿using Nova.Shared.Features.Clubs;
+﻿using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Clubs;
@@ -6,7 +6,7 @@ namespace Nova.Unit.Tests.Clubs;
 public sealed class ClubShellContractTests
 {
     [Fact]
-    public void CanonicalRoutes_AreStable_AndAdministratorRoutesAreRecognized()
+    public void CanonicalRoutesAreStableAndAdministratorRoutesAreRecognized()
     {
         ClubRoutes.Overview.ShouldBe("/club");
         ClubRoutes.Seasons.ShouldBe("/club/seasons");
@@ -27,7 +27,7 @@ public sealed class ClubShellContractTests
     }
 
     [Fact]
-    public void ClubShellMarkup_DeclaresOrderedRoutes_MobileCollapse_AndNoScriptFallback()
+    public void ClubShellMarkupDeclaresOrderedRoutesMobileCollapseAndNoScriptFallback()
     {
         var root = FindRepoRoot();
         var markup = File.ReadAllText(Path.Join(root, "Nova.UI", "Features", "Clubs", "Components", "ClubShell.razor"));
@@ -44,7 +44,7 @@ public sealed class ClubShellContractTests
     }
 
     [Fact]
-    public void Overview_DeclaresInteractiveAuto_AndIndependentRegionRetries()
+    public void OverviewDeclaresInteractiveAutoAndIndependentRegionRetries()
     {
         var root = FindRepoRoot();
         var markup = File.ReadAllText(Path.Join(root, "Nova.UI", "Features", "Clubs", "Pages", "ClubOverview.razor"));
@@ -71,7 +71,7 @@ public sealed class ClubShellContractTests
     [InlineData("Nova.UI/Features/Clubs/Pages/ClubReservedSection.razor")]
     [InlineData("Nova.UI/Features/Clubs/Pages/ClubDetail.razor")]
     [InlineData("Nova.UI/Features/Teams/Pages/LegacyTeamsRedirect.razor")]
-    public void ClubRouteComponents_KeepLogicInCodeBehind(string relativePath)
+    public void ClubRouteComponentsKeepLogicInCodeBehind(string relativePath)
     {
         var root = FindRepoRoot();
         var razorPath = Path.Join(root, relativePath);

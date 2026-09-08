@@ -1,4 +1,5 @@
-﻿using Nova.Entities.Base;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
 
 namespace Nova.Entities;
 
@@ -10,7 +11,7 @@ public class SeasonEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Season Id.
     /// </summary>
-    public long SeasonId { get; set; } = default;
+    public long SeasonId { get; set; }
 
     /// <summary>
     /// Gets or sets the stable identifier for the logical season-creation operation, used to verify
@@ -51,7 +52,9 @@ public class SeasonEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Campaigns.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<CampaignEntity> Campaigns { get; set; } = [];
+#pragma warning restore CA2227
 
     /// <summary>
     /// Gets or sets the Club Id.

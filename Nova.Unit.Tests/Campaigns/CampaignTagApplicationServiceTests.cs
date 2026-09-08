@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -47,7 +47,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies any club member can apply an active tag definition to active-campaign participation.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_CreatesApplication_ForClubMember_InActiveCampaign()
+    public async Task ApplyAsyncCreatesApplicationForClubMemberInActiveCampaignAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
@@ -71,7 +71,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies duplicate participation/tag applications are rejected.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsConflict_ForDuplicateParticipationTagPair()
+    public async Task ApplyAsyncReturnsConflictForDuplicateParticipationTagPairAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
@@ -87,7 +87,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies Draft campaigns reject tag applications without persisting an application or side effect.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsConflictWithoutWritesOrActivity_ForDraftCampaign()
+    public async Task ApplyAsyncReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(ActiveAssignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -117,7 +117,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies archived tag definitions cannot be applied.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsConflict_ForArchivedTagDefinition()
+    public async Task ApplyAsyncReturnsConflictForArchivedTagDefinitionAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
@@ -133,7 +133,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies closed campaigns reject new tag applications.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsConflict_ForClosedCampaign()
+    public async Task ApplyAsyncReturnsConflictForClosedCampaignAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
@@ -150,7 +150,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies tenant filters hide other-club participation from apply operations.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsNotFound_ForCrossTenantParticipation()
+    public async Task ApplyAsyncReturnsNotFoundForCrossTenantParticipationAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
@@ -166,7 +166,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies tenant filters hide other-club tags from apply operations.
     /// </summary>
     [Fact]
-    public async Task ApplyAsync_ReturnsNotFound_ForCrossTenantTagDefinition()
+    public async Task ApplyAsyncReturnsNotFoundForCrossTenantTagDefinitionAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
@@ -182,7 +182,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies the creating user can remove their own application.
     /// </summary>
     [Fact]
-    public async Task RemoveAsync_RemovesApplication_ForApplyingUser()
+    public async Task RemoveAsyncRemovesApplicationForApplyingUserAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var service = CreateService();
@@ -203,7 +203,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies club administrators can remove applications created by other members.
     /// </summary>
     [Fact]
-    public async Task RemoveAsync_RemovesApplication_ForClubAdministrator()
+    public async Task RemoveAsyncRemovesApplicationForClubAdministratorAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -219,7 +219,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies non-owner non-admin users cannot remove applications.
     /// </summary>
     [Fact]
-    public async Task RemoveAsync_ReturnsForbidden_ForNonOwnerNonAdmin()
+    public async Task RemoveAsyncReturnsForbiddenForNonOwnerNonAdminAsync()
     {
         ActAs(ClubAOtherMemberId, ClubAId);
         var service = CreateService();
@@ -235,7 +235,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies closed campaigns are read-only for tag application removals.
     /// </summary>
     [Fact]
-    public async Task RemoveAsync_ReturnsConflict_ForClosedCampaign()
+    public async Task RemoveAsyncReturnsConflictForClosedCampaignAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -252,7 +252,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies Draft campaigns reject tag removal without deleting the application or recording side effects.
     /// </summary>
     [Fact]
-    public async Task RemoveAsync_ReturnsConflictWithoutWritesOrActivity_ForDraftCampaign()
+    public async Task RemoveAsyncReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(ActiveAssignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -277,7 +277,7 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// Verifies archived tag definitions block removals to preserve archived history.
     /// </summary>
     [Fact]
-    public async Task RemoveAsync_ReturnsConflict_ForArchivedTagDefinition()
+    public async Task RemoveAsyncReturnsConflictForArchivedTagDefinitionAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var service = CreateService();
@@ -310,7 +310,9 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// <param name="assignmentId">The assignment whose campaign should become Draft.</param>
     private async Task MakeCampaignDraftAsync(long assignmentId)
     {
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var db = _harness.CreateAdminContext();
+#pragma warning restore MA0004
         var campaign = await db.PlayerCampaignAssignments
             .Where(assignment => assignment.PlayerCampaignAssignmentId == assignmentId)
             .Select(assignment => assignment.Campaign)
@@ -335,7 +337,9 @@ public sealed class CampaignTagApplicationServiceTests : IDisposable
     /// <summary>
     /// Seeds campaigns, participation rows, tag definitions, and applications across two clubs.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

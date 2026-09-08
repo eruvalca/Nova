@@ -10,9 +10,9 @@ FORM: The generate-recovery-codes post keeps its existing name, antiforgery toke
 
 <PageTitle>Generate two-factor authentication (2FA) recovery codes</PageTitle>
 
-@if (recoveryCodes is not null)
+@if (_recoveryCodes is not null)
 {
-    <ShowRecoveryCodes RecoveryCodes="recoveryCodes.ToArray()" StatusMessage="@message" />
+    <ShowRecoveryCodes RecoveryCodes="_recoveryCodes.ToArray()" StatusMessage="@_message" />
 }
 else
 {

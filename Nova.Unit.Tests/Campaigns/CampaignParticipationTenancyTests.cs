@@ -2,7 +2,7 @@
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -34,7 +34,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
     /// Verifies participation rows are visible only to their owning club.
     /// </summary>
     [Fact]
-    public void TenantContext_FiltersCampaignParticipationToCurrentClub()
+    public void TenantContextFiltersCampaignParticipationToCurrentClub()
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
@@ -50,7 +50,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
     /// and visible across tenants only through the administrative context.
     /// </summary>
     [Fact]
-    public void TenantContext_ShapesDraftCampaignParticipationByRole()
+    public void TenantContextShapesDraftCampaignParticipationByRole()
     {
         ActAs(ClubAUserId, ClubAId);
         using (var memberDb = _harness.CreateTenantContext())
@@ -86,7 +86,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
     /// Verifies the save interceptor rejects participation explicitly assigned to another tenant.
     /// </summary>
     [Fact]
-    public void TenantContext_RejectsCrossTenantCampaignParticipationWrite()
+    public void TenantContextRejectsCrossTenantCampaignParticipationWrite()
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
@@ -107,7 +107,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
     /// Verifies the model carries the required concurrency, uniqueness, filter, and check metadata.
     /// </summary>
     [Fact]
-    public void Model_ConfiguresCampaignParticipationIntegrityMetadata()
+    public void ModelConfiguresCampaignParticipationIntegrityMetadata()
     {
         using var db = _harness.CreateAdminContext();
         var model = db.GetService<IDesignTimeModel>().Model;
@@ -133,7 +133,7 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
                 {
                     nameof(PlayerCampaignAssignmentEntity.CampaignId),
                     nameof(PlayerCampaignAssignmentEntity.TryoutNumber)
-                }));
+                }, StringComparer.Ordinal));
         tryoutIndex.IsUnique.ShouldBeTrue();
         tryoutIndex.GetFilter().ShouldBe("\"TryoutNumber\" IS NOT NULL");
 
@@ -157,7 +157,9 @@ public sealed class CampaignParticipationTenancyTests : IDisposable
     /// <summary>
     /// Seeds Active participation for each of two clubs plus Draft participation for club A.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

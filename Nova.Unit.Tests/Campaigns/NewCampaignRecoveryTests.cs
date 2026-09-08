@@ -3,10 +3,10 @@ using Bunit;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Features.Campaigns.Components;
 using Nova.UI.Features.Campaigns.Pages;
 using NSubstitute;
@@ -25,13 +25,13 @@ public sealed class NewCampaignRecoveryTests : BunitContext
     [InlineData("create-form", true)]
     [InlineData("create-pending", false)]
     [InlineData("create-pending", true)]
-    public void NewCampaign_PreservesIncompatibleRecovery_UntilCorrectedRetry(string key, bool unsupported)
+    public void NewCampaignPreservesIncompatibleRecoveryUntilCorrectedRetry(string key, bool unsupported)
     {
         var (module, _, creation) = Register();
         var form = SavedForm();
         var corrupt = true;
         Exception failure = unsupported ? new NotSupportedException("Unsupported payload") : new System.Text.Json.JsonException("Malformed payload");
-        if (key == "create-form")
+        if (string.Equals(key, "create-form", StringComparison.Ordinal))
         {
             module.Setup<CampaignCreateFormState?>("read", invocation => corrupt && invocation.Arguments.Contains(key)).SetException(failure);
         }
@@ -39,7 +39,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         {
             module.Setup<CreateCampaignInput?>("read", invocation => corrupt && invocation.Arguments.Contains(key)).SetException(failure);
         }
-        module.Setup<CampaignCreateFormState?>("read", invocation => (!corrupt || key != "create-form") && invocation.Arguments.Contains("create-form")).SetResult(form);
+        module.Setup<CampaignCreateFormState?>("read", invocation => (!corrupt || !string.Equals(key, "create-form", StringComparison.Ordinal)) && invocation.Arguments.Contains("create-form")).SetResult(form);
         module.Setup<CreateCampaignInput?>("read", invocation => !corrupt && invocation.Arguments.Contains("create-pending")).SetResult(form.ToCreateInput());
         creation.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<CreateCampaignResult>(ServiceProblem.ServerError("Uncertain response")));
@@ -50,10 +50,10 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         _ = creation.DidNotReceive().CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>());
         module.Invocations.ShouldNotContain(invocation => invocation.Identifier == "clear" || invocation.Identifier == "remove");
         corrupt = false;
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Retry", StringComparison.Ordinal)).Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Confirm creation result"));
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Confirm creation result").Click();
-        cut.WaitForAssertion(() => creation.Received(1).CreateAsync(Arg.Is<CreateCampaignInput>(input => input.OperationId == form.OperationId), Arg.Any<CancellationToken>()));
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Confirm creation result", StringComparison.Ordinal)).Click();
+        cut.WaitForAssertion(() => { _ = creation.Received(1).CreateAsync(Arg.Is<CreateCampaignInput>(input => input.OperationId == form.OperationId), Arg.Any<CancellationToken>()); });
     }
 
     /// <summary>Verifies startup and notification authentication tasks cannot restore an obsolete identity.</summary>
@@ -61,7 +61,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task NewCampaign_IgnoresOvertakenAuthentication(bool startup)
+    public async Task NewCampaignIgnoresOvertakenAuthenticationAsync(bool startup)
     {
         Register();
         var older = new TaskCompletionSource<AuthenticationState>();
@@ -70,11 +70,11 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         var cut = Render<NewCampaign>();
         if (!startup)
         {
-            cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+            await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
             await cut.InvokeAsync(() => authentication.Publish(older.Task));
         }
         await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(DeferredAuthentication.State(43))));
-        cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
+        await cut.WaitForAssertionAsync(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
 
         await cut.InvokeAsync(() => older.SetResult(DeferredAuthentication.State(42)));
 
@@ -85,13 +85,13 @@ public sealed class NewCampaignRecoveryTests : BunitContext
 
     /// <summary>Verifies a pending authentication notification cannot reload setup after disposal.</summary>
     [Fact]
-    public async Task NewCampaign_IgnoresAuthenticationCompletion_AfterDisposal()
+    public async Task NewCampaignIgnoresAuthenticationCompletionAfterDisposalAsync()
     {
         Register();
         var authentication = new DeferredAuthentication(Task.FromResult(DeferredAuthentication.State(42)));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = Render<NewCampaign>();
-        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
         var pending = new TaskCompletionSource<AuthenticationState>();
         await cut.InvokeAsync(() => authentication.Publish(pending.Task));
         await cut.Instance.DisposeAsync();
@@ -105,7 +105,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task NewCampaign_RestoresInput_AndInvalidatesItWhenClubChanges(bool cleanupFails)
+    public async Task NewCampaignRestoresInputAndInvalidatesItWhenClubChangesAsync(bool cleanupFails)
     {
         var (module, authentication, _) = Register();
         if (cleanupFails)
@@ -117,7 +117,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
             .SetResult(SavedForm());
         var cut = Render<NewCampaign>();
 
-        cut.WaitForAssertion(() => cut.Find("#campaign-name").GetAttribute("value").ShouldBe("Recovered Draft"));
+        await cut.WaitForAssertionAsync(() => cut.Find("#campaign-name").GetAttribute("value").ShouldBe("Recovered Draft"));
         cut.FindAll("a").Single(link => link.TextContent.Contains("Back to campaigns", StringComparison.OrdinalIgnoreCase))
             .GetAttribute("href").ShouldBe("/campaigns");
         cut.Find("#campaign-start-date").GetAttribute("value").ShouldBe("2026-06-15");
@@ -125,7 +125,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
 
         await cut.InvokeAsync(() => authentication.ChangeClub(43));
 
-        cut.WaitForAssertion(() => cut.Find("#campaign-name").GetAttribute("value").ShouldBe(string.Empty));
+        await cut.WaitForAssertionAsync(() => cut.Find("#campaign-name").GetAttribute("value").ShouldBe(string.Empty));
         JSInterop.Invocations.ShouldContain(invocation => invocation.Identifier == "clear"
             && invocation.Arguments.Contains("101:42:True"));
         JSInterop.Invocations.ShouldContain(invocation => invocation.Identifier == "read"
@@ -134,7 +134,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
 
     /// <summary>Verifies reloaded uncertain creation retries the original payload and operation identifier.</summary>
     [Fact]
-    public void NewCampaign_ReplaysPersistedRequest_BeforeAllowingAnotherSubmission()
+    public void NewCampaignReplaysPersistedRequestBeforeAllowingAnotherSubmission()
     {
         var (module, _, creation) = Register();
         var form = SavedForm();
@@ -149,19 +149,22 @@ public sealed class NewCampaignRecoveryTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Confirm creation result"));
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
-        cut.FindAll("button").Single(button => button.TextContent == "Confirm creation result").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent, "Confirm creation result", StringComparison.Ordinal)).Click();
 
-        cut.WaitForAssertion(() => creation.Received(1).CreateAsync(
+        cut.WaitForAssertion(() =>
+        {
+            _ = creation.Received(1).CreateAsync(
             Arg.Is<CreateCampaignInput>(input => input.OperationId == pending.OperationId
                 && input.Name == pending.Name && input.StartDate == pending.StartDate
-                && input.ExistingSeasonId == pending.ExistingSeasonId), Arg.Any<CancellationToken>()));
+                && input.ExistingSeasonId == pending.ExistingSeasonId), Arg.Any<CancellationToken>());
+        });
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
         cut.Markup.ShouldContain("Still uncertain");
     }
 
     /// <summary>Verifies the visible Retry action retries browser recovery storage after a transient read failure.</summary>
     [Fact]
-    public void NewCampaign_RetriesSessionStorage_AfterReadFailure()
+    public void NewCampaignRetriesSessionStorageAfterReadFailure()
     {
         var (module, _, _) = Register();
         var readFails = true;
@@ -172,7 +175,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
 
         readFails = false;
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Retry", StringComparison.Ordinal)).Click();
 
         cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
         cut.Markup.ShouldNotContain("Recovery storage is unavailable");
@@ -180,7 +183,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
 
     /// <summary>Verifies recovery makes the exact request durable again before contacting the server.</summary>
     [Fact]
-    public void NewCampaign_RepersistsRequest_BeforeRetryingFailedStorageWrite()
+    public void NewCampaignRepersistsRequestBeforeRetryingFailedStorageWrite()
     {
         var (module, _, creation) = Register();
         module.Setup<CampaignCreateFormState?>("read", invocation => invocation.Arguments.Contains("create-form"))
@@ -190,9 +193,9 @@ public sealed class NewCampaignRecoveryTests : BunitContext
             .SetException(new JSException("Storage temporarily unavailable"));
         creation.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
-            JSInterop.Invocations.Count(invocation => invocation.Identifier == "write" && invocation.Arguments.Contains("create-form"))
+            JSInterop.Invocations.Count(invocation => string.Equals(invocation.Identifier, "write", StringComparison.Ordinal) && invocation.Arguments.Contains("create-form"))
                 .ShouldBeGreaterThanOrEqualTo(2);
-            JSInterop.Invocations.Count(invocation => invocation.Identifier == "write" && invocation.Arguments.Contains("create-pending"))
+            JSInterop.Invocations.Count(invocation => string.Equals(invocation.Identifier, "write", StringComparison.Ordinal) && invocation.Arguments.Contains("create-pending"))
                 .ShouldBe(2);
             return Task.FromResult(new ServiceResult<CreateCampaignResult>(ServiceProblem.ServerError("Still uncertain")));
         });
@@ -203,14 +206,14 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         _ = creation.DidNotReceive().CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>());
 
         writeFails = false;
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Confirm creation result").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Confirm creation result", StringComparison.Ordinal)).Click();
 
-        cut.WaitForAssertion(() => creation.Received(1).CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>()));
+        cut.WaitForAssertion(() => { _ = creation.Received(1).CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>()); });
     }
 
     /// <summary>Verifies failed success cleanup leaves the pending request recoverable until saved input is removed.</summary>
     [Fact]
-    public void NewCampaign_RetainsPendingRequest_WhenSuccessfulFormCleanupFails()
+    public void NewCampaignRetainsPendingRequestWhenSuccessfulFormCleanupFails()
     {
         var (module, _, creation) = Register();
         var form = SavedForm();
@@ -233,7 +236,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
 
     /// <summary>Verifies failed input persistence can be retried without reverting edits or changing the logical operation.</summary>
     [Fact]
-    public void NewCampaign_RetryRecoveryStorage_PreservesCurrentEditsUntilWriteSucceeds()
+    public void NewCampaignRetryRecoveryStoragePreservesCurrentEditsUntilWriteSucceeds()
     {
         var (module, _, creation) = Register();
         var saved = SavedForm();
@@ -250,38 +253,43 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         cut.Find("section.campaign-create-board").TriggerEvent("onchange", new Microsoft.AspNetCore.Components.ChangeEventArgs());
 
         cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue());
-        var retry = cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry recovery storage");
+        var retry = cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Retry recovery storage", StringComparison.Ordinal));
         retry.Closest("fieldset").ShouldBeNull();
         retry.Click();
         cut.Find("fieldset").HasAttribute("disabled").ShouldBeTrue();
-        module.Invocations.Count(invocation => invocation.Identifier == "write" && invocation.Arguments.Contains("create-form")).ShouldBe(2);
+        module.Invocations.Count(invocation => string.Equals(invocation.Identifier, "write", StringComparison.Ordinal) && invocation.Arguments.Contains("create-form")).ShouldBe(2);
 
         failWrite = false;
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry recovery storage").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Retry recovery storage", StringComparison.Ordinal)).Click();
 
         cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
         cut.Find("#campaign-name").GetAttribute("value").ShouldBe("Current unsaved edit");
         cut.Find("#campaign-start-date").GetAttribute("value").ShouldBe("2026-06-15");
-        module.Invocations.Count(invocation => invocation.Identifier == "read" && invocation.Arguments.Contains("create-form")).ShouldBe(1);
+        module.Invocations.Count(invocation => string.Equals(invocation.Identifier, "read", StringComparison.Ordinal) && invocation.Arguments.Contains("create-form")).ShouldBe(1);
         cut.Find("button[type='submit']").Click();
-        cut.WaitForAssertion(() => creation.Received(1).CreateAsync(
-            Arg.Is<CreateCampaignInput>(input => input.Name == "Current unsaved edit" && input.OperationId == saved.OperationId), Arg.Any<CancellationToken>()));
+        cut.WaitForAssertion(() =>
+        {
+            _ = creation.Received(1).CreateAsync(
+            Arg.Is<CreateCampaignInput>(input => input.Name == "Current unsaved edit" && input.OperationId == saved.OperationId), Arg.Any<CancellationToken>());
+        });
     }
 
     /// <summary>Verifies changing club invalidates persisted and form errors before new setup finishes loading.</summary>
     [Fact]
-    public async Task NewCampaign_ClearsErrorsAndSnapshot_BeforeNewClubSetupCompletes()
+    public async Task NewCampaignClearsErrorsAndSnapshotBeforeNewClubSetupCompletesAsync()
     {
         var (module, authentication, creation) = Register();
         module.Setup<CampaignCreateFormState?>("read", invocation => invocation.Arguments.Contains("101:42:True")
             && invocation.Arguments.Contains("create-form")).SetResult(SavedForm());
         creation.CreateAsync(Arg.Any<CreateCampaignInput>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<CreateCampaignResult>(ServiceProblem.Validation(
-                new Dictionary<string, string[]> { ["Name"] = ["Old club name error"] })));
+                new Dictionary<string, string[]>(StringComparer.Ordinal) { ["Name"] = ["Old club name error"] })));
         var cut = Render<NewCampaign>();
-        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("button[type='submit']").Click();
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Old club name error"));
+#pragma warning restore CA1849, S6966
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Old club name error"));
         cut.Instance.PersistedPageError = "Old club setup error";
         var pending = new TaskCompletionSource<ServiceResult<CampaignCreationSetupResult>>();
         Services.GetRequiredService<ICampaignQueryService>().GetCreationSetupAsync(Arg.Any<CancellationToken>()).Returns(pending.Task);
@@ -297,33 +305,39 @@ public sealed class NewCampaignRecoveryTests : BunitContext
             ActivePlayerCount = 1,
             ActiveTeamCount = 0
         })));
-        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
         cut.Markup.ShouldNotContain("Old club name error");
         cut.Markup.ShouldNotContain("Old club setup error");
         cut.FindComponent<CampaignCreateForm>().Instance.ServerErrors.ShouldBeNull();
         cut.FindComponent<CampaignCreateForm>().Instance.ErrorMessage.ShouldBeNull();
         cut.Find("#campaign-name").GetAttribute("value").ShouldBe(string.Empty);
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("#campaign-name").Change("New club Draft");
+#pragma warning restore CA1849, S6966
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("button[type='submit']").Click();
-        cut.WaitForAssertion(() => creation.Received().CreateAsync(
+#pragma warning restore CA1849, S6966
+        await cut.WaitForAssertionAsync(() => creation.Received().CreateAsync(
             Arg.Is<CreateCampaignInput>(input => input.Name == "New club Draft" && input.ExistingSeasonId == 6), Arg.Any<CancellationToken>()));
     }
 
     /// <summary>Verifies a failed input write from the previous club cannot disable the newly attached form.</summary>
     [Fact]
-    public async Task NewCampaign_IgnoresLateInputStorageFailure_AfterClubChanges()
+    public async Task NewCampaignIgnoresLateInputStorageFailureAfterClubChangesAsync()
     {
         var (module, authentication, _) = Register();
         var pendingWrite = module.SetupVoid("write", invocation => invocation.Arguments.Contains("101:42:True")
             && invocation.Arguments.Contains("create-form"));
         var cut = Render<NewCampaign>();
-        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("#campaign-name").Change("Old club edit");
+#pragma warning restore CA1849, S6966
         var change = cut.Find("section.campaign-create-board").TriggerEventAsync("onchange", new Microsoft.AspNetCore.Components.ChangeEventArgs());
-        cut.WaitForAssertion(() => pendingWrite.Invocations.Count.ShouldBe(1));
+        await cut.WaitForAssertionAsync(() => pendingWrite.Invocations.Count.ShouldBe(1));
 
         await cut.InvokeAsync(() => authentication.ChangeClub(43));
-        cut.WaitForAssertion(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
+        await cut.WaitForAssertionAsync(() => cut.Find("fieldset").HasAttribute("disabled").ShouldBeFalse());
         pendingWrite.SetException(new JSException("Old storage failed late"));
         await change;
 
@@ -395,7 +409,7 @@ public sealed class NewCampaignRecoveryTests : BunitContext
         /// <inheritdoc />
         public override Task<AuthenticationState> GetAuthenticationStateAsync()
             => Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, "101"), new Claim(NovaClaimTypes.ClubId, _clubId.ToString()),
+            [new Claim(ClaimTypes.NameIdentifier, "101"), new Claim(NovaClaimTypes.ClubId, _clubId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 new Claim(ClaimTypes.Role, Roles.ClubAdmin)], "Test"))));
 
         /// <summary>Notifies mounted components that their old club-owned state is no longer authorized.</summary>

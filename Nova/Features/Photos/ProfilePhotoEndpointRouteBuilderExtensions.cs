@@ -7,9 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Shared;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.Features.Common;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Features.Photos;
 
@@ -34,7 +34,7 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
             // Upload a cropped profile photo. The WASM client posts with the Identity cookie
             // but without a Razor antiforgery token; SameSite=Lax on the Identity cookie
             // protects these JSON/multipart API posts from CSRF.
-            group.MapPost(PhotoEndpoints.UploadRelative, UploadHandler)
+            group.MapPost(PhotoEndpoints.UploadRelative, UploadHandlerAsync)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -44,7 +44,7 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
                 .WithName("UploadProfilePhoto");
 
             // Get the current user's photo metadata.
-            group.MapGet(PhotoEndpoints.StatusRelative, StatusHandler)
+            group.MapGet(PhotoEndpoints.StatusRelative, StatusHandlerAsync)
                 .Produces<ProfilePhotoInfo>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status404NotFound)
@@ -52,7 +52,7 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
 
             // Serve a profile photo by user ID and size, with ETag caching. Mapped outside
             // the account group because its route lives under /api/users.
-            endpoints.MapGet(PhotoEndpoints.GetTemplate, GetHandler)
+            endpoints.MapGet(PhotoEndpoints.GetTemplate, GetHandlerAsync)
                 .RequireAuthorization()
                 .ProducesProblem(StatusCodes.Status404NotFound)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -60,7 +60,7 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
 
             // Cookie refresh hop after upload: reissues auth cookie so claims take effect.
             // Mapped at its absolute /Account path, outside the API group.
-            endpoints.MapGet(PhotoEndpoints.Complete, CompleteHandler)
+            endpoints.MapGet(PhotoEndpoints.Complete, CompleteHandlerAsync)
                 .RequireAuthorization()
                 .WithName("CompleteProfilePhotoUpload");
 
@@ -71,7 +71,7 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles profile photo uploads.
     /// </summary>
-    private static async Task<IResult> UploadHandler(
+    private static async Task<IResult> UploadHandlerAsync(
         IFormFile file,
         IProfilePhotoService photoService,
         CancellationToken cancellationToken)
@@ -83,12 +83,15 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
         }
 
         byte[] content;
-        await using (var stream = file.OpenReadStream())
+        var stream = file.OpenReadStream();
+
+        await using (stream)
         using (var buffer = new MemoryStream((int)file.Length))
         {
             await stream.CopyToAsync(buffer, cancellationToken);
             content = buffer.ToArray();
         }
+
 
         var result = await photoService.SaveProfilePhotoAsync(
             new ProfilePhotoUpload(content, file.ContentType, file.FileName),
@@ -100,7 +103,7 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles requests for the current user's photo status.
     /// </summary>
-    private static async Task<IResult> StatusHandler(
+    private static async Task<IResult> StatusHandlerAsync(
         IProfilePhotoService photoService,
         CancellationToken cancellationToken)
     {
@@ -111,7 +114,9 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
     /// <summary>
     /// Handles retrieval of a profile photo by user ID and size, with ETag caching.
     /// </summary>
-    private static async Task<IResult> GetHandler(
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
+    private static async Task<IResult> GetHandlerAsync(
+#pragma warning restore MA0051
         long userId,
         [FromQuery] string? size,
         HttpContext context,
@@ -144,6 +149,7 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
                 .FirstOrDefaultAsync(p => p.NovaUserId == userId, cancellationToken);
         }
 
+
         var blobName = SelectBlobName(photo, photoSize);
         if (photo is null || blobName is null)
         {
@@ -166,7 +172,7 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
             context.Response.Headers.CacheControl = "private, no-cache";
             context.Response.Headers.ETag = etag;
 
-            if (context.Request.Headers.IfNoneMatch.Any(value => value == etag))
+            if (context.Request.Headers.IfNoneMatch.Any(value => string.Equals(value, etag, StringComparison.Ordinal)))
             {
                 return TypedResults.StatusCode(StatusCodes.Status304NotModified);
             }
@@ -184,7 +190,7 @@ internal static class ProfilePhotoEndpointRouteBuilderExtensions
     /// Handles the post-upload cookie refresh: reissues the auth cookie so the
     /// HasProfilePhoto claim takes effect, then returns to the requested local URL.
     /// </summary>
-    private static async Task<IResult> CompleteHandler(
+    private static async Task<IResult> CompleteHandlerAsync(
         HttpContext context,
         UserManager<NovaUserEntity> userManager,
         SignInManager<NovaUserEntity> signInManager,

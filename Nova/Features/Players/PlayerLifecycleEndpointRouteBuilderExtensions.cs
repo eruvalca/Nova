@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Players;
 
@@ -23,7 +23,7 @@ internal static class PlayerLifecycleEndpointRouteBuilderExtensions
                 .MapGroup(PlayerEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubAdmin);
 
-            group.MapPost(PlayerEndpoints.ArchiveRelative, ArchivePlayerHandler)
+            group.MapPost(PlayerEndpoints.ArchiveRelative, ArchivePlayerHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -33,7 +33,7 @@ internal static class PlayerLifecycleEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName("ArchivePlayer");
 
-            group.MapPost(PlayerEndpoints.RestoreRelative, RestorePlayerHandler)
+            group.MapPost(PlayerEndpoints.RestoreRelative, RestorePlayerHandlerAsync)
                 .Produces(StatusCodes.Status204NoContent)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -54,7 +54,7 @@ internal static class PlayerLifecycleEndpointRouteBuilderExtensions
     /// <param name="playerLifecycleService">The lifecycle service.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A NoContent response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> ArchivePlayerHandler(
+    private static async Task<IResult> ArchivePlayerHandlerAsync(
         long playerId,
         IPlayerLifecycleService playerLifecycleService,
         CancellationToken cancellationToken)
@@ -70,7 +70,7 @@ internal static class PlayerLifecycleEndpointRouteBuilderExtensions
     /// <param name="playerLifecycleService">The lifecycle service.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A NoContent response on success or ProblemDetails on failure.</returns>
-    private static async Task<IResult> RestorePlayerHandler(
+    private static async Task<IResult> RestorePlayerHandlerAsync(
         long playerId,
         IPlayerLifecycleService playerLifecycleService,
         CancellationToken cancellationToken)

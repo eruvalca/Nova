@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
@@ -16,17 +17,17 @@ public partial class Index(
     /// <summary>
     /// Stores the current user entity.
     /// </summary>
-    private NovaUserEntity? user;
+    private NovaUserEntity? _user;
 
     /// <summary>
     /// Stores the current username for display.
     /// </summary>
-    private string? username;
+    private string? _username;
 
     /// <summary>
     /// Stores the current phone number before changes.
     /// </summary>
-    private string? phoneNumber;
+    private string? _phoneNumber;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -48,17 +49,17 @@ public partial class Index(
     {
         Input ??= new();
 
-        user = await userManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await userManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        username = await userManager.GetUserNameAsync(user);
-        phoneNumber = await userManager.GetPhoneNumberAsync(user);
+        _username = await userManager.GetUserNameAsync(_user);
+        _phoneNumber = await userManager.GetPhoneNumberAsync(_user);
 
-        Input.PhoneNumber ??= phoneNumber;
+        Input.PhoneNumber ??= _phoneNumber;
     }
 
     /// <summary>
@@ -67,15 +68,15 @@ public partial class Index(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnValidSubmitAsync()
     {
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        if (Input.PhoneNumber != phoneNumber)
+        if (!string.Equals(Input.PhoneNumber, _phoneNumber, StringComparison.Ordinal))
         {
-            var setPhoneResult = await userManager.SetPhoneNumberAsync(user, Input.PhoneNumber);
+            var setPhoneResult = await userManager.SetPhoneNumberAsync(_user, Input.PhoneNumber);
             if (!setPhoneResult.Succeeded)
             {
                 redirectManager.RedirectToCurrentPageWithStatus("Error: Failed to set phone number.", HttpContext);
@@ -83,7 +84,7 @@ public partial class Index(
             }
         }
 
-        await signInManager.RefreshSignInAsync(user);
+        await signInManager.RefreshSignInAsync(_user);
         redirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
     }
 

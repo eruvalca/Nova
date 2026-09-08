@@ -1,4 +1,4 @@
-@using Nova.Shared.Features.Campaigns
+@using Nova.SharedKernel.Features.Campaigns
 
 <div class="participant-drawer-backdrop" aria-hidden="true" @onclick="CloseAsync"></div>
 <aside class="participant-drawer"
@@ -235,7 +235,7 @@
                             <span>Loading tag choices…</span>
                         </div>
                     }
-                    else if (RemainingTagChoices.Count == 0)
+                    else if (GetRemainingTagChoices().Count == 0)
                     {
                         <p class="text-muted mb-3">No tags to apply.</p>
                     }
@@ -244,7 +244,7 @@
                         <div class="d-flex gap-2 mb-3">
                             <select class="form-select form-select-sm" aria-label="Tag to apply" @bind="_selectedTagId">
                                 <option value="">Select a tag…</option>
-                                @foreach (var choice in RemainingTagChoices)
+                                @foreach (var choice in GetRemainingTagChoices())
                                 {
                                     <option value="@choice.PlayerTagId">@choice.Name</option>
                                 }

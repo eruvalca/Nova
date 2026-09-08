@@ -7,11 +7,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Nova.Components.Account.Common;
 using Nova.Components.Account.Pages.Manage;
-using Nova.Components.Account.Shared;
 using Nova.Entities;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
 using NSubstitute;
 using Shouldly;
 
@@ -28,7 +28,9 @@ namespace Nova.Unit.Tests.Components;
 /// </summary>
 public class ManageProfilePhotoPageTests : BunitContext
 {
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class TestNavigationManager : NavigationManager
+#pragma warning restore CA1812
     {
         public TestNavigationManager()
         {
@@ -68,7 +70,7 @@ public class ManageProfilePhotoPageTests : BunitContext
     }
 
     [Fact]
-    public void Render_RendersProfilePhotoEditor_WhenNoPhotoExists()
+    public void RenderRendersProfilePhotoEditorWhenNoPhotoExists()
     {
         // Arrange
         var photoService = Substitute.For<IProfilePhotoService>();
@@ -83,15 +85,15 @@ public class ManageProfilePhotoPageTests : BunitContext
 
         // Assert: the page renders its own heading/lead and the photo editor (no stored photo →
         // the "Choose a photo" input is shown).
-        var heading = cut.FindAll("h1").FirstOrDefault(h => h.TextContent.Trim() == "Profile photo");
+        var heading = cut.FindAll("h1").FirstOrDefault(h => string.Equals(h.TextContent.Trim(), "Profile photo", StringComparison.Ordinal));
         heading.ShouldNotBeNull("the page must render its Profile photo heading");
         cut.Markup.ShouldContain("Choose a photo");
         cut.Markup.ShouldContain("profile-photo-editor");
-        photoService.Received(1).GetCurrentUserPhotoAsync(Arg.Any<CancellationToken>());
+        _ = photoService.Received(1).GetCurrentUserPhotoAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void ManageLayout_HostsProfilePhotoPageContent_InAccountHallFrame()
+    public void ManageLayoutHostsProfilePhotoPageContentInAccountHallFrame()
     {
         // Arrange
         var photoService = Substitute.For<IProfilePhotoService>();
@@ -139,13 +141,13 @@ public class ManageProfilePhotoPageTests : BunitContext
     /// class cannot prove the island is interactive — this source assertion reads the whole
     /// <c>ProfilePhoto.razor</c> file and fails if the attribute is removed from the editor
     /// element or changed, matching the
-    /// <c>TagDefinitionManagerComponentTests.ClubAdminRoute_DeclaresInteractiveAutoRenderMode</c>
+    /// <c>TagDefinitionManagerComponentTests.ClubAdminRouteDeclaresInteractiveAutoRenderMode</c>
     /// and <c>CampaignComponentsTests</c> conventions for interactive islands hosted by static
     /// SSR pages. The end-to-end interactivity of the island is additionally proven by browser
     /// test NB13.
     /// </summary>
     [Fact]
-    public void ProfilePhoto_EditorIsland_DeclaresInteractiveAutoRenderMode()
+    public void ProfilePhotoEditorIslandDeclaresInteractiveAutoRenderMode()
     {
         var razorPath = Path.Join(FindRepoRoot(), "Nova", "Components", "Account", "Pages", "Manage", "ProfilePhoto.razor");
         var razorMarkup = File.ReadAllText(razorPath);
@@ -164,7 +166,7 @@ public class ManageProfilePhotoPageTests : BunitContext
     /// <see cref="RenderModeAttribute"/>; a static SSR page carries none.
     /// </summary>
     [Fact]
-    public void ProfilePhoto_IsStaticSsr_WithNoPageLevelRenderMode()
+    public void ProfilePhotoIsStaticSsrWithNoPageLevelRenderMode()
     {
         var attribute = typeof(ProfilePhoto)
             .GetCustomAttributes(inherit: false)

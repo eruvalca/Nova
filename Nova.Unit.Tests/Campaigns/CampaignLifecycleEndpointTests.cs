@@ -11,9 +11,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Features.Campaigns;
-using Nova.Features.Shared;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Security;
+using Nova.Features.Common;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using OneOf;
 using OneOf.Types;
@@ -31,7 +31,7 @@ public sealed class CampaignLifecycleEndpointTests
     /// disabled antiforgery, the intended verb, and the shared route name.
     /// </summary>
     [Fact]
-    public async Task CampaignLifecycleEndpoints_RequireClubAdmin_AndDisableAntiforgery()
+    public async Task CampaignLifecycleEndpointsRequireClubAdminAndDisableAntiforgeryAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(_ => new CampaignLifecycleService(
@@ -48,13 +48,13 @@ public sealed class CampaignLifecycleEndpointTests
             .ToList();
 
         var close = routeEndpoints.SingleOrDefault(
-            candidate => candidate.RoutePattern.RawText == CampaignEndpoints.Close);
+            candidate => string.Equals(candidate.RoutePattern.RawText, CampaignEndpoints.Close, StringComparison.Ordinal));
         var reopen = routeEndpoints.SingleOrDefault(
-            candidate => candidate.RoutePattern.RawText == CampaignEndpoints.Reopen);
+            candidate => string.Equals(candidate.RoutePattern.RawText, CampaignEndpoints.Reopen, StringComparison.Ordinal));
         var open = routeEndpoints.SingleOrDefault(
-            candidate => candidate.RoutePattern.RawText == CampaignEndpoints.Open);
+            candidate => string.Equals(candidate.RoutePattern.RawText, CampaignEndpoints.Open, StringComparison.Ordinal));
         var delete = routeEndpoints.SingleOrDefault(
-            candidate => candidate.RoutePattern.RawText == CampaignEndpoints.DeleteDraft);
+            candidate => string.Equals(candidate.RoutePattern.RawText, CampaignEndpoints.DeleteDraft, StringComparison.Ordinal));
 
         close.ShouldNotBeNull(
             $"The close endpoint must be registered at '{CampaignEndpoints.Close}'.");
@@ -65,17 +65,17 @@ public sealed class CampaignLifecycleEndpointTests
         delete.ShouldNotBeNull(
             $"The delete endpoint must be registered at '{CampaignEndpoints.DeleteDraft}'.");
 
-        AssertLifecycleEndpoint(close!, CampaignEndpoints.CloseRouteName);
-        AssertLifecycleEndpoint(reopen!, CampaignEndpoints.ReopenRouteName);
-        AssertLifecycleEndpoint(open!, CampaignEndpoints.OpenRouteName);
-        AssertLifecycleEndpoint(delete!, CampaignEndpoints.DeleteDraftRouteName, HttpMethods.Delete);
+        AssertLifecycleEndpoint(close, CampaignEndpoints.CloseRouteName);
+        AssertLifecycleEndpoint(reopen, CampaignEndpoints.ReopenRouteName);
+        AssertLifecycleEndpoint(open, CampaignEndpoints.OpenRouteName);
+        AssertLifecycleEndpoint(delete, CampaignEndpoints.DeleteDraftRouteName, HttpMethods.Delete);
     }
 
     /// <summary>
     /// Verifies a successful close result converts to a 204 no-content response with an empty body.
     /// </summary>
     [Fact]
-    public async Task CloseToHttpResult_ReturnsNoContent_ForSuccess()
+    public async Task CloseToHttpResultReturnsNoContentForSuccessAsync()
     {
         CampaignCloseResult result = new Success();
 
@@ -89,7 +89,7 @@ public sealed class CampaignLifecycleEndpointTests
     /// Verifies an unavailable campaign converts to a non-disclosing 404 response.
     /// </summary>
     [Fact]
-    public async Task CloseToHttpResult_ReturnsNotFound_WithoutDisclosure()
+    public async Task CloseToHttpResultReturnsNotFoundWithoutDisclosureAsync()
     {
         CampaignCloseResult result = new NotFound();
 
@@ -104,16 +104,16 @@ public sealed class CampaignLifecycleEndpointTests
     /// Verifies a forbidden close result converts to a 403 response with the service detail.
     /// </summary>
     [Fact]
-    public async Task CloseToHttpResult_ReturnsForbidden_WithServiceDetail()
+    public async Task CloseToHttpResultReturnsForbiddenWithServiceDetailAsync()
     {
-        const string detail = "You must be a club administrator to close a campaign.";
-        CampaignCloseResult result = new LifecycleForbidden(detail);
+        const string Detail = "You must be a club administrator to close a campaign.";
+        CampaignCloseResult result = new LifecycleForbidden(Detail);
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());
 
         statusCode.ShouldBe(StatusCodes.Status403Forbidden);
         using var document = JsonDocument.Parse(body);
-        document.RootElement.GetProperty("detail").GetString().ShouldBe(detail);
+        document.RootElement.GetProperty("detail").GetString().ShouldBe(Detail);
     }
 
     /// <summary>
@@ -121,12 +121,12 @@ public sealed class CampaignLifecycleEndpointTests
     /// condition-keyed blocker groups with their policy messages.
     /// </summary>
     [Fact]
-    public async Task CloseToHttpResult_ReturnsConflict_WithConditionKeyedBlockerErrors()
+    public async Task CloseToHttpResultReturnsConflictWithConditionKeyedBlockerErrorsAsync()
     {
-        const string detail = "Resolve all campaign close blockers before closing this campaign.";
+        const string Detail = "Resolve all campaign close blockers before closing this campaign.";
         CampaignCloseResult result = new CampaignCloseBlocked(
-            detail,
-            new Dictionary<string, string[]>
+            Detail,
+            new Dictionary<string, string[]>(StringComparer.Ordinal)
             {
                 ["outcomes"] = ["Every participant must have a final outcome before closing. Found 1 undecided participation record(s)."],
                 ["eligibility"] = ["Every assigned participant must remain eligible for their team. Ineligible assignment ids: 903."],
@@ -137,7 +137,7 @@ public sealed class CampaignLifecycleEndpointTests
 
         statusCode.ShouldBe(StatusCodes.Status409Conflict);
         using var document = JsonDocument.Parse(body);
-        document.RootElement.GetProperty("detail").GetString().ShouldBe(detail);
+        document.RootElement.GetProperty("detail").GetString().ShouldBe(Detail);
         var errors = document.RootElement.GetProperty("errors");
         errors.GetProperty("outcomes").GetArrayLength().ShouldBe(1);
         errors.GetProperty("eligibility").GetArrayLength().ShouldBe(1);
@@ -154,23 +154,23 @@ public sealed class CampaignLifecycleEndpointTests
     /// Verifies a close lifecycle conflict converts to a 409 response with the conflict detail.
     /// </summary>
     [Fact]
-    public async Task CloseToHttpResult_ReturnsConflict_WithServiceDetail()
+    public async Task CloseToHttpResultReturnsConflictWithServiceDetailAsync()
     {
-        const string detail = "The campaign is already closed.";
-        CampaignCloseResult result = new LifecycleConflict(detail);
+        const string Detail = "The campaign is already closed.";
+        CampaignCloseResult result = new LifecycleConflict(Detail);
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());
 
         statusCode.ShouldBe(StatusCodes.Status409Conflict);
         using var document = JsonDocument.Parse(body);
-        document.RootElement.GetProperty("detail").GetString().ShouldBe(detail);
+        document.RootElement.GetProperty("detail").GetString().ShouldBe(Detail);
     }
 
     /// <summary>
     /// Verifies a successful reopen result converts to a 204 no-content response with an empty body.
     /// </summary>
     [Fact]
-    public async Task ReopenToHttpResult_ReturnsNoContent_ForSuccess()
+    public async Task ReopenToHttpResultReturnsNoContentForSuccessAsync()
     {
         OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result = new Success();
 
@@ -184,7 +184,7 @@ public sealed class CampaignLifecycleEndpointTests
     /// Verifies an unavailable reopen target converts to a non-disclosing 404 response.
     /// </summary>
     [Fact]
-    public async Task ReopenToHttpResult_ReturnsNotFound_WithoutDisclosure()
+    public async Task ReopenToHttpResultReturnsNotFoundWithoutDisclosureAsync()
     {
         OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result = new NotFound();
 
@@ -199,34 +199,34 @@ public sealed class CampaignLifecycleEndpointTests
     /// Verifies a forbidden reopen result converts to a 403 response with the service detail.
     /// </summary>
     [Fact]
-    public async Task ReopenToHttpResult_ReturnsForbidden_WithServiceDetail()
+    public async Task ReopenToHttpResultReturnsForbiddenWithServiceDetailAsync()
     {
-        const string detail = "You must be a club administrator to reopen a campaign.";
+        const string Detail = "You must be a club administrator to reopen a campaign.";
         OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result =
-            new LifecycleForbidden(detail);
+            new LifecycleForbidden(Detail);
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());
 
         statusCode.ShouldBe(StatusCodes.Status403Forbidden);
         using var document = JsonDocument.Parse(body);
-        document.RootElement.GetProperty("detail").GetString().ShouldBe(detail);
+        document.RootElement.GetProperty("detail").GetString().ShouldBe(Detail);
     }
 
     /// <summary>
     /// Verifies a reopen lifecycle conflict converts to a 409 response with the conflict detail.
     /// </summary>
     [Fact]
-    public async Task ReopenToHttpResult_ReturnsConflict_WithServiceDetail()
+    public async Task ReopenToHttpResultReturnsConflictWithServiceDetailAsync()
     {
-        const string detail = "The campaign is already active.";
+        const string Detail = "The campaign is already active.";
         OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict> result =
-            new LifecycleConflict(detail);
+            new LifecycleConflict(Detail);
 
         var (statusCode, body) = await ExecuteAsync(result.ToHttpResult());
 
         statusCode.ShouldBe(StatusCodes.Status409Conflict);
         using var document = JsonDocument.Parse(body);
-        document.RootElement.GetProperty("detail").GetString().ShouldBe(detail);
+        document.RootElement.GetProperty("detail").GetString().ShouldBe(Detail);
     }
 
     /// <summary>
@@ -246,7 +246,7 @@ public sealed class CampaignLifecycleEndpointTests
         endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>()!.RequiresValidation.ShouldBeFalse();
         endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName.ShouldBe(routeName);
         endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods
-            .ShouldContain(method ?? HttpMethods.Post);
+            .ShouldContain(method ?? HttpMethods.Post, StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -256,10 +256,14 @@ public sealed class CampaignLifecycleEndpointTests
     /// <returns>The captured response status code and body text.</returns>
     private static async Task<(int StatusCode, string Body)> ExecuteAsync(IResult result)
     {
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var services = new ServiceCollection()
+#pragma warning restore MA0004
             .AddLogging()
             .BuildServiceProvider();
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var responseBody = new MemoryStream();
+#pragma warning restore MA0004
         var httpContext = new DefaultHttpContext
         {
             RequestServices = services,

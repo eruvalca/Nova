@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
 
@@ -15,17 +16,17 @@ public partial class GenerateRecoveryCodes(
     /// <summary>
     /// Stores the status message to display after recovery codes are generated.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Stores the current user entity.
     /// </summary>
-    private NovaUserEntity? user;
+    private NovaUserEntity? _user;
 
     /// <summary>
     /// Stores the generated recovery codes for display.
     /// </summary>
-    private IEnumerable<string>? recoveryCodes;
+    private IEnumerable<string>? _recoveryCodes;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -39,14 +40,14 @@ public partial class GenerateRecoveryCodes(
     /// <returns>A task representing the asynchronous operation.</returns>
     protected override async Task OnInitializedAsync()
     {
-        user = await userManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await userManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        var isTwoFactorEnabled = await userManager.GetTwoFactorEnabledAsync(user);
+        var isTwoFactorEnabled = await userManager.GetTwoFactorEnabledAsync(_user);
         if (!isTwoFactorEnabled)
         {
             throw new InvalidOperationException("Cannot generate recovery codes for user because they do not have 2FA enabled.");
@@ -59,15 +60,15 @@ public partial class GenerateRecoveryCodes(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnSubmitAsync()
     {
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        var userId = await userManager.GetUserIdAsync(user);
-        recoveryCodes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
-        message = "You have generated new recovery codes.";
+        var userId = await userManager.GetUserIdAsync(_user);
+        _recoveryCodes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(_user, 10);
+        _message = "You have generated new recovery codes.";
 
         LogUserGeneratedRecoveryCodes(userId);
     }

@@ -1,10 +1,13 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1724 // The Razor page name identifies its routed feature; namespaces remain fully qualified where ambiguous.
+#pragma warning disable CA1308 // Lowercase route/filter tokens match the existing ASCII wire vocabulary.
+#pragma warning disable CA1849, S6966 // Cancellation callbacks finish before replacing or disposing request state; yielding here changes ownership ordering.
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Campaigns.Components;
 
@@ -207,7 +210,7 @@ public partial class Campaigns(
             _statusMessage = "Draft deleted. Your club's teams remain.";
         }
 
-        if (Initialized && PersistedIdentityScope == _identityScope)
+        if (Initialized && string.Equals(PersistedIdentityScope, _identityScope, StringComparison.Ordinal))
         {
             _list = PersistedList;
             _pageError = PersistedPageError;
@@ -226,7 +229,7 @@ public partial class Campaigns(
     private bool ApplyViewQueryToState()
     {
         var viewFromQuery = ViewQuery?.ToLowerInvariant() is "active" or "closed" or "draft" ? ViewQuery.ToLowerInvariant() : "all";
-        var unsupportedDraft = viewFromQuery == "draft" && !_canManageCampaigns;
+        var unsupportedDraft = string.Equals(viewFromQuery, "draft", StringComparison.Ordinal) && !_canManageCampaigns;
         if (unsupportedDraft)
         {
             viewFromQuery = "all";
@@ -251,7 +254,9 @@ public partial class Campaigns(
     /// supersede older in-flight loads so stale responses never overwrite fresher state.
     /// </summary>
     /// <returns>A task that completes when loading and state updates are finished.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task LoadListAsync()
+#pragma warning restore MA0051
     {
         var version = Interlocked.Increment(ref _loadListVersion);
         _loadListSource?.Cancel();
@@ -264,7 +269,7 @@ public partial class Campaigns(
 
         var input = new GetCampaignListInput
         {
-            Status = _statusFilter == "all" ? null : _statusFilter,
+            Status = string.Equals(_statusFilter, "all", StringComparison.Ordinal) ? null : _statusFilter,
             Limit = 20,
             Page = _page
         };
@@ -354,7 +359,7 @@ public partial class Campaigns(
     private void SyncViewToUrl()
     {
         var uri = navigationManager.GetUriWithQueryParameters(
-            new Dictionary<string, object?>
+            new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["view"] = _statusFilter,
                 ["page"] = _page,
@@ -405,8 +410,8 @@ public partial class Campaigns(
             // Only the latest, same-view edit selection may install failure feedback or the
             // retry target; stale continuations exit quietly.
             if (editVersion == _editVersion
-                && viewAtStart == _statusFilter
-                && !ComponentCancellationToken.IsCancellationRequested)
+                && string.Equals(viewAtStart, _statusFilter
+, StringComparison.Ordinal) && !ComponentCancellationToken.IsCancellationRequested)
             {
                 _editRetryCandidate = campaign;
                 _editRetrySeason = season;
@@ -417,7 +422,7 @@ public partial class Campaigns(
 
         // A view change or a newer edit selection while season choices loaded must not reopen
         // this form.
-        if (viewAtStart != _statusFilter || editVersion != _editVersion)
+        if (!string.Equals(viewAtStart, _statusFilter, StringComparison.Ordinal) || editVersion != _editVersion)
         {
             return;
         }
@@ -472,8 +477,8 @@ public partial class Campaigns(
         }
 
         bool IsCurrent() => editVersion == _editVersion
-            && viewAtStart == _statusFilter
-            && !ComponentCancellationToken.IsCancellationRequested;
+            && string.Equals(viewAtStart, _statusFilter
+, StringComparison.Ordinal) && !ComponentCancellationToken.IsCancellationRequested;
 
         ServiceResult<CampaignCreationSetupResult> result;
         try
@@ -639,7 +644,7 @@ public partial class Campaigns(
     /// <param name="scope">The user, club, and authority that started the mutation.</param>
     /// <returns>Whether the completion still owns the current directory state.</returns>
     private bool OwnsMutation(int generation, string? scope)
-        => generation == _mutationGeneration && scope == _identityScope && !ComponentCancellationToken.IsCancellationRequested;
+        => generation == _mutationGeneration && string.Equals(scope, _identityScope, StringComparison.Ordinal) && !ComponentCancellationToken.IsCancellationRequested;
 
     /// <summary>
     /// Applies shared mutation result handling: success callback, Forbidden redirect, conflict and
@@ -717,7 +722,7 @@ public partial class Campaigns(
         _loadListSource?.Cancel();
         _loadListSource?.Dispose();
         _loadListSource = null;
-        return ValueTask.CompletedTask;
+        return base.DisposeAsyncCore();
     }
 
     /// <summary>Builds directory pagination links retaining the current status filter.</summary>
@@ -743,7 +748,7 @@ public partial class Campaigns(
             return;
         }
         var identity = DirectoryIdentity(state);
-        if (identity == _identityScope)
+        if (string.Equals(identity, _identityScope, StringComparison.Ordinal))
         {
             return;
         }
@@ -789,9 +794,10 @@ public partial class Campaigns(
     /// <param name="season">The season group.</param>
     /// <returns>The formatted date range.</returns>
     protected static string FormatSeasonDates(CampaignSeasonGroup season)
-        => season.EndDate is null
-            ? $"Starts {season.StartDate:MMM d, yyyy}"
-            : $"{season.StartDate:MMM d, yyyy} – {season.EndDate.Value:MMM d, yyyy}";
+    {
+        ArgumentNullException.ThrowIfNull(season);
+        return season.EndDate is null ? $"Starts {season.StartDate:MMM d, yyyy}" : $"{season.StartDate:MMM d, yyyy} – {season.EndDate.Value:MMM d, yyyy}";
+    }
 
     /// <summary>
     /// Formats a campaign row's date range for display.
@@ -799,9 +805,10 @@ public partial class Campaigns(
     /// <param name="campaign">The campaign row.</param>
     /// <returns>The formatted date range.</returns>
     protected static string FormatCampaignDates(CampaignListItem campaign)
-        => campaign.PlannedEndDate is null
-            ? $"Starts {campaign.StartDate:MMM d, yyyy}"
-            : $"{campaign.StartDate:MMM d, yyyy} – {campaign.PlannedEndDate.Value:MMM d, yyyy}";
+    {
+        ArgumentNullException.ThrowIfNull(campaign);
+        return campaign.PlannedEndDate is null ? $"Starts {campaign.StartDate:MMM d, yyyy}" : $"{campaign.StartDate:MMM d, yyyy} – {campaign.PlannedEndDate.Value:MMM d, yyyy}";
+    }
 
     /// <summary>
     /// Maps a campaign lifecycle status to its Bootstrap badge class.
@@ -814,4 +821,31 @@ public partial class Campaigns(
         CampaignStatus.Closed => "text-bg-secondary",
         _ => "text-bg-secondary"
     };
+
+    private string CampaignEnrollmentLabel(CampaignListItem campaign)
+    {
+        if (campaign.Status == CampaignStatus.Draft)
+        {
+            var count = _list!.DraftActivePlayerCount;
+            var noun = count == 1 ? "player" : "players";
+            return $"{count} active {noun} will enroll";
+        }
+        var participantNoun = campaign.ParticipantCount == 1 ? "participant" : "participants";
+        return $"{campaign.ParticipantCount} {participantNoun}";
+    }
+
+    private static string CampaignActionLabel(CampaignStatus status) => status switch
+    {
+        CampaignStatus.Draft => "Prepare draft",
+        CampaignStatus.Active => "Continue campaign",
+        _ => "View record"
+    };
+
 }
+
+
+#pragma warning restore CA1849, S6966
+
+#pragma warning restore CA1308
+
+#pragma warning restore CA1724

@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services.Activity;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Activity;
@@ -17,7 +17,7 @@ public sealed partial class HttpClubActivityQueryServiceTests
 {
     /// <summary>Verifies the feed request uses the shared route and reads a populated payload.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_RequestsSharedRoute_AndReadsPayload()
+    public async Task GetClubActivityAsyncRequestsSharedRouteAndReadsPayloadAsync()
     {
         HttpRequestMessage? capturedRequest = null;
         var payload = new ClubActivityResult(
@@ -27,7 +27,7 @@ public sealed partial class HttpClubActivityQueryServiceTests
         ],
         HasMore: false,
         NextCursor: null);
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
@@ -43,15 +43,15 @@ public sealed partial class HttpClubActivityQueryServiceTests
         result.Value.Events.Count.ShouldBe(2);
         result.Value.Events[0].Kind.ShouldBe(ActivityEventKind.CampaignClosed);
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/activity");
+        capturedRequest.RequestUri!.PathAndQuery.ShouldBe("/api/activity");
     }
 
     /// <summary>Verifies a supplied cursor is emitted as separate query parameters.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_EmitsCursorQuery_WhenCursorProvided()
+    public async Task GetClubActivityAsyncEmitsCursorQueryWhenCursorProvidedAsync()
     {
         HttpRequestMessage? capturedRequest = null;
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -72,15 +72,15 @@ public sealed partial class HttpClubActivityQueryServiceTests
 
         result.IsSuccess.ShouldBeTrue();
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe(
+        capturedRequest.RequestUri!.PathAndQuery.ShouldBe(
             "/api/activity?beforeActivityEventId=15&beforeOccurredAt=2026-09-30T12%3A00%3A00.0000000%2B00%3A00");
     }
 
     /// <summary>Verifies partial cursor input is rejected before any HTTP request is made.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_ReturnsValidation_ForPartialCursor()
+    public async Task GetClubActivityAsyncReturnsValidationForPartialCursorAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpClubActivityQueryService(http);
@@ -95,9 +95,9 @@ public sealed partial class HttpClubActivityQueryServiceTests
 
     /// <summary>Verifies a non-success ProblemDetails response retains its problem kind.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_ReturnsForbidden_FromProblemDetails()
+    public async Task GetClubActivityAsyncReturnsForbiddenFromProblemDetailsAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)
             {
                 Content = JsonContent.Create(new ProblemPayload(403, "Forbidden", "Not allowed."))
@@ -131,9 +131,9 @@ public sealed partial class HttpClubActivityQueryServiceTests
     [InlineData("""{"events":[{"kind":3,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":null}],"hasMore":false,"nextCursor":null}""")]
     [InlineData("""{"events":[{"kind":3,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"campaignLifecycle"}}],"hasMore":false,"nextCursor":{"activityEventId":0,"occurredAt":"2026-10-01T09:00:00+00:00"}}""")]
     [InlineData("""{"events":[],"hasMore":true,"nextCursor":null}""")]
-    public async Task GetClubActivityAsync_ReturnsServerError_ForInvalidSuccessPayload(string body)
+    public async Task GetClubActivityAsyncReturnsServerErrorForInvalidSuccessPayloadAsync(string body)
     {
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));
@@ -150,12 +150,12 @@ public sealed partial class HttpClubActivityQueryServiceTests
 
     /// <summary>Verifies a kind-family mismatch inside a successful payload is rejected.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_ReturnsServerError_ForKindFamilyMismatch()
+    public async Task GetClubActivityAsyncReturnsServerErrorForKindFamilyMismatchAsync()
     {
         var body = """
             {"events":[{"kind":3,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"C","playerCampaignAssignmentId":1,"playerDisplayName":"P","outcome":0}}],"hasMore":false,"nextCursor":null}
             """;
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));
@@ -172,7 +172,7 @@ public sealed partial class HttpClubActivityQueryServiceTests
 
     /// <summary>Verifies an out-of-order success payload (older-after-newer) is rejected.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_ReturnsServerError_ForOutOfOrderRows()
+    public async Task GetClubActivityAsyncReturnsServerErrorForOutOfOrderRowsAsync()
     {
         var payload = new ClubActivityResult(
         [
@@ -181,7 +181,7 @@ public sealed partial class HttpClubActivityQueryServiceTests
         ],
         HasMore: false,
         NextCursor: null);
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpClubActivityQueryService(http);
@@ -196,13 +196,13 @@ public sealed partial class HttpClubActivityQueryServiceTests
 
     /// <summary>Verifies an over-bound success payload (more than the fixed page size) is rejected.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_ReturnsServerError_ForOverBoundPayload()
+    public async Task GetClubActivityAsyncReturnsServerErrorForOverBoundPayloadAsync()
     {
         var events = Enumerable.Range(1, GetClubActivityInput.PageSize + 1)
             .Select(index => NewItem(index, ActivityEventKind.CampaignOpened, new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero).AddSeconds(index)))
             .ToList();
         var payload = new ClubActivityResult(events, HasMore: false, NextCursor: null);
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpClubActivityQueryService(http);
@@ -217,7 +217,7 @@ public sealed partial class HttpClubActivityQueryServiceTests
 
     /// <summary>Verifies a valid populated payload with a cursor is accepted.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_AcceptsValidPopulatedPayload_WithCursor()
+    public async Task GetClubActivityAsyncAcceptsValidPopulatedPayloadWithCursorAsync()
     {
         var payload = new ClubActivityResult(
         [
@@ -225,7 +225,7 @@ public sealed partial class HttpClubActivityQueryServiceTests
         ],
         HasMore: true,
         NextCursor: new ClubActivityCursor(2, new DateTimeOffset(2026, 10, 2, 9, 0, 0, TimeSpan.Zero)));
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpClubActivityQueryService(http);
@@ -241,10 +241,10 @@ public sealed partial class HttpClubActivityQueryServiceTests
 
     /// <summary>Verifies a valid placement row with a consistent outcome and team snapshot is accepted.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_AcceptsValidPlacementRow()
+    public async Task GetClubActivityAsyncAcceptsValidPlacementRowAsync()
     {
         var body = """{"events":[{"kind":5,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"Campaign A","playerCampaignAssignmentId":10,"playerDisplayName":"Sam Doe","outcome":1,"teamName":"Team A"}}],"hasMore":false,"nextCursor":null}""";
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));
@@ -269,9 +269,11 @@ public sealed partial class HttpClubActivityQueryServiceTests
     [InlineData("""{"events":[{"kind":6,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"Campaign A","playerCampaignAssignmentId":10,"playerDisplayName":"Sam Doe","outcome":1,"teamName":"Team A"}}],"hasMore":false,"nextCursor":null}""")]
     [InlineData("""{"events":[{"kind":7,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"Campaign A","playerCampaignAssignmentId":10,"playerDisplayName":"Sam Doe","outcome":3,"teamName":"Team A"}}],"hasMore":false,"nextCursor":null}""")]
     [InlineData("""{"events":[{"kind":8,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A","context":{"type":"placement","campaignId":1,"campaignName":"Campaign A","playerCampaignAssignmentId":10,"playerDisplayName":"Sam Doe","outcome":1,"teamName":"Team B"}}],"hasMore":false,"nextCursor":null}""")]
-    public async Task GetClubActivityAsync_ReturnsServerError_ForContradictoryPlacementRow(string body)
+#pragma warning disable S4144 // Each theory names a distinct category and owns different test data; the shared assertion is intentional.
+    public async Task GetClubActivityAsyncReturnsServerErrorForContradictoryPlacementRowAsync(string body)
+#pragma warning restore S4144
     {
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));
@@ -288,10 +290,10 @@ public sealed partial class HttpClubActivityQueryServiceTests
 
     /// <summary>Verifies the member-shaped MemberJoined payload (no actor or approval fields) is accepted.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_AcceptsMemberJoined_MemberShape()
+    public async Task GetClubActivityAsyncAcceptsMemberJoinedMemberShapeAsync()
     {
         var body = """{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","context":{"type":"membership","memberUserId":42,"memberDisplayName":"Sam Doe"}}],"hasMore":false,"nextCursor":null}""";
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));
@@ -307,10 +309,10 @@ public sealed partial class HttpClubActivityQueryServiceTests
 
     /// <summary>Verifies the administrator-shaped MemberJoined payload (complete actor and approval fields) is accepted.</summary>
     [Fact]
-    public async Task GetClubActivityAsync_AcceptsMemberJoined_AdminShape()
+    public async Task GetClubActivityAsyncAcceptsMemberJoinedAdminShapeAsync()
     {
         var body = """{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Jordan Lee","context":{"type":"membership","memberUserId":42,"memberDisplayName":"Sam Doe","approvedByActorName":"Jordan Lee"}}],"hasMore":false,"nextCursor":null}""";
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));
@@ -334,9 +336,11 @@ public sealed partial class HttpClubActivityQueryServiceTests
     [InlineData("""{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorDisplayName":"Jordan Lee","context":{"type":"membership","memberDisplayName":"Sam Doe","approvedByActorName":"Jordan Lee"}}],"hasMore":false,"nextCursor":null}""")]
     [InlineData("""{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","context":{"type":"membership","memberDisplayName":"Sam Doe","approvedByActorName":"Jordan Lee"}}],"hasMore":false,"nextCursor":null}""")]
     [InlineData("""{"events":[{"kind":14,"activityEventId":1,"occurredAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Jordan Lee","context":{"type":"membership","memberDisplayName":"Sam Doe","approvedByActorName":" "}}],"hasMore":false,"nextCursor":null}""")]
-    public async Task GetClubActivityAsync_ReturnsServerError_ForMixedMemberJoinedShape(string body)
+#pragma warning disable S4144 // Each theory names a distinct category and owns different test data; the shared assertion is intentional.
+    public async Task GetClubActivityAsyncReturnsServerErrorForMixedMemberJoinedShapeAsync(string body)
+#pragma warning restore S4144
     {
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));
@@ -353,12 +357,12 @@ public sealed partial class HttpClubActivityQueryServiceTests
 
     /// <summary>Verifies the URL builder omits the cursor when none is supplied.</summary>
     [Fact]
-    public void GetClubActivityUrl_OmitsCursor_ForNullCursor()
+    public void GetClubActivityUrlOmitsCursorForNullCursor()
         => ActivityEndpoints.GetClubActivityUrl(null).ShouldBe("/api/activity");
 
     /// <summary>Verifies the URL builder omits an invalid cursor with a non-positive event identifier.</summary>
     [Fact]
-    public void GetClubActivityUrl_OmitsCursor_ForInvalidEventId()
+    public void GetClubActivityUrlOmitsCursorForInvalidEventId()
     {
         var occurredAt = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);
         ActivityEndpoints.GetClubActivityUrl(new ClubActivityCursor(0, occurredAt)).ShouldBe("/api/activity");

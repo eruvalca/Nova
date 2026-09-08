@@ -1,7 +1,8 @@
-﻿using System.Globalization;
+﻿
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Features.Teams;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Features.Teams;
 using Nova.UI.Features.Players;
 
 namespace Nova.UI.Features.Campaigns.Components;

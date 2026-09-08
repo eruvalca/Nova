@@ -14,16 +14,16 @@ namespace Nova.Browser.Tests;
 [Collection(BrowserSuiteCollection.Name)]
 public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
 {
-    private static readonly Regex RegisterHrefPattern = new(@".*Account/Register\?returnUrl=(%2F|/)dashboard", RegexOptions.Compiled);
+    private static readonly Regex _registerHrefPattern = new(@".*Account/Register\?returnUrl=(?:%2F|/)dashboard", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     /// <summary>
     /// LP1: an anonymous visit to / renders the public landing page — the approved hero headline, the
     /// section CTA/nav links, and no authenticated bottom navbar.
     /// </summary>
     [Fact]
-    public async Task Landing_Anonymous_RendersPublicContent_WithoutAuthenticatedNavbar()
+    public async Task LandingAnonymousRendersPublicContentWithoutAuthenticatedNavbarAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
 
@@ -51,9 +51,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// section is limited to verifiable role-based access and club data isolation.
     /// </summary>
     [Fact]
-    public async Task Landing_Sections_CarryTruthfulApprovedContent()
+    public async Task LandingSectionsCarryTruthfulApprovedContentAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
 
@@ -77,8 +77,8 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Place and close", Exact = true })).ToBeVisibleAsync();
 
         var landingText = await page.Locator("article.landing-container").InnerTextAsync();
-        Regex.IsMatch(landingText, @"\binvit(?:e|ed|es|ing|ation|ations)\b", RegexOptions.IgnoreCase).ShouldBeFalse();
-        Regex.IsMatch(landingText, @"\bself(?:-|\s+)(?:service(?:-|\s+))?registration\b", RegexOptions.IgnoreCase).ShouldBeFalse();
+        Regex.IsMatch(landingText, @"\binvit(?:e|ed|es|ing|ation|ations)\b", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)).ShouldBeFalse();
+        Regex.IsMatch(landingText, @"\bself(?:-|\s+)(?:service(?:-|\s+))?registration\b", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)).ShouldBeFalse();
 
         // Admin/coach role fit.
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "The whole staff. The right access.", Exact = true })).ToBeVisibleAsync();
@@ -98,16 +98,16 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// anchored how-it-works section.
     /// </summary>
     [Fact]
-    public async Task Landing_CtaDestinations_ResolveToRegisterAndSection()
+    public async Task LandingCtaDestinationsResolveToRegisterAndSectionAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
 
         var createClub = page.GetByRole(AriaRole.Link, new() { Name = "Create your club", Exact = true }).First;
-        await Expect(createClub).ToHaveAttributeAsync("href", RegisterHrefPattern);
+        await Expect(createClub).ToHaveAttributeAsync("href", _registerHrefPattern);
 
         var seeHow = page.GetByRole(AriaRole.Link, new() { Name = "Follow the campaign route", Exact = true });
         await Expect(seeHow).ToHaveAttributeAsync("href", "#how-it-works");
@@ -117,9 +117,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// LP4: the public header and footer anchor navigation leap to the corresponding landing sections.
     /// </summary>
     [Fact]
-    public async Task Landing_AnchorNavigation_LeapsToSections()
+    public async Task LandingAnchorNavigationLeapsToSectionsAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
 
@@ -141,7 +141,7 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// home (history-replace), so the public page is not reachable while authenticated.
     /// </summary>
     [Fact]
-    public async Task Landing_AuthenticatedAdmin_RedirectsToDashboard()
+    public async Task LandingAuthenticatedAdminRedirectsToDashboardAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -160,12 +160,14 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// /Account/ProfilePhoto and a photo-complete club-less user lands on /Clubs/Onboarding.
     /// </summary>
     [Fact]
-    public async Task Landing_OnboardingGates_ArePreservedBeforeDashboard()
+    public async Task LandingOnboardingGatesArePreservedBeforeDashboardAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
 
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var photoLessContext = await fixture.NewSignedInContextAsync(seed.PhotoLessEmail, DashboardSeed.Password))
+#pragma warning restore MA0004
         {
             var page = photoLessContext.Pages[0];
             await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
@@ -173,7 +175,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
             await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Profile photo" })).ToBeVisibleAsync();
         }
 
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var clubLessContext = await fixture.NewSignedInContextAsync(seed.ClubLessEmail, DashboardSeed.Password))
+#pragma warning restore MA0004
         {
             var page = clubLessContext.Pages[0];
             await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
@@ -187,9 +191,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// Twitter metadata for the landing page.
     /// </summary>
     [Fact]
-    public async Task Landing_Metadata_SetInDocumentHead()
+    public async Task LandingMetadataSetInDocumentHeadAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
 
@@ -227,9 +231,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// controls meet the 24×24 px touch-target minimum.
     /// </summary>
     [Fact]
-    public async Task Landing_KeyboardOrderAndTouchTargets_AreAccessible()
+    public async Task LandingKeyboardOrderAndTouchTargetsAreAccessibleAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
 
@@ -249,9 +253,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// targets instead of leaving visibly more space below the text than above it.
     /// </summary>
     [Fact]
-    public async Task Landing_HeaderActions_CenterLabelsVertically()
+    public async Task LandingHeaderActionsCenterLabelsVerticallyAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
 
@@ -283,9 +287,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// LP10: the hero copy and primary actions meet the WCAG AA 4.5:1 contrast threshold.
     /// </summary>
     [Fact]
-    public async Task Landing_HeroCopyAndActions_MeetContrastThreshold()
+    public async Task LandingHeroCopyAndActionsMeetContrastThresholdAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
 
@@ -304,9 +308,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// substantive content accessible.
     /// </summary>
     [Fact]
-    public async Task Landing_Responsive_NoHorizontalOverflowAcrossViewports()
+    public async Task LandingResponsiveNoHorizontalOverflowAcrossViewportsAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
 
         await using (var wideContext = await fixture.NewAnonymousContextAsync(new ViewportSize { Width = 1280, Height = 800 }))
         {
@@ -316,7 +320,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
             await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Run better tryouts. Build stronger teams.", Exact = true })).ToBeVisibleAsync();
         }
 
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var narrowContext = await fixture.NewAnonymousContextAsync(new ViewportSize { Width = 480, Height = 800 }))
+#pragma warning restore MA0004
         {
             var page = narrowContext.Pages[0];
             await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());
@@ -333,14 +339,14 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
     /// otherwise skips so a green run always means the assertions executed.
     /// </summary>
     [Fact]
-    public async Task Landing_A11yEvidence_CapturesScreenshots()
+    public async Task LandingA11yEvidenceCapturesScreenshotsAsync()
     {
-        if (Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS") != "1")
+        if (!string.Equals(Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS"), "1", StringComparison.Ordinal))
         {
             Assert.Skip("Set NOVA_A11Y_SCREENSHOTS=1 to capture landing-page accessibility evidence.");
         }
 
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         var outputDirectory = Path.Combine(Path.GetTempPath(), "nova-a11y-screenshots");
         Directory.CreateDirectory(outputDirectory);
 
@@ -352,7 +358,9 @@ public sealed class LandingPageBrowserTests(BrowserSuiteFixture fixture)
             await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "landing-anonymous-wide.png") });
         }
 
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var narrowContext = await fixture.NewAnonymousContextAsync(new ViewportSize { Width = 480, Height = 800 }))
+#pragma warning restore MA0004
         {
             var page = narrowContext.Pages[0];
             await page.GotoAsync(new Uri(fixture.BaseUri, "/").ToString());

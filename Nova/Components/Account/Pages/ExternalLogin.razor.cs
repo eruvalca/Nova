@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -6,7 +7,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Nova.Entities;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Components.Account.Pages;
 
@@ -30,12 +31,12 @@ public partial class ExternalLogin(
     /// <summary>
     /// Stores the error or status message to display to the user.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Caches the external login information for the current session.
     /// </summary>
-    private ExternalLoginInfo? externalLoginInfo;
+    private ExternalLoginInfo? _externalLoginInfo;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -70,7 +71,7 @@ public partial class ExternalLogin(
     /// <summary>
     /// Gets the display name of the external login provider.
     /// </summary>
-    private string? ProviderDisplayName => externalLoginInfo?.ProviderDisplayName;
+    private string? ProviderDisplayName => _externalLoginInfo?.ProviderDisplayName;
 
     /// <summary>
     /// Initializes the external login flow, validating provider info and routing to appropriate handler.
@@ -93,11 +94,11 @@ public partial class ExternalLogin(
             return;
         }
 
-        externalLoginInfo = info;
+        _externalLoginInfo = info;
 
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
-            if (Action == LoginCallbackAction)
+            if (string.Equals(Action, LoginCallbackAction, StringComparison.Ordinal))
             {
                 await OnLoginCallbackAsync();
                 return;
@@ -115,7 +116,7 @@ public partial class ExternalLogin(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnLoginCallbackAsync()
     {
-        if (externalLoginInfo is null)
+        if (_externalLoginInfo is null)
         {
             redirectManager.RedirectToWithStatus("Account/Login", "Error loading external login information.", HttpContext);
             return;
@@ -123,27 +124,28 @@ public partial class ExternalLogin(
 
         // Sign in the user with this external login provider if the user already has a login.
         var result = await signInManager.ExternalLoginSignInAsync(
-            externalLoginInfo.LoginProvider,
-            externalLoginInfo.ProviderKey,
+            _externalLoginInfo.LoginProvider,
+            _externalLoginInfo.ProviderKey,
             isPersistent: false,
             bypassTwoFactor: true);
 
         if (result.Succeeded)
         {
-            LogExternalLoginSucceeded(externalLoginInfo.LoginProvider);
+            LogExternalLoginSucceeded(_externalLoginInfo.LoginProvider);
             redirectManager.RedirectTo(ReturnUrl);
             return;
         }
-        else if (result.IsLockedOut)
+
+        if (result.IsLockedOut)
         {
             redirectManager.RedirectTo("Account/Lockout");
             return;
         }
 
         // If the user does not have an account, then ask the user to create an account.
-        if (externalLoginInfo.Principal.HasClaim(c => c.Type == ClaimTypes.Email))
+        if (_externalLoginInfo.Principal.HasClaim(c => string.Equals(c.Type, ClaimTypes.Email, StringComparison.Ordinal)))
         {
-            Input.Email = externalLoginInfo.Principal.FindFirstValue(ClaimTypes.Email) ?? "";
+            Input.Email = _externalLoginInfo.Principal.FindFirstValue(ClaimTypes.Email) ?? "";
         }
     }
 
@@ -153,7 +155,7 @@ public partial class ExternalLogin(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnValidSubmitAsync()
     {
-        if (externalLoginInfo is null)
+        if (_externalLoginInfo is null)
         {
             redirectManager.RedirectToWithStatus("Account/Login", "Error loading external login information during confirmation.",
 HttpContext);
@@ -169,10 +171,10 @@ HttpContext);
         var result = await userManager.CreateAsync(user);
         if (result.Succeeded)
         {
-            result = await userManager.AddLoginAsync(user, externalLoginInfo);
+            result = await userManager.AddLoginAsync(user, _externalLoginInfo);
             if (result.Succeeded)
             {
-                LogAccountCreatedFromExternalProvider(externalLoginInfo.LoginProvider);
+                LogAccountCreatedFromExternalProvider(_externalLoginInfo.LoginProvider);
 
                 var roleResult = await userManager.AddToRoleAsync(user, Roles.StandardUser);
                 if (!roleResult.Succeeded)
@@ -188,24 +190,24 @@ HttpContext);
 
                 var callbackUrl = navigationManager.GetUriWithQueryParameters(
                     navigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
-                    new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
+                    new Dictionary<string, object?>(StringComparer.Ordinal) { ["userId"] = userId, ["code"] = code });
                 await emailSender.SendConfirmationLinkAsync(user, Input.Email, HtmlEncoder.Default.Encode(callbackUrl));
 
                 // If account confirmation is required, we need to show the link if we don't have a real email sender
                 if (userManager.Options.SignIn.RequireConfirmedAccount)
                 {
-                    redirectManager.RedirectTo("Account/RegisterConfirmation", new() { ["email"] = Input.Email });
+                    redirectManager.RedirectTo("Account/RegisterConfirmation", new Dictionary<string, object?>(StringComparer.Ordinal) { ["email"] = Input.Email });
                 }
                 else
                 {
-                    await signInManager.SignInAsync(user, isPersistent: false, externalLoginInfo.LoginProvider);
+                    await signInManager.SignInAsync(user, isPersistent: false, _externalLoginInfo.LoginProvider);
                     redirectManager.RedirectTo(ReturnUrl);
                 }
             }
         }
         else
         {
-            message = $"Error: {string.Join(",", result.Errors.Select(error => error.Description))}";
+            _message = $"Error: {string.Join(",", result.Errors.Select(error => error.Description))}";
         }
     }
 
@@ -214,7 +216,7 @@ HttpContext);
     /// </summary>
     /// <returns>A new user entity.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the user entity cannot be instantiated.</exception>
-    private NovaUserEntity CreateUser()
+    private static NovaUserEntity CreateUser()
     {
         try
         {

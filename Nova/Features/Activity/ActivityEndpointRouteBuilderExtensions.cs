@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Activity;
 
@@ -20,7 +20,7 @@ internal static class ActivityEndpointRouteBuilderExtensions
             ArgumentNullException.ThrowIfNull(endpoints);
 
             endpoints.MapGroup(ActivityEndpoints.GroupPrefix)
-                .MapGet(ActivityEndpoints.GetClubActivityRelative, GetClubActivityHandler)
+                .MapGet(ActivityEndpoints.GetClubActivityRelative, GetClubActivityHandlerAsync)
                 .Produces<ClubActivityResult>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -40,7 +40,7 @@ internal static class ActivityEndpointRouteBuilderExtensions
     /// <param name="clubActivityQueryService">The club activity query service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The activity page or a ProblemDetails response.</returns>
-    private static async Task<IResult> GetClubActivityHandler(
+    private static async Task<IResult> GetClubActivityHandlerAsync(
         [AsParameters] GetClubActivityInput input,
         IClubActivityQueryService clubActivityQueryService,
         CancellationToken cancellationToken)

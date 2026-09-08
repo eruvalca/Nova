@@ -3,10 +3,10 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Attention;
-using Nova.Shared.Features.Dashboard;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Attention;
+using Nova.SharedKernel.Features.Dashboard;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -31,7 +31,9 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
     /// seeded pending request and the newest campaign's undecided participants.
     /// </summary>
     [Fact]
-    public async Task GetSummary_ReturnsAuthoritativeTenantScopedCounts()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task GetSummaryReturnsAuthoritativeTenantScopedCountsAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -50,14 +52,20 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
         var suffix = Guid.NewGuid().ToString("N");
 
         // The manual campaign has the newer season start date, so it sorts first in the card list.
-        var manual = await SeedManualCampaignAsync(club.ClubId, adminEmail, suffix, cancellationToken);
+        _ = await SeedManualCampaignAsync(club.ClubId, adminEmail, suffix, cancellationToken);
         var undecided = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
             fixture, club.ClubId, adminEmail, "Dash Undecided", participantCount: 2, PlacementOutcome.Undecided, cancellationToken);
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             var adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             var applicantUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == applicantEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
 
             context.AddRange(
                 new PlayerEntity
@@ -107,7 +115,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        using (var response = await adminClient.GetAsync(DashboardEndpoints.GetSummary, cancellationToken))
+        using (var response = await adminClient.GetAsync(new Uri(DashboardEndpoints.GetSummary, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
             var dashboard = await response.Content.ReadFromJsonAsync<ClubDashboardResult>(cancellationToken);
@@ -125,7 +133,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             dashboard.Teams.ArchivedTeams.ShouldBe(1);
         }
 
-        using (var attentionResponse = await adminClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        using (var attentionResponse = await adminClient.GetAsync(new Uri(AttentionEndpoints.GetClubAttention, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             attentionResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var attention = await attentionResponse.Content.ReadFromJsonAsync<ClubAttentionResult>(cancellationToken);
@@ -144,7 +152,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
     /// summary contract with zero counts, and the attention projection reports loaded zero counts.
     /// </summary>
     [Fact]
-    public async Task GetSummary_EmptyClub_ReturnsZeroCountsAndEmptyContracts()
+    public async Task GetSummaryEmptyClubReturnsZeroCountsAndEmptyContractsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -155,7 +163,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
         _ = await SeedingHelpers.CreateClubAsync(adminClient, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
-        using (var response = await adminClient.GetAsync(DashboardEndpoints.GetSummary, cancellationToken))
+        using (var response = await adminClient.GetAsync(new Uri(DashboardEndpoints.GetSummary, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
             var dashboard = await response.Content.ReadFromJsonAsync<ClubDashboardResult>(cancellationToken);
@@ -168,7 +176,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             dashboard.Teams.ArchivedTeams.ShouldBe(0);
         }
 
-        using (var attentionResponse = await adminClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        using (var attentionResponse = await adminClient.GetAsync(new Uri(AttentionEndpoints.GetClubAttention, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             attentionResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var attention = await attentionResponse.Content.ReadFromJsonAsync<ClubAttentionResult>(cancellationToken);
@@ -186,7 +194,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
     /// forbidden from the administrator-only attention projection even when the club has no data.
     /// </summary>
     [Fact]
-    public async Task GetSummary_EmptyClub_EvaluatorOmitsAttention()
+    public async Task GetSummaryEmptyClubEvaluatorOmitsAttentionAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -203,7 +211,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.UpdateUserAsync(fixture, evaluatorEmail, club.ClubId, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(evaluatorClient, cancellationToken);
 
-        using (var response = await evaluatorClient.GetAsync(DashboardEndpoints.GetSummary, cancellationToken))
+        using (var response = await evaluatorClient.GetAsync(new Uri(DashboardEndpoints.GetSummary, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
             var dashboard = await response.Content.ReadFromJsonAsync<ClubDashboardResult>(cancellationToken);
@@ -216,7 +224,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             dashboard.Teams.ArchivedTeams.ShouldBe(0);
         }
 
-        using (var attentionResponse = await evaluatorClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        using (var attentionResponse = await evaluatorClient.GetAsync(new Uri(AttentionEndpoints.GetClubAttention, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             attentionResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
@@ -228,7 +236,9 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
     /// attention counts, or activity results.
     /// </summary>
     [Fact]
-    public async Task GetSummary_IsTenantIsolated()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task GetSummaryIsTenantIsolatedAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -250,10 +260,16 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
         var clubACampaignName = $"Club A Campaign {suffix}";
         var clubBCampaignName = $"Club B Decoy {suffix}";
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             var adminAUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminAEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             var adminBUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminBEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
 
             // Club A: one active campaign, one active player, one active team, and one note on its assignment.
             var seasonA = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Club A Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubA.ClubId, CreatedById = adminAUserId };
@@ -274,13 +290,11 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
                 CampaignId = campaignA.CampaignId,
                 ActorUserId = adminAUserId,
                 ActorDisplayName = "Club A Admin",
-                PayloadJson = JsonSerializer.Serialize(
-                    new CampaignLifecycleContext
-                    {
-                        CampaignId = campaignA.CampaignId,
-                        CampaignName = clubACampaignName
-                    },
-                    typeof(ClubActivityContext)),
+                PayloadJson = JsonSerializer.Serialize<ClubActivityContext>(new CampaignLifecycleContext
+                {
+                    CampaignId = campaignA.CampaignId,
+                    CampaignName = clubACampaignName
+                }),
                 CreatedById = adminAUserId
             });
 
@@ -311,19 +325,17 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
                     CampaignId = campaignB.CampaignId,
                     ActorUserId = adminBUserId,
                     ActorDisplayName = "Club B Admin",
-                    PayloadJson = JsonSerializer.Serialize(
-                        new CampaignLifecycleContext
-                        {
-                            CampaignId = campaignB.CampaignId,
-                            CampaignName = clubBCampaignName
-                        },
-                        typeof(ClubActivityContext)),
+                    PayloadJson = JsonSerializer.Serialize<ClubActivityContext>(new CampaignLifecycleContext
+                    {
+                        CampaignId = campaignB.CampaignId,
+                        CampaignName = clubBCampaignName
+                    }),
                     CreatedById = adminBUserId
                 });
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        using (var response = await adminAClient.GetAsync(DashboardEndpoints.GetSummary, cancellationToken))
+        using (var response = await adminAClient.GetAsync(new Uri(DashboardEndpoints.GetSummary, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
             var dashboard = await response.Content.ReadFromJsonAsync<ClubDashboardResult>(cancellationToken);
@@ -336,7 +348,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             dashboard.Teams.ArchivedTeams.ShouldBe(0);
         }
 
-        using (var attentionResponse = await adminAClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        using (var attentionResponse = await adminAClient.GetAsync(new Uri(AttentionEndpoints.GetClubAttention, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             attentionResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var attention = await attentionResponse.Content.ReadFromJsonAsync<ClubAttentionResult>(cancellationToken);
@@ -347,7 +359,7 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             attention.NeedsPlacement.Count.ShouldBe(0);
         }
 
-        using (var activityResponse = await adminAClient.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken))
+        using (var activityResponse = await adminAClient.GetAsync(new Uri(ActivityEndpoints.GetClubActivity, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             activityResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var activity = await activityResponse.Content.ReadFromJsonAsync<ClubActivityResult>(cancellationToken);
@@ -356,10 +368,10 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
             activity.Events.ShouldNotBeEmpty();
             activity.Events.Select(item => item.Context).OfType<CampaignLifecycleContext>()
                 .Select(context => context.CampaignName)
-                .ShouldContain(clubACampaignName);
+                .ShouldContain(clubACampaignName, StringComparer.Ordinal);
             activity.Events.Select(item => item.Context).OfType<CampaignLifecycleContext>()
                 .Select(context => context.CampaignName)
-                .ShouldNotContain(clubBCampaignName);
+                .ShouldNotContain(clubBCampaignName, StringComparer.Ordinal);
         }
     }
 
@@ -379,18 +391,23 @@ public sealed class DashboardSummaryHttpTests(NovaAppHostFixture fixture)
         string suffix,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
-        var name = $"Manual Campaign {suffix}";
-        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Manual Season {suffix}", StartDate = new DateOnly(2026, 2, 1), ClubId = clubId, CreatedById = adminUserId };
-        var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = name, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = adminUserId };
-        var player = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Manual", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = adminUserId };
-        context.AddRange(season, campaign, player);
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
+            var name = $"Manual Campaign {suffix}";
+            var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Manual Season {suffix}", StartDate = new DateOnly(2026, 2, 1), ClubId = clubId, CreatedById = adminUserId };
+            var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = name, StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = adminUserId };
+            var player = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Manual", LastName = "Player", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = adminUserId };
+            context.AddRange(season, campaign, player);
+            await context.SaveChangesAsync(cancellationToken);
 
-        context.Add(new PlayerCampaignAssignmentEntity { PlayerId = player.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = adminUserId, PlacementOutcome = PlacementOutcome.Undecided });
-        await context.SaveChangesAsync(cancellationToken);
+            context.Add(new PlayerCampaignAssignmentEntity { PlayerId = player.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = adminUserId, PlacementOutcome = PlacementOutcome.Undecided });
+            await context.SaveChangesAsync(cancellationToken);
 
-        return (campaign.CampaignId, name);
+            return (campaign.CampaignId, name);
+        }
     }
 }

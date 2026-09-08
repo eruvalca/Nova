@@ -7,7 +7,7 @@ namespace Nova.Data.Configurations;
 /// <summary>
 /// Configures EF Core mapping for the Activity Event Entity.
 /// </summary>
-public class ActivityEventEntityConfiguration : IEntityTypeConfiguration<ActivityEventEntity>
+internal class ActivityEventEntityConfiguration : IEntityTypeConfiguration<ActivityEventEntity>
 {
     /// <summary>
     /// Executes the Configure operation.

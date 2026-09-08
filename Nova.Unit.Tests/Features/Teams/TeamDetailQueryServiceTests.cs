@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Teams;
-using Nova.Shared.Enums;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -57,7 +57,7 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
     /// Active campaign has an older <c>StartDate</c> than the Closed one.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ActiveCampaignPlacementsFirst_WhenActiveHasOlderStartDate()
+    public async Task GetTeamDetailAsyncActiveCampaignPlacementsFirstWhenActiveHasOlderStartDateAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var result = await CreateService().GetTeamDetailAsync(ClubATeamId, TestContext.Current.CancellationToken);
@@ -74,7 +74,7 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
     /// even when campaign dates would otherwise produce the opposite order.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_OrdersActiveDraftClosed_ForClubAdministrator()
+    public async Task GetTeamDetailAsyncOrdersActiveDraftClosedForClubAdministratorAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isClubAdmin: true);
         var result = await CreateService().GetTeamDetailAsync(ClubATeamId, TestContext.Current.CancellationToken);
@@ -93,7 +93,7 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
     /// unbounded Active count independently of the page.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ActivePlacementImpacts_ContainsOnlyActiveCampaignRows()
+    public async Task GetTeamDetailAsyncActivePlacementImpactsContainsOnlyActiveCampaignRowsAsync()
     {
         ActAs(ClubAMemberId, ClubAId);
         var result = await CreateService().GetTeamDetailAsync(ClubATeamId, TestContext.Current.CancellationToken);
@@ -109,7 +109,7 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
     /// forbidden result.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsForbidden_WhenCallerHasNoClub()
+    public async Task GetTeamDetailAsyncReturnsForbiddenWhenCallerHasNoClubAsync()
     {
         ActAs(userId: ClubAMemberId, clubId: null);
         var result = await CreateService().GetTeamDetailAsync(ClubATeamId, TestContext.Current.CancellationToken);
@@ -122,7 +122,7 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
     /// Verifies that a team owned by another club returns a non-disclosing not-found result.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetailAsync_ReturnsNotFound_ForCrossTenantTeam()
+    public async Task GetTeamDetailAsyncReturnsNotFoundForCrossTenantTeamAsync()
     {
         ActAs(ClubBMemberId, ClubBId);
         var result = await CreateService().GetTeamDetailAsync(ClubATeamId, TestContext.Current.CancellationToken);
@@ -162,7 +162,9 @@ public sealed class TeamDetailQueryServiceTests : IDisposable
     /// Seeds two clubs and a team for Club A with Active, Draft, and Closed placements.
     /// Campaign dates oppose the lifecycle order so the leading status rank is observable.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

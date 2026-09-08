@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+﻿using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 
 namespace Nova.Client.Services.Players;
@@ -8,14 +8,14 @@ namespace Nova.Client.Services.Players;
 /// WebAssembly client implementation of <see cref="IPlayerLifecycleService"/> that calls player lifecycle minimal API endpoints.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpPlayerLifecycleService(HttpClient http) : IPlayerLifecycleService
+internal sealed class HttpPlayerLifecycleService(HttpClient http) : IPlayerLifecycleService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<Success>> ArchiveAsync(
         long playerId,
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.PostAsync(PlayerEndpoints.ArchiveUrl(playerId), content: null, cancellationToken);
+        using var response = await http.PostAsync(new Uri(PlayerEndpoints.ArchiveUrl(playerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -29,7 +29,7 @@ public sealed class HttpPlayerLifecycleService(HttpClient http) : IPlayerLifecyc
         long playerId,
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.PostAsync(PlayerEndpoints.RestoreUrl(playerId), content: null, cancellationToken);
+        using var response = await http.PostAsync(new Uri(PlayerEndpoints.RestoreUrl(playerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

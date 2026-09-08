@@ -14,8 +14,13 @@ Run through the reject-fast list before writing any JS:
 - Blazor events (`@onclick`, `@onkeydown`, `@onfocus`) → no JS.
 - JS is warranted only for browser-native behaviors Blazor cannot express: focus/scroll
   manipulation, default-action suppression, clipboard, measurement, third-party widgets.
-- Static SSR markup must function without custom JS. Custom JS belongs to interactive components
-  (rendered interactively), because prerendered/static markup cannot attach listeners.
+- C# `IJSRuntime` interop needs interactive attachment. Browser-native enhancements can run over
+  static SSR through explicitly loaded collocated modules, as with `PasskeySubmit.razor.js` loaded
+  by `App.razor`. Preserve their documented form-post behavior and custom-element connect/disconnect
+  lifecycle; these enhancements do not require a Blazor interactive render mode.
+
+Steps 3–5 below describe C#-owned interop. For browser-native custom elements, verify the host's
+module loading and the element's listener cleanup when it is replaced or removed.
 
 ## Step 2 — Collocate the module
 
@@ -38,9 +43,10 @@ export function focus(element) {
 
 Rules:
 
-- Only `export function`s — no `window.*` globals, no top-level side effects other than module
-  state (see Step 4).
-- Functions take DOM elements (or plain values) as arguments; the component passes `ElementReference`s,
+- C#-invoked modules expose `export function`s, with no top-level side effects beyond module state
+  (see Step 4). Browser-native modules may register their custom element through the platform
+  registry. Neither pattern adds arbitrary `window.*` globals.
+- C#-invoked functions take DOM elements (or plain values) as arguments; the component passes `ElementReference`s,
   never hard-coded element `id` strings.
 - Null-guard element arguments (`element?.focus()`) — a reference may be null after conditional
   renders.
@@ -187,13 +193,13 @@ Rules:
   Success, empty/not-found, and terminal error branches need a heading. A reused shell also needs
   an explicit close action for its mobile directory when a destination link is activated.
 
-- **RCL collocated modules are not auto-loaded.** The SDK ships `.razor.js` as a static asset, but
-  nothing imports it until the component does `"import", "./_content/Nova.UI/..."`. A missing or
-  mismatched path fails only at runtime, not at build time — and not silently: awaiting
+- **RCL collocated modules are not auto-loaded.** The SDK ships `.razor.js` as a static asset; the
+  owning component or documented host loader must import it explicitly. For C# interop, a missing
+  or mismatched `"import", "./_content/Nova.UI/..."` path fails only at runtime: awaiting
   `_moduleTask.Value` faults with a `JSException` (for example, `Failed to fetch dynamically
   imported module`), which from `OnAfterRenderAsync` faults the render/circuit. bUnit catches path
   typos (`SetupModule` fails the test).
-- **JS during prerender is forbidden.** `IJSRuntime` calls throw while prerendering. Always go
+- **C# JS interop is unavailable during prerender.** `IJSRuntime` calls throw while prerendering. Go
   through `OnAfterRenderAsync(firstRender)` or an event handler; never `OnInitializedAsync`.
 - **Recreated containers leak or break listeners.** If the element the listener scopes to lives in
   an `@if` branch, Blazor recreates the DOM node on every render that changes the branch. Without

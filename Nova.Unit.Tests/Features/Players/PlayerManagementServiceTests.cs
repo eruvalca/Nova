@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -18,7 +18,7 @@ namespace Nova.Unit.Tests.Features.Players;
 file sealed class HarnessDbContextFactory(TenancyTestHarness harness) : IDbContextFactory<NovaDbContext>
 {
     public NovaDbContext CreateDbContext() => harness.CreateTenantContext();
-    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
+    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(harness.CreateTenantContext());
 }
 
@@ -47,7 +47,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     // ── Create ─────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Create_Succeeds_ForClubAdmin()
+    public async Task CreateSucceedsForClubAdminAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var sut = CreateService();
@@ -61,7 +61,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_EnrollsPlayerInEveryActiveCampaign()
+    public async Task CreateEnrollsPlayerInEveryActiveCampaignAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var sut = CreateService();
@@ -72,9 +72,8 @@ public sealed class PlayerManagementServiceTests : IDisposable
         var playerId = result.Value.PlayerId;
 
         using var db = _harness.CreateAdminContext();
-        var assignments = db.PlayerCampaignAssignments
-            .Where(a => a.PlayerId == playerId)
-            .ToList();
+        var assignments = (await db.PlayerCampaignAssignments
+            .Where(a => a.PlayerId == playerId).ToListAsync(TestContext.Current.CancellationToken));
 
         assignments.Count.ShouldBe(1, "only the single Active campaign should get an enrollment");
         assignments[0].CampaignId.ShouldBe(_activeCampaignId);
@@ -82,7 +81,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_DoesNotEnrollInClosedCampaign()
+    public async Task CreateDoesNotEnrollInClosedCampaignAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var sut = CreateService();
@@ -91,13 +90,13 @@ public sealed class PlayerManagementServiceTests : IDisposable
 
         result.IsSuccess.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
-        db.PlayerCampaignAssignments
-            .Any(a => a.PlayerId == result.Value.PlayerId && a.CampaignId == _closedCampaignId)
+        (await db.PlayerCampaignAssignments
+            .AnyAsync(a => a.PlayerId == result.Value.PlayerId && a.CampaignId == _closedCampaignId, TestContext.Current.CancellationToken))
             .ShouldBeFalse();
     }
 
     [Fact]
-    public async Task Create_DoesNotEnrollInOtherClubsActiveCampaign()
+    public async Task CreateDoesNotEnrollInOtherClubsActiveCampaignAsync()
     {
         // Seed an active campaign in Club B so the tenant filter has cross-tenant rows to hide.
         long clubBActiveCampaignId;
@@ -112,7 +111,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
                 CreatedById = ClubBAdminId
             };
             seedDb.Seasons.Add(seasonB);
-            seedDb.SaveChanges();
+            await seedDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var campaignB = new CampaignEntity
             {
@@ -125,7 +124,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
                 CreatedById = ClubBAdminId
             };
             seedDb.Campaigns.Add(campaignB);
-            seedDb.SaveChanges();
+            await seedDb.SaveChangesAsync(TestContext.Current.CancellationToken);
             clubBActiveCampaignId = campaignB.CampaignId;
         }
 
@@ -136,13 +135,13 @@ public sealed class PlayerManagementServiceTests : IDisposable
 
         result.IsSuccess.ShouldBeTrue();
         using var verifyDb = _harness.CreateAdminContext();
-        verifyDb.PlayerCampaignAssignments
-            .Any(a => a.PlayerId == result.Value.PlayerId && a.CampaignId == clubBActiveCampaignId)
+        (await verifyDb.PlayerCampaignAssignments
+            .AnyAsync(a => a.PlayerId == result.Value.PlayerId && a.CampaignId == clubBActiveCampaignId, TestContext.Current.CancellationToken))
             .ShouldBeFalse("a player created in Club A must not be enrolled in Club B's active campaign");
     }
 
     [Fact]
-    public async Task Create_ReturnsForbidden_ForNonAdmin()
+    public async Task CreateReturnsForbiddenForNonAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
         var sut = CreateService();
@@ -154,7 +153,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_ReturnsForbidden_ForUnauthenticated()
+    public async Task CreateReturnsForbiddenForUnauthenticatedAsync()
     {
         ActAs(userId: null, clubId: null, isAdmin: false);
         var sut = CreateService();
@@ -166,7 +165,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_ReturnsValidation_BeforeAccessingDatabase_WhenInputInvalid()
+    public async Task CreateReturnsValidationBeforeAccessingDatabaseWhenInputInvalidAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var sut = CreateService();
@@ -186,7 +185,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_CreatedPlayerIsVisibleToSameClub()
+    public async Task CreateCreatedPlayerIsVisibleToSameClubAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var sut = CreateService();
@@ -200,7 +199,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_CreatedPlayerIsNotVisibleToOtherClub()
+    public async Task CreateCreatedPlayerIsNotVisibleToOtherClubAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var sut = CreateService();
@@ -218,7 +217,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     // ── Update ─────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Update_Succeeds_ForClubAdmin()
+    public async Task UpdateSucceedsForClubAdminAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var sut = CreateService();
@@ -230,7 +229,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsForbidden_ForNonAdmin()
+    public async Task UpdateReturnsForbiddenForNonAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
         var sut = CreateService();
@@ -242,7 +241,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsNotFound_ForCrossTenantPlayer()
+    public async Task UpdateReturnsNotFoundForCrossTenantPlayerAsync()
     {
         ActAs(ClubBAdminId, ClubBId, isAdmin: true);
         var sut = CreateService();
@@ -254,16 +253,16 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsConflict_ForArchivedPlayer()
+    public async Task UpdateReturnsConflictForArchivedPlayerAsync()
     {
         // Archive the player first with the required metadata.
         using (var db = _harness.CreateAdminContext())
         {
-            var player = db.Players.Find([_existingPlayerId]);
+            var player = await db.Players.FindAsync([_existingPlayerId], TestContext.Current.CancellationToken);
             player!.LifecycleStatus = LifecycleStatus.Archived;
             player.ArchivedAt = DateTimeOffset.UtcNow;
             player.ArchivedById = ClubAAdminId;
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
@@ -276,7 +275,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReturnsValidation_WhenInputInvalid()
+    public async Task UpdateReturnsValidationWhenInputInvalidAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         var sut = CreateService();
@@ -297,7 +296,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_GraduationYearChange_Blocked_WhenIneligibleActivePlacement()
+    public async Task UpdateGraduationYearChangeBlockedWhenIneligibleActivePlacementAsync()
     {
         // Seed a team and an Assigned placement in the active campaign.
         long teamId;
@@ -312,7 +311,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
                 CreatedById = ClubAAdminId
             };
             db.Teams.Add(team);
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             teamId = team.TeamId;
 
             // Enroll existing player in the active campaign with Assigned placement.
@@ -326,7 +325,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
                 CreatedById = ClubAAdminId
             };
             db.PlayerCampaignAssignments.Add(assignment);
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
@@ -339,15 +338,15 @@ public sealed class PlayerManagementServiceTests : IDisposable
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
         result.Problem.Errors.ShouldNotBeNull();
-        result.Problem.Errors!.Keys.ShouldContain(k => k.StartsWith("blockers[", StringComparison.Ordinal));
+        result.Problem.Errors.Keys.ShouldContain(k => k.StartsWith("blockers[", StringComparison.Ordinal));
 
         // Verify nothing was written.
         using var dbCheck = _harness.CreateAdminContext();
-        dbCheck.Players.Find([_existingPlayerId])!.GraduationYear.ShouldBe(2030);
+        (await dbCheck.Players.FindAsync([_existingPlayerId], TestContext.Current.CancellationToken))!.GraduationYear.ShouldBe(2030);
     }
 
     [Fact]
-    public async Task Update_GraduationYearChange_Succeeds_WhenStillEligible()
+    public async Task UpdateGraduationYearChangeSucceedsWhenStillEligibleAsync()
     {
         // Seed a team with year 2025 and Assigned placement.
         using (var db = _harness.CreateAdminContext())
@@ -361,7 +360,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
                 CreatedById = ClubAAdminId
             };
             db.Teams.Add(team);
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
             {
@@ -372,7 +371,7 @@ public sealed class PlayerManagementServiceTests : IDisposable
                 ClubId = ClubAId,
                 CreatedById = ClubAAdminId
             });
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
@@ -415,7 +414,9 @@ public sealed class PlayerManagementServiceTests : IDisposable
         GraduationYear = 2030
     };
 
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

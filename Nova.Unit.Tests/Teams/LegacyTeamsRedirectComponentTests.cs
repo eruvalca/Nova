@@ -9,7 +9,7 @@ namespace Nova.Unit.Tests.Teams;
 public sealed class LegacyTeamsRedirectComponentTests : BunitContext
 {
     [Fact]
-    public void Redirect_PreservesQueryStringForTeamsList()
+    public void RedirectPreservesQueryStringForTeamsList()
     {
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("https://localhost/teams?view=archived&search=Blue&graduationYear=2032");
@@ -20,7 +20,7 @@ public sealed class LegacyTeamsRedirectComponentTests : BunitContext
     }
 
     [Fact]
-    public void Redirect_PreservesQueryStringForTeamDetail()
+    public void RedirectPreservesQueryStringForTeamDetail()
     {
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("https://localhost/teams/17?returnUrl=%2Fteams%3Fview%3Darchived");
@@ -31,7 +31,7 @@ public sealed class LegacyTeamsRedirectComponentTests : BunitContext
     }
 
     [Fact]
-    public void Redirect_DoesNotCarryFragmentIntoDestination()
+    public void RedirectDoesNotCarryFragmentIntoDestination()
     {
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("https://localhost/teams?view=archived#members");

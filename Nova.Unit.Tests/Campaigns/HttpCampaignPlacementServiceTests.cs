@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -36,7 +36,7 @@ public sealed class HttpCampaignPlacementServiceTests
     /// Verifies a successful update PUTs to the shared placement URL and returns the validated token.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_PutsToSharedPlacementUrl_AndReturnsValidatedToken()
+    public async Task UpdatePlacementAsyncPutsToSharedPlacementUrlAndReturnsValidatedTokenAsync()
     {
         var expectedToken = Guid.NewGuid();
         var newToken = Guid.NewGuid();
@@ -44,7 +44,7 @@ public sealed class HttpCampaignPlacementServiceTests
         {
             Content = JsonContent.Create(new PlacementMutationSuccess(newToken))
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpCampaignPlacementService(http).UpdatePlacementAsync(
@@ -63,13 +63,14 @@ public sealed class HttpCampaignPlacementServiceTests
     /// Verifies an empty concurrency token in a success payload is treated as a contract defect.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsServerError_WhenSuccessTokenIsEmpty()
+    public async Task UpdatePlacementAsyncReturnsServerErrorWhenSuccessTokenIsEmptyAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new PlacementMutationSuccess(Guid.Empty))
         };
-        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        using var httpHandler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -86,14 +87,15 @@ public sealed class HttpCampaignPlacementServiceTests
     /// Verifies an identical save succeeds when the server preserves the submitted token.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsSuccess_WhenNoOpPreservesSubmittedToken()
+    public async Task UpdatePlacementAsyncReturnsSuccessWhenNoOpPreservesSubmittedTokenAsync()
     {
         var expectedToken = Guid.NewGuid();
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new PlacementMutationSuccess(expectedToken))
         };
-        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        using var httpHandler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -110,13 +112,14 @@ public sealed class HttpCampaignPlacementServiceTests
     /// Verifies a null success response body is surfaced as a server error.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsServerError_ForNullBody()
+    public async Task UpdatePlacementAsyncReturnsServerErrorForNullBodyAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("null", Encoding.UTF8, "application/json")
         };
-        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        using var httpHandler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -133,13 +136,14 @@ public sealed class HttpCampaignPlacementServiceTests
     /// Verifies a malformed success response body is surfaced as a server error.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsServerError_ForMalformedBody()
+    public async Task UpdatePlacementAsyncReturnsServerErrorForMalformedBodyAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("{ not json", Encoding.UTF8, "application/json")
         };
-        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        using var httpHandler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -156,7 +160,7 @@ public sealed class HttpCampaignPlacementServiceTests
     /// Verifies a validation ProblemDetails response is propagated with its structured errors.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsValidation_FromProblemDetails()
+    public async Task UpdatePlacementAsyncReturnsValidationFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
@@ -164,13 +168,14 @@ public sealed class HttpCampaignPlacementServiceTests
             {
                 title = "One or more validation errors occurred.",
                 status = 400,
-                errors = new Dictionary<string, string[]>
+                errors = new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
                     [nameof(UpdateCampaignPlacementInput.TeamId)] = ["A team is required for an assigned outcome."]
                 }
             })
         };
-        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        using var httpHandler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -182,20 +187,21 @@ public sealed class HttpCampaignPlacementServiceTests
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
         result.Problem.Errors.ShouldNotBeNull();
-        result.Problem.Errors!.ShouldContainKey(nameof(UpdateCampaignPlacementInput.TeamId));
+        result.Problem.Errors.ShouldContainKey(nameof(UpdateCampaignPlacementInput.TeamId));
     }
 
     /// <summary>
     /// Verifies a not-found ProblemDetails response is propagated correctly.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsNotFound_FromProblemDetails()
+    public async Task UpdatePlacementAsyncReturnsNotFoundFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound)
         {
             Content = JsonContent.Create(new { title = "Not Found", status = 404 })
         };
-        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        using var httpHandler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -212,7 +218,7 @@ public sealed class HttpCampaignPlacementServiceTests
     /// Verifies a forbidden ProblemDetails response is propagated correctly.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsForbidden_FromProblemDetails()
+    public async Task UpdatePlacementAsyncReturnsForbiddenFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
         {
@@ -223,7 +229,8 @@ public sealed class HttpCampaignPlacementServiceTests
                 detail = "You must be an approved club member to update campaign placements."
             })
         };
-        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        using var httpHandler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };
@@ -240,7 +247,7 @@ public sealed class HttpCampaignPlacementServiceTests
     /// Verifies a conflict ProblemDetails response is propagated correctly.
     /// </summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ReturnsConflict_FromProblemDetails()
+    public async Task UpdatePlacementAsyncReturnsConflictFromProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Conflict)
         {
@@ -251,7 +258,8 @@ public sealed class HttpCampaignPlacementServiceTests
                 detail = "The placement was changed by another user. Reload it and try again."
             })
         };
-        using var http = new HttpClient(new FakeHttpMessageHandler(response))
+        using var httpHandler = new FakeHttpMessageHandler(response);
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         {
             BaseAddress = new Uri("https://localhost/")
         };

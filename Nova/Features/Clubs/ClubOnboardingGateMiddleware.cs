@@ -1,4 +1,4 @@
-﻿using Nova.Shared.Security;
+﻿using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Clubs;
 
@@ -8,7 +8,7 @@ namespace Nova.Features.Clubs;
 /// can use the rest of the application.
 /// </summary>
 /// <param name="next">The next middleware in the pipeline.</param>
-public sealed class ClubOnboardingGateMiddleware(RequestDelegate next)
+internal sealed class ClubOnboardingGateMiddleware(RequestDelegate next)
 {
     /// <summary>
     /// The page users without a club are redirected to.
@@ -20,7 +20,7 @@ public sealed class ClubOnboardingGateMiddleware(RequestDelegate next)
     /// itself and the cookie-refresh hop), API endpoints, Blazor framework assets and the SignalR
     /// circuit endpoint, RCL static content, health checks, and error pages.
     /// </summary>
-    private static readonly string[] ExemptPrefixes =
+    private static readonly string[] _exemptPrefixes =
     [
         "/Account",
         "/api",
@@ -44,8 +44,8 @@ public sealed class ClubOnboardingGateMiddleware(RequestDelegate next)
     public Task InvokeAsync(HttpContext context)
     {
         var isAuthenticated = context.User.Identity?.IsAuthenticated == true;
-        var hasPhotoClaim = context.User.HasClaim(claim => claim.Type == NovaClaimTypes.HasProfilePhoto);
-        var hasClubIdClaim = context.User.HasClaim(claim => claim.Type == NovaClaimTypes.ClubId);
+        var hasPhotoClaim = context.User.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.HasProfilePhoto, StringComparison.Ordinal));
+        var hasClubIdClaim = context.User.HasClaim(claim => string.Equals(claim.Type, NovaClaimTypes.ClubId, StringComparison.Ordinal));
 
         if (ShouldRedirect(context.Request.Path, isAuthenticated, hasPhotoClaim, hasClubIdClaim))
         {
@@ -72,12 +72,9 @@ public sealed class ClubOnboardingGateMiddleware(RequestDelegate next)
             return false;
         }
 
-        foreach (var prefix in ExemptPrefixes)
+        if (_exemptPrefixes.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase)))
         {
-            if (path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
+            return false;
         }
 
         // Static assets (anything with a file extension) are exempt.

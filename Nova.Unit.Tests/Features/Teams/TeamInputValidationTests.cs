@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Teams;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Teams;
@@ -23,29 +23,29 @@ public sealed class TeamInputValidationTests
     };
 
     [Fact]
-    public void Create_WithValidInput_ReturnsNoErrors()
+    public void CreateWithValidInputReturnsNoErrors()
         => InputValidator.Validate(ValidCreate()).ShouldBeEmpty();
 
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Create_WithBlankName_ReturnsError(string? name)
+    public void CreateWithBlankNameReturnsError(string? name)
         => InputValidator.Validate(ValidCreate() with { Name = name! }).ShouldContainKey("Name");
 
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999)]
     [InlineData(2101)]
-    public void Create_WithOutOfRangeGraduationYear_ReturnsError(int year)
+    public void CreateWithOutOfRangeGraduationYearReturnsError(int year)
         => InputValidator.Validate(ValidCreate() with { GraduationYear = year })
             .ShouldContainKey("GraduationYear");
 
     [Fact]
-    public void Update_WithInvalidTeamId_ReturnsError()
+    public void UpdateWithInvalidTeamIdReturnsError()
         => InputValidator.Validate(ValidUpdate() with { TeamId = 0 }).ShouldContainKey("TeamId");
 
     [Fact]
-    public void Update_WithOverlongName_ReturnsError()
+    public void UpdateWithOverlongNameReturnsError()
         => InputValidator.Validate(ValidUpdate() with { Name = new string('x', 101) })
             .ShouldContainKey("Name");
 }

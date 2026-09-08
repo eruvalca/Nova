@@ -8,7 +8,7 @@ namespace Nova.Data.Configurations;
 /// Configures EF Core mapping for <see cref="EvaluationNoteMutationReceiptEntity"/>, the durable
 /// mutation receipt that protects ambiguous-commit verification for evaluation notes.
 /// </summary>
-public class EvaluationNoteMutationReceiptEntityConfiguration : IEntityTypeConfiguration<EvaluationNoteMutationReceiptEntity>
+internal class EvaluationNoteMutationReceiptEntityConfiguration : IEntityTypeConfiguration<EvaluationNoteMutationReceiptEntity>
 {
     /// <summary>
     /// Executes the configure operation.

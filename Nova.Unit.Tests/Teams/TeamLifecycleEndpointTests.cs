@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Features.Teams;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using OneOf.Types;
 using Shouldly;
 
@@ -16,7 +16,9 @@ namespace Nova.Unit.Tests.Teams;
 /// </summary>
 public sealed class TeamLifecycleEndpointTests
 {
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class FakeTeamLifecycleService : ITeamLifecycleService
+#pragma warning restore CA1812
     {
         public Task<ServiceResult<Success>> ArchiveAsync(
             long teamId,
@@ -30,7 +32,7 @@ public sealed class TeamLifecycleEndpointTests
     }
 
     [Fact]
-    public async Task TeamLifecycleEndpoints_RequireClubAdminPolicy()
+    public async Task TeamLifecycleEndpointsRequireClubAdminPolicyAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<ITeamLifecycleService, FakeTeamLifecycleService>();

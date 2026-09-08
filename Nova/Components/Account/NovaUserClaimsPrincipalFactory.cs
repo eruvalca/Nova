@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Nova.Data;
 using Nova.Entities;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Components.Account;
 
@@ -23,7 +23,7 @@ namespace Nova.Components.Account;
 /// <param name="roleManager">The role Manager.</param>
 /// <param name="options">The options.</param>
 /// <param name="adminDbContextFactory">The factory for the unfiltered admin context, used to check photo existence during sign-in (the request principal is not yet the user being signed in, so tenant-filtered contexts cannot be used here).</param>
-public sealed class NovaUserClaimsPrincipalFactory(
+internal sealed class NovaUserClaimsPrincipalFactory(
     UserManager<NovaUserEntity> userManager,
     RoleManager<IdentityRole<long>> roleManager,
     IOptions<IdentityOptions> options,
@@ -39,7 +39,7 @@ public sealed class NovaUserClaimsPrincipalFactory(
 
         if (user.ClubId.HasValue)
         {
-            identity.AddClaim(new Claim(NovaClaimTypes.ClubId, user.ClubId.Value.ToString()));
+            identity.AddClaim(new Claim(NovaClaimTypes.ClubId, user.ClubId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 
             var clubName = await dbContext.Clubs
                 .Where(c => c.ClubId == user.ClubId.Value)

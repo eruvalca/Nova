@@ -1,6 +1,6 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Attention;
-using Nova.Shared.Results;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Attention;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Attention;
 
@@ -8,13 +8,13 @@ namespace Nova.Client.Services.Attention;
 /// WebAssembly HTTP implementation of <see cref="IClubAttentionQueryService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpClubAttentionQueryService(HttpClient http) : IClubAttentionQueryService
+internal sealed class HttpClubAttentionQueryService(HttpClient http) : IClubAttentionQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<ClubAttentionResult>> GetClubAttentionAsync(
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken);
+        using var response = await http.GetAsync(new Uri(AttentionEndpoints.GetClubAttention, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

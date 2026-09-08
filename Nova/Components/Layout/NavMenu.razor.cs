@@ -1,11 +1,12 @@
-﻿using System.Security.Claims;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
 using Nova.Data.Tenancy;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Components.Layout;
 
@@ -30,19 +31,21 @@ public partial class NavMenu(
     /// <summary>
     /// Stores the current base-relative URL used as the post-logout return URL.
     /// </summary>
-    private string? currentUrl;
+    private string? _currentUrl;
 
     /// <summary>
     /// Gets the current base-relative URL used in the logout form.
     /// </summary>
-    protected string? CurrentUrl => currentUrl;
+#pragma warning disable CA1056 // Blazor binding and NavigationManager consume string URLs in this component contract.
+    protected string? CurrentUrl => _currentUrl;
+#pragma warning restore CA1056
 
     /// <summary>
     /// Gets a value indicating whether the current route is inside the club area but not the
     /// Teams subsection, so the Club link stays active on every club route except the Teams
     /// routes that carry their own link.
     /// </summary>
-    protected bool ClubSectionActive => IsClubActive(currentUrl);
+    protected bool ClubSectionActive => IsClubActive(_currentUrl);
 
     /// <summary>
     /// Determines whether a URL activates the Club link, including legacy numeric club routes
@@ -57,7 +60,7 @@ public partial class NavMenu(
             return false;
         }
 
-        var path = baseRelativeUrl.Split('?', '#')[0].TrimStart('/').TrimEnd('/');
+        var path = baseRelativeUrl.Split(['?', '#'], StringSplitOptions.None)[0].TrimStart('/').TrimEnd('/');
         if (path.Length == 0)
         {
             return false;
@@ -78,16 +81,16 @@ public partial class NavMenu(
     /// </summary>
     private static bool IsLegacyClubRoute(string path)
     {
-        const string prefix = "clubs/";
-        if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        const string Prefix = "clubs/";
+        if (!path.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        var heading = path.AsSpan(prefix.Length);
+        var heading = path.AsSpan(Prefix.Length);
         var firstSlash = heading.IndexOf('/');
         var clubId = firstSlash < 0 ? heading : heading[..firstSlash];
-        if (clubId.Length == 0 || !long.TryParse(clubId, out _))
+        if (clubId.Length == 0 || !long.TryParse(clubId, System.Globalization.CultureInfo.InvariantCulture, out _))
         {
             return false;
         }
@@ -101,14 +104,18 @@ public partial class NavMenu(
     /// <summary>
     /// Gets the URL for the current user's small profile photo, or null if the user has no photo.
     /// </summary>
+#pragma warning disable CA1056 // Blazor binding and NavigationManager consume string URLs in this component contract.
     protected string? PhotoUrl => currentUserProvider.UserId.HasValue
+#pragma warning restore CA1056
         ? PhotoEndpoints.GetPhotoUrl(currentUserProvider.UserId.Value, ProfilePhotoSize.Small)
         : null;
 
     /// <summary>
     /// Gets the canonical URL for the current user's club, or null if the user has no club.
     /// </summary>
+#pragma warning disable CA1056 // Blazor binding and NavigationManager consume string URLs in this component contract.
     protected string? ClubDetailUrl => currentUserProvider.ClubId.HasValue
+#pragma warning restore CA1056
         ? ClubRoutes.Overview
         : null;
 
@@ -122,7 +129,9 @@ public partial class NavMenu(
     /// <summary>
     /// Gets the URL for the current user's club crest (small variant), or null if the user has no club.
     /// </summary>
+#pragma warning disable CA1056 // Blazor binding and NavigationManager consume string URLs in this component contract.
     protected string? ClubCrestUrl => currentUserProvider.ClubId.HasValue
+#pragma warning restore CA1056
         ? ClubCrestEndpoints.GetCrestUrl(currentUserProvider.ClubId.Value, ProfilePhotoSize.Small)
         : null;
 
@@ -156,7 +165,7 @@ public partial class NavMenu(
     /// </summary>
     protected override void OnInitialized()
     {
-        currentUrl = navigationManager.ToBaseRelativePath(navigationManager.Uri);
+        _currentUrl = navigationManager.ToBaseRelativePath(navigationManager.Uri);
         navigationManager.LocationChanged += OnLocationChanged;
     }
 
@@ -167,7 +176,7 @@ public partial class NavMenu(
     /// <param name="e">The location change event payload.</param>
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        currentUrl = navigationManager.ToBaseRelativePath(e.Location);
+        _currentUrl = navigationManager.ToBaseRelativePath(e.Location);
         StateHasChanged();
     }
 
@@ -178,6 +187,6 @@ public partial class NavMenu(
     protected override ValueTask DisposeAsyncCore()
     {
         navigationManager.LocationChanged -= OnLocationChanged;
-        return ValueTask.CompletedTask;
+        return base.DisposeAsyncCore();
     }
 }

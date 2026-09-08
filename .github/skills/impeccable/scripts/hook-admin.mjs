@@ -56,18 +56,52 @@ const STATUS_MESSAGE = 'Checking UI changes';
 const STOP_TIMEOUT_SECONDS = 30;
 const STOP_STATUS_MESSAGE = 'Design deep pass';
 
-function stopManifestEntry(command) {
+function stopManifestEntry(command, commandWindows) {
   return {
     hooks: [
       {
         type: 'command',
         command,
+        ...(commandWindows ? { commandWindows } : {}),
         timeout: STOP_TIMEOUT_SECONDS,
         statusMessage: STOP_STATUS_MESSAGE,
       },
     ],
   };
 }
+
+// Resolve the script independently of the session cwd. Keep stdin and event.cwd
+// intact: relative edited paths belong to the session, config/cache to the repo.
+function repoHookCommands(provider) {
+  const script = `${provider}/skills/impeccable/scripts/hook.mjs`;
+  const skipped = '[impeccable-hook] Scan skipped:';
+  const bash = [
+    `impeccable_root=$(git rev-parse --show-toplevel 2>/dev/null) || { printf '%s\\n' '${skipped} Git root unavailable.' >&2; exit 0; }`,
+    `impeccable_hook="$impeccable_root/${script}"`,
+    `[ -f "$impeccable_hook" ] || { printf '%s\\n' '${skipped} hook file unavailable.' >&2; exit 0; }`,
+    `command -v node >/dev/null 2>&1 && node -e 'process.exit(parseInt(process.versions.node,10)>=22?0:1)' 2>/dev/null || { printf '%s\\n' '${skipped} Node 22+ unavailable; run the detector with a supported existing runtime.' >&2; exit 0; }`,
+    `IMPECCABLE_HOOK_PROJECT_ROOT="$impeccable_root" node "$impeccable_hook"`,
+  ].join('; ');
+  const powershell = [
+    // Git emits UTF-8 paths. Windows PowerShell otherwise decodes native output
+    // using its console's legacy code page, even when stdout is redirected.
+    `[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)`,
+    `$impeccableRoot = & git rev-parse --show-toplevel 2>$null`,
+    `if ($LASTEXITCODE -ne 0 -or !$impeccableRoot) { [Console]::Error.WriteLine('${skipped} Git root unavailable.'); exit 0 }`,
+    `$impeccableHook = Join-Path $impeccableRoot '${script}'`,
+    `if (!(Test-Path -LiteralPath $impeccableHook -PathType Leaf)) { [Console]::Error.WriteLine('${skipped} hook file unavailable.'); exit 0 }`,
+    `$impeccableNode = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1`,
+    `if (!$impeccableNode) { [Console]::Error.WriteLine('${skipped} Node 22+ unavailable; run the detector with a supported existing runtime.'); exit 0 }`,
+    `& $impeccableNode.Source -e 'process.exit(parseInt(process.versions.node,10)>=22?0:1)'`,
+    `if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('${skipped} Node 22+ unavailable; run the detector with a supported existing runtime.'); exit 0 }`,
+    `$env:IMPECCABLE_HOOK_PROJECT_ROOT = $impeccableRoot`,
+    `& $impeccableNode.Source $impeccableHook`,
+  ].join('; ');
+  return { bash, powershell, commandWindows: `powershell.exe -NoProfile -NonInteractive -Command "& { ${powershell} }"` };
+}
+
+const CODEX_HOOK_COMMANDS = repoHookCommands('.agents');
+const COPILOT_HOOK_COMMANDS = repoHookCommands('.github');
 
 const HOOK_MANIFEST_TARGETS = [
   {
@@ -107,14 +141,15 @@ const HOOK_MANIFEST_TARGETS = [
             hooks: [
               {
                 type: 'command',
-                command: 'node ".agents/skills/impeccable/scripts/hook.mjs"',
+                command: CODEX_HOOK_COMMANDS.bash,
+                commandWindows: CODEX_HOOK_COMMANDS.commandWindows,
                 timeout: TIMEOUT_SECONDS,
                 statusMessage: STATUS_MESSAGE,
               },
             ],
           },
         ],
-        Stop: [stopManifestEntry('node ".agents/skills/impeccable/scripts/hook.mjs"')],
+        Stop: [stopManifestEntry(CODEX_HOOK_COMMANDS.bash, CODEX_HOOK_COMMANDS.commandWindows)],
       },
     }),
   },
@@ -136,9 +171,9 @@ const HOOK_MANIFEST_TARGETS = [
   },
   {
     // GitHub Copilot reads repo-level hooks from `.github/hooks/*.json`. The same
-    // manifest is honored by the CLI (once committed to the default branch) and
-    // the cloud/app agent. Schema differs: lowercase `postToolUse`, flat entries,
-    // `bash`/`timeoutSec`, and a `matcher` regex against the `edit`/`create` tools.
+    // manifest is discovered by the CLI and cloud agent in their respective
+    // workspaces. Activation/trust is host-specific; manifest presence is not
+    // execution evidence. Lowercase events use flat shell-command entries.
     provider: '.github',
     skillRel: '.github/skills/impeccable',
     destRel: '.github/hooks/impeccable.json',
@@ -149,7 +184,8 @@ const HOOK_MANIFEST_TARGETS = [
           {
             type: 'command',
             matcher: 'edit|create|apply_patch',
-            bash: 'node "$(git rev-parse --show-toplevel)/.github/skills/impeccable/scripts/hook.mjs"',
+            bash: COPILOT_HOOK_COMMANDS.bash,
+            powershell: COPILOT_HOOK_COMMANDS.powershell,
             timeoutSec: TIMEOUT_SECONDS,
           },
         ],
@@ -487,7 +523,7 @@ function stripImpeccableHookEntry(entry) {
   if (!entry || typeof entry !== 'object') return entry;
   // `command`/`args`: Claude/Codex/Cursor. `bash`/`powershell`: GitHub Copilot's
   // flat entry shape, where the marker lives under the shell-command keys.
-  if (valueHasImpeccableHookMarker(entry.command) || valueHasImpeccableHookMarker(entry.args)
+  if (valueHasImpeccableHookMarker(entry.command) || valueHasImpeccableHookMarker(entry.commandWindows) || valueHasImpeccableHookMarker(entry.args)
     || valueHasImpeccableHookMarker(entry.bash) || valueHasImpeccableHookMarker(entry.powershell)) {
     return null;
   }

@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -17,7 +17,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
     private const string Password = "Test#Passw0rd!";
 
     [Fact]
-    public async Task CampaignForm_Validation_RejectsWhitespaceName_AndStaysOnForm()
+    public async Task CampaignFormValidationRejectsWhitespaceNameAndStaysOnFormAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -43,7 +43,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task CampaignForm_Success_CreatesCampaign_AndRedirectsToSavedDraft()
+    public async Task CampaignFormSuccessCreatesCampaignAndRedirectsToSavedDraftAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -70,7 +70,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task CampaignForm_Responsive_PreservesInputs_AcrossViewports()
+    public async Task CampaignFormResponsivePreservesInputsAcrossViewportsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -92,7 +92,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task CampaignForm_Keyboard_TabAndEnter_Submits()
+    public async Task CampaignFormKeyboardTabAndEnterSubmitsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -124,9 +124,9 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
     /// otherwise skips so a green run always means the assertions executed.
     /// </summary>
     [Fact]
-    public async Task CampaignForm_A11yEvidence_CapturesScreenshots()
+    public async Task CampaignFormA11yEvidenceCapturesScreenshotsAsync()
     {
-        if (Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS") != "1")
+        if (!string.Equals(Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS"), "1", StringComparison.Ordinal))
         {
             Assert.Skip("Set NOVA_A11Y_SCREENSHOTS=1 to capture campaign form accessibility evidence.");
         }
@@ -146,7 +146,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task CampaignForm_Loading_ShowsSubmitSpinner_ThenCompletes()
+    public async Task CampaignFormLoadingShowsSubmitSpinnerThenCompletesAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -170,7 +170,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
             IsCampaignCreateUrl,
             async route =>
             {
-                if (route.Request.Method != "POST")
+                if (!string.Equals(route.Request.Method, "POST", StringComparison.Ordinal))
                 {
                     await route.ContinueAsync();
                     return;
@@ -194,7 +194,7 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task CampaignForm_Failure_ShowsRetry_AndRetryRecovers()
+    public async Task CampaignFormFailureShowsRetryAndRetryRecoversAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAdminAsync(cancellationToken);
@@ -213,8 +213,8 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
 
         await page.RouteAsync(
             IsCampaignCreateUrl,
-            route => route.Request.Method == "POST"
-                ? route.FulfillAsync(new() { Status = 500 })
+            route => string.Equals(route.Request.Method, "POST"
+, StringComparison.Ordinal) ? route.FulfillAsync(new() { Status = 500 })
                 : route.ContinueAsync());
 
         var submit = page.GetByRole(AriaRole.Button, new() { Name = "Create campaign", Exact = true });
@@ -315,9 +315,13 @@ public sealed class CampaignFormBrowserTests(BrowserSuiteFixture fixture)
         await SeedingHelpers.RefreshClubMembershipCookieAsync(adminClient, cancellationToken);
 
         long adminUserId;
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.AppHost.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
         }
 
         return (club.ClubId, adminEmail, adminUserId);

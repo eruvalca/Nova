@@ -3,11 +3,11 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Activity;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 using OneOf.Types;
 
 namespace Nova.Features.Campaigns;
@@ -15,7 +15,7 @@ namespace Nova.Features.Campaigns;
 /// <summary>
 /// Adds Draft opening and deletion behavior to the campaign lifecycle service.
 /// </summary>
-public sealed partial class CampaignLifecycleService
+internal sealed partial class CampaignLifecycleService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<OpenCampaignResult>> OpenAsync(
@@ -120,7 +120,9 @@ public sealed partial class CampaignLifecycleService
     /// <summary>
     /// Applies one opening attempt inside the globally ordered lifecycle locks.
     /// </summary>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<OpenCampaignResult>> OpenAttemptAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         long campaignId,
         OpenCampaignInput input,
@@ -324,11 +326,11 @@ public sealed partial class CampaignLifecycleService
     /// <summary>
     /// Builds every structured blocker present in the locked readiness snapshot.
     /// </summary>
-    private static IReadOnlyDictionary<string, string[]> BuildOpeningBlockerErrors(
+    private static Dictionary<string, string[]> BuildOpeningBlockerErrors(
         int activePlayerCount,
         BlockingActiveCampaign? blockingCampaign)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
         if (activePlayerCount == 0)
         {
             errors[CampaignOpeningProblemKeys.NoActivePlayers] = ["The club has no active players to enroll."];
@@ -337,7 +339,7 @@ public sealed partial class CampaignLifecycleService
         if (blockingCampaign is not null)
         {
             errors[CampaignOpeningProblemKeys.AnotherCampaignActive] = ["Another campaign is already active for this club."];
-            errors[CampaignOpeningProblemKeys.BlockingCampaignId] = [blockingCampaign.CampaignId.ToString()];
+            errors[CampaignOpeningProblemKeys.BlockingCampaignId] = [blockingCampaign.CampaignId.ToString(System.Globalization.CultureInfo.InvariantCulture)];
             errors[CampaignOpeningProblemKeys.BlockingCampaignName] = [blockingCampaign.CampaignName];
         }
 

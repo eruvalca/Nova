@@ -1,7 +1,7 @@
 ﻿using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -19,7 +19,7 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
     /// Verifies that registration remains available inside the shared account directory and exposes its real fields.
     /// </summary>
     [Fact]
-    public async Task Register_Anonymous_ShowsAccountDirectoryAndForm()
+    public async Task RegisterAnonymousShowsAccountDirectoryAndFormAsync()
     {
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
@@ -50,13 +50,13 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
     [InlineData(320, "/Account/ConfirmEmailChange?userId=9223372036854775807&email=test%40example.com&code=unused", "Manage profile")]
     [InlineData(576, "/Account/ForgotPassword", "Recover access")]
     [InlineData(576, "/Account/ConfirmEmailChange?userId=9223372036854775807&email=test%40example.com&code=unused", "Manage profile")]
-    public async Task AccountDirectory_NarrowViewport_ShowsActivePanel(
+    public async Task AccountDirectoryNarrowViewportShowsActivePanelAsync(
         int viewportWidth,
         string path,
         string expectedPanel)
     {
         await using var context = await fixture.NewAnonymousContextAsync(
-            new ViewportSize { Width = viewportWidth, Height = 800 });
+                    new ViewportSize { Width = viewportWidth, Height = 800 });
         var page = context.Pages[0];
 
         await page.GotoAsync(new Uri(fixture.BaseUri, path).ToString());
@@ -74,7 +74,7 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
     /// Verifies that a valid local login keeps the real Identity redirect into profile-photo onboarding.
     /// </summary>
     [Fact]
-    public async Task Login_ValidCredentials_RedirectsToProfilePhotoOnboarding()
+    public async Task LoginValidCredentialsRedirectsToProfilePhotoOnboardingAsync()
     {
         var email = await RegisterUserAsync("auth-login");
         await using var context = await fixture.NewAnonymousContextAsync();
@@ -88,13 +88,14 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
         await page.WaitForURLAsync(
             url => url.Contains("/Account/ProfilePhoto", StringComparison.OrdinalIgnoreCase),
             new() { WaitUntil = WaitUntilState.Commit });
+        new Uri(page.Url).AbsolutePath.ShouldBe("/Account/ProfilePhoto");
     }
 
     /// <summary>
     /// Verifies that invalid local credentials remain on the login page and render the bounded error status.
     /// </summary>
     [Fact]
-    public async Task Login_InvalidPassword_ShowsErrorWithoutNavigation()
+    public async Task LoginInvalidPasswordShowsErrorWithoutNavigationAsync()
     {
         var email = await RegisterUserAsync("auth-invalid");
         await using var context = await fixture.NewAnonymousContextAsync();
@@ -114,7 +115,7 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
     /// Verifies that password recovery posts through the static-SSR form and reaches its confirmation page.
     /// </summary>
     [Fact]
-    public async Task ForgotPassword_ValidEmail_ShowsConfirmation()
+    public async Task ForgotPasswordValidEmailShowsConfirmationAsync()
     {
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
@@ -134,7 +135,7 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
     /// Verifies that an anonymous manage request retains a local return URL when redirected to login.
     /// </summary>
     [Fact]
-    public async Task Manage_Anonymous_RedirectsToLoginWithReturnUrl()
+    public async Task ManageAnonymousRedirectsToLoginWithReturnUrlAsync()
     {
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
@@ -142,7 +143,7 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
         await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Manage").ToString());
 
         await page.WaitForURLAsync(
-            new Regex(@"/Account/Login\?ReturnUrl=%2FAccount%2FManage", RegexOptions.IgnoreCase),
+            new Regex(@"/Account/Login\?ReturnUrl=%2FAccount%2FManage", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)),
             new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Log in", Exact = true }))
             .ToBeVisibleAsync();
@@ -152,7 +153,7 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
     /// Verifies that a member denied an administrator route returns to the Club overview with a permission notice.
     /// </summary>
     [Fact]
-    public async Task ClubAdmin_OrdinaryMember_ShowsOverviewPermissionNotice()
+    public async Task ClubAdminOrdinaryMemberShowsOverviewPermissionNoticeAsync()
     {
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, TestContext.Current.CancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, DashboardSeed.Password);
@@ -161,7 +162,7 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
         await page.GotoAsync(new Uri(fixture.BaseUri, $"/Clubs/{seed.ClubId}/admin").ToString());
 
         await page.WaitForURLAsync(
-            url => new Uri(url).PathAndQuery == ClubRoutes.OverviewWithPermissionsChanged,
+            url => string.Equals(new Uri(url).PathAndQuery, ClubRoutes.OverviewWithPermissionsChanged, StringComparison.Ordinal),
             new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Overview", Exact = true }))
             .ToBeVisibleAsync();
@@ -178,7 +179,7 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
     /// administrator-route request to the member-shaped Club overview.
     /// </summary>
     [Fact]
-    public async Task ClubAdmin_SelfDemotion_ImmediatelyLosesAdministratorAccessButRetainsMembership()
+    public async Task ClubAdminSelfDemotionImmediatelyLosesAdministratorAccessButRetainsMembershipAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedTwoAdministratorsAsync(cancellationToken);
@@ -191,14 +192,14 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
             $"form:has(input[name='MemberUserId'][value='{seed.ActorUserId}'])");
         await selfDemotionForm.GetByRole(AriaRole.Button, new() { Name = "Demote", Exact = true }).ClickAsync();
         await page.WaitForURLAsync(
-            url => new Uri(url).AbsolutePath == "/Account/AccessDenied",
+            url => string.Equals(new Uri(url).AbsolutePath, "/Account/AccessDenied", StringComparison.Ordinal),
             new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access denied", Exact = true }))
             .ToBeVisibleAsync();
 
         await page.GotoAsync(adminUrl);
         await page.WaitForURLAsync(
-            url => new Uri(url).PathAndQuery == ClubRoutes.OverviewWithPermissionsChanged,
+            url => string.Equals(new Uri(url).PathAndQuery, ClubRoutes.OverviewWithPermissionsChanged, StringComparison.Ordinal),
             new() { WaitUntil = WaitUntilState.Commit });
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Overview", Exact = true }))
             .ToBeVisibleAsync();
@@ -243,7 +244,6 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
             club.ClubId,
             cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(secondAdministratorClient, cancellationToken);
-
         await using var db = fixture.AppHost.CreateAdminContext();
         var normalizedActorEmail = actorEmail.ToUpperInvariant();
         var normalizedSecondAdministratorEmail = secondAdministratorEmail.ToUpperInvariant();
@@ -257,7 +257,7 @@ public sealed class AuthFlowBrowserTests(BrowserSuiteFixture fixture)
             .SingleAsync(cancellationToken);
 
         using var promotion = await actorClient.PostAsync(
-            ClubEndpoints.PromoteMemberUrl(secondAdministratorUserId),
+            new Uri(ClubEndpoints.PromoteMemberUrl(secondAdministratorUserId), UriKind.RelativeOrAbsolute),
             content: null,
             cancellationToken);
         promotion.StatusCode.ShouldBe(HttpStatusCode.NoContent);

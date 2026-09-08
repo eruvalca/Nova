@@ -1,5 +1,5 @@
 ﻿using Nova.Features.Photos;
-using Nova.Shared.Features.Photos;
+using Nova.SharedKernel.Features.Photos;
 using Shouldly;
 using SixLabors.ImageSharp;
 
@@ -23,7 +23,7 @@ public sealed class ImageVariantProcessorTests
     private const double AspectTolerance = 0.02;
 
     [Fact]
-    public void GenerateCrestVariants_FromNonSquareSource_ProducesSquareSmallVariant()
+    public void GenerateCrestVariantsFromNonSquareSourceProducesSquareSmallVariant()
     {
         var (small, _, _) = GenerateCrestVariantsFromSource();
 
@@ -33,7 +33,7 @@ public sealed class ImageVariantProcessorTests
     }
 
     [Fact]
-    public void GenerateCrestVariants_FromNonSquareSource_PreservesAspectForMediumVariant()
+    public void GenerateCrestVariantsFromNonSquareSourcePreservesAspectForMediumVariant()
     {
         var (_, medium, _) = GenerateCrestVariantsFromSource();
 
@@ -46,7 +46,7 @@ public sealed class ImageVariantProcessorTests
     }
 
     [Fact]
-    public void GenerateCrestVariants_FromNonSquareSource_PreservesAspectForLargeVariant()
+    public void GenerateCrestVariantsFromNonSquareSourcePreservesAspectForLargeVariant()
     {
         var (_, _, large) = GenerateCrestVariantsFromSource();
 
@@ -59,7 +59,7 @@ public sealed class ImageVariantProcessorTests
     }
 
     [Fact]
-    public void GenerateVariants_StillProducesSquares_ForProfilePhotos()
+    public void GenerateVariantsStillProducesSquaresForProfilePhotos()
     {
         var variants = ImageVariantProcessor.GenerateVariants(
             TestImages.CreateJpeg(SourceWidth, SourceHeight),

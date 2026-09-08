@@ -1,7 +1,7 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Campaigns;
 
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Campaigns;
 /// WebAssembly HTTP implementation of <see cref="ICampaignCreationService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpCampaignCreationService(HttpClient http) : ICampaignCreationService
+internal sealed class HttpCampaignCreationService(HttpClient http) : ICampaignCreationService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<CreateCampaignResult>> CreateAsync(

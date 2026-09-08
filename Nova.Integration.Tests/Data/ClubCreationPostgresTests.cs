@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -29,7 +29,7 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
     /// without replaying the insert, and the uploaded crest blobs are retained.
     /// </summary>
     [Fact]
-    public async Task Create_VerifiesCompleteClub_AfterAmbiguousCommitFailure()
+    public async Task CreateVerifiesCompleteClubAfterAmbiguousCommitFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedUserAsync(cancellationToken);
@@ -84,7 +84,7 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
     /// callback returns early without a context when the attempt never reached its commit.
     /// </summary>
     [Fact]
-    public async Task Create_RetriesFreshTransaction_AfterTransientSaveFailure()
+    public async Task CreateRetriesFreshTransactionAfterTransientSaveFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedUserAsync(cancellationToken);
@@ -130,7 +130,7 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
     /// club created by the same user for the same logical creation operation.
     /// </summary>
     [Fact]
-    public async Task ClubCreationOperationId_RejectsDuplicateWithinCreator()
+    public async Task ClubCreationOperationIdRejectsDuplicateWithinCreatorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedUserAsync(cancellationToken);
@@ -164,20 +164,23 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
     private async Task<ClubCreationSeed> SeedUserAsync(CancellationToken cancellationToken)
     {
         ActAs(userId: null, clubId: null);
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var securityStamp = Guid.NewGuid().ToString("N");
-        var concurrencyStamp = Guid.NewGuid().ToString("N");
-        var user = new NovaUserEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            FirstName = "Club",
-            LastName = $"Creator {suffix}",
-            SecurityStamp = securityStamp,
-            ConcurrencyStamp = concurrencyStamp,
-        };
-        db.Users.Add(user);
-        await db.SaveChangesAsync(cancellationToken);
-        return new ClubCreationSeed(user.Id, suffix, securityStamp, concurrencyStamp);
+            var suffix = Guid.NewGuid().ToString("N");
+            var securityStamp = Guid.NewGuid().ToString("N");
+            var concurrencyStamp = Guid.NewGuid().ToString("N");
+            var user = new NovaUserEntity
+            {
+                FirstName = "Club",
+                LastName = $"Creator {suffix}",
+                SecurityStamp = securityStamp,
+                ConcurrencyStamp = concurrencyStamp,
+            };
+            db.Users.Add(user);
+            await db.SaveChangesAsync(cancellationToken);
+            return new ClubCreationSeed(user.Id, suffix, securityStamp, concurrencyStamp);
+        }
     }
 
     /// <summary>
@@ -271,11 +274,13 @@ public sealed class ClubCreationPostgresTests(NovaAppHostFixture fixture)
     {
         var user = await db.Users.SingleAsync(candidate => candidate.Id == seed.UserId, cancellationToken);
         user.ClubId.ShouldBe(clubId);
-        user.SecurityStamp.ShouldNotBe(seed.SecurityStamp);
-        user.ConcurrencyStamp.ShouldNotBe(seed.ConcurrencyStamp);
+        user.SecurityStamp.ShouldNotBe(seed.SecurityStamp, StringComparer.Ordinal);
+        user.ConcurrencyStamp.ShouldNotBe(seed.ConcurrencyStamp, StringComparer.Ordinal);
 
         var administratorRoleId = await db.Roles
-            .Where(role => role.NormalizedName == Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            .Where(role => role.NormalizedName == SharedKernel.Security.Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(role => role.Id)
             .SingleAsync(cancellationToken);
         (await db.UserRoles.AnyAsync(

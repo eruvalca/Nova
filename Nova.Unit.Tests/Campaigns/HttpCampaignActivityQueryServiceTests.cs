@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -16,7 +16,7 @@ public sealed class HttpCampaignActivityQueryServiceTests
 {
     /// <summary>Verifies activity requests use the shared route and read a populated payload.</summary>
     [Fact]
-    public async Task GetActivityAsync_RequestsSharedRoute_AndReadsEvents()
+    public async Task GetActivityAsyncRequestsSharedRouteAndReadsEventsAsync()
     {
         HttpRequestMessage? capturedRequest = null;
         var payload = new CampaignActivityResult(
@@ -34,7 +34,7 @@ public sealed class HttpCampaignActivityQueryServiceTests
                 300,
                 "Admin A")
         ]);
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
@@ -49,16 +49,16 @@ public sealed class HttpCampaignActivityQueryServiceTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.Events.Count.ShouldBe(2);
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/activity");
+        capturedRequest.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/activity");
     }
 
     /// <summary>Verifies an explicit limit is emitted in the query string.</summary>
     [Fact]
-    public async Task GetActivityAsync_EmitsLimitQuery_WhenLimitProvided()
+    public async Task GetActivityAsyncEmitsLimitQueryWhenLimitProvidedAsync()
     {
         HttpRequestMessage? capturedRequest = null;
         var payload = new CampaignActivityResult([]);
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
@@ -72,7 +72,7 @@ public sealed class HttpCampaignActivityQueryServiceTests
 
         result.IsSuccess.ShouldBeTrue();
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/activity?limit=5");
+        capturedRequest.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/activity?limit=5");
     }
 
     /// <summary>Verifies invalid caller input is rejected before any HTTP request is made.</summary>
@@ -80,9 +80,9 @@ public sealed class HttpCampaignActivityQueryServiceTests
     [InlineData(0, null)]
     [InlineData(42, 0)]
     [InlineData(42, 51)]
-    public async Task GetActivityAsync_ReturnsValidation_ForInvalidInput(long campaignId, int? limit)
+    public async Task GetActivityAsyncReturnsValidationForInvalidInputAsync(long campaignId, int? limit)
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignCloseoutQueryService(http);
@@ -97,9 +97,9 @@ public sealed class HttpCampaignActivityQueryServiceTests
 
     /// <summary>Verifies non-success ProblemDetails responses retain their problem kind.</summary>
     [Fact]
-    public async Task GetActivityAsync_ReturnsNotFound_FromProblemDetails()
+    public async Task GetActivityAsyncReturnsNotFoundFromProblemDetailsAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
             {
                 Content = JsonContent.Create(new ProblemPayload(404, "Not Found", "A problem occurred."))
@@ -129,9 +129,9 @@ public sealed class HttpCampaignActivityQueryServiceTests
     [InlineData("""{"events":[{"campaignLifecycleEventId":1,"eventType":99,"createdAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A"}]}""")]
     [InlineData("""{"events":[{"campaignLifecycleEventId":1,"eventType":0,"createdAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":" "}]}""")]
     [InlineData("""{"events":[{"campaignLifecycleEventId":1,"eventType":0,"createdAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A"},{"campaignLifecycleEventId":2,"eventType":0,"createdAt":"2026-10-01T09:00:00+00:00","actorUserId":300,"actorDisplayName":"Admin A"}]}""")]
-    public async Task GetActivityAsync_ReturnsServerError_ForInvalidSuccessPayload(string body)
+    public async Task GetActivityAsyncReturnsServerErrorForInvalidSuccessPayloadAsync(string body)
     {
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));
@@ -148,14 +148,14 @@ public sealed class HttpCampaignActivityQueryServiceTests
 
     /// <summary>Verifies an over-bound success payload (more events than the requested limit) is rejected.</summary>
     [Fact]
-    public async Task GetActivityAsync_ReturnsServerError_ForOverBoundPayload()
+    public async Task GetActivityAsyncReturnsServerErrorForOverBoundPayloadAsync()
     {
         var payload = new CampaignActivityResult(
         [
             new CampaignActivityItemDto(1, CampaignLifecycleEventType.Closed, new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero), 300, "Admin A"),
             new CampaignActivityItemDto(2, CampaignLifecycleEventType.Closed, new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero), 300, "Admin A")
         ]);
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignCloseoutQueryService(http);

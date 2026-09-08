@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+﻿using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 
 namespace Nova.Client.Services.Teams;
@@ -8,7 +8,7 @@ namespace Nova.Client.Services.Teams;
 /// WebAssembly client implementation of <see cref="ITeamLifecycleService"/> that calls team lifecycle endpoints.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpTeamLifecycleService(HttpClient http) : ITeamLifecycleService
+internal sealed class HttpTeamLifecycleService(HttpClient http) : ITeamLifecycleService
 {
     /// <inheritdoc />
     public Task<ServiceResult<Success>> ArchiveAsync(
@@ -26,7 +26,7 @@ public sealed class HttpTeamLifecycleService(HttpClient http) : ITeamLifecycleSe
         string requestUri,
         CancellationToken cancellationToken)
     {
-        using var response = await http.PostAsync(requestUri, content: null, cancellationToken);
+        using var response = await http.PostAsync(new Uri(requestUri, UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

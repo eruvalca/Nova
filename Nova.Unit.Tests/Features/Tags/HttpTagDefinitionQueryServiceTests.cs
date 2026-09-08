@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services.Tags;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Tags;
@@ -27,13 +27,13 @@ public sealed class HttpTagDefinitionQueryServiceTests
         };
 
     [Fact]
-    public async Task GetManagementListAsync_SendsGetToManagementRoute_AndReadsList()
+    public async Task GetManagementListAsyncSendsGetToManagementRouteAndReadsListAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new TagDefinitionListResult { Items = [ValidDto()], HasMore = false })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetManagementListAsync(
@@ -48,13 +48,13 @@ public sealed class HttpTagDefinitionQueryServiceTests
     }
 
     [Fact]
-    public async Task GetManagementListAsync_SendsGetWithFilters()
+    public async Task GetManagementListAsyncSendsGetWithFiltersAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new TagDefinitionListResult { Items = [ValidDto()], HasMore = false })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetManagementListAsync(
@@ -66,13 +66,13 @@ public sealed class HttpTagDefinitionQueryServiceTests
     }
 
     [Fact]
-    public async Task GetChoicesAsync_SendsGetToChoicesRoute_AndReadsList()
+    public async Task GetChoicesAsyncSendsGetToChoicesRouteAndReadsListAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new List<TagDefinitionDto> { ValidDto() })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetChoicesAsync(
@@ -87,13 +87,13 @@ public sealed class HttpTagDefinitionQueryServiceTests
     /// Verifies invalid input is rejected client-side before any HTTP request is sent.
     /// </summary>
     [Fact]
-    public async Task GetManagementListAsync_ReturnsValidation_WhenInputInvalid()
+    public async Task GetManagementListAsyncReturnsValidationWhenInputInvalidAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new List<TagDefinitionDto>())
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetManagementListAsync(
@@ -113,13 +113,13 @@ public sealed class HttpTagDefinitionQueryServiceTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task GetManagementListAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task GetManagementListAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetManagementListAsync(
@@ -131,7 +131,7 @@ public sealed class HttpTagDefinitionQueryServiceTests
     }
 
     [Fact]
-    public async Task GetManagementListAsync_ReturnsServerError_WhenListExceedsBound()
+    public async Task GetManagementListAsyncReturnsServerErrorWhenListExceedsBoundAsync()
     {
         var rows = Enumerable.Range(1, TagDefinitionLimits.MaxTagDefinitions + 1)
             .Select(i => ValidDto(playerTagId: i, name: $"Tag{i}"))
@@ -140,7 +140,7 @@ public sealed class HttpTagDefinitionQueryServiceTests
         {
             Content = JsonContent.Create(new TagDefinitionListResult { Items = rows, HasMore = true })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetManagementListAsync(
@@ -152,13 +152,13 @@ public sealed class HttpTagDefinitionQueryServiceTests
     }
 
     [Fact]
-    public async Task GetManagementListAsync_ReturnsServerError_WhenRowInvariantIsInvalid()
+    public async Task GetManagementListAsyncReturnsServerErrorWhenRowInvariantIsInvalidAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new TagDefinitionListResult { Items = [ValidDto(playerTagId: 0)], HasMore = false })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetManagementListAsync(
@@ -173,13 +173,13 @@ public sealed class HttpTagDefinitionQueryServiceTests
     /// Verifies a management-list row whose lifecycle mismatches the requested view is rejected.
     /// </summary>
     [Fact]
-    public async Task GetManagementListAsync_ReturnsServerError_WhenRowLifecycleMismatchesView()
+    public async Task GetManagementListAsyncReturnsServerErrorWhenRowLifecycleMismatchesViewAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new TagDefinitionListResult { Items = [ValidDto(lifecycleStatus: LifecycleStatus.Active)], HasMore = false })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetManagementListAsync(
@@ -191,13 +191,13 @@ public sealed class HttpTagDefinitionQueryServiceTests
     }
 
     [Fact]
-    public async Task GetManagementListAsync_ReturnsServerError_WhenHasMoreButPageNotFull()
+    public async Task GetManagementListAsyncReturnsServerErrorWhenHasMoreButPageNotFullAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new TagDefinitionListResult { Items = [ValidDto()], HasMore = true })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetManagementListAsync(
@@ -212,13 +212,13 @@ public sealed class HttpTagDefinitionQueryServiceTests
     /// Verifies the choices read path rejects an archived row, since choices only ever returns active.
     /// </summary>
     [Fact]
-    public async Task GetChoicesAsync_ReturnsServerError_WhenChoiceIsArchived()
+    public async Task GetChoicesAsyncReturnsServerErrorWhenChoiceIsArchivedAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new List<TagDefinitionDto> { ValidDto(lifecycleStatus: LifecycleStatus.Archived) })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpTagDefinitionQueryService(http).GetChoicesAsync(

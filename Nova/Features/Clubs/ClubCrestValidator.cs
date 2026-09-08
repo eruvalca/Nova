@@ -1,5 +1,5 @@
 ﻿using Nova.Features.Photos;
-using Nova.Shared.Features.Photos;
+using Nova.SharedKernel.Features.Photos;
 
 namespace Nova.Features.Clubs;
 
@@ -8,7 +8,7 @@ namespace Nova.Features.Clubs;
 /// as profile photos (see <see cref="ProfilePhotoConstraints"/>), verifying the actual image
 /// format by sniffing magic bytes instead of trusting the supplied content type.
 /// </summary>
-public static class ClubCrestValidator
+internal static class ClubCrestValidator
 {
     /// <summary>
     /// Validates the supplied crest upload against <see cref="ProfilePhotoConstraints"/>.

@@ -1,6 +1,6 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -20,7 +20,7 @@ public sealed class UpdateCampaignPlacementInputValidationTests
     [InlineData(PlacementOutcome.Undecided, 10L)]
     [InlineData(PlacementOutcome.NotSelected, 10L)]
     [InlineData(PlacementOutcome.Withdrawn, 10L)]
-    public void Validate_ReturnsTeamError_ForInvalidOutcomeTeamMatrix(
+    public void ValidateReturnsTeamErrorForInvalidOutcomeTeamMatrix(
         PlacementOutcome outcome,
         long? teamId)
     {
@@ -39,7 +39,7 @@ public sealed class UpdateCampaignPlacementInputValidationTests
     [InlineData(PlacementOutcome.Assigned, 10L)]
     [InlineData(PlacementOutcome.NotSelected, null)]
     [InlineData(PlacementOutcome.Withdrawn, null)]
-    public void Validate_ReturnsNoErrors_ForValidOutcomeTeamMatrix(
+    public void ValidateReturnsNoErrorsForValidOutcomeTeamMatrix(
         PlacementOutcome outcome,
         long? teamId)
     {
@@ -53,7 +53,7 @@ public sealed class UpdateCampaignPlacementInputValidationTests
     /// Verifies technical enrollment cannot be saved as a decision or used to clear history.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsOutcomeError_ForUndecidedWithoutTeam()
+    public void ValidateReturnsOutcomeErrorForUndecidedWithoutTeam()
     {
         var errors = InputValidator.Validate(
             new UpdateCampaignPlacementInput(1, PlacementOutcome.Undecided, null, Guid.NewGuid()));
@@ -65,7 +65,7 @@ public sealed class UpdateCampaignPlacementInputValidationTests
     /// Verifies invalid scalar values remain represented by their existing field keys.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsAllScalarErrors_ForInvalidValues()
+    public void ValidateReturnsAllScalarErrorsForInvalidValues()
     {
         var errors = InputValidator.Validate(
             new UpdateCampaignPlacementInput(

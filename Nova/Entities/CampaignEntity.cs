@@ -1,5 +1,6 @@
-﻿using Nova.Entities.Base;
-using Nova.Shared.Enums;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Entities;
 
@@ -11,7 +12,7 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Campaign Id.
     /// </summary>
-    public long CampaignId { get; set; } = default;
+    public long CampaignId { get; set; }
 
     /// <summary>
     /// Gets or sets the caller-generated identifier for the logical campaign creation operation.
@@ -64,7 +65,7 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the End Date.
     /// </summary>
-    public DateOnly? EndDate { get; set; } = null;
+    public DateOnly? EndDate { get; set; }
 
     /// <summary>
     /// Gets or sets the campaign lifecycle status.
@@ -84,7 +85,9 @@ public class CampaignEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Player Assignments.
     /// </summary>
+#pragma warning disable CA2227 // EF relationship materialization and aggregate construction use this navigation setter.
     public ICollection<PlayerCampaignAssignmentEntity> PlayerAssignments { get; set; } = [];
+#pragma warning restore CA2227
 
     /// <summary>
     /// Gets or sets the Club Id.

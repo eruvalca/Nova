@@ -1,5 +1,5 @@
 ﻿using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -35,7 +35,7 @@ public sealed class TagDefinitionMutationReceiptTenancyTests : IDisposable
     /// Verifies mutation receipts are visible only to their owning club.
     /// </summary>
     [Fact]
-    public void TenantContext_FiltersMutationReceiptsToCurrentClub()
+    public void TenantContextFiltersMutationReceiptsToCurrentClub()
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
@@ -50,7 +50,7 @@ public sealed class TagDefinitionMutationReceiptTenancyTests : IDisposable
     /// Verifies the save interceptor rejects mutation receipts explicitly assigned to another tenant.
     /// </summary>
     [Fact]
-    public void TenantContext_RejectsCrossTenantMutationReceiptWrite()
+    public void TenantContextRejectsCrossTenantMutationReceiptWrite()
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
@@ -82,7 +82,9 @@ public sealed class TagDefinitionMutationReceiptTenancyTests : IDisposable
     /// <summary>
     /// Seeds one tag definition and one mutation receipt for each club.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

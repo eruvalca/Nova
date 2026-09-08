@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Tags;
-using Nova.Shared.Features.Tags;
+using Nova.SharedKernel.Features.Tags;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -15,7 +15,7 @@ namespace Nova.Integration.Tests.Data;
 public sealed class TagDefinitionSearchEscapingPostgresTests(NovaAppHostFixture fixture)
 {
     [Fact]
-    public async Task GetManagementList_Search_TreatsLikeMetacharactersAsLiterals()
+    public async Task GetManagementListSearchTreatsLikeMetacharactersAsLiteralsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(cancellationToken);
@@ -42,26 +42,31 @@ public sealed class TagDefinitionSearchEscapingPostgresTests(NovaAppHostFixture 
     private async Task<Seed> SeedAsync(CancellationToken cancellationToken)
     {
         ActAs(userId: null, clubId: null);
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+            var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
-        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Tag Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(cancellationToken);
+            var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Tag Escaping Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(cancellationToken);
 
-        var admin = new NovaUserEntity { FirstName = "A", LastName = "Admin", ClubId = club.ClubId };
-        db.Users.Add(admin);
-        db.PlayerTags.AddRange(
-            NewTag("50% Wins", club.ClubId, actorUserId),
-            NewTag("50 Losses", club.ClubId, actorUserId),
-            NewTag("a_b Squad", club.ClubId, actorUserId),
-            NewTag("axb Squad", club.ClubId, actorUserId),
-            NewTag(@"Path\Team", club.ClubId, actorUserId),
-            NewTag("PathTeam", club.ClubId, actorUserId));
-        await db.SaveChangesAsync(cancellationToken);
+            var admin = new NovaUserEntity { FirstName = "A", LastName = "Admin", ClubId = club.ClubId };
+            db.Users.Add(admin);
+            db.PlayerTags.AddRange(
+                NewTag("50% Wins", club.ClubId, actorUserId),
+                NewTag("50 Losses", club.ClubId, actorUserId),
+                NewTag("a_b Squad", club.ClubId, actorUserId),
+                NewTag("axb Squad", club.ClubId, actorUserId),
+                NewTag(@"Path\Team", club.ClubId, actorUserId),
+                NewTag("PathTeam", club.ClubId, actorUserId));
+            await db.SaveChangesAsync(cancellationToken);
 
-        return new Seed(club.ClubId, admin.Id);
+            return new Seed(club.ClubId, admin.Id);
+        }
     }
 
     private void ActAs(long? userId, long? clubId, bool isClubAdmin = false)

@@ -1,6 +1,6 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Players;
@@ -19,7 +19,7 @@ public sealed class CreatePlayerInputValidationTests
     };
 
     [Fact]
-    public void Validate_WithValidInput_ReturnsNoErrors()
+    public void ValidateWithValidInputReturnsNoErrors()
     {
         InputValidator.Validate(ValidInput()).ShouldBeEmpty();
     }
@@ -28,7 +28,7 @@ public sealed class CreatePlayerInputValidationTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Validate_WithBlankFirstName_ReturnsError(string? firstName)
+    public void ValidateWithBlankFirstNameReturnsError(string? firstName)
     {
         var input = ValidInput() with { FirstName = firstName! };
         var errors = InputValidator.Validate(input);
@@ -39,7 +39,7 @@ public sealed class CreatePlayerInputValidationTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Validate_WithBlankLastName_ReturnsError(string? lastName)
+    public void ValidateWithBlankLastNameReturnsError(string? lastName)
     {
         var input = ValidInput() with { LastName = lastName! };
         var errors = InputValidator.Validate(input);
@@ -47,7 +47,7 @@ public sealed class CreatePlayerInputValidationTests
     }
 
     [Fact]
-    public void Validate_WithFirstNameExceedingMaxLength_ReturnsError()
+    public void ValidateWithFirstNameExceedingMaxLengthReturnsError()
     {
         var input = ValidInput() with { FirstName = new string('x', 101) };
         var errors = InputValidator.Validate(input);
@@ -55,7 +55,7 @@ public sealed class CreatePlayerInputValidationTests
     }
 
     [Fact]
-    public void Validate_WithLastNameExceedingMaxLength_ReturnsError()
+    public void ValidateWithLastNameExceedingMaxLengthReturnsError()
     {
         var input = ValidInput() with { LastName = new string('x', 101) };
         var errors = InputValidator.Validate(input);
@@ -65,7 +65,7 @@ public sealed class CreatePlayerInputValidationTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999)]
     [InlineData(2101)]
-    public void Validate_WithOutOfRangeGraduationYear_ReturnsError(int year)
+    public void ValidateWithOutOfRangeGraduationYearReturnsError(int year)
     {
         var input = ValidInput() with { GraduationYear = year };
         var errors = InputValidator.Validate(input);
@@ -76,7 +76,7 @@ public sealed class CreatePlayerInputValidationTests
     [InlineData(2000)]
     [InlineData(2050)]
     [InlineData(2100)]
-    public void Validate_WithValidGraduationYear_ReturnsNoError(int year)
+    public void ValidateWithValidGraduationYearReturnsNoError(int year)
     {
         var input = ValidInput() with { GraduationYear = year };
         InputValidator.Validate(input).ShouldBeEmpty();
@@ -85,7 +85,7 @@ public sealed class CreatePlayerInputValidationTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(-1)]
     [InlineData(10000)]
-    public void Validate_WithOutOfRangeJerseyNumber_ReturnsError(int jersey)
+    public void ValidateWithOutOfRangeJerseyNumberReturnsError(int jersey)
     {
         var input = ValidInput() with { JerseyNumber = jersey };
         var errors = InputValidator.Validate(input);
@@ -96,21 +96,21 @@ public sealed class CreatePlayerInputValidationTests
     [InlineData(0)]
     [InlineData(99)]
     [InlineData(9999)]
-    public void Validate_WithValidJerseyNumber_ReturnsNoError(int jersey)
+    public void ValidateWithValidJerseyNumberReturnsNoError(int jersey)
     {
         var input = ValidInput() with { JerseyNumber = jersey };
         InputValidator.Validate(input).ShouldBeEmpty();
     }
 
     [Fact]
-    public void Validate_WithNullGenderAndNullJerseyNumber_ReturnsNoErrors()
+    public void ValidateWithNullGenderAndNullJerseyNumberReturnsNoErrors()
     {
         var input = ValidInput() with { Gender = null, JerseyNumber = null };
         InputValidator.Validate(input).ShouldBeEmpty();
     }
 
     [Fact]
-    public void Validate_WithAllOptionalFieldsSet_ReturnsNoErrors()
+    public void ValidateWithAllOptionalFieldsSetReturnsNoErrors()
     {
         var input = ValidInput() with { Gender = Gender.Male, JerseyNumber = 10 };
         InputValidator.Validate(input).ShouldBeEmpty();

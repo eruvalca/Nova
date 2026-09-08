@@ -1,6 +1,6 @@
 ﻿using Nova.Features.Activity;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Activity;
@@ -32,7 +32,7 @@ public sealed class ActivityEventPolicyTests
     [InlineData(ActivityEventKind.MemberLeft, "Membership")]
     [InlineData(ActivityEventKind.MemberPromoted, "MemberRole")]
     [InlineData(ActivityEventKind.MemberDemoted, "MemberRole")]
-    public void FamilyFor_ReturnsDocumentedFamily(ActivityEventKind kind, string family)
+    public void FamilyForReturnsDocumentedFamily(ActivityEventKind kind, string family)
     {
         ActivityEventPolicy.FamilyFor(kind).ToString().ShouldBe(family);
     }
@@ -58,14 +58,14 @@ public sealed class ActivityEventPolicyTests
     [InlineData(ActivityEventKind.MemberLeft, false)]
     [InlineData(ActivityEventKind.MemberPromoted, false)]
     [InlineData(ActivityEventKind.MemberDemoted, false)]
-    public void IsAdminOnly_ReturnsDocumentedVisibility(ActivityEventKind kind, bool expected)
+    public void IsAdminOnlyReturnsDocumentedVisibility(ActivityEventKind kind, bool expected)
     {
         ActivityEventPolicy.IsAdminOnly(kind).ShouldBe(expected);
     }
 
     /// <summary>Verifies an unchanged save emits no placement event.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsNull_WhenNothingChanged()
+    public void ClassifyPlacementTransitionReturnsNullWhenNothingChanged()
     {
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
             PlacementOutcome.Assigned, 5, PlacementOutcome.Assigned, 5);
@@ -75,7 +75,7 @@ public sealed class ActivityEventPolicyTests
 
     /// <summary>Verifies a team change within the same campaign is a reassignment.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsReassigned_WhenTeamChangesInsideSameCampaign()
+    public void ClassifyPlacementTransitionReturnsReassignedWhenTeamChangesInsideSameCampaign()
     {
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
             PlacementOutcome.Assigned, 5, PlacementOutcome.Assigned, 6);
@@ -85,7 +85,7 @@ public sealed class ActivityEventPolicyTests
 
     /// <summary>Verifies removing a team from an assigned placement emits no event.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsNull_WhenTeamIsRemovedFromAssigned()
+    public void ClassifyPlacementTransitionReturnsNullWhenTeamIsRemovedFromAssigned()
     {
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
             PlacementOutcome.Assigned, 5, PlacementOutcome.Assigned, null);
@@ -95,7 +95,7 @@ public sealed class ActivityEventPolicyTests
 
     /// <summary>Verifies an undecided-to-assigned transition is a fresh assignment.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsAssigned_WhenUndecidedBecomesAssigned()
+    public void ClassifyPlacementTransitionReturnsAssignedWhenUndecidedBecomesAssigned()
     {
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
             PlacementOutcome.Undecided, null, PlacementOutcome.Assigned, 5);
@@ -105,7 +105,7 @@ public sealed class ActivityEventPolicyTests
 
     /// <summary>Verifies a previously unknown outcome becoming assigned is treated as an assignment.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsAssigned_WhenPreviousOutcomeWasUndefined()
+    public void ClassifyPlacementTransitionReturnsAssignedWhenPreviousOutcomeWasUndefined()
     {
         // (PlacementOutcome)99 is not defined; the policy treats it like a first assignment.
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
@@ -117,7 +117,7 @@ public sealed class ActivityEventPolicyTests
     /// <summary>Verifies an assignment outcome change (for example, Withdrawn reverted to Assigned)
     /// is an outcome replacement.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsOutcomeReplaced_WhenOutcomeChangesAndNoTeamChanges()
+    public void ClassifyPlacementTransitionReturnsOutcomeReplacedWhenOutcomeChangesAndNoTeamChanges()
     {
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
             PlacementOutcome.Withdrawn, null, PlacementOutcome.Assigned, null);
@@ -127,7 +127,7 @@ public sealed class ActivityEventPolicyTests
 
     /// <summary>Verifies an outcome change accompanied by a team change stays an outcome replacement.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsOutcomeReplaced_WhenTeamAlsoChanges()
+    public void ClassifyPlacementTransitionReturnsOutcomeReplacedWhenTeamAlsoChanges()
     {
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
             PlacementOutcome.Withdrawn, null, PlacementOutcome.Assigned, 5);
@@ -137,7 +137,7 @@ public sealed class ActivityEventPolicyTests
 
     /// <summary>Verifies a move to NotSelected yields the dedicated kind.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsNotSelected_WhenOutcomeBecomesNotSelected()
+    public void ClassifyPlacementTransitionReturnsNotSelectedWhenOutcomeBecomesNotSelected()
     {
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
             PlacementOutcome.Undecided, null, PlacementOutcome.NotSelected, null);
@@ -147,7 +147,7 @@ public sealed class ActivityEventPolicyTests
 
     /// <summary>Verifies a move to Withdrawn yields the dedicated kind.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsWithdrawn_WhenOutcomeBecomesWithdrawn()
+    public void ClassifyPlacementTransitionReturnsWithdrawnWhenOutcomeBecomesWithdrawn()
     {
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
             PlacementOutcome.Assigned, 5, PlacementOutcome.Withdrawn, null);
@@ -157,7 +157,7 @@ public sealed class ActivityEventPolicyTests
 
     /// <summary>Verifies an unknown outcome change is recorded as a replaced outcome.</summary>
     [Fact]
-    public void ClassifyPlacementTransition_ReturnsOutcomeReplaced_ForUnknownOutcome()
+    public void ClassifyPlacementTransitionReturnsOutcomeReplacedForUnknownOutcome()
     {
         var result = ActivityEventPolicy.ClassifyPlacementTransition(
             PlacementOutcome.Undecided, null, (PlacementOutcome)99, null);
@@ -172,7 +172,7 @@ public sealed class ActivityEventPolicyTests
     [InlineData(ActivityEventKind.JoinRequestRejected)]
     [InlineData(ActivityEventKind.MemberJoined)]
     [InlineData(ActivityEventKind.MemberPromoted)]
-    public void ContextMatchesKind_ReturnsTrue_WhenFamiliesMatch(ActivityEventKind kind)
+    public void ContextMatchesKindReturnsTrueWhenFamiliesMatch(ActivityEventKind kind)
     {
         var context = kind switch
         {
@@ -212,7 +212,7 @@ public sealed class ActivityEventPolicyTests
 
     /// <summary>Verifies a context from a different family is rejected.</summary>
     [Fact]
-    public void ContextMatchesKind_ReturnsFalse_WhenFamiliesDiffer()
+    public void ContextMatchesKindReturnsFalseWhenFamiliesDiffer()
     {
         var context = new JoinRequestContext
         {

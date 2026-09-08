@@ -8,10 +8,10 @@ using Microsoft.Extensions.Options;
 using Nova.Components.Account;
 using Nova.Entities;
 using Nova.Features.Account;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using Shouldly;
 
@@ -21,9 +21,10 @@ namespace Nova.Integration.Tests.Data;
 [Collection(NovaAppHostCollection.Name)]
 public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
 {
+    private static readonly JsonSerializerOptions _caseInsensitiveJsonOptions = new() { PropertyNameCaseInsensitive = true };
     /// <summary>Verifies a transient pre-commit failure retries the complete promotion atomically.</summary>
     [Fact]
-    public async Task Promote_RetriesCompleteAggregate_AfterTransientSaveFailure()
+    public async Task PromoteRetriesCompleteAggregateAfterTransientSaveFailureAsync()
     {
         var interceptor = new FailFirstSaveChangesInterceptor();
 
@@ -32,7 +33,7 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies a lost commit acknowledgement is recovered through the immutable receipt.</summary>
     [Fact]
-    public async Task Promote_VerifiesCompleteAggregate_AfterAmbiguousCommitFailure()
+    public async Task PromoteVerifiesCompleteAggregateAfterAmbiguousCommitFailureAsync()
     {
         var interceptor = new FailFirstCommittedTransactionInterceptor();
 
@@ -44,12 +45,14 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
     /// longer exists, so FK-less commit proof cannot accumulate indefinitely after club deletion.
     /// </summary>
     [Fact]
-    public async Task Promote_PrunesExpiredReceiptForDeletedClub()
+    public async Task PromotePrunesExpiredReceiptForDeletedClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(cancellationToken);
         var expiredOperationId = Guid.CreateVersion7();
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var setup = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var expiredReceipt = new ClubMembershipMutationReceiptEntity
             {
@@ -95,7 +98,9 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
     /// <param name="interceptor">The transient failure interceptor applied to retry contexts.</param>
     /// <param name="failureCount">Returns the number of injected failures.</param>
     /// <returns>A task representing the assertion.</returns>
+#pragma warning disable MA0051 // Keep this test scenario's setup, action, and assertions together so its invariant is reviewable.
     private async Task AssertPromotedExactlyOnceAsync(IInterceptor interceptor, Func<int> failureCount)
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(cancellationToken);
@@ -121,38 +126,43 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
 
         result.IsSuccess.ShouldBeTrue();
         failureCount().ShouldBe(1);
-        await using var verify = fixture.CreateAdminContext();
-        var administratorRoleId = await verify.Roles
+        var verify = fixture.CreateAdminContext();
+        await using (verify)
+        {
+            var administratorRoleId = await verify.Roles
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(role => role.Id)
             .SingleAsync(cancellationToken);
-        (await verify.UserRoles.CountAsync(
-            role => role.UserId == seed.MemberUserId && role.RoleId == administratorRoleId,
-            cancellationToken)).ShouldBe(1);
+            (await verify.UserRoles.CountAsync(
+                role => role.UserId == seed.MemberUserId && role.RoleId == administratorRoleId,
+                cancellationToken)).ShouldBe(1);
 
-        var member = await verify.Users.SingleAsync(user => user.Id == seed.MemberUserId, cancellationToken);
-        member.ClubId.ShouldBe(seed.ClubId);
-        member.SecurityStamp.ShouldNotBe(seed.OriginalSecurityStamp);
-        member.ConcurrencyStamp.ShouldNotBe(seed.OriginalConcurrencyStamp);
+            var member = await verify.Users.SingleAsync(user => user.Id == seed.MemberUserId, cancellationToken);
+            member.ClubId.ShouldBe(seed.ClubId);
+            member.SecurityStamp.ShouldNotBe(seed.OriginalSecurityStamp, StringComparer.Ordinal);
+            member.ConcurrencyStamp.ShouldNotBe(seed.OriginalConcurrencyStamp, StringComparer.Ordinal);
 
-        var events = await verify.ActivityEvents
-            .Where(activity => activity.ClubId == seed.ClubId
-                && activity.EventKind == ActivityEventKind.MemberPromoted)
-            .ToListAsync(cancellationToken);
-        events.Count.ShouldBe(1);
-        var payload = JsonSerializer.Deserialize<MemberRoleContext>(
-            events[0].PayloadJson,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        payload.ShouldNotBeNull();
-        payload.MemberUserId.ShouldBe(seed.MemberUserId);
+            var events = await verify.ActivityEvents
+                .Where(activity => activity.ClubId == seed.ClubId
+                    && activity.EventKind == ActivityEventKind.MemberPromoted)
+                .ToListAsync(cancellationToken);
+            events.Count.ShouldBe(1);
+            var payload = JsonSerializer.Deserialize<MemberRoleContext>(
+                events[0].PayloadJson,
+                _caseInsensitiveJsonOptions);
+            payload.ShouldNotBeNull();
+            payload.MemberUserId.ShouldBe(seed.MemberUserId);
 
-        var receipts = await verify.ClubMembershipMutationReceipts
-            .Where(receipt => receipt.ClubId == seed.ClubId
-                && receipt.MemberUserId == seed.MemberUserId
-                && receipt.MutationKind == "Promote")
-            .ToListAsync(cancellationToken);
-        receipts.Count.ShouldBe(1);
-        receipts[0].OperationId.ShouldNotBe(Guid.Empty);
+            var receipts = await verify.ClubMembershipMutationReceipts
+                .Where(receipt => receipt.ClubId == seed.ClubId
+                    && receipt.MemberUserId == seed.MemberUserId
+                    && receipt.MutationKind == "Promote")
+                .ToListAsync(cancellationToken);
+            receipts.Count.ShouldBe(1);
+            receipts[0].OperationId.ShouldNotBe(Guid.Empty);
+        }
     }
 
     /// <summary>Seeds a club administrator and regular member for one isolated promotion.</summary>
@@ -163,38 +173,43 @@ public sealed class ClubMembershipMutationRetryTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.UserId = null;
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var admin = new NovaUserEntity { FirstName = "Retry", LastName = $"Admin {suffix}" };
-        var member = new NovaUserEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            FirstName = "Retry",
-            LastName = $"Member {suffix}",
-            SecurityStamp = Guid.NewGuid().ToString("N"),
-        };
-        db.Users.AddRange(admin, member);
-        await db.SaveChangesAsync(cancellationToken);
+            var suffix = Guid.NewGuid().ToString("N");
+            var admin = new NovaUserEntity { FirstName = "Retry", LastName = $"Admin {suffix}" };
+            var member = new NovaUserEntity
+            {
+                FirstName = "Retry",
+                LastName = $"Member {suffix}",
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+            };
+            db.Users.AddRange(admin, member);
+            await db.SaveChangesAsync(cancellationToken);
 
-        var club = new ClubEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Membership Retry Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = admin.Id,
-        };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(cancellationToken);
-        admin.ClubId = club.ClubId;
-        member.ClubId = club.ClubId;
-        var administratorRoleId = await db.Roles
-            .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
-            .Select(role => role.Id)
-            .SingleAsync(cancellationToken);
-        db.UserRoles.Add(new IdentityUserRole<long> { UserId = admin.Id, RoleId = administratorRoleId });
-        await db.SaveChangesAsync(cancellationToken);
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Membership Retry Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = admin.Id,
+            };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(cancellationToken);
+            admin.ClubId = club.ClubId;
+            member.ClubId = club.ClubId;
+            var administratorRoleId = await db.Roles
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+                .Where(role => role.NormalizedName == Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning restore CA1862
+                .Select(role => role.Id)
+                .SingleAsync(cancellationToken);
+            db.UserRoles.Add(new IdentityUserRole<long> { UserId = admin.Id, RoleId = administratorRoleId });
+            await db.SaveChangesAsync(cancellationToken);
 
-        return new Seed(club.ClubId, admin.Id, member.Id, member.SecurityStamp!, member.ConcurrencyStamp!);
+            return new Seed(club.ClubId, admin.Id, member.Id, member.SecurityStamp, member.ConcurrencyStamp!);
+        }
     }
 
     /// <summary>Creates substituted Identity managers required by the service constructor.</summary>

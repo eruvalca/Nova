@@ -7,7 +7,7 @@ namespace Nova.Data.Configurations;
 /// <summary>
 /// Configures EF Core mapping for campaign tag application removal receipts.
 /// </summary>
-public class CampaignTagApplicationRemovalReceiptEntityConfiguration : IEntityTypeConfiguration<CampaignTagApplicationRemovalReceiptEntity>
+internal class CampaignTagApplicationRemovalReceiptEntityConfiguration : IEntityTypeConfiguration<CampaignTagApplicationRemovalReceiptEntity>
 {
     /// <summary>
     /// Executes the configure operation.

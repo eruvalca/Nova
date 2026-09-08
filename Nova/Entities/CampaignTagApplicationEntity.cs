@@ -1,4 +1,5 @@
-﻿using Nova.Entities.Base;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
 
 namespace Nova.Entities;
 
@@ -10,7 +11,7 @@ public class CampaignTagApplicationEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the campaign tag application identifier.
     /// </summary>
-    public long CampaignTagApplicationId { get; set; } = default;
+    public long CampaignTagApplicationId { get; set; }
 
     /// <summary>
     /// Gets or sets the campaign participation identifier receiving the tag.

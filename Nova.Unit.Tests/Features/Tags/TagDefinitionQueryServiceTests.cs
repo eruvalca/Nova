@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Tags;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -36,7 +36,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task GetManagementListAsync_ReturnsAll_WhenNoFilter()
+    public async Task GetManagementListAsyncReturnsAllWhenNoFilterAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -49,7 +49,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetManagementListAsync_ReturnsOnlyActive_WhenActiveFilter()
+    public async Task GetManagementListAsyncReturnsOnlyActiveWhenActiveFilterAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -61,7 +61,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetManagementListAsync_ReturnsOnlyArchived_WhenArchivedFilter()
+    public async Task GetManagementListAsyncReturnsOnlyArchivedWhenArchivedFilterAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -73,7 +73,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetManagementListAsync_FiltersCaseInsensitiveSearch()
+    public async Task GetManagementListAsyncFiltersCaseInsensitiveSearchAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
 
@@ -85,7 +85,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetManagementListAsync_ReturnsForbidden_ForNonAdmin()
+    public async Task GetManagementListAsyncReturnsForbiddenForNonAdminAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
 
@@ -97,7 +97,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetManagementListAsync_ReturnsForbidden_WhenCallerHasNoClub()
+    public async Task GetManagementListAsyncReturnsForbiddenWhenCallerHasNoClubAsync()
     {
         ActAs(ClubAAdminId, clubId: null, isAdmin: true);
 
@@ -109,7 +109,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetChoicesAsync_ReturnsOnlyActive_ForClubMember()
+    public async Task GetChoicesAsyncReturnsOnlyActiveForClubMemberAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
 
@@ -121,7 +121,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetChoicesAsync_ReturnsForbidden_WhenCallerHasNoClub()
+    public async Task GetChoicesAsyncReturnsForbiddenWhenCallerHasNoClubAsync()
     {
         ActAs(ClubAMemberId, clubId: null, isAdmin: false);
 
@@ -132,7 +132,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetChoicesAsync_ExcludesCrossTenantTags()
+    public async Task GetChoicesAsyncExcludesCrossTenantTagsAsync()
     {
         ActAs(ClubBMemberId, ClubBId, isAdmin: false);
 
@@ -144,7 +144,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetManagementListAsync_ReturnsAtMostHundredRows_WhenClubHasMore()
+    public async Task GetManagementListAsyncReturnsAtMostHundredRowsWhenClubHasMoreAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         SeedExtraActiveTags(150);
@@ -158,7 +158,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetManagementListAsync_HasMoreIsFalse_WhenExactlyAtTheCap()
+    public async Task GetManagementListAsyncHasMoreIsFalseWhenExactlyAtTheCapAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isAdmin: true);
         // Club A is seeded with three tags; topping up to exactly the cap must not set HasMore.
@@ -173,7 +173,7 @@ public sealed class TagDefinitionQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetChoicesAsync_ReturnsAtMostHundredActiveRows_WhenClubHasMore()
+    public async Task GetChoicesAsyncReturnsAtMostHundredActiveRowsWhenClubHasMoreAsync()
     {
         ActAs(ClubAMemberId, ClubAId, isAdmin: false);
         SeedExtraActiveTags(150);

@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Nova.Entities;
 using Nova.Entities.Base;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Data.Interceptors;
 
@@ -12,7 +12,7 @@ namespace Nova.Data.Interceptors;
 /// writes on <see cref="ITenantOwnedEntity"/> entries. Tenant guarding is skipped for
 /// contexts with the tenant filter bypassed (admin); audit stamping always applies.
 /// </summary>
-public sealed class TenantSaveChangesInterceptor : SaveChangesInterceptor
+internal sealed class TenantSaveChangesInterceptor : SaveChangesInterceptor
 {
     /// <inheritdoc />
     public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
@@ -103,7 +103,7 @@ public sealed class TenantSaveChangesInterceptor : SaveChangesInterceptor
                 break;
             case EntityState.Added or EntityState.Modified or EntityState.Deleted when entity.ClubId != tenantId:
                 throw new InvalidOperationException(
-                    $"Cross-tenant write detected for '{entry.Metadata.ClrType.Name}': entity ClubId {entity.ClubId} does not match current tenant {tenantId?.ToString() ?? "(none)"}.");
+                    $"Cross-tenant write detected for '{entry.Metadata.ClrType.Name}': entity ClubId {entity.ClubId} does not match current tenant {tenantId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(none)"}.");
         }
     }
 

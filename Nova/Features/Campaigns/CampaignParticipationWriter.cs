@@ -1,6 +1,6 @@
 ﻿using Nova.Data;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Features.Campaigns;
 

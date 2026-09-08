@@ -2,7 +2,7 @@
 @rendermode InteractiveAuto
 @attribute [Authorize(Policy = Policies.RequireClubAdmin)]
 @using Microsoft.AspNetCore.Authorization
-@using Nova.Shared.Security
+@using Nova.SharedKernel.Security
 @using Nova.UI.Features.Campaigns.Components
 
 <PageTitle>Create campaign</PageTitle>
@@ -14,7 +14,10 @@ FORM: Main-column form; opening review belongs to the saved Draft. -->
 
 <div class="container py-4">
     <div class="mb-3">
-        <a href="/campaigns" class="text-decoration-none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m12 19-7-7 7-7M5 12h14" /></svg> Back to campaigns</a>
+        <a href="/campaigns" class="text-decoration-none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                               stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+            <path d="m12 19-7-7 7-7M5 12h14" />
+        </svg> Back to campaigns</a>
     </div>
 
     <h1 class="mb-3">Create campaign</h1>
@@ -42,7 +45,8 @@ FORM: Main-column form; opening review belongs to the saved Draft. -->
             <div class="card-body">
                 <h2 class="h6 mb-2">Current enrollment preview</h2>
                 <p class="mb-1">
-                    <strong>@_setup.ActivePlayerCount</strong> active @(_setup.ActivePlayerCount == 1 ? "player" : "players") will enroll when you open the campaign.
+                    <strong>@_setup.ActivePlayerCount</strong> active @(_setup.ActivePlayerCount == 1 ? "player" :
+                        "players") will enroll when you open the campaign.
                 </p>
                 <p class="mb-0">
                     <strong>@_setup.ActiveTeamCount</strong> active @(_setup.ActiveTeamCount == 1 ? "team" : "teams") will be available for placement.
@@ -57,26 +61,22 @@ FORM: Main-column form; opening review belongs to the saved Draft. -->
 
         @if (_pending is not null)
         {
-            <div class="alert alert-warning" role="status">A previous creation request needs confirmation. Your original input is preserved.
+            <div class="alert alert-warning" role="status">A previous creation request needs confirmation. Your original input
+                is preserved.
                 <button class="btn btn-primary" disabled="@(_isSubmitting || !_sessionReady)" @onclick="RecoverAsync">Confirm creation result</button>
-            </div>
+                </div>
+            }
+            @if (_storageSaveFailed)
+            {
+                <button type="button" class="btn btn-outline-primary mb-3" disabled="@_isSubmitting"
+                        @onclick="RetryStorageAsync">Retry recovery storage</button>
+            }
+            <fieldset disabled="@(!_sessionReady || _pending is not null)">
+                <CampaignCreateForm Heading="Campaign details" Model="_createForm"
+                                    Seasons="@(_setup.CurrentSeason is null ? [] : [_setup.CurrentSeason])"
+                                    AllowInlineSeasonCreation="@(_setup.CurrentSeason is null)" SubmitButtonText="Create campaign"
+                                    IsSubmitting="_isSubmitting" ErrorMessage="@_formError" ServerErrors="_fieldErrors"
+                                    OnChanged="SaveInputAsync" OnValidSubmit="CreateCampaignAsync" OnCancel="Cancel" />
+            </fieldset>
         }
-        @if (_storageSaveFailed)
-        {
-            <button type="button" class="btn btn-outline-primary mb-3" disabled="@_isSubmitting" @onclick="RetryStorageAsync">Retry recovery storage</button>
-        }
-        <fieldset disabled="@(!_sessionReady || _pending is not null)">
-        <CampaignCreateForm Heading="Campaign details"
-                            Model="_createForm"
-                            Seasons="@(_setup.CurrentSeason is null ? [] : [_setup.CurrentSeason])"
-                            AllowInlineSeasonCreation="@(_setup.CurrentSeason is null)"
-                            SubmitButtonText="Create campaign"
-                            IsSubmitting="_isSubmitting"
-                            ErrorMessage="@_formError"
-                            ServerErrors="_fieldErrors"
-                            OnChanged="SaveInputAsync"
-                            OnValidSubmit="CreateCampaignAsync"
-                            OnCancel="Cancel" />
-        </fieldset>
-    }
-</div>
+    </div>

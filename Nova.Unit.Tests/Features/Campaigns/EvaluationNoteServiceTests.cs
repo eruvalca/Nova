@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -20,7 +20,7 @@ file sealed class HarnessDbContextFactory(TenancyTestHarness harness) : IDbConte
     public NovaDbContext CreateDbContext() => harness.CreateTenantContext();
 
     /// <inheritdoc />
-    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
+    public Task<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(harness.CreateTenantContext());
 }
 
@@ -57,7 +57,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that a club member can add a note to an Active campaign participation.</summary>
     [Fact]
-    public async Task Add_Succeeds_ForClubMember()
+    public async Task AddSucceedsForClubMemberAsync()
     {
         ActAs(ClubAMember1Id, ClubAId);
         var sut = CreateService();
@@ -72,17 +72,17 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         result.AsT0.NoteId.ShouldBeGreaterThan(0);
 
         using var db = _harness.CreateAdminContext();
-        var addedNote = db.Notes
+        var addedNote = await db.Notes
             .Where(note => note.PlayerCampaignAssignmentId == _assignmentId && note.Content == "Good footwork.")
             .OrderByDescending(note => note.NoteId)
-            .First();
+            .FirstAsync(TestContext.Current.CancellationToken);
         addedNote.ClubId.ShouldBe(ClubAId);
         addedNote.CreatedById.ShouldBe(ClubAMember1Id);
     }
 
     /// <summary>Verifies that an unauthenticated caller cannot add a note.</summary>
     [Fact]
-    public async Task Add_ReturnsForbidden_ForAnonymousUser()
+    public async Task AddReturnsForbiddenForAnonymousUserAsync()
     {
         ActAs(userId: null, clubId: null);
         var sut = CreateService();
@@ -98,7 +98,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that a user with no club cannot add a note.</summary>
     [Fact]
-    public async Task Add_ReturnsForbidden_ForUserWithoutClub()
+    public async Task AddReturnsForbiddenForUserWithoutClubAsync()
     {
         ActAs(userId: 999, clubId: null);
         var sut = CreateService();
@@ -114,7 +114,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that adding to a participation from another club returns NotFound.</summary>
     [Fact]
-    public async Task Add_ReturnsNotFound_ForCrossTenantAssignment()
+    public async Task AddReturnsNotFoundForCrossTenantAssignmentAsync()
     {
         ActAs(ClubBMemberId, ClubBId);
         var sut = CreateService();
@@ -130,7 +130,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that adding to a Closed campaign participation returns a conflict.</summary>
     [Fact]
-    public async Task Add_ReturnsConflict_ForClosedCampaign()
+    public async Task AddReturnsConflictForClosedCampaignAsync()
     {
         ActAs(ClubAMember1Id, ClubAId);
         var sut = CreateService();
@@ -149,7 +149,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     /// Verifies a Draft campaign rejects note creation without adding a note, mutation receipt, or activity event.
     /// </summary>
     [Fact]
-    public async Task Add_ReturnsConflictWithoutWritesOrActivity_ForDraftCampaign()
+    public async Task AddReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(_assignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -174,7 +174,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that blank content fails validation.</summary>
     [Fact]
-    public async Task Add_ReturnsValidationError_ForBlankContent()
+    public async Task AddReturnsValidationErrorForBlankContentAsync()
     {
         ActAs(ClubAMember1Id, ClubAId);
         var sut = CreateService();
@@ -192,13 +192,13 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that the original author can edit their own note.</summary>
     [Fact]
-    public async Task Edit_Succeeds_ForAuthor()
+    public async Task EditSucceedsForAuthorAsync()
     {
         // Note was created by ClubAMember1Id (see Seed)
         ActAs(ClubAMember1Id, ClubAId);
         var sut = CreateService();
         using var originalDb = _harness.CreateAdminContext();
-        var originalNote = originalDb.Notes.Single(note => note.NoteId == _existingNoteId);
+        var originalNote = (await originalDb.Notes.SingleAsync(note => note.NoteId == _existingNoteId, TestContext.Current.CancellationToken));
         var originalCreatedById = originalNote.CreatedById;
 
         var result = await sut.EditAsync(new EditEvaluationNoteInput
@@ -210,7 +210,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
         result.IsT0.ShouldBeTrue(); // Success
 
         using var db = _harness.CreateAdminContext();
-        var editedNote = db.Notes.Single(note => note.NoteId == _existingNoteId);
+        var editedNote = (await db.Notes.SingleAsync(note => note.NoteId == _existingNoteId, TestContext.Current.CancellationToken));
         editedNote.Content.ShouldBe("Updated content.");
         editedNote.CreatedById.ShouldBe(originalCreatedById);
         editedNote.ModifiedAt.ShouldNotBeNull();
@@ -219,7 +219,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that a club administrator can edit any note in their club.</summary>
     [Fact]
-    public async Task Edit_Succeeds_ForClubAdmin()
+    public async Task EditSucceedsForClubAdminAsync()
     {
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
         var sut = CreateService();
@@ -235,7 +235,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that a non-author, non-admin club member cannot edit the note.</summary>
     [Fact]
-    public async Task Edit_ReturnsForbidden_ForNonAuthorNonAdmin()
+    public async Task EditReturnsForbiddenForNonAuthorNonAdminAsync()
     {
         ActAs(ClubAMember2Id, ClubAId, isClubAdmin: false);
         var sut = CreateService();
@@ -251,7 +251,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that editing a note whose campaign is closed returns a conflict.</summary>
     [Fact]
-    public async Task Edit_ReturnsConflict_ForClosedCampaign()
+    public async Task EditReturnsConflictForClosedCampaignAsync()
     {
         var closedNoteId = SeedNote(_closedAssignmentId, ClubAId, ClubAMember1Id);
 
@@ -272,7 +272,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     /// Verifies a Draft campaign rejects note edits without changing the note or recording side effects.
     /// </summary>
     [Fact]
-    public async Task Edit_ReturnsConflictWithoutWritesOrActivity_ForDraftCampaign()
+    public async Task EditReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(_assignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -300,7 +300,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that a cross-tenant edit attempt returns NotFound, not an error exposing the note.</summary>
     [Fact]
-    public async Task Edit_ReturnsNotFound_ForCrossTenantNote()
+    public async Task EditReturnsNotFoundForCrossTenantNoteAsync()
     {
         ActAs(ClubBMemberId, ClubBId);
         var sut = CreateService();
@@ -318,7 +318,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that the original author can delete their own note.</summary>
     [Fact]
-    public async Task Delete_Succeeds_ForAuthor()
+    public async Task DeleteSucceedsForAuthorAsync()
     {
         var noteId = SeedNote(_assignmentId, ClubAId, ClubAMember1Id);
         ActAs(ClubAMember1Id, ClubAId);
@@ -331,7 +331,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that a club administrator can delete any note in their club.</summary>
     [Fact]
-    public async Task Delete_Succeeds_ForClubAdmin()
+    public async Task DeleteSucceedsForClubAdminAsync()
     {
         var noteId = SeedNote(_assignmentId, ClubAId, ClubAMember1Id);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -344,7 +344,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that a non-author, non-admin club member cannot delete the note.</summary>
     [Fact]
-    public async Task Delete_ReturnsForbidden_ForNonAuthorNonAdmin()
+    public async Task DeleteReturnsForbiddenForNonAuthorNonAdminAsync()
     {
         var noteId = SeedNote(_assignmentId, ClubAId, ClubAMember1Id);
         ActAs(ClubAMember2Id, ClubAId, isClubAdmin: false);
@@ -357,7 +357,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that deleting a note on a closed campaign returns a conflict.</summary>
     [Fact]
-    public async Task Delete_ReturnsConflict_ForClosedCampaign()
+    public async Task DeleteReturnsConflictForClosedCampaignAsync()
     {
         var noteId = SeedNote(_closedAssignmentId, ClubAId, ClubAMember1Id);
         ActAs(ClubAMember1Id, ClubAId);
@@ -373,7 +373,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     /// Verifies a Draft campaign rejects note deletion without deleting the note or recording side effects.
     /// </summary>
     [Fact]
-    public async Task Delete_ReturnsConflictWithoutWritesOrActivity_ForDraftCampaign()
+    public async Task DeleteReturnsConflictWithoutWritesOrActivityForDraftCampaignAsync()
     {
         await MakeCampaignDraftAsync(_assignmentId);
         ActAs(ClubAAdminId, ClubAId, isClubAdmin: true);
@@ -394,7 +394,7 @@ public sealed class EvaluationNoteServiceTests : IDisposable
 
     /// <summary>Verifies that a cross-tenant delete attempt returns NotFound.</summary>
     [Fact]
-    public async Task Delete_ReturnsNotFound_ForCrossTenantNote()
+    public async Task DeleteReturnsNotFoundForCrossTenantNoteAsync()
     {
         ActAs(ClubBMemberId, ClubBId);
         var sut = CreateService();
@@ -424,7 +424,9 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     /// <param name="assignmentId">The assignment whose campaign should become Draft.</param>
     private async Task MakeCampaignDraftAsync(long assignmentId)
     {
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var db = _harness.CreateAdminContext();
+#pragma warning restore MA0004
         var campaign = await db.PlayerCampaignAssignments
             .Where(assignment => assignment.PlayerCampaignAssignmentId == assignmentId)
             .Select(assignment => assignment.Campaign)
@@ -436,7 +438,9 @@ public sealed class EvaluationNoteServiceTests : IDisposable
     /// <summary>
     /// Seeds clubs, users, players, campaigns, and participations needed for the service tests.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

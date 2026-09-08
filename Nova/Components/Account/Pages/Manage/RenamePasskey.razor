@@ -12,7 +12,7 @@ FORM: The rename-passkey EditForm preserves its route parameter, form name, Inpu
 
 <div class="manage-page manage-rename-passkey">
     <header class="manage-page-heading">
-        @if (passkey?.Name is { } name)
+        @if (_passkey?.Name is { } name)
         {
             <h1>Rename your “@name” passkey</h1>
         }
@@ -23,7 +23,7 @@ FORM: The rename-passkey EditForm preserves its route parameter, form name, Inpu
         <p>Choose a name that helps you recognize this device later.</p>
     </header>
 
-    <EditForm class="manage-page-form" Model="Input" OnValidSubmit="Rename" FormName="rename-passkey" method="post">
+        <EditForm class="manage-page-form" Model="Input" OnValidSubmit="RenameAsync" FormName="rename-passkey" method="post">
         <DataAnnotationsValidator />
         <ValidationSummary class="alert alert-danger" role="alert" />
         <AccountFormField For="() => Input.Name" FieldId="Input.Name" Label="Passkey name">

@@ -27,9 +27,13 @@ internal sealed class RetryingTenantDbContextFactory(
     /// <inheritdoc />
     public NovaDbContext CreateDbContext() => CreateContext();
 
-    /// <inheritdoc />
-    public ValueTask<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
+    /// <summary>Creates a retry-enabled context and transfers ownership to the caller.</summary>
+    /// <param name="cancellationToken">The caller's cancellation token.</param>
+    /// <returns>A completed value task containing the new context.</returns>
+    public ValueTask<NovaDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+#pragma warning disable CA2000 // The factory transfers context ownership through ValueTask to the caller, which awaits and disposes it.
         => ValueTask.FromResult(CreateContext());
+#pragma warning restore CA2000
 
     /// <summary>
     /// Creates one retry-enabled tenant context with the transient-failure interceptors attached.
@@ -76,9 +80,13 @@ internal sealed class RetryingAdminDbContextFactory(
     /// <inheritdoc />
     public NovaAdminDbContext CreateDbContext() => CreateContext();
 
-    /// <inheritdoc />
-    public ValueTask<NovaAdminDbContext> CreateDbContextAsync(CancellationToken _ = default)
+    /// <summary>Creates a retry-enabled context and transfers ownership to the caller.</summary>
+    /// <param name="cancellationToken">The caller's cancellation token.</param>
+    /// <returns>A completed value task containing the new context.</returns>
+    public ValueTask<NovaAdminDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+#pragma warning disable CA2000 // The factory transfers context ownership through ValueTask to the caller, which awaits and disposes it.
         => ValueTask.FromResult(CreateContext());
+#pragma warning restore CA2000
 
     /// <summary>
     /// Creates one retry-enabled admin context with the transient-failure interceptors attached.

@@ -4,7 +4,7 @@
 /// Marks an entity as owned by a club (tenant). Entities implementing this interface
 /// are automatically covered by the tenant global query filter.
 /// </summary>
-public interface ITenantOwnedEntity
+internal interface ITenantOwnedEntity
 {
     /// <summary>
     /// Gets or sets the Club Id that owns this entity.

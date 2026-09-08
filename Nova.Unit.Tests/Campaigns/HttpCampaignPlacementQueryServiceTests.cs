@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -18,10 +18,10 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies roster filters reach the placement route and a valid payload is accepted.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_SendsFiltersToPlacementRoute_AndReadsRows()
+    public async Task GetPlacementRosterAsyncSendsFiltersToPlacementRouteAndReadsRowsAsync()
     {
         HttpRequestMessage? capturedRequest = null;
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             var payload = new PagedResult<CampaignPlacementRosterItem>(
@@ -58,13 +58,13 @@ public sealed class HttpCampaignPlacementQueryServiceTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.Items.Count.ShouldBe(1);
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri.ShouldNotBeNull();
-        capturedRequest.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/placements?graduationYear=2028&unresolvedOnly=true&page=1&pageSize=50");
+        capturedRequest.RequestUri.ShouldNotBeNull();
+        capturedRequest.RequestUri.PathAndQuery.ShouldBe("/api/campaigns/42/placements?graduationYear=2028&unresolvedOnly=true&page=1&pageSize=50");
     }
 
     /// <summary>Checks a saved decision survives the HTTP contract with its source identity and attribution.</summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_RoundTripsSavedDecisionSnapshot()
+    public async Task GetPlacementRosterAsyncRoundTripsSavedDecisionSnapshotAsync()
     {
         var token = Guid.NewGuid();
         var decision = new CampaignSavedPlacementDecision(101, 202, 42, 50, 3,
@@ -72,7 +72,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
         var row = new CampaignPlacementRosterItem(101, 202, "Zoe Adams", "Zoe", "Adams", 2028,
             PlacementOutcome.NotSelected, null, token)
         { SavedDecision = decision };
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new PagedResult<CampaignPlacementRosterItem>([row], 1, 50, 1))
         }));
@@ -94,7 +94,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     [InlineData("recordedAt", false)]
     [InlineData("recordedById", false)]
     [InlineData("actorDisplayName", false)]
-    public async Task GetPlacementRosterAsync_RejectsMissingDecisionAttribution(string field, bool omit)
+    public async Task GetPlacementRosterAsyncRejectsMissingDecisionAttributionAsync(string field, bool omit)
     {
         var token = Guid.NewGuid();
         var row = new CampaignPlacementRosterItem(101, 202, "Zoe Adams", "Zoe", "Adams", 2028,
@@ -105,7 +105,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
         };
         var payload = System.Text.Json.JsonSerializer.SerializeToNode(
             new PagedResult<CampaignPlacementRosterItem>([row], 1, 50, 1),
-            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+            System.Text.Json.JsonSerializerOptions.Web)!;
         var decision = payload["items"]![0]!["savedDecision"]!.AsObject();
         if (omit)
         {
@@ -115,10 +115,11 @@ public sealed class HttpCampaignPlacementQueryServiceTests
         {
             decision[field] = null;
         }
-        using var http = new HttpClient(new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var httpHandler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(payload.ToJsonString(), System.Text.Encoding.UTF8, "application/json")
-        })))
+        }));
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         { BaseAddress = new Uri("https://example.com") };
         var result = await new HttpCampaignPlacementQueryService(http).GetPlacementRosterAsync(
             new GetCampaignPlacementRosterInput { CampaignId = 42 }, TestContext.Current.CancellationToken);
@@ -142,7 +143,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     [InlineData("recordedBy")]
     [InlineData("actorNull")]
     [InlineData("actorBlank")]
-    public async Task GetPlacementRosterAsync_RejectsMalformedSavedDecision(string invalidField)
+    public async Task GetPlacementRosterAsyncRejectsMalformedSavedDecisionAsync(string invalidField)
     {
         var token = Guid.NewGuid();
         CampaignSavedPlacementDecision? decision = new(101, 202, 42, 50, 3,
@@ -165,9 +166,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
             _ => decision
         };
         var row = new CampaignPlacementRosterItem(101, 202, "Zoe Adams", "Zoe", "Adams", 2028,
-            invalidField == "technical" ? PlacementOutcome.Undecided : PlacementOutcome.NotSelected, null, token)
+string.Equals(invalidField, "technical", StringComparison.Ordinal) ? PlacementOutcome.Undecided : PlacementOutcome.NotSelected, null, token)
         { SavedDecision = decision };
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new PagedResult<CampaignPlacementRosterItem>([row], 1, 50, 1))
         }));
@@ -183,10 +184,10 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies omitted optional filters still carry the default paging values in the URL.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_OmitsOptionalFiltersFromUrl()
+    public async Task GetPlacementRosterAsyncOmitsOptionalFiltersFromUrlAsync()
     {
         HttpRequestMessage? capturedRequest = null;
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             var payload = new PagedResult<CampaignPlacementRosterItem>([], 1, 50, 0);
@@ -202,16 +203,16 @@ public sealed class HttpCampaignPlacementQueryServiceTests
 
         result.IsSuccess.ShouldBeTrue();
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/placements?page=1&pageSize=50");
+        capturedRequest.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/placements?page=1&pageSize=50");
     }
 
     /// <summary>
     /// Verifies invalid caller input is rejected before any HTTP request is made.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_ReturnsValidation_ForInvalidInput()
+    public async Task GetPlacementRosterAsyncReturnsValidationForInvalidInputAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignPlacementQueryService(http);
@@ -228,10 +229,10 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies paging combinations that would overflow are rejected before sending an HTTP request.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_ReturnsValidation_WithoutRequestForOverflowingPageOffset()
+    public async Task GetPlacementRosterAsyncReturnsValidationWithoutRequestForOverflowingPageOffsetAsync()
     {
         var requestSent = false;
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
         {
             requestSent = true;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
@@ -251,7 +252,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
         result.Problem.Errors.ShouldNotBeNull();
-        result.Problem.Errors!.ShouldContainKey(nameof(GetCampaignPlacementRosterInput.Page));
+        result.Problem.Errors.ShouldContainKey(nameof(GetCampaignPlacementRosterInput.Page));
         requestSent.ShouldBeFalse();
     }
 
@@ -259,9 +260,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies non-success status codes are converted to service problems.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_ReturnsNotFound_ForProblemResponse()
+    public async Task GetPlacementRosterAsyncReturnsNotFoundForProblemResponseAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
             {
                 Content = JsonContent.Create(new ProblemPayload(404, "Not Found", "A problem occurred."))
@@ -285,13 +286,15 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task GetPlacementRosterAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignPlacementQueryService(http);
 
@@ -307,9 +310,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies roster rows violating portable invariants are rejected.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenRowViolatesInvariants()
+    public async Task GetPlacementRosterAsyncReturnsServerErrorWhenRowViolatesInvariantsAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
         {
             var token = Guid.NewGuid();
             var payload = new PagedResult<CampaignPlacementRosterItem>(
@@ -344,9 +347,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies an unresolved-only row violating the requested filter is rejected.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenRowViolatesUnresolvedFilter()
+    public async Task GetPlacementRosterAsyncReturnsServerErrorWhenRowViolatesUnresolvedFilterAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
         {
             var token = Guid.NewGuid();
             var payload = new PagedResult<CampaignPlacementRosterItem>(
@@ -381,10 +384,10 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies the summary client uses the summary route and accepts a consistent payload.
     /// </summary>
     [Fact]
-    public async Task GetPlacementSummaryAsync_SendsSummaryRoute_AndReadsCounts()
+    public async Task GetPlacementSummaryAsyncSendsSummaryRouteAndReadsCountsAsync()
     {
         HttpRequestMessage? capturedRequest = null;
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             var payload = new CampaignPlacementSummaryDto(65, 11, 2, 6, 84);
@@ -402,16 +405,16 @@ public sealed class HttpCampaignPlacementQueryServiceTests
         result.Value.AssignedCount.ShouldBe(65);
         result.Value.TotalCount.ShouldBe(84);
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/placements/summary");
+        capturedRequest.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/placements/summary");
     }
 
     /// <summary>
     /// Verifies a summary whose total does not equal the sum of its counts is rejected.
     /// </summary>
     [Fact]
-    public async Task GetPlacementSummaryAsync_ReturnsServerError_WhenCountsAreInconsistent()
+    public async Task GetPlacementSummaryAsyncReturnsServerErrorWhenCountsAreInconsistentAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
         {
             var payload = new CampaignPlacementSummaryDto(65, 11, 2, 6, 83);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
@@ -431,13 +434,15 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies an empty-object success summary is rejected by strict required-member enforcement.
     /// </summary>
     [Fact]
-    public async Task GetPlacementSummaryAsync_ReturnsServerError_WhenSuccessBodyIsEmptyObject()
+    public async Task GetPlacementSummaryAsyncReturnsServerErrorWhenSuccessBodyIsEmptyObjectAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("{}", Encoding.UTF8, "application/json")
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignPlacementQueryService(http);
 
@@ -453,7 +458,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies a summary missing one required count is rejected by strict required-member enforcement.
     /// </summary>
     [Fact]
-    public async Task GetPlacementSummaryAsync_ReturnsServerError_WhenSummaryMissesACount()
+    public async Task GetPlacementSummaryAsyncReturnsServerErrorWhenSummaryMissesACountAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -462,7 +467,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                 Encoding.UTF8,
                 "application/json")
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignPlacementQueryService(http);
 
@@ -479,7 +486,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// enforcement before the row invariant validator runs.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenRowMissesOutcome()
+    public async Task GetPlacementRosterAsyncReturnsServerErrorWhenRowMissesOutcomeAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -506,7 +513,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                 Encoding.UTF8,
                 "application/json")
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignPlacementQueryService(http);
 
@@ -523,7 +532,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// (assignment id must be non-decreasing within identical names) is rejected.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_ReturnsServerError_WhenRowsAreOutOfOrder()
+    public async Task GetPlacementRosterAsyncReturnsServerErrorWhenRowsAreOutOfOrderAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -562,7 +571,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                 Encoding.UTF8,
                 "application/json")
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignPlacementQueryService(http);
 
@@ -581,7 +592,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// equal-name assignment-id tie-breaker is portable to the client.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_AcceptsRows_WhenDatabaseCollationOrdersNamesDifferentlyFromOrdinal()
+    public async Task GetPlacementRosterAsyncAcceptsRowsWhenDatabaseCollationOrdersNamesDifferentlyFromOrdinalAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -620,7 +631,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                 Encoding.UTF8,
                 "application/json")
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignPlacementQueryService(http);
 
@@ -636,7 +649,7 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies an in-order multi-row roster page is accepted.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRosterAsync_AcceptsRowsInServerOrderingContract()
+    public async Task GetPlacementRosterAsyncAcceptsRowsInServerOrderingContractAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -675,7 +688,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
                 Encoding.UTF8,
                 "application/json")
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignPlacementQueryService(http);
 
@@ -691,9 +706,9 @@ public sealed class HttpCampaignPlacementQueryServiceTests
     /// Verifies invalid caller input is rejected before any summary request is made.
     /// </summary>
     [Fact]
-    public async Task GetPlacementSummaryAsync_ReturnsValidation_ForInvalidInput()
+    public async Task GetPlacementSummaryAsyncReturnsValidationForInvalidInputAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignPlacementQueryService(http);

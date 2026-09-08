@@ -5,9 +5,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -55,7 +55,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task GetTemplateAsync_ReturnsExactBomPrefixedTemplate_ForClubAdministrator()
+    public async Task GetTemplateAsyncReturnsExactBomPrefixedTemplateForClubAdministratorAsync()
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
 
@@ -70,7 +70,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsForbidden_ForOrdinaryClubMember()
+    public async Task PreviewAsyncReturnsForbiddenForOrdinaryClubMemberAsync()
     {
         ActAs(AdminId, ClubAId, isAdmin: false);
 
@@ -83,7 +83,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(null, null)]
     [InlineData(AdminId, null)]
-    public async Task PreviewAsync_ReturnsForbidden_WithoutSignedInClubAdministrator(long? userId, long? clubId)
+    public async Task PreviewAsyncReturnsForbiddenWithoutSignedInClubAdministratorAsync(long? userId, long? clubId)
     {
         ActAs(userId, clubId, isAdmin: true);
 
@@ -99,7 +99,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     [InlineData("players.txt", "text/csv")]
     [InlineData("players\r\n.csv", "text/csv")]
     [InlineData("players.csv", "image/png")]
-    public async Task PreviewAsync_RejectsUnsupportedUploadMetadata(string? fileName, string contentType)
+    public async Task PreviewAsyncRejectsUnsupportedUploadMetadataAsync(string? fileName, string contentType)
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
         var valid = Upload(ValidRows());
@@ -113,7 +113,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PreviewAsync_ClassifiesArchivedExistingPlayer()
+    public async Task PreviewAsyncClassifiesArchivedExistingPlayerAsync()
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
 
@@ -126,7 +126,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PreviewAsync_PrefersActiveExistingMatch_ThenLowestPlayerId()
+    public async Task PreviewAsyncPrefersActiveExistingMatchThenLowestPlayerIdAsync()
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
         var archived = Player(
@@ -150,7 +150,7 @@ public sealed class PlayerImportServiceTests : IDisposable
         using (var db = _harness.CreateAdminContext())
         {
             db.Players.AddRange(archived, firstActive, secondActive);
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await CreateService().PreviewAsync(
@@ -166,12 +166,14 @@ public sealed class PlayerImportServiceTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("Alex", "Archer", "2012-01-01", PlayerImportDuplicateKind.ExistingActivePlayer)]
     [InlineData("Archived", "Player", "2011-01-01", PlayerImportDuplicateKind.ExistingArchivedPlayer)]
-    public async Task PreviewAsync_PrefersExistingPlayer_ForEveryMatchingUploadRow(
+    public async Task PreviewAsyncPrefersExistingPlayerForEveryMatchingUploadRowAsync(
         string firstName,
         string lastName,
         string dateOfBirth,
         PlayerImportDuplicateKind expectedKind)
     {
+        ArgumentNullException.ThrowIfNull(firstName);
+        ArgumentNullException.ThrowIfNull(lastName);
         ActAs(AdminId, ClubAId, isAdmin: true);
         var rows = $" {firstName} ,{lastName.ToUpperInvariant()},{dateOfBirth},,,2030\r\n"
             + $"{firstName.ToUpperInvariant()}, {lastName} ,{dateOfBirth},,,2030\r\n";
@@ -190,7 +192,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PreviewAsync_UsesOneReaderCommand_ForDuplicateHeavyUpload()
+    public async Task PreviewAsyncUsesOneReaderCommandForDuplicateHeavyUploadAsync()
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
         var interceptor = new CountingCommandInterceptor();
@@ -209,7 +211,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PreviewAsync_ReconcilesInvalidExistingAndUploadDuplicates_WithoutPersisting()
+    public async Task PreviewAsyncReconcilesInvalidExistingAndUploadDuplicatesWithoutPersistingAsync()
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
         var factory = new PlayerImportReadContextFactory(_harness);
@@ -218,8 +220,8 @@ public sealed class PlayerImportServiceTests : IDisposable
         int assignmentCountBefore;
         using (var before = _harness.CreateAdminContext())
         {
-            playerCountBefore = before.Players.Count();
-            assignmentCountBefore = before.PlayerCampaignAssignments.Count();
+            playerCountBefore = (await before.Players.CountAsync(TestContext.Current.CancellationToken));
+            assignmentCountBefore = (await before.PlayerCampaignAssignments.CountAsync(TestContext.Current.CancellationToken));
         }
 
         var rows = "  Alex,ARCHER,2012-01-01,,,2030\r\n"
@@ -241,12 +243,12 @@ public sealed class PlayerImportServiceTests : IDisposable
             3));
 
         using var after = _harness.CreateAdminContext();
-        after.Players.Count().ShouldBe(playerCountBefore);
-        after.PlayerCampaignAssignments.Count().ShouldBe(assignmentCountBefore);
+        (await after.Players.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(playerCountBefore);
+        (await after.PlayerCampaignAssignments.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(assignmentCountBefore);
     }
 
     [Fact]
-    public async Task PreviewAsync_DoesNotLetInvalidRowReserveDuplicateIdentity()
+    public async Task PreviewAsyncDoesNotLetInvalidRowReserveDuplicateIdentityAsync()
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
         var rows = "Taylor,Stone,2013-02-03,,10000,2031\r\n"
@@ -267,7 +269,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PreviewAsync_DoesNotLeakOtherClubDuplicate()
+    public async Task PreviewAsyncDoesNotLeakOtherClubDuplicateAsync()
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
 
@@ -281,7 +283,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PreviewAsync_ReturnsFreshSignedIdentity_BoundToActorClubAndFile()
+    public async Task PreviewAsyncReturnsFreshSignedIdentityBoundToActorClubAndFileAsync()
     {
         ActAs(AdminId, ClubAId, isAdmin: true);
         var upload = Upload(ValidRows());
@@ -306,7 +308,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
-    public void TokenProtector_RejectsTamperedToken()
+    public void TokenProtectorRejectsTamperedToken()
     {
         var token = _tokenProtector.Protect(TokenPayload(), TimeSpan.FromHours(1));
         var tampered = token[..^1] + (token[^1] == 'A' ? 'B' : 'A');
@@ -316,7 +318,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
-    public void TokenProtector_RejectsExpiredToken()
+    public void TokenProtectorRejectsExpiredToken()
     {
         var clock = new PlayerImportTestClock();
         var protector = new PlayerImportPreviewTokenProtector(new EphemeralDataProtectionProvider(), clock);
@@ -331,14 +333,14 @@ public sealed class PlayerImportServiceTests : IDisposable
     [InlineData(null)]
     [InlineData("")]
     [InlineData(" ")]
-    public void TokenProtector_ReturnsSafeOut_ForMissingToken(string? token)
+    public void TokenProtectorReturnsSafeOutForMissingToken(string? token)
     {
         _tokenProtector.TryUnprotect(token!, out var payload).ShouldBeFalse();
         payload.ShouldBeNull();
     }
 
     [Fact]
-    public void TokenProtector_ValidatesExactActorClubOperationAndBytes()
+    public void TokenProtectorValidatesExactActorClubOperationAndBytes()
     {
         var content = Encoding.UTF8.GetBytes("exact csv bytes");
         var operationId = Guid.CreateVersion7();
@@ -379,7 +381,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     }
 
     [Fact]
-    public void TokenProtector_ReturnsSafeOut_ForUnsupportedVersionAndMalformedHash()
+    public void TokenProtectorReturnsSafeOutForUnsupportedVersionAndMalformedHash()
     {
         var unsupported = _tokenProtector.Protect(TokenPayload() with { Version = 1 }, TimeSpan.FromHours(1));
 
@@ -420,7 +422,7 @@ public sealed class PlayerImportServiceTests : IDisposable
     [InlineData("empty rows")]
     [InlineData("invalid status")]
     [InlineData("too many rows")]
-    public void TokenProtector_RejectsMalformedTimestampsAndRowClassifications(string malformation)
+    public void TokenProtectorRejectsMalformedTimestampsAndRowClassifications(string malformation)
     {
         var payload = TokenPayload();
         payload = malformation switch
@@ -450,10 +452,10 @@ public sealed class PlayerImportServiceTests : IDisposable
 
     private static PlayerImportUploadInput Upload(string rows)
     {
-        const string header = "First name,Last name,Date of birth,Gender,Jersey number,Graduation year\r\n";
+        const string Header = "First name,Last name,Date of birth,Gender,Jersey number,Graduation year\r\n";
         return new()
         {
-            Content = Encoding.UTF8.GetBytes(header + rows),
+            Content = Encoding.UTF8.GetBytes(Header + rows),
             FileName = "players.csv",
             ContentType = "text/csv"
         };

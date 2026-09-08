@@ -11,8 +11,8 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Clubs;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Clubs;
@@ -23,7 +23,7 @@ public sealed class ClubEndpointTests
     /// <summary>Verifies the current-club identity endpoint advertises anonymous rejection.</summary>
     /// <returns>A task that completes after endpoint metadata is inspected.</returns>
     [Fact]
-    public async Task CurrentClubIdentityEndpoint_AdvertisesUnauthorized()
+    public async Task CurrentClubIdentityEndpointAdvertisesUnauthorizedAsync()
     {
         var builder = WebApplication.CreateBuilder();
         RegisterHandlerServices(builder.Services);
@@ -34,7 +34,7 @@ public sealed class ClubEndpointTests
         var endpoint = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
-            .Single(candidate => candidate.RoutePattern.RawText == ClubEndpoints.GetCurrent);
+            .Single(candidate => string.Equals(candidate.RoutePattern.RawText, ClubEndpoints.GetCurrent, StringComparison.Ordinal));
         var responseStatuses = endpoint.Metadata
             .GetOrderedMetadata<IProducesResponseTypeMetadata>()
             .Select(metadata => metadata.StatusCode);

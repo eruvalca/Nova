@@ -4,9 +4,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -24,7 +24,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies anonymous callers receive an unauthorized response for both tag-application mutations.
     /// </summary>
     [Fact]
-    public async Task CampaignTagApplicationMutations_ReturnUnauthorized_ForAnonymousCaller()
+    public async Task CampaignTagApplicationMutationsReturnUnauthorizedForAnonymousCallerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
@@ -36,7 +36,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         applyResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         using var removeResponse = await anonymousClient.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(42),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeOrAbsolute),
             cancellationToken);
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -45,7 +45,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies authenticated callers without a club receive forbidden responses for both mutations.
     /// </summary>
     [Fact]
-    public async Task CampaignTagApplicationMutations_ReturnForbidden_ForAuthenticatedUserWithoutClub()
+    public async Task CampaignTagApplicationMutationsReturnForbiddenForAuthenticatedUserWithoutClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -61,7 +61,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         applyResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         using var removeResponse = await client.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(42),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(42), UriKind.RelativeOrAbsolute),
             cancellationToken);
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
@@ -70,7 +70,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies a least-privileged club member can apply a tag and the row is persisted with the member as creator.
     /// </summary>
     [Fact]
-    public async Task ApplyCampaignTagApplication_ReturnsCreated_AndPersistsRow_ForLeastPrivilegedClubMember()
+    public async Task ApplyCampaignTagApplicationReturnsCreatedAndPersistsRowForLeastPrivilegedClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -88,7 +88,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(memberClient, memberEmail, Password, cancellationToken);
         await UpdateUserAsync(memberEmail, club.ClubId, cancellationToken);
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
-        var (campaignId, tagId, assignmentId) = await SeedTagApplicationDataAsync(club.ClubId, adminEmail, cancellationToken);
+        var (_, tagId, assignmentId) = await SeedTagApplicationDataAsync(club.ClubId, adminEmail, cancellationToken);
 
         using var applyResponse = await memberClient.PostAsJsonAsync(
             CampaignEndpoints.ApplyCampaignTagApplication,
@@ -100,7 +100,9 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         success.CampaignTagApplicationId.ShouldBeGreaterThan(0);
 
         await using var context = fixture.CreateAdminContext();
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
         var member = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == memberEmail.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
         var persisted = await context.CampaignTagApplications
             .SingleOrDefaultAsync(candidate => candidate.CampaignTagApplicationId == success.CampaignTagApplicationId, cancellationToken);
         persisted.ShouldNotBeNull();
@@ -114,14 +116,14 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies an invalid apply body is rejected with validation ProblemDetails naming both fields.
     /// </summary>
     [Fact]
-    public async Task ApplyCampaignTagApplication_ReturnsValidationProblem_ForInvalidBody()
+    public async Task ApplyCampaignTagApplicationReturnsValidationProblemForInvalidBodyAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         var email = UniqueEmail("tag-apply-validation");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, clubId: null, cancellationToken);
-        var club = await CreateClubAsync(client, cancellationToken);
+        _ = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         using var response = await client.PostAsJsonAsync(
@@ -139,7 +141,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies applying the same tag twice to the same participation returns a conflict.
     /// </summary>
     [Fact]
-    public async Task ApplyCampaignTagApplication_ReturnsConflict_ForDuplicateApplication()
+    public async Task ApplyCampaignTagApplicationReturnsConflictForDuplicateApplicationAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -173,7 +175,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies applying a tag to a participation in a closed campaign returns a conflict.
     /// </summary>
     [Fact]
-    public async Task ApplyCampaignTagApplication_ReturnsConflict_ForClosedCampaign()
+    public async Task ApplyCampaignTagApplicationReturnsConflictForClosedCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -205,7 +207,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator cannot apply a tag in a Draft campaign and no application is persisted.
     /// </summary>
     [Fact]
-    public async Task ApplyCampaignTagApplication_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    public async Task ApplyCampaignTagApplicationReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -245,7 +247,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies applying an archived tag definition returns a conflict.
     /// </summary>
     [Fact]
-    public async Task ApplyCampaignTagApplication_ReturnsConflict_ForArchivedTagDefinition()
+    public async Task ApplyCampaignTagApplicationReturnsConflictForArchivedTagDefinitionAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -273,7 +275,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies cross-tenant and nonexistent participation/tag identifiers return non-disclosing not-found responses.
     /// </summary>
     [Fact]
-    public async Task ApplyCampaignTagApplication_ReturnsNotFound_ForCrossTenantAndMissingTargets()
+    public async Task ApplyCampaignTagApplicationReturnsNotFoundForCrossTenantAndMissingTargetsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -314,7 +316,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies a non-owner, non-admin club member cannot remove another member's tag application.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReturnsForbidden_ForNonOwnerNonAdmin()
+    public async Task RemoveCampaignTagApplicationReturnsForbiddenForNonOwnerNonAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -346,7 +348,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(otherMemberClient, cancellationToken);
 
         using var removeResponse = await otherMemberClient.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -361,7 +363,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies the applying owner can remove their own tag application and the row is deleted.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReturnsNoContent_AndDeletesRow_ForOwner()
+    public async Task RemoveCampaignTagApplicationReturnsNoContentAndDeletesRowForOwnerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -389,7 +391,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         var applied = await applyResponse.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
 
         using var removeResponse = await memberClient.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
@@ -403,7 +405,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator can remove a tag application applied by another member.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReturnsNoContent_ForClubAdministrator()
+    public async Task RemoveCampaignTagApplicationReturnsNoContentForClubAdministratorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -429,7 +431,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         var applied = await applyResponse.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
 
         using var removeResponse = await adminClient.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
@@ -438,7 +440,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies removing an already-removed tag application returns a not-found response.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReturnsNotFound_ForAlreadyRemovedApplication()
+    public async Task RemoveCampaignTagApplicationReturnsNotFoundForAlreadyRemovedApplicationAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -457,12 +459,12 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         var applied = await applyResponse.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
 
         using var firstRemove = await client.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         firstRemove.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         using var secondRemove = await client.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         secondRemove.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
@@ -471,7 +473,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies removing another club's tag application id is non-disclosing and leaves the row intact.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReturnsNotFound_ForCrossTenantApplication()
+    public async Task RemoveCampaignTagApplicationReturnsNotFoundForCrossTenantApplicationAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -499,7 +501,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         otherClub.ClubId.ShouldNotBe(ownerClub.ClubId);
 
         using var removeResponse = await otherClient.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applied.CampaignTagApplicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -510,7 +512,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies removing a tag application from a closed campaign conflicts and leaves the row intact.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReturnsConflict_ForClosedCampaign()
+    public async Task RemoveCampaignTagApplicationReturnsConflictForClosedCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -527,7 +529,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
 
         using var removeResponse = await client.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -543,7 +545,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator cannot remove a tag application from a Draft campaign and no receipt is persisted.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    public async Task RemoveCampaignTagApplicationReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -560,7 +562,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
 
         using var response = await client.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -581,7 +583,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies removing a tag application whose tag definition is archived conflicts and leaves the row intact.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReturnsConflict_ForArchivedTagDefinition()
+    public async Task RemoveCampaignTagApplicationReturnsConflictForArchivedTagDefinitionAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -594,7 +596,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         var applicationId = await InsertTagApplicationAsync(club.ClubId, tagId, assignmentId, email, cancellationToken);
 
         using var removeResponse = await client.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(applicationId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         removeResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -610,18 +612,18 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies deleting with a non-positive route value returns validation ProblemDetails.
     /// </summary>
     [Fact]
-    public async Task RemoveCampaignTagApplication_ReturnsValidationProblem_ForNonPositiveId()
+    public async Task RemoveCampaignTagApplicationReturnsValidationProblemForNonPositiveIdAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         var email = UniqueEmail("tag-remove-zero-id");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, clubId: null, cancellationToken);
-        var club = await CreateClubAsync(client, cancellationToken);
+        _ = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         using var response = await client.DeleteAsync(
-            CampaignEndpoints.RemoveCampaignTagApplicationUrl(0),
+new Uri(CampaignEndpoints.RemoveCampaignTagApplicationUrl(0), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -633,7 +635,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// Verifies a successful apply is reflected in the participant detail payload the tag drawer consumes.
     /// </summary>
     [Fact]
-    public async Task ApplyCampaignTagApplication_IsReflected_InParticipantDetailAppliedTags()
+    public async Task ApplyCampaignTagApplicationIsReflectedInParticipantDetailAppliedTagsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -652,7 +654,7 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         var applied = await applyResponse.Content.ReadFromJsonAsync<CampaignTagApplicationMutationSuccess>(cancellationToken);
 
         using var detailResponse = await client.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(campaignId, assignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         detailResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await detailResponse.Content.ReadFromJsonAsync<CampaignParticipantDetailDto>(cancellationToken);
@@ -669,26 +671,32 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
 
     private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;
     }
 
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
     private async Task UpdateUserAsync(string email, long? clubId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        user.ClubId = clubId;
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            user.ClubId = clubId;
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -700,70 +708,77 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// <param name="campaignStatus">The lifecycle status assigned to the campaign.</param>
     /// <param name="archivedTag">Whether the tag definition should be seeded as archived.</param>
     /// <returns>The campaign, tag, and participation identifiers.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<(long CampaignId, long TagId, long AssignmentId)> SeedTagApplicationDataAsync(
+#pragma warning restore MA0051
         long clubId,
         string email,
         CancellationToken cancellationToken,
         CampaignStatus campaignStatus = CampaignStatus.Active,
         bool archivedTag = false)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        var suffix = Guid.NewGuid().ToString("N");
-        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Tag App Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
-        var campaign = new CampaignEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag App Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = campaignStatus,
-            ClosedAt = campaignStatus == CampaignStatus.Closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ClosedById = campaignStatus == CampaignStatus.Closed ? user.Id : null,
-            Season = season,
-            SeasonId = 0,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Tag",
-            LastName = $"Player {suffix}",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        var playerTag = new PlayerTagEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag {suffix}",
-            NormalizedName = $"Tag {suffix}".Trim().ToUpperInvariant(),
-            Color = "#00CC00",
-            LifecycleStatus = archivedTag ? LifecycleStatus.Archived : LifecycleStatus.Active,
-            ArchivedAt = archivedTag ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ArchivedById = archivedTag ? user.Id : null,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            var suffix = Guid.NewGuid().ToString("N");
+            var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Tag App Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Tag App Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = campaignStatus,
+                ClosedAt = campaignStatus == CampaignStatus.Closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+                ClosedById = campaignStatus == CampaignStatus.Closed ? user.Id : null,
+                Season = season,
+                SeasonId = 0,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Tag",
+                LastName = $"Player {suffix}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            var playerTag = new PlayerTagEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Tag {suffix}",
+                NormalizedName = $"Tag {suffix}".Trim().ToUpperInvariant(),
+                Color = "#00CC00",
+                LifecycleStatus = archivedTag ? LifecycleStatus.Archived : LifecycleStatus.Active,
+                ArchivedAt = archivedTag ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+                ArchivedById = archivedTag ? user.Id : null,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
 
-        context.AddRange(season, campaign, player, playerTag);
-        await context.SaveChangesAsync(cancellationToken);
+            context.AddRange(season, campaign, player, playerTag);
+            await context.SaveChangesAsync(cancellationToken);
 
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            ClubId = clubId,
-            CreatedById = user.Id,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            TryoutNumber = 7
-        };
-        context.Add(assignment);
-        await context.SaveChangesAsync(cancellationToken);
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                ClubId = clubId,
+                CreatedById = user.Id,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                TryoutNumber = 7
+            };
+            context.Add(assignment);
+            await context.SaveChangesAsync(cancellationToken);
 
-        return (campaign.CampaignId, playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId);
+            return (campaign.CampaignId, playerTag.PlayerTagId, assignment.PlayerCampaignAssignmentId);
+        }
     }
 
     /// <summary>
@@ -783,19 +798,24 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         string email,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
-        var application = new CampaignTagApplicationEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            PlayerCampaignAssignmentId = assignmentId,
-            PlayerTagId = tagId,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        context.Add(application);
-        await context.SaveChangesAsync(cancellationToken);
-        return application.CampaignTagApplicationId;
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
+            var application = new CampaignTagApplicationEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                PlayerCampaignAssignmentId = assignmentId,
+                PlayerTagId = tagId,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            context.Add(application);
+            await context.SaveChangesAsync(cancellationToken);
+            return application.CampaignTagApplicationId;
+        }
     }
 
     /// <summary>
@@ -805,10 +825,13 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
     /// <param name="cancellationToken">The test cancellation token.</param>
     private async Task AssertApplicationPersistedAsync(long applicationId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var persisted = await context.CampaignTagApplications
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var persisted = await context.CampaignTagApplications
             .SingleOrDefaultAsync(candidate => candidate.CampaignTagApplicationId == applicationId, cancellationToken);
-        persisted.ShouldNotBeNull();
+            persisted.ShouldNotBeNull();
+        }
     }
 
     /// <summary>
@@ -827,6 +850,6 @@ public sealed class CampaignTagApplicationHttpTests(NovaAppHostFixture fixture)
         var errors = document.RootElement.GetProperty("errors");
         return errors.EnumerateObject().ToDictionary(
             property => property.Name,
-            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray(), StringComparer.Ordinal);
     }
 }

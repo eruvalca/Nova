@@ -2,9 +2,9 @@
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Seasons;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -57,7 +57,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies standalone creation rejects a club that already has a current season.</summary>
     [Fact]
-    public async Task CreateAsync_ReturnsConflict_WhenCurrentSeasonExists()
+    public async Task CreateAsyncReturnsConflictWhenCurrentSeasonExistsAsync()
     {
         var result = await CreateService().CreateAsync(
             new CreateSeasonInput
@@ -74,7 +74,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies every season mutation requires a club administrator.</summary>
     [Fact]
-    public async Task Commands_ReturnForbidden_ForNonAdministrator()
+    public async Task CommandsReturnForbiddenForNonAdministratorAsync()
     {
         _harness.CurrentUser.IsClubAdmin = false;
         var service = CreateService();
@@ -113,7 +113,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies no-current creation installs one pointer and recovers repeated operations.</summary>
     [Fact]
-    public async Task CreateAsync_CreatesCurrentSeason_Idempotently_WhenPointerIsMissing()
+    public async Task CreateAsyncCreatesCurrentSeasonIdempotentlyWhenPointerIsMissingAsync()
     {
         await using (var db = _harness.CreateAdminContext())
         {
@@ -150,7 +150,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies exact stored names remain unique across every season command.</summary>
     [Fact]
-    public async Task Commands_ReturnConflict_ForExactStoredDuplicateNames()
+    public async Task CommandsReturnConflictForExactStoredDuplicateNamesAsync()
     {
         Guid currentToken;
         await using (var db = _harness.CreateAdminContext())
@@ -200,7 +200,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies metadata writes rotate their token and do not change currentness.</summary>
     [Fact]
-    public async Task UpdateAsync_RotatesToken_AndPreservesCurrentPointer()
+    public async Task UpdateAsyncRotatesTokenAndPreservesCurrentPointerAsync()
     {
         Guid token;
         await using (var read = _harness.CreateAdminContext())
@@ -232,7 +232,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies stale metadata writes fail deterministically.</summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsConflict_ForStaleToken()
+    public async Task UpdateAsyncReturnsConflictForStaleTokenAsync()
     {
         var result = await CreateService().UpdateAsync(
             CurrentSeasonId,
@@ -250,7 +250,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies finite season edits cannot strand a linked open-ended campaign.</summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsValidation_WhenCampaignFallsOutsideWindow()
+    public async Task UpdateAsyncReturnsValidationWhenCampaignFallsOutsideWindowAsync()
     {
         var token = await SeedClosedCampaignAsync(new DateOnly(2026, 2, 1), endDate: null);
 
@@ -281,7 +281,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies a lower-bound campaign-window failure targets the season start date.</summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsStartDateValidation_WhenCampaignStartsBeforeWindow()
+    public async Task UpdateAsyncReturnsStartDateValidationWhenCampaignStartsBeforeWindowAsync()
     {
         var token = await SeedClosedCampaignAsync(
             new DateOnly(2026, 2, 1),
@@ -307,7 +307,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies independent lower and upper campaign-window failures target both date fields.</summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsBothDateValidations_WhenCampaignCrossesWindow()
+    public async Task UpdateAsyncReturnsBothDateValidationsWhenCampaignCrossesWindowAsync()
     {
         var token = await SeedClosedCampaignAsync(
             new DateOnly(2026, 2, 1),
@@ -334,7 +334,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies stale expected currentness cannot advance a club.</summary>
     [Fact]
-    public async Task StartNextAsync_ReturnsConflict_WhenExpectedCurrentIsStale()
+    public async Task StartNextAsyncReturnsConflictWhenExpectedCurrentIsStaleAsync()
     {
         var result = await CreateService().StartNextAsync(
             new StartNextSeasonInput
@@ -355,7 +355,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies advancement cannot bootstrap a club from the no-current recovery state.</summary>
     [Fact]
-    public async Task StartNextAsync_ReturnsConflict_WhenCurrentSeasonIsMissing()
+    public async Task StartNextAsyncReturnsConflictWhenCurrentSeasonIsMissingAsync()
     {
         await using (var db = _harness.CreateAdminContext())
         {
@@ -381,7 +381,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies a first-season operation identifier cannot masquerade as advancement.</summary>
     [Fact]
-    public async Task StartNextAsync_ReturnsConflict_WhenCurrentSeasonCreationOperationIsReused()
+    public async Task StartNextAsyncReturnsConflictWhenCurrentSeasonCreationOperationIsReusedAsync()
     {
         Guid currentSeasonOperationId;
         await using (var db = _harness.CreateAdminContext())
@@ -412,7 +412,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies standalone-operation identity cannot be rebound to another predecessor.</summary>
     [Fact]
-    public async Task StartNextAsync_ReturnsConflict_WhenStandaloneOperationUsesDifferentExpectedSeason()
+    public async Task StartNextAsyncReturnsConflictWhenStandaloneOperationUsesDifferentExpectedSeasonAsync()
     {
         Guid currentSeasonOperationId;
         await using (var db = _harness.CreateAdminContext())
@@ -441,7 +441,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies an advancement operation cannot be replayed using its new current season as the expected predecessor.</summary>
     [Fact]
-    public async Task StartNextAsync_ReturnsConflict_WhenOperationIsReusedWithNewCurrentSeason()
+    public async Task StartNextAsyncReturnsConflictWhenOperationIsReusedWithNewCurrentSeasonAsync()
     {
         var operationId = Guid.NewGuid();
         var service = CreateService();
@@ -476,7 +476,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies an advancement replay must name its exact persisted predecessor.</summary>
     [Fact]
-    public async Task StartNextAsync_ReturnsConflict_WhenOperationUsesDifferentHistoricalPredecessor()
+    public async Task StartNextAsyncReturnsConflictWhenOperationUsesDifferentHistoricalPredecessorAsync()
     {
         await using (var db = _harness.CreateAdminContext())
         {
@@ -525,7 +525,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies standalone creation cannot replay an advancement operation.</summary>
     [Fact]
-    public async Task CreateAsync_ReturnsConflict_WhenAdvancementOperationIsReused()
+    public async Task CreateAsyncReturnsConflictWhenAdvancementOperationIsReusedAsync()
     {
         var operationId = Guid.NewGuid();
         var service = CreateService();
@@ -555,7 +555,7 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies an open campaign blocks advancement without mutating the pointer.</summary>
     [Fact]
-    public async Task StartNextAsync_ReturnsConflict_WhenCurrentCampaignIsOpen()
+    public async Task StartNextAsyncReturnsConflictWhenCurrentCampaignIsOpenAsync()
     {
         await using (var db = _harness.CreateAdminContext())
         {
@@ -591,7 +591,9 @@ public sealed class SeasonCommandServiceTests : IDisposable
 
     /// <summary>Verifies advancement changes only the club pointer and inserts an empty season.</summary>
     [Fact]
-    public async Task StartNextAsync_AdvancesIdempotently_WithoutCopyingDurableState()
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
+    public async Task StartNextAsyncAdvancesIdempotentlyWithoutCopyingDurableStateAsync()
+#pragma warning restore MA0051
     {
         long campaignId;
         long teamId;
@@ -700,7 +702,9 @@ public sealed class SeasonCommandServiceTests : IDisposable
     /// <returns>The concurrency token required for the metadata update under test.</returns>
     private async Task<Guid> SeedClosedCampaignAsync(DateOnly startDate, DateOnly? endDate)
     {
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var db = _harness.CreateAdminContext();
+#pragma warning restore MA0004
         var token = await db.Seasons
             .Where(season => season.SeasonId == CurrentSeasonId)
             .Select(season => season.ConcurrencyToken)

@@ -1,8 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Nova.Entities;
-using Nova.Shared.Features.Account;
+using Nova.SharedKernel.Features.Account;
 
 namespace Nova.Components.Account.Pages.Manage;
 
@@ -19,17 +20,17 @@ public partial class DeletePersonalData(
     /// <summary>
     /// Stores the status message to display after form submission.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Stores the current user entity.
     /// </summary>
-    private NovaUserEntity? user;
+    private NovaUserEntity? _user;
 
     /// <summary>
     /// Indicates whether the user has a password that must be confirmed for deletion.
     /// </summary>
-    private bool requirePassword;
+    private bool _requirePassword;
 
     /// <summary>
     /// Contains the deletion preview data, including the scenario and club name if applicable.
@@ -56,13 +57,13 @@ public partial class DeletePersonalData(
     {
         Input ??= new();
 
-        user = await userManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await userManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
-        requirePassword = await userManager.HasPasswordAsync(user);
+        _requirePassword = await userManager.HasPasswordAsync(_user);
         _preview = await accountDeletionService.GetDeletionPreviewAsync(ComponentCancellationToken);
     }
 
@@ -72,20 +73,20 @@ public partial class DeletePersonalData(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnValidSubmitAsync()
     {
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        if (requirePassword && !await userManager.CheckPasswordAsync(user, Input.Password))
+        if (_requirePassword && !await userManager.CheckPasswordAsync(_user, Input.Password))
         {
-            message = "Error: Incorrect password.";
+            _message = "Error: Incorrect password.";
             return;
         }
 
         // Capture the user ID before deletion as the user object may become invalid after deletion
-        var userId = await userManager.GetUserIdAsync(user);
+        var userId = await userManager.GetUserIdAsync(_user);
 
         await accountDeletionService.DeleteAccountAsync(ComponentCancellationToken);
 

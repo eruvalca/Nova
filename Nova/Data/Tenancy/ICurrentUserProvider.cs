@@ -1,4 +1,5 @@
-﻿using Nova.Shared.Security;
+﻿#pragma warning disable CA1515 // This type is part of a public Razor component constructor or parameter contract.
+using Nova.SharedKernel.Security;
 
 namespace Nova.Data.Tenancy;
 /// <summary>

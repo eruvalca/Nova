@@ -1,5 +1,5 @@
 ﻿using Nova.Features.Clubs;
-using Nova.Shared.Features.Photos;
+using Nova.SharedKernel.Features.Photos;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Clubs;
@@ -12,22 +12,22 @@ namespace Nova.Unit.Tests.Features.Clubs;
 /// </summary>
 public class ClubCrestValidatorTests
 {
-    private static readonly byte[] JpegBytes = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01];
-    private static readonly byte[] PngBytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D];
-    private static readonly byte[] WebpBytes = [.. "RIFF"u8.ToArray(), 0x24, 0x00, 0x00, 0x00, .. "WEBP"u8.ToArray(), .. "VP8 "u8.ToArray()];
-    private static readonly byte[] GifBytes = [.. "GIF89a"u8.ToArray(), 0x01, 0x00, 0x01, 0x00];
+    private static readonly byte[] _jpegBytes = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01];
+    private static readonly byte[] _pngBytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D];
+    private static readonly byte[] _webpBytes = [.. "RIFF"u8.ToArray(), 0x24, 0x00, 0x00, 0x00, .. "WEBP"u8.ToArray(), .. "VP8 "u8.ToArray()];
+    private static readonly byte[] _gifBytes = [.. "GIF89a"u8.ToArray(), 0x01, 0x00, 0x01, 0x00];
 
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("image/jpeg")]
     [InlineData("image/png")]
     [InlineData("image/webp")]
-    public void Validate_Passes_WhenContentMatchesDeclaredType(string contentType)
+    public void ValidatePassesWhenContentMatchesDeclaredType(string contentType)
     {
         var content = contentType switch
         {
-            "image/jpeg" => JpegBytes,
-            "image/png" => PngBytes,
-            _ => WebpBytes
+            "image/jpeg" => _jpegBytes,
+            "image/png" => _pngBytes,
+            _ => _webpBytes
         };
 
         var errors = ClubCrestValidator.Validate(content, contentType);
@@ -36,7 +36,7 @@ public class ClubCrestValidatorTests
     }
 
     [Fact]
-    public void Validate_Fails_WhenContentIsEmpty()
+    public void ValidateFailsWhenContentIsEmpty()
     {
         var errors = ClubCrestValidator.Validate([], "image/jpeg");
 
@@ -45,10 +45,10 @@ public class ClubCrestValidatorTests
     }
 
     [Fact]
-    public void Validate_Fails_WhenContentExceedsMaxBytes()
+    public void ValidateFailsWhenContentExceedsMaxBytes()
     {
         var oversized = new byte[ProfilePhotoConstraints.MaxBytes + 1];
-        JpegBytes.CopyTo(oversized, 0);
+        _jpegBytes.CopyTo(oversized, 0);
 
         var errors = ClubCrestValidator.Validate(oversized, "image/jpeg");
 
@@ -60,35 +60,35 @@ public class ClubCrestValidatorTests
     [InlineData("image/gif")]
     [InlineData("image/svg+xml")]
     [InlineData("application/octet-stream")]
-    public void Validate_Fails_WhenDeclaredTypeIsNotAllowed(string? contentType)
+    public void ValidateFailsWhenDeclaredTypeIsNotAllowed(string? contentType)
     {
-        var errors = ClubCrestValidator.Validate(JpegBytes, contentType);
+        var errors = ClubCrestValidator.Validate(_jpegBytes, contentType);
 
         errors.ShouldContain(error => error.Contains("Only JPEG, PNG, and WebP"));
     }
 
     [Fact]
-    public void Validate_Fails_WhenContentIsNotARecognizedImage()
+    public void ValidateFailsWhenContentIsNotARecognizedImage()
     {
-        var errors = ClubCrestValidator.Validate(GifBytes, "image/jpeg");
+        var errors = ClubCrestValidator.Validate(_gifBytes, "image/jpeg");
 
         errors.ShouldContain(error => error.Contains("not a recognized"));
     }
 
     [Fact]
-    public void Validate_Fails_WhenContentDoesNotMatchDeclaredType()
+    public void ValidateFailsWhenContentDoesNotMatchDeclaredType()
     {
         // A real PNG renamed/declared as JPEG must be rejected.
-        var errors = ClubCrestValidator.Validate(PngBytes, "image/jpeg");
+        var errors = ClubCrestValidator.Validate(_pngBytes, "image/jpeg");
 
         errors.ShouldContain(error => error.Contains("does not match"));
     }
 
     [Fact]
-    public void Validate_AcceptsContentType_IgnoringCase()
+    public void ValidateAcceptsContentTypeIgnoringCase()
     {
         // The declared content type is matched case-insensitively against the sniffed format.
-        var errors = ClubCrestValidator.Validate(JpegBytes, "IMAGE/JPEG");
+        var errors = ClubCrestValidator.Validate(_jpegBytes, "IMAGE/JPEG");
 
         errors.ShouldBeEmpty();
     }

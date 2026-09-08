@@ -1,19 +1,24 @@
 ---
 name: nova-testing
 description: >-
-    Write and run Nova tests: pick the right harness (in-memory SQLite tenancy unit tests vs Aspire Postgres integration tests vs the Playwright browser suite) and run them on Microsoft.Testing.Platform.
-    USE FOR: write a unit test, add an integration test, add a browser test, run tests, dotnet test, which test project, tenancy test harness, NovaAppHostFixture, lifecycle race tests, uniqueness probe race, execution-strategy retry tests, transient fault injection, ambiguous commit verification, migration verification, filter tests, CreatedAtRoute Location test, MTP flags, bUnit component tests, Razor literal parameter regression, render-mode assertion, Playwright, Nova.Browser.Tests, browser fixture, seeding helpers.
-    DO NOT USE FOR: domain/persistence work (use add-domain-persistence), building full features (use add-feature-slice), or adding endpoints (use add-api-endpoint).
+    Write, run, or review Nova tests and behavioral evidence. Choose pure-policy tests, bUnit,
+    SQLite tenancy tests, Aspire PostgreSQL integration tests, or the Playwright browser suite
+    and run them on Microsoft.Testing.Platform. Use for corrected form retries, async ownership,
+    authentication changes, recovery, HTTP contracts, provider/lifecycle races, migrations, and
+    browser interactions. Feature and persistence work starts with its dedicated recipe and
+    invokes this skill for verification.
 ---
 
 # Nova Testing
 
-Use this skill when writing or running Nova tests. Read the relevant reference before editing tests:
+Use this skill when writing, running, or reviewing Nova tests and behavioral evidence. Read the
+relevant reference before editing tests or assessing what their outcomes prove:
 
 - [Unit SQLite tenancy harness](references/unit-sqlite-harness.md) for `Nova.Unit.Tests`, shared in-memory SQLite, `TenancyTestHarness`, `FakeCurrentUserProvider`, and `ActAs`.
 - [Blazor component tests](references/blazor-component-tests.md) for bUnit + NSubstitute component
   rendering, `EventCallback` assertions, the required render-mode assertion, and persisted-state
-  restore coverage.
+  restore coverage. Its [transition matrix](references/blazor-component-tests.md#transition-coverage)
+  selects evidence for changed forms, identity, async ownership, recovery, URLs, and consumed contracts.
 - [Aspire integration harness](references/aspire-integration-harness.md) for `Nova.Integration.Tests`, real PostgreSQL 18 via Aspire AppHost, `NovaAppHostFixture`, HTTP e2e, and provider-specific checks.
 - [Browser suite](references/browser-suite.md) for `Nova.Browser.Tests` — Playwright against the
   Aspire-hosted app, the browser fixture and seed, Blazor attachment/navigation pitfalls, and the
@@ -75,7 +80,9 @@ validation summary.
 ## Checklist
 
 1. Pick `Nova.Unit.Tests` unless the behavior is provider-specific.
-2. Follow existing sibling tests for arrangement and naming (`Subject_Outcome_Condition`).
+2. Follow existing sibling tests for arrangement and naming (`SubjectOutcomeCondition`, with an `Async` suffix for async methods).
+   Select the transitions affected by the change before writing assertions. Read production rules
+   by behavior as well as test path (especially tenancy rules for EF-backed tests).
 3. Use Shouldly (`ShouldBe`, `Should.Throw<T>`) and `[Theory]`/`[InlineData]` for case matrices.
 4. Test pure policies directly using the real policy and constructed values. Do not mock the policy
    or use the SQLite harness for deterministic logic; use `[Theory]` for tabular combinations.
@@ -91,7 +98,9 @@ validation summary.
    PostgreSQL context after the probe and assert the database violation maps to `Conflict`.
 10. For `CreatedAtRoute`, assert `201`, exact `Location`, and a successful GET after following it.
 11. For strict HTTP clients, test a populated valid body and table-driven malformed/invalid 2xx
-    payloads, including nested nulls, invalid relationships, bounds, and portable ordering.
+    payloads, including missing required fields, nested nulls, invalid relationships, bounds, and
+    portable ordering. Use the [producer-to-UI contract check](../add-feature-slice/references/wasm-client.md#producer-to-ui-contract-check)
+    to pair those assertions with actual server guarantees and rendered consequences.
 12. Exercise each endpoint and query-validation path independently, using the least-privileged
     permitted role and exact counts for lifecycle or tenancy exclusions.
 13. When a query contract promises an exact asynchronous relational reader count or no N+1 reader

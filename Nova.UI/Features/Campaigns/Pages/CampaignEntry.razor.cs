@@ -1,13 +1,14 @@
-﻿using System.Security.Claims;
+﻿
+using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Features.Campaigns.Components;
 using Nova.UI.Features.Teams.Components;
 
@@ -139,7 +140,7 @@ public partial class CampaignEntry(
         }
         var oldScope = _scope;
         ApplyIdentity(state);
-        if (oldScope == _scope)
+        if (string.Equals(oldScope, _scope, StringComparison.Ordinal))
         {
             return;
         }
@@ -182,13 +183,13 @@ public partial class CampaignEntry(
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
-        if (_previousReview != Review)
+        if (!string.Equals(_previousReview, Review, StringComparison.Ordinal))
         {
-            _focusReview = Review == "open";
+            _focusReview = string.Equals(Review, "open", StringComparison.Ordinal);
             _previousReview = Review;
         }
         var route = new Uri(navigation.Uri).AbsolutePath;
-        var routeChanged = _loadedRoute is not null && _loadedRoute != route;
+        var routeChanged = _loadedRoute is not null && !string.Equals(_loadedRoute, route, StringComparison.Ordinal);
         if (_loadedId == CampaignId && !routeChanged)
         {
             return;
@@ -207,7 +208,7 @@ public partial class CampaignEntry(
         _isOpening = false;
         _confirmDelete = false;
         _deletePending = false;
-        if (routeChanged || Detail?.CampaignId != CampaignId || SnapshotScope != _scope)
+        if (routeChanged || Detail?.CampaignId != CampaignId || !string.Equals(SnapshotScope, _scope, StringComparison.Ordinal))
         {
             Detail = null;
             Readiness = null;
@@ -227,7 +228,9 @@ public partial class CampaignEntry(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     protected override async Task OnAfterRenderAsync(bool firstRender)
+#pragma warning restore MA0051
     {
         if (!_storageAttempted && (Detail is not null || (_admin && _unavailable)))
         {
@@ -293,7 +296,9 @@ public partial class CampaignEntry(
 
     /// <summary>Fetches authorized campaign details, setup, and readiness.</summary>
     /// <returns>The campaign refresh task.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task ReloadAsync()
+#pragma warning restore MA0051
     {
         var version = ++_version;
         _error = null;
@@ -371,7 +376,9 @@ public partial class CampaignEntry(
     /// <summary>Refreshes readiness only for the request that still owns the page.</summary>
     /// <param name="version">The owning route and identity generation.</param>
     /// <returns>Whether fresh readiness was applied.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task<bool> RefreshReadinessAsync(int version)
+#pragma warning restore MA0051
     {
         Readiness = null;
         _readinessError = null;
@@ -389,7 +396,9 @@ public partial class CampaignEntry(
         _readinessError = result.Problem.Detail ?? "Opening readiness is unavailable.";
         if (result.Problem.Kind == ServiceProblemKind.Conflict)
         {
+#pragma warning disable S125 // This prose documents a lifecycle race and why reconciliation is bounded.
             // Readiness can race another administrator's lifecycle command. Reconcile once;
+#pragma warning restore S125
             // a still-Draft conflict (such as season advancement) must not trigger a reload loop.
             Detail = null;
             ServiceResult<CampaignDetailResult> current;
@@ -564,7 +573,9 @@ public partial class CampaignEntry(
     /// <summary>Persists and submits the exact opening operation and hands off its immutable receipt.</summary>
     /// <param name="version">The owning route and identity generation.</param>
     /// <returns>The opening and reconciliation task.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task SubmitOpeningAsync(int version)
+#pragma warning restore MA0051
     {
         // Every submission, including recovery after a failed storage write, must first
         // retain the exact operation so an ambiguous commit can be recovered after reload.
@@ -767,8 +778,24 @@ public partial class CampaignEntry(
         authentication.AuthenticationStateChanged -= AuthenticationChanged;
         if (_module is not null)
         {
-            try { await _module.DisposeAsync(); } catch (JSDisconnectedException) { }
+            try { await _module.DisposeAsync(); } catch (JSDisconnectedException) { /* The disconnected circuit has already released its browser resources. */ }
         }
         await base.DisposeAsyncCore();
     }
+
+    private string OpeningButtonLabel
+    {
+        get
+        {
+            if (_isOpening)
+            {
+                return "Opening campaign…";
+            }
+
+            var count = Readiness?.ActivePlayerCount ?? 0;
+            var noun = count == 1 ? "player" : "players";
+            return $"Open campaign and enroll {count} {noun}";
+        }
+    }
+
 }

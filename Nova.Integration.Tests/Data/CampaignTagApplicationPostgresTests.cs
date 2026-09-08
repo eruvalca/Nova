@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -15,7 +15,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
     /// Verifies the clean Aspire database applied the campaign tag application migration.
     /// </summary>
     [Fact]
-    public async Task Migration_AppliesCampaignTagApplicationSchema()
+    public async Task MigrationAppliesCampaignTagApplicationSchemaAsync()
     {
         await using var db = fixture.CreateTenantContext();
 
@@ -29,7 +29,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
     /// Verifies PostgreSQL rejects duplicate participation/tag applications.
     /// </summary>
     [Fact]
-    public async Task UniqueApplication_RejectsDuplicateParticipationTagPair()
+    public async Task UniqueApplicationRejectsDuplicateParticipationTagPairAsync()
     {
         var seed = await SeedAsync();
         ActAs(seed.ActorUserId, seed.ClubAId, isClubAdmin: true);
@@ -53,7 +53,7 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
     /// before the composite FK constraint.
     /// </summary>
     [Fact]
-    public async Task CompositeTenantForeignKeys_RejectCrossTenantAssignmentTagMix()
+    public async Task CompositeTenantForeignKeysRejectCrossTenantAssignmentTagMixAsync()
     {
         var seed = await SeedAsync();
         ActAs(userId: null, clubId: null);
@@ -81,153 +81,160 @@ public sealed class CampaignTagApplicationPostgresTests(NovaAppHostFixture fixtu
     /// Seeds two clubs with one campaign participation and tag definition each.
     /// </summary>
     /// <returns>Database-generated and deterministic identifiers used in assertions.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<CampaignTagApplicationSeed> SeedAsync()
+#pragma warning restore MA0051
     {
         ActAs(userId: null, clubId: null);
-        await using var db = fixture.CreateAdminContext();
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-        var suffix = Guid.NewGuid().ToString("N");
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
+            var suffix = Guid.NewGuid().ToString("N");
 
-        var clubA = new ClubEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag App Club A {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        var clubB = new ClubEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag App Club B {suffix}",
-            City = "Boston",
-            State = "MA",
-            CreatedById = actorUserId
-        };
-        db.Clubs.AddRange(clubA, clubB);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var clubA = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Tag App Club A {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            var clubB = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Tag App Club B {suffix}",
+                City = "Boston",
+                State = "MA",
+                CreatedById = actorUserId
+            };
+            db.Clubs.AddRange(clubA, clubB);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var seasonA = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season A {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = clubA.ClubId,
-            CreatedById = actorUserId
-        };
-        var seasonB = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season B {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = clubB.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Seasons.AddRange(seasonA, seasonB);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var seasonA = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season A {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = clubA.ClubId,
+                CreatedById = actorUserId
+            };
+            var seasonB = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season B {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = clubB.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Seasons.AddRange(seasonA, seasonB);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var campaignA = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Campaign A {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = seasonA.SeasonId,
-            ClubId = clubA.ClubId,
-            CreatedById = actorUserId
-        };
-        var campaignB = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Campaign B {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Closed,
-            ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
-            ClosedById = actorUserId,
-            SeasonId = seasonB.SeasonId,
-            ClubId = clubB.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Campaigns.AddRange(campaignA, campaignB);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var campaignA = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Campaign A {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = seasonA.SeasonId,
+                ClubId = clubA.ClubId,
+                CreatedById = actorUserId
+            };
+            var campaignB = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Campaign B {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Closed,
+                ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
+                ClosedById = actorUserId,
+                SeasonId = seasonB.SeasonId,
+                ClubId = clubB.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Campaigns.AddRange(campaignA, campaignB);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var playerA = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Player",
-            LastName = $"A{suffix}",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            ClubId = clubA.ClubId,
-            CreatedById = actorUserId
-        };
-        var playerB = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Player",
-            LastName = $"B{suffix}",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            ClubId = clubB.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Players.AddRange(playerA, playerB);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var playerA = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Player",
+                LastName = $"A{suffix}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                ClubId = clubA.ClubId,
+                CreatedById = actorUserId
+            };
+            var playerB = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Player",
+                LastName = $"B{suffix}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                ClubId = clubB.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Players.AddRange(playerA, playerB);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var assignmentA = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = playerA.PlayerId,
-            CampaignId = campaignA.CampaignId,
-            ClubId = clubA.ClubId,
-            CreatedById = actorUserId
-        };
-        var assignmentB = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = playerB.PlayerId,
-            CampaignId = campaignB.CampaignId,
-            ClubId = clubB.ClubId,
-            CreatedById = actorUserId
-        };
-        db.PlayerCampaignAssignments.AddRange(assignmentA, assignmentB);
+            var assignmentA = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = playerA.PlayerId,
+                CampaignId = campaignA.CampaignId,
+                ClubId = clubA.ClubId,
+                CreatedById = actorUserId
+            };
+            var assignmentB = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = playerB.PlayerId,
+                CampaignId = campaignB.CampaignId,
+                ClubId = clubB.ClubId,
+                CreatedById = actorUserId
+            };
+            db.PlayerCampaignAssignments.AddRange(assignmentA, assignmentB);
 
-        var tagA = new PlayerTagEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag A {suffix}",
-            NormalizedName = $"Tag A {suffix}".Trim().ToUpperInvariant(),
-            Color = "#00CC00",
-            ClubId = clubA.ClubId,
-            CreatedById = actorUserId
-        };
-        var tagB = new PlayerTagEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Tag B {suffix}",
-            NormalizedName = $"Tag B {suffix}".Trim().ToUpperInvariant(),
-            Color = "#0000CC",
-            ClubId = clubB.ClubId,
-            CreatedById = actorUserId
-        };
-        db.PlayerTags.AddRange(tagA, tagB);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var tagA = new PlayerTagEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Tag A {suffix}",
+                NormalizedName = $"Tag A {suffix}".Trim().ToUpperInvariant(),
+                Color = "#00CC00",
+                ClubId = clubA.ClubId,
+                CreatedById = actorUserId
+            };
+            var tagB = new PlayerTagEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Tag B {suffix}",
+                NormalizedName = $"Tag B {suffix}".Trim().ToUpperInvariant(),
+                Color = "#0000CC",
+                ClubId = clubB.ClubId,
+                CreatedById = actorUserId
+            };
+            db.PlayerTags.AddRange(tagA, tagB);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId,
-            PlayerTagId = tagA.PlayerTagId,
-            ClubId = clubA.ClubId,
-            CreatedById = actorUserId
-        });
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                PlayerCampaignAssignmentId = assignmentA.PlayerCampaignAssignmentId,
+                PlayerTagId = tagA.PlayerTagId,
+                ClubId = clubA.ClubId,
+                CreatedById = actorUserId
+            });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return new CampaignTagApplicationSeed(
-            actorUserId,
-            clubA.ClubId,
-            clubB.ClubId,
-            assignmentA.PlayerCampaignAssignmentId,
-            tagA.PlayerTagId,
-            tagB.PlayerTagId);
+            return new CampaignTagApplicationSeed(
+                actorUserId,
+                clubA.ClubId,
+                clubB.ClubId,
+                assignmentA.PlayerCampaignAssignmentId,
+                tagA.PlayerTagId,
+                tagB.PlayerTagId);
+        }
     }
 
     /// <summary>

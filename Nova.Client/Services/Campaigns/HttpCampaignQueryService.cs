@@ -1,7 +1,7 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Campaigns;
 
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Campaigns;
 /// WebAssembly HTTP implementation of <see cref="ICampaignQueryService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQueryService
+internal sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<CampaignListResult>> GetCampaignListAsync(
@@ -23,7 +23,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         }
 
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetCampaignListUrl(input.Status, input.Limit, input.Page),
+new Uri(CampaignEndpoints.GetCampaignListUrl(input.Status, input.Limit, input.Page), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -48,7 +48,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         }
 
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetCampaignDetailUrl(input.CampaignId),
+new Uri(CampaignEndpoints.GetCampaignDetailUrl(input.CampaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -65,7 +65,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
     public async Task<ServiceResult<CampaignCreationSetupResult>> GetCreationSetupAsync(
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.GetAsync(CampaignEndpoints.GetCreationSetup, cancellationToken);
+        using var response = await http.GetAsync(new Uri(CampaignEndpoints.GetCreationSetup, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -83,7 +83,7 @@ public sealed class HttpCampaignQueryService(HttpClient http) : ICampaignQuerySe
         CancellationToken cancellationToken = default)
     {
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetOpeningReadinessUrl(campaignId),
+new Uri(CampaignEndpoints.GetOpeningReadinessUrl(campaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {

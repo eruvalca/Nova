@@ -3,9 +3,9 @@ using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -13,10 +13,10 @@ namespace Nova.Unit.Tests.Campaigns;
 public sealed class HttpCampaignParticipantQueryServiceTests
 {
     [Fact]
-    public async Task GetParticipantRosterAsync_GeneratesRepeatedQueryValuesAndAcceptsBoundedPayload()
+    public async Task GetParticipantRosterAsyncGeneratesRepeatedQueryValuesAndAcceptsBoundedPayloadAsync()
     {
         HttpRequestMessage? capturedRequest = null;
-        var handler = new RecordingHandler(async request =>
+        using var handler = new RecordingHandler(async request =>
         {
             capturedRequest = request;
             var payload = new PagedResult<CampaignParticipantRosterItem>(
@@ -55,8 +55,8 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         result.Value.PageSize.ShouldBe(1);
         result.Value.Items.Count.ShouldBe(1);
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri.ShouldNotBeNull();
-        capturedRequest.RequestUri!.Query.ShouldContain("graduationYears=2028");
+        capturedRequest.RequestUri.ShouldNotBeNull();
+        capturedRequest.RequestUri.Query.ShouldContain("graduationYears=2028");
         capturedRequest.RequestUri.Query.ShouldContain("graduationYears=2029");
         capturedRequest.RequestUri.Query.ShouldContain("tagDefinitionIds=11");
         capturedRequest.RequestUri.Query.ShouldContain("tagDefinitionIds=22");
@@ -65,9 +65,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetParticipantDetailAsync_ReturnsServerError_ForMalformedNestedPayload()
+    public async Task GetParticipantDetailAsyncReturnsServerErrorForMalformedNestedPayloadAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = JsonContent.Create(new CampaignParticipantDetailDto(
@@ -104,7 +104,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetParticipantDetailAsync_ReturnsServerError_ForNullOrBlankNestedTagData()
+    public async Task GetParticipantDetailAsyncReturnsServerErrorForNullOrBlankNestedTagDataAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -124,7 +124,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                 [null!, new CampaignParticipantTagApplicationDto(2, 401, "Blue", string.Empty, false, "A Member", DateTimeOffset.UtcNow, true)],
                 new CampaignParticipantCapabilitiesDto(true, true, true, true)))
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
 
         using var http = new HttpClient(handler)
         {
@@ -143,7 +145,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetParticipantDetailAsync_ReturnsServerError_WhenPlacementAndOrderingContractIsViolated()
+    public async Task GetParticipantDetailAsyncReturnsServerErrorWhenPlacementAndOrderingContractIsViolatedAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -166,7 +168,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                 [new CampaignParticipantTagApplicationDto(2, 401, "Blue", "Blue", false, "A Member", DateTimeOffset.UtcNow.AddMinutes(-2), true)],
                 new CampaignParticipantCapabilitiesDto(true, true, true, true)))
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
 
         using var http = new HttpClient(handler)
         {
@@ -185,7 +189,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetParticipantDetailAsync_ReturnsSuccess_WhenNoteModifiedAtFollowsCreatedAt()
+    public async Task GetParticipantDetailAsyncReturnsSuccessWhenNoteModifiedAtFollowsCreatedAtAsync()
     {
         var now = DateTimeOffset.UtcNow;
         var payload = new CampaignParticipantDetailDto(
@@ -207,7 +211,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -226,7 +232,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetParticipantDetailAsync_ReturnsServerError_WhenNoteModifiedAtPrecedesCreatedAt()
+    public async Task GetParticipantDetailAsyncReturnsServerErrorWhenNoteModifiedAtPrecedesCreatedAtAsync()
     {
         var now = DateTimeOffset.UtcNow;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -247,7 +253,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
                 [new CampaignParticipantTagApplicationDto(1, 401, "Blue", "Blue", false, "A Member", now, true)],
                 new CampaignParticipantCapabilitiesDto(true, true, true, true)))
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -265,7 +273,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetParticipantDetailAsync_ReturnsSuccess_ForValidPayload()
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
+    public async Task GetParticipantDetailAsyncReturnsSuccessForValidPayloadAsync()
+#pragma warning restore MA0051
     {
         var now = DateTimeOffset.UtcNow;
         var payload = new CampaignParticipantDetailDto(
@@ -293,7 +303,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -314,12 +326,12 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         result.Value.TryoutNumber.ShouldBe(7);
         result.Value.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
         result.Value.Team.ShouldNotBeNull();
-        result.Value.Team!.TeamId.ShouldBe(301);
+        result.Value.Team.TeamId.ShouldBe(301);
         result.Value.Team.TeamName.ShouldBe("Alpha");
         result.Value.CampaignStatus.ShouldBe(CampaignStatus.Active);
         result.Value.ConcurrencyToken.ShouldNotBe(Guid.Empty);
         result.Value.Capabilities.ShouldNotBeNull();
-        result.Value.Capabilities!.CanAddNote.ShouldBeTrue();
+        result.Value.Capabilities.CanAddNote.ShouldBeTrue();
         result.Value.Capabilities.CanApplyTag.ShouldBeTrue();
         result.Value.Notes.Count.ShouldBe(2);
         result.Value.Notes[0].NoteId.ShouldBe(2);
@@ -338,7 +350,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     /// Verifies participant detail accepts a valid administrator-visible Draft payload.
     /// </summary>
     [Fact]
-    public async Task GetParticipantDetailAsync_ReturnsSuccess_ForDraftPayload()
+    public async Task GetParticipantDetailAsyncReturnsSuccessForDraftPayloadAsync()
     {
         var payload = new CampaignParticipantDetailDto(
             101,
@@ -359,7 +371,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -384,7 +398,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     /// Verifies participant detail rejects campaign lifecycle values outside the shared enum.
     /// </summary>
     [Fact]
-    public async Task GetParticipantDetailAsync_ReturnsServerError_WhenCampaignStatusIsUndefined()
+    public async Task GetParticipantDetailAsyncReturnsServerErrorWhenCampaignStatusIsUndefinedAsync()
     {
         var payload = new CampaignParticipantDetailDto(
             101,
@@ -405,7 +419,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -423,13 +439,15 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetParticipantRosterAsync_ReturnsServerError_WhenSuccessBodyIsInvalidJson()
+    public async Task GetParticipantRosterAsyncReturnsServerErrorWhenSuccessBodyIsInvalidJsonAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("{not-json", Encoding.UTF8, "application/json")
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -448,7 +466,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetParticipantRosterAsync_ReturnsServerError_WhenPageSizeIsExceeded()
+    public async Task GetParticipantRosterAsyncReturnsServerErrorWhenPageSizeIsExceededAsync()
     {
         var payload = new PagedResult<CampaignParticipantRosterItem>(
             [
@@ -479,7 +497,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -498,7 +518,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetParticipantDetailAsync_ReturnsProblem_WhenServerReturnsProblemDetails()
+    public async Task GetParticipantDetailAsyncReturnsProblemWhenServerReturnsProblemDetailsAsync()
     {
         var problemDetails = new ProblemDetails
         {
@@ -510,7 +530,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         {
             Content = JsonContent.Create(problemDetails)
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -528,10 +550,10 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetRosterGraduationYearsAsync_ReturnsSuccessAndBuildsRoute_ForValidPayload()
+    public async Task GetRosterGraduationYearsAsyncReturnsSuccessAndBuildsRouteForValidPayloadAsync()
     {
         HttpRequestMessage? capturedRequest = null;
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -553,18 +575,20 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe([2028, 2029]);
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri.ShouldNotBeNull();
-        capturedRequest.RequestUri!.AbsolutePath.ShouldBe("/api/campaigns/42/participants/graduation-years");
+        capturedRequest.RequestUri.ShouldNotBeNull();
+        capturedRequest.RequestUri.AbsolutePath.ShouldBe("/api/campaigns/42/participants/graduation-years");
     }
 
     [Fact]
-    public async Task GetRosterGraduationYearsAsync_ReturnsServerError_WhenYearsAreUnsorted()
+    public async Task GetRosterGraduationYearsAsyncReturnsServerErrorWhenYearsAreUnsortedAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new List<int> { 2029, 2028 })
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -580,13 +604,15 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetRosterGraduationYearsAsync_ReturnsServerError_WhenYearsContainDuplicates()
+    public async Task GetRosterGraduationYearsAsyncReturnsServerErrorWhenYearsContainDuplicatesAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new List<int> { 2028, 2028 })
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -602,13 +628,15 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetRosterGraduationYearsAsync_ReturnsServerError_WhenYearIsNonPositive()
+    public async Task GetRosterGraduationYearsAsyncReturnsServerErrorWhenYearIsNonPositiveAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new List<int> { 0, 2028 })
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -624,14 +652,16 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetRosterGraduationYearsAsync_ReturnsSuccess_WhenResponseHasManyYears()
+    public async Task GetRosterGraduationYearsAsyncReturnsSuccessWhenResponseHasManyYearsAsync()
     {
         var years = Enumerable.Range(2020, 25).ToList();
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(years)
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -647,7 +677,7 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetRosterGraduationYearsAsync_ReturnsProblem_WhenServerReturnsProblemDetails()
+    public async Task GetRosterGraduationYearsAsyncReturnsProblemWhenServerReturnsProblemDetailsAsync()
     {
         var problemDetails = new ProblemDetails
         {
@@ -659,7 +689,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
         {
             Content = JsonContent.Create(problemDetails)
         };
-        var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning disable CA2025 // This handler returns an already-completed task; the request is awaited before the test disposes the response.
+        using var handler = new RecordingHandler(_ => Task.FromResult(response));
+#pragma warning restore CA2025
         using var http = new HttpClient(handler)
         {
             BaseAddress = new Uri("https://example.com")
@@ -675,9 +707,9 @@ public sealed class HttpCampaignParticipantQueryServiceTests
     }
 
     [Fact]
-    public async Task GetRosterGraduationYearsAsync_ReturnsValidation_ForNonPositiveCampaignId()
+    public async Task GetRosterGraduationYearsAsyncReturnsValidationForNonPositiveCampaignIdAsync()
     {
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(new List<int>())
         }));

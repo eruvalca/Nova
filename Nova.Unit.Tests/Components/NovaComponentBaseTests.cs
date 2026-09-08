@@ -7,7 +7,7 @@ namespace Nova.Unit.Tests.Components;
 public class NovaComponentBaseTests
 {
     [Fact]
-    public void ComponentCancellationToken_IsNotCancelled_WhileRendered()
+    public void ComponentCancellationTokenIsNotCancelledWhileRendered()
     {
         using var testContext = new BunitContext();
         var cut = testContext.Render<TestNovaComponent>();
@@ -16,7 +16,7 @@ public class NovaComponentBaseTests
     }
 
     [Fact]
-    public void ComponentCancellationToken_ReturnsSameToken_OnRepeatedAccess()
+    public void ComponentCancellationTokenReturnsSameTokenOnRepeatedAccess()
     {
         using var testContext = new BunitContext();
         var cut = testContext.Render<TestNovaComponent>();
@@ -28,7 +28,7 @@ public class NovaComponentBaseTests
     }
 
     [Fact]
-    public async Task ComponentCancellationToken_IsCancelled_AfterDisposal()
+    public async Task ComponentCancellationTokenIsCancelledAfterDisposalAsync()
     {
         using var testContext = new BunitContext();
         var cut = testContext.Render<TestNovaComponent>();
@@ -42,7 +42,7 @@ public class NovaComponentBaseTests
     }
 
     [Fact]
-    public async Task ComponentCancellationToken_AccessAfterDisposal_ReturnsCancelledTokenWithoutThrow()
+    public async Task ComponentCancellationTokenAccessAfterDisposalReturnsCancelledTokenWithoutThrowAsync()
     {
         using var testContext = new BunitContext();
         var cut = testContext.Render<TestNovaComponent>();
@@ -57,7 +57,7 @@ public class NovaComponentBaseTests
     }
 
     [Fact]
-    public async Task DisposeAsync_InvokesDisposeAsyncCoreHook()
+    public async Task DisposeAsyncInvokesDisposeAsyncCoreHookAsync()
     {
         using var testContext = new BunitContext();
         var cut = testContext.Render<TestNovaComponent>();
@@ -69,7 +69,9 @@ public class NovaComponentBaseTests
         component.DisposeAsyncCoreInvoked.ShouldBeTrue();
     }
 
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class TestNovaComponent : NovaComponentBase
+#pragma warning restore CA1812
     {
         public bool DisposeAsyncCoreInvoked { get; private set; }
 
@@ -78,7 +80,7 @@ public class NovaComponentBaseTests
         protected override ValueTask DisposeAsyncCore()
         {
             DisposeAsyncCoreInvoked = true;
-            return ValueTask.CompletedTask;
+            return base.DisposeAsyncCore();
         }
     }
 }

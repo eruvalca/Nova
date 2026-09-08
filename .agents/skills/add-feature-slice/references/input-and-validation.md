@@ -8,15 +8,15 @@ attributes.
 
 ## The Single Source of Truth: Annotated Input Records
 
-Every input record lives in `Nova.Shared/Features/{Feature}/` and carries its validation rules as attributes
+Every input record lives in `Nova.SharedKernel/Features/{Feature}/` and carries its validation rules as attributes
 on explicit init-only properties:
 
 ```csharp
-// Nova.Shared/Features/Clubs/CreateClubInput.cs
+// Nova.SharedKernel/Features/Clubs/CreateClubInput.cs
 using System.ComponentModel.DataAnnotations;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Validation;
 
-namespace Nova.Shared.Features.Clubs;
+namespace Nova.SharedKernel.Features.Clubs;
 
 public sealed record CreateClubInput
 {
@@ -37,25 +37,25 @@ public sealed record CreateClubInput
 
 > ⚠️ **Use explicit init-only properties, not positional constructor parameters.**
 > Attributes on positional parameters in records (`record Foo([Required] string Bar)`) are placed on
-> the *constructor parameter*, not the generated *property*. `Validator.TryValidateObject` reflects
+> the _constructor parameter_, not the generated _property_. `Validator.TryValidateObject` reflects
 > on properties — it will not see positional-parameter attributes. Always use the explicit property
 > form shown above.
 
-Canonical file: `Nova.Shared\Features\Clubs\CreateClubInput.cs`.
+Canonical file: `Nova.SharedKernel\Features\Clubs\CreateClubInput.cs`.
 
 ## `[NotWhitespace]`
 
-Defined in `Nova.Shared/Validation/NotWhitespaceAttribute.cs`. `[Required]` considers a
+Defined in `Nova.SharedKernel/Validation/NotWhitespaceAttribute.cs`. `[Required]` considers a
 whitespace-only string (`"   "`) **valid**, but Nova services must reject blank input.
 `[NotWhitespace]` closes that gap: it returns invalid for empty and whitespace-only strings and
 valid for `null` (so `[Required]` owns the "missing" message and `[NotWhitespace]` owns the
 "present but blank" message). Always pair them: `[Required, NotWhitespace]`.
 
-Canonical file: `Nova.Shared\Validation\NotWhitespaceAttribute.cs`.
+Canonical file: `Nova.SharedKernel\Validation\NotWhitespaceAttribute.cs`.
 
 ## `InputValidator.Validate<T>`
 
-Defined in `Nova.Shared/Validation/InputValidator.cs`:
+Defined in `Nova.SharedKernel/Validation/InputValidator.cs`:
 
 ```csharp
 public static Dictionary<string, string[]> Validate<T>(T input)
@@ -65,7 +65,7 @@ It calls `Validator.TryValidateObject(..., validateAllProperties: true)` and pro
 into the `Dictionary<string, string[]>` shape that `ServiceProblem.Validation` consumes. Empty
 dictionary means the input is valid.
 
-Canonical file: `Nova.Shared\Validation\InputValidator.cs`.
+Canonical file: `Nova.SharedKernel\Validation\InputValidator.cs`.
 
 ### Usage in a service method
 
@@ -92,7 +92,7 @@ record instead.
 
 ## Adding a new input record
 
-1. Create the record in `Nova.Shared/{Feature}/{Name}Input.cs`.
+1. Create the record in `Nova.SharedKernel/{Feature}/{Name}Input.cs`.
 2. Declare explicit required init-only properties (not positional constructor parameters — see the
    warning above).
 3. Annotate every member with the appropriate DataAnnotations
@@ -109,4 +109,3 @@ record instead.
 an approach that cannot be expressed as a DataAnnotation. It is the **only** sanctioned exception to
 the "annotate the record + `InputValidator`" rule. See
 `add-api-endpoint/references/validation-and-problemdetails.md` → manual validation for non-model inputs.
-

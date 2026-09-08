@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 
 namespace Nova.Components.Pages;
@@ -10,12 +11,16 @@ namespace Nova.Components.Pages;
 /// </summary>
 /// <param name="navigationManager">The navigation manager used for the auth-aware redirect.</param>
 /// <param name="authenticationStateProvider">The authentication state provider used to detect an onboarded member.</param>
+#pragma warning disable CA1724 // The Landing page and its feature namespace are distinct qualified names.
 public partial class Landing(NavigationManager navigationManager, AuthenticationStateProvider authenticationStateProvider)
+#pragma warning restore CA1724
 {
     /// <summary>
     /// Gets the absolute canonical URL of the landing page, derived from the request host.
     /// </summary>
+#pragma warning disable CA1056 // Blazor binding and NavigationManager consume string URLs in this component contract.
     protected string CanonicalUrl => navigationManager.ToAbsoluteUri("/").AbsoluteUri;
+#pragma warning restore CA1056
 
     /// <summary>
     /// Redirects fully onboarded authenticated visitors to the dashboard and otherwise leaves the

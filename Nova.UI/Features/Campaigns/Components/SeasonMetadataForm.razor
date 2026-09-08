@@ -9,7 +9,7 @@
             <div class="alert alert-danger" role="alert" aria-live="assertive">@ErrorMessage</div>
         }
 
-        <EditForm Model="_localModel" OnValidSubmit="HandleValidSubmit">
+        <EditForm Model="_localModel" OnValidSubmit="HandleValidSubmitAsync">
             <DataAnnotationsValidator />
             <ValidationSummary class="visually-hidden" aria-live="polite" />
             <div class="row g-3">

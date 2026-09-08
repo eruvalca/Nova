@@ -3,9 +3,9 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Players;
@@ -19,14 +19,14 @@ public sealed class HttpPlayerManagementServiceTests
     /// Verifies create sends the expected request and returns the response player.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_SendsPostAndReturnsPlayer_WhenPayloadIsValid()
+    public async Task CreateAsyncSendsPostAndReturnsPlayerWhenPayloadIsValidAsync()
     {
         var input = CreateInput();
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(CreatePlayer())
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerManagementService(http).CreateAsync(
@@ -39,7 +39,7 @@ public sealed class HttpPlayerManagementServiceTests
         handler.PathAndQuery.ShouldBe("/api/players");
         var sent = JsonSerializer.Deserialize<CreatePlayerInput>(
             handler.RequestBody!,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            JsonSerializerOptions.Web);
         sent.ShouldNotBeNull();
         sent.ShouldBe(input);
     }
@@ -48,7 +48,7 @@ public sealed class HttpPlayerManagementServiceTests
     /// Verifies update sends the expected request and returns the response player.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_SendsPutAndReturnsPlayer_WhenPayloadIsValid()
+    public async Task UpdateAsyncSendsPutAndReturnsPlayerWhenPayloadIsValidAsync()
     {
         var input = new UpdatePlayerInput
         {
@@ -64,7 +64,7 @@ public sealed class HttpPlayerManagementServiceTests
         {
             Content = JsonContent.Create(CreatePlayer())
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerManagementService(http).UpdateAsync(
@@ -77,7 +77,7 @@ public sealed class HttpPlayerManagementServiceTests
         handler.PathAndQuery.ShouldBe("/api/players/7");
         var sent = JsonSerializer.Deserialize<UpdatePlayerInput>(
             handler.RequestBody!,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            JsonSerializerOptions.Web);
         sent.ShouldNotBeNull();
         sent.ShouldBe(input);
     }
@@ -86,7 +86,7 @@ public sealed class HttpPlayerManagementServiceTests
     /// Verifies update rejects a success payload for a different player.
     /// </summary>
     [Fact]
-    public async Task UpdateAsync_ReturnsServerError_WhenResponsePlayerIdDoesNotMatch()
+    public async Task UpdateAsyncReturnsServerErrorWhenResponsePlayerIdDoesNotMatchAsync()
     {
         var input = new UpdatePlayerInput
         {
@@ -100,7 +100,7 @@ public sealed class HttpPlayerManagementServiceTests
         {
             Content = JsonContent.Create(CreatePlayer() with { PlayerId = 8 })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerManagementService(http).UpdateAsync(
@@ -119,13 +119,13 @@ public sealed class HttpPlayerManagementServiceTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task CreateAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task CreateAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerManagementService(http).CreateAsync(
@@ -140,13 +140,13 @@ public sealed class HttpPlayerManagementServiceTests
     /// Verifies create rejects a response that violates portable player invariants.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_WhenPlayerInvariantIsInvalid()
+    public async Task CreateAsyncReturnsServerErrorWhenPlayerInvariantIsInvalidAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(CreatePlayer() with { PlayerId = 0 })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerManagementService(http).CreateAsync(
@@ -165,7 +165,7 @@ public sealed class HttpPlayerManagementServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999, LifecycleStatus.Active)]
     [InlineData(2028, (LifecycleStatus)99)]
-    public async Task CreateAsync_ReturnsServerError_WhenPlayerStateIsInvalid(
+    public async Task CreateAsyncReturnsServerErrorWhenPlayerStateIsInvalidAsync(
         int graduationYear,
         LifecycleStatus lifecycleStatus)
     {
@@ -177,7 +177,7 @@ public sealed class HttpPlayerManagementServiceTests
                 LifecycleStatus = lifecycleStatus
             })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerManagementService(http).CreateAsync(
@@ -195,13 +195,13 @@ public sealed class HttpPlayerManagementServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(-1)]
     [InlineData(10000)]
-    public async Task CreateAsync_ReturnsServerError_WhenJerseyNumberIsOutOfRange(int jerseyNumber)
+    public async Task CreateAsyncReturnsServerErrorWhenJerseyNumberIsOutOfRangeAsync(int jerseyNumber)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(CreatePlayer() with { JerseyNumber = jerseyNumber })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerManagementService(http).CreateAsync(
@@ -216,13 +216,13 @@ public sealed class HttpPlayerManagementServiceTests
     /// Verifies player responses reject undefined gender values.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsServerError_WhenGenderIsUndefined()
+    public async Task CreateAsyncReturnsServerErrorWhenGenderIsUndefinedAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(CreatePlayer() with { Gender = (Gender)99 })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerManagementService(http).CreateAsync(
@@ -237,13 +237,13 @@ public sealed class HttpPlayerManagementServiceTests
     /// Verifies the client does not reject a date value currently permitted by the shared input contract.
     /// </summary>
     [Fact]
-    public async Task CreateAsync_ReturnsPlayer_WhenDateOfBirthIsMinimumValue()
+    public async Task CreateAsyncReturnsPlayerWhenDateOfBirthIsMinimumValueAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Created)
         {
             Content = JsonContent.Create(CreatePlayer() with { DateOfBirth = DateOnly.MinValue })
         };
-        var handler = new CapturingHandler(response);
+        using var handler = new CapturingHandler(response);
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerManagementService(http).CreateAsync(

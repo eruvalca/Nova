@@ -1,8 +1,8 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -16,13 +16,15 @@ public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixtur
 {
     /// <summary>Verifies PostgreSQL pages Closed history by actual closure time before campaign start dates.</summary>
     [Fact]
-    public async Task GetCampaignList_PagesClosedCampaigns_ByClosureTime()
+    public async Task GetCampaignListPagesClosedCampaignsByClosureTimeAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(1, cancellationToken);
         long expectedFirstId;
         long expectedSecondId;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var first = new CampaignEntity
             {
@@ -71,7 +73,7 @@ public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixtur
     }
 
     [Fact]
-    public async Task GetCreationSetup_ReturnsOnlyCurrentSeason()
+    public async Task GetCreationSetupReturnsOnlyCurrentSeasonAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(101, cancellationToken);
@@ -92,37 +94,42 @@ public sealed class CampaignQueryOrderingPostgresTests(NovaAppHostFixture fixtur
     private async Task<Seed> SeedAsync(int seasonCount, CancellationToken cancellationToken)
     {
         ActAs(userId: null, clubId: null);
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-
-        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Campaign Bound Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(cancellationToken);
-
-        var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
-        db.Users.Add(member);
-        var baseDate = new DateOnly(2026, 1, 1);
-        SeasonEntity? currentSeason = null;
-        for (var i = 0; i < seasonCount; i++)
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            var season = new SeasonEntity
+            var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
+
+            var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Campaign Bound Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
+            db.Users.Add(member);
+            var baseDate = new DateOnly(2026, 1, 1);
+            SeasonEntity? currentSeason = null;
+            for (var i = 0; i < seasonCount; i++)
             {
-                CreationOperationId = Guid.NewGuid(),
-                Name = $"Season {i:000}",
-                StartDate = baseDate.AddDays(i),
-                ClubId = club.ClubId,
-                CreatedById = actorUserId
-            };
-            db.Seasons.Add(season);
-            currentSeason = season;
+                var season = new SeasonEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    Name = $"Season {i:000}",
+                    StartDate = baseDate.AddDays(i),
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                };
+                db.Seasons.Add(season);
+                currentSeason = season;
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            club.CurrentSeasonId = currentSeason!.SeasonId;
+            await db.SaveChangesAsync(cancellationToken);
+
+            return new Seed(club.ClubId, member.Id, currentSeason.SeasonId);
         }
-
-        await db.SaveChangesAsync(cancellationToken);
-        club.CurrentSeasonId = currentSeason!.SeasonId;
-        await db.SaveChangesAsync(cancellationToken);
-
-        return new Seed(club.ClubId, member.Id, currentSeason.SeasonId);
     }
 
     private void ActAs(long? userId, long? clubId, bool isAdmin = false)

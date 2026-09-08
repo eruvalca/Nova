@@ -1,17 +1,17 @@
 ---
 name: add-activity-feed
 description: >-
-  Builds a durable append-only activity event log plus its role-shaped feed and attention badge
-  projections in Nova: ActivityEventEntity and ActivityEventWriter, family-shaped polymorphic
-  payloads, role visibility filtering, keyset paging, and per-region attention counts.
-  USE FOR: add an activity/attention foundation, add a new activity event kind, add a role-shaped
-  feed or badge count, durable event log, keyset paging, polymorphic activity payload, attention
-  projection with partial failures.
-  DO NOT USE FOR: a generic entity/relationship (use add-domain-persistence), a single endpoint on an
-  existing service (use add-api-endpoint), a generic bounded read-only query API (use
-  add-feature-slice), or only writing/running tests (use nova-testing).
-  INVOKES: add-domain-persistence (append-only event entity), add-api-endpoint (feed/attention
-  endpoints and polymorphic DTOs), add-blazor-ui (UI step), nova-testing (test step).
+    Builds a durable append-only activity event log plus its role-shaped feed and attention badge
+    projections in Nova: ActivityEventEntity and ActivityEventWriter, family-shaped polymorphic
+    payloads, role visibility filtering, keyset paging, and per-region attention counts.
+    USE FOR: add an activity/attention foundation, add a new activity event kind, add a role-shaped
+    feed or badge count, durable event log, keyset paging, polymorphic activity payload, attention
+    projection with partial failures.
+    DO NOT USE FOR: a generic entity/relationship (use add-domain-persistence), a single endpoint on an
+    existing service (use add-api-endpoint), a generic bounded read-only query API (use
+    add-feature-slice), or only writing/running tests (use nova-testing).
+    INVOKES: add-domain-persistence (append-only event entity), add-api-endpoint (feed/attention
+    endpoints and polymorphic DTOs), add-blazor-ui (UI step), nova-testing (test step).
 ---
 
 # Add Activity Feed
@@ -27,9 +27,9 @@ Canonical examples:
 - Role-shaped projection + keyset: `Nova\Features\Activity\ClubActivityFeedPolicy.cs`
 - Read service: `Nova\Features\Activity\ClubActivityQueryService.cs`
 - Badge counts: `Nova\Features\Attention\ClubAttentionQueryService.cs`
-- Polymorphic contexts: `Nova.Shared\Features\Activity\ClubActivityContexts.cs`
-- DTOs/cursor: `Nova.Shared\Features\Activity\ClubActivityContracts.cs`,
-  `Nova.Shared\Features\Activity\ClubActivityCursor.cs`
+- Polymorphic contexts: `Nova.SharedKernel\Features\Activity\ClubActivityContexts.cs`
+- DTOs/cursor: `Nova.SharedKernel\Features\Activity\ClubActivityContracts.cs`,
+  `Nova.SharedKernel\Features\Activity\ClubActivityCursor.cs`
 - WASM client: `Nova.Client\Services\Activity\HttpClubActivityQueryService.cs`
 
 ## Ordered checklist
@@ -44,7 +44,7 @@ Canonical examples:
    `Append*` method to `ActivityEventWriter` only when the kind belongs to a **new** family; kinds in
    an existing family reuse its shared method.
 3. **Shared contracts** — add the cursor, the item/result DTOs, and the input record in
-   `Nova.Shared\Features\Activity\`. Add a `*Context` record only when the kind belongs to a **new**
+   `Nova.SharedKernel\Features\Activity\`. Add a `*Context` record only when the kind belongs to a **new**
    family, registering it on the base `ClubActivityContext` via `[JsonDerivedType]`; existing families
    reuse their context. Use `IValidatableObject` for the cursor's both-or-neither rule (see
    [add-api-endpoint validation](../add-api-endpoint/references/validation-and-problemdetails.md)).

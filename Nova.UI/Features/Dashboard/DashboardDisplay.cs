@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
 
 namespace Nova.UI.Features.Dashboard;
 
@@ -33,18 +33,18 @@ internal static class DashboardDisplay
             $"updated {p.PlayerDisplayName}'s placement for {p.CampaignName}",
         (ActivityEventKind.PlacementSuperseded, PlacementContext p) =>
             $"superseded {p.PlayerDisplayName}'s placement for {p.CampaignName}",
-        (ActivityEventKind.JoinRequestSubmitted, JoinRequestContext j) =>
+        (ActivityEventKind.JoinRequestSubmitted, JoinRequestContext) =>
             "requested to join the club",
-        (ActivityEventKind.JoinRequestCancelled, JoinRequestContext j) =>
+        (ActivityEventKind.JoinRequestCancelled, JoinRequestContext) =>
             "withdrew their join request",
         (ActivityEventKind.JoinRequestRejected, JoinRequestContext j) =>
             $"rejected {j.RequesterDisplayName}'s join request",
         (ActivityEventKind.MemberJoined, MembershipContext m) =>
-            m.ApprovedByActorName is string approver
+            m.ApprovedByActorName is not null
                 ? $"approved {m.MemberDisplayName}'s membership"
                 : $"{m.MemberDisplayName} joined the club",
         (ActivityEventKind.MemberRemoved, MembershipContext m) => $"removed {m.MemberDisplayName}",
-        (ActivityEventKind.MemberLeft, MembershipContext m) => "left the club",
+        (ActivityEventKind.MemberLeft, MembershipContext) => "left the club",
         (ActivityEventKind.MemberPromoted, MemberRoleContext r) => $"promoted {r.MemberDisplayName} to {r.Role}",
         (ActivityEventKind.MemberDemoted, MemberRoleContext r) => $"demoted {r.MemberDisplayName}",
         _ => "updated the club"
@@ -56,5 +56,5 @@ internal static class DashboardDisplay
     /// <param name="eventAt">The event timestamp.</param>
     /// <returns>The formatted timestamp.</returns>
     public static string FormatActivityDate(DateTimeOffset eventAt)
-        => eventAt.ToString("MMM d, yyyy");
+        => eventAt.ToString("MMM d, yyyy", System.Globalization.CultureInfo.CurrentCulture);
 }

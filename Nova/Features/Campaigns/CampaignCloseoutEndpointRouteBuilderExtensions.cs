@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
 
@@ -23,7 +23,7 @@ internal static class CampaignCloseoutEndpointRouteBuilderExtensions
                 .MapGroup(CampaignEndpoints.GroupPrefix)
                 .RequireAuthorization();
 
-            group.MapGet(CampaignEndpoints.GetCampaignCloseoutReadinessRelative, GetCloseoutReadinessHandler)
+            group.MapGet(CampaignEndpoints.GetCampaignCloseoutReadinessRelative, GetCloseoutReadinessHandlerAsync)
                 .Produces<CampaignCloseoutReadinessDto>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -33,7 +33,7 @@ internal static class CampaignCloseoutEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubMember)
                 .WithName(CampaignEndpoints.GetCampaignCloseoutReadinessRouteName);
 
-            group.MapGet(CampaignEndpoints.GetCampaignActivityRelative, GetActivityHandler)
+            group.MapGet(CampaignEndpoints.GetCampaignActivityRelative, GetActivityHandlerAsync)
                 .Produces<CampaignActivityResult>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -54,7 +54,7 @@ internal static class CampaignCloseoutEndpointRouteBuilderExtensions
     /// <param name="closeoutQueryService">The service that resolves the closeout-readiness query.</param>
     /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
     /// <returns>The HTTP result for the closeout readiness.</returns>
-    private static async Task<IResult> GetCloseoutReadinessHandler(
+    private static async Task<IResult> GetCloseoutReadinessHandlerAsync(
         [AsParameters] GetCampaignCloseoutReadinessInput input,
         ICampaignCloseoutQueryService closeoutQueryService,
         CancellationToken cancellationToken)
@@ -70,7 +70,7 @@ internal static class CampaignCloseoutEndpointRouteBuilderExtensions
     /// <param name="closeoutQueryService">The service that resolves the activity query.</param>
     /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
     /// <returns>The HTTP result for the recent campaign activity.</returns>
-    private static async Task<IResult> GetActivityHandler(
+    private static async Task<IResult> GetActivityHandlerAsync(
         [AsParameters] GetCampaignActivityInput input,
         ICampaignCloseoutQueryService closeoutQueryService,
         CancellationToken cancellationToken)

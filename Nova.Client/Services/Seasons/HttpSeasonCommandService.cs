@@ -1,12 +1,12 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Seasons;
 
 /// <summary>Calls the server's season command endpoints over HTTP.</summary>
 /// <param name="http">The application HTTP client.</param>
-public sealed class HttpSeasonCommandService(HttpClient http) : ISeasonCommandService
+internal sealed class HttpSeasonCommandService(HttpClient http) : ISeasonCommandService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<SeasonSummary>> CreateAsync(

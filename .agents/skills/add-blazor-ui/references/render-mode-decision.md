@@ -22,7 +22,7 @@ a legacy route with zero interactive handlers, so it has no render mode.
 **Q2 — Can it run in WebAssembly?**
 
 It can if every service it depends on has a client implementation (an `Http{Feature}Service` in
-`Nova.Client` registered against the same `Nova.Shared` interface) and it does not need
+`Nova.Client` registered against the same `Nova.SharedKernel` interface) and it does not need
 `HttpContext`, cookies, `SignInManager`, or other server-only state.
 
 → **Yes: use `InteractiveAuto`.** This is Nova's standard interactive mode; every interactive page
@@ -43,7 +43,7 @@ surfaces as a DI failure only after the WASM runtime attaches.
 
 → **`InteractiveServer`, as a last resort.** Nova currently has **zero** `InteractiveServer`
 components. Before choosing it, try to add the missing client abstraction instead: define the
-contract in `Nova.Shared` and implement it over HTTP in `Nova.Client`. If you still choose
+contract in `Nova.SharedKernel` and implement it over HTTP in `Nova.Client`. If you still choose
 `InteractiveServer`, state in the component's XML docs which server-only dependency forced it.
 
 ## Interactive islands on a static SSR page
@@ -77,11 +77,11 @@ Guard against it:
 
 ## Placement consequences
 
-| Render mode | Allowed projects |
-| --- | --- |
-| Static SSR | `Nova.UI`, `Nova` |
+| Render mode                                  | Allowed projects              |
+| -------------------------------------------- | ----------------------------- |
+| Static SSR                                   | `Nova.UI`, `Nova`             |
 | `InteractiveAuto` / `InteractiveWebAssembly` | `Nova.UI`, `Nova.Client` only |
-| `InteractiveServer` | `Nova.UI`, `Nova` |
+| `InteractiveServer`                          | `Nova.UI`, `Nova`             |
 
 Never apply a render mode globally in `App.razor`/`Routes.razor` to fix a single component.
 

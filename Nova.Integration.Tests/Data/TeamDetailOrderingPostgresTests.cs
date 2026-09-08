@@ -1,8 +1,8 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Teams;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -20,7 +20,7 @@ public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
     /// the placement-history response.
     /// </summary>
     [Fact]
-    public async Task GetTeamDetail_BoundsPlacementHistory_AndOrdersActiveDraftClosed()
+    public async Task GetTeamDetailBoundsPlacementHistoryAndOrdersActiveDraftClosedAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(cancellationToken);
@@ -49,155 +49,162 @@ public sealed class TeamDetailOrderingPostgresTests(NovaAppHostFixture fixture)
     /// </summary>
     /// <param name="cancellationToken">A token to observe for cooperative cancellation.</param>
     /// <returns>The identifiers required to execute the tenant-scoped query.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<Seed> SeedAsync(CancellationToken cancellationToken)
+#pragma warning restore MA0051
     {
         ActAs(userId: null, clubId: null);
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-
-        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Team Detail Bound Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(cancellationToken);
-
-        var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
-        db.Users.Add(member);
-        var team = new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = $"Bound Team {suffix}", GraduationYear = 2029, ClubId = club.ClubId, CreatedById = actorUserId };
-        db.Teams.Add(team);
-        await db.SaveChangesAsync(cancellationToken);
-
-        var activeSeason = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Active Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
-        db.Seasons.Add(activeSeason);
-        await db.SaveChangesAsync(cancellationToken);
-
-        var activeCampaign = new CampaignEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Active Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = activeSeason.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Campaigns.Add(activeCampaign);
-        await db.SaveChangesAsync(cancellationToken);
+            var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
-        var activePlayer = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Active",
-            LastName = "Player",
-            DateOfBirth = new DateOnly(2011, 1, 1),
-            GraduationYear = 2029,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Players.Add(activePlayer);
-        await db.SaveChangesAsync(cancellationToken);
+            var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Team Detail Bound Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(cancellationToken);
 
-        db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = activePlayer.PlayerId,
-            CampaignId = activeCampaign.CampaignId,
-            TeamId = team.TeamId,
-            PlacementOutcome = PlacementOutcome.Assigned,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        });
+            var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
+            db.Users.Add(member);
+            var team = new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = $"Bound Team {suffix}", GraduationYear = 2029, ClubId = club.ClubId, CreatedById = actorUserId };
+            db.Teams.Add(team);
+            await db.SaveChangesAsync(cancellationToken);
 
-        var draftCampaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Draft Campaign {suffix}",
-            StartDate = new DateOnly(2024, 6, 1),
-            Status = CampaignStatus.Draft,
-            SeasonId = activeSeason.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var draftPlayer = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Draft",
-            LastName = "Player",
-            DateOfBirth = new DateOnly(2011, 6, 1),
-            GraduationYear = 2029,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Campaigns.Add(draftCampaign);
-        db.Players.Add(draftPlayer);
-        await db.SaveChangesAsync(cancellationToken);
+            var activeSeason = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Active Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
+            db.Seasons.Add(activeSeason);
+            await db.SaveChangesAsync(cancellationToken);
 
-        db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = draftPlayer.PlayerId,
-            CampaignId = draftCampaign.CampaignId,
-            TeamId = team.TeamId,
-            PlacementOutcome = PlacementOutcome.Assigned,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        });
-
-        for (var i = 0; i < TeamDetailDto.MaxPlacementHistoryItems; i++)
-        {
-            var season = new SeasonEntity
+            var activeCampaign = new CampaignEntity
             {
                 CreationOperationId = Guid.NewGuid(),
-                Name = $"Historical Season {suffix} {i:000}",
-                StartDate = new DateOnly(2025, 1, 1),
+                Name = $"Active Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = activeSeason.SeasonId,
                 ClubId = club.ClubId,
                 CreatedById = actorUserId
             };
-            db.Seasons.Add(season);
+            db.Campaigns.Add(activeCampaign);
             await db.SaveChangesAsync(cancellationToken);
 
-            var campaign = new CampaignEntity
+            var activePlayer = new PlayerEntity
             {
                 CreationOperationId = Guid.NewGuid(),
-                Name = $"Historical Campaign {suffix} {i:000}",
-                StartDate = new DateOnly(2025, 2, 1).AddDays(i),
-                Status = CampaignStatus.Closed,
-                SeasonId = season.SeasonId,
-                ClubId = club.ClubId,
-                CreatedById = actorUserId,
-                ClosedAt = DateTimeOffset.UtcNow,
-                ClosedById = actorUserId
-            };
-            db.Campaigns.Add(campaign);
-            await db.SaveChangesAsync(cancellationToken);
-
-            var player = new PlayerEntity
-            {
-                CreationOperationId = Guid.NewGuid(),
-                FirstName = "Historical",
-                LastName = $"Player {i:000}",
-                DateOfBirth = new DateOnly(2010, 1, 1),
-                GraduationYear = 2028,
+                FirstName = "Active",
+                LastName = "Player",
+                DateOfBirth = new DateOnly(2011, 1, 1),
+                GraduationYear = 2029,
                 LifecycleStatus = LifecycleStatus.Active,
                 ClubId = club.ClubId,
                 CreatedById = actorUserId
             };
-            db.Players.Add(player);
+            db.Players.Add(activePlayer);
             await db.SaveChangesAsync(cancellationToken);
 
             db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
             {
-                PlayerId = player.PlayerId,
-                CampaignId = campaign.CampaignId,
+                PlayerId = activePlayer.PlayerId,
+                CampaignId = activeCampaign.CampaignId,
                 TeamId = team.TeamId,
                 PlacementOutcome = PlacementOutcome.Assigned,
                 ClubId = club.ClubId,
                 CreatedById = actorUserId
             });
+
+            var draftCampaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Draft Campaign {suffix}",
+                StartDate = new DateOnly(2024, 6, 1),
+                Status = CampaignStatus.Draft,
+                SeasonId = activeSeason.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            var draftPlayer = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Draft",
+                LastName = "Player",
+                DateOfBirth = new DateOnly(2011, 6, 1),
+                GraduationYear = 2029,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Campaigns.Add(draftCampaign);
+            db.Players.Add(draftPlayer);
+            await db.SaveChangesAsync(cancellationToken);
+
+            db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = draftPlayer.PlayerId,
+                CampaignId = draftCampaign.CampaignId,
+                TeamId = team.TeamId,
+                PlacementOutcome = PlacementOutcome.Assigned,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            });
+
+            for (var i = 0; i < TeamDetailDto.MaxPlacementHistoryItems; i++)
+            {
+                var season = new SeasonEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    Name = $"Historical Season {suffix} {i:000}",
+                    StartDate = new DateOnly(2025, 1, 1),
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                };
+                db.Seasons.Add(season);
+                await db.SaveChangesAsync(cancellationToken);
+
+                var campaign = new CampaignEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    Name = $"Historical Campaign {suffix} {i:000}",
+                    StartDate = new DateOnly(2025, 2, 1).AddDays(i),
+                    Status = CampaignStatus.Closed,
+                    SeasonId = season.SeasonId,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId,
+                    ClosedAt = DateTimeOffset.UtcNow,
+                    ClosedById = actorUserId
+                };
+                db.Campaigns.Add(campaign);
+                await db.SaveChangesAsync(cancellationToken);
+
+                var player = new PlayerEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    FirstName = "Historical",
+                    LastName = $"Player {i:000}",
+                    DateOfBirth = new DateOnly(2010, 1, 1),
+                    GraduationYear = 2028,
+                    LifecycleStatus = LifecycleStatus.Active,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                };
+                db.Players.Add(player);
+                await db.SaveChangesAsync(cancellationToken);
+
+                db.PlayerCampaignAssignments.Add(new PlayerCampaignAssignmentEntity
+                {
+                    PlayerId = player.PlayerId,
+                    CampaignId = campaign.CampaignId,
+                    TeamId = team.TeamId,
+                    PlacementOutcome = PlacementOutcome.Assigned,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                });
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+
+            return new Seed(club.ClubId, member.Id, team.TeamId);
         }
-
-        await db.SaveChangesAsync(cancellationToken);
-
-        return new Seed(club.ClubId, member.Id, team.TeamId);
     }
 
     /// <summary>

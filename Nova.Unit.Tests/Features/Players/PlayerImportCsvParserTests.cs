@@ -1,7 +1,7 @@
 ﻿using System.Text;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Players;
@@ -13,7 +13,7 @@ public sealed class PlayerImportCsvParserTests
     private readonly PlayerImportCsvParser _parser = new();
 
     [Fact]
-    public void Parse_ReturnsTypedReadyRows_ForStrictUtf8Csv()
+    public void ParseReturnsTypedReadyRowsForStrictUtf8Csv()
     {
         var result = Parse("Zoë,李,2012-02-29,female,7,2030\r\n", includeBom: true);
 
@@ -30,7 +30,7 @@ public sealed class PlayerImportCsvParserTests
     }
 
     [Fact]
-    public void Parse_PreservesLogicalSourceRows_AcrossBlankAndMultilineRecords()
+    public void ParsePreservesLogicalSourceRowsAcrossBlankAndMultilineRecords()
     {
         var result = Parse("Alex,Archer,2012-01-01,,1,2030\r\n\r\n\"Mary\nAnn\",Smith,2011-03-04,,,2029\r\n");
 
@@ -47,7 +47,7 @@ public sealed class PlayerImportCsvParserTests
     [InlineData("@cmd")]
     [InlineData("\tcmd")]
     [InlineData(" \t=cmd")]
-    public void Parse_RejectsFormulaLikeCells(string firstName)
+    public void ParseRejectsFormulaLikeCells(string firstName)
     {
         var result = Parse($"{firstName},Archer,2012-01-01,,,2030\r\n");
 
@@ -65,7 +65,7 @@ public sealed class PlayerImportCsvParserTests
     [InlineData("2012-01-02", "0", "12", "2030", PlayerImportField.Gender)]
     [InlineData("2012-01-02", "", "+12", "2030", PlayerImportField.JerseyNumber)]
     [InlineData("2012-01-02", "", "12", "\"2,030\"", PlayerImportField.GraduationYear)]
-    public void Parse_RejectsLocaleOrNonContractValues(
+    public void ParseRejectsLocaleOrNonContractValues(
         string dateOfBirth,
         string gender,
         string jerseyNumber,
@@ -79,7 +79,7 @@ public sealed class PlayerImportCsvParserTests
     }
 
     [Fact]
-    public void Parse_ReusesCreatePlayerValidation_ForNamesAndRanges()
+    public void ParseReusesCreatePlayerValidationForNamesAndRanges()
     {
         var longName = new string('a', 101);
         var result = Parse($"{longName}, ,2012-01-01,,10000,1999\r\n");
@@ -96,7 +96,7 @@ public sealed class PlayerImportCsvParserTests
     [InlineData("Last name,First name,Date of birth,Gender,Jersey number,Graduation year\r\n")]
     [InlineData("First name,Last name,Date of birth,Gender,Jersey number\r\n")]
     [InlineData("First name,Last name,Date of birth,Gender,Jersey number,Graduation year,Extra\r\n")]
-    public void Parse_RejectsAnyHeaderDrift(string header)
+    public void ParseRejectsAnyHeaderDrift(string header)
     {
         var result = _parser.Parse(
             Encoding.UTF8.GetBytes(header + "Alex,Archer,2012-01-01,,,2030\r\n"),
@@ -107,7 +107,7 @@ public sealed class PlayerImportCsvParserTests
     }
 
     [Fact]
-    public void Parse_RejectsHeaderOnlyFile()
+    public void ParseRejectsHeaderOnlyFile()
     {
         var result = _parser.Parse(Encoding.UTF8.GetBytes(Header), TestContext.Current.CancellationToken);
 
@@ -116,7 +116,7 @@ public sealed class PlayerImportCsvParserTests
     }
 
     [Fact]
-    public void Parse_RejectsInvalidUtf8()
+    public void ParseRejectsInvalidUtf8()
     {
         var bytes = Encoding.UTF8.GetBytes(Header + "Alex,");
         bytes = [.. bytes, 0xC3, 0x28];
@@ -128,7 +128,7 @@ public sealed class PlayerImportCsvParserTests
     }
 
     [Fact]
-    public void Parse_RejectsUtf16Preamble()
+    public void ParseRejectsUtf16Preamble()
     {
         var result = _parser.Parse(
             [.. Encoding.Unicode.GetPreamble(), .. Encoding.Unicode.GetBytes(Header + "Alex,Archer,2012-01-01,,,2030\r\n")],
@@ -139,7 +139,7 @@ public sealed class PlayerImportCsvParserTests
     }
 
     [Fact]
-    public void Parse_RejectsInconsistentColumnCount()
+    public void ParseRejectsInconsistentColumnCount()
     {
         var result = Parse("Alex,Archer,2012-01-01,2030\r\n");
 
@@ -148,7 +148,7 @@ public sealed class PlayerImportCsvParserTests
     }
 
     [Fact]
-    public void Parse_RejectsAllEmptyWrongWidthRecord()
+    public void ParseRejectsAllEmptyWrongWidthRecord()
     {
         var result = Parse(",,,,,,\r\n");
 
@@ -157,7 +157,7 @@ public sealed class PlayerImportCsvParserTests
     }
 
     [Fact]
-    public void Parse_AcceptsMaximumRows_AndRejectsOneMore()
+    public void ParseAcceptsMaximumRowsAndRejectsOneMore()
     {
         var thousandRows = string.Concat(Enumerable.Repeat("Alex,Archer,2012-01-01,,,2030\r\n", 1_000));
 
@@ -170,7 +170,7 @@ public sealed class PlayerImportCsvParserTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0, "First name")]
     [InlineData(5, "Graduation year")]
-    public void Parse_RejectsOversizedField_WithSourceRowAndField(int fieldIndex, string fieldName)
+    public void ParseRejectsOversizedFieldWithSourceRowAndField(int fieldIndex, string fieldName)
     {
         var cells = new[] { "Alex", "Archer", "2012-01-01", "", "", "2030" };
         cells[fieldIndex] = new string('a', PlayerImportConstraints.MaxFieldCharacters + 1);
@@ -183,7 +183,7 @@ public sealed class PlayerImportCsvParserTests
     }
 
     [Fact]
-    public void Parse_RejectsMalformedQuoting()
+    public void ParseRejectsMalformedQuoting()
     {
         var result = Parse("\"Alex,Archer,2012-01-01,,,2030\r\n");
 
@@ -192,7 +192,7 @@ public sealed class PlayerImportCsvParserTests
     }
 
     [Fact]
-    public void Parse_ObservesCancellationBetweenRecords()
+    public void ParseObservesCancellationBetweenRecords()
     {
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();

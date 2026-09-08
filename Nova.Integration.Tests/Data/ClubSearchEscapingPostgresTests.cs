@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Clubs;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Features.Clubs;
 using NSubstitute;
 using Shouldly;
 
@@ -17,11 +17,13 @@ namespace Nova.Integration.Tests.Data;
 public sealed class ClubSearchEscapingPostgresTests(NovaAppHostFixture fixture)
 {
     [Fact]
-    public async Task SearchClubs_TreatsLikeMetacharactersAsLiterals()
+    public async Task SearchClubsTreatsLikeMetacharactersAsLiteralsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var suffix = Guid.NewGuid().ToString("N");
+        _ = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
         fixture.CurrentUser.UserId = null;
         fixture.CurrentUser.ClubId = null;

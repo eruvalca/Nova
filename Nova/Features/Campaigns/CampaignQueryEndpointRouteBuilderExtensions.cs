@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
 
@@ -23,7 +23,7 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
                 .MapGroup(CampaignEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubMember);
 
-            group.MapGet(CampaignEndpoints.GetCampaignListRelative, GetCampaignListHandler)
+            group.MapGet(CampaignEndpoints.GetCampaignListRelative, GetCampaignListHandlerAsync)
                 .Produces<CampaignListResult>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -31,7 +31,7 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName(CampaignEndpoints.GetCampaignListRouteName);
 
-            group.MapGet(CampaignEndpoints.GetCampaignDetailRelative, GetCampaignDetailHandler)
+            group.MapGet(CampaignEndpoints.GetCampaignDetailRelative, GetCampaignDetailHandlerAsync)
                 .Produces<CampaignDetailResult>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -40,7 +40,7 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName(CampaignEndpoints.GetCampaignDetailRouteName);
 
-            group.MapGet(CampaignEndpoints.GetCreationSetupRelative, GetCreationSetupHandler)
+            group.MapGet(CampaignEndpoints.GetCreationSetupRelative, GetCreationSetupHandlerAsync)
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .Produces<CampaignCreationSetupResult>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -48,7 +48,7 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName(CampaignEndpoints.GetCreationSetupRouteName);
 
-            group.MapGet(CampaignEndpoints.GetOpeningReadinessRelative, GetOpeningReadinessHandler)
+            group.MapGet(CampaignEndpoints.GetOpeningReadinessRelative, GetOpeningReadinessHandlerAsync)
                 .RequireAuthorization(Policies.RequireClubAdmin)
                 .Produces<CampaignOpeningReadinessResult>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -69,7 +69,7 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
     /// <param name="campaignQueryService">The campaign query service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The campaign list or a ProblemDetails response.</returns>
-    private static async Task<IResult> GetCampaignListHandler(
+    private static async Task<IResult> GetCampaignListHandlerAsync(
         [AsParameters] GetCampaignListInput input,
         ICampaignQueryService campaignQueryService,
         CancellationToken cancellationToken)
@@ -85,7 +85,7 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
     /// <param name="campaignQueryService">The campaign query service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The campaign detail or a ProblemDetails response.</returns>
-    private static async Task<IResult> GetCampaignDetailHandler(
+    private static async Task<IResult> GetCampaignDetailHandlerAsync(
         [AsParameters] GetCampaignDetailInput input,
         ICampaignQueryService campaignQueryService,
         CancellationToken cancellationToken)
@@ -100,7 +100,7 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
     /// <param name="campaignQueryService">The campaign query service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The setup data or a ProblemDetails response.</returns>
-    private static async Task<IResult> GetCreationSetupHandler(
+    private static async Task<IResult> GetCreationSetupHandlerAsync(
         ICampaignQueryService campaignQueryService,
         CancellationToken cancellationToken)
     {
@@ -115,7 +115,7 @@ internal static class CampaignQueryEndpointRouteBuilderExtensions
     /// <param name="campaignQueryService">The campaign query service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The readiness snapshot or a ProblemDetails response.</returns>
-    private static async Task<IResult> GetOpeningReadinessHandler(
+    private static async Task<IResult> GetOpeningReadinessHandlerAsync(
         long campaignId,
         ICampaignQueryService campaignQueryService,
         CancellationToken cancellationToken)

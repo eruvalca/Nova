@@ -1,6 +1,6 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 
 namespace Nova.Client.Services.Campaigns;
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Campaigns;
 /// WebAssembly client implementation of <see cref="ICampaignEvaluationNoteService"/> that calls campaign evaluation note endpoints.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpCampaignEvaluationNoteService(HttpClient http) : ICampaignEvaluationNoteService
+internal sealed class HttpCampaignEvaluationNoteService(HttpClient http) : ICampaignEvaluationNoteService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<EvaluationNoteMutationSuccess>> AddAsync(
@@ -54,7 +54,7 @@ public sealed class HttpCampaignEvaluationNoteService(HttpClient http) : ICampai
         CancellationToken cancellationToken = default)
     {
         using var response = await http.DeleteAsync(
-            CampaignEndpoints.DeleteEvaluationNoteUrl(noteId),
+new Uri(CampaignEndpoints.DeleteEvaluationNoteUrl(noteId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {

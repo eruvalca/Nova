@@ -1,5 +1,5 @@
 @using System.Globalization
-@using Nova.Shared.Features.Campaigns
+@using Nova.SharedKernel.Features.Campaigns
 
 <div class="table-responsive d-none d-md-block">
     <table class="table table-hover align-middle mb-0">
@@ -7,28 +7,33 @@
         <thead>
             <tr>
                 <th scope="col" aria-sort="@AriaSort("tryoutNumber")">
-                    <button type="button" class="btn btn-link p-0 text-decoration-none roster-sort-header" @onclick='() => ToggleSortAsync("tryoutNumber")'>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none roster-sort-header"
+                            @onclick='() => ToggleSortAsync("tryoutNumber")'>
                         Tryout #<span class="roster-sort-arrow" aria-hidden="true">@SortArrow("tryoutNumber")</span>
                     </button>
                 </th>
                 <th scope="col" aria-sort="@AriaSort("displayName")">
-                    <button type="button" class="btn btn-link p-0 text-decoration-none roster-sort-header" @onclick='() => ToggleSortAsync("displayName")'>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none roster-sort-header"
+                            @onclick='() => ToggleSortAsync("displayName")'>
                         Name<span class="roster-sort-arrow" aria-hidden="true">@SortArrow("displayName")</span>
                     </button>
                 </th>
                 <th scope="col" aria-sort="@AriaSort("graduationYear")">
-                    <button type="button" class="btn btn-link p-0 text-decoration-none roster-sort-header" @onclick='() => ToggleSortAsync("graduationYear")'>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none roster-sort-header"
+                            @onclick='() => ToggleSortAsync("graduationYear")'>
                         Grad year<span class="roster-sort-arrow" aria-hidden="true">@SortArrow("graduationYear")</span>
                     </button>
                 </th>
                 <th scope="col">Tags</th>
                 <th scope="col" aria-sort="@AriaSort("outcome")">
-                    <button type="button" class="btn btn-link p-0 text-decoration-none roster-sort-header" @onclick='() => ToggleSortAsync("outcome")'>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none roster-sort-header"
+                            @onclick='() => ToggleSortAsync("outcome")'>
                         Outcome<span class="roster-sort-arrow" aria-hidden="true">@SortArrow("outcome")</span>
                     </button>
                 </th>
                 <th scope="col" aria-sort="@AriaSort("teamName")">
-                    <button type="button" class="btn btn-link p-0 text-decoration-none roster-sort-header" @onclick='() => ToggleSortAsync("teamName")'>
+                    <button type="button" class="btn btn-link p-0 text-decoration-none roster-sort-header"
+                            @onclick='() => ToggleSortAsync("teamName")'>
                         Team<span class="roster-sort-arrow" aria-hidden="true">@SortArrow("teamName")</span>
                     </button>
                 </th>
@@ -37,11 +42,8 @@
         <tbody>
             @foreach (var item in Items)
             {
-                <tr class="@RowClass(item)"
-                    id="@($"roster-row-{item.PlayerCampaignAssignmentId}")"
-                    aria-current="@AriaCurrent(item)"
-                    tabindex="0"
-                    @onclick="() => SelectItemAsync(item)"
+                <tr class="@RowClass(item)" id="@($"roster-row-{item.PlayerCampaignAssignmentId}")"
+                    aria-current="@AriaCurrent(item)" tabindex="0" @onclick="() => SelectItemAsync(item)"
                     @onkeydown="args => OnRowKeyDownAsync(args, item)">
                     <td>@(item.TryoutNumber?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
                     <td>@item.DisplayName</td>
@@ -55,11 +57,14 @@
                         {
                             @foreach (var tag in item.AppliedTags)
                             {
-                                <span class="badge rounded-pill roster-tag @(tag.IsArchived ? "roster-tag-archived" : null)" style="@CampaignRosterDisplay.BuildTagStyle(tag.TagColor)">@tag.TagName</span>
+                                <span class="badge rounded-pill roster-tag @(tag.IsArchived ? "roster-tag-archived" : null)"
+                                      style="@CampaignRosterDisplay.BuildTagStyle(tag.TagColor)">@tag.TagName</span>
                             }
                         }
                     </td>
-                    <td><span class="badge @CampaignRosterDisplay.OutcomeBadgeClass(item.PlacementOutcome)">@CampaignRosterDisplay.OutcomeLabel(item.PlacementOutcome)</span></td>
+                    <td><span
+                        class="badge @CampaignRosterDisplay.OutcomeBadgeClass(item.PlacementOutcome)">@CampaignRosterDisplay.OutcomeLabel(item.PlacementOutcome)</span>
+                    </td>
                     <td>@(item.Team?.TeamName ?? "—")</td>
                 </tr>
             }

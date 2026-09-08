@@ -1,7 +1,7 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Activity;
 
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Activity;
 /// WebAssembly HTTP implementation of <see cref="IClubActivityQueryService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivityQueryService
+internal sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivityQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<ClubActivityResult>> GetClubActivityAsync(
@@ -26,7 +26,7 @@ public sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivit
             ? new ClubActivityCursor(id, occurredAt)
             : null;
 
-        using var response = await http.GetAsync(ActivityEndpoints.GetClubActivityUrl(cursor), cancellationToken);
+        using var response = await http.GetAsync(new Uri(ActivityEndpoints.GetClubActivityUrl(cursor), UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -57,7 +57,9 @@ public sealed class HttpClubActivityQueryService(HttpClient http) : IClubActivit
     /// </summary>
     /// <param name="item">The activity row to validate.</param>
     /// <returns><see langword="true"/> when the row is structurally valid for its kind.</returns>
+#pragma warning disable MA0051 // Keep the bounded payload validation matrix together to audit every accepted and rejected wire shape.
     private static bool IsValidActivityItem(ClubActivityItemDto item)
+#pragma warning restore MA0051
     {
         if (item is null
             || item.ActivityEventId <= 0

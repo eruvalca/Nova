@@ -1,9 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Features.Teams;
 
@@ -13,7 +13,7 @@ namespace Nova.Features.Teams;
 /// <param name="readDbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club context.</param>
 /// <param name="logger">The logger for rejected access and lookup failures.</param>
-public sealed partial class TeamDetailQueryService(
+internal sealed partial class TeamDetailQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<TeamDetailQueryService> logger) : ITeamDetailService
@@ -43,7 +43,9 @@ public sealed partial class TeamDetailQueryService(
     /// excluded from the page by the truncation limit.
     /// </para>
     /// </remarks>
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<TeamDetailDto>> GetTeamDetailAsync(
+#pragma warning restore MA0051
         long teamId,
         CancellationToken cancellationToken = default)
     {

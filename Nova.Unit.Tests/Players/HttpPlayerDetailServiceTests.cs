@@ -1,9 +1,9 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Players;
@@ -36,7 +36,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies the client calls the shared detail URL and deserializes a successful payload.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsPlayerDetail_OnSuccess()
+    public async Task GetPlayerDetailAsyncReturnsPlayerDetailOnSuccessAsync()
     {
         var tagApplication = new PlayerTagApplicationDto(
             1,
@@ -75,7 +75,7 @@ public sealed class HttpPlayerDetailServiceTests
             Content = JsonContent.Create(payload)
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpPlayerDetailService(httpClient);
 
@@ -93,7 +93,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies player detail accepts Draft campaign history without treating Draft tags as current traits.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsPlayerDetail_WhenCampaignHistoryContainsDraft()
+    public async Task GetPlayerDetailAsyncReturnsPlayerDetailWhenCampaignHistoryContainsDraftAsync()
     {
         var tagApplication = new PlayerTagApplicationDto(
             1,
@@ -130,7 +130,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -147,7 +147,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies current traits cannot diverge from active-campaign tag applications.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenCurrentTraitsDoNotMatchHistory()
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenCurrentTraitsDoNotMatchHistoryAsync()
     {
         var payload = new PlayerDetailDto(
             PlayerId: 42,
@@ -164,7 +164,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -179,7 +179,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies the client does not reject a date value currently permitted by the shared contract.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsDetail_WhenDateOfBirthIsMinimumValue()
+    public async Task GetPlayerDetailAsyncReturnsDetailWhenDateOfBirthIsMinimumValueAsync()
     {
         var payload = new PlayerDetailDto(
             42,
@@ -196,7 +196,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -211,7 +211,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies detail rejects a success payload for a different player.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenResponsePlayerIdDoesNotMatch()
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenResponsePlayerIdDoesNotMatchAsync()
     {
         var payload = new PlayerDetailDto(
             43,
@@ -228,7 +228,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -243,7 +243,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies a matching requested identifier does not make a zero response identifier valid.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenRequestedAndResponsePlayerIdsAreZero()
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenRequestedAndResponsePlayerIdsAreZeroAsync()
     {
         var payload = new PlayerDetailDto(
             0,
@@ -260,7 +260,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -279,7 +279,7 @@ public sealed class HttpPlayerDetailServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999, LifecycleStatus.Active)]
     [InlineData(2028, (LifecycleStatus)99)]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenHistoryTeamStateIsInvalid(
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenHistoryTeamStateIsInvalidAsync(
         int graduationYear,
         LifecycleStatus lifecycleStatus)
     {
@@ -309,7 +309,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -328,7 +328,7 @@ public sealed class HttpPlayerDetailServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.Assigned, false)]
     [InlineData(PlacementOutcome.NotSelected, true)]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenPlacementTeamRelationshipIsInvalid(
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenPlacementTeamRelationshipIsInvalidAsync(
         PlacementOutcome outcome,
         bool includeTeam)
     {
@@ -360,7 +360,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -375,7 +375,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies campaign-history rows reject undefined campaign statuses.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenCampaignStatusIsUndefined()
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenCampaignStatusIsUndefinedAsync()
     {
         var history = new PlayerCampaignHistoryDto(
             11,
@@ -403,7 +403,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -418,7 +418,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies campaign history retains newest-campaign-first ordering.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenCampaignHistoryIsOutOfOrder()
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenCampaignHistoryIsOutOfOrderAsync()
     {
         var older = new PlayerCampaignHistoryDto(
             11,
@@ -453,7 +453,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -468,14 +468,14 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies the client maps unsuccessful responses into <see cref="ServiceProblem"/>.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServiceProblem_OnNotFound()
+    public async Task GetPlayerDetailAsyncReturnsServiceProblemOnNotFoundAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound)
         {
             Content = JsonContent.Create(new { detail = "Not found." })
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpPlayerDetailService(httpClient);
 
@@ -489,7 +489,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies the shared URL builder creates the canonical detail route.
     /// </summary>
     [Fact]
-    public void GetDetailUrl_BuildsCanonicalPlayerDetailRoute()
+    public void GetDetailUrlBuildsCanonicalPlayerDetailRoute()
     {
         PlayerEndpoints.GetDetailUrl(123).ShouldBe("/api/players/123");
     }
@@ -502,13 +502,13 @@ public sealed class HttpPlayerDetailServiceTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -523,7 +523,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies detail responses that violate portable player invariants are rejected.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenPlayerDetailInvariantIsInvalid()
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenPlayerDetailInvariantIsInvalidAsync()
     {
         var payload = new PlayerDetailDto(
             PlayerId: 0,
@@ -540,7 +540,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -559,7 +559,7 @@ public sealed class HttpPlayerDetailServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1999, LifecycleStatus.Active)]
     [InlineData(2028, (LifecycleStatus)99)]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenPlayerStateIsInvalid(
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenPlayerStateIsInvalidAsync(
         int graduationYear,
         LifecycleStatus lifecycleStatus)
     {
@@ -578,7 +578,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -596,7 +596,7 @@ public sealed class HttpPlayerDetailServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(-1)]
     [InlineData(10000)]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenJerseyNumberIsOutOfRange(
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenJerseyNumberIsOutOfRangeAsync(
         int jerseyNumber)
     {
         var payload = new PlayerDetailDto(
@@ -614,7 +614,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -629,7 +629,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies player details reject undefined gender values.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenGenderIsUndefined()
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenGenderIsUndefinedAsync()
     {
         var payload = new PlayerDetailDto(
             42,
@@ -646,7 +646,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -661,7 +661,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies history rows permit empty note and tag-application collections.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsDetail_WhenHistoryNestedCollectionsAreEmpty()
+    public async Task GetPlayerDetailAsyncReturnsDetailWhenHistoryNestedCollectionsAreEmptyAsync()
     {
         var history = new PlayerCampaignHistoryDto(
             PlayerCampaignAssignmentId: 11,
@@ -689,7 +689,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -708,9 +708,9 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies null elements in nested history collections are rejected.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenHistoryContainsNullNote()
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenHistoryContainsNullNoteAsync()
     {
-        const string payload = """
+        const string Payload = """
             {
               "playerId": 42,
               "firstName": "Alex",
@@ -737,9 +737,9 @@ public sealed class HttpPlayerDetailServiceTests
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json")
+            Content = new StringContent(Payload, System.Text.Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -754,7 +754,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies nested evaluation notes retain newest-first ordering.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenNotesAreOutOfOrder()
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenNotesAreOutOfOrderAsync()
     {
         var older = new PlayerEvaluationNoteDto(
             1,
@@ -794,7 +794,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(
@@ -809,7 +809,7 @@ public sealed class HttpPlayerDetailServiceTests
     /// Verifies nested tag applications retain newest-first ordering.
     /// </summary>
     [Fact]
-    public async Task GetPlayerDetailAsync_ReturnsServerError_WhenTagApplicationsAreOutOfOrder()
+    public async Task GetPlayerDetailAsyncReturnsServerErrorWhenTagApplicationsAreOutOfOrderAsync()
     {
         var older = new PlayerTagApplicationDto(
             1,
@@ -851,7 +851,7 @@ public sealed class HttpPlayerDetailServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerDetailService(httpClient).GetPlayerDetailAsync(

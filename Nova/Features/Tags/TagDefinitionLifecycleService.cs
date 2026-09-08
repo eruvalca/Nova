@@ -3,10 +3,10 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using OneOf;
 using OneOf.Types;
 
@@ -18,7 +18,7 @@ namespace Nova.Features.Tags;
 /// <param name="dbContextFactory">The tenant-scoped context factory used for lifecycle mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for lifecycle outcomes.</param>
-public sealed partial class TagDefinitionLifecycleService(
+internal sealed partial class TagDefinitionLifecycleService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<TagDefinitionLifecycleService> logger) : ITagDefinitionLifecycleService
@@ -171,7 +171,9 @@ public sealed partial class TagDefinitionLifecycleService(
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Internal lifecycle outcomes before boundary mapping to shared service contracts.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> ApplyTransitionAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         long tagDefinitionId,
         LifecycleStatus targetStatus,
@@ -206,7 +208,9 @@ public sealed partial class TagDefinitionLifecycleService(
         {
             LogTagLifecycleConflict(tagDefinitionId, targetStatus);
             return new LifecycleConflict(
+#pragma warning disable CA1308 // Lowercase is required for this display text or ASCII route token, not for an identity comparison.
                 $"The tag definition is already {targetStatus.ToString().ToLowerInvariant()}.");
+#pragma warning restore CA1308
         }
 
         // Restore cannot push the club above the active-definition cap: the bounded active-only choices

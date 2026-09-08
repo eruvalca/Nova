@@ -22,14 +22,14 @@ internal static class BrowserRetryPolicy
     private const int DefaultMaxAttempts = 60;
     private const int DefaultDelayMilliseconds = 250;
 
-    private static readonly Lazy<int> MaxAttemptsValue = new(ReadMaxAttempts);
-    private static readonly Lazy<int> DelayValue = new(ReadDelay);
+    private static readonly Lazy<int> _maxAttemptsValue = new(ReadMaxAttempts);
+    private static readonly Lazy<int> _delayValue = new(ReadDelay);
 
     /// <summary>Gets the maximum number of hydration-retry attempts before a helper fails.</summary>
-    public static int MaxAttempts => MaxAttemptsValue.Value;
+    public static int MaxAttempts => _maxAttemptsValue.Value;
 
     /// <summary>Gets the delay in milliseconds between hydration-retry attempts.</summary>
-    public static int Delay => DelayValue.Value;
+    public static int Delay => _delayValue.Value;
 
     /// <summary>Reads and validates <c>NOVA_BROWSER_RETRY_MAX_ATTEMPTS</c>.</summary>
     private static int ReadMaxAttempts() =>
@@ -49,6 +49,6 @@ internal static class BrowserRetryPolicy
     private static int ReadPositiveInt(string variable, int fallback)
     {
         var raw = Environment.GetEnvironmentVariable(variable);
-        return int.TryParse(raw, out var value) && value > 0 ? value : fallback;
+        return int.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture, out var value) && value > 0 ? value : fallback;
     }
 }

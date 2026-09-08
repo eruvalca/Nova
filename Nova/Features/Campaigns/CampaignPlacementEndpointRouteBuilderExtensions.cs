@@ -1,7 +1,7 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
 
@@ -24,7 +24,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
                 .MapGroup(CampaignEndpoints.GroupPrefix)
                 .RequireAuthorization();
 
-            group.MapPut(CampaignEndpoints.UpdateCampaignPlacementRelative, UpdateCampaignPlacementHandler)
+            group.MapPut(CampaignEndpoints.UpdateCampaignPlacementRelative, UpdateCampaignPlacementHandlerAsync)
                 .Produces<PlacementMutationSuccess>(StatusCodes.Status200OK)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -36,7 +36,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubMember)
                 .WithName(CampaignEndpoints.UpdateCampaignPlacementRouteName);
 
-            group.MapGet(CampaignEndpoints.GetCampaignPlacementRosterRelative, GetPlacementRosterHandler)
+            group.MapGet(CampaignEndpoints.GetCampaignPlacementRosterRelative, GetPlacementRosterHandlerAsync)
                 .Produces<PagedResult<CampaignPlacementRosterItem>>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -46,7 +46,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
                 .RequireAuthorization(Policies.RequireClubMember)
                 .WithName(CampaignEndpoints.GetCampaignPlacementRosterRouteName);
 
-            group.MapGet(CampaignEndpoints.GetCampaignPlacementSummaryRelative, GetPlacementSummaryHandler)
+            group.MapGet(CampaignEndpoints.GetCampaignPlacementSummaryRelative, GetPlacementSummaryHandlerAsync)
                 .Produces<CampaignPlacementSummaryDto>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -88,7 +88,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
     /// <param name="placementService">The campaign placement service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
     /// <returns>A 200 response containing the new concurrency token, or ProblemDetails.</returns>
-    private static async Task<IResult> UpdateCampaignPlacementHandler(
+    private static async Task<IResult> UpdateCampaignPlacementHandlerAsync(
         long playerCampaignAssignmentId,
         UpdateCampaignPlacementInput input,
         CampaignPlacementService placementService,
@@ -113,7 +113,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
     /// <param name="campaignPlacementQueryService">The service that resolves the placement roster query.</param>
     /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
     /// <returns>The HTTP result for the placement roster page.</returns>
-    private static async Task<IResult> GetPlacementRosterHandler(
+    private static async Task<IResult> GetPlacementRosterHandlerAsync(
         [AsParameters] GetCampaignPlacementRosterInput input,
         ICampaignPlacementQueryService campaignPlacementQueryService,
         CancellationToken cancellationToken)
@@ -129,7 +129,7 @@ internal static class CampaignPlacementEndpointRouteBuilderExtensions
     /// <param name="campaignPlacementQueryService">The service that resolves the placement summary query.</param>
     /// <param name="cancellationToken">Propagates notification that the request should be cancelled.</param>
     /// <returns>The HTTP result for the placement summary.</returns>
-    private static async Task<IResult> GetPlacementSummaryHandler(
+    private static async Task<IResult> GetPlacementSummaryHandlerAsync(
         [AsParameters] GetCampaignPlacementSummaryInput input,
         ICampaignPlacementQueryService campaignPlacementQueryService,
         CancellationToken cancellationToken)

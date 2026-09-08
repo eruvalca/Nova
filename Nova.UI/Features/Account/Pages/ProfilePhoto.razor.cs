@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1055, CA1056 // Razor bindings and NavigationManager consume these relative route strings.
+using Microsoft.AspNetCore.Components;
 
 namespace Nova.UI.Features.Account.Pages;
 
@@ -14,3 +15,6 @@ public partial class ProfilePhoto
     [SupplyParameterFromQuery]
     public string? ReturnUrl { get; set; }
 }
+
+
+#pragma warning restore CA1055, CA1056

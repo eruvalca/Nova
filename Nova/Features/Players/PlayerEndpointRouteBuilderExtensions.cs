@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Players;
 
@@ -21,7 +21,7 @@ internal static class PlayerEndpointRouteBuilderExtensions
 
             var group = endpoints.MapGroup(PlayerEndpoints.GroupPrefix).RequireAuthorization(Policies.RequireClubMember);
 
-            group.MapGet(PlayerEndpoints.GetDetailRelative, GetPlayerDetailHandler)
+            group.MapGet(PlayerEndpoints.GetDetailRelative, GetPlayerDetailHandlerAsync)
                 .Produces<PlayerDetailDto>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -39,7 +39,7 @@ internal static class PlayerEndpointRouteBuilderExtensions
     /// <param name="playerDetailService">The service that loads the detail payload.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The HTTP result translated from the service result.</returns>
-    private static async Task<IResult> GetPlayerDetailHandler(
+    private static async Task<IResult> GetPlayerDetailHandlerAsync(
         long playerId,
         IPlayerDetailService playerDetailService,
         CancellationToken cancellationToken)

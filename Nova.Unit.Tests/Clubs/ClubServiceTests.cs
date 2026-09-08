@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
@@ -41,7 +41,7 @@ public sealed class ClubServiceTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task SearchClubsAsync_ReturnsAllClubsOrderedByName_WhenQueryIsBlank()
+    public async Task SearchClubsAsyncReturnsAllClubsOrderedByNameWhenQueryIsBlankAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -54,7 +54,7 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchClubsAsync_MatchesCaseInsensitively_AcrossNameCityAndState()
+    public async Task SearchClubsAsyncMatchesCaseInsensitivelyAcrossNameCityAndStateAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -67,7 +67,7 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchClubsAsync_TreatsLikeMetacharactersAsLiterals()
+    public async Task SearchClubsAsyncTreatsLikeMetacharactersAsLiteralsAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -97,7 +97,7 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateClubAsync_ReturnsValidation_WhenInputIsInvalid()
+    public async Task CreateClubAsyncReturnsValidationWhenInputIsInvalidAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -112,7 +112,7 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateClubAsync_ReturnsConflict_WhenUserAlreadyBelongsToClub()
+    public async Task CreateClubAsyncReturnsConflictWhenUserAlreadyBelongsToClubAsync()
     {
         _harness.CurrentUser.UserId = ExistingClubUserId;
         _harness.CurrentUser.ClubId = 1;
@@ -127,7 +127,7 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateClubAsync_ReturnsForbidden_WhenNotAuthenticated()
+    public async Task CreateClubAsyncReturnsForbiddenWhenNotAuthenticatedAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -142,7 +142,7 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateClubAsync_ReturnsServerError_WhenUserNotFound()
+    public async Task CreateClubAsyncReturnsServerErrorWhenUserNotFoundAsync()
     {
         _harness.CurrentUser.UserId = 999_999;
         _harness.CurrentUser.ClubId = null;
@@ -157,7 +157,7 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateClubAsync_CreatesClub_AndAssignsMembership()
+    public async Task CreateClubAsyncCreatesClubAndAssignsMembershipAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -182,7 +182,7 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateClubAsync_AssignsClubAdminRole_AndRotatesIdentityStamps()
+    public async Task CreateClubAsyncAssignsClubAdminRoleAndRotatesIdentityStampsAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -199,15 +199,15 @@ public sealed class ClubServiceTests : IDisposable
             candidate => candidate.Id == NoClubUserId,
             TestContext.Current.CancellationToken);
         user.ClubId.ShouldBe(result.Value.ClubId);
-        user.SecurityStamp.ShouldNotBe(InitialSecurityStamp);
-        user.ConcurrencyStamp.ShouldNotBe(InitialConcurrencyStamp);
+        user.SecurityStamp.ShouldNotBe(InitialSecurityStamp, StringComparer.Ordinal);
+        user.ConcurrencyStamp.ShouldNotBe(InitialConcurrencyStamp, StringComparer.Ordinal);
         (await verify.UserRoles.AnyAsync(
             role => role.UserId == NoClubUserId && role.RoleId == ClubAdminRoleId,
             TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
     [Fact]
-    public async Task CreateClubAsync_RollsBackAllDatabaseChanges_WhenClubAdminRoleIsMissing()
+    public async Task CreateClubAsyncRollsBackAllDatabaseChangesWhenClubAdminRoleIsMissingAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -243,7 +243,7 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateClubAsync_ReturnsValidation_WhenCrestIsMissing()
+    public async Task CreateClubAsyncReturnsValidationWhenCrestIsMissingAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -256,11 +256,11 @@ public sealed class ClubServiceTests : IDisposable
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
         result.Problem.Errors.ShouldNotBeNull();
-        result.Problem.Errors.Keys.ShouldContain("crest");
+        result.Problem.Errors.Keys.ShouldContain("crest", StringComparer.Ordinal);
     }
 
     [Fact]
-    public async Task CreateClubAsync_ReturnsValidation_WhenCrestIsNotAnImage()
+    public async Task CreateClubAsyncReturnsValidationWhenCrestIsNotAnImageAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -273,11 +273,11 @@ public sealed class ClubServiceTests : IDisposable
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
         result.Problem.Errors.ShouldNotBeNull();
-        result.Problem.Errors.Keys.ShouldContain("crest");
+        result.Problem.Errors.Keys.ShouldContain("crest", StringComparer.Ordinal);
     }
 
     [Fact]
-    public async Task CreateClubAsync_PersistsCrestEntity_AndUploadsVariants()
+    public async Task CreateClubAsyncPersistsCrestEntityAndUploadsVariantsAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -291,7 +291,7 @@ public sealed class ClubServiceTests : IDisposable
 
         await using var verify = _harness.CreateAdminContext();
         var crest = await verify.ClubCrests
-            .SingleAsync(candidate => candidate.Club!.Name == "Crest Club", TestContext.Current.CancellationToken);
+            .SingleAsync(candidate => candidate.Club.Name == "Crest Club", TestContext.Current.CancellationToken);
         crest.OriginalBlobName.ShouldNotBeNullOrWhiteSpace();
         crest.SmallBlobName.ShouldNotBeNullOrWhiteSpace();
         crest.MediumBlobName.ShouldNotBeNullOrWhiteSpace();
@@ -305,7 +305,7 @@ public sealed class ClubServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateClubAsync_DeletesUploadedBlobs_WhenBlobUploadFails()
+    public async Task CreateClubAsyncDeletesUploadedBlobsWhenBlobUploadFailsAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -335,11 +335,11 @@ public sealed class ClubServiceTests : IDisposable
         await container.Received().DeleteBlobIfExistsAsync(Arg.Any<string>(), Arg.Any<DeleteSnapshotsOption>(), Arg.Any<BlobRequestConditions>(), Arg.Any<CancellationToken>());
 
         await using var verify = _harness.CreateAdminContext();
-        verify.Clubs.Any(candidate => candidate.Name == "Doomed Club").ShouldBeFalse();
+        (await verify.Clubs.AnyAsync(candidate => candidate.Name == "Doomed Club", TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
     [Fact]
-    public async Task CreateClubAsync_DeletesUploadedBlobs_WhenUploadCancelled()
+    public async Task CreateClubAsyncDeletesUploadedBlobsWhenUploadCancelledAsync()
     {
         _harness.CurrentUser.UserId = NoClubUserId;
         _harness.CurrentUser.ClubId = null;
@@ -373,7 +373,7 @@ public sealed class ClubServiceTests : IDisposable
             Arg.Any<CancellationToken>());
 
         await using var verify = _harness.CreateAdminContext();
-        verify.Clubs.Any(candidate => candidate.Name == "Cancelled Club").ShouldBeFalse();
+        (await verify.Clubs.AnyAsync(candidate => candidate.Name == "Cancelled Club", TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
     private ClubService CreateService()

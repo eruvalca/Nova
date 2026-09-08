@@ -2,9 +2,9 @@
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Seasons;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
 using Shouldly;
@@ -18,9 +18,9 @@ public sealed class SeasonQueryServiceTests : IDisposable
     private const long ClubBId = 301;
     private const long MemberId = 400;
     private readonly TenancyTestHarness _harness = new();
-    private long _currentSeasonId;
-    private long _historicalSeasonId;
-    private long _otherSeasonId;
+    private readonly long _currentSeasonId;
+    private readonly long _historicalSeasonId;
+    private readonly long _otherSeasonId;
 
     /// <summary>Seeds current, historical, and cross-tenant seasons.</summary>
     public SeasonQueryServiceTests()
@@ -68,7 +68,7 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
     /// <summary>Verifies currentness outranks chronology and SQL paging is bounded.</summary>
     [Fact]
-    public async Task ListAsync_ReturnsCurrentFirst_ThenHistory()
+    public async Task ListAsyncReturnsCurrentFirstThenHistoryAsync()
     {
         var result = await CreateService().ListAsync(
             new GetSeasonListInput { Page = 1, PageSize = 2 },
@@ -84,7 +84,7 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
     /// <summary>Verifies list currentness is projected in the page query instead of read separately.</summary>
     [Fact]
-    public async Task ListAsync_UsesOnePageStatement_ForRowsAndCurrentness()
+    public async Task ListAsyncUsesOnePageStatementForRowsAndCurrentnessAsync()
     {
         var interceptor = new CountingCommandInterceptor();
 
@@ -98,7 +98,7 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
     /// <summary>Verifies a structurally valid maximum page cannot overflow the SQL offset.</summary>
     [Fact]
-    public async Task ListAsync_ReturnsEmptyPage_WhenPageOffsetExceedsInt32()
+    public async Task ListAsyncReturnsEmptyPageWhenPageOffsetExceedsInt32Async()
     {
         var result = await CreateService().ListAsync(
             new GetSeasonListInput
@@ -115,7 +115,7 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
     /// <summary>Verifies detail orders campaigns newest-first and hides another tenant's season.</summary>
     [Fact]
-    public async Task GetAsync_ReturnsBoundedHistory_AndNonDisclosingNotFound()
+    public async Task GetAsyncReturnsBoundedHistoryAndNonDisclosingNotFoundAsync()
     {
         var detail = await CreateService().GetAsync(
             new GetSeasonDetailInput
@@ -139,7 +139,7 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
     /// <summary>Verifies detail currentness is projected with metadata instead of read separately.</summary>
     [Fact]
-    public async Task GetAsync_UsesOneMetadataStatement_ForSeasonAndCurrentness()
+    public async Task GetAsyncUsesOneMetadataStatementForSeasonAndCurrentnessAsync()
     {
         var interceptor = new CountingCommandInterceptor();
 
@@ -153,7 +153,7 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
     /// <summary>Verifies maximum campaign paging cannot wrap to an earlier result page.</summary>
     [Fact]
-    public async Task GetAsync_ReturnsEmptyCampaignPage_WhenPageOffsetExceedsInt32()
+    public async Task GetAsyncReturnsEmptyCampaignPageWhenPageOffsetExceedsInt32Async()
     {
         var result = await CreateService().GetAsync(
             new GetSeasonDetailInput
@@ -171,7 +171,7 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
     /// <summary>Verifies season reads require an authenticated club member.</summary>
     [Fact]
-    public async Task Queries_ReturnForbidden_WithoutClubMembership()
+    public async Task QueriesReturnForbiddenWithoutClubMembershipAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -188,7 +188,7 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
     /// <summary>Verifies a season-list read failure surfaces as a server error rather than an exception.</summary>
     [Fact]
-    public async Task ListAsync_ReturnsServerError_WhenReadFails()
+    public async Task ListAsyncReturnsServerErrorWhenReadFailsAsync()
     {
         _harness.CurrentUser.UserId = MemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -208,7 +208,7 @@ public sealed class SeasonQueryServiceTests : IDisposable
 
     /// <summary>Verifies a season-detail read failure surfaces as a server error rather than an exception.</summary>
     [Fact]
-    public async Task GetAsync_ReturnsServerError_WhenReadFails()
+    public async Task GetAsyncReturnsServerErrorWhenReadFailsAsync()
     {
         _harness.CurrentUser.UserId = MemberId;
         _harness.CurrentUser.ClubId = ClubAId;

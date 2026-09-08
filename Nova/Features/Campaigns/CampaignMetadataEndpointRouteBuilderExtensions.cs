@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
 
@@ -23,7 +23,7 @@ internal static class CampaignMetadataEndpointRouteBuilderExtensions
                 .MapGroup(CampaignEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubAdmin);
 
-            group.MapPut(CampaignEndpoints.UpdateCampaignMetadataRelative, UpdateCampaignMetadataHandler)
+            group.MapPut(CampaignEndpoints.UpdateCampaignMetadataRelative, UpdateCampaignMetadataHandlerAsync)
                 .Produces<UpdateCampaignMetadataResult>(StatusCodes.Status200OK)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -44,7 +44,7 @@ internal static class CampaignMetadataEndpointRouteBuilderExtensions
     /// <param name="campaignMetadataService">The campaign metadata service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
     /// <returns>A 200 response containing the updated metadata, or ProblemDetails.</returns>
-    private static async Task<IResult> UpdateCampaignMetadataHandler(
+    private static async Task<IResult> UpdateCampaignMetadataHandlerAsync(
         UpdateCampaignMetadataInput input,
         ICampaignMetadataService campaignMetadataService,
         CancellationToken cancellationToken)

@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Nova.Client.Services.Activity;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Activity;
@@ -25,7 +25,7 @@ public sealed partial class HttpClubActivityQueryServiceTests
     [InlineData(3, 1)]
     [InlineData(3, 2)]
     [InlineData(3, 3)]
-    public async Task GetClubActivityAsync_AcceptsSupersession_ForSavedOutcomes(int previous, int outcome)
+    public async Task GetClubActivityAsyncAcceptsSupersessionForSavedOutcomesAsync(int previous, int outcome)
     {
         var context = SupersessionContext() with
         {
@@ -72,7 +72,7 @@ public sealed partial class HttpClubActivityQueryServiceTests
     [InlineData("teamId", "0")]
     [InlineData("teamName", "null")]
     [InlineData("teamName", "\" \"")]
-    public async Task GetClubActivityAsync_RejectsSupersession_ForMalformedDecision(string property, string json)
+    public async Task GetClubActivityAsyncRejectsSupersessionForMalformedDecisionAsync(string property, string json)
     {
         var result = await ReadSupersessionAsync(SupersessionContext(), property, json);
         result.IsProblem.ShouldBeTrue();
@@ -115,10 +115,11 @@ public sealed partial class HttpClubActivityQueryServiceTests
         {
             body["events"]![0]!["context"]![property] = JsonNode.Parse(json!);
         }
-        using var http = new HttpClient(new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var httpHandler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body.ToJsonString(), System.Text.Encoding.UTF8, "application/json"),
-        })))
+        }));
+        using var http = new HttpClient(httpHandler, disposeHandler: false)
         { BaseAddress = new Uri("https://example.com") };
         return await new HttpClubActivityQueryService(http).GetClubActivityAsync(new(), TestContext.Current.CancellationToken);
     }

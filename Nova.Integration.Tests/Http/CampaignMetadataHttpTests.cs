@@ -2,10 +2,10 @@
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -26,7 +26,7 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
     /// Verifies the campaign metadata endpoint rejects anonymous callers.
     /// </summary>
     [Fact]
-    public async Task UpdateCampaignMetadata_ReturnsUnauthorized_ForAnonymous()
+    public async Task UpdateCampaignMetadataReturnsUnauthorizedForAnonymousAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -43,7 +43,7 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
     /// Verifies an authenticated non-administrator club member cannot update campaign metadata.
     /// </summary>
     [Fact]
-    public async Task UpdateCampaignMetadata_ReturnsForbidden_ForClubMember()
+    public async Task UpdateCampaignMetadataReturnsForbiddenForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -66,7 +66,7 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator can update campaign metadata and receives the corrected result.
     /// </summary>
     [Fact]
-    public async Task UpdateCampaignMetadata_ReturnsOk_ForClubAdmin()
+    public async Task UpdateCampaignMetadataReturnsOkForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -93,7 +93,7 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
     /// Verifies another club's campaign is hidden as non-disclosing 404 and left unchanged.
     /// </summary>
     [Fact]
-    public async Task UpdateCampaignMetadata_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task UpdateCampaignMetadataReturnsNotFoundForCrossTenantCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAClient = fixture.CreateNovaHttpClient();
@@ -124,7 +124,7 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
     /// Verifies the season metadata endpoint rejects anonymous callers.
     /// </summary>
     [Fact]
-    public async Task UpdateSeasonMetadata_ReturnsUnauthorized_ForAnonymous()
+    public async Task UpdateSeasonMetadataReturnsUnauthorizedForAnonymousAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -141,7 +141,7 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
     /// Verifies an authenticated non-administrator club member cannot update season metadata.
     /// </summary>
     [Fact]
-    public async Task UpdateSeasonMetadata_ReturnsForbidden_ForClubMember()
+    public async Task UpdateSeasonMetadataReturnsForbiddenForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -164,7 +164,7 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator can update season metadata and receives the corrected result.
     /// </summary>
     [Fact]
-    public async Task UpdateSeasonMetadata_ReturnsOk_ForClubAdmin()
+    public async Task UpdateSeasonMetadataReturnsOkForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -190,7 +190,7 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
     /// Verifies another club's season is hidden as non-disclosing 404 and left unchanged.
     /// </summary>
     [Fact]
-    public async Task UpdateSeasonMetadata_ReturnsNotFound_ForCrossTenantSeason()
+    public async Task UpdateSeasonMetadataReturnsNotFoundForCrossTenantSeasonAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAClient = fixture.CreateNovaHttpClient();
@@ -261,28 +261,37 @@ public sealed class CampaignMetadataHttpTests(NovaAppHostFixture fixture)
 
     private async Task<string> ReadCampaignNameAsync(long campaignId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        return await context.Campaigns
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            return await context.Campaigns
             .Where(campaign => campaign.CampaignId == campaignId)
             .Select(campaign => campaign.Name)
             .SingleAsync(cancellationToken);
+        }
     }
 
     private async Task<string> ReadSeasonNameAsync(long seasonId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        return await context.Seasons
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            return await context.Seasons
             .Where(season => season.SeasonId == seasonId)
             .Select(season => season.Name)
             .SingleAsync(cancellationToken);
+        }
     }
 
     private async Task<Guid> ReadSeasonTokenAsync(long seasonId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        return await context.Seasons
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            return await context.Seasons
             .Where(season => season.SeasonId == seasonId)
             .Select(season => season.ConcurrencyToken)
             .SingleAsync(cancellationToken);
+        }
     }
 }

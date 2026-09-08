@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Entities.Base;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -16,7 +16,7 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies the clean Aspire database applied the archival lifecycle migration.
     /// </summary>
     [Fact]
-    public async Task Migration_AppliesArchivalLifecycleSchema()
+    public async Task MigrationAppliesArchivalLifecycleSchemaAsync()
     {
         await using var db = fixture.CreateTenantContext();
 
@@ -34,7 +34,7 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
     [InlineData(LifecycleTarget.Player)]
     [InlineData(LifecycleTarget.Team)]
     [InlineData(LifecycleTarget.TagDefinition)]
-    public async Task ArchiveMetadataConstraint_RejectsPartialProvenance(LifecycleTarget target)
+    public async Task ArchiveMetadataConstraintRejectsPartialProvenanceAsync(LifecycleTarget target)
     {
         var entity = await SeedTargetAsync(target);
         entity.LifecycleStatus = LifecycleStatus.Archived;
@@ -56,12 +56,14 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
     [InlineData(LifecycleTarget.Player)]
     [InlineData(LifecycleTarget.Team)]
     [InlineData(LifecycleTarget.TagDefinition)]
-    public async Task ArchiveMetadataConstraint_RejectsProvenance_ForActiveStatus(LifecycleTarget target)
+    public async Task ArchiveMetadataConstraintRejectsProvenanceForActiveStatusAsync(LifecycleTarget target)
     {
         var entity = await SeedTargetAsync(target);
         entity.LifecycleStatus = LifecycleStatus.Active;
         entity.ArchivedAt = DateTimeOffset.UtcNow;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         entity.ArchivedById = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
         await using var db = fixture.CreateAdminContext();
         db.Update(entity);
@@ -74,7 +76,7 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies the lifecycle constraint rejects values outside the shared Active/Archived representation.
     /// </summary>
     [Fact]
-    public async Task LifecycleConstraint_RejectsUndefinedStatus()
+    public async Task LifecycleConstraintRejectsUndefinedStatusAsync()
     {
         var entity = await SeedTargetAsync(LifecycleTarget.Player);
         entity.LifecycleStatus = (LifecycleStatus)99;
@@ -90,7 +92,7 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies lifecycle status concurrency prevents a stale transition from overwriting archive provenance.
     /// </summary>
     [Fact]
-    public async Task LifecycleConcurrency_RejectsStaleTransition()
+    public async Task LifecycleConcurrencyRejectsStaleTransitionAsync()
     {
         var seeded = await SeedTargetAsync(LifecycleTarget.TagDefinition);
         var tagDefinitionId = ((PlayerTagEntity)seeded).PlayerTagId;
@@ -104,12 +106,16 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
 
         firstCopy.LifecycleStatus = LifecycleStatus.Archived;
         firstCopy.ArchivedAt = DateTimeOffset.UtcNow;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         firstCopy.ArchivedById = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         await first.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         staleCopy.LifecycleStatus = LifecycleStatus.Archived;
         staleCopy.ArchivedAt = DateTimeOffset.UtcNow;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         staleCopy.ArchivedById = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
         await Should.ThrowAsync<DbUpdateConcurrencyException>(
             () => stale.SaveChangesAsync(TestContext.Current.CancellationToken));
@@ -126,62 +132,69 @@ public sealed class ArchivalLifecyclePostgresTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
 
-        await using var db = fixture.CreateAdminContext();
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-        var suffix = Guid.NewGuid().ToString("N");
-        var club = new ClubEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Lifecycle Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
+            var suffix = Guid.NewGuid().ToString("N");
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Lifecycle Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        ArchivableEntity entity = target switch
-        {
-            LifecycleTarget.Player => new PlayerEntity
+            ArchivableEntity entity = target switch
             {
-                CreationOperationId = Guid.NewGuid(),
-                FirstName = "Lifecycle",
-                LastName = suffix,
-                DateOfBirth = new DateOnly(2012, 1, 1),
-                GraduationYear = 2030,
-                ClubId = club.ClubId,
-                CreatedById = actorUserId
-            },
-            LifecycleTarget.Team => new TeamEntity
-            {
-                CreationOperationId = Guid.NewGuid(),
-                Name = $"Team {suffix}",
-                GraduationYear = 2030,
-                ClubId = club.ClubId,
-                CreatedById = actorUserId
-            },
-            LifecycleTarget.TagDefinition => new PlayerTagEntity
-            {
-                CreationOperationId = Guid.NewGuid(),
-                Name = $"Tag {suffix}",
-                NormalizedName = $"Tag {suffix}".Trim().ToUpperInvariant(),
-                Color = "#ffffff",
-                ClubId = club.ClubId,
-                CreatedById = actorUserId
-            },
-            _ => throw new ArgumentOutOfRangeException(nameof(target), target, null),
-        };
+                LifecycleTarget.Player => new PlayerEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    FirstName = "Lifecycle",
+                    LastName = suffix,
+                    DateOfBirth = new DateOnly(2012, 1, 1),
+                    GraduationYear = 2030,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                },
+                LifecycleTarget.Team => new TeamEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    Name = $"Team {suffix}",
+                    GraduationYear = 2030,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                },
+                LifecycleTarget.TagDefinition => new PlayerTagEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    Name = $"Tag {suffix}",
+                    NormalizedName = $"Tag {suffix}".Trim().ToUpperInvariant(),
+                    Color = "#ffffff",
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                },
+                _ => throw new ArgumentOutOfRangeException(nameof(target), target, null),
+            };
 
-        db.Add(entity);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        db.Entry(entity).State = EntityState.Detached;
-        return entity;
+            db.Add(entity);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.Entry(entity).State = EntityState.Detached;
+            return entity;
+        }
     }
 
     /// <summary>
     /// Identifies the lifecycle-managed table under test.
     /// </summary>
+#pragma warning disable CA1515 // xUnit fixture discovery and public theory or shared fixture contracts require this public type.
     public enum LifecycleTarget
+#pragma warning restore CA1515
     {
         /// <summary>
         /// Targets the Players table.

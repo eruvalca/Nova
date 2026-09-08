@@ -8,10 +8,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -85,9 +85,9 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
 
     /// <summary>Mixed previews create only reviewed eligible rows and reconcile every source row.</summary>
     [Fact]
-    public async Task CommitAsync_ReconcilesMixedPreview_AndPersistsOneReceipt()
+    public async Task CommitAsyncReconcilesMixedPreviewAndPersistsOneReceiptAsync()
     {
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\nTaylor,Stone,2013-02-03,,,2031\r\n,Invalid,not-a-date,,,1999\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\nTaylor,Stone,2013-02-03,,,2031\r\n,Invalid,not-a-date,,,1999\r\n");
         var result = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBeTrue();
         result.Value.CreatedRows.ShouldBe(1);
@@ -103,10 +103,10 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
             PlayerImportCommitRowStatus.SkippedDuplicateAtPreview,
             PlayerImportCommitRowStatus.SkippedInvalidAtPreview]);
         using var db = _harness.CreateAdminContext();
-        db.Players.Single().PlayerId.ShouldBe(result.Value.Rows[0].PlayerId!.Value);
-        db.PlayerImportReceipts.Count().ShouldBe(1);
-        db.PlayerCampaignAssignments.Count().ShouldBe(0);
-        db.ActivityEvents.Count().ShouldBe(0);
+        (await db.Players.SingleAsync(TestContext.Current.CancellationToken)).PlayerId.ShouldBe(result.Value.Rows[0].PlayerId!.Value);
+        (await db.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await db.PlayerCampaignAssignments.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
+        (await db.ActivityEvents.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
     }
 
     /// <summary>All-invalid and all-duplicate previews cannot create completion receipts.</summary>
@@ -114,26 +114,26 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CommitAsync_RejectsPreviewWithoutEligibleRows(bool duplicate)
+    public async Task CommitAsyncRejectsPreviewWithoutEligibleRowsAsync(bool duplicate)
     {
         if (duplicate)
         {
             AddPlayer("Taylor", "Stone");
         }
 
-        var input = await Preview(duplicate ? "Taylor,Stone,2013-02-03,,,2031\r\n" : ",Invalid,not-a-date,,,1999\r\n");
+        var input = await PreviewAsync(duplicate ? "Taylor,Stone,2013-02-03,,,2031\r\n" : ",Invalid,not-a-date,,,1999\r\n");
         var result = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Validation);
         using var db = _harness.CreateAdminContext();
-        db.PlayerImportReceipts.Count().ShouldBe(0);
+        (await db.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
     }
 
     /// <summary>A concurrent roster addition blocks the reviewed row and permanently completes zero creations.</summary>
     [Fact]
-    public async Task CommitAsync_CompletesZeroCreations_WhenEveryReadyRowBecomesDuplicate()
+    public async Task CommitAsyncCompletesZeroCreationsWhenEveryReadyRowBecomesDuplicateAsync()
     {
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\n");
         var existingId = AddPlayer(" TAYLOR ", "stone");
         var result = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBeTrue();
@@ -144,56 +144,56 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
         row.Duplicate!.ExistingPlayerId.ShouldBe(existingId);
         using (var db = _harness.CreateAdminContext())
         {
-            db.Players.Remove(db.Players.Single());
-            db.SaveChanges();
+            db.Players.Remove((await db.Players.SingleAsync(TestContext.Current.CancellationToken)));
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         var recovered = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         recovered.IsSuccess.ShouldBeTrue();
         JsonSerializer.Serialize(recovered.Value).ShouldBe(JsonSerializer.Serialize(result.Value));
         using var after = _harness.CreateAdminContext();
-        after.Players.Count().ShouldBe(0);
-        after.PlayerImportReceipts.Count().ShouldBe(1);
+        (await after.Players.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
+        (await after.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Removing a duplicate after preview does not authorize its originally excluded row.</summary>
     [Fact]
-    public async Task CommitAsync_KeepsOriginallyDuplicateRowExcluded_AfterMatchingPlayerIsDeleted()
+    public async Task CommitAsyncKeepsOriginallyDuplicateRowExcludedAfterMatchingPlayerIsDeletedAsync()
     {
         AddPlayer("Taylor", "Stone");
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\nJordan,New,2013-02-03,,,2031\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\nJordan,New,2013-02-03,,,2031\r\n");
         using (var db = _harness.CreateAdminContext())
         {
-            db.Players.Remove(db.Players.Single());
-            db.SaveChanges();
+            db.Players.Remove((await db.Players.SingleAsync(TestContext.Current.CancellationToken)));
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         var result = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBeTrue();
         result.Value.CreatedRows.ShouldBe(1);
         result.Value.Rows[0].Status.ShouldBe(PlayerImportCommitRowStatus.SkippedDuplicateAtPreview);
         using var after = _harness.CreateAdminContext();
-        after.Players.Single().FirstName.ShouldBe("Jordan");
+        (await after.Players.SingleAsync(TestContext.Current.CancellationToken)).FirstName.ShouldBe("Jordan");
     }
 
     /// <summary>Recovery returns the original snapshot after token expiration and later player edits.</summary>
     [Fact]
-    public async Task CommitAsync_RecoversOriginalResult_AfterTokenExpiryAndPlayerChanges()
+    public async Task CommitAsyncRecoversOriginalResultAfterTokenExpiryAndPlayerChangesAsync()
     {
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\n");
         var first = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         first.IsSuccess.ShouldBeTrue();
         _clock.Now = _clock.Now.AddHours(2);
         using (var db = _harness.CreateAdminContext())
         {
-            db.Players.Single().FirstName = "Changed";
-            db.SaveChanges();
+            (await db.Players.SingleAsync(TestContext.Current.CancellationToken)).FirstName = "Changed";
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         var retry = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         retry.IsSuccess.ShouldBeTrue();
         JsonSerializer.Serialize(retry.Value).ShouldBe(JsonSerializer.Serialize(first.Value));
         (retry.Value.RecoveryExpiresAt - retry.Value.CompletedAt).ShouldBe(TimeSpan.FromHours(24));
         using var after = _harness.CreateAdminContext();
-        after.Players.Count().ShouldBe(1);
-        after.PlayerImportReceipts.Count().ShouldBe(1);
+        (await after.Players.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
+        (await after.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Neither a new expired preview nor an expired recovery can execute players.</summary>
@@ -201,9 +201,9 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CommitAsync_RejectsExpiredAuthorizationOrRecovery(bool completed)
+    public async Task CommitAsyncRejectsExpiredAuthorizationOrRecoveryAsync(bool completed)
     {
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\n");
         if (completed)
         {
             (await Service().CommitAsync(input, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
@@ -213,7 +213,7 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
         var result = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         result.IsProblem.ShouldBeTrue();
         using var db = _harness.CreateAdminContext();
-        db.Players.Count().ShouldBe(completed ? 1 : 0);
+        (await db.Players.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(completed ? 1 : 0);
     }
 
     /// <summary>Persisted role revocation overrides stale administrator claims for commits and recovery.</summary>
@@ -221,9 +221,9 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CommitAsync_RejectsRevokedPersistedAdministratorRole(bool completed)
+    public async Task CommitAsyncRejectsRevokedPersistedAdministratorRoleAsync(bool completed)
     {
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\n");
         if (completed)
         {
             (await Service().CommitAsync(input, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
@@ -231,8 +231,8 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
 
         using (var db = _harness.CreateAdminContext())
         {
-            db.UserRoles.Remove(db.UserRoles.Single());
-            db.SaveChanges();
+            db.UserRoles.Remove((await db.UserRoles.SingleAsync(TestContext.Current.CancellationToken)));
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         var result = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         result.IsProblem.ShouldBeTrue();
@@ -247,9 +247,9 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
     [InlineData("token")]
     [InlineData("actor")]
     [InlineData("club")]
-    public async Task CommitAsync_RejectsMismatchedRecoveryIdentity(string changed)
+    public async Task CommitAsyncRejectsMismatchedRecoveryIdentityAsync(string changed)
     {
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\n");
         (await Service().CommitAsync(input, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
         switch (changed)
         {
@@ -258,12 +258,12 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
             case "token": input = input with { ConfirmationToken = "tampered" }; break;
             case "actor":
             case "club":
-                var retryClubId = changed == "actor" ? ClubId : OtherClubId;
+                var retryClubId = string.Equals(changed, "actor", StringComparison.Ordinal) ? ClubId : OtherClubId;
                 using (var seed = _harness.CreateAdminContext())
                 {
                     seed.Users.Add(new NovaUserEntity { Id = ActorId + 10, FirstName = "Retry", LastName = "Admin", ClubId = retryClubId });
                     seed.UserRoles.Add(new IdentityUserRole<long> { RoleId = RoleId, UserId = ActorId + 10 });
-                    seed.SaveChanges();
+                    await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
                 }
                 _harness.CurrentUser.UserId = ActorId + 10;
                 _harness.CurrentUser.ClubId = retryClubId;
@@ -273,35 +273,35 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Conflict);
         using var db = _harness.CreateAdminContext();
-        db.Players.Count().ShouldBe(1);
+        (await db.Players.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Receipts are visible only in their owning tenant while infrastructure retains access.</summary>
     [Fact]
-    public async Task ReceiptQueries_FilterByCurrentTenant()
+    public async Task ReceiptQueriesFilterByCurrentTenantAsync()
     {
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\n");
         (await Service().CommitAsync(input, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
         using (var own = _harness.CreateReadContext())
         {
-            own.PlayerImportReceipts.Count().ShouldBe(1);
+            (await own.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
         }
 
         _harness.CurrentUser.ClubId = OtherClubId;
         using (var other = _harness.CreateReadContext())
         {
-            other.PlayerImportReceipts.Count().ShouldBe(0);
+            (await other.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
         }
 
         using var admin = _harness.CreateAdminContext();
-        admin.PlayerImportReceipts.Count().ShouldBe(1);
+        (await admin.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Final campaign state controls technical enrollment without placement activity.</summary>
     [Fact]
-    public async Task CommitAsync_EnrollsIntoCampaignOpenedAfterPreview_WithUndecidedPlacement()
+    public async Task CommitAsyncEnrollsIntoCampaignOpenedAfterPreviewWithUndecidedPlacementAsync()
     {
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\nJordan,New,2013-02-03,,,2031\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\nJordan,New,2013-02-03,,,2031\r\n");
         long campaignId;
         using (var db = _harness.CreateAdminContext())
         {
@@ -314,7 +314,7 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
                 CreationOperationId = Guid.CreateVersion7()
             };
             db.Seasons.Add(season);
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             var campaign = new CampaignEntity
             {
                 CreatedById = ActorId,
@@ -325,7 +325,7 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
                 CreationOperationId = Guid.CreateVersion7()
             };
             db.Campaigns.Add(campaign);
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             campaignId = campaign.CampaignId;
         }
         var result = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
@@ -336,17 +336,17 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
         result.Value.CampaignId.ShouldBe(campaignId);
         result.Value.CampaignName.ShouldBe("Opened after preview");
         using var after = _harness.CreateAdminContext();
-        var assignments = after.PlayerCampaignAssignments.ToArray();
+        var assignments = await after.PlayerCampaignAssignments.ToArrayAsync(TestContext.Current.CancellationToken);
         assignments.Length.ShouldBe(2);
         assignments.ShouldAllBe(assignment => assignment.PlacementOutcome == PlacementOutcome.Undecided
             && assignment.TeamId == null && assignment.CampaignId == campaignId);
         assignments.Select(assignment => assignment.PlayerId).Order().ShouldBe(result.Value.Rows.Select(row => row.PlayerId!.Value).Order());
-        after.ActivityEvents.Count().ShouldBe(0);
+        (await after.ActivityEvents.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
     }
 
     /// <summary>Cross-tenant writes cannot introduce a forged receipt into another club.</summary>
     [Fact]
-    public async Task ReceiptWrites_RejectCrossTenantInsert()
+    public async Task ReceiptWritesRejectCrossTenantInsertAsync()
     {
         using var db = _harness.CreateTenantContext();
         db.PlayerImportReceipts.Add(new PlayerImportReceiptEntity
@@ -364,32 +364,32 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
         });
         await Should.ThrowAsync<InvalidOperationException>(() => db.SaveChangesAsync(TestContext.Current.CancellationToken));
         using var after = _harness.CreateAdminContext();
-        after.PlayerImportReceipts.Count().ShouldBe(0);
+        (await after.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
     }
 
     /// <summary>Persisted membership overrides a stale club claim.</summary>
     [Fact]
-    public async Task CommitAsync_RejectsActorWhoLeftClub_AfterPreview()
+    public async Task CommitAsyncRejectsActorWhoLeftClubAfterPreviewAsync()
     {
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\n");
         using (var db = _harness.CreateAdminContext())
         {
-            db.Users.Single().ClubId = null;
-            db.SaveChanges();
+            (await db.Users.SingleAsync(TestContext.Current.CancellationToken)).ClubId = null;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         var result = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         result.IsProblem.ShouldBeTrue();
         result.Problem.Kind.ShouldBe(ServiceProblemKind.Forbidden);
         using var after = _harness.CreateAdminContext();
-        after.Players.Count().ShouldBe(0);
-        after.PlayerImportReceipts.Count().ShouldBe(0);
+        (await after.Players.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
+        (await after.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
     }
 
     /// <summary>Subsequent imports remove expired receipts globally without deleting live domain records.</summary>
     [Fact]
-    public async Task CommitAsync_PrunesExpiredReceiptsAcrossTenants_AndPreservesLiveReceiptsAndPlayers()
+    public async Task CommitAsyncPrunesExpiredReceiptsAcrossTenantsAndPreservesLiveReceiptsAndPlayersAsync()
     {
-        var first = await Preview("Taylor,Stone,2013-02-03,,,2031\r\n");
+        var first = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\n");
         (await Service().CommitAsync(first, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
         using (var db = _harness.CreateAdminContext())
         {
@@ -406,15 +406,15 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
                 CompletedAt = _clock.Now.AddHours(-25),
                 RecoveryExpiresAt = _clock.Now.AddHours(-1)
             });
-            db.SaveChanges();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
-        var second = await Preview("Jordan,New,2013-02-03,,,2031\r\n");
+        var second = await PreviewAsync("Jordan,New,2013-02-03,,,2031\r\n");
         (await Service().CommitAsync(second, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
         using var after = _harness.CreateAdminContext();
-        after.PlayerImportReceipts.Count().ShouldBe(2);
+        (await after.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(2);
         after.PlayerImportReceipts.ShouldAllBe(receipt => receipt.ClubId == ClubId);
-        after.PlayerImportReceipts.Any(receipt => receipt.OperationId == first.OperationId).ShouldBeTrue();
-        after.Players.Count().ShouldBe(2);
+        (await after.PlayerImportReceipts.AnyAsync(receipt => receipt.OperationId == first.OperationId, TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await after.Players.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(2);
     }
 
     /// <summary>Representative and maximum uploads reconcile every row and retain distinct creation identities.</summary>
@@ -422,10 +422,10 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(200)]
     [InlineData(1000)]
-    public async Task CommitAsync_PersistsEveryEligibleRow_ForBoundedLargeUpload(int count)
+    public async Task CommitAsyncPersistsEveryEligibleRowForBoundedLargeUploadAsync(int count)
     {
         var rows = string.Concat(Enumerable.Range(0, count).Select(index => $"Player{index},Import,2013-02-03,,,2031\r\n"));
-        var input = await Preview(rows);
+        var input = await PreviewAsync(rows);
         var result = await Service().CommitAsync(input, TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBeTrue();
         result.Value.TotalRows.ShouldBe(count);
@@ -434,17 +434,17 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
         result.Value.Rows.Select(row => row.SourceRowNumber).ShouldBe(Enumerable.Range(2, count));
         result.Value.Rows.Select(row => row.PlayerId).Distinct().Count().ShouldBe(count);
         using var after = _harness.CreateAdminContext();
-        after.Players.Count().ShouldBe(count);
-        after.Players.Select(player => player.CreationOperationId).Distinct().Count().ShouldBe(count);
-        after.Players.Any(player => player.CreationOperationId == input.OperationId).ShouldBeFalse();
-        after.PlayerImportReceipts.Count().ShouldBe(1);
+        (await after.Players.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(count);
+        (await after.Players.Select(player => player.CreationOperationId).Distinct().CountAsync(TestContext.Current.CancellationToken)).ShouldBe(count);
+        (await after.Players.AnyAsync(player => player.CreationOperationId == input.OperationId, TestContext.Current.CancellationToken)).ShouldBeFalse();
+        (await after.PlayerImportReceipts.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(1);
     }
 
     /// <summary>Recovery emits only its recovery event, without repeating completion counters.</summary>
     [Fact]
-    public async Task CommitAsync_LogsCompletionOnce_WhenRequestIsRecovered()
+    public async Task CommitAsyncLogsCompletionOnceWhenRequestIsRecoveredAsync()
     {
-        var input = await Preview("Taylor,Stone,2013-02-03,,,2031\r\n");
+        var input = await PreviewAsync("Taylor,Stone,2013-02-03,,,2031\r\n");
         var logger = new ImportEventLogger();
         var service = Service(logger);
         (await service.CommitAsync(input, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
@@ -480,7 +480,7 @@ public sealed class PlayerImportCommitServiceTests : IDisposable
     /// <summary>Creates a genuine server-authorized confirmation for the supplied source rows.</summary>
     /// <param name="rows">CSV data rows.</param>
     /// <returns>The exact replayable commit request.</returns>
-    private async Task<PlayerImportCommitInput> Preview(string rows)
+    private async Task<PlayerImportCommitInput> PreviewAsync(string rows)
     {
         var upload = new PlayerImportUploadInput
         {

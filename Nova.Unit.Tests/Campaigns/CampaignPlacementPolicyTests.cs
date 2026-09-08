@@ -1,5 +1,5 @@
 ﻿using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -16,7 +16,7 @@ public sealed partial class CampaignPlacementPolicyTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(CampaignStatus.Draft)]
     [InlineData(CampaignStatus.Closed)]
-    public void Evaluate_ReturnsCampaignNotActive_WhenMultipleFactsReject(CampaignStatus campaignStatus)
+    public void EvaluateReturnsCampaignNotActiveWhenMultipleFactsReject(CampaignStatus campaignStatus)
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
@@ -32,7 +32,7 @@ public sealed partial class CampaignPlacementPolicyTests
     /// Verifies an archived player is rejected before requested-team state.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsPlayerArchived_WhenPlayerIsArchived()
+    public void EvaluateReturnsPlayerArchivedWhenPlayerIsArchived()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
@@ -47,7 +47,7 @@ public sealed partial class CampaignPlacementPolicyTests
     /// Verifies a missing tenant-visible team is rejected.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsTeamUnavailable_WhenRequestedTeamWasNotFound()
+    public void EvaluateReturnsTeamUnavailableWhenRequestedTeamWasNotFound()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(teamRequested: true, teamFound: false));
@@ -59,7 +59,7 @@ public sealed partial class CampaignPlacementPolicyTests
     /// Verifies an archived requested team is rejected.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsTeamArchived_WhenRequestedTeamIsArchived()
+    public void EvaluateReturnsTeamArchivedWhenRequestedTeamIsArchived()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
@@ -75,7 +75,7 @@ public sealed partial class CampaignPlacementPolicyTests
     /// Verifies a player below the team's graduation-year cutoff is rejected.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsTeamIneligible_WhenPlayerYearIsBelowTeamYear()
+    public void EvaluateReturnsTeamIneligibleWhenPlayerYearIsBelowTeamYear()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
@@ -91,7 +91,7 @@ public sealed partial class CampaignPlacementPolicyTests
     /// Verifies graduation-year equality satisfies placement eligibility.
     /// </summary>
     [Fact]
-    public void Evaluate_AllowsPlacement_WhenGraduationYearsAreEqual()
+    public void EvaluateAllowsPlacementWhenGraduationYearsAreEqual()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
@@ -107,7 +107,7 @@ public sealed partial class CampaignPlacementPolicyTests
     /// Verifies a non-assigned outcome does not require team facts.
     /// </summary>
     [Fact]
-    public void Evaluate_AllowsPlacement_WhenNoTeamWasRequested()
+    public void EvaluateAllowsPlacementWhenNoTeamWasRequested()
     {
         var result = CampaignPlacementPolicy.Evaluate(CreateContext());
 
@@ -118,7 +118,7 @@ public sealed partial class CampaignPlacementPolicyTests
     /// Verifies a closed campaign is rejected before a requested team's archived state.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsCampaignNotActive_WhenRequestedTeamWouldBeArchived()
+    public void EvaluateReturnsCampaignNotActiveWhenRequestedTeamWouldBeArchived()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
@@ -135,7 +135,7 @@ public sealed partial class CampaignPlacementPolicyTests
     /// Verifies a closed campaign is rejected before a requested team's eligibility check.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsCampaignNotActive_WhenRequestedTeamWouldBeIneligible()
+    public void EvaluateReturnsCampaignNotActiveWhenRequestedTeamWouldBeIneligible()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
@@ -152,7 +152,7 @@ public sealed partial class CampaignPlacementPolicyTests
     /// Verifies an archived player is rejected before a requested team's archived state.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsPlayerArchived_WhenRequestedTeamWouldBeArchived()
+    public void EvaluateReturnsPlayerArchivedWhenRequestedTeamWouldBeArchived()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(
@@ -169,7 +169,7 @@ public sealed partial class CampaignPlacementPolicyTests
     /// Verifies an archived player is rejected before a requested team's eligibility check.
     /// </summary>
     [Fact]
-    public void Evaluate_ReturnsPlayerArchived_WhenRequestedTeamWouldBeIneligible()
+    public void EvaluateReturnsPlayerArchivedWhenRequestedTeamWouldBeIneligible()
     {
         var result = CampaignPlacementPolicy.Evaluate(
             CreateContext(

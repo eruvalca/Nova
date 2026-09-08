@@ -8,7 +8,7 @@ namespace Nova.Data;
 /// Design-time factory so `dotnet ef` commands can create <see cref="NovaDbContext"/>
 /// without the Aspire host or an authenticated user.
 /// </summary>
-public sealed class NovaDbContextDesignTimeFactory : IDesignTimeDbContextFactory<NovaDbContext>
+internal sealed class NovaDbContextDesignTimeFactory : IDesignTimeDbContextFactory<NovaDbContext>
 {
     /// <summary>
     /// Executes the Create Db Context operation.

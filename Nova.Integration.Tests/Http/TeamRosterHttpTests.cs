@@ -3,9 +3,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Teams;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Teams;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -20,12 +20,14 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     private const string Password = "Test#Passw0rd!";
 
     [Fact]
-    public async Task GetRoster_ReturnsFilteredRows_ForApprovedClubMember()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task GetRosterReturnsFilteredRowsForApprovedClubMemberAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
 
-        using (var anonymousResponse = await anonymousClient.GetAsync(TeamRosterEndpoints.GetRoster, cancellationToken))
+        using (var anonymousResponse = await anonymousClient.GetAsync(new Uri(TeamRosterEndpoints.GetRoster, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             anonymousResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
@@ -39,7 +41,9 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
 
         await using var context = fixture.CreateAdminContext();
         var userId = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             .Where(user => user.NormalizedEmail == email.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(user => user.Id)
             .SingleAsync(cancellationToken);
         var season = new SeasonEntity
@@ -113,7 +117,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         await context.SaveChangesAsync(cancellationToken);
 
         using var response = await client.GetAsync(
-            TeamRosterEndpoints.GetRosterUrl(search: "a", graduationYear: 2030),
+new Uri(TeamRosterEndpoints.GetRosterUrl(search: "a", graduationYear: 2030), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -128,7 +132,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     /// <c>RequireClubMember</c> policy the roster endpoint is authorized with.
     /// </summary>
     [Fact]
-    public async Task GetRoster_ReturnsRows_ForNonAdminClubMember()
+    public async Task GetRosterReturnsRowsForNonAdminClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -146,10 +150,14 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
         long teamId;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var adminUserId = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
                 .Where(user => user.NormalizedEmail == adminEmail.ToUpperInvariant())
+#pragma warning restore CA1862
                 .Select(user => user.Id)
                 .SingleAsync(cancellationToken);
 
@@ -166,7 +174,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
             teamId = team.TeamId;
         }
 
-        using var response = await memberClient.GetAsync(TeamRosterEndpoints.GetRoster, cancellationToken);
+        using var response = await memberClient.GetAsync(new Uri(TeamRosterEndpoints.GetRoster, UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var rows = await response.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
@@ -180,7 +188,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     /// SQLite unit-test harness uses a literal <c>Contains</c> and cannot reproduce the bug.
     /// </summary>
     [Fact]
-    public async Task GetRoster_Search_TreatsLikeMetacharactersAsLiterals()
+    public async Task GetRosterSearchTreatsLikeMetacharactersAsLiteralsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -191,10 +199,14 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var userId = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
                 .Where(user => user.NormalizedEmail == email.ToUpperInvariant())
+#pragma warning restore CA1862
                 .Select(user => user.Id)
                 .SingleAsync(cancellationToken);
 
@@ -209,7 +221,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         }
 
         using (var percentResponse = await client.GetAsync(
-            TeamRosterEndpoints.GetRosterUrl(search: "50%"),
+new Uri(TeamRosterEndpoints.GetRosterUrl(search: "50%"), UriKind.RelativeOrAbsolute),
             cancellationToken))
         {
             percentResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -219,7 +231,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         }
 
         using var underscoreResponse = await client.GetAsync(
-            TeamRosterEndpoints.GetRosterUrl(search: "a_b"),
+new Uri(TeamRosterEndpoints.GetRosterUrl(search: "a_b"), UriKind.RelativeOrAbsolute),
             cancellationToken);
         underscoreResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var underscoreRows = await underscoreResponse.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
@@ -227,7 +239,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         underscoreRows.Select(row => row.Name).ShouldBe(["a_b Squad"]);
 
         using var backslashResponse = await client.GetAsync(
-            TeamRosterEndpoints.GetRosterUrl(search: @"Path\T"),
+new Uri(TeamRosterEndpoints.GetRosterUrl(search: @"Path\T"), UriKind.RelativeOrAbsolute),
             cancellationToken);
         backslashResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var backslashRows = await backslashResponse.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
@@ -240,7 +252,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     /// (Name, then TeamId) order.
     /// </summary>
     [Fact]
-    public async Task GetRoster_AppliesLimit_ReturnsFirstTeamsInDeterministicOrder()
+    public async Task GetRosterAppliesLimitReturnsFirstTeamsInDeterministicOrderAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -249,7 +261,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.InsertTeamAsync(fixture, club.ClubId, email, "Bravo", 2030, cancellationToken);
         await SeedingHelpers.InsertTeamAsync(fixture, club.ClubId, email, "Charlie", 2030, cancellationToken);
 
-        using var response = await client.GetAsync("/api/teams?limit=2", cancellationToken);
+        using var response = await client.GetAsync(new Uri("/api/teams?limit=2", UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var rows = await response.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
@@ -261,7 +273,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     /// Verifies that omitting the limit keeps the existing unbounded behavior at the endpoint boundary.
     /// </summary>
     [Fact]
-    public async Task GetRoster_OmittedLimit_ReturnsEveryMatchingTeam()
+    public async Task GetRosterOmittedLimitReturnsEveryMatchingTeamAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -270,7 +282,7 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.InsertTeamAsync(fixture, club.ClubId, email, "Bravo", 2030, cancellationToken);
         await SeedingHelpers.InsertTeamAsync(fixture, club.ClubId, email, "Charlie", 2030, cancellationToken);
 
-        using var response = await client.GetAsync(TeamRosterEndpoints.GetRoster, cancellationToken);
+        using var response = await client.GetAsync(new Uri(TeamRosterEndpoints.GetRoster, UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var rows = await response.Content.ReadFromJsonAsync<List<TeamRosterItem>>(cancellationToken);
@@ -286,13 +298,13 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(201)]
-    public async Task GetRoster_InvalidLimit_ReturnsValidationProblem(int limit)
+    public async Task GetRosterInvalidLimitReturnsValidationProblemAsync(int limit)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         await SeedRosterClubAsync(client, cancellationToken);
 
-        using var response = await client.GetAsync($"/api/teams?limit={limit}", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"/api/teams?limit={limit}", UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         using var document = await JsonDocument.ParseAsync(
@@ -339,27 +351,33 @@ public sealed class TeamRosterHttpTests(NovaAppHostFixture fixture)
 
     private async Task UpdateUserAsync(string email, long? clubId, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var user = await context.Users.SingleAsync(
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             candidate => candidate.NormalizedEmail == email.ToUpperInvariant(),
+#pragma warning restore CA1862
             cancellationToken);
-        user.ClubId = clubId;
-        await context.SaveChangesAsync(cancellationToken);
+            user.ClubId = clubId;
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"Team Roster Club {Guid.CreateVersion7():N}", "Austin", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent($"Team Roster Club {Guid.CreateVersion7():N}", "Austin", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;
     }
 
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 

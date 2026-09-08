@@ -5,7 +5,7 @@ namespace Nova.Client.Telemetry;
 /// <summary>
 /// Adds W3C trace context headers to outbound HTTP requests from the Blazor WebAssembly client.
 /// </summary>
-public sealed class TraceParentPropagatingHandler : DelegatingHandler
+internal sealed class TraceParentPropagatingHandler : DelegatingHandler
 {
     /// <summary>
     /// Sends an HTTP request and ensures a <c>traceparent</c> header is present for correlation.

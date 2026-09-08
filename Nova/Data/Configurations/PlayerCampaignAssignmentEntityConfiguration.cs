@@ -1,14 +1,14 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Data.Configurations;
 
 /// <summary>
 /// Configures EF Core mapping for Player Campaign Assignment Entity Configuration.
 /// </summary>
-public class PlayerCampaignAssignmentEntityConfiguration : IEntityTypeConfiguration<PlayerCampaignAssignmentEntity>
+internal class PlayerCampaignAssignmentEntityConfiguration : IEntityTypeConfiguration<PlayerCampaignAssignmentEntity>
 {
     /// <summary>
     /// Executes the Configure operation.

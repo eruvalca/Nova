@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Interceptors;
 using Nova.Data.Tenancy;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Integration.Tests.Data;
 
@@ -19,7 +19,9 @@ namespace Nova.Integration.Tests.Data;
 /// normal flow-local idiom; use <see cref="NovaAppHostFixture.UseUser"/> when restore-on-dispose
 /// semantics are needed.
 /// </remarks>
+#pragma warning disable CA1515 // xUnit fixture discovery and public theory or shared fixture contracts require this public type.
 public sealed class FakeCurrentUserProvider : ICurrentUserProvider
+#pragma warning restore CA1515
 {
     private readonly AsyncLocal<long?> _userId = new();
     private readonly AsyncLocal<long?> _clubId = new();
@@ -53,16 +55,18 @@ public sealed class FakeCurrentUserProvider : ICurrentUserProvider
 /// connection string plus factories for the three application contexts wired to a flow-scoped
 /// <see cref="FakeCurrentUserProvider"/>.
 /// </summary>
+#pragma warning disable CA1515 // xUnit fixture discovery and public theory or shared fixture contracts require this public type.
 public sealed class NovaAppHostFixture : IAsyncLifetime
+#pragma warning restore CA1515
 {
-    private readonly CampaignTestSeedInterceptor campaignTestSeedInterceptor = new();
-    private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(5);
+    private readonly CampaignTestSeedInterceptor _campaignTestSeedInterceptor = new();
+    private static readonly TimeSpan _startupTimeout = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// Best-effort bound on how long to wait for the Azurite <c>storage</c> resource to report healthy
     /// before falling through to the bounded container probe, which is the authoritative readiness gate.
     /// </summary>
-    private static readonly TimeSpan AzuriteReadyWaitTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan _azuriteReadyWaitTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
     /// Azurite retry bounds are deliberately hard-coded (not environment-tunable): environment-tunable
@@ -71,7 +75,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// </summary>
     private const int AzuriteContainerProbeMaxAttempts = 20;
 
-    private static readonly TimeSpan AzuriteContainerProbeDelay = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan _azuriteContainerProbeDelay = TimeSpan.FromMilliseconds(500);
 
     private DistributedApplication? App { get; set; }
     private string? ConnectionStringValue { get; set; }
@@ -123,7 +127,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// must never stamp actors from the shared <see cref="CurrentUser"/> state that other test
     /// classes mutate and may leave populated.
     /// </summary>
-    private static readonly FakeCurrentUserProvider AdminContextUser = new();
+    private static readonly FakeCurrentUserProvider _adminContextUser = new();
 
     /// <summary>Gets the connection string for the live "novadb" PostgreSQL database.</summary>
     public string ConnectionString => ConnectionStringValue
@@ -140,7 +144,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// <inheritdoc />
     public async ValueTask InitializeAsync()
     {
-        using var cts = new CancellationTokenSource(StartupTimeout);
+        using var cts = new CancellationTokenSource(_startupTimeout);
         var cancellationToken = cts.Token;
 
         var builder = await DistributedApplicationTestingBuilder.CreateAsync<Projects.Nova_AppHost>(cancellationToken);
@@ -154,7 +158,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
         await App.ResourceNotifications.WaitForResourceHealthyAsync("nova", cancellationToken);
 
         ConnectionStringValue = await App.GetConnectionStringAsync("novadb", cancellationToken)
-            ?? throw new InvalidOperationException("No connection string was resolved for 'novadb'.");
+ ?? throw new InvalidOperationException("No connection string was resolved for 'novadb'.");
 
         // Best-effort: give the Azurite emulator a bounded window to report healthy before probing the
         // container. The emulator has no health-check annotation, so "healthy" resolves as soon as the
@@ -162,20 +166,27 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
         await WaitForStorageHealthyAsync(App, cancellationToken);
 
         var blobConnectionString = await App.GetConnectionStringAsync("profile-photos", cancellationToken)
-            ?? throw new InvalidOperationException("No connection string was resolved for 'profile-photos'.");
+ ?? throw new InvalidOperationException("No connection string was resolved for 'profile-photos'.");
         ProfilePhotosContainerValue = CreateBlobContainerClient(blobConnectionString);
         await CreateContainerWithRetryAsync(ProfilePhotosContainerValue, cancellationToken);
 
         var clubCrestsConnectionString = await App.GetConnectionStringAsync("club-crests", cancellationToken)
-            ?? throw new InvalidOperationException("No connection string was resolved for 'club-crests'.");
+ ?? throw new InvalidOperationException("No connection string was resolved for 'club-crests'.");
         ClubCrestsContainerValue = CreateBlobContainerClient(clubCrestsConnectionString);
         await CreateContainerWithRetryAsync(ClubCrestsContainerValue, cancellationToken);
 
         // The app only migrates at startup in the Development environment, which the testing
         // builder does not guarantee — apply the production migrations explicitly. Migrations
         // are attributed to NovaDbContext, so they must be applied through it.
-        await using var context = CreateTenantContext();
-        await context.Database.MigrateAsync(cancellationToken);
+        var context = CreateTenantContext();
+
+        // The app only migrates at startup in the Development environment, which the testing
+        // builder does not guarantee — apply the production migrations explicitly. Migrations
+        // are attributed to NovaDbContext, so they must be applied through it.
+        await using (context)
+        {
+            await context.Database.MigrateAsync(cancellationToken);
+        }
     }
 
     /// <inheritdoc />
@@ -191,30 +202,30 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// Creates a tenant-scoped <see cref="NovaDbContext"/> (filters and interceptor on) against the live database.
     /// </summary>
     /// <returns>A new tenant context owned by the caller.</returns>
-    public NovaDbContext CreateTenantContext() =>
+    internal NovaDbContext CreateTenantContext() =>
         new(Options<NovaDbContext>(withInterceptor: true), CurrentUser);
 
     /// <summary>
     /// Creates a read-only <see cref="NovaReadDbContext"/> (filters on, no tracking) against the live database.
     /// </summary>
     /// <returns>A new read context owned by the caller.</returns>
-    public NovaReadDbContext CreateReadContext() =>
+    internal NovaReadDbContext CreateReadContext() =>
         new(Options<NovaReadDbContext>(withInterceptor: false), CurrentUser);
 
     /// <summary>
     /// Creates an unfiltered <see cref="NovaAdminDbContext"/> (interceptor on, filters bypassed) against the live database.
     /// </summary>
     /// <returns>A new admin context owned by the caller.</returns>
-    public NovaAdminDbContext CreateAdminContext() =>
-        new(Options<NovaAdminDbContext>(withInterceptor: true), AdminContextUser);
+    internal NovaAdminDbContext CreateAdminContext() =>
+        new(Options<NovaAdminDbContext>(withInterceptor: true), _adminContextUser);
 
     /// <summary>
     /// Creates an unfiltered admin context without campaign seed normalization so provider tests
     /// can send deliberately invalid lifecycle metadata to PostgreSQL unchanged.
     /// </summary>
     /// <returns>A new unnormalized admin context owned by the caller.</returns>
-    public NovaAdminDbContext CreateUnnormalizedAdminContext() =>
-        new(Options<NovaAdminDbContext>(withInterceptor: true, normalizeCampaignSeeds: false), AdminContextUser);
+    internal NovaAdminDbContext CreateUnnormalizedAdminContext() =>
+        new(Options<NovaAdminDbContext>(withInterceptor: true, normalizeCampaignSeeds: false), _adminContextUser);
 
     /// <summary>
     /// Gets the base URI of the running "nova" web resource, preferring the https endpoint so
@@ -245,7 +256,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     /// no HTTP or UI surface yet.
     /// </summary>
     /// <returns>A tenant-context factory.</returns>
-    public IDbContextFactory<NovaDbContext> CreateTenantContextFactory() =>
+    internal IDbContextFactory<NovaDbContext> CreateTenantContextFactory() =>
         new TenantContextFactory(Options<NovaDbContext>(withInterceptor: true), CurrentUser);
 
     /// <summary>
@@ -273,16 +284,22 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
     {
         var baseAddress = NovaBaseUri;
 
+#pragma warning disable CA2000 // The returned HttpClient owns this handler and disposes it with the caller-owned client.
         var handler = new HttpClientHandler
+#pragma warning restore CA2000
         {
             UseCookies = true,
             CookieContainer = new CookieContainer(),
             AllowAutoRedirect = allowAutoRedirect,
             // The Aspire-launched app serves the untrusted ASP.NET Core dev certificate.
+#pragma warning disable MA0039 // This fixture only connects to its local Aspire app with its development certificate.
             ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+#pragma warning restore MA0039
         };
 
+#pragma warning disable CA5400 // The local development certificate has no revocation service; this client is fixture-owned.
         return new HttpClient(handler) { BaseAddress = baseAddress };
+#pragma warning restore CA5400
     }
 
     /// <summary>
@@ -321,7 +338,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
         CancellationToken cancellationToken)
     {
         using var storageReadyCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        storageReadyCts.CancelAfter(AzuriteReadyWaitTimeout);
+        storageReadyCts.CancelAfter(_azuriteReadyWaitTimeout);
 
         try
         {
@@ -368,14 +385,14 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
                 lastException = exception;
                 if (attempt < AzuriteContainerProbeMaxAttempts)
                 {
-                    await Task.Delay(AzuriteContainerProbeDelay, cancellationToken);
+                    await Task.Delay(_azuriteContainerProbeDelay, cancellationToken);
                 }
             }
         }
 
         throw new InvalidOperationException(
             $"The Azurite container '{container.Name}' was not reachable after " +
-            $"{AzuriteContainerProbeMaxAttempts} attempts of {AzuriteContainerProbeDelay.TotalMilliseconds:0} ms each. " +
+            $"{AzuriteContainerProbeMaxAttempts} attempts of {_azuriteContainerProbeDelay.TotalMilliseconds:0} ms each. " +
             $"Last error: {lastException?.Message ?? "(none)"}",
             lastException);
     }
@@ -419,7 +436,7 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
             .UseApplicationServiceProvider(IdentityStoreServiceProvider.Instance);
         if (normalizeCampaignSeeds)
         {
-            builder.AddInterceptors(campaignTestSeedInterceptor);
+            builder.AddInterceptors(_campaignTestSeedInterceptor);
         }
 
         if (withInterceptor)
@@ -436,7 +453,11 @@ public sealed class NovaAppHostFixture : IAsyncLifetime
 /// paying the container startup cost once.
 /// </summary>
 [CollectionDefinition(Name)]
+#pragma warning disable CA1515 // xUnit fixture discovery and public theory or shared fixture contracts require this public type.
+#pragma warning disable CA1711 // This xUnit collection definition groups tests sharing the Aspire fixture.
 public sealed class NovaAppHostCollection : ICollectionFixture<NovaAppHostFixture>
+#pragma warning restore CA1711
+#pragma warning restore CA1515
 {
     /// <summary>The collection name used by tests that need the live AppHost.</summary>
     public const string Name = "NovaAppHost";

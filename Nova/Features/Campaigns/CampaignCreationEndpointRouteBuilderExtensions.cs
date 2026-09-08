@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Campaigns;
 
@@ -23,7 +23,7 @@ internal static class CampaignCreationEndpointRouteBuilderExtensions
                 .MapGroup(CampaignEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubAdmin);
 
-            group.MapPost(CampaignEndpoints.CreateRelative, CreateCampaignHandler)
+            group.MapPost(CampaignEndpoints.CreateRelative, CreateCampaignHandlerAsync)
                 .Produces<CreateCampaignResult>(StatusCodes.Status201Created)
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -45,7 +45,7 @@ internal static class CampaignCreationEndpointRouteBuilderExtensions
     /// <param name="campaignCreationService">The campaign creation service.</param>
     /// <param name="cancellationToken">A token that cancels the request.</param>
     /// <returns>A 201 response containing the committed aggregate, or ProblemDetails.</returns>
-    private static async Task<IResult> CreateCampaignHandler(
+    private static async Task<IResult> CreateCampaignHandlerAsync(
         CreateCampaignInput input,
         ICampaignCreationService campaignCreationService,
         CancellationToken cancellationToken)

@@ -1,8 +1,8 @@
 ﻿using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Teams;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Teams;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -22,7 +22,7 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
     /// route, and that following the header resolves the created team.
     /// </summary>
     [Fact]
-    public async Task CreateTeam_ReturnsCreatedWithLocationHeader_ForClubAdmin()
+    public async Task CreateTeamReturnsCreatedWithLocationHeaderForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -47,7 +47,7 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
             : response.Headers.Location.ToString();
         location.ShouldBe(TeamEndpoints.GetDetailUrl(created.TeamId));
 
-        using var followed = await client.GetAsync(location, cancellationToken);
+        using var followed = await client.GetAsync(new Uri(location, UriKind.RelativeOrAbsolute), cancellationToken);
         followed.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
@@ -55,7 +55,7 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
     /// Verifies the create endpoint rejects anonymous callers.
     /// </summary>
     [Fact]
-    public async Task CreateTeam_ReturnsUnauthorized_ForAnonymous()
+    public async Task CreateTeamReturnsUnauthorizedForAnonymousAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -73,7 +73,7 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
     /// the unique <c>(ClubId, Name, GraduationYear)</c> index.
     /// </summary>
     [Fact]
-    public async Task CreateTeam_ReturnsConflict_ForDuplicateNameAndGraduationYear()
+    public async Task CreateTeamReturnsConflictForDuplicateNameAndGraduationYearAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -103,7 +103,7 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
     /// Verifies a non-admin club member cannot create a team.
     /// </summary>
     [Fact]
-    public async Task CreateTeam_ReturnsForbidden_ForClubMember()
+    public async Task CreateTeamReturnsForbiddenForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -124,7 +124,7 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
     /// Verifies the team update endpoint rejects anonymous callers.
     /// </summary>
     [Fact]
-    public async Task UpdateTeam_ReturnsUnauthorized_ForAnonymous()
+    public async Task UpdateTeamReturnsUnauthorizedForAnonymousAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -141,7 +141,7 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
     /// Verifies a non-admin club member cannot update a team in their own club.
     /// </summary>
     [Fact]
-    public async Task UpdateTeam_ReturnsForbidden_ForClubMember()
+    public async Task UpdateTeamReturnsForbiddenForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -163,7 +163,7 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator can update a team and receives the updated DTO.
     /// </summary>
     [Fact]
-    public async Task UpdateTeam_ReturnsOk_ForClubAdmin()
+    public async Task UpdateTeamReturnsOkForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -186,7 +186,7 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
     /// <summary>
     /// Creates a team through the HTTP API and returns its DTO.
     /// </summary>
-    private async Task<TeamDto> CreateTeamAsync(HttpClient client, CancellationToken cancellationToken)
+    private static async Task<TeamDto> CreateTeamAsync(HttpClient client, CancellationToken cancellationToken)
     {
         using var response = await client.PostAsJsonAsync(
             TeamEndpoints.Create,
@@ -232,16 +232,17 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, "Club", "Admin", cancellationToken);
 
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"{clubName} {Guid.CreateVersion7():N}", "Austin", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent($"{clubName} {Guid.CreateVersion7():N}", "Austin", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
         club.ShouldNotBeNull();
 
-        using var refresh = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var refresh = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         refresh.StatusCode.ShouldBe(HttpStatusCode.Found);
 
         return club;
@@ -261,13 +262,16 @@ public sealed class TeamManagementHttpTests(NovaAppHostFixture fixture)
         string lastName,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var normalizedEmail = email.ToUpperInvariant();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
-        user.FirstName = firstName;
-        user.LastName = lastName;
-        user.ClubId = null;
-        context.Users.Update(user);
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var normalizedEmail = email.ToUpperInvariant();
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
+            user.FirstName = firstName;
+            user.LastName = lastName;
+            user.ClubId = null;
+            context.Users.Update(user);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

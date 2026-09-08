@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
-using Nova.Features.Shared;
+using Nova.Features.Common;
 using NSubstitute;
 using Shouldly;
 
@@ -20,7 +20,7 @@ public sealed class BadHttpRequestExceptionHandlerTests
     /// Verifies exceptions unrelated to bad requests are left for the next exception handler.
     /// </summary>
     [Fact]
-    public async Task BadRequestExceptionHandler_ReturnsFalse_ForNonBadHttpRequestException()
+    public async Task BadRequestExceptionHandlerReturnsFalseForNonBadHttpRequestExceptionAsync()
     {
         var problemDetailsService = Substitute.For<IProblemDetailsService>();
         var handler = new BadHttpRequestExceptionHandler(problemDetailsService);
@@ -38,13 +38,13 @@ public sealed class BadHttpRequestExceptionHandlerTests
     /// Verifies a bad request's status and detail are preserved in the ProblemDetails context.
     /// </summary>
     [Fact]
-    public async Task BadRequestExceptionHandler_WritesProblemDetails_PreservingStatusCode()
+    public async Task BadRequestExceptionHandlerWritesProblemDetailsPreservingStatusCodeAsync()
     {
         var problemDetailsService = Substitute.For<IProblemDetailsService>();
         ProblemDetailsContext? capturedContext = null;
         problemDetailsService.TryWriteAsync(
                 Arg.Do<ProblemDetailsContext>(context => capturedContext = context))
-            .Returns(ValueTask.FromResult(true));
+            .Returns(true);
         var handler = new BadHttpRequestExceptionHandler(problemDetailsService);
         var httpContext = new DefaultHttpContext();
         var exception = new BadHttpRequestException("payload", StatusCodes.Status400BadRequest);
@@ -65,13 +65,13 @@ public sealed class BadHttpRequestExceptionHandlerTests
     /// Verifies a non-400 framework status code is preserved rather than hardcoded to bad request.
     /// </summary>
     [Fact]
-    public async Task BadRequestExceptionHandler_WritesProblemDetails_PreservingNon400StatusCode()
+    public async Task BadRequestExceptionHandlerWritesProblemDetailsPreservingNon400StatusCodeAsync()
     {
         var problemDetailsService = Substitute.For<IProblemDetailsService>();
         ProblemDetailsContext? capturedContext = null;
         problemDetailsService.TryWriteAsync(
                 Arg.Do<ProblemDetailsContext>(context => capturedContext = context))
-            .Returns(ValueTask.FromResult(true));
+            .Returns(true);
         var handler = new BadHttpRequestExceptionHandler(problemDetailsService);
         var httpContext = new DefaultHttpContext();
         var exception = new BadHttpRequestException("payload too large", PayloadTooLargeStatusCode);

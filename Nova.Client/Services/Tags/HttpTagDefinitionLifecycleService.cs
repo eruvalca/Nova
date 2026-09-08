@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+﻿using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 
 namespace Nova.Client.Services.Tags;
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Tags;
 /// the tag-definition lifecycle endpoints over HTTP.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpTagDefinitionLifecycleService(HttpClient http) : ITagDefinitionLifecycleService
+internal sealed class HttpTagDefinitionLifecycleService(HttpClient http) : ITagDefinitionLifecycleService
 {
     /// <inheritdoc />
     public Task<ServiceResult<Success>> ArchiveAsync(
@@ -27,7 +27,7 @@ public sealed class HttpTagDefinitionLifecycleService(HttpClient http) : ITagDef
         string requestUri,
         CancellationToken cancellationToken)
     {
-        using var response = await http.PostAsync(requestUri, content: null, cancellationToken);
+        using var response = await http.PostAsync(new Uri(requestUri, UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

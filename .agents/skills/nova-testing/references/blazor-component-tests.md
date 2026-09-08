@@ -59,31 +59,70 @@ cut.Markup.ShouldNotContain("_formError");
 
 The negative assertion catches `ErrorMessage="_formError"`, which compiles but passes literal text
 instead of the backing-field value. Use
-`TeamComponentsTests.Teams_ShowsServerErrorText_WhenUpdateReturnsConflict` as the canonical example.
+`TeamComponentsTests.TeamsShowsServerErrorTextWhenUpdateReturnsConflict` as the canonical example.
 
-## Testing correction and recovery
+## Transition coverage
 
-- For server field validation, submit through the rendered form, receive a contextual error, edit
-  the input, re-render with the unchanged parent error snapshot, and submit again. Assert the
-  corrected payload reaches the service; seeing the first error alone does not prove recovery.
-- For persisted commands, fail the operation-storage write on both the initial and confirmation
-  paths and assert no mutation call. Then allow persistence and assert the retained ID reaches the
-  command once. See `CampaignEntryTests` for both patterns.
+Select the rows affected by the changed behavior; do not add unrelated cases to every edit. Follow
+the implementation rules in the Blazor lifecycle/form references rather than copying an entire
+page. Test through the boundary the claim depends on: a rendered form for resubmission, real HTTP
+for serialization, and the browser for composed DOM/focus. Directly calling a submit callback or
+seeing the first validation error does not prove a corrected retry succeeds.
+
+| Changed behavior | Required evidence when applicable |
+| --- | --- |
+| Server validation | Submit through the form → contextual error → edit → unchanged parent rerender → successful second submission with corrected payload. |
+| Identity/permissions | Initial identity, same-role club change, role-only change, and the first clubless notification. Clear old rows, derived state, panels, confirmation, and feedback before replacement work finishes. |
+| Async ownership | Complete an old success, failure, and cleanup after newer work or disposal. They cannot publish data/feedback, navigate, or clear the newer operation's busy state. |
+| Recoverable mutations | Failed storage on every dispatch path prevents mutation; uncertain result → retained ID/payload → reload/replay; partial cleanup cannot conceal committed effects or authorize stale context. |
+| URL-backed state | Rendered state and query agree after reset, permission change, reload/history, and return navigation. |
+| HTTP contracts | Producer guarantees, required JSON fields, nested relationships/bounds, client validation, and rendered consequences agree; use the [contract check](../../add-feature-slice/references/wasm-client.md#producer-to-ui-contract-check). |
+| Composed UI | Semantics, focus, and the design system's applicable touch targets hold in the actual browser DOM, including nested forms and responsive tables. |
+
+Examples prove specific invariants, not complete pages:
+
+- **Validation store lifetime:** `CampaignCreateForm.razor.cs` with
+  `CampaignComponentsTests.CampaignCreateFormResubmitsCorrectedFieldWithUnchangedParentErrorSnapshot`;
+  its sibling `CampaignMetadataForm.razor.cs` with
+  `CampaignEntryTests.CampaignEntryResubmitsMetadataAfterCorrectingServerValidation`.
+- **Identity and late ownership:** `Players.razor.cs` with
+  `PlayerComponentsTests.PlayersAppliesEmptyIdentityWhenItOvertakesStartupAsync` and
+  `PlayersIgnoresPreviousClubArchiveCompletionAsync`; `Teams.razor.cs` with
+  `TeamComponentsTests.TeamsReenablesMutationControlsWhenClubChangesDuringInFlightMutation`.
+- **Recovery gates and partial cleanup:** `CampaignEntry.razor.cs` with
+  `CampaignEntryTests.CampaignEntryRetriesStorageBeforeOpeningWithTheSameOperation` and
+  `CampaignEntryConcealsDraftWhenRecoveryLosesAccessAndStorageRemovalFails`;
+  `NewCampaign.razor.cs` with `NewCampaignRecoveryTests.NewCampaignRetainsPendingRequestWhenSuccessfulFormCleanupFails`.
+- **URL/permissions and browser history:** `Campaigns.razor.cs` with
+  `CampaignComponentsTests.CampaignsNormalizesDraftViewWhenAdministratorRoleIsRemovedAsync`;
+  `CampaignWorkspace.razor.cs` with
+  `CampaignEvaluationBrowserTests.UrlStateSurvivesReloadAndBackForwardRestoresDrawer`.
+- **Composed semantics, touch, and opening focus:** the Draft journey's pages and child forms with
+  `CampaignDraftBrowserTests.DraftOpensIntoRosterAfterCreationAndCorrectionRoundTrips`.
+
+Use controlled `TaskCompletionSource` instances for ordering rather than timing-based sleeps;
+observe the cleared/loading state before releasing replacement work. Reproduce the failing behavior
+before applying a defect fix when practical. Record any missing boundary evidence explicitly.
+
+For query-backed component tests:
+
 - Supply `[SupplyParameterFromQuery]` values through the test `NavigationManager`, not
   `parameters.Add(...)`; the installed bUnit rejects direct query-parameter assignment.
 
 ## Render-mode assertion (required for interactive pages)
 
 **bUnit invokes callbacks regardless of the deployed render mode.** A green callback test therefore
-does *not* prove the button works in the app — a page missing `@rendermode` renders correct markup,
-passes every component test, and does nothing in the browser.
+does *not* prove the button works in the app. Verify the effective mode through the actual host and
+call sites, including inherited or per-instance modes. A missing local `@rendermode` does not by
+itself mean that a child component is static SSR.
 
-`@rendermode X` compiles to a compiler-generated attribute deriving from `RenderModeAttribute`, so
-assert it by reflection over the page type:
+When a page or component owns its render-mode declaration, `@rendermode X` compiles to a
+compiler-generated attribute deriving from `RenderModeAttribute`. Assert that local declaration
+by reflection over its type, as with `Players`:
 
 ```csharp
 [Fact]
-public void PlayersPage_DeclaresInteractiveAutoRenderMode()
+public void PlayersPageDeclaresInteractiveAutoRenderMode()
 {
     var attribute = typeof(Players)
         .GetCustomAttributes(inherit: false)
@@ -95,11 +134,15 @@ public void PlayersPage_DeclaresInteractiveAutoRenderMode()
 }
 ```
 
-`GetCustomAttributes` returns the attribute for a page declaring `@rendermode InteractiveAuto` and
-nothing for a static SSR page such as `ClubDetail`, so the same shape asserts either intent.
+`GetCustomAttributes` verifies only the local declaration. Its absence on `ClubDetail` is consistent
+with that page's intended static SSR behavior; it does not prove the effective mode of a component
+whose host or call site supplies interactivity. For such children, inspect and verify that composition
+instead of requiring an attribute on the child.
 
-Add this whenever a page or component gains its first event handler. For flows where interactivity
-must be proven end to end (auth/claims propagation, role-gated controls), add a
+When adding the first browser event handler, revisit the
+[render-mode decision](../../add-blazor-ui/references/render-mode-decision.md) and verify the mode
+at its owner. For flows where interactivity must be proven end to end (auth/claims propagation,
+role-gated controls), add a
 [browser suite](browser-suite.md) scenario, or use the one-off
 [Aspire + Playwright validation](../../aspire-playwright-validation/SKILL.md) pass.
 
@@ -140,8 +183,9 @@ service.DidNotReceive().GetClubMembersAsync(Arg.Any<CancellationToken>());
 
 ## Testing independent regions
 
-For a page whose regions load and recover independently, use
-`ClubOverviewComponentTests` as the canonical pattern. Cover every meaningful failure combination,
+For a page whose regions load and recover independently, inspect `ClubOverview.razor.cs` alongside
+`ClubOverviewComponentTests.RenderPreservesEverySuccessfulRegionWhenAnyCombinationFails` and
+`RetryIdentityReloadsOnlyIdentityAndPreservesSuccessfulRegions`. Cover every meaningful failure combination,
 assert that successful regions remain visible, prove a regional retry calls only its own service,
 and seed persisted state to prove interactive attach performs no duplicate startup requests. If the
 loader catches transport cancellation, also protect the distinction between component-token
@@ -149,16 +193,15 @@ cancellation and a recoverable transport failure.
 
 ## Testing authentication changes
 
-For authentication-reactive pages, use `ClubOverviewComponentTests` and `TeamComponentsTests` to
-exercise a same-role club change with replacement requests held pending. Assert the old club's
-markup disappears before completion, then complete an old request late and prove it cannot restore
-stale data or clear the new operation's busy state. Seed a persisted error with its original club
-id as well as a successful snapshot; a null payload still has tenant ownership. Browser focus and
-DOM replacement behavior belongs in the [browser suite](browser-suite.md), not a bUnit JS mock.
+Use the identity and ownership cases in the transition matrix. Seed a persisted error with its
+original club id as well as a successful snapshot; a null payload still has tenant ownership.
+`ClubOverviewComponentTests.RenderInvalidatesPersistedStateWhenClubMembershipChanges` is the
+scoped example. Browser focus and DOM replacement behavior belongs in the
+[browser suite](browser-suite.md), not a bUnit JS mock.
 
 ## Conventions
 
-- Name tests `Subject_Outcome_Condition`.
+- Name tests `SubjectOutcomeCondition` (append `Async` for async methods).
 - Assert on rendered markup (`cut.Markup`, `cut.Find(...)`) and on substituted-service interactions —
   not on private component fields.
 - Build culture-sensitive expected strings (dates, numbers) with the same culture the component uses;

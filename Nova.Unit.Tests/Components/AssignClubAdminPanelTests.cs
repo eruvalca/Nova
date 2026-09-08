@@ -1,8 +1,8 @@
 ﻿using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Results;
 using Nova.UI.Features.Account.Components;
 using NSubstitute;
 using Shouldly;
@@ -15,7 +15,9 @@ namespace Nova.Unit.Tests.Components;
 /// </summary>
 public class AssignClubAdminPanelTests
 {
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class PersistedStateAssignClubAdminPanel(
+#pragma warning restore CA1812
         IClubMemberService clubMemberService,
         NavigationManager navigationManager)
         : AssignClubAdminPanel(clubMemberService, navigationManager)
@@ -46,7 +48,7 @@ public class AssignClubAdminPanelTests
     }
 
     [Fact]
-    public void OnInitialized_DoesNotFetchMembers_WhenPersistedMembersAreAvailable()
+    public void OnInitializedDoesNotFetchMembersWhenPersistedMembersAreAvailable()
     {
         // Arrange
         var persistedMembers = new[]
@@ -66,15 +68,15 @@ public class AssignClubAdminPanelTests
             .Add(p => p.PersistedMembers, persistedMembers));
 
         // Assert
-        service.DidNotReceive().GetClubMembersAsync(Arg.Any<CancellationToken>());
+        _ = service.DidNotReceive().GetClubMembersAsync(Arg.Any<CancellationToken>());
         cut.Markup.ShouldContain("Persisted Member");
     }
 
     [Fact]
-    public void OnInitialized_DoesNotFetchMembers_WhenPersistedErrorExists()
+    public void OnInitializedDoesNotFetchMembersWhenPersistedErrorExists()
     {
         // Arrange
-        const string persistedError = "Persisted fetch error";
+        const string PersistedError = "Persisted fetch error";
         var service = Substitute.For<IClubMemberService>();
         var navigationManager = Substitute.For<NavigationManager>();
 
@@ -85,16 +87,16 @@ public class AssignClubAdminPanelTests
         // Act
         var cut = testContext.Render<PersistedStateAssignClubAdminPanel>(parameters => parameters
             .Add(p => p.StartInitialized, true)
-            .Add(p => p.PersistedError, persistedError));
+            .Add(p => p.PersistedError, PersistedError));
 
         // Assert
-        service.DidNotReceive().GetClubMembersAsync(Arg.Any<CancellationToken>());
-        cut.Markup.ShouldContain(persistedError);
+        _ = service.DidNotReceive().GetClubMembersAsync(Arg.Any<CancellationToken>());
+        cut.Markup.ShouldContain(PersistedError);
         cut.Markup.ShouldContain("alert-danger");
     }
 
     [Fact]
-    public void Render_ShowsEmptyState_WhenPersistedMembersStateIsNull()
+    public void RenderShowsEmptyStateWhenPersistedMembersStateIsNull()
     {
         // Arrange
         var service = Substitute.For<IClubMemberService>();
@@ -115,7 +117,7 @@ public class AssignClubAdminPanelTests
     }
 
     [Fact]
-    public async Task AssignAsync_RefreshesPage_OnSuccess_WithPersistedMembers()
+    public async Task AssignAsyncRefreshesPageOnSuccessWithPersistedMembersAsync()
     {
         // Arrange
         var persistedMembers = new[]
@@ -138,8 +140,12 @@ public class AssignClubAdminPanelTests
             .Add(p => p.StartInitialized, true)
             .Add(p => p.PersistedMembers, persistedMembers));
 
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("input[type='radio'][value='1']").Change(true);
-        cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin"))!.Click();
+#pragma warning restore CA1849, S6966
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
+        cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin", StringComparison.Ordinal))!.Click();
+#pragma warning restore CA1849, S6966
 
         await cut.InvokeAsync(() => { });
 
@@ -151,7 +157,7 @@ public class AssignClubAdminPanelTests
     }
 
     [Fact]
-    public async Task AssignAsync_DisplaysError_OnFailure_WithPersistedMembers()
+    public async Task AssignAsyncDisplaysErrorOnFailureWithPersistedMembersAsync()
     {
         // Arrange
         var persistedMembers = new[]
@@ -177,10 +183,14 @@ public class AssignClubAdminPanelTests
             .Add(p => p.StartInitialized, true)
             .Add(p => p.PersistedMembers, persistedMembers));
 
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find("input[type='radio'][value='1']").Change(true);
-        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin"));
+#pragma warning restore CA1849, S6966
+        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin", StringComparison.Ordinal));
         assignButton.ShouldNotBeNull();
-        assignButton!.Click();
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
+        assignButton.Click();
+#pragma warning restore CA1849, S6966
 
         await cut.InvokeAsync(() => { });
 
@@ -190,7 +200,9 @@ public class AssignClubAdminPanelTests
         cut.Markup.ShouldContain("Alice Johnson");
         assignButton.HasAttribute("disabled").ShouldBeFalse();
 
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         assignButton.Click();
+#pragma warning restore CA1849, S6966
         await cut.InvokeAsync(() => { });
 
         await service.Received(2).PromoteMemberAsync(
@@ -200,7 +212,7 @@ public class AssignClubAdminPanelTests
     }
 
     [Fact]
-    public async Task OnInitialized_LoadsMembers_OnSuccess()
+    public async Task OnInitializedLoadsMembersOnSuccessAsync()
     {
         // Arrange
         var members = new[]
@@ -231,7 +243,7 @@ public class AssignClubAdminPanelTests
     }
 
     [Fact]
-    public async Task OnInitialized_DisplaysEmptyState_WhenNoMembers()
+    public async Task OnInitializedDisplaysEmptyStateWhenNoMembersAsync()
     {
         // Arrange
         var emptyMembers = new List<ClubMemberDto>();
@@ -256,7 +268,7 @@ public class AssignClubAdminPanelTests
     }
 
     [Fact]
-    public async Task OnInitialized_DisplaysError_WhenGetMembersFails()
+    public async Task OnInitializedDisplaysErrorWhenGetMembersFailsAsync()
     {
         // Arrange
         var problem = new ServiceProblem(
@@ -285,7 +297,7 @@ public class AssignClubAdminPanelTests
     }
 
     [Fact]
-    public async Task AssignButton_IsDisabled_WhenNoMemberSelected()
+    public async Task AssignButtonIsDisabledWhenNoMemberSelectedAsync()
     {
         // Arrange
         var members = new[]
@@ -309,13 +321,13 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         // Assert
-        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin"));
+        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin", StringComparison.Ordinal));
         assignButton.ShouldNotBeNull();
-        assignButton!.HasAttribute("disabled").ShouldBeTrue();
+        assignButton.HasAttribute("disabled").ShouldBeTrue();
     }
 
     [Fact]
-    public async Task AssignButton_IsEnabled_AfterMemberSelection()
+    public async Task AssignButtonIsEnabledAfterMemberSelectionAsync()
     {
         // Arrange
         var members = new[]
@@ -339,16 +351,18 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         var radio = cut.Find("input[type='radio'][value='1']");
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         radio.Change(true);
+#pragma warning restore CA1849, S6966
 
         // Assert
-        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin"));
+        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin", StringComparison.Ordinal));
         assignButton.ShouldNotBeNull();
-        assignButton!.HasAttribute("disabled").ShouldBeFalse();
+        assignButton.HasAttribute("disabled").ShouldBeFalse();
     }
 
     [Fact]
-    public async Task AssignAsync_CallsService_WithSelectedUserId()
+    public async Task AssignAsyncCallsServiceWithSelectedUserIdAsync()
     {
         // Arrange
         var members = new[]
@@ -375,9 +389,13 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         var radio = cut.Find("input[type='radio'][value='1']");
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         radio.Change(true);
-        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin"));
+#pragma warning restore CA1849, S6966
+        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin", StringComparison.Ordinal));
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         assignButton!.Click();
+#pragma warning restore CA1849, S6966
 
         await cut.InvokeAsync(() => { });
 
@@ -388,7 +406,7 @@ public class AssignClubAdminPanelTests
     }
 
     [Fact]
-    public async Task AssignAsync_RefreshesPage_OnSuccess()
+    public async Task AssignAsyncRefreshesPageOnSuccessAsync()
     {
         // Arrange
         var members = new[]
@@ -415,9 +433,13 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         var radio = cut.Find("input[type='radio'][value='1']");
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         radio.Change(true);
-        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin"));
+#pragma warning restore CA1849, S6966
+        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin", StringComparison.Ordinal));
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         assignButton!.Click();
+#pragma warning restore CA1849, S6966
 
         await cut.InvokeAsync(() => { });
 
@@ -426,7 +448,7 @@ public class AssignClubAdminPanelTests
     }
 
     [Fact]
-    public async Task AssignAsync_DisplaysError_OnFailure()
+    public async Task AssignAsyncDisplaysErrorOnFailureAsync()
     {
         // Arrange
         var members = new[]
@@ -458,10 +480,14 @@ public class AssignClubAdminPanelTests
         await cut.InvokeAsync(() => { });
 
         var radio = cut.Find("input[type='radio'][value='1']");
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         radio.Change(true);
-        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin"));
+#pragma warning restore CA1849, S6966
+        var assignButton = cut.FindAll("button").FirstOrDefault(b => b.TextContent.Contains("Make this person a club admin", StringComparison.Ordinal));
         assignButton.ShouldNotBeNull();
-        assignButton!.Click();
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
+        assignButton.Click();
+#pragma warning restore CA1849, S6966
 
         await cut.InvokeAsync(() => { });
 
@@ -472,7 +498,9 @@ public class AssignClubAdminPanelTests
         cut.Markup.ShouldContain("Alice Johnson");
         assignButton.HasAttribute("disabled").ShouldBeFalse();
 
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         assignButton.Click();
+#pragma warning restore CA1849, S6966
         await cut.InvokeAsync(() => { });
 
         await service.Received(2).PromoteMemberAsync(
@@ -482,10 +510,10 @@ public class AssignClubAdminPanelTests
     }
 
     [Fact]
-    public async Task OnInitialized_LoadingState_DisplaysLoadingMessage_WhileFetchingMembers()
+    public async Task OnInitializedLoadingStateDisplaysLoadingMessageWhileFetchingMembersAsync()
     {
         // Arrange - simulate slow service that takes a moment to return
-        var members = new[]
+        _ = new[]
         {
             new ClubMemberDto(1, "Alice Johnson"),
         };

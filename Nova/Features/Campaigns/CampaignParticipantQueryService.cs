@@ -2,11 +2,11 @@
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Campaigns;
 
@@ -16,13 +16,15 @@ namespace Nova.Features.Campaigns;
 /// <param name="readDbContextFactory">The read-only tenant-scoped context factory.</param>
 /// <param name="currentUserProvider">The current user provider used for authorization checks.</param>
 /// <param name="logger">The logger for expected authorization failures.</param>
-public sealed partial class CampaignParticipantQueryService(
+internal sealed partial class CampaignParticipantQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignParticipantQueryService> logger) : ICampaignParticipantQueryService
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<PagedResult<CampaignParticipantRosterItem>>> GetParticipantRosterAsync(
+#pragma warning restore MA0051
         GetCampaignParticipantRosterInput input,
         CancellationToken cancellationToken = default)
     {
@@ -78,9 +80,15 @@ public sealed partial class CampaignParticipantQueryService(
                 ? EF.Functions.ILike(assignment.Player.FirstName + " " + assignment.Player.LastName, likePattern, @"\")
                     || EF.Functions.ILike(assignment.Player.FirstName, likePattern, @"\")
                     || EF.Functions.ILike(assignment.Player.LastName, likePattern, @"\")
+#pragma warning disable CA1311, CA1862, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider. Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                 : (assignment.Player.FirstName + " " + assignment.Player.LastName).ToUpper().Contains(uppercaseSearch)
+#pragma warning restore CA1311, CA1862, CA1304, MA0011
+#pragma warning disable CA1311, CA1862, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider. Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                     || assignment.Player.FirstName.ToUpper().Contains(uppercaseSearch)
+#pragma warning restore CA1311, CA1862, CA1304, MA0011
+#pragma warning disable CA1311, CA1862, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider. Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                     || assignment.Player.LastName.ToUpper().Contains(uppercaseSearch));
+#pragma warning restore CA1311, CA1862, CA1304, MA0011
         }
 
         if (graduationYears is { Length: > 0 })
@@ -184,7 +192,9 @@ public sealed partial class CampaignParticipantQueryService(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<CampaignParticipantDetailDto>> GetParticipantDetailAsync(
+#pragma warning restore MA0051
         GetCampaignParticipantDetailInput input,
         CancellationToken cancellationToken = default)
     {
@@ -432,11 +442,14 @@ public sealed partial class CampaignParticipantQueryService(
     /// <param name="outcome">The raw outcome filter, or <see langword="null"/> when absent.</param>
     /// <returns>The parsed <see cref="PlacementOutcome"/>, or <see langword="null"/> when blank or unparseable.</returns>
     private static PlacementOutcome? NormalizeOutcome(string? outcome)
-        => string.IsNullOrWhiteSpace(outcome)
-            ? null
-            : Enum.TryParse<PlacementOutcome>(outcome.Trim(), true, out var parsedOutcome)
-                ? parsedOutcome
-                : null;
+    {
+        if (string.IsNullOrWhiteSpace(outcome))
+        {
+            return null;
+        }
+
+        return Enum.TryParse<PlacementOutcome>(outcome.Trim(), true, out var parsedOutcome) ? parsedOutcome : null;
+    }
 
     /// <summary>
     /// Applies the requested roster sort key and direction with a stable assignment-id tie-breaker.
@@ -452,7 +465,9 @@ public sealed partial class CampaignParticipantQueryService(
     {
         var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
         var normalizedSortBy = string.IsNullOrWhiteSpace(sortBy) ? "displayname" : sortBy.Trim();
+#pragma warning disable CA1308 // Lowercase is required for this display text or ASCII route token, not for an identity comparison.
         return normalizedSortBy.ToLowerInvariant() switch
+#pragma warning restore CA1308
         {
             "assignmentid" => descending
                 ? query.OrderByDescending(assignment => assignment.PlayerCampaignAssignmentId).ThenBy(assignment => assignment.PlayerCampaignAssignmentId)

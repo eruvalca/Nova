@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 using Shouldly;
 
@@ -48,7 +48,7 @@ public class HttpClubServicesTests
     /// CreateClubAsync sends a POST to /api/clubs and deserializes the ClubDto response.
     /// </summary>
     [Fact]
-    public async Task CreateClubAsync_ReturnsClubDto_OnSuccess()
+    public async Task CreateClubAsyncReturnsClubDtoOnSuccessAsync()
     {
         // Arrange
         var clubDto = new ClubDto(ClubId: 42, Name: "Manchester United", City: "Manchester", State: "England");
@@ -57,7 +57,7 @@ public class HttpClubServicesTests
             Content = JsonContent.Create(clubDto)
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
         var crestBytes = TestImages.CreateJpeg();
@@ -73,8 +73,8 @@ public class HttpClubServicesTests
         result.Value.City.ShouldBe("Manchester");
         result.Value.State.ShouldBe("England");
         handler.LastRequest!.Method.ShouldBe(HttpMethod.Post);
-        handler.LastRequest!.RequestUri!.AbsolutePath.ShouldBe("/api/clubs");
-        handler.LastRequest!.Content.ShouldBeOfType<MultipartFormDataContent>();
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe("/api/clubs");
+        handler.LastRequest.Content.ShouldBeOfType<MultipartFormDataContent>();
         handler.LastMultipartPartNames.ShouldBe(["name", "city", "state", "crest"]);
     }
 
@@ -82,7 +82,7 @@ public class HttpClubServicesTests
     /// CreateClubAsync returns a ServiceProblem when the server returns a non-success status (e.g., 400).
     /// </summary>
     [Fact]
-    public async Task CreateClubAsync_ReturnsServiceProblem_OnBadRequest()
+    public async Task CreateClubAsyncReturnsServiceProblemOnBadRequestAsync()
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
@@ -90,7 +90,7 @@ public class HttpClubServicesTests
             Content = JsonContent.Create(new { detail = "The club name must be unique." })
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
         var input = new CreateClubInput { Name = "Manchester United", City = "Manchester", State = "England", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" };
@@ -112,7 +112,7 @@ public class HttpClubServicesTests
     /// SearchClubsAsync sends a GET to the correct URL including the query parameter.
     /// </summary>
     [Fact]
-    public async Task SearchClubsAsync_SendsGetToCorrectUrl_WithQueryParameter()
+    public async Task SearchClubsAsyncSendsGetToCorrectUrlWithQueryParameterAsync()
     {
         // Arrange
         var clubs = new[] { new ClubDto(1, "Manchester United", "Manchester", "England") };
@@ -121,7 +121,7 @@ public class HttpClubServicesTests
             Content = JsonContent.Create(clubs)
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
 
@@ -132,8 +132,8 @@ public class HttpClubServicesTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.Count.ShouldBe(1);
         handler.LastRequest!.Method.ShouldBe(HttpMethod.Get);
-        handler.LastRequest!.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/search");
-        handler.LastRequest!.RequestUri!.Query.ShouldContain("q=Manchester");
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/search");
+        handler.LastRequest.RequestUri.Query.ShouldContain("q=Manchester");
     }
 
     /// <summary>
@@ -143,7 +143,7 @@ public class HttpClubServicesTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task SearchClubsAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task SearchClubsAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -151,7 +151,7 @@ public class HttpClubServicesTests
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
 
@@ -167,7 +167,7 @@ public class HttpClubServicesTests
     /// SearchClubsAsync returns a ServiceProblem on non-success HTTP status (e.g., 404).
     /// </summary>
     [Fact]
-    public async Task SearchClubsAsync_ReturnsServiceProblem_OnNotFound()
+    public async Task SearchClubsAsyncReturnsServiceProblemOnNotFoundAsync()
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound)
@@ -175,7 +175,7 @@ public class HttpClubServicesTests
             Content = JsonContent.Create(new { detail = "No clubs found." })
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
 
@@ -195,78 +195,78 @@ public class HttpClubServicesTests
     /// SearchUrl constructs the correct URL with null query.
     /// </summary>
     [Fact]
-    public void HttpClubService_SearchUrl_ReturnsBaseSearchUrl_WhenQueryIsNull()
+    public void HttpClubServiceSearchUrlReturnsBaseSearchUrlWhenQueryIsNull()
     {
         // Arrange
-        const string expectedUrl = "/api/clubs/search";
+        const string ExpectedUrl = "/api/clubs/search";
 
         // Act
         var url = ClubEndpoints.SearchUrl(null);
 
         // Assert
-        url.ShouldBe(expectedUrl);
+        url.ShouldBe(ExpectedUrl);
     }
 
     /// <summary>
     /// SearchUrl constructs the correct URL with empty query.
     /// </summary>
     [Fact]
-    public void HttpClubService_SearchUrl_ReturnsBaseSearchUrl_WhenQueryIsEmpty()
+    public void HttpClubServiceSearchUrlReturnsBaseSearchUrlWhenQueryIsEmpty()
     {
         // Arrange
-        const string expectedUrl = "/api/clubs/search";
+        const string ExpectedUrl = "/api/clubs/search";
 
         // Act
         var url = ClubEndpoints.SearchUrl(string.Empty);
 
         // Assert
-        url.ShouldBe(expectedUrl);
+        url.ShouldBe(ExpectedUrl);
     }
 
     /// <summary>
     /// SearchUrl constructs the correct URL with whitespace query.
     /// </summary>
     [Fact]
-    public void HttpClubService_SearchUrl_ReturnsBaseSearchUrl_WhenQueryIsWhitespace()
+    public void HttpClubServiceSearchUrlReturnsBaseSearchUrlWhenQueryIsWhitespace()
     {
         // Arrange
-        const string expectedUrl = "/api/clubs/search";
+        const string ExpectedUrl = "/api/clubs/search";
 
         // Act
         var url = ClubEndpoints.SearchUrl("   ");
 
         // Assert
-        url.ShouldBe(expectedUrl);
+        url.ShouldBe(ExpectedUrl);
     }
 
     /// <summary>
     /// SearchUrl constructs the correct URL with query parameter.
     /// </summary>
     [Fact]
-    public void HttpClubService_SearchUrl_IncludesQuery_WhenProvided()
+    public void HttpClubServiceSearchUrlIncludesQueryWhenProvided()
     {
         // Arrange
-        const string query = "Manchester United";
-        const string expectedUrl = "/api/clubs/search?q=Manchester%20United";
+        const string Query = "Manchester United";
+        const string ExpectedUrl = "/api/clubs/search?q=Manchester%20United";
 
         // Act
-        var url = ClubEndpoints.SearchUrl(query);
+        var url = ClubEndpoints.SearchUrl(Query);
 
         // Assert
-        url.ShouldBe(expectedUrl);
+        url.ShouldBe(ExpectedUrl);
     }
 
     /// <summary>
     /// SearchUrl URL-encodes special characters in query.
     /// </summary>
     [Fact]
-    public void HttpClubService_SearchUrl_UrlEncodesSpecialCharacters()
+    public void HttpClubServiceSearchUrlUrlEncodesSpecialCharacters()
     {
         // Arrange
-        const string query = "FC & Friends";
+        const string Query = "FC & Friends";
 
         // Act
-        var url = ClubEndpoints.SearchUrl(query);
+        var url = ClubEndpoints.SearchUrl(Query);
 
         // Assert
         url.ShouldContain("%26");  // Ampersand should be encoded
@@ -281,7 +281,7 @@ public class HttpClubServicesTests
     /// and deserializes the ClubJoinRequestDto from the response.
     /// </summary>
     [Fact]
-    public async Task GetCurrentUserPendingRequestAsync_ReturnsClubJoinRequestDto_OnSuccess()
+    public async Task GetCurrentUserPendingRequestAsyncReturnsClubJoinRequestDtoOnSuccessAsync()
     {
         // Arrange
         var dto = new ClubJoinRequestDto(
@@ -298,7 +298,7 @@ public class HttpClubServicesTests
             Content = JsonContent.Create(dto)
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubJoinRequestService(httpClient);
 
@@ -313,14 +313,14 @@ public class HttpClubServicesTests
         result.Value.RequestingUserId.ShouldBe(99);
         result.Value.Status.ShouldBe(RequestStatus.Pending);
         handler.LastRequest!.Method.ShouldBe(HttpMethod.Get);
-        handler.LastRequest!.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/join-requests/pending");
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/join-requests/pending");
     }
 
     /// <summary>
     /// GetCurrentUserPendingRequestAsync returns ServiceProblem.NotFound on 404.
     /// </summary>
     [Fact]
-    public async Task GetCurrentUserPendingRequestAsync_ReturnsNotFound_On404()
+    public async Task GetCurrentUserPendingRequestAsyncReturnsNotFoundOn404Async()
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound)
@@ -328,7 +328,7 @@ public class HttpClubServicesTests
             Content = JsonContent.Create(new { detail = "No pending request found." })
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubJoinRequestService(httpClient);
 
@@ -344,7 +344,7 @@ public class HttpClubServicesTests
     /// GetCurrentUserPendingRequestAsync accepts the current user's existing non-pending request.
     /// </summary>
     [Fact]
-    public async Task GetCurrentUserPendingRequestAsync_ReturnsRequest_ForNonPendingResponse()
+    public async Task GetCurrentUserPendingRequestAsyncReturnsRequestForNonPendingResponseAsync()
     {
         var dto = new ClubJoinRequestDto(
             ClubJoinRequestId: 10,
@@ -358,7 +358,7 @@ public class HttpClubServicesTests
         {
             Content = JsonContent.Create(dto)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubJoinRequestService(httpClient)
@@ -376,7 +376,7 @@ public class HttpClubServicesTests
     /// CreateJoinRequestAsync sends a POST to /api/clubs/{clubId}/join-requests.
     /// </summary>
     [Fact]
-    public async Task CreateJoinRequestAsync_SendsPostToCorrectUrl_WithClubId()
+    public async Task CreateJoinRequestAsyncSendsPostToCorrectUrlWithClubIdAsync()
     {
         // Arrange
         var dto = new ClubJoinRequestDto(
@@ -393,7 +393,7 @@ public class HttpClubServicesTests
             Content = JsonContent.Create(dto)
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubJoinRequestService(httpClient);
 
@@ -405,7 +405,7 @@ public class HttpClubServicesTests
         result.Value.ClubId.ShouldBe(7);
         result.Value.ClubName.ShouldBe("Arsenal");
         handler.LastRequest!.Method.ShouldBe(HttpMethod.Post);
-        handler.LastRequest!.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/7/join-requests");
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/7/join-requests");
     }
 
     #endregion
@@ -417,12 +417,12 @@ public class HttpClubServicesTests
     /// and returns a Success result.
     /// </summary>
     [Fact]
-    public async Task CancelJoinRequestAsync_SendsDeleteToCorrectUrl_AndReturnsSuccess()
+    public async Task CancelJoinRequestAsyncSendsDeleteToCorrectUrlAndReturnsSuccessAsync()
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubJoinRequestService(httpClient);
 
@@ -433,14 +433,14 @@ public class HttpClubServicesTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBeOfType<Success>();
         handler.LastRequest!.Method.ShouldBe(HttpMethod.Delete);
-        handler.LastRequest!.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/join-requests/25");
+        handler.LastRequest.RequestUri!.AbsolutePath.ShouldBe("/api/clubs/join-requests/25");
     }
 
     /// <summary>
     /// CancelJoinRequestAsync returns a ServiceProblem on 403 Forbidden.
     /// </summary>
     [Fact]
-    public async Task CancelJoinRequestAsync_ReturnsForbidden_On403()
+    public async Task CancelJoinRequestAsyncReturnsForbiddenOn403Async()
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
@@ -448,7 +448,7 @@ public class HttpClubServicesTests
             Content = JsonContent.Create(new { detail = "You do not have permission to cancel this request." })
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubJoinRequestService(httpClient);
 
@@ -469,7 +469,7 @@ public class HttpClubServicesTests
     /// Create endpoint constant has the expected value.
     /// </summary>
     [Fact]
-    public void ClubEndpoints_Create_HasCorrectValue() =>
+    public void ClubEndpointsCreateHasCorrectValue() =>
         // Assert
         ClubEndpoints.Create.ShouldBe("/api/clubs");
 
@@ -477,7 +477,7 @@ public class HttpClubServicesTests
     /// Search endpoint constant has the expected value.
     /// </summary>
     [Fact]
-    public void ClubEndpoints_Search_HasCorrectValue() =>
+    public void ClubEndpointsSearchHasCorrectValue() =>
         // Assert
         ClubEndpoints.Search.ShouldBe("/api/clubs/search");
 
@@ -485,7 +485,7 @@ public class HttpClubServicesTests
     /// PendingRequest endpoint constant has the correct value.
     /// </summary>
     [Fact]
-    public void ClubEndpoints_PendingRequest_HasCorrectValue() =>
+    public void ClubEndpointsPendingRequestHasCorrectValue() =>
         // Assert
         ClubEndpoints.PendingRequest.ShouldBe("/api/clubs/join-requests/pending");
 
@@ -493,7 +493,7 @@ public class HttpClubServicesTests
     /// CreateJoinRequestTemplate has the expected value.
     /// </summary>
     [Fact]
-    public void ClubEndpoints_CreateJoinRequestTemplate_HasCorrectValue() =>
+    public void ClubEndpointsCreateJoinRequestTemplateHasCorrectValue() =>
         // Assert
         ClubEndpoints.CreateJoinRequestTemplate.ShouldBe("/api/clubs/{clubId:long}/join-requests");
 
@@ -501,7 +501,7 @@ public class HttpClubServicesTests
     /// CancelJoinRequestTemplate has the expected value.
     /// </summary>
     [Fact]
-    public void ClubEndpoints_CancelJoinRequestTemplate_HasCorrectValue() =>
+    public void ClubEndpointsCancelJoinRequestTemplateHasCorrectValue() =>
         // Assert
         ClubEndpoints.CancelJoinRequestTemplate.ShouldBe("/api/clubs/join-requests/{requestId:long}");
 
@@ -517,7 +517,9 @@ public class HttpClubServicesTests
     [InlineData(42, "/api/clubs/42/join-requests")]
     [InlineData(12345, "/api/clubs/12345/join-requests")]
     [InlineData(long.MaxValue, "/api/clubs/9223372036854775807/join-requests")]
-    public void ClubEndpoints_CreateJoinRequestUrl_BuildsCorrectUrl(long clubId, string expectedUrl)
+#pragma warning disable CA1054 // InlineData URL cases must use attribute-compatible string values.
+    public void ClubEndpointsCreateJoinRequestUrlBuildsCorrectUrl(long clubId, string expectedUrl)
+#pragma warning restore CA1054
     {
         // Act
         var url = ClubEndpoints.CreateJoinRequestUrl(clubId);
@@ -534,7 +536,9 @@ public class HttpClubServicesTests
     [InlineData(42, "/api/clubs/join-requests/42")]
     [InlineData(12345, "/api/clubs/join-requests/12345")]
     [InlineData(long.MaxValue, "/api/clubs/join-requests/9223372036854775807")]
-    public void ClubEndpoints_CancelJoinRequestUrl_BuildsCorrectUrl(long requestId, string expectedUrl)
+#pragma warning disable CA1054 // InlineData URL cases must use attribute-compatible string values.
+    public void ClubEndpointsCancelJoinRequestUrlBuildsCorrectUrl(long requestId, string expectedUrl)
+#pragma warning restore CA1054
     {
         // Act
         var url = ClubEndpoints.CancelJoinRequestUrl(requestId);
@@ -554,14 +558,14 @@ public class HttpClubServicesTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task CreateClubAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task CreateClubAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
         var input = new CreateClubInput { Name = "Liverpool", City = "Liverpool", State = "England", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" };
@@ -578,7 +582,7 @@ public class HttpClubServicesTests
     /// CreateClubAsync returns a server error when the response violates a club invariant.
     /// </summary>
     [Fact]
-    public async Task CreateClubAsync_ReturnsServerError_WhenClubInvariantIsInvalid()
+    public async Task CreateClubAsyncReturnsServerErrorWhenClubInvariantIsInvalidAsync()
     {
         // Arrange
         var club = new ClubDto(0, "Liverpool", "Liverpool", "England");
@@ -586,7 +590,7 @@ public class HttpClubServicesTests
         {
             Content = JsonContent.Create(club)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
         var input = new CreateClubInput { Name = "Liverpool", City = "Liverpool", State = "England", CrestContent = TestImages.CreateJpeg(), CrestContentType = "image/jpeg" };
@@ -603,14 +607,14 @@ public class HttpClubServicesTests
     /// SearchClubsAsync accepts a literal empty JSON array as an empty club list.
     /// </summary>
     [Fact]
-    public async Task SearchClubsAsync_ReturnsEmptyList_WhenSuccessBodyIsEmptyArray()
+    public async Task SearchClubsAsyncReturnsEmptyListWhenSuccessBodyIsEmptyArrayAsync()
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("[]", Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
 
@@ -627,7 +631,7 @@ public class HttpClubServicesTests
     /// SearchClubsAsync returns a server error when one club violates a response invariant.
     /// </summary>
     [Fact]
-    public async Task SearchClubsAsync_ReturnsServerError_WhenClubElementIsInvalid()
+    public async Task SearchClubsAsyncReturnsServerErrorWhenClubElementIsInvalidAsync()
     {
         // Arrange
         var clubs = new[] { new ClubDto(0, "Liverpool", "Liverpool", "England") };
@@ -635,7 +639,7 @@ public class HttpClubServicesTests
         {
             Content = JsonContent.Create(clubs)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubService(httpClient);
 
@@ -654,14 +658,14 @@ public class HttpClubServicesTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task GetCurrentUserPendingRequestAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task GetCurrentUserPendingRequestAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubJoinRequestService(httpClient);
 
@@ -677,7 +681,7 @@ public class HttpClubServicesTests
     /// GetCurrentUserPendingRequestAsync returns a server error for an invalid request identifier.
     /// </summary>
     [Fact]
-    public async Task GetCurrentUserPendingRequestAsync_ReturnsServerError_WhenRequestInvariantIsInvalid()
+    public async Task GetCurrentUserPendingRequestAsyncReturnsServerErrorWhenRequestInvariantIsInvalidAsync()
     {
         // Arrange
         var request = CreateJoinRequest(0);
@@ -685,7 +689,7 @@ public class HttpClubServicesTests
         {
             Content = JsonContent.Create(request)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubJoinRequestService(httpClient);
 
@@ -701,14 +705,14 @@ public class HttpClubServicesTests
     /// GetClubJoinRequestsAsync accepts a literal empty JSON array as an empty request list.
     /// </summary>
     [Fact]
-    public async Task GetClubJoinRequestsAsync_ReturnsEmptyList_WhenSuccessBodyIsEmptyArray()
+    public async Task GetClubJoinRequestsAsyncReturnsEmptyListWhenSuccessBodyIsEmptyArrayAsync()
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("[]", Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubJoinRequestService(httpClient);
 
@@ -728,14 +732,14 @@ public class HttpClubServicesTests
     [InlineData("null")]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task GetClubJoinRequestsAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         // Arrange
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubJoinRequestService(httpClient);
 
@@ -751,7 +755,7 @@ public class HttpClubServicesTests
     /// GetClubJoinRequestsAsync returns a server error when one request violates an invariant.
     /// </summary>
     [Fact]
-    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenRequestElementIsInvalid()
+    public async Task GetClubJoinRequestsAsyncReturnsServerErrorWhenRequestElementIsInvalidAsync()
     {
         // Arrange
         var requests = new[] { CreateJoinRequest(0) };
@@ -759,7 +763,7 @@ public class HttpClubServicesTests
         {
             Content = JsonContent.Create(requests)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpClubJoinRequestService(httpClient);
 
@@ -775,14 +779,14 @@ public class HttpClubServicesTests
     /// GetClubJoinRequestsAsync rejects entries belonging to a different club.
     /// </summary>
     [Fact]
-    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenResponseClubIdDoesNotMatch()
+    public async Task GetClubJoinRequestsAsyncReturnsServerErrorWhenResponseClubIdDoesNotMatchAsync()
     {
         var requests = new[] { CreateJoinRequest(10) with { ClubId = 6 } };
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(requests)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubJoinRequestService(httpClient).GetClubJoinRequestsAsync(
@@ -797,14 +801,14 @@ public class HttpClubServicesTests
     /// GetClubJoinRequestsAsync rejects rows outside the contracted oldest-first identifier order.
     /// </summary>
     [Fact]
-    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenRequestsAreOutOfOrder()
+    public async Task GetClubJoinRequestsAsyncReturnsServerErrorWhenRequestsAreOutOfOrderAsync()
     {
         var requests = new[] { CreateJoinRequest(11), CreateJoinRequest(10) };
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(requests)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubJoinRequestService(httpClient).GetClubJoinRequestsAsync(
@@ -819,14 +823,14 @@ public class HttpClubServicesTests
     /// GetClubJoinRequestsAsync rejects non-pending rows from the administrative pending queue.
     /// </summary>
     [Fact]
-    public async Task GetClubJoinRequestsAsync_ReturnsServerError_WhenRequestIsNotPending()
+    public async Task GetClubJoinRequestsAsyncReturnsServerErrorWhenRequestIsNotPendingAsync()
     {
         var requests = new[] { CreateJoinRequest(10) with { Status = RequestStatus.Approved } };
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(requests)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubJoinRequestService(httpClient).GetClubJoinRequestsAsync(
@@ -841,14 +845,14 @@ public class HttpClubServicesTests
     /// CreateJoinRequestAsync rejects a success payload for a different club.
     /// </summary>
     [Fact]
-    public async Task CreateJoinRequestAsync_ReturnsServerError_WhenResponseClubIdDoesNotMatch()
+    public async Task CreateJoinRequestAsyncReturnsServerErrorWhenResponseClubIdDoesNotMatchAsync()
     {
         var request = CreateJoinRequest(10) with { ClubId = 6 };
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(request)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpClubJoinRequestService(httpClient).CreateJoinRequestAsync(
@@ -870,7 +874,7 @@ public class HttpClubServicesTests
             RequestingUserId: 99,
             RequestingUserName: "Test User",
             Status: RequestStatus.Pending,
-            CreatedAt: DateTimeOffset.Parse("2026-08-04T12:00:00+00:00"));
+            CreatedAt: DateTimeOffset.Parse("2026-08-04T12:00:00+00:00", System.Globalization.CultureInfo.InvariantCulture));
 
     #endregion
 }

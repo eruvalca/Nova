@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services.Dashboard;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Dashboard;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Dashboard;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Dashboard;
@@ -16,7 +16,7 @@ public sealed class HttpDashboardQueryServiceTests
 {
     /// <summary>Verifies the summary request uses the shared route and reads a populated payload.</summary>
     [Fact]
-    public async Task GetDashboardAsync_RequestsSharedRoute_AndReadsPayload()
+    public async Task GetDashboardAsyncRequestsSharedRouteAndReadsPayloadAsync()
     {
         HttpRequestMessage? capturedRequest = null;
         var payload = new ClubDashboardResult
@@ -39,7 +39,7 @@ public sealed class HttpDashboardQueryServiceTests
             Roster = new RosterCountsDto { ActivePlayers = 1, ArchivedPlayers = 0 },
             Teams = new TeamCountsDto { ActiveTeams = 1, ArchivedTeams = 0 }
         };
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
@@ -53,14 +53,14 @@ public sealed class HttpDashboardQueryServiceTests
         result.Value.ActiveCampaigns.Count.ShouldBe(1);
         result.Value.ActiveCampaigns[0].WorkspaceUrl.ShouldBe("/campaigns/42");
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/dashboard");
+        capturedRequest.RequestUri!.PathAndQuery.ShouldBe("/api/dashboard");
     }
 
     /// <summary>Verifies a non-success dashboard response retains its problem kind.</summary>
     [Fact]
-    public async Task GetDashboardAsync_ReturnsProblem_FromNonSuccess()
+    public async Task GetDashboardAsyncReturnsProblemFromNonSuccessAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)
             {
                 Content = JsonContent.Create(new ProblemPayload(403, "Forbidden", "Not allowed."))
@@ -89,9 +89,9 @@ public sealed class HttpDashboardQueryServiceTests
     [InlineData("""{"activeCampaigns":[{"campaignId":1,"name":" ","seasonName":"S","startDate":"2026-06-01","plannedEndDate":null,"status":0,"participantCount":1,"unresolvedCount":0,"workspaceUrl":"/campaigns/1"}],"roster":{"activePlayers":0,"archivedPlayers":0},"teams":{"activeTeams":0,"archivedTeams":0}}""")]
     [InlineData("""{"activeCampaigns":[{"campaignId":1,"name":"A","seasonName":"S","startDate":"2026-06-01","plannedEndDate":null,"status":0,"participantCount":1,"unresolvedCount":2,"workspaceUrl":"/campaigns/1"}],"roster":{"activePlayers":0,"archivedPlayers":0},"teams":{"activeTeams":0,"archivedTeams":0}}""")]
     [InlineData("""{"activeCampaigns":[],"roster":{"activePlayers":-1,"archivedPlayers":0},"teams":{"activeTeams":0,"archivedTeams":0}}""")]
-    public async Task GetDashboardAsync_ReturnsServerError_ForInvalidSuccessPayload(string body)
+    public async Task GetDashboardAsyncReturnsServerErrorForInvalidSuccessPayloadAsync(string body)
     {
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));
@@ -106,7 +106,7 @@ public sealed class HttpDashboardQueryServiceTests
 
     /// <summary>Verifies an over-cap dashboard payload is rejected.</summary>
     [Fact]
-    public async Task GetDashboardAsync_ReturnsServerError_ForOverCapPayload()
+    public async Task GetDashboardAsyncReturnsServerErrorForOverCapPayloadAsync()
     {
         var cards = Enumerable.Range(1, 21)
             .Select(index => new ActiveCampaignCardDto
@@ -128,7 +128,7 @@ public sealed class HttpDashboardQueryServiceTests
             Roster = new RosterCountsDto { ActivePlayers = 0, ArchivedPlayers = 0 },
             Teams = new TeamCountsDto { ActiveTeams = 0, ArchivedTeams = 0 }
         };
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpDashboardQueryService(http);

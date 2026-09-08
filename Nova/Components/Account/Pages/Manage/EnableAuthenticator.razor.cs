@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -20,32 +21,34 @@ public partial class EnableAuthenticator(
     /// <summary>
     /// The URI format string for generating TOTP authenticator URIs.
     /// </summary>
-    private const string AuthenticatorUriFormat = "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&digits=6";
+#pragma warning disable S1075 // otpauth is the fixed TOTP URI protocol consumed by authenticator apps.
+    private static readonly CompositeFormat _authenticatorUriFormat = CompositeFormat.Parse("otpauth://totp/{0}:{1}?secret={2}&issuer={0}&digits=6");
+#pragma warning restore S1075
 
     /// <summary>
     /// Stores the status message to display after form submission.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Stores the current user entity.
     /// </summary>
-    private NovaUserEntity? user;
+    private NovaUserEntity? _user;
 
     /// <summary>
     /// Stores the formatted shared key for display and manual entry.
     /// </summary>
-    private string? sharedKey;
+    private string? _sharedKey;
 
     /// <summary>
     /// Stores the authenticator URI for QR code generation.
     /// </summary>
-    private string? authenticatorUri;
+    private string? _authenticatorUri;
 
     /// <summary>
     /// Stores the recovery codes generated after 2FA setup.
     /// </summary>
-    private IEnumerable<string>? recoveryCodes;
+    private IEnumerable<string>? _recoveryCodes;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -67,14 +70,14 @@ public partial class EnableAuthenticator(
     {
         Input ??= new();
 
-        user = await userManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await userManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
-        await LoadSharedKeyAndQrCodeUriAsync(user);
+        await LoadSharedKeyAndQrCodeUriAsync(_user);
     }
 
     /// <summary>
@@ -83,37 +86,37 @@ public partial class EnableAuthenticator(
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task OnValidSubmitAsync()
     {
-        if (user is null)
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
         }
 
         // Strip spaces and hyphens
-        var verificationCode = Input.Code.Replace(" ", string.Empty).Replace("-", string.Empty);
+        var verificationCode = Input.Code.Replace(" ", string.Empty, StringComparison.Ordinal).Replace("-", string.Empty, StringComparison.Ordinal);
 
         var is2faTokenValid = await userManager.VerifyTwoFactorTokenAsync(
-            user, userManager.Options.Tokens.AuthenticatorTokenProvider, verificationCode);
+            _user, userManager.Options.Tokens.AuthenticatorTokenProvider, verificationCode);
 
         if (!is2faTokenValid)
         {
-            message = "Error: Verification code is invalid.";
+            _message = "Error: Verification code is invalid.";
             return;
         }
 
-        await userManager.SetTwoFactorEnabledAsync(user, true);
-        var userId = await userManager.GetUserIdAsync(user);
+        await userManager.SetTwoFactorEnabledAsync(_user, true);
+        var userId = await userManager.GetUserIdAsync(_user);
         LogAuthenticatorEnabled(userId);
 
-        message = "Your authenticator app has been verified.";
+        _message = "Your authenticator app has been verified.";
 
-        if (await userManager.CountRecoveryCodesAsync(user) == 0)
+        if (await userManager.CountRecoveryCodesAsync(_user) == 0)
         {
-            recoveryCodes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+            _recoveryCodes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(_user, 10);
         }
         else
         {
-            redirectManager.RedirectToWithStatus("Account/Manage/TwoFactorAuthentication", message, HttpContext);
+            redirectManager.RedirectToWithStatus("Account/Manage/TwoFactorAuthentication", _message, HttpContext);
         }
     }
 
@@ -132,10 +135,10 @@ public partial class EnableAuthenticator(
             unformattedKey = await userManager.GetAuthenticatorKeyAsync(user);
         }
 
-        sharedKey = FormatKey(unformattedKey!);
+        _sharedKey = FormatKey(unformattedKey!);
 
         var email = await userManager.GetEmailAsync(user);
-        authenticatorUri = GenerateQrCodeUri(email!, unformattedKey!);
+        _authenticatorUri = GenerateQrCodeUri(email!, unformattedKey!);
     }
 
     /// <summary>
@@ -143,7 +146,7 @@ public partial class EnableAuthenticator(
     /// </summary>
     /// <param name="unformattedKey">The unformatted authenticator key.</param>
     /// <returns>The formatted authenticator key.</returns>
-    private string FormatKey(string unformattedKey)
+    private static string FormatKey(string unformattedKey)
     {
         var result = new StringBuilder();
         int currentPosition = 0;
@@ -157,7 +160,9 @@ public partial class EnableAuthenticator(
             result.Append(unformattedKey.AsSpan(currentPosition));
         }
 
+#pragma warning disable CA1308 // Lowercase is required for this display text or ASCII route token, not for an identity comparison.
         return result.ToString().ToLowerInvariant();
+#pragma warning restore CA1308
     }
 
     /// <summary>
@@ -170,7 +175,7 @@ public partial class EnableAuthenticator(
     {
         return string.Format(
             CultureInfo.InvariantCulture,
-            AuthenticatorUriFormat,
+            _authenticatorUriFormat,
             urlEncoder.Encode("Microsoft.AspNetCore.Identity.UI"),
             urlEncoder.Encode(email),
             unformattedKey);

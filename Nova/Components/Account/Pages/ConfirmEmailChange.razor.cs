@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.Text;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
@@ -21,7 +22,7 @@ public partial class ConfirmEmailChange(
     /// <summary>
     /// Stores the message to display to the user regarding email change success or failure.
     /// </summary>
-    private string? message;
+    private string? _message;
 
     /// <summary>
     /// Gets or sets the cascading HTTP context from the parent component.
@@ -64,7 +65,7 @@ public partial class ConfirmEmailChange(
         var user = await userManager.FindByIdAsync(UserId);
         if (user is null)
         {
-            message = "Unable to find user with Id '{userId}'";
+            _message = "Unable to find user with Id '{userId}'";
             return;
         }
 
@@ -72,7 +73,7 @@ public partial class ConfirmEmailChange(
         var result = await userManager.ChangeEmailAsync(user, Email, code);
         if (!result.Succeeded)
         {
-            message = "Error changing email.";
+            _message = "Error changing email.";
             return;
         }
 
@@ -81,11 +82,11 @@ public partial class ConfirmEmailChange(
         var setUserNameResult = await userManager.SetUserNameAsync(user, Email);
         if (!setUserNameResult.Succeeded)
         {
-            message = "Error changing user name.";
+            _message = "Error changing user name.";
             return;
         }
 
         await signInManager.RefreshSignInAsync(user);
-        message = "Thank you for confirming your email change.";
+        _message = "Thank you for confirming your email change.";
     }
 }

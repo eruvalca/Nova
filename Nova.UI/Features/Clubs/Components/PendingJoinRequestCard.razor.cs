@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Components;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
+﻿
+using Microsoft.AspNetCore.Components;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
 
 namespace Nova.UI.Features.Clubs.Components;
 
@@ -139,7 +140,7 @@ public partial class PendingJoinRequestCard(
         _cancelling = true;
         _error = null;
 
-        var result = await clubJoinRequestService.CancelJoinRequestAsync(Request!.ClubJoinRequestId, ComponentCancellationToken);
+        var result = await clubJoinRequestService.CancelJoinRequestAsync(Request.ClubJoinRequestId, ComponentCancellationToken);
         result.Switch(
             success => _ = OnRequestCancelled.InvokeAsync(),
             problem => _error = problem.Detail ?? "Failed to cancel the request. Please try again.");
@@ -163,6 +164,6 @@ public partial class PendingJoinRequestCard(
     {
         _pollingTimer?.Dispose();
         _pollingTimer = null;
-        return ValueTask.CompletedTask;
+        return base.DisposeAsyncCore();
     }
 }

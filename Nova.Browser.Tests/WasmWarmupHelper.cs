@@ -13,7 +13,7 @@
 /// the InteractiveServer SignalR circuit (<c>/_blazor/negotiate</c>), retrying with more boot time if it
 /// did.
 /// </remarks>
-public static class WasmWarmupHelper
+internal static class WasmWarmupHelper
 {
     private const int WebAssemblyBootDelayMilliseconds = 15_000;
     private const int NegotiateSettleDelayMilliseconds = 3_000;
@@ -36,7 +36,7 @@ public static class WasmWarmupHelper
             // runtime's context before it has finished initializing.
             await page.WaitForTimeoutAsync(WebAssemblyBootDelayMilliseconds);
 
-            // A reloaded InteractiveServer page re-establishes its SignalR circuit via /_blazor/negotiate;
+            // A reloaded InteractiveServer page sends a new SignalR negotiation request;
             // a reloaded WebAssembly page does not. Its absence is therefore the switch's proof.
             var reestablishedCircuit = false;
 

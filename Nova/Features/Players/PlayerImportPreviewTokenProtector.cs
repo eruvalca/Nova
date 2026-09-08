@@ -1,7 +1,7 @@
 ﻿using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
-using Nova.Shared.Features.Players;
+using Nova.SharedKernel.Features.Players;
 
 namespace Nova.Features.Players;
 

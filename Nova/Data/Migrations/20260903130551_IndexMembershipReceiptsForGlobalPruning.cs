@@ -5,7 +5,7 @@
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class IndexMembershipReceiptsForGlobalPruning : Migration
+internal partial class IndexMembershipReceiptsForGlobalPruning : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -30,6 +30,8 @@ public partial class IndexMembershipReceiptsForGlobalPruning : Migration
         migrationBuilder.CreateIndex(
             name: "IX_ClubMembershipMutationReceipts_ClubId_CreatedAt",
             table: "ClubMembershipMutationReceipts",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreatedAt" });
+#pragma warning restore CA1861
     }
 }

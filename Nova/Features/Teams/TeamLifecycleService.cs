@@ -2,10 +2,10 @@
 using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using OneOf;
 using OneOf.Types;
 
@@ -17,7 +17,7 @@ namespace Nova.Features.Teams;
 /// <param name="dbContextFactory">The tenant-scoped context factory used for team mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for mutation outcomes.</param>
-public sealed partial class TeamLifecycleService(
+internal sealed partial class TeamLifecycleService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<TeamLifecycleService> logger) : ITeamLifecycleService
@@ -181,7 +181,9 @@ public sealed partial class TeamLifecycleService(
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Internal lifecycle outcomes before boundary mapping to shared service contracts.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, TeamArchiveBlockedConflict>> ApplyTransitionAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         long teamId,
         LifecycleStatus targetStatus,
@@ -208,7 +210,9 @@ public sealed partial class TeamLifecycleService(
         if (team.LifecycleStatus == targetStatus)
         {
             LogTeamLifecycleConflict(teamId, targetStatus);
+#pragma warning disable CA1308 // Lowercase is required for this display text or ASCII route token, not for an identity comparison.
             return new LifecycleConflict($"The team is already {targetStatus.ToString().ToLowerInvariant()}.");
+#pragma warning restore CA1308
         }
 
         if (targetStatus == LifecycleStatus.Archived)

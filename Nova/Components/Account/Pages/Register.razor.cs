@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Components;
@@ -6,7 +7,7 @@ using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Nova.Entities;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Components.Account.Pages;
 
@@ -25,7 +26,7 @@ public partial class Register(
     /// <summary>
     /// Stores validation errors from user creation attempts.
     /// </summary>
-    private IEnumerable<IdentityError>? identityErrors;
+    private IEnumerable<IdentityError>? _identityErrors;
 
     /// <summary>
     /// Gets or sets the registration form input model supplied from the form post.
@@ -42,7 +43,7 @@ public partial class Register(
     /// <summary>
     /// Gets the error message to display, formatted from identity validation errors.
     /// </summary>
-    private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error =>
+    private string? Message => _identityErrors is null ? null : $"Error: {string.Join(", ", _identityErrors.Select(error =>
 error.Description))}";
 
     /// <summary>
@@ -55,7 +56,7 @@ error.Description))}";
     /// </summary>
     /// <param name="editContext">The form edit context for validation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task RegisterUser(EditContext editContext)
+    public async Task RegisterUserAsync(EditContext editContext)
     {
         var user = CreateUser();
 
@@ -66,7 +67,7 @@ error.Description))}";
 
         if (!result.Succeeded)
         {
-            identityErrors = result.Errors;
+            _identityErrors = result.Errors;
             return;
         }
 
@@ -85,7 +86,7 @@ error.Description))}";
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
         var callbackUrl = navigationManager.GetUriWithQueryParameters(
             navigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
-            new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
+            new Dictionary<string, object?>(StringComparer.Ordinal) { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
 
         await emailSender.SendConfirmationLinkAsync(user, Input.Email, HtmlEncoder.Default.Encode(callbackUrl));
 
@@ -93,7 +94,7 @@ error.Description))}";
         {
             redirectManager.RedirectTo(
                 "Account/RegisterConfirmation",
-                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+                new Dictionary<string, object?>(StringComparer.Ordinal) { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
         }
         else
         {
@@ -103,7 +104,7 @@ error.Description))}";
             // The ProfilePhotoGateMiddleware enforces this as a backstop.
             redirectManager.RedirectTo(
                 "Account/ProfilePhoto",
-                new() { ["returnUrl"] = ReturnUrl });
+                new Dictionary<string, object?>(StringComparer.Ordinal) { ["returnUrl"] = ReturnUrl });
         }
     }
 

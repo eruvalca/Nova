@@ -1,7 +1,7 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Teams;
 
@@ -10,7 +10,7 @@ namespace Nova.Client.Services.Teams;
 /// server's team-management endpoints over HTTP.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpTeamManagementService(HttpClient http) : ITeamManagementService
+internal sealed class HttpTeamManagementService(HttpClient http) : ITeamManagementService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<TeamDto>> CreateAsync(

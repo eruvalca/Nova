@@ -2,10 +2,10 @@
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -23,7 +23,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
     /// Verifies that a same-club member can read the active roster and projected summary fields.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRoster_ReturnsActiveRows_ForSameClubMember()
+    public async Task GetPlayerRosterReturnsActiveRowsForSameClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -43,7 +43,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
         await SeedRosterAsync(club.ClubId, cancellationToken);
 
         var url = GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, search: null, lifecycleStatus: "active");
-        using var response = await evaluatorClient.GetAsync(url, cancellationToken);
+        using var response = await evaluatorClient.GetAsync(new Uri(url, UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var payload = await response.Content.ReadFromJsonAsync<PagedResult<PlayerListItem>>(cancellationToken);
@@ -51,15 +51,15 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
         payload.TotalCount.ShouldBe(1);
         payload.Items[0].DisplayName.ShouldBe("Avery Active");
         payload.Items[0].GraduationYear.ShouldBe(2032);
-        payload.Items[0].ActiveCampaigns.ShouldContain("Summer Tryouts");
-        payload.Items[0].CurrentTags.Select(tag => tag.Name).ShouldContain("Defender");
+        payload.Items[0].ActiveCampaigns.ShouldContain("Summer Tryouts", StringComparer.Ordinal);
+        payload.Items[0].CurrentTags.Select(tag => tag.Name).ShouldContain("Defender", StringComparer.Ordinal);
     }
 
     /// <summary>
     /// Verifies archived view and tag filtering over active-campaign tags.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRoster_AppliesArchivedAndTagFilters()
+    public async Task GetPlayerRosterAppliesArchivedAndTagFiltersAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -73,7 +73,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
         await SeedRosterAsync(club.ClubId, cancellationToken);
 
         using (var archivedResponse = await adminClient.GetAsync(
-                   GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, lifecycleStatus: "archived"),
+new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, lifecycleStatus: "archived"), UriKind.RelativeOrAbsolute),
                    cancellationToken))
         {
             archivedResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -91,7 +91,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
             .SingleAsync(cancellationToken);
 
         using var tagFilteredResponse = await adminClient.GetAsync(
-            GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, playerTagId: defenderTagId),
+new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, playerTagId: defenderTagId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         tagFilteredResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var tagFilteredPayload = await tagFilteredResponse.Content.ReadFromJsonAsync<PagedResult<PlayerListItem>>(cancellationToken);
@@ -104,7 +104,9 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
     /// Verifies the administrator workflow can create, update, archive, and restore while evaluators remain read-only.
     /// </summary>
     [Fact]
-    public async Task PlayerRosterWorkflow_AdminRoundTrip_AndEvaluatorReadOnly()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task PlayerRosterWorkflowAdminRoundTripAndEvaluatorReadOnlyAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -149,14 +151,14 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
         using var updateResponse = await adminClient.PutAsJsonAsync(PlayerEndpoints.UpdateUrl(created.PlayerId), updateInput, cancellationToken);
         updateResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        using var archiveResponse = await adminClient.PostAsync(PlayerEndpoints.ArchiveUrl(created.PlayerId), content: null, cancellationToken);
+        using var archiveResponse = await adminClient.PostAsync(new Uri(PlayerEndpoints.ArchiveUrl(created.PlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         archiveResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        using var evaluatorRestore = await evaluatorClient.PostAsync(PlayerEndpoints.RestoreUrl(created.PlayerId), content: null, cancellationToken);
+        using var evaluatorRestore = await evaluatorClient.PostAsync(new Uri(PlayerEndpoints.RestoreUrl(created.PlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         evaluatorRestore.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         using (var archivedRoster = await adminClient.GetAsync(
-                   GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, lifecycleStatus: "archived", search: "Updated"),
+new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, lifecycleStatus: "archived", search: "Updated"), UriKind.RelativeOrAbsolute),
                    cancellationToken))
         {
             archivedRoster.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -166,11 +168,11 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
             archivedPayload.Items.ShouldContain(player => player.PlayerId == created.PlayerId && player.DisplayName == "Skyler Updated");
         }
 
-        using var restoreResponse = await adminClient.PostAsync(PlayerEndpoints.RestoreUrl(created.PlayerId), content: null, cancellationToken);
+        using var restoreResponse = await adminClient.PostAsync(new Uri(PlayerEndpoints.RestoreUrl(created.PlayerId), UriKind.RelativeOrAbsolute), content: null, cancellationToken);
         restoreResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         using var activeRoster = await adminClient.GetAsync(
-            GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, lifecycleStatus: "active", search: "Updated"),
+new Uri(GetPlayerRosterEndpoints.GetRosterUrl(club.ClubId, lifecycleStatus: "active", search: "Updated"), UriKind.RelativeOrAbsolute),
             cancellationToken);
         activeRoster.StatusCode.ShouldBe(HttpStatusCode.OK);
         var activePayload = await activeRoster.Content.ReadFromJsonAsync<PagedResult<PlayerListItem>>(cancellationToken);
@@ -179,97 +181,102 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
         activePayload.Items.ShouldContain(player => player.PlayerId == created.PlayerId && player.DisplayName == "Skyler Updated");
     }
 
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task SeedRosterAsync(long clubId, CancellationToken cancellationToken)
+#pragma warning restore MA0051
     {
-        await using var db = fixture.CreateAdminContext();
-        var actorUserId = await db.Users
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+            var actorUserId = await db.Users
             .Where(user => user.ClubId == clubId)
             .Select(user => user.Id)
             .FirstAsync(cancellationToken);
 
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season-{Guid.CreateVersion7():N}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        db.Seasons.Add(season);
-        await db.SaveChangesAsync(cancellationToken);
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season-{Guid.CreateVersion7():N}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            db.Seasons.Add(season);
+            await db.SaveChangesAsync(cancellationToken);
 
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = "Summer Tryouts",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        db.Campaigns.Add(campaign);
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Summer Tryouts",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            db.Campaigns.Add(campaign);
 
-        var defenderTag = new PlayerTagEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = "Defender",
-            NormalizedName = "DEFENDER",
-            Color = "#0055AA",
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        db.PlayerTags.Add(defenderTag);
-        await db.SaveChangesAsync(cancellationToken);
+            var defenderTag = new PlayerTagEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = "Defender",
+                NormalizedName = "DEFENDER",
+                Color = "#0055AA",
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            db.PlayerTags.Add(defenderTag);
+            await db.SaveChangesAsync(cancellationToken);
 
-        var activePlayer = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Avery",
-            LastName = "Active",
-            DateOfBirth = new DateOnly(2012, 4, 1),
-            GraduationYear = 2032,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        var archivedPlayer = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Riley",
-            LastName = "Archived",
-            DateOfBirth = new DateOnly(2011, 2, 2),
-            GraduationYear = 2031,
-            LifecycleStatus = LifecycleStatus.Archived,
-            ArchivedAt = DateTimeOffset.UtcNow.AddDays(-10),
-            ArchivedById = actorUserId,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        db.Players.AddRange(activePlayer, archivedPlayer);
-        await db.SaveChangesAsync(cancellationToken);
+            var activePlayer = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Avery",
+                LastName = "Active",
+                DateOfBirth = new DateOnly(2012, 4, 1),
+                GraduationYear = 2032,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            var archivedPlayer = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Riley",
+                LastName = "Archived",
+                DateOfBirth = new DateOnly(2011, 2, 2),
+                GraduationYear = 2031,
+                LifecycleStatus = LifecycleStatus.Archived,
+                ArchivedAt = DateTimeOffset.UtcNow.AddDays(-10),
+                ArchivedById = actorUserId,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            db.Players.AddRange(activePlayer, archivedPlayer);
+            await db.SaveChangesAsync(cancellationToken);
 
-        var activeAssignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = activePlayer.PlayerId,
-            CampaignId = campaign.CampaignId,
-            TryoutNumber = 12,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        };
-        db.PlayerCampaignAssignments.Add(activeAssignment);
-        await db.SaveChangesAsync(cancellationToken);
+            var activeAssignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = activePlayer.PlayerId,
+                CampaignId = campaign.CampaignId,
+                TryoutNumber = 12,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            };
+            db.PlayerCampaignAssignments.Add(activeAssignment);
+            await db.SaveChangesAsync(cancellationToken);
 
-        db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            PlayerCampaignAssignmentId = activeAssignment.PlayerCampaignAssignmentId,
-            PlayerTagId = defenderTag.PlayerTagId,
-            ClubId = clubId,
-            CreatedById = actorUserId
-        });
-        await db.SaveChangesAsync(cancellationToken);
+            db.CampaignTagApplications.Add(new CampaignTagApplicationEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                PlayerCampaignAssignmentId = activeAssignment.PlayerCampaignAssignmentId,
+                PlayerTagId = defenderTag.PlayerTagId,
+                ClubId = clubId,
+                CreatedById = actorUserId
+            });
+            await db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static async Task<ClubDto> CreateClubAsync(
@@ -279,10 +286,11 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
         string state,
         CancellationToken cancellationToken)
     {
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent(name, city, state);
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent(name, city, state),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
@@ -292,7 +300,7 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
 
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -303,14 +311,17 @@ public sealed class PlayerRosterHttpTests(NovaAppHostFixture fixture)
         long? clubId,
         CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var normalizedEmail = email.ToUpperInvariant();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
-        user.FirstName = firstName;
-        user.LastName = lastName;
-        user.ClubId = clubId;
-        context.Users.Update(user);
-        await context.SaveChangesAsync(cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var normalizedEmail = email.ToUpperInvariant();
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
+            user.FirstName = firstName;
+            user.LastName = lastName;
+            user.ClubId = clubId;
+            context.Users.Update(user);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}@example.com";

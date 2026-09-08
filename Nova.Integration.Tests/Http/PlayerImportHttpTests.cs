@@ -3,8 +3,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Players;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Players;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -16,25 +16,25 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
     private const string Password = "Test#Passw0rd!";
 
     [Fact]
-    public async Task Template_ReturnsUnauthorized_ForAnonymousCaller()
+    public async Task TemplateReturnsUnauthorizedForAnonymousCallerAsync()
     {
         using var client = fixture.CreateNovaHttpClient();
 
         using var response = await client.GetAsync(
-            PlayerEndpoints.ImportTemplate,
+new Uri(PlayerEndpoints.ImportTemplate, UriKind.RelativeOrAbsolute),
             TestContext.Current.CancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task Preview_ReturnsUnauthorized_ForAnonymousCaller()
+    public async Task PreviewReturnsUnauthorizedForAnonymousCallerAsync()
     {
         using var client = fixture.CreateNovaHttpClient();
         using var form = CsvForm("Alex,Archer,2012-01-01,,,2030\r\n");
 
         using var response = await client.PostAsync(
-            PlayerEndpoints.ImportPreview,
+new Uri(PlayerEndpoints.ImportPreview, UriKind.RelativeOrAbsolute),
             form,
             TestContext.Current.CancellationToken);
 
@@ -42,13 +42,13 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task Template_ReturnsExactCsvDownload_ForClubAdministrator()
+    public async Task TemplateReturnsExactCsvDownloadForClubAdministratorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         _ = await CreateAdministratorClubAsync(client, "template", cancellationToken);
 
-        using var response = await client.GetAsync(PlayerEndpoints.ImportTemplate, cancellationToken);
+        using var response = await client.GetAsync(new Uri(PlayerEndpoints.ImportTemplate, UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Content.Headers.ContentType!.MediaType.ShouldBe("text/csv");
@@ -62,7 +62,7 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task Preview_ReturnsForbidden_ForOrdinaryClubMember()
+    public async Task PreviewReturnsForbiddenForOrdinaryClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -71,13 +71,13 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
         await CreateClubMemberAsync(memberClient, club.ClubId, "member-auth", cancellationToken);
         using var form = CsvForm("Alex,Archer,2012-01-01,,,2030\r\n");
 
-        using var response = await memberClient.PostAsync(PlayerEndpoints.ImportPreview, form, cancellationToken);
+        using var response = await memberClient.PostAsync(new Uri(PlayerEndpoints.ImportPreview, UriKind.RelativeOrAbsolute), form, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     [Fact]
-    public async Task Template_ReturnsForbidden_ForOrdinaryClubMember()
+    public async Task TemplateReturnsForbiddenForOrdinaryClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -85,20 +85,20 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
         var club = await CreateAdministratorClubAsync(adminClient, "template-member-auth", cancellationToken);
         await CreateClubMemberAsync(memberClient, club.ClubId, "template-member-auth", cancellationToken);
 
-        using var response = await memberClient.GetAsync(PlayerEndpoints.ImportTemplate, cancellationToken);
+        using var response = await memberClient.GetAsync(new Uri(PlayerEndpoints.ImportTemplate, UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     [Fact]
-    public async Task Preview_ReturnsValidationProblemWithTraceId_WhenFileIsMissing()
+    public async Task PreviewReturnsValidationProblemWithTraceIdWhenFileIsMissingAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         _ = await CreateAdministratorClubAsync(client, "missing-file", cancellationToken);
         using var form = new MultipartFormDataContent();
 
-        using var response = await client.PostAsync(PlayerEndpoints.ImportPreview, form, cancellationToken);
+        using var response = await client.PostAsync(new Uri(PlayerEndpoints.ImportPreview, UriKind.RelativeOrAbsolute), form, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -108,7 +108,7 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task Preview_ClassifiesRowsAndDoesNotPersistAnything_ForClubAdministrator()
+    public async Task PreviewClassifiesRowsAndDoesNotPersistAnythingForClubAdministratorAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -121,7 +121,7 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
             + "taylor,stone,2013-02-03,,,2031\r\n"
             + "=bad,Player,not-a-date,,,1999\r\n");
 
-        using var response = await client.PostAsync(PlayerEndpoints.ImportPreview, form, cancellationToken);
+        using var response = await client.PostAsync(new Uri(PlayerEndpoints.ImportPreview, UriKind.RelativeOrAbsolute), form, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var preview = await response.Content.ReadFromJsonAsync<PlayerImportPreview>(cancellationToken);
@@ -139,7 +139,7 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task Preview_AcceptsMaximumRowCount_OverRealMultipartBoundary()
+    public async Task PreviewAcceptsMaximumRowCountOverRealMultipartBoundaryAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -150,7 +150,7 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
                 .Select(index => $"Player{index},Maximum,2012-01-01,,,{2000 + index % 100}")) + "\r\n";
         using var form = CsvForm(rows);
 
-        using var response = await client.PostAsync(PlayerEndpoints.ImportPreview, form, cancellationToken);
+        using var response = await client.PostAsync(new Uri(PlayerEndpoints.ImportPreview, UriKind.RelativeOrAbsolute), form, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var preview = await response.Content.ReadFromJsonAsync<PlayerImportPreview>(cancellationToken);
@@ -160,7 +160,7 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task Preview_RejectsInvalidFileBoundaries_WithTraceCorrelatedProblemDetails()
+    public async Task PreviewRejectsInvalidFileBoundariesWithTraceCorrelatedProblemDetailsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -186,7 +186,7 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
         foreach (var testCase in cases)
         {
             using var form = CsvForm(testCase.Content, testCase.FileName, testCase.ContentType);
-            using var response = await client.PostAsync(PlayerEndpoints.ImportPreview, form, cancellationToken);
+            using var response = await client.PostAsync(new Uri(PlayerEndpoints.ImportPreview, UriKind.RelativeOrAbsolute), form, cancellationToken);
 
             response.StatusCode.ShouldBe(HttpStatusCode.BadRequest, testCase.FileName);
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
@@ -195,7 +195,7 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task Preview_ReturnsPayloadTooLarge_WithTraceId_WhenRequestExceedsTransportLimit()
+    public async Task PreviewReturnsPayloadTooLargeWithTraceIdWhenRequestExceedsTransportLimitAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -218,14 +218,14 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task Preview_ReturnsUnsupportedMediaType_WithTraceId_ForNonMultipartRequest()
+    public async Task PreviewReturnsUnsupportedMediaTypeWithTraceIdForNonMultipartRequestAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         _ = await CreateAdministratorClubAsync(client, "unsupported-request-media", cancellationToken);
         using var content = JsonContent.Create(new { file = "not-multipart" });
 
-        using var response = await client.PostAsync(PlayerEndpoints.ImportPreview, content, cancellationToken);
+        using var response = await client.PostAsync(new Uri(PlayerEndpoints.ImportPreview, UriKind.RelativeOrAbsolute), content, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.UnsupportedMediaType);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
@@ -235,14 +235,16 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
 
     private static MultipartFormDataContent CsvForm(string rows)
     {
-        const string header = "First name,Last name,Date of birth,Gender,Jersey number,Graduation year\r\n";
-        return CsvForm(Encoding.UTF8.GetBytes(header + rows), "players.csv", "text/csv");
+        const string Header = "First name,Last name,Date of birth,Gender,Jersey number,Graduation year\r\n";
+        return CsvForm(Encoding.UTF8.GetBytes(Header + rows), "players.csv", "text/csv");
     }
 
     private static MultipartFormDataContent CsvForm(byte[] content, string fileName, string contentType)
     {
         var form = new MultipartFormDataContent();
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         var file = new ByteArrayContent(content);
+#pragma warning restore CA2000
         file.Headers.ContentType = new(contentType);
         form.Add(file, PlayerImportConstraints.FileFormFieldName, fileName);
         return form;
@@ -263,10 +265,13 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
 
     private async Task<(int Players, int Assignments)> CountsAsync(long clubId, CancellationToken cancellationToken)
     {
-        await using var db = fixture.CreateAdminContext();
-        return (
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+            return (
             await db.Players.CountAsync(player => player.ClubId == clubId, cancellationToken),
             await db.PlayerCampaignAssignments.CountAsync(assignment => assignment.ClubId == clubId, cancellationToken));
+        }
     }
 
     private async Task<ClubDto> CreateAdministratorClubAsync(
@@ -277,10 +282,11 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
         var email = UniqueEmail(prefix + "-admin");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await UpdateUserAsync(email, clubId: null, cancellationToken);
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"{prefix} {Guid.NewGuid():N}", "Austin", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent($"{prefix} {Guid.NewGuid():N}", "Austin", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         var club = await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken);
         club.ShouldNotBeNull();
@@ -302,20 +308,23 @@ public sealed class PlayerImportHttpTests(NovaAppHostFixture fixture)
 
     private async Task UpdateUserAsync(string email, long? clubId, CancellationToken cancellationToken)
     {
-        await using var db = fixture.CreateAdminContext();
-        var normalizedEmail = email.ToUpperInvariant();
-        var user = await db.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
-        user.FirstName = "Import";
-        user.LastName = "Tester";
-        user.ClubId = clubId;
-        await db.SaveChangesAsync(cancellationToken);
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+            var normalizedEmail = email.ToUpperInvariant();
+            var user = await db.Users.SingleAsync(candidate => candidate.NormalizedEmail == normalizedEmail, cancellationToken);
+            user.FirstName = "Import";
+            user.LastName = "Tester";
+            user.ClubId = clubId;
+            await db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static async Task RefreshClubMembershipCookieAsync(
         HttpClient client,
         CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 

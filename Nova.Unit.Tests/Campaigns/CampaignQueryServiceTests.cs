@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
 using Shouldly;
@@ -27,9 +27,8 @@ file sealed class CampaignReadHarnessDbContextFactory(
             ? harness.CreateReadContext()
             : harness.CreateReadContext(interceptor);
     /// <summary>Creates an asynchronous read context.</summary>
-    /// <param name="_">The cancellation token.</param>
     /// <returns>A tenant-filtered read context.</returns>
-    public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken _ = default)
+    public Task<NovaReadDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(CreateDbContext());
 }
 
@@ -101,7 +100,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies list queries reject callers without approved membership.</summary>
     [Fact]
-    public async Task GetCampaignList_ReturnsForbidden_WhenNotMember()
+    public async Task GetCampaignListReturnsForbiddenWhenNotMemberAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -120,7 +119,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
     /// Verifies creation setup retains its service-layer membership guard.
     /// </summary>
     [Fact]
-    public async Task GetCreationSetup_ReturnsForbidden_WhenNotMember()
+    public async Task GetCreationSetupReturnsForbiddenWhenNotMemberAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -137,7 +136,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies count-before-bound behavior, tenant isolation, and assignment counts.</summary>
     [Fact]
-    public async Task GetCampaignList_TotalCountIsBeforeLimit_AndTenantIsolated()
+    public async Task GetCampaignListTotalCountIsBeforeLimitAndTenantIsolatedAsync()
     {
         // Act as club A member
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -165,7 +164,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
     [InlineData("ACTIVE", CampaignStatus.Active)]
     [InlineData("DRAFT", CampaignStatus.Draft)]
     [InlineData("CLOSED", CampaignStatus.Closed)]
-    public async Task GetCampaignList_StatusFiltering_IsCaseInsensitive(
+    public async Task GetCampaignListStatusFilteringIsCaseInsensitiveAsync(
         string status,
         CampaignStatus expectedStatus)
     {
@@ -195,7 +194,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies a member explicitly requesting Drafts receives an empty successful list.</summary>
     [Fact]
-    public async Task GetCampaignList_DraftFilterReturnsEmpty_ForMember()
+    public async Task GetCampaignListDraftFilterReturnsEmptyForMemberAsync()
     {
         _ = AddDraftCampaign();
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -216,7 +215,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies Draft detail is visible to administrators and concealed from members.</summary>
     [Fact]
-    public async Task GetCampaignDetail_EnforcesDraftVisibility()
+    public async Task GetCampaignDetailEnforcesDraftVisibilityAsync()
     {
         var campaignId = AddDraftCampaign();
         var service = new CampaignQueryService(
@@ -243,7 +242,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies setup returns tenant seasons and active lifecycle counts.</summary>
     [Fact]
-    public async Task GetCreationSetup_ReturnsSeasonAndActiveCounts()
+    public async Task GetCreationSetupReturnsSeasonAndActiveCountsAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -264,7 +263,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies setup reads the pointer and current-season metadata in one statement.</summary>
     [Fact]
-    public async Task GetCreationSetup_UsesOneStatement_ForPointerAndSeason()
+    public async Task GetCreationSetupUsesOneStatementForPointerAndSeasonAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -283,7 +282,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies setup never offers historical seasons after more history is inserted.</summary>
     [Fact]
-    public async Task GetCreationSetup_ReturnsOnlyCurrentSeason_AfterHistoryIsInserted()
+    public async Task GetCreationSetupReturnsOnlyCurrentSeasonAfterHistoryIsInsertedAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -299,7 +298,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                 ClubId = ClubAId,
                 CreatedById = ClubAMemberId
             }));
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = new CampaignQueryService(
@@ -316,7 +315,9 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies campaign rows follow the contracted deterministic keys.</summary>
     [Fact]
-    public async Task GetCampaignList_OrdersCampaignsByContractedKeys()
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
+    public async Task GetCampaignListOrdersCampaignsByContractedKeysAsync()
+#pragma warning restore MA0051
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -324,8 +325,8 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
         using (var admin = _harness.CreateAdminContext())
         {
-            admin.Campaigns.Single(campaign => campaign.ClubId == ClubAId
-                && campaign.Status == CampaignStatus.Active).Status = CampaignStatus.Draft;
+            (await admin.Campaigns.SingleAsync(campaign => campaign.ClubId == ClubAId
+                && campaign.Status == CampaignStatus.Active, TestContext.Current.CancellationToken)).Status = CampaignStatus.Draft;
             var season = new SeasonEntity
             {
                 CreationOperationId = Guid.NewGuid(),
@@ -335,7 +336,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                 CreatedById = ClubAMemberId
             };
             admin.Seasons.Add(season);
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var sameDate = new DateOnly(2027, 6, 1);
             var sameEnd = new DateOnly(2027, 6, 20);
@@ -405,7 +406,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
                     ClubId = ClubAId,
                     CreatedById = ClubAMemberId
                 });
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var service = new CampaignQueryService(
@@ -419,7 +420,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
         result.IsSuccess.ShouldBeTrue();
         var rows = result.Value.Seasons
-            .Single(season => season.Name == "Ordering Season")
+            .Single(season => string.Equals(season.Name, "Ordering Season", StringComparison.Ordinal))
             .Campaigns;
         rows.Select(campaign => campaign.Name).Take(6)
             .ShouldBe(["Open", "Later", "A", "Earlier End", "Z", "Closed"]);
@@ -429,7 +430,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies paging retains authorized totals and reaches the final row without repetition.</summary>
     [Fact]
-    public async Task GetCampaignList_PagesAuthorizedRows_AndReturnsEmptyAfterLastPage()
+    public async Task GetCampaignListPagesAuthorizedRowsAndReturnsEmptyAfterLastPageAsync()
     {
         _ = AddDraftCampaign();
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -467,7 +468,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies Draft enrollment previews count active players independently of participants.</summary>
     [Fact]
-    public async Task GetCampaignList_ReturnsActivePlayerPreview_ForAdministrator()
+    public async Task GetCampaignListReturnsActivePlayerPreviewForAdministratorAsync()
     {
         var draftId = AddDraftCampaign();
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -491,7 +492,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("active")]
     [InlineData("closed")]
-    public async Task GetCampaignList_OmitsDraftPreviewAndPlayerCount_ForNonDraftView(string status)
+    public async Task GetCampaignListOmitsDraftPreviewAndPlayerCountForNonDraftViewAsync(string status)
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -510,7 +511,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies the detail query returns the club's campaign header payload.</summary>
     [Fact]
-    public async Task GetCampaignDetail_ReturnsDetail_ForClubsCampaign()
+    public async Task GetCampaignDetailReturnsDetailForClubsCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -519,8 +520,8 @@ public sealed class CampaignQueryServiceTests : IDisposable
         long seasonId;
         using (var admin = _harness.CreateAdminContext())
         {
-            campaignId = admin.Campaigns.Single(campaign => campaign.Name == "A1").CampaignId;
-            seasonId = admin.Campaigns.Single(campaign => campaign.Name == "A1").SeasonId;
+            campaignId = (await admin.Campaigns.SingleAsync(campaign => campaign.Name == "A1", TestContext.Current.CancellationToken)).CampaignId;
+            seasonId = (await admin.Campaigns.SingleAsync(campaign => campaign.Name == "A1", TestContext.Current.CancellationToken)).SeasonId;
         }
 
         var service = new CampaignQueryService(
@@ -551,7 +552,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
     /// and the typed zero-team warning from one advisory snapshot.
     /// </summary>
     [Fact]
-    public async Task GetOpeningReadiness_ReturnsCountsBlockerIdentityAndWarning()
+    public async Task GetOpeningReadinessReturnsCountsBlockerIdentityAndWarningAsync()
     {
         long draftCampaignId;
         await using (var admin = _harness.CreateAdminContext())
@@ -610,7 +611,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies opening readiness is restricted to club administrators.</summary>
     [Fact]
-    public async Task GetOpeningReadiness_ReturnsForbidden_ForMember()
+    public async Task GetOpeningReadinessReturnsForbiddenForMemberAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -636,7 +637,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies a Closed campaign's detail carries populated closure fields with a resolved display name.</summary>
     [Fact]
-    public async Task GetCampaignDetail_ReturnsClosureFields_ForClosedCampaign()
+    public async Task GetCampaignDetailReturnsClosureFieldsForClosedCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -644,7 +645,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         long campaignId;
         using (var admin = _harness.CreateAdminContext())
         {
-            campaignId = admin.Campaigns.Single(campaign => campaign.Name == "A2").CampaignId;
+            campaignId = (await admin.Campaigns.SingleAsync(campaign => campaign.Name == "A2", TestContext.Current.CancellationToken)).CampaignId;
         }
 
         var service = new CampaignQueryService(
@@ -665,7 +666,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies a Closed campaign with a missing closer row falls back to the "Former member" display name.</summary>
     [Fact]
-    public async Task GetCampaignDetail_ReturnsFormerMemberDisplayName_WhenCloserIsUnavailable()
+    public async Task GetCampaignDetailReturnsFormerMemberDisplayNameWhenCloserIsUnavailableAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -673,7 +674,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         long campaignId;
         using (var admin = _harness.CreateAdminContext())
         {
-            campaignId = admin.Campaigns.Single(campaign => campaign.Name == "A3").CampaignId;
+            campaignId = (await admin.Campaigns.SingleAsync(campaign => campaign.Name == "A3", TestContext.Current.CancellationToken)).CampaignId;
         }
 
         var service = new CampaignQueryService(
@@ -694,7 +695,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies the detail query returns NotFound for another club's campaign.</summary>
     [Fact]
-    public async Task GetCampaignDetail_ReturnsNotFound_ForOtherClubsCampaign()
+    public async Task GetCampaignDetailReturnsNotFoundForOtherClubsCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -702,7 +703,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
         long clubBCampaignId;
         using (var admin = _harness.CreateAdminContext())
         {
-            clubBCampaignId = admin.Campaigns.Single(campaign => campaign.Name == "B1").CampaignId;
+            clubBCampaignId = (await admin.Campaigns.SingleAsync(campaign => campaign.Name == "B1", TestContext.Current.CancellationToken)).CampaignId;
         }
 
         var service = new CampaignQueryService(
@@ -720,7 +721,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies the detail query returns NotFound for a missing campaign id.</summary>
     [Fact]
-    public async Task GetCampaignDetail_ReturnsNotFound_ForMissingCampaign()
+    public async Task GetCampaignDetailReturnsNotFoundForMissingCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -740,7 +741,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies the detail query retains its service-layer membership guard.</summary>
     [Fact]
-    public async Task GetCampaignDetail_ReturnsForbidden_WhenNotMember()
+    public async Task GetCampaignDetailReturnsForbiddenWhenNotMemberAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -760,7 +761,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies non-positive campaign identifiers are rejected before any query.</summary>
     [Fact]
-    public async Task GetCampaignDetail_ReturnsValidationProblem_ForNonPositiveCampaignId()
+    public async Task GetCampaignDetailReturnsValidationProblemForNonPositiveCampaignIdAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -780,7 +781,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies a campaign-list read failure surfaces as a server error rather than an exception.</summary>
     [Fact]
-    public async Task GetCampaignList_ReturnsServerError_WhenReadFails()
+    public async Task GetCampaignListReturnsServerErrorWhenReadFailsAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -794,7 +795,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies a campaign-detail read failure surfaces as a server error rather than an exception.</summary>
     [Fact]
-    public async Task GetCampaignDetail_ReturnsServerError_WhenReadFails()
+    public async Task GetCampaignDetailReturnsServerErrorWhenReadFailsAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -810,7 +811,7 @@ public sealed class CampaignQueryServiceTests : IDisposable
 
     /// <summary>Verifies a creation-setup read failure surfaces as a server error rather than an exception.</summary>
     [Fact]
-    public async Task GetCreationSetup_ReturnsServerError_WhenReadFails()
+    public async Task GetCreationSetupReturnsServerErrorWhenReadFailsAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;

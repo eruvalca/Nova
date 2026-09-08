@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nova.Components.Account;
-using Nova.Components.Account.Shared;
+using Nova.Components.Account.Common;
 using Nova.Entities;
 using NSubstitute;
 using Shouldly;
@@ -31,7 +31,9 @@ public class AccountSharedComponentsTests
             new("request-token", "__RequestVerificationToken");
     }
 
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class FakeAuthenticationHandler : IAuthenticationHandler
+#pragma warning restore CA1812
     {
         public Task InitializeAsync(AuthenticationScheme scheme, HttpContext context) => Task.CompletedTask;
 
@@ -85,7 +87,7 @@ public class AccountSharedComponentsTests
     [InlineData("Account/ConfirmEmailChange?userId=42", "Manage profile")]
     [InlineData("Account/ForgotPassword", "Recover access")]
     [InlineData("Account/ResetPassword", "Recover access")]
-    public void AuthLayout_ActivatesExpectedPanel_ForAccountRoute(string route, string expectedPanel)
+    public void AuthLayoutActivatesExpectedPanelForAccountRoute(string route, string expectedPanel)
     {
         using var testContext = new BunitContext();
         var navigationManager = testContext.Services.GetRequiredService<NavigationManager>();
@@ -102,7 +104,7 @@ public class AccountSharedComponentsTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("Account/AccessDenied")]
     [InlineData("Account/InvalidUser")]
-    public void AuthLayout_DoesNotActivatePanel_ForUnownedRoute(string route)
+    public void AuthLayoutDoesNotActivatePanelForUnownedRoute(string route)
     {
         using var testContext = new BunitContext();
         var navigationManager = testContext.Services.GetRequiredService<NavigationManager>();
@@ -117,7 +119,9 @@ public class AccountSharedComponentsTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("/Account/Manage", "%2FAccount%2FManage")]
     [InlineData("dashboard", "%2Fdashboard")]
-    public void AuthLayout_PreservesSafeReturnUrl_OnEntryPanels(string returnUrl, string encodedReturnUrl)
+#pragma warning disable CA1054 // InlineData URL cases must use attribute-compatible string values.
+    public void AuthLayoutPreservesSafeReturnUrlOnEntryPanels(string returnUrl, string encodedReturnUrl)
+#pragma warning restore CA1054
     {
         using var testContext = new BunitContext();
         var navigationManager = testContext.Services.GetRequiredService<NavigationManager>();
@@ -136,7 +140,9 @@ public class AccountSharedComponentsTests
     [InlineData("https://example.com/steal")]
     [InlineData("//example.com/steal")]
     [InlineData(@"\\example.com\steal")]
-    public void AuthLayout_DropsUnsafeReturnUrl_OnEntryPanels(string returnUrl)
+#pragma warning disable CA1054 // InlineData URL cases must use attribute-compatible string values.
+    public void AuthLayoutDropsUnsafeReturnUrlOnEntryPanels(string returnUrl)
+#pragma warning restore CA1054
     {
         using var testContext = new BunitContext();
         var navigationManager = testContext.Services.GetRequiredService<NavigationManager>();
@@ -152,7 +158,7 @@ public class AccountSharedComponentsTests
     // ---- StatusMessage ----
 
     [Fact]
-    public void StatusMessage_RendersSuccessAlert_WhenMessageIsPassed()
+    public void StatusMessageRendersSuccessAlertWhenMessageIsPassed()
     {
         using var testContext = new BunitContext();
 
@@ -165,7 +171,7 @@ public class AccountSharedComponentsTests
     }
 
     [Fact]
-    public void StatusMessage_RendersDangerAlert_WhenMessageStartsWithError()
+    public void StatusMessageRendersDangerAlertWhenMessageStartsWithError()
     {
         using var testContext = new BunitContext();
 
@@ -178,7 +184,7 @@ public class AccountSharedComponentsTests
     }
 
     [Fact]
-    public void StatusMessage_ReadsCookieAndDeletesIt_WhenNoMessageParameter()
+    public void StatusMessageReadsCookieAndDeletesItWhenNoMessageParameter()
     {
         using var testContext = new BunitContext();
 
@@ -195,7 +201,7 @@ public class AccountSharedComponentsTests
     // ---- ManageNavMenu ----
 
     [Fact]
-    public void ManageNavMenu_RendersAllPanels_WhenNoExternalLogins()
+    public void ManageNavMenuRendersAllPanelsWhenNoExternalLogins()
     {
         using var testContext = new BunitContext();
         testContext.Services.AddScoped(_ => CreateSignInManager());
@@ -213,7 +219,7 @@ public class AccountSharedComponentsTests
     }
 
     [Fact]
-    public void ManageNavMenu_RendersExternalLoginsPanel_WhenSchemesConfigured()
+    public void ManageNavMenuRendersExternalLoginsPanelWhenSchemesConfigured()
     {
         using var testContext = new BunitContext();
         testContext.Services.AddScoped(_ => CreateSignInManager(
@@ -228,7 +234,7 @@ public class AccountSharedComponentsTests
     // ---- ExternalLoginPicker ----
 
     [Fact]
-    public void ExternalLoginPicker_RendersEmptyState_WhenNoSchemes()
+    public void ExternalLoginPickerRendersEmptyStateWhenNoSchemes()
     {
         using var testContext = new BunitContext();
         testContext.Services.AddScoped(_ => CreateSignInManager());
@@ -240,7 +246,7 @@ public class AccountSharedComponentsTests
     }
 
     [Fact]
-    public void ExternalLoginPicker_RendersProviderButtons_WithContractAttributes()
+    public void ExternalLoginPickerRendersProviderButtonsWithContractAttributes()
     {
         using var testContext = new BunitContext();
         testContext.Services.AddScoped(_ => CreateSignInManager(
@@ -260,7 +266,7 @@ public class AccountSharedComponentsTests
     // ---- PasskeySubmit ----
 
     [Fact]
-    public void PasskeySubmit_RendersButtonAndCustomElement_WithTokens()
+    public void PasskeySubmitRendersButtonAndCustomElementWithTokens()
     {
         using var testContext = new BunitContext();
 
@@ -288,12 +294,14 @@ public class AccountSharedComponentsTests
     // ---- ShowRecoveryCodes ----
 
     [Fact]
-    public void ShowRecoveryCodes_RendersCodesAndStatusMessage()
+    public void ShowRecoveryCodesRendersCodesAndStatusMessage()
     {
         using var testContext = new BunitContext();
 
         var cut = testContext.Render<ShowRecoveryCodes>(parameters => parameters
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
             .Add(p => p.RecoveryCodes, new[] { "CODE-ONE", "CODE-TWO" })
+#pragma warning restore CA1861
             .Add(p => p.StatusMessage, "Recovery codes were generated.")
             .AddCascadingValue(new DefaultHttpContext()));
 
@@ -306,7 +314,7 @@ public class AccountSharedComponentsTests
     // ---- Form primitives ----
 
     [Fact]
-    public void AccountSubmitButton_RendersPrimaryFullWidth_ByDefault()
+    public void AccountSubmitButtonRendersPrimaryFullWidthByDefault()
     {
         using var testContext = new BunitContext();
 
@@ -320,7 +328,7 @@ public class AccountSharedComponentsTests
     }
 
     [Fact]
-    public void AccountSubmitButton_RendersSecondaryInline_WhenRequested()
+    public void AccountSubmitButtonRendersSecondaryInlineWhenRequested()
     {
         using var testContext = new BunitContext();
 
@@ -334,7 +342,7 @@ public class AccountSharedComponentsTests
     }
 
     [Fact]
-    public void AccountFormLabel_RendersForAndOptionalHint()
+    public void AccountFormLabelRendersForAndOptionalHint()
     {
         using var testContext = new BunitContext();
 
@@ -349,7 +357,7 @@ public class AccountSharedComponentsTests
     }
 
     [Fact]
-    public void AccountFormField_RendersLabelControlAndHelpText()
+    public void AccountFormFieldRendersLabelControlAndHelpText()
     {
         using var testContext = new BunitContext();
 
@@ -378,7 +386,7 @@ public class AccountSharedComponentsTests
     }
 
     [Fact]
-    public void AccountFormField_OmitsLabel_WhenFieldIdMissing()
+    public void AccountFormFieldOmitsLabelWhenFieldIdMissing()
     {
         using var testContext = new BunitContext();
 
@@ -403,7 +411,7 @@ public class AccountSharedComponentsTests
     }
 
     [Fact]
-    public async Task AccountValidationMessage_ShowsError_WhenEditContextFieldIsInvalid()
+    public async Task AccountValidationMessageShowsErrorWhenEditContextFieldIsInvalidAsync()
     {
         using var testContext = new BunitContext();
 

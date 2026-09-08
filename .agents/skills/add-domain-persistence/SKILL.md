@@ -1,10 +1,10 @@
 ---
 name: add-domain-persistence
 description: >-
-  Builds a Nova domain/persistence slice: deterministic domain policies, entities, EF configuration, tenant integrity, lifecycle/concurrency guards, retry-safe transactions, incremental migration, registration, and focused tests.
-  USE FOR: add a domain policy/decision; add or change an entity, relationship, constraint, index, lifecycle state, domain service, optimistic concurrency, migration, tenant-owned persistence, advisory mutation lock, retrying transaction, ambiguous commit, idempotency key, provider-sensitive query, ILIKE escaping, bounded query ordering, keyset paging, append-only event log, polymorphic JSON payload, partial-failure projection.
-  DO NOT USE FOR: extracting policy logic from an existing service without domain/persistence changes (use extract-functional-core), HTTP/WASM/UI feature slices (use add-feature-slice), a single endpoint (use add-api-endpoint), only writing/running tests (use nova-testing).
-  INVOKES: nova-testing.
+    Builds a Nova domain/persistence slice: deterministic domain policies, entities, EF configuration, tenant integrity, lifecycle/concurrency guards, retry-safe transactions, incremental migration, registration, and focused tests.
+    USE FOR: add a domain policy/decision; add or change an entity, relationship, constraint, index, lifecycle state, domain service, optimistic concurrency, migration, tenant-owned persistence, advisory mutation lock, retrying transaction, ambiguous commit, idempotency key, provider-sensitive query, ILIKE escaping, bounded query ordering, keyset paging, append-only event log, polymorphic JSON payload, partial-failure projection.
+    DO NOT USE FOR: extracting policy logic from an existing service without domain/persistence changes (use extract-functional-core), HTTP/WASM/UI feature slices (use add-feature-slice), a single endpoint (use add-api-endpoint), only writing/running tests (use nova-testing).
+    INVOKES: nova-testing.
 ---
 
 # Add Domain Persistence
@@ -47,7 +47,7 @@ Canonical examples:
    Immutable operation receipts that must survive aggregate deletion instead keep an FK-less
    `ClubId` snapshot and follow the cleanup requirements in
    [retrying-mutations-and-locks.md](references/retrying-mutations-and-locks.md). Put shared enums in
-   `Nova.Shared`.
+   `Nova.SharedKernel`.
 4. **Configure persistence, when needed** — use one `IEntityTypeConfiguration<T>` under
    `Nova\Data\Configurations`; define keys, tenant-consistent composite FKs, indexes, check
    constraints, delete behavior, and concurrency tokens there.
@@ -63,21 +63,22 @@ Canonical examples:
 7. **Add one incremental migration, when the model changed** — preserve the migration chain and generate against
    `NovaDbContext`:
 
-   ```powershell
-   dotnet ef migrations add <Name> --project Nova --context NovaDbContext
-   ```
+    ```powershell
+    dotnet ef migrations add <Name> --project Nova --context NovaDbContext
+    ```
 
-   Inspect `Up`, `Down`, and the model snapshot; document intentional destructive cleanup.
+    Inspect `Up`, `Down`, and the model snapshot; document intentional destructive cleanup.
+
 8. **Invoke `nova-testing`** — add direct policy tests and provider-agnostic service/invariant tests,
    tenancy visibility and
    cross-tenant-write coverage for every new tenant-owned entity, and PostgreSQL tests for migrations,
    constraints, mappings, advisory locks, or competing transactions.
 9. **Verify model when persistence changed, then build**:
 
-   ```powershell
-   dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext
-   dotnet build Nova.slnx
-   ```
+    ```powershell
+    dotnet ef migrations has-pending-model-changes --project Nova --context NovaDbContext
+    dotnet build Nova.slnx
+    ```
 
-   Skip the EF command when entities/configuration are unchanged. Expect no pending model changes
-   when applicable and a clean build.
+    Skip the EF command when entities/configuration are unchanged. Expect no pending model changes
+    when applicable and a clean build.

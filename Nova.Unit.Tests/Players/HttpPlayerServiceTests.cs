@@ -1,8 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Players;
@@ -28,7 +28,7 @@ public sealed class HttpPlayerServiceTests
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_SendsGetToRosterEndpoint_AndReturnsPagedResult()
+    public async Task GetPlayerRosterAsyncSendsGetToRosterEndpointAndReturnsPagedResultAsync()
     {
         var payload = new PagedResult<PlayerListItem>(
             [
@@ -37,7 +37,7 @@ public sealed class HttpPlayerServiceTests
                     PlayerId = 10,
                     DisplayName = "Alex Archer",
                     GraduationYear = 2031,
-                    LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Archived,
+                    LifecycleStatus = Nova.SharedKernel.Enums.LifecycleStatus.Archived,
                     CurrentTags = [new PlayerRosterTagItem(17, "Speed", "#001122")],
                     ActiveCampaigns = [],
                     JoinedAt = new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)
@@ -51,7 +51,7 @@ public sealed class HttpPlayerServiceTests
             Content = JsonContent.Create(payload)
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpPlayerService(httpClient);
 
@@ -79,14 +79,14 @@ public sealed class HttpPlayerServiceTests
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsServiceProblem_OnNonSuccessStatusCode()
+    public async Task GetPlayerRosterAsyncReturnsServiceProblemOnNonSuccessStatusCodeAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
         {
             Content = JsonContent.Create(new { detail = "Forbidden." })
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpPlayerService(httpClient);
 
@@ -99,14 +99,14 @@ public sealed class HttpPlayerServiceTests
     }
 
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_OnNullSuccessPayload()
+    public async Task GetPlayerRosterAsyncReturnsServerErrorOnNullSuccessPayloadAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("null", System.Text.Encoding.UTF8, "application/json")
         };
 
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpPlayerService(httpClient);
 
@@ -122,14 +122,14 @@ public sealed class HttpPlayerServiceTests
     /// Verifies an empty roster page is a valid successful response.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsEmptyPage_WhenItemsAreEmpty()
+    public async Task GetPlayerRosterAsyncReturnsEmptyPageWhenItemsAreEmptyAsync()
     {
         var payload = new PagedResult<PlayerListItem>([], Page: 1, PageSize: 20, TotalCount: 0);
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -148,13 +148,13 @@ public sealed class HttpPlayerServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData("")]
     [InlineData("{not-json")]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenSuccessBodyIsInvalid(string body)
+    public async Task GetPlayerRosterAsyncReturnsServerErrorWhenSuccessBodyIsInvalidAsync(string body)
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json")
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -169,14 +169,14 @@ public sealed class HttpPlayerServiceTests
     /// Verifies a roster response with an invalid page number is rejected.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenPageInvariantIsInvalid()
+    public async Task GetPlayerRosterAsyncReturnsServerErrorWhenPageInvariantIsInvalidAsync()
     {
         var payload = new PagedResult<PlayerListItem>([], Page: 0, PageSize: 20, TotalCount: 0);
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -191,10 +191,10 @@ public sealed class HttpPlayerServiceTests
     /// Verifies invalid shared input is rejected before a lossy URL builder can normalize it.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsValidationProblem_BeforeSendingInvalidInput()
+    public async Task GetPlayerRosterAsyncReturnsValidationProblemBeforeSendingInvalidInputAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.OK);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -210,7 +210,7 @@ public sealed class HttpPlayerServiceTests
     /// Verifies a roster response cannot exceed the shared page-size contract.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenPageSizeExceedsMaximum()
+    public async Task GetPlayerRosterAsyncReturnsServerErrorWhenPageSizeExceedsMaximumAsync()
     {
         var payload = new PagedResult<PlayerListItem>(
             [],
@@ -221,7 +221,7 @@ public sealed class HttpPlayerServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -240,7 +240,7 @@ public sealed class HttpPlayerServiceTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1, 25)]
     [InlineData(2, 20)]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenPageMetadataDoesNotMatchRequest(
+    public async Task GetPlayerRosterAsyncReturnsServerErrorWhenPageMetadataDoesNotMatchRequestAsync(
         int responsePage,
         int responsePageSize)
     {
@@ -253,7 +253,7 @@ public sealed class HttpPlayerServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -270,10 +270,10 @@ public sealed class HttpPlayerServiceTests
     /// <param name="lifecycleStatus">The lifecycle status returned by the server.</param>
     /// <param name="graduationYear">The graduation year returned by the server.</param>
     [Theory(IncludeTestCaseIndex = true)]
-    [InlineData(Nova.Shared.Enums.LifecycleStatus.Active, 2031)]
-    [InlineData(Nova.Shared.Enums.LifecycleStatus.Archived, 2030)]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenRowDoesNotMatchExactFilters(
-        Nova.Shared.Enums.LifecycleStatus lifecycleStatus,
+    [InlineData(Nova.SharedKernel.Enums.LifecycleStatus.Active, 2031)]
+    [InlineData(Nova.SharedKernel.Enums.LifecycleStatus.Archived, 2030)]
+    public async Task GetPlayerRosterAsyncReturnsServerErrorWhenRowDoesNotMatchExactFiltersAsync(
+        Nova.SharedKernel.Enums.LifecycleStatus lifecycleStatus,
         int graduationYear)
     {
         var player = new PlayerListItem
@@ -291,7 +291,7 @@ public sealed class HttpPlayerServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -311,7 +311,7 @@ public sealed class HttpPlayerServiceTests
     /// Verifies roster rows always require a graduation year within the shared contract.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenGraduationYearIsOutOfRange()
+    public async Task GetPlayerRosterAsyncReturnsServerErrorWhenGraduationYearIsOutOfRangeAsync()
     {
         var player = CreatePlayer(
             10,
@@ -325,7 +325,7 @@ public sealed class HttpPlayerServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -340,7 +340,7 @@ public sealed class HttpPlayerServiceTests
     /// Verifies every returned row contains the requested active-campaign tag.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenRowDoesNotMatchTagFilter()
+    public async Task GetPlayerRosterAsyncReturnsServerErrorWhenRowDoesNotMatchTagFilterAsync()
     {
         var player = CreatePlayer(
             10,
@@ -354,7 +354,7 @@ public sealed class HttpPlayerServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -369,7 +369,7 @@ public sealed class HttpPlayerServiceTests
     /// Verifies joined-date sorting preserves the requested direction.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenJoinedAtOrderIsIncorrect()
+    public async Task GetPlayerRosterAsyncReturnsServerErrorWhenJoinedAtOrderIsIncorrectAsync()
     {
         var older = CreatePlayer(1, "Older", new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var newer = CreatePlayer(2, "Newer", new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero));
@@ -378,7 +378,7 @@ public sealed class HttpPlayerServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -398,7 +398,7 @@ public sealed class HttpPlayerServiceTests
     /// Verifies the player identifier remains the ascending tie-breaker for joined-date sorting.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsServerError_WhenJoinedAtTieBreakerIsIncorrect()
+    public async Task GetPlayerRosterAsyncReturnsServerErrorWhenJoinedAtTieBreakerIsIncorrectAsync()
     {
         var joinedAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var payload = new PagedResult<PlayerListItem>(
@@ -410,7 +410,7 @@ public sealed class HttpPlayerServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -425,7 +425,7 @@ public sealed class HttpPlayerServiceTests
     /// Verifies display-name ties are accepted because the DTO omits the component sort keys.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsRows_WhenDisplayNamesMatchButIdsAreReversed()
+    public async Task GetPlayerRosterAsyncReturnsRowsWhenDisplayNamesMatchButIdsAreReversedAsync()
     {
         var joinedAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var payload = new PagedResult<PlayerListItem>(
@@ -437,7 +437,7 @@ public sealed class HttpPlayerServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -452,14 +452,14 @@ public sealed class HttpPlayerServiceTests
     /// Verifies an eventually consistent total may briefly lag valid returned rows.
     /// </summary>
     [Fact]
-    public async Task GetPlayerRosterAsync_ReturnsRows_WhenTotalTemporarilyLags()
+    public async Task GetPlayerRosterAsyncReturnsRowsWhenTotalTemporarilyLagsAsync()
     {
         var player = new PlayerListItem
         {
             PlayerId = 10,
             DisplayName = "Alex Archer",
             GraduationYear = 2030,
-            LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active,
+            LifecycleStatus = Nova.SharedKernel.Enums.LifecycleStatus.Active,
             CurrentTags = [],
             ActiveCampaigns = [],
             JoinedAt = new DateTimeOffset(2025, 1, 2, 0, 0, 0, TimeSpan.Zero)
@@ -469,7 +469,7 @@ public sealed class HttpPlayerServiceTests
         {
             Content = JsonContent.Create(payload)
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
 
         var result = await new HttpPlayerService(httpClient).GetPlayerRosterAsync(
@@ -497,7 +497,7 @@ public sealed class HttpPlayerServiceTests
             PlayerId = playerId,
             DisplayName = displayName,
             GraduationYear = 2030,
-            LifecycleStatus = Nova.Shared.Enums.LifecycleStatus.Active,
+            LifecycleStatus = Nova.SharedKernel.Enums.LifecycleStatus.Active,
             CurrentTags = [],
             ActiveCampaigns = [],
             JoinedAt = joinedAt

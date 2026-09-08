@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Extensions.Security;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Security;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Security;
@@ -27,7 +27,7 @@ public sealed class AuthorizationPolicyTests
     [InlineData(true, true, Roles.ClubAdmin, true)]
     [InlineData(true, false, Roles.Admin, false)]
     [InlineData(true, true, Roles.Admin, true)]
-    public async Task ClubMemberPolicy_ReturnsExpectedResult_ForAuthorizationMatrix(
+    public async Task ClubMemberPolicyReturnsExpectedResultForAuthorizationMatrixAsync(
         bool isAuthenticated,
         bool hasClub,
         string? role,
@@ -60,7 +60,7 @@ public sealed class AuthorizationPolicyTests
     [InlineData(Policies.RequireClubAdmin, true, Roles.Admin, false)]
     [InlineData(Policies.RequireClubMember, true, Roles.StandardUser, true)]
     [InlineData(Policies.RequireClubMember, false, Roles.Admin, false)]
-    public async Task ExistingPolicy_ReturnsExpectedResult_AfterNovaPolicyRegistration(
+    public async Task ExistingPolicyReturnsExpectedResultAfterNovaPolicyRegistrationAsync(
         string policyName,
         bool hasClub,
         string? role,
@@ -87,7 +87,7 @@ public sealed class AuthorizationPolicyTests
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ClubAdminPolicy_DeniesGlobalAdmin(bool hasClub)
+    public async Task ClubAdminPolicyDeniesGlobalAdminAsync(bool hasClub)
     {
         using var serviceProvider = CreateServiceProvider();
         var authorizationService = serviceProvider.GetRequiredService<IAuthorizationService>();

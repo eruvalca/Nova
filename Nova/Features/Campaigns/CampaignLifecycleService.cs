@@ -5,10 +5,10 @@ using Nova.Data.Configurations;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Activity;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Npgsql;
 using OneOf;
 using OneOf.Types;
@@ -19,7 +19,7 @@ namespace Nova.Features.Campaigns;
 /// Represents every supported outcome of a campaign-close operation.
 /// </summary>
 [GenerateOneOf]
-public partial class CampaignCloseResult : OneOfBase<
+internal partial class CampaignCloseResult : OneOfBase<
     Success,
     NotFound,
     LifecycleForbidden,
@@ -34,7 +34,7 @@ public partial class CampaignCloseResult : OneOfBase<
 /// <param name="dbContextFactory">The tenant-scoped context factory used for lifecycle mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for lifecycle outcomes.</param>
-public sealed partial class CampaignLifecycleService(
+internal sealed partial class CampaignLifecycleService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignLifecycleService> logger) : ICampaignLifecycleService
@@ -136,7 +136,9 @@ public sealed partial class CampaignLifecycleService(
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>The campaign-close result for this attempt.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<CampaignCloseResult> CloseAttemptAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         long campaignId,
         long actorUserId,
@@ -330,7 +332,9 @@ public sealed partial class CampaignLifecycleService(
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>The campaign-reopen result for this attempt.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict>> ReopenAttemptAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         long campaignId,
         long actorUserId,

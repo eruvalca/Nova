@@ -1,10 +1,10 @@
 ﻿using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Mvc;
-using Nova.Features.Shared;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Players;
 
@@ -22,14 +22,14 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
                 .MapGroup(PlayerEndpoints.GroupPrefix)
                 .RequireAuthorization(Policies.RequireClubAdmin);
 
-            group.MapGet(PlayerEndpoints.ImportTemplateRelative, GetTemplateHandler)
+            group.MapGet(PlayerEndpoints.ImportTemplateRelative, GetTemplateHandlerAsync)
                 .Produces(StatusCodes.Status200OK, contentType: PlayerImportConstraints.CsvContentType)
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .ProducesProblem(StatusCodes.Status500InternalServerError)
                 .WithName("GetPlayerImportTemplate");
 
-            group.MapPost(PlayerEndpoints.ImportPreviewRelative, PreviewHandler)
+            group.MapPost(PlayerEndpoints.ImportPreviewRelative, PreviewHandlerAsync)
                 .Produces<PlayerImportPreview>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -47,7 +47,7 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
                 .DisableAntiforgery()
                 .WithName("PreviewPlayerImport");
 
-            group.MapPost(PlayerEndpoints.ImportCommitRelative, CommitHandler)
+            group.MapPost(PlayerEndpoints.ImportCommitRelative, CommitHandlerAsync)
                 .Produces<PlayerImportCompletion>()
                 .ProducesValidationProblem()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -71,7 +71,7 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
         }
     }
 
-    private static async Task<IResult> GetTemplateHandler(
+    private static async Task<IResult> GetTemplateHandlerAsync(
         IPlayerImportService playerImportService,
         CancellationToken cancellationToken)
     {
@@ -82,7 +82,7 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
             template.DownloadFileName));
     }
 
-    private static async Task<IResult> PreviewHandler(
+    private static async Task<IResult> PreviewHandlerAsync(
         [FromForm] IFormFile? file,
         IPlayerImportService playerImportService,
         CancellationToken cancellationToken)
@@ -101,7 +101,7 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
     /// <param name="playerImportService">The authoritative import service.</param>
     /// <param name="cancellationToken">Cancels request processing.</param>
     /// <returns>The completion or trace-correlated problem.</returns>
-    private static async Task<IResult> CommitHandler(
+    private static async Task<IResult> CommitHandlerAsync(
         [FromForm] IFormFile? file,
         [FromForm] Guid? operationId,
         [FromForm] string? confirmationToken,
@@ -155,8 +155,8 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
         }
 
         if (string.IsNullOrWhiteSpace(file.FileName)
-            || file.FileName.Contains('\r')
-            || file.FileName.Contains('\n')
+            || file.FileName.Contains('\r', StringComparison.Ordinal)
+            || file.FileName.Contains('\n', StringComparison.Ordinal)
             || !string.Equals(Path.GetExtension(file.FileName), ".csv", StringComparison.OrdinalIgnoreCase))
         {
             return ServiceProblem.Validation("file", "The uploaded file must have a .csv extension.");
@@ -171,7 +171,9 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
         }
 
         byte[] content;
-        await using (var stream = file.OpenReadStream())
+        var stream = file.OpenReadStream();
+
+        await using (stream)
         using (var buffer = new MemoryStream((int)file.Length))
         {
             var chunk = new byte[16 * 1024];
@@ -187,6 +189,7 @@ internal static class PlayerImportEndpointRouteBuilderExtensions
             }
             content = buffer.ToArray();
         }
+
 
         return new PlayerImportUploadInput
         {

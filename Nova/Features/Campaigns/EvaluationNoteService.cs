@@ -3,11 +3,11 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 using OneOf;
 using OneOf.Types;
 
@@ -21,7 +21,7 @@ namespace Nova.Features.Campaigns;
 /// <param name="dbContextFactory">The tenant-scoped context factory used for note mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for mutation outcomes.</param>
-public sealed partial class EvaluationNoteService(
+internal sealed partial class EvaluationNoteService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<EvaluationNoteService> logger) : ICampaignEvaluationNoteService
@@ -124,7 +124,9 @@ public sealed partial class EvaluationNoteService(
     /// <returns>
     /// Success on add; not-found, forbidden, or conflict information otherwise.
     /// </returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<OneOf<EvaluationNoteMutationSuccess, Error<IReadOnlyDictionary<string, string[]>>, NotFound, LifecycleForbidden, LifecycleConflict>> AddNoteAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         AddEvaluationNoteInput input,
         long actorUserId,

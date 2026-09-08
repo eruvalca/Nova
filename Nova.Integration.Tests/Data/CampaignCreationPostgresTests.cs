@@ -4,10 +4,10 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -23,7 +23,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// Verifies campaign operation identifiers are unique within a club.
     /// </summary>
     [Fact]
-    public async Task CampaignOperationId_RejectsDuplicateWithinClub()
+    public async Task CampaignOperationIdRejectsDuplicateWithinClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
@@ -41,7 +41,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// Verifies the same campaign operation identifier may be used independently by two clubs.
     /// </summary>
     [Fact]
-    public async Task CampaignOperationId_AllowsDuplicateAcrossClubs()
+    public async Task CampaignOperationIdAllowsDuplicateAcrossClubsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var firstClub = await SeedAsync(includePlayers: false, cancellationToken);
@@ -53,12 +53,12 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             CreateCampaign("First Club", firstClub, operationId),
             CreateCampaign("Second Club", secondClub, operationId));
 
-        await db.SaveChangesAsync(cancellationToken);
+        await Should.NotThrowAsync(() => db.SaveChangesAsync(cancellationToken));
     }
 
     /// <summary>Verifies the filtered index permits one Active campaign in each club.</summary>
     [Fact]
-    public async Task OneActiveCampaign_AllowsDifferentClubs()
+    public async Task OneActiveCampaignAllowsDifferentClubsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var firstClub = await SeedAsync(includePlayers: false, cancellationToken);
@@ -70,12 +70,12 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         second.Status = CampaignStatus.Active;
         db.Campaigns.AddRange(first, second);
 
-        await db.SaveChangesAsync(cancellationToken);
+        await Should.NotThrowAsync(() => db.SaveChangesAsync(cancellationToken));
     }
 
     /// <summary>Verifies the filtered index rejects a second Active campaign in one club.</summary>
     [Fact]
-    public async Task OneActiveCampaign_RejectsSecondInSameClub()
+    public async Task OneActiveCampaignRejectsSecondInSameClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
@@ -91,25 +91,28 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies competing Active inserts leave exactly one winner.</summary>
     [Fact]
-    public async Task OneActiveCampaign_CompetingTransactionsYieldOneWinner()
+    public async Task OneActiveCampaignCompetingTransactionsYieldOneWinnerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
 
         async Task<bool> TryInsertAsync(string name)
         {
-            await using var db = fixture.CreateAdminContext();
-            var campaign = CreateCampaign(name, seed, Guid.CreateVersion7());
-            campaign.Status = CampaignStatus.Active;
-            db.Campaigns.Add(campaign);
-            try
+            var db = fixture.CreateAdminContext();
+            await using (db)
             {
-                await db.SaveChangesAsync(cancellationToken);
-                return true;
-            }
-            catch (DbUpdateException)
-            {
-                return false;
+                var campaign = CreateCampaign(name, seed, Guid.CreateVersion7());
+                campaign.Status = CampaignStatus.Active;
+                db.Campaigns.Add(campaign);
+                try
+                {
+                    await db.SaveChangesAsync(cancellationToken);
+                    return true;
+                }
+                catch (DbUpdateException)
+                {
+                    return false;
+                }
             }
         }
 
@@ -127,7 +130,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// Verifies inline-season operation identifiers are unique within a club.
     /// </summary>
     [Fact]
-    public async Task SeasonOperationId_RejectsDuplicateWithinClub()
+    public async Task SeasonOperationIdRejectsDuplicateWithinClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
@@ -145,7 +148,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// Verifies the same inline-season operation identifier may be used independently by two clubs.
     /// </summary>
     [Fact]
-    public async Task SeasonOperationId_AllowsDuplicateAcrossClubs()
+    public async Task SeasonOperationIdAllowsDuplicateAcrossClubsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var firstClub = await SeedAsync(includePlayers: false, cancellationToken);
@@ -157,14 +160,14 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
             CreateSeason("First Club Inline Season", firstClub, operationId),
             CreateSeason("Second Club Inline Season", secondClub, operationId));
 
-        await db.SaveChangesAsync(cancellationToken);
+        await Should.NotThrowAsync(() => db.SaveChangesAsync(cancellationToken));
     }
 
     /// <summary>
     /// Verifies campaign names are unique within one season but may repeat in a different season.
     /// </summary>
     [Fact]
-    public async Task CampaignName_RejectsDuplicateWithinSeason()
+    public async Task CampaignNameRejectsDuplicateWithinSeasonAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
@@ -181,7 +184,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// Verifies campaign names may repeat in different seasons within the same club.
     /// </summary>
     [Fact]
-    public async Task CampaignName_AllowsDuplicateInDifferentSeason()
+    public async Task CampaignNameAllowsDuplicateInDifferentSeasonAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
@@ -206,14 +209,14 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
                 seed with { SeasonId = otherSeason.SeasonId },
                 Guid.CreateVersion7()));
 
-        await db.SaveChangesAsync(cancellationToken);
+        await Should.NotThrowAsync(() => db.SaveChangesAsync(cancellationToken));
     }
 
     /// <summary>
     /// Verifies the composite foreign key rejects a campaign linked to another club's season.
     /// </summary>
     [Fact]
-    public async Task CampaignSeasonForeignKey_RejectsCrossTenantRelationship()
+    public async Task CampaignSeasonForeignKeyRejectsCrossTenantRelationshipAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var firstClub = await SeedAsync(includePlayers: false, cancellationToken);
@@ -232,7 +235,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// Verifies an ambiguous commit returns the original inline season, campaign, and participation set.
     /// </summary>
     [Fact]
-    public async Task Create_VerifiesCompleteAggregate_AfterAmbiguousCommitFailure()
+    public async Task CreateVerifiesCompleteAggregateAfterAmbiguousCommitFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(
@@ -282,7 +285,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// Verifies a transient failure after the first save rolls back and retries with a fresh context.
     /// </summary>
     [Fact]
-    public async Task Create_RetriesFreshTransaction_AfterTransientSaveFailure()
+    public async Task CreateRetriesFreshTransactionAfterTransientSaveFailureAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(
@@ -325,7 +328,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// Verifies an activity-write failure rolls back the inline season and Draft campaign.
     /// </summary>
     [Fact]
-    public async Task Create_RollsBackSeasonCampaignAndActivity_WhenSecondSaveFails()
+    public async Task CreateRollsBackSeasonCampaignAndActivityWhenSecondSaveFailsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(
@@ -364,7 +367,7 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
     /// Verifies creating a player alongside a Draft never enrolls that player in the Draft.
     /// </summary>
     [Fact]
-    public async Task ConcurrentCampaignAndPlayerCreation_DoesNotEnrollPlayerInDraft()
+    public async Task ConcurrentCampaignAndPlayerCreationDoesNotEnrollPlayerInDraftAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await SeedAsync(includePlayers: false, cancellationToken);
@@ -513,54 +516,59 @@ public sealed class CampaignCreationPostgresTests(NovaAppHostFixture fixture)
         bool establishCurrentSeason = true)
     {
         ActAs(userId: null, clubId: null, isAdmin: false);
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-        var club = new ClubEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Campaign Creation Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(cancellationToken);
-
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Existing Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            EndDate = new DateOnly(2026, 12, 31),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Seasons.Add(season);
-        await db.SaveChangesAsync(cancellationToken);
-        if (establishCurrentSeason)
-        {
-            club.CurrentSeasonId = season.SeasonId;
+            var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Campaign Creation Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            db.Clubs.Add(club);
             await db.SaveChangesAsync(cancellationToken);
-        }
 
-        var activePlayerCount = 0;
-        if (includePlayers)
-        {
-            db.Players.AddRange(
-                CreatePlayer("Active One", LifecycleStatus.Active, club.ClubId, actorUserId),
-                CreatePlayer("Active Two", LifecycleStatus.Active, club.ClubId, actorUserId),
-                CreatePlayer("Archived", LifecycleStatus.Archived, club.ClubId, actorUserId));
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Existing Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                EndDate = new DateOnly(2026, 12, 31),
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Seasons.Add(season);
             await db.SaveChangesAsync(cancellationToken);
-            activePlayerCount = 2;
-        }
+            if (establishCurrentSeason)
+            {
+                club.CurrentSeasonId = season.SeasonId;
+                await db.SaveChangesAsync(cancellationToken);
+            }
 
-        return new CampaignCreationSeed(
-            club.ClubId,
-            season.SeasonId,
-            actorUserId,
-            suffix,
-            activePlayerCount);
+            var activePlayerCount = 0;
+            if (includePlayers)
+            {
+                db.Players.AddRange(
+                    CreatePlayer("Active One", LifecycleStatus.Active, club.ClubId, actorUserId),
+                    CreatePlayer("Active Two", LifecycleStatus.Active, club.ClubId, actorUserId),
+                    CreatePlayer("Archived", LifecycleStatus.Archived, club.ClubId, actorUserId));
+                await db.SaveChangesAsync(cancellationToken);
+                activePlayerCount = 2;
+            }
+
+            return new CampaignCreationSeed(
+                club.ClubId,
+                season.SeasonId,
+                actorUserId,
+                suffix,
+                activePlayerCount);
+        }
     }
 
     /// <summary>

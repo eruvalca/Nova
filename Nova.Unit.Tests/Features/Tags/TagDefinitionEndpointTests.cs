@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Features.Tags;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Security;
 using NSubstitute;
 using Shouldly;
 
@@ -21,7 +21,7 @@ public sealed class TagDefinitionEndpointTests
     /// so the endpoint-level policy split cannot silently regress to bare authentication.
     /// </summary>
     [Fact]
-    public async Task TagDefinitionEndpoints_SplitMemberAndAdminAuthorization()
+    public async Task TagDefinitionEndpointsSplitMemberAndAdminAuthorizationAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<ITagDefinitionService>(_ => Substitute.For<ITagDefinitionService>());
@@ -56,7 +56,7 @@ public sealed class TagDefinitionEndpointTests
         string expectedPolicy)
     {
         var endpoint = endpoints.SingleOrDefault(
-            candidate => candidate.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == endpointName);
+            candidate => string.Equals(candidate.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName, endpointName, StringComparison.Ordinal));
 
         endpoint.ShouldNotBeNull($"The endpoint named '{endpointName}' must be registered.");
         endpoint.Metadata

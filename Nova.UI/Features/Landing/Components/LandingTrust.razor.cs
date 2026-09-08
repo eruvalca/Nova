@@ -1,4 +1,5 @@
-﻿using Nova.UI.Components;
+﻿
+using Nova.UI.Components;
 
 namespace Nova.UI.Features.Landing.Components;
 

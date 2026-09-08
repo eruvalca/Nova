@@ -3,11 +3,11 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Attention;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Dashboard;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Attention;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Dashboard;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -25,22 +25,22 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies anonymous callers receive 401 for both dashboard routes.</summary>
     [Fact]
-    public async Task GetEndpoints_RejectAnonymous()
+    public async Task GetEndpointsRejectAnonymousAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymous = fixture.CreateNovaHttpClient();
 
-        using (var summary = await anonymous.GetAsync(DashboardEndpoints.GetSummary, cancellationToken))
+        using (var summary = await anonymous.GetAsync(new Uri(DashboardEndpoints.GetSummary, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             summary.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
 
-        using (var activity = await anonymous.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken))
+        using (var activity = await anonymous.GetAsync(new Uri(ActivityEndpoints.GetClubActivity, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             activity.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
 
-        using (var attention = await anonymous.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        using (var attention = await anonymous.GetAsync(new Uri(AttentionEndpoints.GetClubAttention, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             attention.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         }
@@ -48,7 +48,7 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies authenticated callers without a club receive 403 for both dashboard routes.</summary>
     [Fact]
-    public async Task GetEndpoints_ReturnForbidden_ForAuthenticatedUserWithoutClub()
+    public async Task GetEndpointsReturnForbiddenForAuthenticatedUserWithoutClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -57,17 +57,17 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.UpdateUserAsync(fixture, email, clubId: null, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using (var summary = await client.GetAsync(DashboardEndpoints.GetSummary, cancellationToken))
+        using (var summary = await client.GetAsync(new Uri(DashboardEndpoints.GetSummary, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             summary.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
-        using (var activity = await client.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken))
+        using (var activity = await client.GetAsync(new Uri(ActivityEndpoints.GetClubActivity, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             activity.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
 
-        using (var attention = await client.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        using (var attention = await client.GetAsync(new Uri(AttentionEndpoints.GetClubAttention, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             attention.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
@@ -78,7 +78,9 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
     /// non-admin club member is forbidden.
     /// </summary>
     [Fact]
-    public async Task GetAttention_AdminSeesCounts_MemberForbidden()
+#pragma warning disable MA0051 // Keep this test scenario's setup, action, and assertions together so its invariant is reviewable.
+    public async Task GetAttentionAdminSeesCountsMemberForbiddenAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -95,14 +97,20 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
         await SeedingHelpers.UpdateUserAsync(fixture, memberEmail, club.ClubId, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(memberClient, cancellationToken);
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var adminUserId = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
                 .Where(user => user.NormalizedEmail == adminEmail.ToUpperInvariant())
+#pragma warning restore CA1862
                 .Select(user => user.Id)
                 .SingleAsync(cancellationToken);
             var memberUserId = await context.Users
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
                 .Where(user => user.NormalizedEmail == memberEmail.ToUpperInvariant())
+#pragma warning restore CA1862
                 .Select(user => user.Id)
                 .SingleAsync(cancellationToken);
 
@@ -118,7 +126,7 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        using (var adminResponse = await adminClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        using (var adminResponse = await adminClient.GetAsync(new Uri(AttentionEndpoints.GetClubAttention, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             adminResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
             var attention = await adminResponse.Content.ReadFromJsonAsync<ClubAttentionResult>(cancellationToken);
@@ -130,7 +138,7 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
             attention.NeedsPlacement.CampaignId.ShouldNotBeNull();
         }
 
-        using (var memberResponse = await memberClient.GetAsync(AttentionEndpoints.GetClubAttention, cancellationToken))
+        using (var memberResponse = await memberClient.GetAsync(new Uri(AttentionEndpoints.GetClubAttention, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             memberResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }
@@ -138,7 +146,7 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies the activity endpoint serializes a successful, bounded result.</summary>
     [Fact]
-    public async Task GetActivity_ReturnsSuccess()
+    public async Task GetActivityReturnsSuccessAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -146,10 +154,10 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
         var email = SeedingHelpers.UniqueEmail("dashboard-activity");
         await IdentityHttpClientHelper.RegisterUserWithCompletedProfilePhotoAsync(client, email, Password, cancellationToken);
         await SeedingHelpers.UpdateUserAsync(fixture, email, clubId: null, cancellationToken);
-        var club = await SeedingHelpers.CreateClubAsync(client, cancellationToken);
+        _ = await SeedingHelpers.CreateClubAsync(client, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using (var response = await client.GetAsync(ActivityEndpoints.GetClubActivity, cancellationToken))
+        using (var response = await client.GetAsync(new Uri(ActivityEndpoints.GetClubActivity, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
             var activity = await response.Content.ReadFromJsonAsync<ClubActivityResult>(cancellationToken);
@@ -163,7 +171,7 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(0)]
     [InlineData(5)]
-    public async Task GetActivity_PartialCursor_ReturnsValidationProblem_WithTraceId(long beforeActivityEventId)
+    public async Task GetActivityPartialCursorReturnsValidationProblemWithTraceIdAsync(long beforeActivityEventId)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -174,7 +182,7 @@ public sealed class DashboardHttpTests(NovaAppHostFixture fixture)
         _ = await SeedingHelpers.CreateClubAsync(client, cancellationToken);
         await SeedingHelpers.RefreshClubMembershipCookieAsync(client, cancellationToken);
 
-        using var response = await client.GetAsync($"{ActivityEndpoints.GetClubActivity}?beforeActivityEventId={beforeActivityEventId}", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ActivityEndpoints.GetClubActivity}?beforeActivityEventId={beforeActivityEventId}", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
         document.ShouldNotBeNull();

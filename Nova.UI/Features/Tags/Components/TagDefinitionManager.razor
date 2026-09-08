@@ -1,6 +1,6 @@
 @using Microsoft.AspNetCore.Components.Forms
-@using Nova.Shared.Enums
-@using Nova.Shared.Features.Tags
+@using Nova.SharedKernel.Enums
+@using Nova.SharedKernel.Features.Tags
 @using Nova.UI.Features.Players
 
 <section class="card shadow-sm border-0">
@@ -10,7 +10,8 @@
                 <h2 class="h4 mb-1">Tags</h2>
                 <p class="text-muted small mb-0">Manage the tag definitions available for player evaluations.</p>
             </div>
-            <button type="button" class="btn btn-primary" disabled="@(_isLoading || _isMutating)" @onclick="StartCreate">Add tag</button>
+            <button type="button" class="btn btn-primary" disabled="@(_isLoading || _isMutating)"
+                    @onclick="StartCreate">Add tag</button>
         </div>
 
         @if (Error is not null)
@@ -49,7 +50,8 @@
                         <div class="col-md-5">
                             <label for="tag-color" class="form-label">Color</label>
                             <div class="d-flex align-items-center gap-2">
-                                <InputText id="tag-color" type="color" class="form-control form-control-color" @bind-Value="_form.Color" />
+                                <InputText id="tag-color" type="color" class="form-control form-control-color"
+                                           @bind-Value="_form.Color" />
                                 <span class="text-muted small text-uppercase">@_form.Color</span>
                             </div>
                             <ValidationMessage For="() => _form.Color" class="text-danger small" />
@@ -64,7 +66,8 @@
                             }
                             @(_form.IsEdit ? "Save" : "Create")
                         </button>
-                        <button type="button" class="btn btn-outline-secondary" disabled="@_isMutating" @onclick="CancelForm">Cancel</button>
+                        <button type="button" class="btn btn-outline-secondary" disabled="@_isMutating"
+                                @onclick="CancelForm">Cancel</button>
                     </div>
                 </EditForm>
             </div>
@@ -72,51 +75,64 @@
 
         @if (_archiveTarget is not null)
         {
-            <div class="alert alert-warning d-flex flex-column flex-md-row justify-content-between align-items-start gap-2" role="alert">
+            <div class="alert alert-warning d-flex flex-column flex-md-row justify-content-between align-items-start gap-2"
+                 role="alert">
                 <div>
                     <strong>Archive "@_archiveTarget.Name"?</strong>
                     <p class="mb-0 small">Archived tags remain on existing players but are hidden from new evaluations.</p>
                 </div>
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-sm btn-warning" disabled="@_isMutating" @onclick="ConfirmArchiveAsync">Archive</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelArchive">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-warning" disabled="@_isMutating"
+                            @onclick="ConfirmArchiveAsync">Archive</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating"
+                            @onclick="CancelArchive">Cancel</button>
                 </div>
             </div>
         }
 
         @if (_restoreTarget is not null)
         {
-            <div class="alert alert-info d-flex flex-column flex-md-row justify-content-between align-items-start gap-2" role="alert">
+            <div class="alert alert-info d-flex flex-column flex-md-row justify-content-between align-items-start gap-2"
+                 role="alert">
                 <div>
                     <strong>Restore "@_restoreTarget.Name"?</strong>
                     <p class="mb-0 small">Restored tags become available for new evaluations.</p>
                 </div>
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-sm btn-success" disabled="@_isMutating" @onclick="ConfirmRestoreAsync">Restore</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating" @onclick="CancelRestore">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-success" disabled="@_isMutating"
+                            @onclick="ConfirmRestoreAsync">Restore</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_isMutating"
+                            @onclick="CancelRestore">Cancel</button>
                 </div>
             </div>
         }
 
         <div class="d-flex flex-wrap gap-2 mb-3">
             <div class="btn-group" role="group" aria-label="Tag lifecycle filter">
-                <button type="button" class="btn btn-sm @(LifecycleView == "active" ? "btn-primary" : "btn-outline-primary")"
-                        aria-pressed="@(LifecycleView == "active")"
-                        disabled="@(_isLoading || _isMutating)" @onclick="@(() => ApplyViewAsync("active"))">Active</button>
-                <button type="button" class="btn btn-sm @(LifecycleView == "archived" ? "btn-primary" : "btn-outline-primary")"
-                        aria-pressed="@(LifecycleView == "archived")"
-                        disabled="@(_isLoading || _isMutating)" @onclick="@(() => ApplyViewAsync("archived"))">Archived</button>
-                <button type="button" class="btn btn-sm @(LifecycleView == "all" ? "btn-primary" : "btn-outline-primary")"
-                        aria-pressed="@(LifecycleView == "all")"
-                        disabled="@(_isLoading || _isMutating)" @onclick="@(() => ApplyViewAsync("all"))">All</button>
+                <button type="button"
+                        class="btn btn-sm @(LifecycleView == "active" ? "btn-primary" : "btn-outline-primary")"
+                        aria-pressed="@(LifecycleView == "active")" disabled="@(_isLoading || _isMutating)"
+                        @onclick="@(() => ApplyViewAsync("active"))">Active</button>
+                <button type="button"
+                        class="btn btn-sm @(LifecycleView == "archived" ? "btn-primary" : "btn-outline-primary")"
+                        aria-pressed="@(LifecycleView == "archived")" disabled="@(_isLoading || _isMutating)"
+                        @onclick="@(() => ApplyViewAsync("archived"))">Archived</button>
+                <button type="button"
+                        class="btn btn-sm @(LifecycleView == "all" ? "btn-primary" : "btn-outline-primary")"
+                        aria-pressed="@(LifecycleView == "all")" disabled="@(_isLoading || _isMutating)"
+                        @onclick="@(() => ApplyViewAsync("all"))">All</button>
             </div>
 
             <div class="input-group input-group-sm tag-search">
-                <input type="text" class="form-control" placeholder="Search names" aria-label="Search tag names" maxlength="@TagDefinitionLimits.MaxSearchLength" disabled="@(_isLoading || _isMutating)" @bind="_searchInput" @bind:event="oninput" />
-                <button type="button" class="btn btn-outline-secondary" disabled="@(_isLoading || _isMutating)" @onclick="ApplySearchAsync">Search</button>
+                <input type="text" class="form-control" placeholder="Search names" aria-label="Search tag names"
+                       maxlength="@TagDefinitionLimits.MaxSearchLength" disabled="@(_isLoading || _isMutating)"
+                       @bind="_searchInput" @bind:event="oninput" />
+                <button type="button" class="btn btn-outline-secondary" disabled="@(_isLoading || _isMutating)"
+                        @onclick="ApplySearchAsync">Search</button>
                 @if (!string.IsNullOrEmpty(AppliedSearch))
                 {
-                    <button type="button" class="btn btn-outline-secondary" aria-label="Clear search" disabled="@(_isLoading || _isMutating)" @onclick="ClearSearchAsync">&times;</button>
+                    <button type="button" class="btn btn-outline-secondary" aria-label="Clear search"
+                            disabled="@(_isLoading || _isMutating)" @onclick="ClearSearchAsync">&times;</button>
                 }
             </div>
         </div>
@@ -137,22 +153,27 @@
                     <div class="border rounded p-3">
                         <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="tag-swatch" style="@PlayerTagStyle.BuildBadgeStyle(tag.Color)" aria-hidden="true"></span>
+                                <span class="tag-swatch" style="@PlayerTagStyle.BuildBadgeStyle(tag.Color)"
+                                      aria-hidden="true"></span>
                                 <span class="visually-hidden">Color @tag.Color</span>
                                 <div>
                                     <div class="fw-semibold">@tag.Name</div>
-                                    <span class="@LifecycleBadgeClass(tag.LifecycleStatus)">@LifecycleLabel(tag.LifecycleStatus)</span>
+                                    <span
+                                    class="@LifecycleBadgeClass(tag.LifecycleStatus)">@LifecycleLabel(tag.LifecycleStatus)</span>
                                 </div>
                             </div>
                             <div class="d-flex flex-wrap gap-2">
                                 @if (tag.LifecycleStatus == LifecycleStatus.Active)
                                 {
-                                    <button type="button" class="btn btn-sm btn-outline-primary" disabled="@_isMutating" @onclick="@(() => StartEdit(tag))">Edit</button>
-                                    <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_isMutating" @onclick="@(() => BeginArchive(tag))">Archive</button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" disabled="@_isMutating"
+                                            @onclick="@(() => StartEdit(tag))">Edit</button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning" disabled="@_isMutating"
+                                            @onclick="@(() => BeginArchive(tag))">Archive</button>
                                 }
                                 else
                                 {
-                                    <button type="button" class="btn btn-sm btn-outline-success" disabled="@_isMutating" @onclick="@(() => BeginRestore(tag))">Restore</button>
+                                    <button type="button" class="btn btn-sm btn-outline-success" disabled="@_isMutating"
+                                            @onclick="@(() => BeginRestore(tag))">Restore</button>
                                 }
                             </div>
                         </div>
@@ -161,9 +182,10 @@
 
                 @if (HasMore)
                 {
-                    <p class="text-muted small mb-0">Showing the first @TagDefinitionLimits.MaxTagDefinitions results. Refine your search to see more.</p>
-                }
-            </div>
-        }
-    </div>
-</section>
+                    <p class="text-muted small mb-0">Showing the first @TagDefinitionLimits.MaxTagDefinitions results. Refine
+                        your search to see more.</p>
+                    }
+                </div>
+            }
+        </div>
+    </section>

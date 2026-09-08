@@ -8,7 +8,7 @@ namespace Nova.Data.Configurations;
 /// Configures EF Core mapping for <see cref="NoteEntity"/>, associating evaluation notes
 /// with campaign participation as the dependent side of the relationship.
 /// </summary>
-public class NoteEntityConfiguration : IEntityTypeConfiguration<NoteEntity>
+internal class NoteEntityConfiguration : IEntityTypeConfiguration<NoteEntity>
 {
     /// <summary>
     /// Applies the entity configuration.

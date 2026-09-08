@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Components;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+﻿
+using Microsoft.AspNetCore.Components;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.UI.Components;
 
 namespace Nova.UI.Features.Campaigns.Components;
@@ -370,5 +371,5 @@ public partial class CampaignCloseoutPanel(
     /// <param name="closedAt">The closure timestamp, or <see langword="null"/> when unavailable.</param>
     /// <returns>The formatted closure timestamp.</returns>
     private static string FormatClosedDate(DateTimeOffset? closedAt)
-        => closedAt is null ? "unknown date" : closedAt.Value.ToString("MMM d, yyyy");
+        => closedAt is null ? "unknown date" : closedAt.Value.ToString("MMM d, yyyy", System.Globalization.CultureInfo.CurrentCulture);
 }

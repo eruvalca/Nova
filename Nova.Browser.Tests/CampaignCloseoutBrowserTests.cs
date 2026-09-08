@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -17,7 +17,7 @@ namespace Nova.Browser.Tests;
 public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
 {
     [Fact]
-    public async Task Admin_OverviewAndCloseout_HappyPath_ResolvesBlockers_AndCloses_IntoReadOnlyState()
+    public async Task AdminOverviewAndCloseoutHappyPathResolvesBlockersAndClosesIntoReadOnlyStateAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -64,7 +64,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Admin_BlockedClose_ShowsBlockerDetails_CloseDisabled_AndNothingFrozen()
+    public async Task AdminBlockedCloseShowsBlockerDetailsCloseDisabledAndNothingFrozenAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -95,7 +95,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     /// <summary>Verifies automatic enrollment invalidates stale readiness without freezing campaign editing.</summary>
     /// <returns>A task representing the concurrent closeout browser scenario.</returns>
     [Fact]
-    public async Task Admin_StaleBlockedClose_ShowsConflictAlert_WithoutFreezing()
+    public async Task AdminStaleBlockedCloseShowsConflictAlertWithoutFreezingAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -148,7 +148,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Admin_ReopenConfirm_RestoresEditing_PreservingOutcomesAndHistory()
+    public async Task AdminReopenConfirmRestoresEditingPreservingOutcomesAndHistoryAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -192,7 +192,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task NonAdmin_ClosedCampaign_RendersReadOnly_WithoutCloseReopenControls()
+    public async Task NonAdminClosedCampaignRendersReadOnlyWithoutCloseReopenControlsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -217,7 +217,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task DirectCloseoutOverviewUrls_AndBackNavigation_PreserveTabContext()
+    public async Task DirectCloseoutOverviewUrlsAndBackNavigationPreserveTabContextAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -262,7 +262,9 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Closeout_KeyboardAndA11y_AcrossWideAndNarrowViewports()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task CloseoutKeyboardAndA11yAcrossWideAndNarrowViewportsAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -272,8 +274,6 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             seed.ReadyCampaignId,
             seed.AdminUserId,
             cancellationToken);
-
-        // Wide viewport: keyboard-only close and reopen with visible focus and announcements.
         await using var wideContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, CloseoutSeed.Password);
         var page = wideContext.Pages[0];
 
@@ -333,11 +333,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
             seed.BlockedCampaignId,
             seed.AdminUserId,
             cancellationToken);
-
-        // Narrow viewport: checklist renders, blocker rows are distinguishable by text, and the
-        // close/reopen controls meet the WCAG 2.5.8 minimum target size (24×24 CSS px).
         await using var narrowContext = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail, CloseoutSeed.Password, new ViewportSize { Width = 480, Height = 800 });
+                    seed.AdminEmail, CloseoutSeed.Password, new ViewportSize { Width = 480, Height = 800 });
         var narrowPage = narrowContext.Pages[0];
 
         await OpenCloseoutAsync(narrowPage, seed.BlockedCampaignId);
@@ -354,9 +351,9 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Closeout_A11yEvidence_CapturesScreenshots()
+    public async Task CloseoutA11yEvidenceCapturesScreenshotsAsync()
     {
-        if (Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS") != "1")
+        if (!string.Equals(Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS"), "1", StringComparison.Ordinal))
         {
             Assert.Skip("Set NOVA_A11Y_SCREENSHOTS=1 to capture closeout accessibility evidence.");
         }
@@ -375,7 +372,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Closeout_Loading_ShowsIndicator_ThenRendersChecklist()
+    public async Task CloseoutLoadingShowsIndicatorThenRendersChecklistAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -411,7 +408,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     }
 
     [Fact]
-    public async Task Closeout_Failure_ShowsRetry_AndRetryRecovers()
+    public async Task CloseoutFailureShowsRetryAndRetryRecoversAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await CloseoutSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -508,8 +505,8 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
     {
         await Expect(row).ToBeVisibleAsync();
         var outcomeSelect = row.Locator("select[aria-label^='Outcome for']");
-        var outcomeValue = ((int)outcome).ToString();
-        var alternateValue = ((int)(outcome == PlacementOutcome.NotSelected ? PlacementOutcome.Assigned : PlacementOutcome.NotSelected)).ToString();
+        var outcomeValue = ((int)outcome).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var alternateValue = ((int)(outcome == PlacementOutcome.NotSelected ? PlacementOutcome.Assigned : PlacementOutcome.NotSelected)).ToString(System.Globalization.CultureInfo.InvariantCulture);
         var teamSelect = row.Locator("select[aria-label^='Team for']");
         var save = row.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
 
@@ -526,7 +523,7 @@ public sealed class CampaignCloseoutBrowserTests(BrowserSuiteFixture fixture)
                 if (outcome == PlacementOutcome.Assigned)
                 {
                     await Expect(teamSelect).ToBeEnabledAsync(new() { Timeout = 1500 });
-                    await teamSelect.SelectOptionAsync(teamId!.Value.ToString());
+                    await teamSelect.SelectOptionAsync(teamId!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 }
             }
             catch (Exception exception) when (exception is PlaywrightException or TimeoutException)

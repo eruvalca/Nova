@@ -1,7 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Results;
@@ -14,14 +14,14 @@ namespace Nova.Unit.Tests.Results;
 public class HttpResponseMessageExtensionsTests
 {
     [Fact]
-    public async Task ToServiceProblemAsync_ReturnsValidation_For400WithErrorsBody()
+    public async Task ToServiceProblemAsyncReturnsValidationFor400WithErrorsBodyAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
             Content = JsonContent.Create(new
             {
                 detail = "Please correct the validation errors.",
-                errors = new Dictionary<string, string[]>
+                errors = new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
                     ["file"] = ["The photo is too large.", "The photo must be an image."]
                 }
@@ -37,7 +37,7 @@ public class HttpResponseMessageExtensionsTests
     }
 
     [Fact]
-    public async Task ToServiceProblemAsync_ReturnsBadRequest_For400WithPlainProblemDetails()
+    public async Task ToServiceProblemAsyncReturnsBadRequestFor400WithPlainProblemDetailsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
@@ -57,7 +57,7 @@ public class HttpResponseMessageExtensionsTests
     [InlineData(HttpStatusCode.Conflict, ServiceProblemKind.Conflict)]
     [InlineData(HttpStatusCode.InternalServerError, ServiceProblemKind.ServerError)]
     [InlineData(HttpStatusCode.BadGateway, ServiceProblemKind.ServerError)]
-    public async Task ToServiceProblemAsync_MapsStatusCode_ToProblemKind(
+    public async Task ToServiceProblemAsyncMapsStatusCodeToProblemKindAsync(
         HttpStatusCode statusCode,
         ServiceProblemKind expectedKind)
     {
@@ -73,14 +73,14 @@ public class HttpResponseMessageExtensionsTests
     }
 
     [Fact]
-    public async Task ToServiceProblemAsync_ReturnsValidation_For422WithErrorsBody()
+    public async Task ToServiceProblemAsyncReturnsValidationFor422WithErrorsBodyAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
         {
             Content = JsonContent.Create(new
             {
                 detail = "Please correct the validation errors.",
-                errors = new Dictionary<string, string[]>
+                errors = new Dictionary<string, string[]>(StringComparer.Ordinal)
                 {
                     ["firstName"] = ["First name is required."]
                 }
@@ -96,7 +96,7 @@ public class HttpResponseMessageExtensionsTests
     }
 
     [Fact]
-    public async Task ToServiceProblemAsync_ReturnsValidation_For422WithoutErrors()
+    public async Task ToServiceProblemAsyncReturnsValidationFor422WithoutErrorsAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
         {
@@ -111,7 +111,7 @@ public class HttpResponseMessageExtensionsTests
     }
 
     [Fact]
-    public async Task ToServiceProblemAsync_ReturnsNullDetail_ForEmptyBody()
+    public async Task ToServiceProblemAsyncReturnsNullDetailForEmptyBodyAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NotFound);
 
@@ -122,7 +122,7 @@ public class HttpResponseMessageExtensionsTests
     }
 
     [Fact]
-    public async Task ToServiceProblemAsync_DoesNotThrow_ForNonJsonBody()
+    public async Task ToServiceProblemAsyncDoesNotThrowForNonJsonBodyAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.InternalServerError)
         {
@@ -136,12 +136,12 @@ public class HttpResponseMessageExtensionsTests
     }
 
     [Fact]
-    public async Task ToServiceProblemAsync_ReadsBodyOnce_FromRealStringContent()
+    public async Task ToServiceProblemAsyncReadsBodyOnceFromRealStringContentAsync()
     {
         // Regression: the previous implementation read the body twice, which threw
         // ObjectDisposedException on the second read for real response content. A single
         // conversion must surface both detail and errors from one body read.
-        const string body = """
+        const string Body = """
             {
               "title": "One or more validation errors occurred.",
               "status": 400,
@@ -152,7 +152,7 @@ public class HttpResponseMessageExtensionsTests
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
         {
-            Content = new StringContent(body, Encoding.UTF8, "application/problem+json")
+            Content = new StringContent(Body, Encoding.UTF8, "application/problem+json")
         };
 
         var problem = await response.ToServiceProblemAsync(TestContext.Current.CancellationToken);

@@ -1655,10 +1655,11 @@ export function expandScanTargets(primaryTargets, projectCwd) {
 }
 
 export function writeAuditLog(env, entry, cwd = process.cwd()) {
-  // The event's project root (entry.cwd) when present, else the passed cwd. Both
-  // config reads and relative log paths resolve against this, since the hook
-  // process cwd can differ from the project being edited.
-  const baseCwd = entry && typeof entry.cwd === 'string' && entry.cwd ? entry.cwd : cwd;
+  // Early skips (including malformed stdin) have no event root. Honor the repo
+  // wrapper's root before the process cwd for config and relative audit paths.
+  const baseCwd = entry && typeof entry.cwd === 'string' && entry.cwd
+    ? entry.cwd
+    : env?.IMPECCABLE_HOOK_PROJECT_ROOT || cwd;
   // Env wins; otherwise fall back to the unified config's hook.auditLog path.
   let target = env?.IMPECCABLE_HOOK_LOG;
   if (!target || typeof target !== 'string') {
@@ -1911,7 +1912,9 @@ export async function runHook({ stdinJson, env = {}, cwd = process.cwd(), now = 
 
     const sessionCwd = event.cwd || cwd;
     const primaryFiles = normalizeScanTargets(resolveTargetFiles(event, sessionCwd), sessionCwd);
-    const projectCwd = resolveCacheCwd(primaryFiles[0], sessionCwd);
+    const projectCwd = env.IMPECCABLE_HOOK_PROJECT_ROOT
+      ? path.resolve(env.IMPECCABLE_HOOK_PROJECT_ROOT)
+      : resolveCacheCwd(primaryFiles[0], sessionCwd);
     audit.cwd = projectCwd;
     const primaryFileSet = new Set(primaryFiles);
     const targetFiles = expandScanTargets(primaryFiles, projectCwd);
@@ -2339,7 +2342,9 @@ export async function runStopHook({ stdinJson, env = {}, cwd = process.cwd(), no
     // Umbrella-dir launches keyed their per-edit cache to the edited file's
     // project root (resolveCacheCwd); those sessions no-op here rather than
     // guessing which child project the session was about.
-    const projectCwd = path.resolve(event.cwd || cwd);
+    // Repo wrappers pin the cache/config root without changing event.cwd,
+    // which still owns relative edit paths in nested sessions.
+    const projectCwd = path.resolve(env.IMPECCABLE_HOOK_PROJECT_ROOT || event.cwd || cwd);
     audit.cwd = projectCwd;
     const sessionId = event.session_id || 'unknown';
     audit.session = sessionId;

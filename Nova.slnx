@@ -9,7 +9,7 @@
   <Project Path="Nova.Client/Nova.Client.csproj" />
   <Project Path="Nova.Integration.Tests/Nova.Integration.Tests.csproj" />
   <Project Path="Nova.ServiceDefaults/Nova.ServiceDefaults.csproj" />
-  <Project Path="Nova.Shared/Nova.Shared.csproj" />
+  <Project Path="Nova.SharedKernel/Nova.SharedKernel.csproj" />
   <Project Path="Nova.UI/Nova.UI.csproj" />
   <Project Path="Nova.Unit.Tests/Nova.Unit.Tests.csproj" />
   <Project Path="Nova/Nova.csproj" />

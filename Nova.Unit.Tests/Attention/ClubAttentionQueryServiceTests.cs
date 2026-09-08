@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Attention;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Attention;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Attention;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
@@ -37,7 +37,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
 
     /// <summary>Verifies an unsigned-in caller cannot read the attention projection.</summary>
     [Fact]
-    public async Task GetClubAttention_ReturnsForbidden_WhenNotSignedIn()
+    public async Task GetClubAttentionReturnsForbiddenWhenNotSignedInAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -50,7 +50,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
 
     /// <summary>Verifies a signed-in member without club administration cannot read the projection.</summary>
     [Fact]
-    public async Task GetClubAttention_ReturnsForbidden_ForNonAdministrator()
+    public async Task GetClubAttentionReturnsForbiddenForNonAdministratorAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -64,7 +64,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
 
     /// <summary>Verifies an administrator without a club identifier is forbidden.</summary>
     [Fact]
-    public async Task GetClubAttention_ReturnsForbidden_WhenAdminHasNoClub()
+    public async Task GetClubAttentionReturnsForbiddenWhenAdminHasNoClubAsync()
     {
         _harness.CurrentUser.UserId = ClubAAdminId;
         _harness.CurrentUser.ClubId = null;
@@ -78,7 +78,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
 
     /// <summary>Verifies the pending-request count and oldest-request time for an administrator.</summary>
     [Fact]
-    public async Task GetClubAttention_CountsPendingRequests_WithOldestTimestamp()
+    public async Task GetClubAttentionCountsPendingRequestsWithOldestTimestampAsync()
     {
         SeedJoinRequests(ClubAId, new[]
         {
@@ -107,7 +107,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
 
     /// <summary>Verifies an empty pending-request region reports zero without a timestamp.</summary>
     [Fact]
-    public async Task GetClubAttention_ReportsEmptyPendingRegion_WithNoTimestamp()
+    public async Task GetClubAttentionReportsEmptyPendingRegionWithNoTimestampAsync()
     {
         _harness.CurrentUser.UserId = ClubAAdminId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -125,7 +125,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
     /// <summary>Verifies the needs-placement count is scoped to the newest Active campaign's
     /// unresolved assignments (not summed across campaigns), and names that target campaign.</summary>
     [Fact]
-    public async Task GetClubAttention_CountsNeedsPlacement_WithNewestCampaignName()
+    public async Task GetClubAttentionCountsNeedsPlacementWithNewestCampaignNameAsync()
     {
         SeedCampaignWithPlayers(ClubAId, "Older Campaign", new DateOnly(2026, 5, 1), CampaignStatus.Closed, new[]
         {
@@ -157,7 +157,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
 
     /// <summary>Verifies the needs-placement query never counts assignments in a closed campaign.</summary>
     [Fact]
-    public async Task GetClubAttention_ExcludesClosedCampaignAssignments()
+    public async Task GetClubAttentionExcludesClosedCampaignAssignmentsAsync()
     {
         SeedCampaignWithPlayers(ClubAId, "Closed Campaign", new DateOnly(2026, 5, 1), CampaignStatus.Closed, new[]
         {
@@ -180,7 +180,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
 
     /// <summary>Verifies cross-club assignments are never counted for the current club.</summary>
     [Fact]
-    public async Task GetClubAttention_ExcludesOtherClubAssignments()
+    public async Task GetClubAttentionExcludesOtherClubAssignmentsAsync()
     {
         SeedCampaignWithPlayers(ClubAId, "Club A Campaign", new DateOnly(2026, 6, 1), CampaignStatus.Active, new[]
         {
@@ -207,7 +207,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
     /// <summary>Verifies a region failure still returns a loaded result, marking both regions
     /// unavailable rather than failing the whole projection.</summary>
     [Fact]
-    public async Task GetClubAttention_IsolatesRegionFailures()
+    public async Task GetClubAttentionIsolatesRegionFailuresAsync()
     {
         var throwingFactory = Substitute.For<IDbContextFactory<NovaReadDbContext>>();
         throwingFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
@@ -231,7 +231,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
     /// <summary>Verifies a pending-requests region failure does not hide a loadable
     /// needs-placement region (the regions read on separate contexts, in order).</summary>
     [Fact]
-    public async Task GetClubAttention_IsolatesPendingRequestFailure_WhenNeedsPlacementLoads()
+    public async Task GetClubAttentionIsolatesPendingRequestFailureWhenNeedsPlacementLoadsAsync()
     {
         SeedJoinRequests(ClubAId, new[]
         {
@@ -275,7 +275,7 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
     /// <summary>Verifies a needs-placement region failure does not hide a loadable pending
     /// requests region (the regions read on separate contexts, in order).</summary>
     [Fact]
-    public async Task GetClubAttention_IsolatesNeedsPlacementFailure_WhenPendingRequestsLoad()
+    public async Task GetClubAttentionIsolatesNeedsPlacementFailureWhenPendingRequestsLoadAsync()
     {
         SeedJoinRequests(ClubAId, new[]
         {
@@ -377,7 +377,9 @@ public sealed class ClubAttentionQueryServiceTests : IDisposable
     /// <param name="startDate">The campaign start date.</param>
     /// <param name="campaignStatus">The campaign lifecycle status.</param>
     /// <param name="players">The players to create with their assignment facts.</param>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void SeedCampaignWithPlayers(
+#pragma warning restore MA0051
         long clubId,
         string campaignName,
         DateOnly startDate,

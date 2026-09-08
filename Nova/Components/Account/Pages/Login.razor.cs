@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -19,12 +20,12 @@ public partial class Login(
     /// <summary>
     /// Stores the error message to display when login fails.
     /// </summary>
-    private string? errorMessage;
+    private string? _errorMessage;
 
     /// <summary>
     /// Manages form validation state for the login form.
     /// </summary>
-    private EditContext editContext = default!;
+    private EditContext _editContext = default!;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -47,8 +48,10 @@ public partial class Login(
     /// <summary>
     /// Gets the Register page URL carrying the current return URL.
     /// </summary>
+#pragma warning disable CA1056 // Blazor binding and NavigationManager consume string URLs in this component contract.
     protected string RegisterUrl => navigationManager.GetUriWithQueryParameters(
-        "Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl });
+#pragma warning restore CA1056
+        "Account/Register", new Dictionary<string, object?>(StringComparer.Ordinal) { ["ReturnUrl"] = ReturnUrl });
 
     /// <summary>
     /// Initializes the login form and clears any existing external authentication cookie on GET requests.
@@ -58,7 +61,7 @@ public partial class Login(
     {
         Input ??= new();
 
-        editContext = new EditContext(Input);
+        _editContext = new EditContext(Input);
 
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
@@ -71,11 +74,11 @@ public partial class Login(
     /// Attempts to log in the user with either a passkey or password, handling 2FA, lockout, and redirects.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task LoginUser()
+    public async Task LoginUserAsync()
     {
         if (!string.IsNullOrEmpty(Input.Passkey?.Error))
         {
-            errorMessage = $"Error: {Input.Passkey.Error}";
+            _errorMessage = $"Error: {Input.Passkey.Error}";
             return;
         }
 
@@ -88,7 +91,7 @@ public partial class Login(
         else
         {
             // If doing a password sign-in, validate the form.
-            if (!editContext.Validate())
+            if (!_editContext.Validate())
             {
                 return;
             }
@@ -108,7 +111,7 @@ false);
         {
             redirectManager.RedirectTo(
                 "Account/LoginWith2fa",
-                new() { ["returnUrl"] = ReturnUrl, ["rememberMe"] = Input.RememberMe });
+                new Dictionary<string, object?>(StringComparer.Ordinal) { ["returnUrl"] = ReturnUrl, ["rememberMe"] = Input.RememberMe });
         }
         else if (result.IsLockedOut)
         {
@@ -117,7 +120,7 @@ false);
         }
         else
         {
-            errorMessage = "Error: Invalid login attempt.";
+            _errorMessage = "Error: Invalid login attempt.";
         }
     }
 
@@ -161,6 +164,8 @@ false);
         /// <summary>
         /// Gets or sets the optional passkey credential for passkey-based login.
         /// </summary>
+#pragma warning disable S3459, S1144 // ASP.NET Core form binding populates the passkey submitted by the collocated form.
         public PasskeyInputModel? Passkey { get; set; }
+#pragma warning restore S3459, S1144
     }
 }

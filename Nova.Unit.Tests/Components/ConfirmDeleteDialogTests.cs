@@ -1,5 +1,5 @@
 ﻿using Bunit;
-using Nova.UI.Shared;
+using Nova.UI.Common;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Components;
@@ -11,7 +11,7 @@ namespace Nova.Unit.Tests.Components;
 public class ConfirmDeleteDialogTests
 {
     [Fact]
-    public void ConfirmButton_IsDisabled_Initially()
+    public void ConfirmButtonIsDisabledInitially()
     {
         // Arrange
         using var testContext = new BunitContext();
@@ -30,7 +30,7 @@ public class ConfirmDeleteDialogTests
     }
 
     [Fact]
-    public void ConfirmButton_IsEnabled_AfterConfirmationCheckboxIsChecked()
+    public void ConfirmButtonIsEnabledAfterConfirmationCheckboxIsChecked()
     {
         // Arrange
         using var testContext = new BunitContext();
@@ -50,7 +50,7 @@ public class ConfirmDeleteDialogTests
     }
 
     [Fact]
-    public void ConfirmButton_IsDisabled_AfterConfirmationCheckboxIsUnchecked()
+    public void ConfirmButtonIsDisabledAfterConfirmationCheckboxIsUnchecked()
     {
         // Arrange
         using var testContext = new BunitContext();
@@ -71,7 +71,7 @@ public class ConfirmDeleteDialogTests
     }
 
     [Fact]
-    public void DisplaysClubName_InWarningText()
+    public void DisplaysClubNameInWarningText()
     {
         // Arrange
         using var testContext = new BunitContext();
@@ -90,7 +90,7 @@ public class ConfirmDeleteDialogTests
     }
 
     [Fact]
-    public void FormId_IsSetOnSubmitButton()
+    public void FormIdIsSetOnSubmitButton()
     {
         // Arrange
         using var testContext = new BunitContext();
@@ -109,7 +109,7 @@ public class ConfirmDeleteDialogTests
     }
 
     [Fact]
-    public void ConfirmationCheckbox_IsNotCheckedInitially()
+    public void ConfirmationCheckboxIsNotCheckedInitially()
     {
         // Arrange
         using var testContext = new BunitContext();
@@ -127,7 +127,7 @@ public class ConfirmDeleteDialogTests
     }
 
     [Fact]
-    public void WarningText_ContainsAccountDeletionMessage()
+    public void WarningTextContainsAccountDeletionMessage()
     {
         // Arrange
         using var testContext = new BunitContext();

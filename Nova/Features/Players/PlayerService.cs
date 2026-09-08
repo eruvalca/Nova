@@ -2,11 +2,11 @@
 using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Players;
 
@@ -16,13 +16,15 @@ namespace Nova.Features.Players;
 /// <param name="readDbContextFactory">The read-only tenant-scoped context factory.</param>
 /// <param name="currentUserProvider">The current user provider used for authorization checks.</param>
 /// <param name="logger">The logger for expected authorization failures.</param>
-public sealed partial class PlayerService(
+internal sealed partial class PlayerService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<PlayerService> logger) : IPlayerService
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<PagedResult<PlayerListItem>>> GetPlayerRosterAsync(
+#pragma warning restore MA0051
         GetPlayerRosterInput input,
         CancellationToken cancellationToken = default)
     {
@@ -59,7 +61,7 @@ public sealed partial class PlayerService(
 
         if (!string.IsNullOrEmpty(normalizedSearch))
         {
-            var hasTryoutNumberSearch = int.TryParse(normalizedSearch, out var tryoutNumberSearch);
+            var hasTryoutNumberSearch = int.TryParse(normalizedSearch, System.Globalization.CultureInfo.InvariantCulture, out var tryoutNumberSearch);
             if (isNpgsql)
             {
                 var escapedSearch = LikePatternEscaper.EscapeLikePattern(normalizedSearch);
@@ -74,15 +76,21 @@ public sealed partial class PlayerService(
             }
             else
             {
+#pragma warning disable CA1311, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider.
                 var uppercaseSearch = normalizedSearch.ToUpper();
+#pragma warning restore CA1311, CA1304, MA0011
                 query = hasTryoutNumberSearch
                     ? query.Where(player =>
+#pragma warning disable CA1311, CA1862, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider. Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                         (player.FirstName + " " + player.LastName).ToUpper().Contains(uppercaseSearch)
+#pragma warning restore CA1311, CA1862, CA1304, MA0011
                         || player.CampaignAssignments.Any(assignment =>
                             assignment.Campaign.Status == CampaignStatus.Active
                             && assignment.TryoutNumber == tryoutNumberSearch))
                     : query.Where(player =>
+#pragma warning disable CA1311, CA1862, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider. Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                         (player.FirstName + " " + player.LastName).ToUpper().Contains(uppercaseSearch));
+#pragma warning restore CA1311, CA1862, CA1304, MA0011
             }
         }
 

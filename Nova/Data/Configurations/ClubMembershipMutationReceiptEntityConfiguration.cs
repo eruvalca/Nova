@@ -5,7 +5,7 @@ using Nova.Entities;
 namespace Nova.Data.Configurations;
 
 /// <summary>Configures durable club-membership mutation receipts.</summary>
-public class ClubMembershipMutationReceiptEntityConfiguration : IEntityTypeConfiguration<ClubMembershipMutationReceiptEntity>
+internal class ClubMembershipMutationReceiptEntityConfiguration : IEntityTypeConfiguration<ClubMembershipMutationReceiptEntity>
 {
     /// <inheritdoc />
     public void Configure(EntityTypeBuilder<ClubMembershipMutationReceiptEntity> builder)

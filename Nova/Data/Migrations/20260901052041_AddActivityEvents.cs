@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddActivityEvents : Migration
+internal partial class AddActivityEvents : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -47,12 +47,16 @@ public partial class AddActivityEvents : Migration
         migrationBuilder.CreateIndex(
             name: "IX_ActivityEvents_ClubId_CampaignId",
             table: "ActivityEvents",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CampaignId" });
+#pragma warning restore CA1861
 
         migrationBuilder.CreateIndex(
             name: "IX_ActivityEvents_ClubId_CreatedAt_ActivityEventId",
             table: "ActivityEvents",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "ClubId", "CreatedAt", "ActivityEventId" });
+#pragma warning restore CA1861
     }
 
     /// <inheritdoc />
@@ -83,7 +87,9 @@ public partial class AddActivityEvents : Migration
                     name: "FK_CampaignLifecycleEvents_Campaigns_CampaignId_ClubId",
                     columns: x => new { x.CampaignId, x.ClubId },
                     principalTable: "Campaigns",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
                     principalColumns: new[] { "CampaignId", "ClubId" },
+#pragma warning restore CA1861
                     onDelete: ReferentialAction.Cascade);
                 table.ForeignKey(
                     name: "FK_CampaignLifecycleEvents_Clubs_ClubId",
@@ -96,7 +102,9 @@ public partial class AddActivityEvents : Migration
         migrationBuilder.CreateIndex(
             name: "IX_CampaignLifecycleEvents_CampaignId_ClubId",
             table: "CampaignLifecycleEvents",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "CampaignId", "ClubId" });
+#pragma warning restore CA1861
 
         migrationBuilder.CreateIndex(
             name: "IX_CampaignLifecycleEvents_ClubId",

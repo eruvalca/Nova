@@ -21,7 +21,7 @@ FORM: Per-passkey update forms and the add-passkey form preserve their generated
     <StatusMessage />
     <section class="manage-board" aria-labelledby="registered-passkeys-heading">
         <h2 id="registered-passkeys-heading">Registered passkeys</h2>
-        @if (currentPasskeys is { Count: > 0 })
+        @if (_currentPasskeys is { Count: > 0 })
         {
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
@@ -32,7 +32,7 @@ FORM: Per-passkey update forms and the add-passkey form preserve their generated
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var passkey in currentPasskeys)
+                        @foreach (var passkey in _currentPasskeys)
                         {
                             <tr>
                                 <td>@(passkey.Name ?? "Unnamed passkey")</td>
@@ -40,7 +40,7 @@ FORM: Per-passkey update forms and the add-passkey form preserve their generated
                                     @{
                                         var credentialId = Base64Url.EncodeToString(passkey.CredentialId);
                                     }
-                                    <form class="manage-passkey-actions" @formname="@($"update-passkey-{credentialId}")" @onsubmit="UpdatePasskey" method="post">
+                                    <form class="manage-passkey-actions" @formname="@($"update-passkey-{credentialId}")" @onsubmit="UpdatePasskeyAsync" method="post">
                                         <AntiforgeryToken />
                                         <input type="hidden" name="CredentialId" value="@credentialId" />
                                         <button type="submit" name="Action" value="rename" class="btn btn-outline-secondary" title="Rename this passkey">Rename</button>
@@ -61,9 +61,9 @@ FORM: Per-passkey update forms and the add-passkey form preserve their generated
 
     <section class="manage-board" aria-labelledby="add-passkey-heading">
         <h2 id="add-passkey-heading">Add a passkey</h2>
-        <form @formname="add-passkey" @onsubmit="AddPasskey" method="post">
+        <form @formname="add-passkey" @onsubmit="AddPasskeyAsync" method="post">
             <AntiforgeryToken />
-            @if (currentPasskeys is { Count: >= MaxPasskeyCount })
+            @if (_currentPasskeys is { Count: >= MaxPasskeyCount })
             {
                 <p class="text-danger">You have reached the maximum number of allowed passkeys. Please delete one before adding a new one.</p>
             }

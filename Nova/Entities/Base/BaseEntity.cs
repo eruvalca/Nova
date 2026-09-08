@@ -1,4 +1,5 @@
-﻿namespace Nova.Entities.Base;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+namespace Nova.Entities.Base;
 
 /// <summary>
 /// Represents the Base Entity persisted in the database.
@@ -17,9 +18,9 @@ public abstract class BaseEntity
     /// <summary>
     /// Gets or sets the Modified At.
     /// </summary>
-    public DateTimeOffset? ModifiedAt { get; set; } = null;
+    public DateTimeOffset? ModifiedAt { get; set; }
     /// <summary>
     /// Gets or sets the Modified By Id.
     /// </summary>
-    public long? ModifiedById { get; set; } = null;
+    public long? ModifiedById { get; set; }
 }

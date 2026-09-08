@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
-using Nova.Shared.Features.Account;
+using Nova.SharedKernel.Features.Account;
 using Nova.UI.Components;
 
 namespace Nova.UI.Features.Account.Components;

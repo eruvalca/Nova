@@ -70,7 +70,7 @@ with a database unique constraint and test the race against PostgreSQL:
 4. Assert the service maps `DbUpdateException` to `Conflict`.
 5. Assert only the valid rows remain.
 
-`TeamManagementRetryTests.Update_ReportsConflict_WhenDuplicateAppearsAfterTheProbe` is the canonical
+`TeamManagementRetryTests.UpdateReportsConflictWhenDuplicateAppearsAfterTheProbeAsync` is the canonical
 deterministic injection pattern.
 
 ## AppHost fixture internals

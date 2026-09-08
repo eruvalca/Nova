@@ -18,7 +18,7 @@ public sealed class PlayerTagStyleTests
     [InlineData("#999999")] // Mid gray.
     [InlineData("#FFFFFF")] // Pure white.
     [InlineData("#00cc00")] // Lowercase tokens are normalized first.
-    public void BuildBadgeStyle_UsesBlackText_ForLightBackgrounds(string color)
+    public void BuildBadgeStyleUsesBlackTextForLightBackgrounds(string color)
     {
         var style = PlayerTagStyle.BuildBadgeStyle(color);
 
@@ -33,7 +33,7 @@ public sealed class PlayerTagStyleTests
     [InlineData("#CC0000")] // Deep red.
     [InlineData("#000000")] // Pure black.
     [InlineData("#1D3557")] // Dark navy.
-    public void BuildBadgeStyle_UsesWhiteText_ForDarkBackgrounds(string color)
+    public void BuildBadgeStyleUsesWhiteTextForDarkBackgrounds(string color)
     {
         var style = PlayerTagStyle.BuildBadgeStyle(color);
 
@@ -52,7 +52,7 @@ public sealed class PlayerTagStyleTests
     [InlineData("red")]
     [InlineData("#12")]
     [InlineData("#GGGGGG")]
-    public void BuildBadgeStyle_FallsBackToDefaultGray_ForInvalidTokens(string? color)
+    public void BuildBadgeStyleFallsBackToDefaultGrayForInvalidTokens(string? color)
     {
         var style = PlayerTagStyle.BuildBadgeStyle(color);
 
@@ -66,7 +66,7 @@ public sealed class PlayerTagStyleTests
     /// yields at least 4.5:1 contrast.
     /// </summary>
     [Fact]
-    public void BuildBadgeStyle_MeetsContrastThreshold_ForRepresentativePalette()
+    public void BuildBadgeStyleMeetsContrastThresholdForRepresentativePalette()
     {
         string[] palette = ["#FF5733", "#33FF57", "#3357FF", "#F1C40F", "#9B59B6", "#1ABC9C", "#E67E22", "#34495E", "#7F8C8D", "#2ECC71"];
 

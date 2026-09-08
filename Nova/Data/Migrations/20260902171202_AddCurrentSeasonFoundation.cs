@@ -6,10 +6,12 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddCurrentSeasonFoundation : Migration
+internal partial class AddCurrentSeasonFoundation : Migration
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the generated migration operations ordered within their Up/Down method.
     protected override void Up(MigrationBuilder migrationBuilder)
+#pragma warning restore MA0051
     {
         migrationBuilder.AddColumn<Guid>(
             name: "ConcurrencyToken",
@@ -68,28 +70,40 @@ public partial class AddCurrentSeasonFoundation : Migration
         migrationBuilder.CreateIndex(
             name: "IX_Seasons_CreationPreviousSeasonId_ClubId",
             table: "Seasons",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "CreationPreviousSeasonId", "ClubId" });
+#pragma warning restore CA1861
 
         migrationBuilder.CreateIndex(
             name: "IX_Clubs_CurrentSeasonId_ClubId",
             table: "Clubs",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "CurrentSeasonId", "ClubId" },
+#pragma warning restore CA1861
             unique: true);
 
         migrationBuilder.AddForeignKey(
             name: "FK_Clubs_Seasons_CurrentSeasonId_ClubId",
             table: "Clubs",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "CurrentSeasonId", "ClubId" },
+#pragma warning restore CA1861
             principalTable: "Seasons",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             principalColumns: new[] { "SeasonId", "ClubId" },
+#pragma warning restore CA1861
             onDelete: ReferentialAction.NoAction);
 
         migrationBuilder.AddForeignKey(
             name: "FK_Seasons_Seasons_CreationPreviousSeasonId_ClubId",
             table: "Seasons",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             columns: new[] { "CreationPreviousSeasonId", "ClubId" },
+#pragma warning restore CA1861
             principalTable: "Seasons",
+#pragma warning disable CA1861 // Migration column arrays describe one-time schema operations and are not hot-path allocations.
             principalColumns: new[] { "SeasonId", "ClubId" },
+#pragma warning restore CA1861
             onDelete: ReferentialAction.NoAction);
     }
 

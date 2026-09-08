@@ -1,8 +1,8 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using Nova.Client.Services;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Teams;
@@ -26,10 +26,10 @@ public sealed class HttpTeamLifecycleServiceTests
     }
 
     [Fact]
-    public async Task ArchiveAsync_PostsToSharedRoute()
+    public async Task ArchiveAsyncPostsToSharedRouteAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpTeamLifecycleService(httpClient);
 
@@ -41,7 +41,7 @@ public sealed class HttpTeamLifecycleServiceTests
     }
 
     [Fact]
-    public async Task ArchiveAsync_ReturnsStructuredConflict()
+    public async Task ArchiveAsyncReturnsStructuredConflictAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.Conflict)
         {
@@ -54,12 +54,14 @@ public sealed class HttpTeamLifecycleServiceTests
                     {
                         campaignId = 700L,
                         campaignName = "Active Campaign",
+#pragma warning disable CA1861 // Each test owns its expected data and fixture arrays; these are not repeated production allocations.
                         placementIds = new[] { 801L }
+#pragma warning restore CA1861
                     }
                 }
             })
         };
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpTeamLifecycleService(httpClient);
 
@@ -75,10 +77,10 @@ public sealed class HttpTeamLifecycleServiceTests
     }
 
     [Fact]
-    public async Task RestoreAsync_PostsToSharedRoute()
+    public async Task RestoreAsyncPostsToSharedRouteAsync()
     {
         using var response = new HttpResponseMessage(HttpStatusCode.NoContent);
-        var handler = new FakeHttpMessageHandler(response);
+        using var handler = new FakeHttpMessageHandler(response);
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
         var service = new HttpTeamLifecycleService(httpClient);
 

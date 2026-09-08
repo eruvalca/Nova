@@ -2,8 +2,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -19,10 +19,12 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
     /// Verifies archiving a player while a placement waits for its lock rejects the stale mutation.
     /// </summary>
     [Fact]
-    public async Task PlacementConcurrency_RejectsMutation_WhenPlayerArchivesWhileWaitingForLock()
+    public async Task PlacementConcurrencyRejectsMutationWhenPlayerArchivesWhileWaitingForLockAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, int.MaxValue);
+#pragma warning restore CA5394
         var seed = await SeedPlacementAsync(actorUserId, cancellationToken);
 
         fixture.CurrentUser.UserId = actorUserId;
@@ -72,80 +74,85 @@ public sealed class CampaignPlacementLifecycleRaceTests(NovaAppHostFixture fixtu
         assignment.ConcurrencyToken.ShouldBe(seed.ConcurrencyToken);
     }
 
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<PlacementSeed> SeedPlacementAsync(long actorUserId, CancellationToken cancellationToken)
+#pragma warning restore MA0051
     {
         fixture.CurrentUser.UserId = null;
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
 
-        await using var context = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var club = new ClubEntity
+        var context = fixture.CreateAdminContext();
+        await using (context)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Placement Lifecycle Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        context.Clubs.Add(club);
-        await context.SaveChangesAsync(cancellationToken);
+            var suffix = Guid.NewGuid().ToString("N");
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Placement Lifecycle Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            context.Clubs.Add(club);
+            await context.SaveChangesAsync(cancellationToken);
 
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Placement Lifecycle Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        context.Seasons.Add(season);
-        await context.SaveChangesAsync(cancellationToken);
-        club.CurrentSeasonId = season.SeasonId;
-        await context.SaveChangesAsync(cancellationToken);
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Placement Lifecycle Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            context.Seasons.Add(season);
+            await context.SaveChangesAsync(cancellationToken);
+            club.CurrentSeasonId = season.SeasonId;
+            await context.SaveChangesAsync(cancellationToken);
 
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Placement Lifecycle Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = CampaignStatus.Active,
-            SeasonId = season.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Lifecycle",
-            LastName = suffix,
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            LifecycleStatus = LifecycleStatus.Active,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Placement Lifecycle Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = CampaignStatus.Active,
+                SeasonId = season.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Lifecycle",
+                LastName = suffix,
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                LifecycleStatus = LifecycleStatus.Active,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
 
-        context.AddRange(campaign, player);
-        await context.SaveChangesAsync(cancellationToken);
+            context.AddRange(campaign, player);
+            await context.SaveChangesAsync(cancellationToken);
 
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            ConcurrencyToken = Guid.NewGuid()
-        };
-        context.Add(assignment);
-        await context.SaveChangesAsync(cancellationToken);
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                ConcurrencyToken = Guid.NewGuid()
+            };
+            context.Add(assignment);
+            await context.SaveChangesAsync(cancellationToken);
 
-        return new PlacementSeed(
-            club.ClubId,
-            player.PlayerId,
-            assignment.PlayerCampaignAssignmentId,
-            assignment.ConcurrencyToken);
+            return new PlacementSeed(
+                club.ClubId,
+                player.PlayerId,
+                assignment.PlayerCampaignAssignmentId,
+                assignment.ConcurrencyToken);
+        }
     }
 
     private sealed record PlacementSeed(

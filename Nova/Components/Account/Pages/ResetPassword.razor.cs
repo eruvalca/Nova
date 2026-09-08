@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
@@ -20,7 +21,7 @@ public partial class ResetPassword(
     /// <summary>
     /// Stores identity errors returned from the password reset operation.
     /// </summary>
-    private IEnumerable<IdentityError>? identityErrors;
+    private IEnumerable<IdentityError>? _identityErrors;
 
     /// <summary>
     /// Gets or sets the form input data containing the email, password, and code.
@@ -37,7 +38,7 @@ public partial class ResetPassword(
     /// <summary>
     /// Gets the message to display to the user containing error descriptions if password reset failed.
     /// </summary>
-    private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error =>
+    private string? Message => _identityErrors is null ? null : $"Error: {string.Join(", ", _identityErrors.Select(error =>
         error.Description))}";
 
     /// <summary>
@@ -78,7 +79,7 @@ public partial class ResetPassword(
             return;
         }
 
-        identityErrors = result.Errors;
+        _identityErrors = result.Errors;
     }
 
     /// <summary>

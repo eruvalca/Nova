@@ -7,12 +7,12 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Features.Clubs.Pages;
 using NSubstitute;
 using Shouldly;
@@ -33,7 +33,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public void Render_ShowsIdentityCurrentSeasonAndActiveCampaign_ForMemberAndAdministrator(bool isAdministrator)
+    public void RenderShowsIdentityCurrentSeasonAndActiveCampaignForMemberAndAdministrator(bool isAdministrator)
     {
         var services = Configure(isAdministrator);
 
@@ -60,7 +60,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
             cut.Markup.ShouldNotContain("href=\"/club/seasons\"");
             cut.Markup.ShouldNotContain(">Crest<");
         }
-        services.Identity.Received(1).GetCurrentAsync(Arg.Any<CancellationToken>());
+        _ = services.IdentityService.Received(1).GetCurrentAsync(Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -71,7 +71,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     [InlineData(true, false, true)]
     [InlineData(false, true, true)]
     [InlineData(true, true, true)]
-    public void Render_PreservesEverySuccessfulRegion_WhenAnyCombinationFails(
+    public void RenderPreservesEverySuccessfulRegionWhenAnyCombinationFails(
         bool identityFails,
         bool seasonFails,
         bool campaignFails)
@@ -101,7 +101,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     }
 
     [Fact]
-    public void Render_ShowsRoleSpecificNoSeasonRecovery_AndSuppressesCampaignCreation()
+    public void RenderShowsRoleSpecificNoSeasonRecoveryAndSuppressesCampaignCreation()
     {
         Configure(isAdministrator: true, season: EmptySeason(), campaigns: EmptyCampaigns());
 
@@ -114,7 +114,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     }
 
     [Fact]
-    public void Render_ShowsNoActiveCampaignRecovery_ForAdministratorWithCurrentSeason()
+    public void RenderShowsNoActiveCampaignRecoveryForAdministratorWithCurrentSeason()
     {
         Configure(isAdministrator: true, campaigns: EmptyCampaigns());
 
@@ -126,7 +126,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     }
 
     [Fact]
-    public void Render_DoesNotPresentHistoricalFirstRowAsCurrent_ForMember()
+    public void RenderDoesNotPresentHistoricalFirstRowAsCurrentForMember()
     {
         var historical = CurrentSeason();
         historical = new ServiceResult<SeasonPageResult>(historical.Value with
@@ -145,7 +145,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     }
 
     [Fact]
-    public void RetryIdentity_ReloadsOnlyIdentity_AndPreservesSuccessfulRegions()
+    public void RetryIdentityReloadsOnlyIdentityAndPreservesSuccessfulRegions()
     {
         var identity = Substitute.For<IClubIdentityQueryService>();
         identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(
@@ -159,9 +159,9 @@ public sealed class ClubOverviewComponentTests : BunitContext
         cut.Find(".region-failure a").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("North Star Volleyball Club"));
-        services.Identity.Received(2).GetCurrentAsync(Arg.Any<CancellationToken>());
-        services.Seasons.Received(1).ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
-        services.Campaigns.Received(1).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
+        _ = services.IdentityService.Received(2).GetCurrentAsync(Arg.Any<CancellationToken>());
+        _ = services.Seasons.Received(1).ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
+        _ = services.Campaigns.Received(1).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -171,7 +171,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     /// source and stranded the identity region on its permanent loading state.
     /// </summary>
     [Fact]
-    public async Task RetrySeason_DoesNotCancelConcurrentIdentityRetry_AndBothRegionsRecover()
+    public async Task RetrySeasonDoesNotCancelConcurrentIdentityRetryAndBothRegionsRecoverAsync()
     {
         var requestTokenSeen = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
         var identityGate = new TaskCompletionSource<ServiceResult<ClubIdentityResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -186,10 +186,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
             }
             var token = info.Arg<CancellationToken>();
             requestTokenSeen.TrySetResult(token);
-            if (token.IsCancellationRequested)
-            {
-                throw new OperationCanceledException(token);
-            }
+            token.ThrowIfCancellationRequested();
             return await identityGate.Task;
         });
         var services = Configure(
@@ -202,24 +199,28 @@ public sealed class ClubOverviewComponentTests : BunitContext
         cut.Markup.ShouldContain("Season failed.");
 
         // Start the identity retry and hold it in flight while it awaits the response.
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.FindAll(".region-failure a")[0].Click();
+#pragma warning restore CA1849, S6966
         var requestToken = await requestTokenSeen.Task;
         requestToken.IsCancellationRequested.ShouldBeFalse();
 
         // Retry the season while the identity retry is still in flight.
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
         cut.Find(".region-failure a").Click();
-        cut.WaitForAssertion(() =>
+#pragma warning restore CA1849, S6966
+        await cut.WaitForAssertionAsync(() =>
             services.Seasons.Received(2).ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>()));
 
         // The concurrent identity retry must not have been canceled by the season retry.
         requestToken.IsCancellationRequested.ShouldBeFalse();
 
         identityGate.SetResult(new ServiceResult<ClubIdentityResult>(Identity()));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("North Star Volleyball Club"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("North Star Volleyball Club"));
     }
 
     [Fact]
-    public void Render_RestoresPersistedRegions_WithoutRepeatingStartupQueries()
+    public void RenderRestoresPersistedRegionsWithoutRepeatingStartupQueries()
     {
         var services = Configure(isAdministrator: false);
 
@@ -229,13 +230,13 @@ public sealed class ClubOverviewComponentTests : BunitContext
         cut.Markup.ShouldContain("North Star Volleyball Club");
         cut.Markup.ShouldContain("2026–27");
         cut.Markup.ShouldContain("Fall evaluations");
-        services.Identity.DidNotReceive().GetCurrentAsync(Arg.Any<CancellationToken>());
-        services.Seasons.DidNotReceive().ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
-        services.Campaigns.DidNotReceive().GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
+        _ = services.IdentityService.DidNotReceive().GetCurrentAsync(Arg.Any<CancellationToken>());
+        _ = services.Seasons.DidNotReceive().ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
+        _ = services.Campaigns.DidNotReceive().GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Render_RestoresPersistedIdentityError_WithoutRepeatingStartupQueries()
+    public void RenderRestoresPersistedIdentityErrorWithoutRepeatingStartupQueries()
     {
         var services = Configure(isAdministrator: false);
 
@@ -246,13 +247,13 @@ public sealed class ClubOverviewComponentTests : BunitContext
         cut.Markup.ShouldContain("Retry this section");
         cut.Markup.ShouldContain("2026–27");
         cut.Markup.ShouldContain("Fall evaluations");
-        services.Identity.DidNotReceive().GetCurrentAsync(Arg.Any<CancellationToken>());
-        services.Seasons.DidNotReceive().ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
-        services.Campaigns.DidNotReceive().GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
+        _ = services.IdentityService.DidNotReceive().GetCurrentAsync(Arg.Any<CancellationToken>());
+        _ = services.Seasons.DidNotReceive().ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
+        _ = services.Campaigns.DidNotReceive().GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Render_ReconcilesRoleGatedContent_WhenAuthenticationChanges()
+    public void RenderReconcilesRoleGatedContentWhenAuthenticationChanges()
     {
         Configure(isAdministrator: false);
         var auth = new TestAuthenticationStateProvider(MemberPrincipal());
@@ -268,7 +269,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     }
 
     [Fact]
-    public void Render_SuppressesAdministratorContent_WhenRoleIsRevoked()
+    public void RenderSuppressesAdministratorContentWhenRoleIsRevoked()
     {
         Configure(isAdministrator: true);
         var auth = new TestAuthenticationStateProvider(AdministratorPrincipal());
@@ -284,7 +285,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     }
 
     [Fact]
-    public void Render_RedirectsToAccessDenied_WhenMembershipDisappears()
+    public void RenderRedirectsToAccessDeniedWhenMembershipDisappears()
     {
         var identity = Substitute.For<IClubIdentityQueryService>();
         identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(
@@ -304,7 +305,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     }
 
     [Fact]
-    public void Render_ReloadsAllRegions_WhenClubMembershipChanges()
+    public void RenderReloadsAllRegionsWhenClubMembershipChanges()
     {
         var identity = Substitute.For<IClubIdentityQueryService>();
         identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(
@@ -320,9 +321,9 @@ public sealed class ClubOverviewComponentTests : BunitContext
         auth.Change(MemberPrincipal(clubId: "2"));
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Harbor Lights Volleyball Club"));
-        services.Identity.Received(2).GetCurrentAsync(Arg.Any<CancellationToken>());
-        services.Seasons.Received(2).ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
-        services.Campaigns.Received(2).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
+        _ = services.IdentityService.Received(2).GetCurrentAsync(Arg.Any<CancellationToken>());
+        _ = services.Seasons.Received(2).ListAsync(Arg.Any<GetSeasonListInput>(), Arg.Any<CancellationToken>());
+        _ = services.Campaigns.Received(2).GetCampaignListAsync(Arg.Any<GetCampaignListInput>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -330,14 +331,14 @@ public sealed class ClubOverviewComponentTests : BunitContext
     /// the reload completes instead of leaving the previous club's data visible.
     /// </summary>
     [Fact]
-    public void Render_ShowsLoadingState_WhenClubMembershipChangesBeforeReloadCompletes()
+    public void RenderShowsLoadingStateWhenClubMembershipChangesBeforeReloadCompletes()
     {
         var pending = new TaskCompletionSource<ServiceResult<ClubIdentityResult>>();
         var identity = Substitute.For<IClubIdentityQueryService>();
         identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(
             Task.FromResult(new ServiceResult<ClubIdentityResult>(Identity())),
             pending.Task);
-        var services = Configure(isAdministrator: false, identity: identity);
+        _ = Configure(isAdministrator: false, identity: identity);
         var auth = new TestAuthenticationStateProvider(MemberPrincipal());
         Services.AddSingleton<AuthenticationStateProvider>(auth);
 
@@ -358,12 +359,12 @@ public sealed class ClubOverviewComponentTests : BunitContext
     }
 
     [Fact]
-    public void Render_InvalidatesPersistedState_WhenClubMembershipChanges()
+    public void RenderInvalidatesPersistedStateWhenClubMembershipChanges()
     {
         var identity = Substitute.For<IClubIdentityQueryService>();
         identity.GetCurrentAsync(Arg.Any<CancellationToken>()).Returns(
             Task.FromResult(new ServiceResult<ClubIdentityResult>(Identity() with { ClubId = 2, Name = "Harbor Lights Volleyball Club" })));
-        var services = Configure(isAdministrator: false, identity: identity);
+        _ = Configure(isAdministrator: false, identity: identity);
         var auth = new TestAuthenticationStateProvider(MemberPrincipal());
         Services.AddSingleton<AuthenticationStateProvider>(auth);
 
@@ -383,7 +384,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     /// exception (canceled lifecycle tasks are swallowed by the renderer by design).
     /// </summary>
     [Fact]
-    public async Task DisposeAsync_RethrowsLifecycleCancellation_WithoutUnhandledException()
+    public async Task DisposeAsyncRethrowsLifecycleCancellationWithoutUnhandledExceptionAsync()
     {
         var requestTokenSeen = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
         var identity = Substitute.For<IClubIdentityQueryService>();
@@ -414,7 +415,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
     }
 
     [Fact]
-    public void Render_MapsUnrelatedOperationCanceledException_ToIdentityRegionFailure()
+    public void RenderMapsUnrelatedOperationCanceledExceptionToIdentityRegionFailure()
     {
         var identity = Substitute.For<IClubIdentityQueryService>();
         identity.GetCurrentAsync(Arg.Any<CancellationToken>())
@@ -512,7 +513,10 @@ public sealed class ClubOverviewComponentTests : BunitContext
         public override Task<AuthenticationState> GetAuthenticationStateAsync() => _state;
 
         public void Change(ClaimsPrincipal principal)
-            => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(principal)));
+        {
+            _state = Task.FromResult(new AuthenticationState(principal));
+            NotifyAuthenticationStateChanged(_state);
+        }
     }
 
     private static ClubIdentityResult Identity() => new()
@@ -552,9 +556,11 @@ public sealed class ClubOverviewComponentTests : BunitContext
 
     private static ServiceResult<CampaignListResult> EmptyCampaigns() => new(new CampaignListResult { TotalCount = 0, Seasons = [] });
 
-    private sealed record ServiceSet(IClubIdentityQueryService Identity, ISeasonQueryService Seasons, ICampaignQueryService Campaigns);
+    private sealed record ServiceSet(IClubIdentityQueryService IdentityService, ISeasonQueryService Seasons, ICampaignQueryService Campaigns);
 
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class PersistedIdentityErrorClubOverview(
+#pragma warning restore CA1812
         IClubIdentityQueryService identityQueryService,
         ISeasonQueryService seasonQueryService,
         ICampaignQueryService campaignQueryService,
@@ -580,7 +586,9 @@ public sealed class ClubOverviewComponentTests : BunitContext
         }
     }
 
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class PersistedStateClubOverview(
+#pragma warning restore CA1812
         IClubIdentityQueryService identityQueryService,
         ISeasonQueryService seasonQueryService,
         ICampaignQueryService campaignQueryService,
@@ -611,7 +619,7 @@ public sealed class ClubOverviewComponentTests : BunitContext
             => Task.FromResult(AuthorizationResult.Success());
 
         public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, string policyName)
-            => Task.FromResult(policyName == Roles.ClubAdmin && !user.IsInRole(Roles.ClubAdmin)
+            => Task.FromResult(string.Equals(policyName, Roles.ClubAdmin, StringComparison.Ordinal) && !user.IsInRole(Roles.ClubAdmin)
                 ? AuthorizationResult.Failed()
                 : AuthorizationResult.Success());
     }

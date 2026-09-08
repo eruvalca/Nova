@@ -6,7 +6,7 @@ namespace Nova.Entities;
 /// Durable proof that one club-membership mutation committed. The immutable operation identifier
 /// makes ambiguous-commit verification independent of subsequently mutable user state.
 /// </summary>
-public class ClubMembershipMutationReceiptEntity : BaseEntity, ITenantOwnedEntity
+internal class ClubMembershipMutationReceiptEntity : BaseEntity, ITenantOwnedEntity
 {
     /// <summary>Gets or sets the receipt identifier.</summary>
     public long ClubMembershipMutationReceiptId { get; set; }

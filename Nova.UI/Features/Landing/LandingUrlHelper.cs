@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1055, CA1056 // Razor bindings and NavigationManager consume these relative route strings.
+using Microsoft.AspNetCore.Components;
 
 namespace Nova.UI.Features.Landing;
 
@@ -47,5 +48,7 @@ public static class LandingUrlHelper
     private static string BuildIdentityUrl(NavigationManager navigationManager, string path) =>
         navigationManager.GetUriWithQueryParameters(
             path,
-            new Dictionary<string, object?> { ["returnUrl"] = DashboardRoute });
+            new Dictionary<string, object?>(StringComparer.Ordinal) { ["returnUrl"] = DashboardRoute });
 }
+
+#pragma warning restore CA1055, CA1056

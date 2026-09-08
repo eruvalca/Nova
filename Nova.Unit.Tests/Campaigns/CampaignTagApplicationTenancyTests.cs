@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Nova.Unit.Tests.Data;
 using Shouldly;
 
@@ -43,7 +43,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     /// Verifies campaign tag applications are visible only to their owning club.
     /// </summary>
     [Fact]
-    public void TenantContext_FiltersCampaignTagApplicationsToCurrentClub()
+    public void TenantContextFiltersCampaignTagApplicationsToCurrentClub()
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
@@ -59,7 +59,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     /// and visible across tenants only through the administrative context.
     /// </summary>
     [Fact]
-    public void TenantContext_ShapesDraftCampaignTagApplicationsByRole()
+    public void TenantContextShapesDraftCampaignTagApplicationsByRole()
     {
         ActAs(ClubAUserId, ClubAId);
         using (var memberDb = _harness.CreateTenantContext())
@@ -95,7 +95,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     /// Verifies the save interceptor rejects campaign tag applications explicitly assigned to another tenant.
     /// </summary>
     [Fact]
-    public void TenantContext_RejectsCrossTenantCampaignTagApplicationWrite()
+    public void TenantContextRejectsCrossTenantCampaignTagApplicationWrite()
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
@@ -117,7 +117,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     /// Verifies removal receipts are visible only to their owning club.
     /// </summary>
     [Fact]
-    public void TenantContext_FiltersRemovalReceiptsToCurrentClub()
+    public void TenantContextFiltersRemovalReceiptsToCurrentClub()
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
@@ -132,7 +132,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     /// Verifies the save interceptor rejects removal receipts explicitly assigned to another tenant.
     /// </summary>
     [Fact]
-    public void TenantContext_RejectsCrossTenantRemovalReceiptWrite()
+    public void TenantContextRejectsCrossTenantRemovalReceiptWrite()
     {
         ActAs(ClubAUserId, ClubAId);
         using var db = _harness.CreateTenantContext();
@@ -153,7 +153,7 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     /// Verifies campaign tag applications enforce unique participation/tag pairs and same-club composite relationships.
     /// </summary>
     [Fact]
-    public void Model_ConfiguresCampaignTagApplicationIntegrityMetadata()
+    public void ModelConfiguresCampaignTagApplicationIntegrityMetadata()
     {
         using var db = _harness.CreateAdminContext();
         var model = db.GetService<IDesignTimeModel>().Model;
@@ -205,7 +205,9 @@ public sealed class CampaignTagApplicationTenancyTests : IDisposable
     /// <summary>
     /// Seeds one Active campaign tag application for each club plus a Draft-linked application for club A.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

@@ -1,11 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Tags;
 
@@ -15,7 +15,7 @@ namespace Nova.Features.Tags;
 /// <param name="readDbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club context.</param>
 /// <param name="logger">The logger for rejected access attempts.</param>
-public sealed partial class TagDefinitionQueryService(
+internal sealed partial class TagDefinitionQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<TagDefinitionQueryService> logger) : ITagDefinitionQueryService
@@ -54,7 +54,9 @@ public sealed partial class TagDefinitionQueryService(
             var escapedSearch = LikePatternEscaper.EscapeLikePattern(search);
             query = db.Database.IsNpgsql()
                 ? query.Where(tag => EF.Functions.ILike(tag.Name, $"%{escapedSearch}%", @"\"))
+#pragma warning disable CA1311, CA1862, CA1304, MA0011 // This expression is translated to SQL UPPER; culture overloads are not supported by the SQLite fallback provider. Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
                 : query.Where(tag => tag.Name.ToUpper().Contains(uppercaseSearch));
+#pragma warning restore CA1311, CA1862, CA1304, MA0011
         }
 
         var rows = await query
@@ -90,7 +92,7 @@ public sealed partial class TagDefinitionQueryService(
         }
 
         await using var db = await readDbContextFactory.CreateDbContextAsync(cancellationToken);
-        // The create/restore paths cap active definitions at TagDefinitionLimits.MaxActiveTagDefinitions;
+        // Creation and restoration enforce the active tag limit.
         // this Take is a hard defensive bound that keeps the result set bounded regardless of source.
         var rows = await db.PlayerTags
             .Where(tag => tag.ClubId == clubId && tag.LifecycleStatus == LifecycleStatus.Active)
@@ -116,7 +118,9 @@ public sealed partial class TagDefinitionQueryService(
     /// <param name="lifecycleStatus">The incoming lifecycle filter.</param>
     /// <returns>The lifecycle state to query, or <see langword="null"/> for no filter.</returns>
     private static LifecycleStatus? NormalizeLifecycleStatus(string? lifecycleStatus)
+#pragma warning disable CA1308 // Lowercase is required for this display text or ASCII route token, not for an identity comparison.
         => lifecycleStatus?.Trim().ToLowerInvariant() switch
+#pragma warning restore CA1308
         {
             "active" => LifecycleStatus.Active,
             "archived" => LifecycleStatus.Archived,

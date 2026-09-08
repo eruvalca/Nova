@@ -2,8 +2,8 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
 using Shouldly;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -24,47 +24,49 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
     private const string Password = "Test#Passw0rd!";
 
     [Fact]
-    public async Task UploadEndpoint_Returns401NotARedirect_WhenUnauthenticated()
+    public async Task UploadEndpointReturns401NotARedirectWhenUnauthenticatedAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
 
         using var content = CreateUploadContent(CreateJpeg(64, 64), "image/jpeg");
-        using var response = await client.PostAsync(PhotoEndpoints.Upload, content, cancellationToken);
+        using var response = await client.PostAsync(new Uri(PhotoEndpoints.Upload, UriKind.RelativeOrAbsolute), content, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task PhotoRoute_IsRegisteredAtApiUsersPath()
+    public async Task PhotoRouteIsRegisteredAtApiUsersPathAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
 
-        // 401 (auth challenge) proves the route is registered at /api/users/{id}/photo;
+        // An authentication challenge proves the user photo route is registered;
         // a 404 here would mean the endpoint regressed back inside the /api/account group.
         using var response = await client.GetAsync(
-            PhotoEndpoints.GetPhotoUrl(long.MaxValue, ProfilePhotoSize.Medium), cancellationToken);
+new Uri(PhotoEndpoints.GetPhotoUrl(long.MaxValue, ProfilePhotoSize.Medium), UriKind.RelativeOrAbsolute), cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task RegisterUploadFetchComplete_FullOnboardingFlow_Succeeds()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task RegisterUploadFetchCompleteFullOnboardingFlowSucceedsAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         await IdentityHttpClientHelper.RegisterUserAsync(client, UniqueEmail(), Password, cancellationToken);
 
         // Before upload: status is a 404 ProblemDetails carrying a trace id.
-        using (var statusBefore = await client.GetAsync(PhotoEndpoints.Status, cancellationToken))
+        using (var statusBefore = await client.GetAsync(new Uri(PhotoEndpoints.Status, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             statusBefore.StatusCode.ShouldBe(HttpStatusCode.NotFound);
             (await ReadTraceIdAsync(statusBefore, cancellationToken)).ShouldNotBeNullOrEmpty();
         }
 
         // The photo gate bounces a photo-less user away from the home page.
-        using (var gated = await client.GetAsync("/", cancellationToken))
+        using (var gated = await client.GetAsync(new Uri("/", UriKind.RelativeOrAbsolute), cancellationToken))
         {
             gated.StatusCode.ShouldBe(HttpStatusCode.Found);
             gated.Headers.Location.ShouldNotBeNull();
@@ -73,14 +75,14 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
 
         // Upload a photo.
         using (var content = CreateUploadContent(CreateJpeg(300, 200), "image/jpeg"))
-        using (var upload = await client.PostAsync(PhotoEndpoints.Upload, content, cancellationToken))
+        using (var upload = await client.PostAsync(new Uri(PhotoEndpoints.Upload, UriKind.RelativeOrAbsolute), content, cancellationToken))
         {
             upload.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
         // Status now reports the photo.
         long userId;
-        using (var statusAfter = await client.GetAsync(PhotoEndpoints.Status, cancellationToken))
+        using (var statusAfter = await client.GetAsync(new Uri(PhotoEndpoints.Status, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             statusAfter.StatusCode.ShouldBe(HttpStatusCode.OK);
             var info = await statusAfter.Content.ReadFromJsonAsync<ProfilePhotoInfo>(cancellationToken);
@@ -92,7 +94,7 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
         // The photo is served from /api/users/{id}/photo with an ETag...
         string etag;
         using (var photo = await client.GetAsync(
-            PhotoEndpoints.GetPhotoUrl(userId, ProfilePhotoSize.Medium), cancellationToken))
+new Uri(PhotoEndpoints.GetPhotoUrl(userId, ProfilePhotoSize.Medium), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             photo.StatusCode.ShouldBe(HttpStatusCode.OK);
             photo.Content.Headers.ContentType?.MediaType.ShouldBe("image/webp");
@@ -110,14 +112,14 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
         }
 
         // The cookie-refresh hop is reachable and redirects to the return URL.
-        using (var complete = await client.GetAsync($"{PhotoEndpoints.Complete}?returnUrl=/dashboard", cancellationToken))
+        using (var complete = await client.GetAsync(new Uri($"{PhotoEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken))
         {
             complete.StatusCode.ShouldBe(HttpStatusCode.Found,
                 "the complete endpoint must be reachable at /Account/ProfilePhoto/Complete");
         }
 
         // The photo gate no longer applies; the club onboarding gate now redirects instead.
-        using var home = await client.GetAsync("/", cancellationToken);
+        using var home = await client.GetAsync(new Uri("/", UriKind.RelativeOrAbsolute), cancellationToken);
         home.StatusCode.ShouldBe(HttpStatusCode.Found,
             "the photo gate should no longer redirect, but club onboarding gate now applies");
         home.Headers.Location.ShouldNotBeNull();
@@ -125,14 +127,14 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task Upload_Returns400ValidationProblem_ForNonImageContent()
+    public async Task UploadReturns400ValidationProblemForNonImageContentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         await IdentityHttpClientHelper.RegisterUserAsync(client, UniqueEmail(), Password, cancellationToken);
 
         using var content = CreateUploadContent("this is not an image"u8.ToArray(), "image/jpeg");
-        using var response = await client.PostAsync(PhotoEndpoints.Upload, content, cancellationToken);
+        using var response = await client.PostAsync(new Uri(PhotoEndpoints.Upload, UriKind.RelativeOrAbsolute), content, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
@@ -145,14 +147,14 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task Upload_Returns400_ForOversizedDimensions()
+    public async Task UploadReturns400ForOversizedDimensionsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
         await IdentityHttpClientHelper.RegisterUserAsync(client, UniqueEmail(), Password, cancellationToken);
 
         using var content = CreateUploadContent(CreateJpeg(8193, 4), "image/jpeg");
-        using var response = await client.PostAsync(PhotoEndpoints.Upload, content, cancellationToken);
+        using var response = await client.PostAsync(new Uri(PhotoEndpoints.Upload, UriKind.RelativeOrAbsolute), content, cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var problem = await response.ToServiceProblemAsync(cancellationToken);
@@ -161,7 +163,7 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task OriginalSize_IsServedToOwnerOnly()
+    public async Task OriginalSizeIsServedToOwnerOnlyAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -170,12 +172,12 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
         await IdentityHttpClientHelper.RegisterUserAsync(ownerClient, UniqueEmail(), Password, cancellationToken);
         using (var content = CreateUploadContent(CreateJpeg(300, 200), "image/jpeg"))
         {
-            (await ownerClient.PostAsync(PhotoEndpoints.Upload, content, cancellationToken))
+            (await ownerClient.PostAsync(new Uri(PhotoEndpoints.Upload, UriKind.RelativeOrAbsolute), content, cancellationToken))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
         long ownerId;
-        using (var status = await ownerClient.GetAsync(PhotoEndpoints.Status, cancellationToken))
+        using (var status = await ownerClient.GetAsync(new Uri(PhotoEndpoints.Status, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             ownerId = (await status.Content.ReadFromJsonAsync<ProfilePhotoInfo>(cancellationToken))!.NovaUserId;
         }
@@ -186,7 +188,7 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
         await IdentityHttpClientHelper.RegisterUserAsync(otherClient, UniqueEmail(), Password, cancellationToken);
 
         using (var variant = await otherClient.GetAsync(
-            PhotoEndpoints.GetPhotoUrl(ownerId, ProfilePhotoSize.Medium), cancellationToken))
+new Uri(PhotoEndpoints.GetPhotoUrl(ownerId, ProfilePhotoSize.Medium), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             variant.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         }
@@ -194,14 +196,14 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
         // The original is rejected for non-owners before any lookup (404, not 403, to avoid
         // leaking existence) — this holds even for same-club users who can see the variants.
         using (var foreignOriginal = await otherClient.GetAsync(
-            PhotoEndpoints.GetPhotoUrl(ownerId, ProfilePhotoSize.Original), cancellationToken))
+new Uri(PhotoEndpoints.GetPhotoUrl(ownerId, ProfilePhotoSize.Original), UriKind.RelativeOrAbsolute), cancellationToken))
         {
             foreignOriginal.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         }
 
         // The owner can fetch the original, and it carries no EXIF metadata.
         using var ownOriginal = await ownerClient.GetAsync(
-            PhotoEndpoints.GetPhotoUrl(ownerId, ProfilePhotoSize.Original), cancellationToken);
+new Uri(PhotoEndpoints.GetPhotoUrl(ownerId, ProfilePhotoSize.Original), UriKind.RelativeOrAbsolute), cancellationToken);
         ownOriginal.StatusCode.ShouldBe(HttpStatusCode.OK);
         var bytes = await ownOriginal.Content.ReadAsByteArrayAsync(cancellationToken);
         using var image = Image.Load(bytes);
@@ -209,7 +211,7 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
     }
 
     [Fact]
-    public async Task UndefinedSizeValue_FallsBackToMediumVariant_NotOriginal()
+    public async Task UndefinedSizeValueFallsBackToMediumVariantNotOriginalAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -217,12 +219,12 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
 
         using (var content = CreateUploadContent(CreateJpeg(300, 200), "image/jpeg"))
         {
-            (await client.PostAsync(PhotoEndpoints.Upload, content, cancellationToken))
+            (await client.PostAsync(new Uri(PhotoEndpoints.Upload, UriKind.RelativeOrAbsolute), content, cancellationToken))
                 .StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
 
         long userId;
-        using (var status = await client.GetAsync(PhotoEndpoints.Status, cancellationToken))
+        using (var status = await client.GetAsync(new Uri(PhotoEndpoints.Status, UriKind.RelativeOrAbsolute), cancellationToken))
         {
             userId = (await status.Content.ReadFromJsonAsync<ProfilePhotoInfo>(cancellationToken))!.NovaUserId;
         }
@@ -230,7 +232,7 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
         // Enum.TryParse accepts arbitrary numeric strings; an undefined value like 99 must not
         // bypass the owner-only check and resolve to the original blob — it falls back to the
         // medium WebP variant (the original here is image/jpeg).
-        using var response = await client.GetAsync($"/api/users/{userId}/photo?size=99", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"/api/users/{userId}/photo?size=99", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("image/webp");
     }
@@ -249,7 +251,9 @@ public class ProfilePhotoHttpTests(NovaAppHostFixture fixture)
     /// <returns>The multipart content.</returns>
     private static MultipartFormDataContent CreateUploadContent(byte[] bytes, string contentType)
     {
+#pragma warning disable CA2000 // Ownership of this part transfers to the multipart content, which disposes all parts after the request.
         var fileContent = new ByteArrayContent(bytes);
+#pragma warning restore CA2000
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
         return new MultipartFormDataContent { { fileContent, "file", "photo.jpg" } };
     }

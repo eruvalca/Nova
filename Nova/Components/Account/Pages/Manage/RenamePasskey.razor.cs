@@ -1,4 +1,5 @@
-﻿using System.Buffers.Text;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using System.Buffers.Text;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
@@ -16,12 +17,12 @@ public partial class RenamePasskey(
     /// <summary>
     /// Stores the current user entity.
     /// </summary>
-    private NovaUserEntity? user;
+    private NovaUserEntity? _user;
 
     /// <summary>
     /// Stores the passkey information being renamed.
     /// </summary>
-    private UserPasskeyInfo? passkey;
+    private UserPasskeyInfo? _passkey;
 
     /// <summary>
     /// Gets the cascading HTTP context from the parent component.
@@ -49,8 +50,8 @@ public partial class RenamePasskey(
     {
         Input ??= new();
 
-        user = (await userManager.GetUserAsync(HttpContext.User))!;
-        if (user is null)
+        _user = (await userManager.GetUserAsync(HttpContext.User))!;
+        if (_user is null)
         {
             redirectManager.RedirectToInvalidUser(userManager, HttpContext);
             return;
@@ -67,8 +68,8 @@ public partial class RenamePasskey(
             return;
         }
 
-        passkey = await userManager.GetPasskeyAsync(user, credentialId);
-        if (passkey is null)
+        _passkey = await userManager.GetPasskeyAsync(_user, credentialId);
+        if (_passkey is null)
         {
             redirectManager.RedirectToWithStatus("Account/Manage/Passkeys", "Error: The specified passkey could not be found.",
 HttpContext);
@@ -80,10 +81,10 @@ HttpContext);
     /// Handles the form submission to rename the passkey.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task Rename()
+    private async Task RenameAsync()
     {
-        passkey!.Name = Input.Name;
-        var result = await userManager.AddOrUpdatePasskeyAsync(user!, passkey);
+        _passkey!.Name = Input.Name;
+        var result = await userManager.AddOrUpdatePasskeyAsync(_user!, _passkey);
         if (!result.Succeeded)
         {
             redirectManager.RedirectToWithStatus("Account/Manage/Passkeys", "Error: The passkey could not be updated.",

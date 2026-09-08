@@ -4,10 +4,10 @@ using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Features.Teams.Pages;
 using NSubstitute;
 using OneOf.Types;
@@ -23,7 +23,9 @@ namespace Nova.Unit.Tests.Teams;
 public sealed class TeamDetailComponentTests : BunitContext
 {
     /// <summary>The focus result controlled by delayed-content scenarios.</summary>
+#pragma warning disable CA2213 // BunitContext owns and disposes this registered JS interop handler.
     private readonly JSRuntimeInvocationHandler<bool> _focusRestoration;
+#pragma warning restore CA2213
 
     /// <summary>Configures the shell's browser-only focus restoration while component tests exercise team details.</summary>
     public TeamDetailComponentTests()
@@ -39,7 +41,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies a loading spinner appears while the detail request is pending and heading focus retries when it completes.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsLoadingState_WhileDetailRequestIsPending()
+    public void TeamDetailShowsLoadingStateWhileDetailRequestIsPending()
     {
         _focusRestoration.SetResult(false);
         var pending = new TaskCompletionSource<ServiceResult<TeamDetailDto>>();
@@ -66,7 +68,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies a not-found card renders when the service returns a 404.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsNotFoundState_WhenServiceReturnsNotFound()
+    public void TeamDetailShowsNotFoundStateWhenServiceReturnsNotFound()
     {
         var detailService = Substitute.For<ITeamDetailService>();
         detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -86,7 +88,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies the page redirects to access-denied when the service returns forbidden.
     /// </summary>
     [Fact]
-    public void TeamDetail_RedirectsToAccessDenied_WhenServiceReturnsForbidden()
+    public void TeamDetailRedirectsToAccessDeniedWhenServiceReturnsForbidden()
     {
         var detailService = Substitute.For<ITeamDetailService>();
         detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -106,7 +108,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies an error message and Retry button appear on transport failure, and detail loads on retry.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsErrorAndRetry_WhenTransportFails()
+    public void TeamDetailShowsErrorAndRetryWhenTransportFails()
     {
         var detailService = Substitute.For<ITeamDetailService>();
         detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -130,7 +132,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies the team profile fields (name, graduation year, lifecycle status) render correctly.
     /// </summary>
     [Fact]
-    public void TeamDetail_DisplaysProfileFields()
+    public void TeamDetailDisplaysProfileFields()
     {
         RegisterServices();
 
@@ -147,7 +149,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies the archived lifecycle badge renders correctly for an archived team.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsArchivedLifecycleBadge_WhenTeamIsArchived()
+    public void TeamDetailShowsArchivedLifecycleBadgeWhenTeamIsArchived()
     {
         var detailService = Substitute.For<ITeamDetailService>();
         detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -167,7 +169,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies campaign groups are rendered newest first.
     /// </summary>
     [Fact]
-    public void TeamDetail_RendersPlacementGroupsNewestFirst()
+    public void TeamDetailRendersPlacementGroupsNewestFirst()
     {
         var history = new List<TeamPlacementImpactDto>
         {
@@ -196,7 +198,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies multiple placements for the same campaign collapse into one group.
     /// </summary>
     [Fact]
-    public void TeamDetail_GroupsMultiplePlacementsUnderSameCampaign()
+    public void TeamDetailGroupsMultiplePlacementsUnderSameCampaign()
     {
         var history = new List<TeamPlacementImpactDto>
         {
@@ -226,7 +228,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies an empty-history message renders when the placement list is empty.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsEmptyHistoryMessage_WhenNoPlacements()
+    public void TeamDetailShowsEmptyHistoryMessageWhenNoPlacements()
     {
         RegisterServices();
 
@@ -240,7 +242,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies active placement impacts render in a dedicated section.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsActivePlacementImpacts_WhenPresent()
+    public void TeamDetailShowsActivePlacementImpactsWhenPresent()
     {
         var active = BuildPlacement(1, "Fall Tryouts", new DateOnly(2025, 9, 1), CampaignStatus.Active);
         var detail = CreateTeamDetail(
@@ -261,7 +263,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies the active impact section is hidden when there are no active placements.
     /// </summary>
     [Fact]
-    public void TeamDetail_HidesActivePlacementSection_WhenNoActivePlacements()
+    public void TeamDetailHidesActivePlacementSectionWhenNoActivePlacements()
     {
         RegisterServices();
 
@@ -275,7 +277,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies Edit and Archive buttons appear for administrators on an active team.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsAdminActions_ForClubAdmin()
+    public void TeamDetailShowsAdminActionsForClubAdmin()
     {
         RegisterServices(isClubAdmin: true);
 
@@ -291,7 +293,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies Restore button appears for administrators on an archived team.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsRestoreButton_ForArchivedTeamAndAdmin()
+    public void TeamDetailShowsRestoreButtonForArchivedTeamAndAdmin()
     {
         var detailService = Substitute.For<ITeamDetailService>();
         detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -314,7 +316,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies action buttons are hidden for evaluators.
     /// </summary>
     [Fact]
-    public void TeamDetail_HidesAdminActions_ForEvaluator()
+    public void TeamDetailHidesAdminActionsForEvaluator()
     {
         RegisterServices(isClubAdmin: false);
 
@@ -333,7 +335,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies admin action buttons appear when the user is promoted to club admin while on the page.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsAdminActions_WhenClubAdminRoleIsGrantedAfterLoad()
+    public void TeamDetailShowsAdminActionsWhenClubAdminRoleIsGrantedAfterLoad()
     {
         RegisterServices(isClubAdmin: false);
         var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: false));
@@ -355,7 +357,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies admin action buttons are suppressed when club admin role is revoked while on the page.
     /// </summary>
     [Fact]
-    public void TeamDetail_HidesAdminActions_WhenClubAdminRoleIsRevokedAfterLoad()
+    public void TeamDetailHidesAdminActionsWhenClubAdminRoleIsRevokedAfterLoad()
     {
         RegisterServices(isClubAdmin: true);
         var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true));
@@ -378,7 +380,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// club scope instead of leaving the previous club's team on screen.
     /// </summary>
     [Fact]
-    public void TeamDetail_RebindsDetail_WhenClubMembershipChangesAfterLoad()
+    public void TeamDetailRebindsDetailWhenClubMembershipChangesAfterLoad()
     {
         var detailService = Substitute.For<ITeamDetailService>();
         detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -400,7 +402,7 @@ public sealed class TeamDetailComponentTests : BunitContext
             cut.Markup.ShouldContain("U18 Crimson");
             cut.Markup.ShouldNotContain("U16 Blue");
         });
-        detailService.Received(2).GetTeamDetailAsync(7, Arg.Any<CancellationToken>());
+        _ = detailService.Received(2).GetTeamDetailAsync(7, Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -408,7 +410,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// club's detail request completes instead of leaving the previous club's team visible.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsLoadingState_WhenClubMembershipChangesBeforeReloadCompletes()
+    public void TeamDetailShowsLoadingStateWhenClubMembershipChangesBeforeReloadCompletes()
     {
         var pending = new TaskCompletionSource<ServiceResult<TeamDetailDto>>();
         var detailService = Substitute.For<ITeamDetailService>();
@@ -445,7 +447,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// the management action buttons on the currently loaded team.
     /// </summary>
     [Fact]
-    public void TeamDetail_ClosesManagementPanels_WhenClubAdminRoleIsRevokedAfterLoad()
+    public void TeamDetailClosesManagementPanelsWhenClubAdminRoleIsRevokedAfterLoad()
     {
         RegisterServices(isClubAdmin: true);
         var auth = new FakeAuthenticationStateProvider(CreatePrincipal(isClubAdmin: true));
@@ -473,7 +475,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies the edit form opens, detail refreshes, and a success message appears after a successful edit.
     /// </summary>
     [Fact]
-    public void TeamDetail_RefreshesDetail_AfterSuccessfulEdit()
+    public void TeamDetailRefreshesDetailAfterSuccessfulEdit()
     {
         var managementService = Substitute.For<ITeamManagementService>();
         managementService.UpdateAsync(Arg.Any<UpdateTeamInput>(), Arg.Any<CancellationToken>())
@@ -504,7 +506,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies the archive confirmation panel opens, team archives on confirm, and a success message appears.
     /// </summary>
     [Fact]
-    public void TeamDetail_RefreshesDetail_AfterSuccessfulArchive()
+    public void TeamDetailRefreshesDetailAfterSuccessfulArchive()
     {
         var lifecycleService = Substitute.For<ITeamLifecycleService>();
         lifecycleService.ArchiveAsync(7, Arg.Any<CancellationToken>())
@@ -530,7 +532,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies archive blockers are displayed when the archive service returns a conflict.
     /// </summary>
     [Fact]
-    public void TeamDetail_ShowsArchiveBlockers_WhenArchiveReturnsConflict()
+    public void TeamDetailShowsArchiveBlockersWhenArchiveReturnsConflict()
     {
         var lifecycleService = Substitute.For<ITeamLifecycleService>();
         lifecycleService.ArchiveAsync(7, Arg.Any<CancellationToken>())
@@ -571,7 +573,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies detail refreshes and a success message appears after a successful restore.
     /// </summary>
     [Fact]
-    public void TeamDetail_RefreshesDetail_AfterSuccessfulRestore()
+    public void TeamDetailRefreshesDetailAfterSuccessfulRestore()
     {
         var lifecycleService = Substitute.For<ITeamLifecycleService>();
         lifecycleService.RestoreAsync(7, Arg.Any<CancellationToken>())
@@ -597,7 +599,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies the back link falls back to <c>/teams</c> when the return URL is external.
     /// </summary>
     [Fact]
-    public void TeamDetail_UsesFallbackReturnUrl_WhenReturnUrlIsExternal()
+    public void TeamDetailUsesFallbackReturnUrlWhenReturnUrlIsExternal()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -612,7 +614,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies a safe relative return URL is preserved in the back link.
     /// </summary>
     [Fact]
-    public void TeamDetail_PreservesSafeRelativeReturnUrl_InBackLink()
+    public void TeamDetailPreservesSafeRelativeReturnUrlInBackLink()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -629,7 +631,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// which HTTP parsers normalize to a forward slash and treat as a network-path reference.
     /// </summary>
     [Fact]
-    public void TeamDetail_UsesFallbackReturnUrl_WhenReturnUrlStartsWithSingleBackslash()
+    public void TeamDetailUsesFallbackReturnUrlWhenReturnUrlStartsWithSingleBackslash()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -645,7 +647,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// Verifies the back link falls back to <c>/teams</c> when the return URL starts with a double backslash.
     /// </summary>
     [Fact]
-    public void TeamDetail_UsesFallbackReturnUrl_WhenReturnUrlStartsWithDoubleBackslash()
+    public void TeamDetailUsesFallbackReturnUrlWhenReturnUrlStartsWithDoubleBackslash()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -662,7 +664,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// a leading slash, which browsers normalize to <c>//evil.example</c> (network-path reference).
     /// </summary>
     [Fact]
-    public void TeamDetail_UsesFallbackReturnUrl_WhenReturnUrlContainsBackslashAfterSlash()
+    public void TeamDetailUsesFallbackReturnUrlWhenReturnUrlContainsBackslashAfterSlash()
     {
         RegisterServices();
         var navigationManager = Services.GetRequiredService<NavigationManager>();
@@ -681,7 +683,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// the stale result does not overwrite the new team's state (out-of-order navigation regression).
     /// </summary>
     [Fact]
-    public void TeamDetail_DoesNotApplyStaleResult_WhenNavigationChangesTeamIdBeforeFirstLoadCompletes()
+    public void TeamDetailDoesNotApplyStaleResultWhenNavigationChangesTeamIdBeforeFirstLoadCompletes()
     {
         var pendingTeamA = new TaskCompletionSource<ServiceResult<TeamDetailDto>>();
         var teamBDetail = CreateTeamDetail();
@@ -716,7 +718,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// and rows alphabetically within each group.
     /// </summary>
     [Fact]
-    public void GroupPlacementsByCampaign_OrdersGroupsNewestFirstAndRowsAlphabetically()
+    public void GroupPlacementsByCampaignOrdersGroupsNewestFirstAndRowsAlphabetically()
     {
         var placements = new List<TeamPlacementImpactDto>
         {
@@ -741,7 +743,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// previous club must not be restored; the page must reload against the new club scope instead.
     /// </summary>
     [Fact]
-    public void TeamDetail_ReloadsDetail_WhenPersistedSnapshotBelongsToDifferentClub()
+    public void TeamDetailReloadsDetailWhenPersistedSnapshotBelongsToDifferentClub()
     {
         var detailService = Substitute.For<ITeamDetailService>();
         detailService.GetTeamDetailAsync(Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -757,7 +759,7 @@ public sealed class TeamDetailComponentTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("U18 Crimson"));
         cut.Markup.ShouldNotContain("U16 Blue");
-        detailService.Received(1).GetTeamDetailAsync(7, Arg.Any<CancellationToken>());
+        _ = detailService.Received(1).GetTeamDetailAsync(7, Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -766,7 +768,7 @@ public sealed class TeamDetailComponentTests : BunitContext
     /// team detail loads with every management control permanently disabled.
     /// </summary>
     [Fact]
-    public void TeamDetail_ClearsMutatingFlag_WhenClubMembershipChangesDuringMutation()
+    public void TeamDetailClearsMutatingFlagWhenClubMembershipChangesDuringMutation()
     {
         var pendingUpdate = new TaskCompletionSource<ServiceResult<TeamDto>>();
         var managementService = Substitute.For<ITeamManagementService>();
@@ -937,14 +939,19 @@ public sealed class TeamDetailComponentTests : BunitContext
         /// </summary>
         /// <param name="newPrincipal">The principal to publish to subscribers.</param>
         public void Change(ClaimsPrincipal newPrincipal)
-            => NotifyAuthenticationStateChanged(_state = Task.FromResult(new AuthenticationState(newPrincipal)));
+        {
+            _state = Task.FromResult(new AuthenticationState(newPrincipal));
+            NotifyAuthenticationStateChanged(_state);
+        }
     }
 
     /// <summary>
     /// Starts with a prerendered state already restored from the previous club (club 42), so tests can
     /// exercise the interactive-attach path where the persisted snapshot's club differs from the current one.
     /// </summary>
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class PersistedClubIdTeamDetail(
+#pragma warning restore CA1812
         ITeamDetailService teamDetailService,
         ITeamManagementService teamManagementService,
         ITeamLifecycleService teamLifecycleService,

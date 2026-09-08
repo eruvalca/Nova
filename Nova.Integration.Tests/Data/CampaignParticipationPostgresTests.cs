@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -15,7 +15,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
     /// Verifies the clean Aspire database applied the campaign participation migration.
     /// </summary>
     [Fact]
-    public async Task Migration_AppliesCampaignParticipationIntegritySchema()
+    public async Task MigrationAppliesCampaignParticipationIntegritySchemaAsync()
     {
         await using var db = fixture.CreateTenantContext();
 
@@ -28,7 +28,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
     /// Verifies PostgreSQL rejects a second enrollment for the same campaign and player.
     /// </summary>
     [Fact]
-    public async Task UniqueEnrollment_RejectsDuplicateCampaignPlayer()
+    public async Task UniqueEnrollmentRejectsDuplicateCampaignPlayerAsync()
     {
         var data = await SeedAsync(playerCount: 2, initialTryoutNumber: null);
         ActAs(data.ActorUserId, data.ClubId, isClubAdmin: true);
@@ -49,12 +49,14 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
     /// Verifies the filtered tryout index permits nulls and cross-campaign reuse but rejects a same-campaign duplicate.
     /// </summary>
     [Fact]
-    public async Task TryoutNumberIndex_EnforcesCampaignScopedNonNullUniqueness()
+    public async Task TryoutNumberIndexEnforcesCampaignScopedNonNullUniquenessAsync()
     {
         var data = await SeedAsync(playerCount: 4, initialTryoutNumber: 42);
         ActAs(data.ActorUserId, data.ClubId, isClubAdmin: true);
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var allowed = fixture.CreateTenantContext())
+#pragma warning restore MA0004
         {
             allowed.PlayerCampaignAssignments.AddRange(
                 new PlayerCampaignAssignmentEntity
@@ -109,7 +111,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
     [InlineData((int)PlacementOutcome.NotSelected, true)]
     [InlineData((int)PlacementOutcome.Withdrawn, true)]
     [InlineData(99, false)]
-    public async Task OutcomeTeamConstraint_RejectsInvalidCombination(int outcomeValue, bool useTeam)
+    public async Task OutcomeTeamConstraintRejectsInvalidCombinationAsync(int outcomeValue, bool useTeam)
     {
         var data = await SeedAsync(playerCount: 1, initialTryoutNumber: null);
         ActAs(data.ActorUserId, data.ClubId, isClubAdmin: true);
@@ -130,7 +132,7 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
     /// Verifies EF's application-managed token prevents a stale context from overwriting a newer placement.
     /// </summary>
     [Fact]
-    public async Task ConcurrencyToken_RejectsStalePlacementUpdate()
+    public async Task ConcurrencyTokenRejectsStalePlacementUpdateAsync()
     {
         var data = await SeedAsync(playerCount: 1, initialTryoutNumber: null);
         ActAs(data.ActorUserId, data.ClubId, isClubAdmin: true);
@@ -163,62 +165,68 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
     /// <param name="playerCount">The number of players to seed.</param>
     /// <param name="initialTryoutNumber">The initial participation's tryout number.</param>
     /// <returns>Database-generated identifiers for the seeded graph.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<CampaignParticipationSeed> SeedAsync(int playerCount, int? initialTryoutNumber)
+#pragma warning restore MA0051
     {
         ActAs(userId: null, clubId: null);
-        await using var db = fixture.CreateAdminContext();
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-        var suffix = Guid.NewGuid().ToString("N");
-
-        var club = new ClubEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Participation Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
+            var suffix = Guid.NewGuid().ToString("N");
 
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Seasons.Add(season);
-
-        var players = Enumerable.Range(0, playerCount)
-            .Select(index => new PlayerEntity
+            var club = new ClubEntity
             {
                 CreationOperationId = Guid.NewGuid(),
-                FirstName = $"Player{index}",
-                LastName = suffix,
-                DateOfBirth = new DateOnly(2012, 1, 1),
-                GraduationYear = 2030,
+                Name = $"Participation Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
                 ClubId = club.ClubId,
                 CreatedById = actorUserId
-            })
-            .ToArray();
-        db.Players.AddRange(players);
+            };
+            db.Seasons.Add(season);
 
-        var team = new TeamEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Team {suffix}",
-            GraduationYear = 2029,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Teams.Add(team);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var players = Enumerable.Range(0, playerCount)
+                .Select(index => new PlayerEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    FirstName = $"Player{index}",
+                    LastName = suffix,
+                    DateOfBirth = new DateOnly(2012, 1, 1),
+                    GraduationYear = 2030,
+                    ClubId = club.ClubId,
+                    CreatedById = actorUserId
+                })
+                .ToArray();
+            db.Players.AddRange(players);
 
-        CampaignEntity[] campaigns =
-        [
-            new()
+            var team = new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Team {suffix}",
+                GraduationYear = 2029,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Teams.Add(team);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            CampaignEntity[] campaigns =
+            [
+                new()
             {
                 CreationOperationId = Guid.NewGuid(),
                 Name = $"Campaign A {suffix}",
@@ -236,28 +244,29 @@ public sealed class CampaignParticipationPostgresTests(NovaAppHostFixture fixtur
                 ClubId = club.ClubId,
                 CreatedById = actorUserId
             }
-        ];
-        db.Campaigns.AddRange(campaigns);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            ];
+            db.Campaigns.AddRange(campaigns);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = players[0].PlayerId,
-            CampaignId = campaigns[0].CampaignId,
-            TryoutNumber = initialTryoutNumber,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.PlayerCampaignAssignments.Add(assignment);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = players[0].PlayerId,
+                CampaignId = campaigns[0].CampaignId,
+                TryoutNumber = initialTryoutNumber,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.PlayerCampaignAssignments.Add(assignment);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return new CampaignParticipationSeed(
-            club.ClubId,
-            actorUserId,
-            [.. players.Select(player => player.PlayerId)],
-            [.. campaigns.Select(campaign => campaign.CampaignId)],
-            team.TeamId,
-            assignment.PlayerCampaignAssignmentId);
+            return new CampaignParticipationSeed(
+                club.ClubId,
+                actorUserId,
+                [.. players.Select(player => player.PlayerId)],
+                [.. campaigns.Select(campaign => campaign.CampaignId)],
+                team.TeamId,
+                assignment.PlayerCampaignAssignmentId);
+        }
     }
 
     /// <summary>

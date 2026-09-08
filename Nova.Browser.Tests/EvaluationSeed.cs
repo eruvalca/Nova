@@ -2,7 +2,7 @@
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Enums;
+using Nova.SharedKernel.Enums;
 
 namespace Nova.Browser.Tests;
 
@@ -21,7 +21,7 @@ namespace Nova.Browser.Tests;
 /// <param name="ActiveTagName">An active tag-definition name available for application.</param>
 /// <param name="SecondActiveTagName">A second active tag-definition name.</param>
 /// <param name="ArchivedTagName">The archived tag-definition name (pre-applied on one participant).</param>
-public sealed record SeededEvaluationWorkspace(
+internal sealed record SeededEvaluationWorkspace(
     long ClubId,
     long CampaignId,
     string CampaignName,
@@ -41,7 +41,7 @@ public sealed record SeededEvaluationWorkspace(
 /// campaign with 60 participants (two roster pages at the default page size of 50), two active
 /// tag definitions, and one archived tag definition pre-applied to a participant.
 /// </summary>
-public static class EvaluationSeed
+internal static class EvaluationSeed
 {
     /// <summary>The password shared by every seeded user.</summary>
     public const string Password = "Test#Passw0rd!";
@@ -75,10 +75,16 @@ public static class EvaluationSeed
 
         long adminUserId;
         long evaluatorUserId;
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             evaluatorUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == evaluatorEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
         }
 
         var (campaignId, campaignName, assignmentIds, archivedApplicationAssignmentId, activeTagName, secondActiveTagName, archivedTagName) =
@@ -137,7 +143,9 @@ public static class EvaluationSeed
 
         // Pre-apply the archived tag to the first participant so the archived-definition
         // scenario starts from an existing application.
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             context.Add(new CampaignTagApplicationEntity
             {

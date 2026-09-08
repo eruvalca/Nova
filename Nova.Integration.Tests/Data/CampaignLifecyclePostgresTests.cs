@@ -4,9 +4,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -21,7 +21,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies the clean Aspire database applied the campaign lifecycle migration.
     /// </summary>
     [Fact]
-    public async Task Migration_AppliesCampaignLifecyclePersistenceSchema()
+    public async Task MigrationAppliesCampaignLifecyclePersistenceSchemaAsync()
     {
         await using var db = fixture.CreateTenantContext();
 
@@ -39,7 +39,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies campaign status metadata constraints reject partial closure provenance.
     /// </summary>
     [Fact]
-    public async Task StatusMetadataConstraint_RejectsPartialClosureProvenance()
+    public async Task StatusMetadataConstraintRejectsPartialClosureProvenanceAsync()
     {
         var seed = await SeedCampaignAsync();
 
@@ -59,7 +59,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies campaign status metadata constraints reject closure provenance while status is active.
     /// </summary>
     [Fact]
-    public async Task StatusMetadataConstraint_RejectsClosureProvenance_ForActiveStatus()
+    public async Task StatusMetadataConstraintRejectsClosureProvenanceForActiveStatusAsync()
     {
         var seed = await SeedCampaignAsync();
 
@@ -68,7 +68,9 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
             .SingleAsync(candidate => candidate.CampaignId == seed.CampaignId, TestContext.Current.CancellationToken);
         campaign.Status = CampaignStatus.Active;
         campaign.ClosedAt = DateTimeOffset.UtcNow;
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         campaign.ClosedById = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         db.Update(campaign);
 
         await Should.ThrowAsync<DbUpdateException>(
@@ -77,7 +79,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies Draft campaigns cannot carry closure provenance.</summary>
     [Fact]
-    public async Task StatusMetadataConstraint_RejectsClosureProvenance_ForDraftStatus()
+    public async Task StatusMetadataConstraintRejectsClosureProvenanceForDraftStatusAsync()
     {
         var seed = await SeedCampaignAsync();
         await using var db = fixture.CreateUnnormalizedAdminContext();
@@ -96,7 +98,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies campaign status constraint rejects undefined enum values.
     /// </summary>
     [Fact]
-    public async Task StatusMetadataConstraint_RejectsUndefinedStatus()
+    public async Task StatusMetadataConstraintRejectsUndefinedStatusAsync()
     {
         var seed = await SeedCampaignAsync();
 
@@ -112,7 +114,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies Draft campaigns cannot retain any opening receipt field.</summary>
     [Fact]
-    public async Task StatusMetadataConstraint_RejectsOpeningReceipt_ForDraftStatus()
+    public async Task StatusMetadataConstraintRejectsOpeningReceiptForDraftStatusAsync()
     {
         var seed = await SeedCampaignAsync();
         await using var db = fixture.CreateUnnormalizedAdminContext();
@@ -129,7 +131,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies Active campaigns require a complete opening receipt.</summary>
     [Fact]
-    public async Task StatusMetadataConstraint_RejectsPartialOpeningReceipt_ForActiveStatus()
+    public async Task StatusMetadataConstraintRejectsPartialOpeningReceiptForActiveStatusAsync()
     {
         var seed = await SeedCampaignAsync();
         await using var db = fixture.CreateUnnormalizedAdminContext();
@@ -144,7 +146,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies Closed campaigns retain the complete opening receipt.</summary>
     [Fact]
-    public async Task StatusMetadataConstraint_RejectsPartialOpeningReceipt_ForClosedStatus()
+    public async Task StatusMetadataConstraintRejectsPartialOpeningReceiptForClosedStatusAsync()
     {
         var seed = await SeedCampaignAsync(closed: true);
         await using var db = fixture.CreateUnnormalizedAdminContext();
@@ -161,7 +163,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies campaign status concurrency prevents stale lifecycle transitions.
     /// </summary>
     [Fact]
-    public async Task StatusConcurrency_RejectsStaleLifecycleTransition()
+    public async Task StatusConcurrencyRejectsStaleLifecycleTransitionAsync()
     {
         var seeded = await SeedCampaignAsync();
         await using var first = fixture.CreateAdminContext();
@@ -189,7 +191,7 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// Verifies a placement waiting behind campaign closure reloads status after the advisory lock and is rejected.
     /// </summary>
     [Fact]
-    public async Task PlacementConcurrency_RejectsMutation_WhenCampaignClosesWhileWaitingForLock()
+    public async Task PlacementConcurrencyRejectsMutationWhenCampaignClosesWhileWaitingForLockAsync()
     {
         var seed = await SeedPlacementCampaignAsync();
         fixture.CurrentUser.UserId = seed.ActorUserId;
@@ -244,7 +246,9 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// and the campaign reloads as already closed, with the winner's closure and single event preserved.
     /// </summary>
     [Fact]
-    public async Task CloseConcurrency_RejectsSecondClose_WhenCampaignClosesWhileWaitingForLock()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task CloseConcurrencyRejectsSecondCloseWhenCampaignClosesWhileWaitingForLockAsync()
+#pragma warning restore MA0051
     {
         var seed = await SeedCampaignAsync();
         fixture.CurrentUser.UserId = seed.ActorUserId;
@@ -311,7 +315,9 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// and the campaign reloads as already active, with the winner's transition and single event preserved.
     /// </summary>
     [Fact]
-    public async Task ReopenConcurrency_RejectsSecondReopen_WhenCampaignReopensWhileWaitingForLock()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task ReopenConcurrencyRejectsSecondReopenWhenCampaignReopensWhileWaitingForLockAsync()
+#pragma warning restore MA0051
     {
         var seed = await SeedCampaignAsync(closed: true);
         fixture.CurrentUser.UserId = seed.ActorUserId;
@@ -376,11 +382,13 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies concurrent reopens of different campaigns yield one Active winner.</summary>
     [Fact]
-    public async Task ReopenConcurrency_DifferentClosedCampaignsYieldOneWinner()
+    public async Task ReopenConcurrencyDifferentClosedCampaignsYieldOneWinnerAsync()
     {
         var first = await SeedCampaignAsync(closed: true);
         long secondCampaignId;
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var seed = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var seasonId = await seed.Campaigns
                 .Where(campaign => campaign.CampaignId == first.CampaignId)
@@ -436,7 +444,9 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     /// forcing the database constraint to remain the final integrity guard.
     /// </remarks>
     [Fact]
-    public async Task Reopen_ReportsConflict_WhenActiveCampaignAppearsAfterPrecheck()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task ReopenReportsConflictWhenActiveCampaignAppearsAfterPrecheckAsync()
+#pragma warning restore MA0051
     {
         var target = await SeedCampaignAsync(closed: true);
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -448,24 +458,27 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
 
         var conflictInterceptor = new InsertAfterCampaignExistsProbeInterceptor(async () =>
         {
-            await using var competing = fixture.CreateAdminContext();
-            var seasonId = await competing.Campaigns
+            var competing = fixture.CreateAdminContext();
+            await using (competing)
+            {
+                var seasonId = await competing.Campaigns
                 .Where(campaign => campaign.CampaignId == target.CampaignId)
                 .Select(campaign => campaign.SeasonId)
                 .SingleAsync(cancellationToken);
-            var campaign = new CampaignEntity
-            {
-                CreationOperationId = Guid.NewGuid(),
-                Name = $"Competing Active {Guid.NewGuid():N}",
-                StartDate = new DateOnly(2026, 8, 1),
-                Status = CampaignStatus.Active,
-                SeasonId = seasonId,
-                ClubId = target.ClubId,
-                CreatedById = target.ActorUserId
-            };
-            competing.Campaigns.Add(campaign);
-            await competing.SaveChangesAsync(cancellationToken);
-            competingCampaignId = campaign.CampaignId;
+                var campaign = new CampaignEntity
+                {
+                    CreationOperationId = Guid.NewGuid(),
+                    Name = $"Competing Active {Guid.NewGuid():N}",
+                    StartDate = new DateOnly(2026, 8, 1),
+                    Status = CampaignStatus.Active,
+                    SeasonId = seasonId,
+                    ClubId = target.ClubId,
+                    CreatedById = target.ActorUserId
+                };
+                competing.Campaigns.Add(campaign);
+                await competing.SaveChangesAsync(cancellationToken);
+                competingCampaignId = campaign.CampaignId;
+            }
         });
         var factory = new RetryingTenantDbContextFactory(
             fixture.ConnectionString,
@@ -520,40 +533,43 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
     private async Task<CampaignPlacementSeed> SeedPlacementCampaignAsync()
     {
         var campaignSeed = await SeedCampaignAsync();
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var player = new PlayerEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Concurrent",
-            LastName = suffix,
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            ClubId = campaignSeed.ClubId,
-            CreatedById = campaignSeed.ActorUserId
-        };
-        db.Players.Add(player);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var suffix = Guid.NewGuid().ToString("N");
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Concurrent",
+                LastName = suffix,
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                ClubId = campaignSeed.ClubId,
+                CreatedById = campaignSeed.ActorUserId
+            };
+            db.Players.Add(player);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var concurrencyToken = Guid.NewGuid();
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaignSeed.CampaignId,
-            PlacementOutcome = PlacementOutcome.Undecided,
-            ConcurrencyToken = concurrencyToken,
-            ClubId = campaignSeed.ClubId,
-            CreatedById = campaignSeed.ActorUserId
-        };
-        db.PlayerCampaignAssignments.Add(assignment);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var concurrencyToken = Guid.NewGuid();
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaignSeed.CampaignId,
+                PlacementOutcome = PlacementOutcome.Undecided,
+                ConcurrencyToken = concurrencyToken,
+                ClubId = campaignSeed.ClubId,
+                CreatedById = campaignSeed.ActorUserId
+            };
+            db.PlayerCampaignAssignments.Add(assignment);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return new CampaignPlacementSeed(
-            campaignSeed.CampaignId,
-            campaignSeed.ClubId,
-            campaignSeed.ActorUserId,
-            assignment.PlayerCampaignAssignmentId,
-            concurrencyToken);
+            return new CampaignPlacementSeed(
+                campaignSeed.CampaignId,
+                campaignSeed.ClubId,
+                campaignSeed.ActorUserId,
+                assignment.PlayerCampaignAssignmentId,
+                concurrencyToken);
+        }
     }
 
     /// <summary>
@@ -567,50 +583,55 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         fixture.CurrentUser.ClubId = null;
         fixture.CurrentUser.IsClubAdmin = false;
 
-        await using var db = fixture.CreateAdminContext();
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
-        var suffix = Guid.NewGuid().ToString("N");
-        var club = new ClubEntity
+        var db = fixture.CreateAdminContext();
+        await using (db)
         {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Campaign Lifecycle Club {suffix}",
-            City = "Austin",
-            State = "TX",
-            CreatedById = actorUserId
-        };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
+            var suffix = Guid.NewGuid().ToString("N");
+            var club = new ClubEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Campaign Lifecycle Club {suffix}",
+                City = "Austin",
+                State = "TX",
+                CreatedById = actorUserId
+            };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Seasons.Add(season);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        club.CurrentSeasonId = season.SeasonId;
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Seasons.Add(season);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            club.CurrentSeasonId = season.SeasonId;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = closed ? CampaignStatus.Closed : CampaignStatus.Active,
-            ClosedAt = closed ? DateTimeOffset.UtcNow : null,
-            ClosedById = closed ? actorUserId : null,
-            SeasonId = season.SeasonId,
-            ClubId = club.ClubId,
-            CreatedById = actorUserId
-        };
-        db.Campaigns.Add(campaign);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = closed ? CampaignStatus.Closed : CampaignStatus.Active,
+                ClosedAt = closed ? DateTimeOffset.UtcNow : null,
+                ClosedById = closed ? actorUserId : null,
+                SeasonId = season.SeasonId,
+                ClubId = club.ClubId,
+                CreatedById = actorUserId
+            };
+            db.Campaigns.Add(campaign);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        db.Entry(campaign).State = EntityState.Detached;
-        return new CampaignLifecycleSeed(campaign.CampaignId, club.ClubId, actorUserId);
+            db.Entry(campaign).State = EntityState.Detached;
+            return new CampaignLifecycleSeed(campaign.CampaignId, club.ClubId, actorUserId);
+        }
     }
 
     /// <summary>
@@ -648,12 +669,5 @@ public sealed class CampaignLifecyclePostgresTests(NovaAppHostFixture fixture)
         /// <returns>A new tenant context.</returns>
         public NovaDbContext CreateDbContext() => fixture.CreateTenantContext();
 
-        /// <summary>
-        /// Creates a tenant context asynchronously.
-        /// </summary>
-        /// <param name="_">A token that cancels context creation.</param>
-        /// <returns>A new tenant context.</returns>
-        public ValueTask<NovaDbContext> CreateDbContextAsync(CancellationToken _ = default)
-            => ValueTask.FromResult(fixture.CreateTenantContext());
     }
 }

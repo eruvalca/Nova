@@ -5,7 +5,7 @@
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class UniqueNovaUserPhotoPerUser : Migration
+internal partial class UniqueNovaUserPhotoPerUser : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)

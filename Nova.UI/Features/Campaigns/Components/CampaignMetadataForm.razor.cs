@@ -1,8 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.UI.Features.Campaigns.Components;
 
@@ -135,7 +136,7 @@ public partial class CampaignMetadataForm
     /// Submits a cloned local model to the parent callback.
     /// </summary>
     /// <returns>A task that completes when the parent callback finishes.</returns>
-    private async Task HandleValidSubmit() => await OnValidSubmit.InvokeAsync(_localModel.Clone());
+    private async Task HandleValidSubmitAsync() => await OnValidSubmit.InvokeAsync(_localModel.Clone());
 
     /// <summary>
     /// Formats a season choice's date range for display in the season dropdown.
@@ -190,28 +191,36 @@ public sealed class CampaignMetadataFormState : IValidatableObject
     /// <param name="campaign">The selected campaign row.</param>
     /// <param name="seasonId">The identifier of the season group containing the campaign.</param>
     /// <returns>A form state initialized with the current metadata.</returns>
-    public static CampaignMetadataFormState FromListItem(CampaignListItem campaign, long seasonId) => new()
+    public static CampaignMetadataFormState FromListItem(CampaignListItem campaign, long seasonId)
     {
-        CampaignId = campaign.CampaignId,
-        Name = campaign.Name,
-        SeasonId = seasonId,
-        StartDate = campaign.StartDate,
-        PlannedEndDate = campaign.PlannedEndDate
-    };
+        ArgumentNullException.ThrowIfNull(campaign);
+        return new()
+        {
+            CampaignId = campaign.CampaignId,
+            Name = campaign.Name,
+            SeasonId = seasonId,
+            StartDate = campaign.StartDate,
+            PlannedEndDate = campaign.PlannedEndDate
+        };
+    }
 
     /// <summary>
     /// Creates a form state from a loaded campaign detail payload.
     /// </summary>
     /// <param name="detail">The loaded campaign detail.</param>
     /// <returns>A form state initialized with the current metadata.</returns>
-    public static CampaignMetadataFormState FromDetail(CampaignDetailResult detail) => new()
+    public static CampaignMetadataFormState FromDetail(CampaignDetailResult detail)
     {
-        CampaignId = detail.CampaignId,
-        Name = detail.Name,
-        SeasonId = detail.SeasonId,
-        StartDate = detail.StartDate,
-        PlannedEndDate = detail.PlannedEndDate
-    };
+        ArgumentNullException.ThrowIfNull(detail);
+        return new()
+        {
+            CampaignId = detail.CampaignId,
+            Name = detail.Name,
+            SeasonId = detail.SeasonId,
+            StartDate = detail.StartDate,
+            PlannedEndDate = detail.PlannedEndDate
+        };
+    }
 
     /// <summary>
     /// Converts this state to an update-campaign-metadata input payload.

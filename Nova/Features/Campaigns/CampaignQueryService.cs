@@ -1,10 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Features.Campaigns;
 
@@ -14,7 +14,7 @@ namespace Nova.Features.Campaigns;
 /// <param name="readDbContextFactory">The read-only context factory.</param>
 /// <param name="currentUserProvider">The current user and club context.</param>
 /// <param name="logger">The logger for rejected access attempts and read failures.</param>
-public sealed partial class CampaignQueryService(
+internal sealed partial class CampaignQueryService(
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<CampaignQueryService> logger) : ICampaignQueryService
@@ -22,7 +22,9 @@ public sealed partial class CampaignQueryService(
     private const string UnresolvedActorFallback = "Former member";
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<CampaignListResult>> GetCampaignListAsync(
+#pragma warning restore MA0051
         GetCampaignListInput input,
         CancellationToken cancellationToken = default)
     {
@@ -39,7 +41,9 @@ public sealed partial class CampaignQueryService(
         }
 
         var limit = input.Limit ?? GetCampaignListInput.DefaultLimit;
+#pragma warning disable CA1308 // Lowercase is required for this display text or ASCII route token, not for an identity comparison.
         var status = input.Status?.Trim().ToLowerInvariant() switch
+#pragma warning restore CA1308
         {
             "active" => CampaignStatus.Active,
             "draft" => CampaignStatus.Draft,
@@ -150,7 +154,9 @@ public sealed partial class CampaignQueryService(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<CampaignDetailResult>> GetCampaignDetailAsync(
+#pragma warning restore MA0051
         GetCampaignDetailInput input,
         CancellationToken cancellationToken = default)
     {
@@ -292,7 +298,9 @@ public sealed partial class CampaignQueryService(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep authorization, bounded database reads, and their result projection together for this query.
     public async Task<ServiceResult<CampaignOpeningReadinessResult>> GetOpeningReadinessAsync(
+#pragma warning restore MA0051
         long campaignId,
         CancellationToken cancellationToken = default)
     {

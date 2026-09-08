@@ -10,7 +10,5 @@ namespace Nova.Data;
 /// </summary>
 /// <param name="options">The context options.</param>
 /// <param name="currentUser">The current user provider.</param>
-public class NovaAdminDbContext(DbContextOptions<NovaAdminDbContext> options, ICurrentUserProvider currentUser)
-    : ApplicationDbContext(options, currentUser, bypassTenantFilter: true)
-{
-}
+internal class NovaAdminDbContext(DbContextOptions<NovaAdminDbContext> options, ICurrentUserProvider currentUser)
+    : ApplicationDbContext(options, currentUser, bypassTenantFilter: true);

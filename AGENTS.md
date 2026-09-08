@@ -10,7 +10,7 @@
 - The server/host project is `Nova/Nova.csproj`.
 - The Blazor WebAssembly project for interactive components is `Nova.Client/Nova.Client.csproj`.
 - The shared UI library is `Nova.UI/Nova.UI.csproj`.
-- The shared models, interfaces, endpoints, results, validation, and utilities project is `Nova.Shared/Nova.Shared.csproj`.
+- The shared models, interfaces, endpoints, results, validation, and utilities project is `Nova.SharedKernel/Nova.SharedKernel.csproj`.
 - The automated browser workflow suite (Playwright, local-only) is `Nova.Browser.Tests/Nova.Browser.Tests.csproj`.
 - Aspire instrumentation is configured in `Nova.AppHost/Nova.AppHost.csproj` and `Nova.ServiceDefaults/Nova.ServiceDefaults.csproj`.
 
@@ -42,55 +42,64 @@
 All agent-facing guidance — instructions, skills, custom agents, and hooks — must work for **both GitHub Copilot and OpenAI Codex**, plus any other agent that reads the open standards. This is a hard rule, not a preference:
 
 - This `AGENTS.md` is the single repo-wide instructions file for every ecosystem. Do not add a parallel `.github/copilot-instructions.md`; repo-wide rules go here, path-scoped rules go in `.github/instructions/`.
-- Copilot auto-loads `.github/instructions/*.instructions.md` via their `applyTo` frontmatter; Codex does not. Those files are also written to be read on demand (see Targeted Instructions below) and must never depend on Copilot-only loading behavior.
+- Copilot auto-loads `.github/instructions/*.instructions.md` via their `applyTo` frontmatter; Codex does not. Those files are also written to be read on demand (see Instruction and skill routing below) and must never depend on Copilot-only loading behavior.
 - Skills use the open Agent Skills format. `.agents/skills/` is read by both Codex and Copilot and is the primary location; any skill that also ships a Copilot-specific copy under `.github/skills/` must keep the `.agents/skills/` copy complete and in sync (same version, same behavior).
-- Custom agents ship in both formats: `.github/agents/*.agent.md` for Copilot, matching TOML definitions in `.codex/agents/*.toml` for Codex.
+- Custom agents ship in both formats: `.github/agents/*.agent.md` for Copilot and `.codex/agents/*.toml` for Codex. The four Impeccable definitions in `.agents/skills/impeccable/agents/*.toml` are canonical; installed and Copilot copies must preserve their behavior with only documented provider substitutions.
 - Hooks ship in both formats: `.github/hooks/*.json` for Copilot, `.codex/hooks.json` for Codex.
 - When a rule, skill, agent, or hook changes, update every ecosystem copy in the same change — never let them drift.
 
-## Targeted Instructions
+## Instruction and skill routing
 
-Detailed repo conventions live in targeted instruction files so they only load when relevant:
-If a targeted instruction file is referenced but not available in context, state which file is missing and ask the user to provide it before proceeding with the affected code area.
+Before adding, changing, debugging, or reviewing behavior, inspect `.github/instructions/` and
+read every `*.instructions.md` whose `applyTo` globs match the affected paths. Copilot CLI supports
+automatic matching; Codex must read these sources explicitly. Treat matching rules as mandatory.
+Read each source once unless it changes; reconsider applicability when paths or behavior expand.
+If a referenced instruction file cannot be found, state which file is missing and ask the user to
+provide it before proceeding with the affected area.
 
-- `.github/instructions/blazor-architecture.instructions.md` for Blazor architecture: component/page placement (`Nova.UI` first), SSR-first render-mode rules, feature folder organization, code-behind/CSS-isolation conventions, and service vs `DbContext`/`HttpContext` usage from components.
-- `.github/instructions/csharp-conventions.instructions.md` for C# style, `.editorconfig`, OneOf/ServiceResult conventions, and source-generated logging.
-- `.github/instructions/ef-core-tenancy.instructions.md` for EF Core setup, club-based multi-tenancy, DbContext selection (`NovaDbContext`/`NovaReadDbContext`/`NovaAdminDbContext`), entity/relationship rules, and migrations.
-- `.github/instructions/observability.instructions.md` for OpenTelemetry and correlation conventions: W3C/`Activity.Current` correlation, ServiceDefaults-owned wiring, Blazor tracing source inclusion, WASM HTTP trace propagation, and `ProblemDetails` trace IDs.
-- `.github/instructions/testing.instructions.md` for the test suite: unit vs Aspire integration vs Playwright browser tests, the SQLite tenancy harness, the AppHost fixture, the browser suite conventions, and how to run each project.
-- `.github/instructions/validation.instructions.md` for DataAnnotations on input records, `NotWhitespace`, `InputValidator`, structural vs contextual validation, and dual-layer validation.
-- `.github/instructions/service-layer.instructions.md` for service-layer patterns: ServiceProblem/ServiceResult types, OneOf preference, validation, DI registration, lifecycle-mutation locking, trace IDs, and logging.
-- `.github/instructions/season-lifecycle.instructions.md` for season currentness and advancement invariants, campaign season selection, and preservation of historical club data.
-- `.github/instructions/placement-decisions.instructions.md` for participation versus saved decisions, same-season precedence, withdrawal authority, immutable Closed outcomes, and placement no-op semantics.
-- `.github/instructions/functional-core.instructions.md` for selectively extracting deterministic business decisions into feature-local policies while services retain authorization, EF, locking, persistence, and effects.
-- `.github/instructions/api-endpoints.instructions.md` for HTTP endpoint patterns: MapGroup organization, handler methods, ServiceResult conversion, ProblemDetails structure, authorization, and enum binding.
-- `.github/instructions/bootstrap-theme.instructions.md` for the Sass-compiled kelp-forest Bootstrap theme: `Nova/scss/_variables.scss` is the single source of truth for palette tokens, `npm run build:css` / `npm run check:contrast` are authoritative, Node 20+/npm only, the compiled `Nova/wwwroot/css/bootstrap-theme.css` is generated (never edit or commit it), and never re-add vendored Bootstrap CSS or Bootstrap-blue literals; DESIGN.md/PRODUCT.md are the source of truth for color *semantics*.
-- `.github/instructions/ui-design.instructions.md` for the Fieldhouse Wayfinding design system: DESIGN.md/PRODUCT.md as design sources of truth, semantic color roles, flat boards, navigation and route-marker semantics, touch/motion rules, and responsive collapse — applies to `**/*.razor`, `**/*.razor.css`, `Nova/scss/**`, `Nova/Components/Pages/**`, `Nova/Features/**`.
+Filenames are only the first routing pass. Read rules for the behavior under inspection too:
+tests using EF or `TenancyTestHarness` need tenancy rules; HTTP serialization and DTO changes need
+API rules; components handling validation need validation rules. A pure policy or documentation
+change does not by itself require a visual-design workflow.
 
-### Using targeted instructions
+| Concern                                                   | Rules in `.github/instructions/`                               | Recipe in `.agents/skills/`                                                   |
+| --------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| C# style, OneOf, documentation, logging                   | `csharp-conventions.instructions.md`                           | Relevant feature recipe                                                       |
+| Blazor forms, state, navigation, authentication, recovery | `blazor-architecture.instructions.md`                          | `add-blazor-ui`                                                               |
+| UI design and Sass theme                                  | `ui-design.instructions.md`, `bootstrap-theme.instructions.md` | `impeccable` when design work is needed                                       |
+| Service or complete HTTP/WASM feature                     | `service-layer.instructions.md`, `validation.instructions.md`  | `add-feature-slice`                                                           |
+| Endpoints, wire contracts, HTTP clients                   | `api-endpoints.instructions.md`                                | `add-api-endpoint`                                                            |
+| EF, tenancy, schema, persistence helpers                  | `ef-core-tenancy.instructions.md`                              | `add-domain-persistence`                                                      |
+| Season/campaign lifecycle                                 | `season-lifecycle.instructions.md`                             | `add-domain-persistence`                                                      |
+| Participation and saved placement decisions               | `placement-decisions.instructions.md`                          | Relevant feature recipe                                                       |
+| Deterministic policy extraction                           | `functional-core.instructions.md`                              | `extract-functional-core`                                                     |
+| Durable activity feed and attention projections           | Tenancy, service, and API rules above                          | `add-activity-feed`                                                           |
+| Tests and behavioral verification                         | `testing.instructions.md`                                      | `nova-testing`; `aspire-playwright-validation` for one-off browser acceptance |
+| Telemetry and correlation                                 | `observability.instructions.md`                                | Relevant feature recipe                                                       |
 
-Copilot auto-loads the files listed above by matching each file's `applyTo` frontmatter
-against the paths being changed. Other agents do not. Before editing, reviewing, diagnosing,
-or otherwise working with files in this repo, open `.github/instructions/` and read every
-`*.instructions.md` file whose `applyTo` globs match the paths you are about to touch (e.g.
-`csharp-conventions.instructions.md` for any `**/*.cs`, `testing.instructions.md` for the test
-projects). Treat those files as mandatory rules for the matching paths.
+Before implementation or review recommendations, read the selected recipe's `SKILL.md` and its
+applicable references, including for existing behavior. Record the sources actually read with
+the validation evidence; an entry in the skill catalog is not evidence that its instructions
+were applied. Generic Aspire, .NET inspection, and Playwright recipes also live in
+`.agents/skills/`; choose them by the actual operation.
 
-## Skills
+## Completion and review
 
-The instruction files above hold the always-on *rules*. The step-by-step *recipes* (and full code
-examples) live in model-invoked Agent Skills under `.agents/skills/`, loaded on demand by intent:
-
-- `add-api-endpoint` — add/modify a minimal-API endpoint (route constants, handlers, `ToHttpResult`, ProblemDetails, antiforgery, auth, enum binding).
-- `add-domain-persistence` — add/modify domain policies, entities, EF configuration, tenancy, lifecycle/concurrency invariants, incremental migrations, and provider-focused tests; invokes `nova-testing`.
-- `add-feature-slice` — orchestrate a full vertical slice end to end (input record + validation → service → endpoint → WASM client → tests); invokes `add-domain-persistence` when needed, `add-api-endpoint`, and `nova-testing`.
-- `add-activity-feed` — build a durable append-only activity event log, its role-shaped keyset-paged feed, and attention badge counts (family-shaped polymorphic payloads, role visibility/redaction, per-region partial-failure projections); invokes `add-domain-persistence`, `add-api-endpoint`, `add-blazor-ui`, and `nova-testing`.
-- `add-blazor-ui` — build a Blazor page or component (placement and page-vs-component, render-mode decision tree, lifecycle and prerender/persisted state, parameters/`EventCallback`/binding, `EditForm` validation); invokes `nova-testing`.
-- `extract-functional-core` — extract deterministic business decisions from an existing service into a feature-local pure policy while preserving shell behavior; invokes `nova-testing`.
-- `nova-testing` — pick the harness (SQLite tenancy unit tests, Aspire Postgres integration tests, or the Playwright browser suite), write a test, and run it on Microsoft.Testing.Platform.
-- `aspire-playwright-validation` — one-off manual browser acceptance passes against the Aspire-hosted app; for committed browser regression coverage, add a `Nova.Browser.Tests` scenario instead.
-- `impeccable` — the Fieldhouse Wayfinding design/craft workflow (shape, critique, audit, polish, live browser iteration, and finish review; spawns the Impeccable custom agents below). Ships in two location-specific copies that must stay in sync: `.github/skills/impeccable` (Copilot slash command) and `.agents/skills/impeccable` (Codex and other harnesses; its `agents/*.toml` are mirrored into `.codex/agents/`). Its artifacts — `PRODUCT.md`, `DESIGN.md`, `.impeccable/` — are the design-system source of truth.
-
-Generic (non-Nova-specific) skills also live in `.agents/skills/`: `aspire`, `aspire-deployment`, `aspire-init`, `aspire-monitoring`, `aspire-orchestration`, `aspireify`, `dotnet-inspect`, and `playwright-cli`.
-
-The four Impeccable custom agents are shipped in both ecosystems' formats (`.github/agents/*.agent.md` and `.codex/agents/*.toml`), and the design-detector hook is shipped in both (`.github/hooks/impeccable.json` and `.codex/hooks.json`) — keep both copies of each in sync per the Dual-ecosystem compatibility rules above.
+- Diagnostic suppressions, weakened validation, skipped tests, and disabled checks are quality-control
+  changes: require an explicit rationale and review of their effect on coverage and enforcement.
+  Keep legitimate exceptions narrowly scoped and preserve justified existing exceptions. Fix the
+  underlying failure; do not hide or bypass it merely to make verification green.
+- For a defect fix, identify the violated invariant, inspect related implementations and call sites,
+  and verify each affected path before completion. Report the behavioral evidence and checks run.
+- Before opening a PR, obtain a separate local review for changes affecting authentication or
+  authorization, persisted/recoverable operations, asynchronous state ownership, HTTP contracts,
+  provider-sensitive persistence, or behavior spanning multiple components. Use another reviewer
+  or a fresh agent context in either CLI; no particular custom agent or framework is required.
+  Small copy, formatting, and isolated mechanical edits may use a focused self-review.
+- Give the reviewer the complete diff, intended behavior, applicable constraints, and test evidence.
+  Require concrete findings supported by code and reproducible reasoning; the implementer's summary
+  is context, not proof. Verify findings against actual product/browser behavior before changing code
+  or making a new permanent rule.
+- After a finding, inspect sibling paths for the same violated invariant before the next push.
+  Review suppressed findings in review bodies as well as inline threads; record the disposition of
+  findings and the tested revision in the PR validation record.

@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services.Attention;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Attention;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Attention;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Attention;
@@ -16,7 +16,7 @@ public sealed class HttpClubAttentionQueryServiceTests
 {
     /// <summary>Verifies the attention request uses the shared route and reads a populated payload.</summary>
     [Fact]
-    public async Task GetClubAttentionAsync_RequestsSharedRoute_AndReadsPayload()
+    public async Task GetClubAttentionAsyncRequestsSharedRouteAndReadsPayloadAsync()
     {
         HttpRequestMessage? capturedRequest = null;
         var payload = new ClubAttentionResult
@@ -35,7 +35,7 @@ public sealed class HttpClubAttentionQueryServiceTests
                 CampaignName = "Campaign A"
             }
         };
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
@@ -49,14 +49,14 @@ public sealed class HttpClubAttentionQueryServiceTests
         result.Value.PendingJoinRequests.Count.ShouldBe(2);
         result.Value.NeedsPlacement.CampaignId.ShouldBe(42);
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/attention");
+        capturedRequest.RequestUri!.PathAndQuery.ShouldBe("/api/attention");
     }
 
     /// <summary>Verifies a non-success ProblemDetails response retains its problem kind.</summary>
     [Fact]
-    public async Task GetClubAttentionAsync_ReturnsForbidden_FromProblemDetails()
+    public async Task GetClubAttentionAsyncReturnsForbiddenFromProblemDetailsAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)
             {
                 Content = JsonContent.Create(new ProblemPayload(403, "Forbidden", "Not allowed."))
@@ -91,9 +91,9 @@ public sealed class HttpClubAttentionQueryServiceTests
     [InlineData("""{"pendingJoinRequests":{"status":0,"oldestRequestAt":null},"needsPlacement":{"status":0,"count":0,"campaignId":null,"campaignName":null}}""")]
     [InlineData("""{"pendingJoinRequests":{"status":0,"count":0,"oldestRequestAt":null},"needsPlacement":{"status":0,"campaignId":null,"campaignName":null}}""")]
     [InlineData("""{"pendingJoinRequests":{"status":1,"oldestRequestAt":null},"needsPlacement":{"status":1,"campaignId":null,"campaignName":null}}""")]
-    public async Task GetClubAttentionAsync_ReturnsServerError_ForInvalidSuccessPayload(string body)
+    public async Task GetClubAttentionAsyncReturnsServerErrorForInvalidSuccessPayloadAsync(string body)
     {
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));
@@ -108,7 +108,7 @@ public sealed class HttpClubAttentionQueryServiceTests
 
     /// <summary>Verifies an Unavailable region paired with a loaded region is accepted.</summary>
     [Fact]
-    public async Task GetClubAttentionAsync_AcceptsUnavailableRegionAlongsideLoaded()
+    public async Task GetClubAttentionAsyncAcceptsUnavailableRegionAlongsideLoadedAsync()
     {
         var payload = new ClubAttentionResult
         {
@@ -126,7 +126,7 @@ public sealed class HttpClubAttentionQueryServiceTests
                 CampaignName = null
             }
         };
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpClubAttentionQueryService(http);

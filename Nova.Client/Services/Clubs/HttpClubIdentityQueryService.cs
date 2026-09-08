@@ -1,17 +1,17 @@
-﻿using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+﻿using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Clubs;
 
 /// <summary>Loads the current club identity over HTTP for WebAssembly rendering.</summary>
 /// <param name="http">The HTTP client for the authenticated server API.</param>
-public sealed class HttpClubIdentityQueryService(HttpClient http) : IClubIdentityQueryService
+internal sealed class HttpClubIdentityQueryService(HttpClient http) : IClubIdentityQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<ClubIdentityResult>> GetCurrentAsync(
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.GetAsync(ClubEndpoints.GetCurrent, cancellationToken);
+        using var response = await http.GetAsync(new Uri(ClubEndpoints.GetCurrent, UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);

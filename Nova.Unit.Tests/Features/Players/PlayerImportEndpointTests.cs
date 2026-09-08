@@ -4,8 +4,8 @@ using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Nova.Features.Players;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Features.Players;
@@ -15,7 +15,7 @@ public sealed class PlayerImportEndpointTests
 {
     /// <summary>Verifies both administrator-only routes advertise authentication failures.</summary>
     [Fact]
-    public async Task PlayerImportEndpoints_AdvertiseUnauthorized()
+    public async Task PlayerImportEndpointsAdvertiseUnauthorizedAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<IPlayerImportService, FakePlayerImportService>();
@@ -36,7 +36,7 @@ public sealed class PlayerImportEndpointTests
 
     /// <summary>Verifies the multipart preview route advertises framework media-type rejection.</summary>
     [Fact]
-    public async Task PreviewEndpoint_AdvertisesUnsupportedMediaType()
+    public async Task PreviewEndpointAdvertisesUnsupportedMediaTypeAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<IPlayerImportService, FakePlayerImportService>();
@@ -47,27 +47,29 @@ public sealed class PlayerImportEndpointTests
         var previewEndpoint = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
-            .Single(endpoint => endpoint.RoutePattern.RawText == PlayerEndpoints.ImportPreview);
+            .Single(endpoint => string.Equals(endpoint.RoutePattern.RawText, PlayerEndpoints.ImportPreview, StringComparison.Ordinal));
         previewEndpoint.Metadata
             .GetOrderedMetadata<IProducesResponseTypeMetadata>()
             .Select(metadata => metadata.StatusCode)
             .ShouldContain(StatusCodes.Status415UnsupportedMediaType);
     }
 
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class FakePlayerImportService : IPlayerImportService
+#pragma warning restore CA1812
     {
         /// <inheritdoc />
         public Task<ServiceResult<PlayerImportCompletion>> CommitAsync(
             PlayerImportCommitInput input,
-            CancellationToken cancellationToken = default) => throw new NotImplementedException();
+            CancellationToken cancellationToken = default) => throw new NotSupportedException("This test double does not support this operation.");
 
         /// <inheritdoc />
         public Task<ServiceResult<PlayerImportTemplate>> GetTemplateAsync(
-            CancellationToken cancellationToken = default) => throw new NotImplementedException();
+            CancellationToken cancellationToken = default) => throw new NotSupportedException("This test double does not support this operation.");
 
         /// <inheritdoc />
         public Task<ServiceResult<PlayerImportPreview>> PreviewAsync(
             PlayerImportUploadInput upload,
-            CancellationToken cancellationToken = default) => throw new NotImplementedException();
+            CancellationToken cancellationToken = default) => throw new NotSupportedException("This test double does not support this operation.");
     }
 }

@@ -1,4 +1,5 @@
-﻿namespace Nova.Components.Account.Pages.Manage;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+namespace Nova.Components.Account.Pages.Manage;
 
 /// <summary>
 /// The account-management profile photo page: hosts the photo editor inside the shared

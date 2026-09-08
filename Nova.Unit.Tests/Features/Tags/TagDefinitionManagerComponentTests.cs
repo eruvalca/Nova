@@ -1,9 +1,9 @@
 ﻿using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Tags;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Tags;
+using Nova.SharedKernel.Results;
 using Nova.UI.Features.Tags.Components;
 using NSubstitute;
 using OneOf.Types;
@@ -18,7 +18,7 @@ namespace Nova.Unit.Tests.Features.Tags;
 public sealed class TagDefinitionManagerComponentTests : BunitContext
 {
     [Fact]
-    public void Create_SubmitsCreateInput_AndShowsConfirmation()
+    public void CreateSubmitsCreateInputAndShowsConfirmation()
     {
         var managementService = Substitute.For<ITagDefinitionService>();
         var created = CreateActiveTag(id: 3, name: "Forward");
@@ -37,13 +37,13 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
         cut.Find("button[type='submit']").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Created tag \"Forward\"."));
-        managementService.Received(1).CreateAsync(
+        _ = managementService.Received(1).CreateAsync(
             Arg.Is<CreateTagDefinitionInput>(input => input.Name == "Forward"),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Edit_SubmitsUpdateInput_AndShowsConfirmation()
+    public void EditSubmitsUpdateInputAndShowsConfirmation()
     {
         var original = CreateActiveTag(id: 7, name: "Defensive");
         var managementService = Substitute.For<ITagDefinitionService>();
@@ -56,7 +56,7 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
         var cut = Render<TagDefinitionManager>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Defensive"));
 
-        var editButton = cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit");
+        var editButton = cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Edit", StringComparison.Ordinal));
         editButton.Click();
         cut.Markup.ShouldContain("Edit tag");
 
@@ -64,13 +64,13 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
         cut.Find("button[type='submit']").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Updated tag \"Pressing\"."));
-        managementService.Received(1).UpdateAsync(
+        _ = managementService.Received(1).UpdateAsync(
             Arg.Is<UpdateTagDefinitionInput>(input => input.TagId == 7 && input.Name == "Pressing"),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Archive_ConfirmsThenCallsLifecycleService()
+    public void ArchiveConfirmsThenCallsLifecycleService()
     {
         var tag = CreateActiveTag(id: 9, name: "Sweeper");
         var lifecycleService = Substitute.For<ITagDefinitionLifecycleService>();
@@ -82,18 +82,18 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
         var cut = Render<TagDefinitionManager>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Sweeper"));
 
-        var archiveButton = cut.FindAll("button").Single(button => button.TextContent.Trim() == "Archive");
+        var archiveButton = cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Archive", StringComparison.Ordinal));
         archiveButton.Click();
         cut.Markup.ShouldContain("Archive \"Sweeper\"?");
 
         cut.Find("button.btn-warning").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Archived tag \"Sweeper\"."));
-        lifecycleService.Received(1).ArchiveAsync(9, Arg.Any<CancellationToken>());
+        _ = lifecycleService.Received(1).ArchiveAsync(9, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void Restore_ConfirmsThenCallsLifecycleService()
+    public void RestoreConfirmsThenCallsLifecycleService()
     {
         var tag = CreateArchivedTag(id: 11, name: "Legacy");
         var lifecycleService = Substitute.For<ITagDefinitionLifecycleService>();
@@ -105,18 +105,18 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
         var cut = Render<TagDefinitionManager>();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Legacy"));
 
-        var restoreButton = cut.FindAll("button").Single(button => button.TextContent.Trim() == "Restore");
+        var restoreButton = cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Restore", StringComparison.Ordinal));
         restoreButton.Click();
         cut.Markup.ShouldContain("Restore \"Legacy\"?");
 
         cut.Find("button.btn-success").Click();
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Restored tag \"Legacy\"."));
-        lifecycleService.Received(1).RestoreAsync(11, Arg.Any<CancellationToken>());
+        _ = lifecycleService.Received(1).RestoreAsync(11, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void ClubAdminRoute_DeclaresInteractiveAutoRenderMode()
+    public void ClubAdminRouteDeclaresInteractiveAutoRenderMode()
     {
         var repoRoot = FindRepoRoot();
         var razorPath = Path.Combine(repoRoot, "Nova.UI", "Features", "Clubs", "Pages", "ClubAdmin.razor");
@@ -124,7 +124,7 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public void LoadFailure_ShowsError_ButNotTheEmptyState()
+    public void LoadFailureShowsErrorButNotTheEmptyState()
     {
         var queryService = Substitute.For<ITagDefinitionQueryService>();
         queryService.GetManagementListAsync(Arg.Any<GetTagDefinitionsInput>(), Arg.Any<CancellationToken>())
@@ -140,7 +140,7 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public void List_DoesNotShowTruncationNotice_WhenExactlyAtTheCap()
+    public void ListDoesNotShowTruncationNoticeWhenExactlyAtTheCap()
     {
         var tags = Enumerable.Range(1, TagDefinitionLimits.MaxTagDefinitions)
             .Select(i => CreateActiveTag(id: i, name: $"Tag{i}"))
@@ -155,7 +155,7 @@ public sealed class TagDefinitionManagerComponentTests : BunitContext
     }
 
     [Fact]
-    public void List_ShowsTruncationNotice_WhenMoreRowsExistBeyondTheCap()
+    public void ListShowsTruncationNoticeWhenMoreRowsExistBeyondTheCap()
     {
         var tags = Enumerable.Range(1, TagDefinitionLimits.MaxTagDefinitions)
             .Select(i => CreateActiveTag(id: i, name: $"Tag{i}"))

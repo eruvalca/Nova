@@ -3,10 +3,10 @@ using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
 using Nova.Features.Dashboard;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Dashboard;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Dashboard;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
@@ -38,7 +38,7 @@ public sealed class DashboardQueryServiceTests : IDisposable
 
     /// <summary>Verifies callers without approved membership are rejected before any composition.</summary>
     [Fact]
-    public async Task GetDashboard_ReturnsForbidden_WhenNotMember()
+    public async Task GetDashboardReturnsForbiddenWhenNotMemberAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -53,7 +53,7 @@ public sealed class DashboardQueryServiceTests : IDisposable
     /// Verifies active-only cards, workspace links, and roster/team counts for an evaluator.
     /// </summary>
     [Fact]
-    public async Task GetDashboard_ReturnsActiveCardsCounts_ForEvaluator()
+    public async Task GetDashboardReturnsActiveCardsCountsForEvaluatorAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -81,7 +81,7 @@ public sealed class DashboardQueryServiceTests : IDisposable
 
     /// <summary>Verifies tenant isolation: a different club sees only its own campaigns and counts.</summary>
     [Fact]
-    public async Task GetDashboard_IsTenantIsolated()
+    public async Task GetDashboardIsTenantIsolatedAsync()
     {
         _harness.CurrentUser.UserId = ClubBMemberId;
         _harness.CurrentUser.ClubId = ClubBId;
@@ -102,7 +102,7 @@ public sealed class DashboardQueryServiceTests : IDisposable
 
     /// <summary>Verifies administrator-only Draft campaigns do not appear on the member dashboard.</summary>
     [Fact]
-    public async Task GetDashboard_ExcludesDraftCampaignsForMembers()
+    public async Task GetDashboardExcludesDraftCampaignsForMembersAsync()
     {
         using (var admin = _harness.CreateAdminContext())
         {
@@ -121,7 +121,7 @@ public sealed class DashboardQueryServiceTests : IDisposable
                 });
             }
 
-            admin.SaveChanges();
+            await admin.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         _harness.CurrentUser.UserId = ClubAMemberId;

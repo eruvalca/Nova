@@ -1,5 +1,5 @@
 ---
-applyTo: "Nova/Data/**/*.cs,Nova/Entities/**/*.cs,Nova/Features/**/*Service*.cs,Nova/Program.cs,Nova.Unit.Tests/**/*.cs"
+applyTo: "Nova/Data/**/*.cs,Nova/Entities/**/*.cs,Nova/Features/**/*Service*.cs,Nova/Features/**/*Writer.cs,Nova/Features/**/*MutationReceipts.cs,Nova/Features/Common/LifecycleMutationLock.cs,Nova/Features/Players/PlayerImportRowClassifier.cs,Nova/Features/Clubs/ClubEndpointRouteBuilderExtensions.cs,Nova/Features/Photos/ProfilePhotoEndpointRouteBuilderExtensions.cs,Nova/Components/Account/ClubMembershipClaimRefresher.cs,Nova/Components/Account/NovaUserClaimsPrincipalFactory.cs,Nova/Program.cs,Nova.Unit.Tests/Data/**/*.cs,Nova.Unit.Tests/**/*Tenancy*.cs,Nova.Integration.Tests/Data/**/*.cs"
 description: "EF Core setup, club-based multi-tenancy, tenant-safe query construction, provider behavior, entity/relationship rules, and migrations."
 ---
 
@@ -13,17 +13,18 @@ for their club.
 All three contexts derive from the abstract `ApplicationDbContext` (one shared model, one
 migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `Nova/Program.cs`.
 
-| Context | Use for | Behavior |
-|---|---|---|
-| `NovaDbContext` | Normal reads/writes for the signed-in user | Tenant query filters ON; `TenantSaveChangesInterceptor` ON |
-| `NovaReadDbContext` | Read-only, larger or hot-path queries | Tenant filters ON; `NoTracking` + auto-detect-changes off; all `SaveChanges*` overloads throw |
-| `NovaAdminDbContext` | Admin/maintenance UI, Identity stores, seeding, anonymous flows (login/registration) | Tenant filters BYPASSED; interceptor still stamps audit fields |
+| Context              | Use for                                                                              | Behavior                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `NovaDbContext`      | Normal reads/writes for the signed-in user                                           | Tenant query filters ON; `TenantSaveChangesInterceptor` ON                                    |
+| `NovaReadDbContext`  | Read-only, larger or hot-path queries                                                | Tenant filters ON; `NoTracking` + auto-detect-changes off; all `SaveChanges*` overloads throw |
+| `NovaAdminDbContext` | Admin/maintenance UI, Identity stores, seeding, anonymous flows (login/registration) | Tenant filters BYPASSED; interceptor still stamps audit fields                                |
 
 - Default to `NovaDbContext`. Use `NovaReadDbContext` when you know you won't write. Use
   `NovaAdminDbContext` only behind `Policies.RequireAdmin` or in infrastructure (Identity,
   seeding) — never in user-facing tenant flows.
-- In Blazor components/services, inject `IDbContextFactory<T>` and `await factory.CreateDbContextAsync()`
-  with `await using`; do not inject the context directly.
+- In server services, inject `IDbContextFactory<T>` and `await factory.CreateDbContextAsync()`
+  with `await using`; do not inject the context directly. Components call feature services and
+  never access a `DbContext` directly (see `blazor-architecture.instructions.md`).
 - Never call `IgnoreQueryFilters()` to "fix" a missing-data bug — switch to `NovaAdminDbContext`
   behind an admin policy instead, so the intent is auditable.
 
@@ -52,7 +53,7 @@ migrations set) and are registered as **scoped** `AddDbContextFactory<T>` in `No
 - Do not set `ClubId` manually when creating entities via `NovaDbContext`; `TenantSaveChangesInterceptor` stamps it from the current user (throws if the user has no club or on cross-tenant write). Under `NovaAdminDbContext` stamping is skipped — admin code MUST set `ClubId` explicitly. The interceptor always stamps `CreatedAt`/`ModifiedAt` + `CreatedById`/`ModifiedById` (intentionally FK-less). The one exception to manual `ClubId` stamping is the club-less join-request activity write — see **Append-only activity events**.
 - Visibility belongs in query filters; ACTIONS (approve/reject/delete) belong in authorization
   policies (`Policies.RequireAdmin` / `RequireClubAdmin` / `RequireClubMember` in
-  `Nova.Shared/Security/Policies.cs`).
+  `Nova.SharedKernel/Security/Policies.cs`).
 - Scope tenant queries from the authenticated tenant context, not from a caller-supplied route or
   query value. A route tenant id may be compared for non-disclosing authorization behavior, but it
   must not become the authoritative LINQ predicate.

@@ -2,9 +2,9 @@
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Campaigns;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Campaigns;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -13,7 +13,7 @@ public sealed partial class CampaignPlacementServiceTests
 {
     /// <summary>Checks technical enrollment has no decision attribution until an explicit member save.</summary>
     [Fact]
-    public async Task UpdatePlacementAsync_RecordsDecisionAttribution_WithoutReplacingEnrollmentAuthor()
+    public async Task UpdatePlacementAsyncRecordsDecisionAttributionWithoutReplacingEnrollmentAuthorAsync()
     {
         await using (var before = _harness.CreateAdminContext())
         {
@@ -41,7 +41,7 @@ public sealed partial class CampaignPlacementServiceTests
     [InlineData(PlacementOutcome.Assigned)]
     [InlineData(PlacementOutcome.NotSelected)]
     [InlineData(PlacementOutcome.Withdrawn)]
-    public async Task UpdatePlacementAsync_IsNoOp_WhenLocalDecisionAndTokenMatch(PlacementOutcome outcome)
+    public async Task UpdatePlacementAsyncIsNoOpWhenLocalDecisionAndTokenMatchAsync(PlacementOutcome outcome)
     {
         ActAs(ClubAMemberId, ClubAId);
         var first = (await SaveAsync(outcome, _clubAConcurrencyToken)).Value.ShouldBeOfType<PlacementMutationSuccess>();
@@ -72,7 +72,7 @@ public sealed partial class CampaignPlacementServiceTests
     [InlineData(false, PlacementOutcome.NotSelected)]
     [InlineData(true, PlacementOutcome.Assigned)]
     [InlineData(true, PlacementOutcome.NotSelected)]
-    public async Task UpdatePlacementAsync_RejectsReplacementOfLocalWithdrawal_WithoutWrites(bool isAdmin, PlacementOutcome outcome)
+    public async Task UpdatePlacementAsyncRejectsReplacementOfLocalWithdrawalWithoutWritesAsync(bool isAdmin, PlacementOutcome outcome)
     {
         ActAs(ClubAMemberId, ClubAId);
         var first = (await SaveAsync(PlacementOutcome.Withdrawn, _clubAConcurrencyToken)).Value.ShouldBeOfType<PlacementMutationSuccess>();
@@ -96,7 +96,7 @@ public sealed partial class CampaignPlacementServiceTests
     [InlineData(PlacementOutcome.Assigned, false)]
     [InlineData(PlacementOutcome.NotSelected, false)]
     [InlineData(PlacementOutcome.Withdrawn, true)]
-    public async Task UpdatePlacementAsync_SupersedesPriorDecision_AndPreservesClosedHistory(PlacementOutcome priorOutcome, bool isAdmin)
+    public async Task UpdatePlacementAsyncSupersedesPriorDecisionAndPreservesClosedHistoryAsync(PlacementOutcome priorOutcome, bool isAdmin)
     {
         var priorToken = await SeedPriorDecisionAsync(priorOutcome);
         ActAs(isAdmin ? ClubAAdminId : ClubAMemberId, ClubAId, isAdmin);
@@ -111,7 +111,7 @@ public sealed partial class CampaignPlacementServiceTests
         prior.ModifiedAt.ShouldBeNull();
         var activity = await verify.ActivityEvents.SingleAsync(TestContext.Current.CancellationToken);
         activity.EventKind.ShouldBe(ActivityEventKind.PlacementSuperseded);
-        var payload = JsonSerializer.Deserialize<ClubActivityContext>(activity.PayloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }).ShouldBeOfType<PlacementContext>();
+        var payload = JsonSerializer.Deserialize<ClubActivityContext>(activity.PayloadJson, _caseInsensitiveJsonOptions).ShouldBeOfType<PlacementContext>();
         payload.PreviousOutcome.ShouldBe(priorOutcome);
         payload.Outcome.ShouldBe(PlacementOutcome.Assigned);
         payload.PreviousTeamName.ShouldBe(priorOutcome == PlacementOutcome.Assigned ? "Eligible" : null);
@@ -120,7 +120,7 @@ public sealed partial class CampaignPlacementServiceTests
 
     /// <summary>Checks a member cannot replace prior withdrawal and rejection creates no side effects.</summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ForbidsMemberPriorWithdrawalOverride_WithoutWrites()
+    public async Task UpdatePlacementAsyncForbidsMemberPriorWithdrawalOverrideWithoutWritesAsync()
     {
         await SeedPriorDecisionAsync(PlacementOutcome.Withdrawn);
         ActAs(ClubAMemberId, ClubAId);
@@ -138,7 +138,7 @@ public sealed partial class CampaignPlacementServiceTests
 
     /// <summary>Checks a previous season's withdrawal does not restrict the current season.</summary>
     [Fact]
-    public async Task UpdatePlacementAsync_ResetsEligibility_WhenWithdrawalBelongsToPreviousSeason()
+    public async Task UpdatePlacementAsyncResetsEligibilityWhenWithdrawalBelongsToPreviousSeasonAsync()
     {
         await SeedPriorDecisionAsync(PlacementOutcome.Withdrawn, previousSeason: true);
         ActAs(ClubAMemberId, ClubAId);
@@ -148,13 +148,13 @@ public sealed partial class CampaignPlacementServiceTests
         await using var verify = _harness.CreateAdminContext();
         var activity = await verify.ActivityEvents.SingleAsync(TestContext.Current.CancellationToken);
         activity.EventKind.ShouldNotBe(ActivityEventKind.PlacementSuperseded);
-        var payload = JsonSerializer.Deserialize<ClubActivityContext>(activity.PayloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }).ShouldBeOfType<PlacementContext>();
+        var payload = JsonSerializer.Deserialize<ClubActivityContext>(activity.PayloadJson, _caseInsensitiveJsonOptions).ShouldBeOfType<PlacementContext>();
         payload.PreviousOutcome.ShouldBeNull();
     }
 
     /// <summary>Checks an Active target is rejected when its season is not the club's current season.</summary>
     [Fact]
-    public async Task UpdatePlacementAsync_RejectsNonCurrentSeason_WithoutWrites()
+    public async Task UpdatePlacementAsyncRejectsNonCurrentSeasonWithoutWritesAsync()
     {
         await using (var arrange = _harness.CreateAdminContext())
         {
@@ -173,7 +173,7 @@ public sealed partial class CampaignPlacementServiceTests
 
     /// <summary>Checks selection uses opening order before team validity and never revives an older withdrawal.</summary>
     [Fact]
-    public async Task UpdatePlacementAsync_UsesLatestDecisionBeforeTeamValidity_WithoutHistoricalFallback()
+    public async Task UpdatePlacementAsyncUsesLatestDecisionBeforeTeamValidityWithoutHistoricalFallbackAsync()
     {
         await SeedPriorDecisionAsync(PlacementOutcome.Withdrawn);
         await using (var seed = _harness.CreateAdminContext())
@@ -220,7 +220,7 @@ public sealed partial class CampaignPlacementServiceTests
         await using var verify = _harness.CreateAdminContext();
         var activity = await verify.ActivityEvents.SingleAsync(TestContext.Current.CancellationToken);
         activity.EventKind.ShouldBe(ActivityEventKind.PlacementSuperseded);
-        var payload = JsonSerializer.Deserialize<ClubActivityContext>(activity.PayloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }).ShouldBeOfType<PlacementContext>();
+        var payload = JsonSerializer.Deserialize<ClubActivityContext>(activity.PayloadJson, _caseInsensitiveJsonOptions).ShouldBeOfType<PlacementContext>();
         payload.PreviousOutcome.ShouldBe(PlacementOutcome.Assigned);
         payload.PreviousTeamName.ShouldBe("Eligible");
         payload.TeamName.ShouldBe("Eligible 2");
@@ -240,7 +240,9 @@ public sealed partial class CampaignPlacementServiceTests
     /// <returns>The source decision token for immutable-history assertions.</returns>
     private async Task<Guid> SeedPriorDecisionAsync(PlacementOutcome outcome, bool previousSeason = false)
     {
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using var db = _harness.CreateAdminContext();
+#pragma warning restore MA0004
         (await db.Campaigns.FindAsync([600L], TestContext.Current.CancellationToken))!.SeasonOpeningSequence = 10;
         if (previousSeason)
         {

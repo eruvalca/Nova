@@ -1,4 +1,4 @@
-@using Nova.Shared.Enums
+@using Nova.SharedKernel.Enums
 
 <section class="card shadow-sm border-0" aria-labelledby="overview-region-heading">
     <div class="card-body">
@@ -77,24 +77,24 @@
                     @if (IsClubAdmin && Detail.Status == CampaignStatus.Active)
                     {
                         <button type="button" class="btn btn-link btn-sm p-0 align-baseline" @onclick="OnOpenCloseout">Open closeout</button>
-                    }
-                </div>
-            }
+                        }
+                    </div>
+                }
 
-            <h3 class="h6 mb-2">Activity</h3>
-            @if (_activity is null || _activity.Events.Count == 0)
-            {
-                <p class="text-muted mb-0">No recent activity.</p>
-            }
-            else
-            {
-                <ul class="list-unstyled mb-0">
-                    @foreach (var item in _activity.Events)
-                    {
-                        <li class="py-1 border-bottom">@FormatActivityDate(item.CreatedAt) @item.ActorDisplayName @ActivityVerb(item.EventType)</li>
+                <h3 class="h6 mb-2">Activity</h3>
+                @if (_activity is null || _activity.Events.Count == 0)
+                {
+                    <p class="text-muted mb-0">No recent activity.</p>
+                }
+                else
+                {
+                    <ul class="list-unstyled mb-0">
+                        @foreach (var item in _activity.Events)
+                        {
+                            <li class="py-1 border-bottom">@FormatActivityDate(item.CreatedAt) @item.ActorDisplayName @ActivityVerb(item.EventType)</li>
+                            }
+                        </ul>
                     }
-                </ul>
-            }
-        }
-    </div>
-</section>
+                }
+            </div>
+        </section>

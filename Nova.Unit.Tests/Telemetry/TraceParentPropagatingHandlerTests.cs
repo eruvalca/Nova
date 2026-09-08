@@ -9,10 +9,10 @@ namespace Nova.Unit.Tests.Telemetry;
 public partial class TraceParentPropagatingHandlerTests
 {
     [Fact]
-    public async Task SendAsync_AddsTraceParentHeader_WhenMissing()
+    public async Task SendAsyncAddsTraceParentHeaderWhenMissingAsync()
     {
         using var listener = CreateNovaClientListener();
-        var capture = new CapturingHandler();
+        using var capture = new CapturingHandler();
         using var invoker = CreateInvoker(capture);
         using var request = new HttpRequestMessage(HttpMethod.Get, "https://example.test");
 
@@ -23,27 +23,27 @@ public partial class TraceParentPropagatingHandlerTests
     }
 
     [Fact]
-    public async Task SendAsync_PreservesTraceParentHeader_WhenAlreadyPresent()
+    public async Task SendAsyncPreservesTraceParentHeaderWhenAlreadyPresentAsync()
     {
         using var listener = CreateNovaClientListener();
-        var capture = new CapturingHandler();
+        using var capture = new CapturingHandler();
         using var invoker = CreateInvoker(capture);
         using var request = new HttpRequestMessage(HttpMethod.Get, "https://example.test");
-        const string existingTraceParent = "00-11111111111111111111111111111111-2222222222222222-01";
-        request.Headers.TryAddWithoutValidation("traceparent", existingTraceParent).ShouldBeTrue();
+        const string ExistingTraceParent = "00-11111111111111111111111111111111-2222222222222222-01";
+        request.Headers.TryAddWithoutValidation("traceparent", ExistingTraceParent).ShouldBeTrue();
 
         using var response = await invoker.SendAsync(request, TestContext.Current.CancellationToken);
 
         capture.LastRequest.Headers.TryGetValues("traceparent", out var values).ShouldBeTrue();
         values.ShouldHaveSingleItem();
-        values.Single().ShouldBe(existingTraceParent);
+        values.Single().ShouldBe(ExistingTraceParent);
     }
 
     [Fact]
-    public async Task SendAsync_UsesAmbientParentTraceId_WhenAmbientParentExists()
+    public async Task SendAsyncUsesAmbientParentTraceIdWhenAmbientParentExistsAsync()
     {
         using var listener = CreateNovaClientListener();
-        var capture = new CapturingHandler();
+        using var capture = new CapturingHandler();
         using var invoker = CreateInvoker(capture);
         using var request = new HttpRequestMessage(HttpMethod.Get, "https://example.test");
         using var ambientParent = new System.Diagnostics.Activity("ambient-parent");
@@ -58,10 +58,10 @@ public partial class TraceParentPropagatingHandlerTests
     }
 
     [Fact]
-    public async Task SendAsync_UsesDifferentSpanIds_ForSequentialRequests()
+    public async Task SendAsyncUsesDifferentSpanIdsForSequentialRequestsAsync()
     {
         using var listener = CreateNovaClientListener();
-        var capture = new CapturingHandler();
+        using var capture = new CapturingHandler();
         using var invoker = CreateInvoker(capture);
         using var first = new HttpRequestMessage(HttpMethod.Get, "https://example.test/first");
         using var second = new HttpRequestMessage(HttpMethod.Get, "https://example.test/second");
@@ -74,12 +74,14 @@ public partial class TraceParentPropagatingHandlerTests
 
         var firstSpanId = firstTraceParent.Split('-')[2];
         var secondSpanId = secondTraceParent.Split('-')[2];
-        secondSpanId.ShouldNotBe(firstSpanId);
+        secondSpanId.ShouldNotBe(firstSpanId, StringComparer.Ordinal);
     }
 
     private static HttpMessageInvoker CreateInvoker(HttpMessageHandler innerHandler)
     {
+#pragma warning disable CA2000 // The returned HttpMessageInvoker owns and disposes its handler chain.
         return new HttpMessageInvoker(new TraceParentPropagatingHandler
+#pragma warning restore CA2000
         {
             InnerHandler = innerHandler
         });
@@ -89,7 +91,7 @@ public partial class TraceParentPropagatingHandlerTests
     {
         var listener = new ActivityListener
         {
-            ShouldListenTo = source => source.Name == "Nova.Client",
+            ShouldListenTo = source => string.Equals(source.Name, "Nova.Client", StringComparison.Ordinal),
             Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             SampleUsingParentId = static (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded
         };
@@ -115,6 +117,6 @@ public partial class TraceParentPropagatingHandlerTests
         }
     }
 
-    [GeneratedRegex("^00-[0-9a-f]{32}-[0-9a-f]{16}-01$")]
+    [GeneratedRegex("^00-[0-9a-f]{32}-[0-9a-f]{16}-01$", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex MyRegex();
 }

@@ -1,7 +1,7 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Campaigns;
 
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Campaigns;
 /// WebAssembly HTTP implementation of <see cref="ICampaignParticipantQueryService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICampaignParticipantQueryService
+internal sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICampaignParticipantQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<PagedResult<CampaignParticipantRosterItem>>> GetParticipantRosterAsync(
@@ -26,7 +26,7 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
         var expectedPageSize = input.PageSize ?? GetCampaignParticipantRosterInput.DefaultPageSize;
 
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantRosterUrl(input),
+new Uri(CampaignEndpoints.GetCampaignParticipantRosterUrl(input), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -51,7 +51,7 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
         }
 
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantDetailUrl(input.CampaignId, input.PlayerCampaignAssignmentId),
+new Uri(CampaignEndpoints.GetCampaignParticipantDetailUrl(input.CampaignId, input.PlayerCampaignAssignmentId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -76,7 +76,7 @@ public sealed class HttpCampaignParticipantQueryService(HttpClient http) : ICamp
         }
 
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(input.CampaignId),
+new Uri(CampaignEndpoints.GetCampaignParticipantGraduationYearsUrl(input.CampaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {

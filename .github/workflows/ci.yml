@@ -13,12 +13,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check agent guidance parity
+        shell: pwsh
+        run: ./scripts/Test-AgentGuidance.ps1
+
+      - name: Exercise guidance checker failures
+        shell: pwsh
+        run: ./scripts/Test-AgentGuidance.ps1 -SelfTest
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: Nova/package-lock.json
+
+      - name: Check agent hook adapters and installer
+        run: node --test scripts/AgentHooks.Tests.mjs
 
       - name: Install npm dependencies
         # npm ci installs node_modules exactly per package-lock.json, then we touch
@@ -48,6 +59,9 @@ jobs:
         # A separate `npm run build:css` step would compile the CSS a redundant second time, so
         # we rely on the build and only run the contrast check next.
         run: dotnet build Nova.slnx --no-restore
+
+      - name: Check formatting
+        run: dotnet format Nova.slnx --verify-no-changes --no-restore
 
       - name: Check contrast
         run: npm run check:contrast

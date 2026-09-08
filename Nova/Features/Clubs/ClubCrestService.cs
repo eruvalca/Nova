@@ -8,9 +8,9 @@ using Nova.Data;
 using Nova.Data.Tenancy;
 using Nova.Entities;
 using Nova.Features.Photos;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Photos;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Photos;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
@@ -23,14 +23,14 @@ namespace Nova.Features.Clubs;
 /// aspect-preserving medium and large variants), stores blobs in the club crest
 /// container, and persists <see cref="ClubCrestEntity"/> rows for a given club. Change/remove
 /// operations are restricted to the club's admins and mark every club member's claims stale
-/// so the <see cref="Nova.Shared.Security.NovaClaimTypes.HasClubCrest"/> claim propagates.
+/// so the <see cref="Nova.SharedKernel.Security.NovaClaimTypes.HasClubCrest"/> claim propagates.
 /// </summary>
 /// <param name="containerClient">The blob container client for the club crest container.</param>
 /// <param name="dbContextFactory">The factory for the tenant-scoped write context.</param>
 /// <param name="currentUserProvider">The provider for the current user's identity.</param>
 /// <param name="clubMembershipClaimRefresher">The refresher used to mark club members' claims stale.</param>
 /// <param name="logger">The logger.</param>
-public sealed partial class ClubCrestService(
+internal sealed partial class ClubCrestService(
     [FromKeyedServices("club-crests")] BlobContainerClient containerClient,
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
@@ -38,7 +38,9 @@ public sealed partial class ClubCrestService(
     ILogger<ClubCrestService> logger) : IClubCrestService
 {
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     public async Task<ServiceResult<Success>> ChangeClubCrestAsync(long clubId, ClubCrestUpload upload, CancellationToken cancellationToken = default)
+#pragma warning restore MA0051
     {
         if (!IsClubAdmin(clubId) || currentUserProvider.UserId is not long userId)
         {
@@ -49,7 +51,7 @@ public sealed partial class ClubCrestService(
         var validationErrors = ClubCrestValidator.Validate(upload.Content, upload.ContentType);
         if (validationErrors.Count > 0)
         {
-            return ServiceProblem.Validation(new Dictionary<string, string[]> { ["crest"] = [.. validationErrors] });
+            return ServiceProblem.Validation(new Dictionary<string, string[]>(StringComparer.Ordinal) { ["crest"] = [.. validationErrors] });
         }
 
         var contentType = ProfilePhotoValidator.SniffContentType(upload.Content)!;

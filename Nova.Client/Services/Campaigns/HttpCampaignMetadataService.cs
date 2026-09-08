@@ -1,6 +1,6 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Campaigns;
 
@@ -8,7 +8,7 @@ namespace Nova.Client.Services.Campaigns;
 /// WebAssembly HTTP implementation of <see cref="ICampaignMetadataService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpCampaignMetadataService(HttpClient http) : ICampaignMetadataService
+internal sealed class HttpCampaignMetadataService(HttpClient http) : ICampaignMetadataService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<UpdateCampaignMetadataResult>> UpdateAsync(

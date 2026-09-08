@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using Nova.Shared.Validation;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Validation;
@@ -15,7 +15,7 @@ public class InputValidatorTests
     /// Uses a class instead of a record because record positional parameter attributes
     /// have a known issue where they don't apply to properties in some C# versions.
     /// </summary>
-    public class TestInput
+    private sealed class TestInput
     {
         [Required]
         [NotWhitespace]
@@ -28,7 +28,7 @@ public class InputValidatorTests
     }
 
     [Fact]
-    public void Validate_WithValidInput_ReturnsEmptyDictionary()
+    public void ValidateWithValidInputReturnsEmptyDictionary()
     {
         // Arrange
         var input = new TestInput { Name = "Alice", Age = 30 };
@@ -41,7 +41,7 @@ public class InputValidatorTests
     }
 
     [Fact]
-    public void Validate_WithNullName_ContainsNameError()
+    public void ValidateWithNullNameContainsNameError()
     {
         // Arrange
         var input = new TestInput { Name = null!, Age = 30 };
@@ -56,7 +56,7 @@ public class InputValidatorTests
     }
 
     [Fact]
-    public void Validate_WithWhitespaceOnlyName_ContainsNameError()
+    public void ValidateWithWhitespaceOnlyNameContainsNameError()
     {
         // Arrange
         var input = new TestInput { Name = "   ", Age = 30 };
@@ -72,7 +72,7 @@ public class InputValidatorTests
     }
 
     [Fact]
-    public void Validate_WithNameExceedingMaxLength_ContainsNameError()
+    public void ValidateWithNameExceedingMaxLengthContainsNameError()
     {
         // Arrange
         var input = new TestInput { Name = "TooLongString123", Age = 30 }; // 16 chars, max is 10
@@ -87,7 +87,7 @@ public class InputValidatorTests
     }
 
     [Fact]
-    public void Validate_WithAgeOutOfRange_ContainsAgeError()
+    public void ValidateWithAgeOutOfRangeContainsAgeError()
     {
         // Arrange
         var input = new TestInput { Name = "Alice", Age = 0 };
@@ -101,7 +101,7 @@ public class InputValidatorTests
     }
 
     [Fact]
-    public void Validate_WithMultipleViolations_ContainsAllErrors()
+    public void ValidateWithMultipleViolationsContainsAllErrors()
     {
         // Arrange
         var input = new TestInput { Name = null!, Age = 0 };
@@ -116,7 +116,7 @@ public class InputValidatorTests
     }
 
     [Fact]
-    public void Validate_WithNullInput_ThrowsArgumentNullException()
+    public void ValidateWithNullInputThrowsArgumentNullException()
     {
         // Arrange & Act
         var ex = Should.Throw<ArgumentNullException>(() => InputValidator.Validate<TestInput>(null!));

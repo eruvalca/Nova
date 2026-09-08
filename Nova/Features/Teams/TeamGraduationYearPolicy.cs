@@ -1,4 +1,4 @@
-﻿using Nova.Shared.Features.Teams;
+﻿using Nova.SharedKernel.Features.Teams;
 using OneOf;
 
 namespace Nova.Features.Teams;

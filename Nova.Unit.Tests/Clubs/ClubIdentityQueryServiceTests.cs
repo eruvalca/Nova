@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using NSubstitute;
@@ -20,7 +20,7 @@ public sealed class ClubIdentityQueryServiceTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task GetCurrentAsync_ReturnsTenantIdentity_ForMemberAndAdministrator(bool isAdministrator)
+    public async Task GetCurrentAsyncReturnsTenantIdentityForMemberAndAdministratorAsync(bool isAdministrator)
     {
         Seed();
         _harness.CurrentUser.UserId = 10;
@@ -38,7 +38,7 @@ public sealed class ClubIdentityQueryServiceTests : IDisposable
             State = "MN",
             HasCrest = true
         });
-        typeof(Nova.Shared.Features.Clubs.ClubIdentityResult).GetProperties()
+        typeof(Nova.SharedKernel.Features.Clubs.ClubIdentityResult).GetProperties()
             .Select(property => property.Name)
             .ShouldBe(["ClubId", "Name", "City", "State", "HasCrest"]);
     }
@@ -46,7 +46,7 @@ public sealed class ClubIdentityQueryServiceTests : IDisposable
     [Theory]
     [InlineData(null, 1L)]
     [InlineData(10L, null)]
-    public async Task GetCurrentAsync_ReturnsForbidden_WithoutCompleteMembership(long? userId, long? clubId)
+    public async Task GetCurrentAsyncReturnsForbiddenWithoutCompleteMembershipAsync(long? userId, long? clubId)
     {
         _harness.CurrentUser.UserId = userId;
         _harness.CurrentUser.ClubId = clubId;
@@ -58,7 +58,7 @@ public sealed class ClubIdentityQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetCurrentAsync_ReturnsNotFound_WhenClubDoesNotExist()
+    public async Task GetCurrentAsyncReturnsNotFoundWhenClubDoesNotExistAsync()
     {
         _harness.CurrentUser.UserId = 10;
         _harness.CurrentUser.ClubId = 999;
@@ -71,7 +71,7 @@ public sealed class ClubIdentityQueryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetCurrentAsync_ReturnsServerError_WhenReadFails()
+    public async Task GetCurrentAsyncReturnsServerErrorWhenReadFailsAsync()
     {
         var throwingFactory = Substitute.For<IDbContextFactory<NovaReadDbContext>>();
         throwingFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())

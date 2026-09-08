@@ -2,10 +2,10 @@
 using Microsoft.EntityFrameworkCore.Storage;
 using Nova.Data;
 using Nova.Data.Tenancy;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 using OneOf;
 using OneOf.Types;
 
@@ -17,7 +17,7 @@ namespace Nova.Features.Players;
 /// <param name="dbContextFactory">The tenant-scoped context factory used for lifecycle mutations.</param>
 /// <param name="currentUserProvider">The current user and club state used for authorization.</param>
 /// <param name="logger">The logger used for lifecycle outcomes.</param>
-public sealed partial class PlayerLifecycleService(
+internal sealed partial class PlayerLifecycleService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     ICurrentUserProvider currentUserProvider,
     ILogger<PlayerLifecycleService> logger) : IPlayerLifecycleService
@@ -167,7 +167,9 @@ public sealed partial class PlayerLifecycleService(
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database operation.</param>
     /// <returns>Internal lifecycle outcomes before boundary mapping to shared service contracts.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<OneOf<Success, NotFound, LifecycleForbidden, LifecycleConflict, PlayerArchiveBlockedConflict>> ApplyTransitionAsync(
+#pragma warning restore MA0051
         NovaDbContext db,
         long playerId,
         LifecycleStatus targetStatus,
@@ -191,7 +193,9 @@ public sealed partial class PlayerLifecycleService(
         if (player.LifecycleStatus == targetStatus)
         {
             LogPlayerLifecycleConflict(playerId, targetStatus);
+#pragma warning disable CA1308 // Lowercase is required for this display text or ASCII route token, not for an identity comparison.
             return new LifecycleConflict($"The player is already {targetStatus.ToString().ToLowerInvariant()}.");
+#pragma warning restore CA1308
         }
 
         if (targetStatus == LifecycleStatus.Archived)

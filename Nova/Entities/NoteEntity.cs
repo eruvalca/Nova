@@ -1,4 +1,5 @@
-﻿using Nova.Entities.Base;
+﻿#pragma warning disable CA1515 // Identity components expose these framework model and navigation types through their public constructors.
+using Nova.Entities.Base;
 
 namespace Nova.Entities;
 
@@ -10,7 +11,7 @@ public class NoteEntity : BaseEntity, ITenantOwnedEntity
     /// <summary>
     /// Gets or sets the Note Id.
     /// </summary>
-    public long NoteId { get; set; } = default;
+    public long NoteId { get; set; }
 
     /// <summary>
     /// Gets or sets the stable identifier for the logical note-creation operation.

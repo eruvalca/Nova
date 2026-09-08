@@ -15,7 +15,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
     /// sees the roster/team counts, and sees the attention card with working review links.
     /// </summary>
     [Fact]
-    public async Task Dashboard_Admin_SeesCampaignsRosterTeamsAndAttention_WithWorkingLinks()
+    public async Task DashboardAdminSeesCampaignsRosterTeamsAndAttentionWithWorkingLinksAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -60,7 +60,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
     /// review links.
     /// </summary>
     [Fact]
-    public async Task Dashboard_Evaluator_SeesCampaignsAndActivity_WithoutAdminAttention()
+    public async Task DashboardEvaluatorSeesCampaignsAndActivityWithoutAdminAttentionAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -86,19 +86,23 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
     /// on the club onboarding page.
     /// </summary>
     [Fact]
-    public async Task Dashboard_OnboardingGates_PhotoLessAndClubLessUsers_AreRedirected()
+    public async Task DashboardOnboardingGatesPhotoLessAndClubLessUsersAreRedirectedAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
 
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var photoLessContext = await fixture.NewSignedInContextAsync(seed.PhotoLessEmail, DashboardSeed.Password))
+#pragma warning restore MA0004
         {
             var page = photoLessContext.Pages[0];
             await page.WaitForURLAsync(url => url.Contains("/Account/ProfilePhoto", StringComparison.OrdinalIgnoreCase));
             await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Profile photo" })).ToBeVisibleAsync();
         }
 
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var clubLessContext = await fixture.NewSignedInContextAsync(seed.ClubLessEmail, DashboardSeed.Password))
+#pragma warning restore MA0004
         {
             var page = clubLessContext.Pages[0];
             await page.WaitForURLAsync(url => url.Contains("/Clubs/Onboarding", StringComparison.OrdinalIgnoreCase));
@@ -111,12 +115,14 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
     /// neutral empty state without a call to action.
     /// </summary>
     [Fact]
-    public async Task Dashboard_NoCampaignClub_AdminSeesCreateCta_EvaluatorSeesNeutralState()
+    public async Task DashboardNoCampaignClubAdminSeesCreateCtaEvaluatorSeesNeutralStateAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedEmptyClubAsync(fixture.AppHost, cancellationToken);
 
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var adminContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password))
+#pragma warning restore MA0004
         {
             var page = adminContext.Pages[0];
             await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -125,7 +131,9 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
             await Expect(createLink).ToHaveAttributeAsync("href", "campaigns/new");
         }
 
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var evaluatorContext = await fixture.NewSignedInContextAsync(seed.EvaluatorEmail, DashboardSeed.Password))
+#pragma warning restore MA0004
         {
             var page = evaluatorContext.Pages[0];
             await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -139,7 +147,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
     /// workspace the browser Back restores the dashboard with its counts intact.
     /// </summary>
     [Fact]
-    public async Task Dashboard_DirectUrlAndBackNavigation_PreserveEntryContext()
+    public async Task DashboardDirectUrlAndBackNavigationPreserveEntryContextAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -164,12 +172,14 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
     /// the workspace control meets the minimum touch-target size without relying on color alone.
     /// </summary>
     [Fact]
-    public async Task Dashboard_KeyboardAndA11y_AcrossViewports()
+    public async Task DashboardKeyboardAndA11yAcrossViewportsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
 
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var wideContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password, new ViewportSize { Width = 1280, Height = 800 }))
+#pragma warning restore MA0004
         {
             var page = wideContext.Pages[0];
             await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -184,7 +194,9 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
             await Expect(workspaceLink).ToBeFocusedAsync();
         }
 
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var narrowContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password, new ViewportSize { Width = 480, Height = 800 }))
+#pragma warning restore MA0004
         {
             var page = narrowContext.Pages[0];
             await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -200,7 +212,7 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
     /// text/background contrast meets the WCAG AA 4.5:1 threshold (closing the residual from #69).
     /// </summary>
     [Fact]
-    public async Task CampaignList_ActiveBadge_MeetsContrastThreshold()
+    public async Task CampaignListActiveBadgeMeetsContrastThresholdAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -220,9 +232,9 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
     /// otherwise skips so a green run always means the assertions executed.
     /// </summary>
     [Fact]
-    public async Task Dashboard_A11yEvidence_CapturesScreenshots()
+    public async Task DashboardA11yEvidenceCapturesScreenshotsAsync()
     {
-        if (Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS") != "1")
+        if (!string.Equals(Environment.GetEnvironmentVariable("NOVA_A11Y_SCREENSHOTS"), "1", StringComparison.Ordinal))
         {
             Assert.Skip("Set NOVA_A11Y_SCREENSHOTS=1 to capture dashboard accessibility evidence.");
         }
@@ -236,7 +248,6 @@ public sealed class DashboardBrowserTests(BrowserSuiteFixture fixture)
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
         await page.ScreenshotAsync(new() { Path = Path.Combine(outputDirectory, "dashboard-admin-wide.png") });
-
         await using var narrowContext = await fixture.NewSignedInContextAsync(seed.AdminEmail, DashboardSeed.Password, new ViewportSize { Width = 480, Height = 800 });
         var narrowPage = narrowContext.Pages[0];
         await Expect(narrowPage.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();

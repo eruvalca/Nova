@@ -1,24 +1,27 @@
 ---
 name: add-api-endpoint
 description: >-
-  Recipe for adding a minimal-API HTTP endpoint in Nova with shared route constants,
-  MapGroup mapping, static handlers, ServiceResult-to-HTTP conversion, validation,
-  ProblemDetails, metadata, authorization, antiforgery, OpenAPI, and WASM client wiring.
-  USE FOR: add an API endpoint, remove a dead endpoint, audit duplicate mutation routes, map a new route, new MapPost/MapGet handler, wire a WASM client call to a server endpoint, ProblemDetails/ToHttpResult, ProducesProblem, antiforgery on WASM endpoints, optional AsParameters query binding, enum query binding, CreatedAtRoute, Location header testing, polymorphic payload DTOs, IValidatableObject cross-property validation (e.g. keyset cursors).
-  DO NOT USE FOR: building a full feature from scratch (use add-feature-slice), domain/persistence-only work (use add-domain-persistence), service-layer result types only, writing tests (use nova-testing).
+    Add, change, debug, review, or remove Nova minimal-API endpoints and HTTP client contracts.
+    Covers shared routes, static handlers, ServiceResult conversion, validation, ProblemDetails,
+    authorization, antiforgery, OpenAPI metadata, query binding, CreatedAtRoute, polymorphic JSON,
+    and producer-to-client contract fidelity. Use for duplicate mutation routes or malformed success
+    payloads. Full cross-tier features use add-feature-slice; persistence-only work uses
+    add-domain-persistence; tests-only work uses nova-testing.
 ---
 
 # Add API Endpoint
 
-Use this skill when adding or changing Nova minimal-API endpoints that are shared between the server and the Blazor WebAssembly client.
+Use this skill when adding, changing, debugging, reviewing, or removing Nova minimal-API endpoints
+and HTTP client contracts. For existing behavior, inspect the producer, consumers, and applicable
+checklist steps without recreating unrelated endpoint structure.
 
 ## Canonical Nova examples
 
-- Routes: `Nova.Shared\Features\Clubs\ClubEndpoints.cs`
+- Routes: `Nova.SharedKernel\Features\Clubs\ClubEndpoints.cs`
 - Mapping/handlers: `Nova\Features\Clubs\ClubEndpointRouteBuilderExtensions.cs`
 - WASM client: `Nova.Client\Services\Clubs\HttpClubService.cs`
-- ToHttpResult: `Nova\Features\Shared\ServiceResultExtensions.cs`
-- Created resource contract: `Nova.Shared\Features\Teams\TeamEndpoints.cs`,
+- ToHttpResult: `Nova\Features\Common\ServiceResultExtensions.cs`
+- Created resource contract: `Nova.SharedKernel\Features\Teams\TeamEndpoints.cs`,
   `Nova\Features\Teams\TeamManagementEndpointRouteBuilderExtensions.cs`,
   `Nova.Integration.Tests\Http\TeamManagementHttpTests.cs`
 - Dead endpoint removal: the removed team graduation-year route, which duplicated normal team update.
@@ -28,7 +31,7 @@ Use this skill when adding or changing Nova minimal-API endpoints that are share
 1. **Prove the endpoint is needed** — search existing mutations, routes, clients, callers, and tests.
    Do not create a duplicate mutation surface. For removal, use the end-to-end cleanup checklist in
    [route-constants.md](references/route-constants.md).
-2. Define shared route constants and URL builders in `Nova.Shared` — see [route-constants.md](references/route-constants.md).
+2. Define shared route constants and URL builders in `Nova.SharedKernel` — see [route-constants.md](references/route-constants.md).
 3. Map endpoints with `MapGroup`, static handlers, DI parameters, `ToHttpResult`, and `WithName` — see [handlers-and-results.md](references/handlers-and-results.md).
 4. Add response metadata, authorization, and antiforgery handling — see [metadata-auth-antiforgery.md](references/metadata-auth-antiforgery.md).
 5. Apply endpoint-layer validation, validation ProblemDetails rules, optional `[AsParameters]` query
@@ -37,6 +40,10 @@ Use this skill when adding or changing Nova minimal-API endpoints that are share
 6. Wire the WASM client to consume shared route constants and deserialize failures with `ToServiceProblemAsync()`.
 7. Verify the endpoint uses the complete pattern before editing tests or callers. For
    `CreatedAtRoute`, add the real HTTP `201` + `Location` + follow test.
+8. For contract changes, follow the
+   [producer-to-UI contract check](../add-feature-slice/references/wasm-client.md#producer-to-ui-contract-check).
+   Include valid and malformed payload cases in `nova-testing`; a client-only test does not prove
+   the server emits the promised shape. Inspect sibling routes and clients for the same invariant.
 
 ## Required references
 

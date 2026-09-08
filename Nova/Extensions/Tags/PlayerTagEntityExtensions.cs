@@ -1,5 +1,5 @@
 ﻿using Nova.Entities;
-using Nova.Shared.Features.Tags;
+using Nova.SharedKernel.Features.Tags;
 
 namespace Nova.Extensions.Tags;
 

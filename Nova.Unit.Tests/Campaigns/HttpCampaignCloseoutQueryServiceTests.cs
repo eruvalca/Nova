@@ -2,9 +2,9 @@
 using System.Net.Http.Json;
 using System.Text;
 using Nova.Client.Services.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -16,7 +16,7 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
 {
     /// <summary>Verifies readiness requests use the shared route and accept a populated ready payload.</summary>
     [Fact]
-    public async Task GetCloseoutReadinessAsync_RequestsSharedRoute_AndReadsReadyPayload()
+    public async Task GetCloseoutReadinessAsyncRequestsSharedRouteAndReadsReadyPayloadAsync()
     {
         HttpRequestMessage? capturedRequest = null;
         var payload = new CampaignCloseoutReadinessDto(
@@ -25,7 +25,7 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
             IsReady: true,
             new CampaignPlacementSummaryDto(1, 1, 1, 0, 3),
             []);
-        var handler = new RecordingHandler(request =>
+        using var handler = new RecordingHandler(request =>
         {
             capturedRequest = request;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) });
@@ -41,12 +41,12 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
         result.Value.IsReady.ShouldBeTrue();
         result.Value.Blockers.ShouldBeEmpty();
         capturedRequest.ShouldNotBeNull();
-        capturedRequest!.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/closeout-readiness");
+        capturedRequest.RequestUri!.PathAndQuery.ShouldBe("/api/campaigns/42/closeout-readiness");
     }
 
     /// <summary>Verifies a populated blocked payload is accepted with its condition and ids intact.</summary>
     [Fact]
-    public async Task GetCloseoutReadinessAsync_AcceptsPopulatedBlockedPayload()
+    public async Task GetCloseoutReadinessAsyncAcceptsPopulatedBlockedPayloadAsync()
     {
         var payload = new CampaignCloseoutReadinessDto(
             42,
@@ -60,7 +60,7 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
                     [1, 2],
                     "Every participant must have a final outcome before closing. Found 2 undecided participation record(s).")
             ]);
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignCloseoutQueryService(http);
@@ -81,7 +81,7 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
     /// accepted rather than surfaced as a server error.
     /// </summary>
     [Fact]
-    public async Task GetCloseoutReadinessAsync_AcceptsMismatchedOutcomesCount()
+    public async Task GetCloseoutReadinessAsyncAcceptsMismatchedOutcomesCountAsync()
     {
         var payload = new CampaignCloseoutReadinessDto(
             42,
@@ -95,7 +95,7 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
                     [1],
                     "Every participant must have a final outcome before closing. Found 1 undecided participation record(s).")
             ]);
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(payload) }));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignCloseoutQueryService(http);
@@ -111,9 +111,9 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
 
     /// <summary>Verifies invalid caller input is rejected before any HTTP request is made.</summary>
     [Fact]
-    public async Task GetCloseoutReadinessAsync_ReturnsValidation_ForInvalidInput()
+    public async Task GetCloseoutReadinessAsyncReturnsValidationForInvalidInputAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.com") };
         var service = new HttpCampaignCloseoutQueryService(http);
@@ -128,9 +128,9 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
 
     /// <summary>Verifies non-success ProblemDetails responses retain their problem kind.</summary>
     [Fact]
-    public async Task GetCloseoutReadinessAsync_ReturnsNotFound_FromProblemDetails()
+    public async Task GetCloseoutReadinessAsyncReturnsNotFoundFromProblemDetailsAsync()
     {
-        var handler = new RecordingHandler(_ =>
+        using var handler = new RecordingHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
             {
                 Content = JsonContent.Create(new ProblemPayload(404, "Not Found", "A problem occurred."))
@@ -162,9 +162,9 @@ public sealed class HttpCampaignCloseoutQueryServiceTests
     [InlineData("""{"campaignId":2,"status":0,"isReady":true,"summary":{"assignedCount":0,"notSelectedCount":0,"withdrawnCount":0,"undecidedCount":2,"totalCount":2},"blockers":[{"condition":"outcomes","count":2,"assignmentIds":[1,2],"message":"msg"}]}""")]
     [InlineData("""{"campaignId":2,"status":0,"isReady":false,"summary":{"assignedCount":0,"notSelectedCount":0,"withdrawnCount":0,"undecidedCount":2,"totalCount":2},"blockers":[]}""")]
     [InlineData("""{"campaignId":2,"status":0,"isReady":false,"summary":{"assignedCount":0,"notSelectedCount":0,"withdrawnCount":0,"undecidedCount":2,"totalCount":3},"blockers":[{"condition":"outcomes","count":2,"assignmentIds":[1,2],"message":"msg"}]}""")]
-    public async Task GetCloseoutReadinessAsync_ReturnsServerError_ForInvalidSuccessPayload(string body)
+    public async Task GetCloseoutReadinessAsyncReturnsServerErrorForInvalidSuccessPayloadAsync(string body)
     {
-        var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        using var handler = new RecordingHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         }));

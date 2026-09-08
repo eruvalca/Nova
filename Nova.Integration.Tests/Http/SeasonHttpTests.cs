@@ -1,9 +1,9 @@
 ﻿using System.Net.Http.Json;
 using System.Text.Json;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Features.Seasons;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Features.Seasons;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -17,7 +17,9 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies 201 locations resolve and same-operation advancement is replay-safe.</summary>
     [Fact]
-    public async Task SeasonLifecycle_ReturnsResolvableLocations_AndIdempotentAdvancement()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task SeasonLifecycleReturnsResolvableLocationsAndIdempotentAdvancementAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -92,11 +94,11 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies reads require membership and writes require administration.</summary>
     [Fact]
-    public async Task SeasonRoutes_EnforceAnonymousMemberAndAdministratorPolicies()
+    public async Task SeasonRoutesEnforceAnonymousMemberAndAdministratorPoliciesAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymous = fixture.CreateNovaHttpClient();
-        using var anonymousRead = await anonymous.GetAsync(SeasonEndpoints.GroupPrefix, cancellationToken);
+        using var anonymousRead = await anonymous.GetAsync(new Uri(SeasonEndpoints.GroupPrefix, UriKind.RelativeOrAbsolute), cancellationToken);
         anonymousRead.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -112,10 +114,10 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
         var created = await createdResponse.Content.ReadFromJsonAsync<SeasonSummary>(cancellationToken);
         created.ShouldNotBeNull();
 
-        using var memberRead = await memberClient.GetAsync(SeasonEndpoints.GroupPrefix, cancellationToken);
+        using var memberRead = await memberClient.GetAsync(new Uri(SeasonEndpoints.GroupPrefix, UriKind.RelativeOrAbsolute), cancellationToken);
         memberRead.StatusCode.ShouldBe(HttpStatusCode.OK);
         using var memberDetail = await memberClient.GetAsync(
-            SeasonEndpoints.Detail(created.SeasonId),
+new Uri(SeasonEndpoints.Detail(created.SeasonId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         memberDetail.StatusCode.ShouldBe(HttpStatusCode.OK);
         var detail = await memberDetail.Content.ReadFromJsonAsync<SeasonDetailResult>(cancellationToken);
@@ -144,7 +146,7 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies invalid paging and cross-tenant detail reads use traced ProblemDetails.</summary>
     [Fact]
-    public async Task SeasonQueries_ReturnTracedProblems_ForInvalidPagingAndCrossTenantDetail()
+    public async Task SeasonQueriesReturnTracedProblemsForInvalidPagingAndCrossTenantDetailAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var clubAClient = fixture.CreateNovaHttpClient();
@@ -161,24 +163,24 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
         created.ShouldNotBeNull();
 
         using var invalid = await clubAClient.GetAsync(
-            $"{SeasonEndpoints.GroupPrefix}?page=0&pageSize=51",
+new Uri($"{SeasonEndpoints.GroupPrefix}?page=0&pageSize=51", UriKind.RelativeOrAbsolute),
             cancellationToken);
         await AssertProblemDetailsAsync(invalid, HttpStatusCode.BadRequest, cancellationToken);
 
         using var invalidDetail = await clubAClient.GetAsync(
-            $"{SeasonEndpoints.Detail(0)}?campaignPage=0&campaignPageSize=51",
+new Uri($"{SeasonEndpoints.Detail(0)}?campaignPage=0&campaignPageSize=51", UriKind.RelativeOrAbsolute),
             cancellationToken);
         await AssertProblemDetailsAsync(invalidDetail, HttpStatusCode.BadRequest, cancellationToken);
 
         using var hidden = await clubBClient.GetAsync(
-            SeasonEndpoints.Detail(created.SeasonId),
+new Uri(SeasonEndpoints.Detail(created.SeasonId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         await AssertProblemDetailsAsync(hidden, HttpStatusCode.NotFound, cancellationToken);
     }
 
     /// <summary>Verifies different operations racing from one expected current season have one winner.</summary>
     [Fact]
-    public async Task ConcurrentAdvancement_ReturnsOneCreatedAndOneConflict()
+    public async Task ConcurrentAdvancementReturnsOneCreatedAndOneConflictAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -205,7 +207,7 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
                 .Order()
                 .ShouldBe([HttpStatusCode.Created, HttpStatusCode.Conflict]);
 
-            using var listResponse = await client.GetAsync(SeasonEndpoints.GroupPrefix, cancellationToken);
+            using var listResponse = await client.GetAsync(new Uri(SeasonEndpoints.GroupPrefix, UriKind.RelativeOrAbsolute), cancellationToken);
             var seasons = await listResponse.Content.ReadFromJsonAsync<SeasonPageResult>(cancellationToken);
             seasons.ShouldNotBeNull();
             seasons.Items.Count(season => season.IsCurrent).ShouldBe(1);
@@ -222,7 +224,7 @@ public sealed class SeasonHttpTests(NovaAppHostFixture fixture)
 
     /// <summary>Verifies PostgreSQL rejects a metadata write that reuses an observed token.</summary>
     [Fact]
-    public async Task UpdateSeason_ReturnsConflict_WhenConcurrencyTokenIsStale()
+    public async Task UpdateSeasonReturnsConflictWhenConcurrencyTokenIsStaleAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();

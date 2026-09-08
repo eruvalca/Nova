@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿#pragma warning disable CA1515 // Razor generates a public component partial class.
+using Microsoft.AspNetCore.Components;
 using Nova.UI.Features.Landing;
 
 namespace Nova.Components.Layout;
@@ -16,10 +17,14 @@ public partial class PublicLayout(NavigationManager navigationManager) : LayoutC
     /// <summary>
     /// Gets the sign-in URL that preserves the safe local <c>/dashboard</c> continuation.
     /// </summary>
+#pragma warning disable CA1056 // Blazor binding and NavigationManager consume string URLs in this component contract.
     protected string SignInUrl => LandingUrlHelper.CreateSignInUrl(navigationManager);
+#pragma warning restore CA1056
 
     /// <summary>
     /// Gets the registration URL that preserves the safe local <c>/dashboard</c> continuation.
     /// </summary>
+#pragma warning disable CA1056 // Blazor binding and NavigationManager consume string URLs in this component contract.
     protected string CreateClubUrl => LandingUrlHelper.CreateClubUrl(navigationManager);
+#pragma warning restore CA1056
 }

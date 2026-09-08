@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
+﻿using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Teams;
 
@@ -7,14 +7,14 @@ namespace Nova.Client.Services.Teams;
 /// WebAssembly HTTP implementation of <see cref="ITeamDetailService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
+internal sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<TeamDetailDto>> GetTeamDetailAsync(
         long teamId,
         CancellationToken cancellationToken = default)
     {
-        using var response = await http.GetAsync(TeamEndpoints.GetDetailUrl(teamId), cancellationToken);
+        using var response = await http.GetAsync(new Uri(TeamEndpoints.GetDetailUrl(teamId), UriKind.RelativeOrAbsolute), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             return await response.ToServiceProblemAsync(cancellationToken);
@@ -42,8 +42,8 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && detail.ClubId > 0
             && !string.IsNullOrWhiteSpace(detail.Name)
             && detail.GraduationYear is >= 2000 and <= 2100
-            && detail.LifecycleStatus is Nova.Shared.Enums.LifecycleStatus.Active
-                or Nova.Shared.Enums.LifecycleStatus.Archived
+            && detail.LifecycleStatus is Nova.SharedKernel.Enums.LifecycleStatus.Active
+                or Nova.SharedKernel.Enums.LifecycleStatus.Archived
             && detail.ActivePlacementImpacts is not null
             && detail.PlacementHistory is not null
             && detail.ActivePlacementImpactTotalCount >= 0
@@ -56,7 +56,7 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && IsPlacementHistoryOrdered(detail.PlacementHistory)
             && detail.ActivePlacementImpacts.SequenceEqual(
                 detail.PlacementHistory.Where(placement =>
-                    placement.CampaignStatus == Nova.Shared.Enums.CampaignStatus.Active));
+                    placement.CampaignStatus == Nova.SharedKernel.Enums.CampaignStatus.Active));
 
     /// <summary>
     /// Validates the portable invariants of a team-placement row.
@@ -68,14 +68,14 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
             && placement.PlayerCampaignAssignmentId > 0
             && placement.CampaignId > 0
             && !string.IsNullOrWhiteSpace(placement.CampaignName)
-            && placement.CampaignStatus is Nova.Shared.Enums.CampaignStatus.Active
-                or Nova.Shared.Enums.CampaignStatus.Draft
-                or Nova.Shared.Enums.CampaignStatus.Closed
+            && placement.CampaignStatus is Nova.SharedKernel.Enums.CampaignStatus.Active
+                or Nova.SharedKernel.Enums.CampaignStatus.Draft
+                or Nova.SharedKernel.Enums.CampaignStatus.Closed
             && placement.CampaignStartDate != default
             && placement.PlayerId > 0
             && !string.IsNullOrWhiteSpace(placement.PlayerDisplayName)
             && placement.PlayerGraduationYear is >= 2000 and <= 2100
-            && placement.PlacementOutcome == Nova.Shared.Enums.PlacementOutcome.Assigned;
+            && placement.PlacementOutcome == Nova.SharedKernel.Enums.PlacementOutcome.Assigned;
 
     /// <summary>
     /// Validates the portable leading keys and identifier tie-breaker of placement-history ordering.
@@ -113,12 +113,12 @@ public sealed class HttpTeamDetailService(HttpClient http) : ITeamDetailService
     /// </summary>
     /// <param name="status">The campaign lifecycle status.</param>
     /// <returns>The lifecycle sort rank.</returns>
-    private static int GetLifecycleSortRank(Nova.Shared.Enums.CampaignStatus status)
+    private static int GetLifecycleSortRank(Nova.SharedKernel.Enums.CampaignStatus status)
         => status switch
         {
-            Nova.Shared.Enums.CampaignStatus.Active => 0,
-            Nova.Shared.Enums.CampaignStatus.Draft => 1,
-            Nova.Shared.Enums.CampaignStatus.Closed => 2,
+            Nova.SharedKernel.Enums.CampaignStatus.Active => 0,
+            Nova.SharedKernel.Enums.CampaignStatus.Draft => 1,
+            Nova.SharedKernel.Enums.CampaignStatus.Closed => 2,
             _ => int.MaxValue
         };
 }

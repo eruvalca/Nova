@@ -1,10 +1,11 @@
-﻿using System.Globalization;
+﻿
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Players.Components;
 
@@ -397,7 +398,9 @@ public partial class PlayerDetail(
     /// </summary>
     /// <param name="errors">The service-problem errors dictionary.</param>
     /// <returns>A parsed list of blocker items, or an empty list when unavailable.</returns>
+#pragma warning disable CA1859 // The helper returns both an empty array and a read-only list; the interface describes both results.
     private static IReadOnlyList<GraduationYearBlockerItem> ExtractGraduationYearBlockers(
+#pragma warning restore CA1859
         IReadOnlyDictionary<string, string[]>? errors)
     {
         if (errors is null || errors.Count == 0)
@@ -473,7 +476,7 @@ public partial class PlayerDetail(
             return false;
         }
 
-        var closeBracketIndex = key.IndexOf(']');
+        var closeBracketIndex = key.IndexOf(']', StringComparison.Ordinal);
         var dotIndex = key.IndexOf('.', closeBracketIndex + 1);
         if (closeBracketIndex <= "blockers[".Length || dotIndex < 0)
         {

@@ -16,8 +16,8 @@ FORM: Hall of Panels, ranked 1; surface seed a3b942a9; the shared static-SSR she
 <div class="row">
     <div class="col-lg-6">
         <section>
-            <StatusMessage Message="@errorMessage" />
-            <EditForm class="auth-form" EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
+            <StatusMessage Message="@_errorMessage" />
+            <EditForm class="auth-form" EditContext="_editContext" method="post" OnSubmit="LoginUserAsync" FormName="login">
                 <DataAnnotationsValidator />
                 <h2>Use a local account to log in.</h2>
                 <hr />

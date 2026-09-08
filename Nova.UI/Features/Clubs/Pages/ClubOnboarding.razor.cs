@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 
 namespace Nova.UI.Features.Clubs.Pages;
 
@@ -57,7 +58,7 @@ public partial class ClubOnboarding(
 
         // Club members must not access the onboarding page — redirect them to the dashboard.
         var authState = await authenticationStateProvider.GetAuthenticationStateAsync();
-        if (authState.User.HasClaim(c => c.Type == NovaClaimTypes.ClubId))
+        if (authState.User.HasClaim(c => string.Equals(c.Type, NovaClaimTypes.ClubId, StringComparison.Ordinal)))
         {
             navigationManager.NavigateTo("/dashboard", replace: true);
             return;
@@ -114,7 +115,6 @@ public partial class ClubOnboarding(
     /// </summary>
     private void HandleSearchAgain()
     {
-        PendingRequest = null;
-        ErrorMessage = null;
+        HandleRequestCancelled();
     }
 }

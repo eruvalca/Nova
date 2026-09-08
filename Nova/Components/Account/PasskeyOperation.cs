@@ -1,4 +1,5 @@
-﻿namespace Nova.Components.Account;
+﻿#pragma warning disable CA1515 // This type is part of a public Razor component constructor or parameter contract.
+namespace Nova.Components.Account;
 
 /// <summary>
 /// Defines the type of passkey operation to perform.

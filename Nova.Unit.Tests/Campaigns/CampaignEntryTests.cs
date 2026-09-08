@@ -6,11 +6,11 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Features.Campaigns.Pages;
 using NSubstitute;
 using OneOf.Types;
@@ -26,7 +26,7 @@ public sealed class CampaignEntryTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(2)]
     [InlineData(5)]
-    public void CampaignEntry_RequiresNewConfirmation_WhenEnrollmentCountChanges(int freshCount)
+    public void CampaignEntryRequiresNewConfirmationWhenEnrollmentCountChanges(int freshCount)
     {
         var (queries, lifecycle) = Register(ReadyWithoutTeams());
         var cut = RenderReview();
@@ -46,7 +46,7 @@ public sealed class CampaignEntryTests : BunitContext
         cut.Find("button.draft-commit").Click();
         cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.ShouldContain("/roster"));
         _ = lifecycle.Received(1).OpenAsync(10, Arg.Is<OpenCampaignInput>(input => input.OperationId != Guid.Empty), Arg.Any<CancellationToken>());
-        var receipt = JSInterop.Invocations.Where(invocation => invocation.Identifier == "write")
+        var receipt = JSInterop.Invocations.Where(invocation => string.Equals(invocation.Identifier, "write", StringComparison.Ordinal))
             .SelectMany(invocation => invocation.Arguments).OfType<OpenCampaignResult>().Single();
         receipt.EnrolledPlayerCount.ShouldBe(freshCount + 1);
     }
@@ -57,7 +57,7 @@ public sealed class CampaignEntryTests : BunitContext
     [InlineData("not-found")]
     [InlineData("forbidden")]
     [InlineData("transport")]
-    public void CampaignEntry_ClearsDraft_WhenReadinessReconciliationFails(string failure)
+    public void CampaignEntryClearsDraftWhenReadinessReconciliationFails(string failure)
     {
         var (queries, lifecycle) = Register(ReadyWithoutTeams());
         var detailCalls = 0;
@@ -68,19 +68,19 @@ public sealed class CampaignEntryTests : BunitContext
                 {
                     return Task.FromResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Summer Draft")));
                 }
-                if (failure == "transport")
+                if (string.Equals(failure, "transport", StringComparison.Ordinal))
                 {
                     return Task.FromException<ServiceResult<CampaignDetailResult>>(new HttpRequestException("Offline"));
                 }
-                return Task.FromResult(new ServiceResult<CampaignDetailResult>(failure == "not-found"
-                    ? ServiceProblem.NotFound("Deleted") : ServiceProblem.Forbidden("Permission lost")));
+                return Task.FromResult(new ServiceResult<CampaignDetailResult>(string.Equals(failure, "not-found"
+, StringComparison.Ordinal) ? ServiceProblem.NotFound("Deleted") : ServiceProblem.Forbidden("Permission lost")));
             });
         queries.GetOpeningReadinessAsync(10, Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<CampaignOpeningReadinessResult>(ServiceProblem.Conflict("Readiness changed")));
 
         var cut = RenderReview();
 
-        if (failure == "transport")
+        if (string.Equals(failure, "transport", StringComparison.Ordinal))
         {
             cut.WaitForAssertion(() => cut.Markup.ShouldContain("Could not confirm"));
             cut.FindAll("button").ShouldContain(button => button.TextContent.Trim() == "Retry");
@@ -102,7 +102,7 @@ public sealed class CampaignEntryTests : BunitContext
     [InlineData(CampaignStatus.Active)]
     [InlineData(CampaignStatus.Closed)]
     [InlineData(CampaignStatus.Draft)]
-    public void CampaignEntry_ReconcilesReadinessConflict_UsingFreshLifecycle(CampaignStatus status)
+    public void CampaignEntryReconcilesReadinessConflictUsingFreshLifecycle(CampaignStatus status)
     {
         var (queries, lifecycle) = Register(ReadyWithoutTeams());
         queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
@@ -132,7 +132,7 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies a stale lifecycle reconciliation cannot redirect a newly selected Draft.</summary>
     [Fact]
-    public async Task CampaignEntry_IgnoresLateReadinessConflictReconciliation_AfterRouteChanges()
+    public async Task CampaignEntryIgnoresLateReadinessConflictReconciliationAfterRouteChangesAsync()
     {
         var (queries, _) = Register(ReadyWithoutTeams());
         var pending = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
@@ -147,7 +147,7 @@ public sealed class CampaignEntryTests : BunitContext
         var cut = RenderReview();
 
         cut.Render(parameters => parameters.Add(component => component.CampaignId, 11));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("New Draft"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("New Draft"));
         await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Old Draft") with { Status = CampaignStatus.Active })));
 
         Services.GetRequiredService<NavigationManager>().Uri.ShouldNotContain("/roster");
@@ -157,59 +157,61 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies missing setup disables metadata editing without hiding the Draft and explicit retry restores season choices.</summary>
     [Fact]
-    public void CampaignEntry_DisablesEdit_WhenSetupFails_AndRecoversOnRetry()
+    public void CampaignEntryDisablesEditWhenSetupFailsAndRecoversOnRetry()
     {
         var (queries, _) = Register(ReadyWithoutTeams());
         queries.GetCreationSetupAsync(Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<CampaignCreationSetupResult>(ServiceProblem.ServerError("Setup unavailable")));
         var cut = RenderReview();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Draft"));
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").HasAttribute("disabled").ShouldBeTrue();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Edit", StringComparison.Ordinal)).HasAttribute("disabled").ShouldBeTrue();
         cut.Markup.ShouldContain("Setup unavailable");
         queries.GetCreationSetupAsync(Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<CampaignCreationSetupResult>(new CampaignCreationSetupResult
             { CurrentSeason = new CampaignSeasonChoice { SeasonId = 5, Name = "Recovered season", StartDate = new DateOnly(2026, 1, 1) }, ActivePlayerCount = 3, ActiveTeamCount = 0 }));
 
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry campaign setup").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Retry campaign setup", StringComparison.Ordinal)).Click();
 
-        cut.WaitForAssertion(() => cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").HasAttribute("disabled").ShouldBeFalse());
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Edit", StringComparison.Ordinal)).HasAttribute("disabled").ShouldBeFalse());
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Edit", StringComparison.Ordinal)).Click();
         cut.FindAll("select option").ShouldContain(option => option.TextContent.StartsWith("Recovered season", StringComparison.Ordinal));
         cut.Markup.ShouldNotContain("Setup unavailable");
     }
 
     /// <summary>Verifies choosing deletion blocks opening until the administrator keeps the Draft.</summary>
     [Fact]
-    public void CampaignEntry_BlocksOpening_DuringDeleteConfirmation()
+    public void CampaignEntryBlocksOpeningDuringDeleteConfirmation()
     {
         var (_, lifecycle) = Register(ReadyWithoutTeams());
         var cut = RenderReview();
         cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
 
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Delete draft").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Delete draft", StringComparison.Ordinal)).Click();
 
         cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue();
         cut.Find("button.draft-commit").Click();
         _ = lifecycle.DidNotReceive().OpenAsync(Arg.Any<long>(), Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Keep draft").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Keep draft", StringComparison.Ordinal)).Click();
         cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse();
     }
 
     /// <summary>Verifies metadata submission disables opening without falsely announcing opening progress.</summary>
     [Fact]
-    public async Task CampaignEntry_DoesNotAnnounceOpening_WhileMetadataSaveIsPending()
+    public async Task CampaignEntryDoesNotAnnounceOpeningWhileMetadataSaveIsPendingAsync()
     {
         Register(ReadyWithoutTeams());
         var pending = new TaskCompletionSource<ServiceResult<UpdateCampaignMetadataResult>>();
         var metadata = Services.GetRequiredService<ICampaignMetadataService>();
         metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
         var cut = RenderReview();
-        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        await cut.WaitForAssertionAsync(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+#pragma warning disable CA1849, S6966 // Synchronous bUnit dispatch preserves the intermediate state being tested; the assertions control when async work has completed.
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Edit", StringComparison.Ordinal)).Click();
+#pragma warning restore CA1849, S6966
 
         var save = cut.Find("form").TriggerEventAsync("onsubmit", EventArgs.Empty);
 
-        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue());
+        await cut.WaitForAssertionAsync(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue());
         cut.Find("button.draft-commit").TextContent.ShouldNotContain("Opening");
         cut.Find("button.draft-commit").TextContent.ShouldBe("Open campaign and enroll 3 players");
         await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.ServerError("Save failed"))));
@@ -218,17 +220,17 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies an actual pending opening operation displays its progress and prevents duplicate submission.</summary>
     [Fact]
-    public async Task CampaignEntry_AnnouncesOpening_WhileOpeningCommandIsPending()
+    public async Task CampaignEntryAnnouncesOpeningWhileOpeningCommandIsPendingAsync()
     {
         var (_, lifecycle) = Register(ReadyWithoutTeams());
         var pending = new TaskCompletionSource<ServiceResult<OpenCampaignResult>>();
         lifecycle.OpenAsync(10, Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>()).Returns(pending.Task);
         var cut = RenderReview();
-        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        await cut.WaitForAssertionAsync(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
 
         var opening = cut.Find("button.draft-commit").ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.Find("button.draft-commit").TextContent.ShouldContain("Opening"));
+        await cut.WaitForAssertionAsync(() => cut.Find("button.draft-commit").TextContent.ShouldContain("Opening"));
         cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue();
         _ = lifecycle.Received(1).OpenAsync(10, Arg.Any<OpenCampaignInput>(), Arg.Any<CancellationToken>());
         await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<OpenCampaignResult>(ServiceProblem.ServerError("Uncertain opening"))));
@@ -242,14 +244,14 @@ public sealed class CampaignEntryTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(1, "")]
     [InlineData(2, "s")]
-    public void CampaignEntry_UsesCountAwareReadinessLabels(int count, string suffix)
+    public void CampaignEntryUsesCountAwareReadinessLabels(int count, string suffix)
     {
         Register(new CampaignOpeningReadinessResult(10, count, count, true, [], [], null));
         var cut = Render<CampaignEntry>(parameters => parameters.Add(component => component.CampaignId, 10));
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Summer Draft"));
-        cut.FindAll("p").Select(element => element.TextContent.Trim()).ShouldContain($"active player{suffix} will enroll");
-        cut.FindAll("p").Select(element => element.TextContent.Trim()).ShouldContain($"active team{suffix}");
+        cut.FindAll("p").Select(element => element.TextContent.Trim()).ShouldContain($"active player{suffix} will enroll", StringComparer.Ordinal);
+        cut.FindAll("p").Select(element => element.TextContent.Trim()).ShouldContain($"active team{suffix}", StringComparer.Ordinal);
     }
 
     /// <summary>Verifies failed detail reads stop showing loading, while a pending retry restores loading and can recover the Draft.</summary>
@@ -257,27 +259,34 @@ public sealed class CampaignEntryTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CampaignEntry_ShowsDetailFailureWithoutLoading_AndRetries(bool transport)
+    public async Task CampaignEntryShowsDetailFailureWithoutLoadingAndRetriesAsync(bool transport)
     {
         var (queries, _) = Register(ReadyWithoutTeams());
         var pending = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
         var calls = 0;
         queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
-            .Returns(_ => ++calls > 1 ? pending.Task : transport
-                ? Task.FromException<ServiceResult<CampaignDetailResult>>(new HttpRequestException("Offline"))
-                : Task.FromResult(new ServiceResult<CampaignDetailResult>(ServiceProblem.ServerError("Detail unavailable"))));
+            .Returns(_ =>
+            {
+                if (++calls > 1)
+                {
+                    return pending.Task;
+                }
+                return transport
+                    ? Task.FromException<ServiceResult<CampaignDetailResult>>(new HttpRequestException("Offline"))
+                    : Task.FromResult(new ServiceResult<CampaignDetailResult>(ServiceProblem.ServerError("Detail unavailable")));
+            });
         var cut = RenderReview();
-        cut.WaitForAssertion(() => cut.FindAll("button").ShouldContain(button => button.TextContent.Trim() == "Retry"));
+        await cut.WaitForAssertionAsync(() => cut.FindAll("button").ShouldContain(button => button.TextContent.Trim() == "Retry"));
         cut.Markup.ShouldNotContain("Loading campaign");
         cut.Markup.ShouldNotContain("Summer Draft");
 
-        var retry = cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry")
+        var retry = cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Retry", StringComparison.Ordinal))
             .ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Loading campaign"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Loading campaign"));
         await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Recovered Draft"))));
         await retry;
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Recovered Draft"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("Recovered Draft"));
         cut.Markup.ShouldNotContain("Loading campaign");
         cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse();
     }
@@ -293,7 +302,7 @@ public sealed class CampaignEntryTests : BunitContext
     [InlineData("delete:10", true, false)]
     [InlineData("open:10", false, true)]
     [InlineData("open:10", true, true)]
-    public void CampaignEntry_PreservesIncompatibleRecovery_UntilCorrectedRetry(string key, bool unsupported, bool active)
+    public void CampaignEntryPreservesIncompatibleRecoveryUntilCorrectedRetry(string key, bool unsupported, bool active)
     {
         var corrupt = true;
         var operationId = Guid.NewGuid();
@@ -318,9 +327,12 @@ public sealed class CampaignEntryTests : BunitContext
         _ = lifecycle.DidNotReceive().DeleteDraftAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
         JSInterop.Invocations.ShouldNotContain(invocation => invocation.Identifier == "remove" || invocation.Identifier == "clear");
         corrupt = false;
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry").Click();
-        cut.WaitForAssertion(() => lifecycle.Received(1).OpenAsync(10,
-            Arg.Is<OpenCampaignInput>(input => input.OperationId == operationId), Arg.Any<CancellationToken>()));
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Retry", StringComparison.Ordinal)).Click();
+        cut.WaitForAssertion(() =>
+        {
+            _ = lifecycle.Received(1).OpenAsync(10,
+            Arg.Is<OpenCampaignInput>(input => input.OperationId == operationId), Arg.Any<CancellationToken>());
+        });
     }
 
     /// <summary>Verifies startup and notification tasks cannot restore an obsolete authentication scope.</summary>
@@ -328,7 +340,7 @@ public sealed class CampaignEntryTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CampaignEntry_IgnoresOvertakenAuthentication(bool startup)
+    public async Task CampaignEntryIgnoresOvertakenAuthenticationAsync(bool startup)
     {
         Register(ReadyWithoutTeams());
         var older = new TaskCompletionSource<AuthenticationState>();
@@ -337,11 +349,11 @@ public sealed class CampaignEntryTests : BunitContext
         var cut = RenderReview();
         if (!startup)
         {
-            cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+            await cut.WaitForAssertionAsync(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
             await cut.InvokeAsync(() => authentication.Publish(older.Task));
         }
         await cut.InvokeAsync(() => authentication.Publish(Task.FromResult(DeferredAuthentication.State(43))));
-        cut.WaitForAssertion(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
+        await cut.WaitForAssertionAsync(() => cut.Instance.SnapshotScope.ShouldBe("101:43:True"));
 
         await cut.InvokeAsync(() => older.SetResult(DeferredAuthentication.State(42)));
 
@@ -352,13 +364,13 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies authentication finishing after disposal cannot reload campaign data.</summary>
     [Fact]
-    public async Task CampaignEntry_IgnoresAuthenticationCompletion_AfterDisposal()
+    public async Task CampaignEntryIgnoresAuthenticationCompletionAfterDisposalAsync()
     {
         var (queries, _) = Register(ReadyWithoutTeams());
         var authentication = new DeferredAuthentication(Task.FromResult(DeferredAuthentication.State(42)));
         Services.AddSingleton<AuthenticationStateProvider>(authentication);
         var cut = RenderReview();
-        cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
+        await cut.WaitForAssertionAsync(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
         var pending = new TaskCompletionSource<AuthenticationState>();
         await cut.InvokeAsync(() => authentication.Publish(pending.Task));
         await cut.Instance.DisposeAsync();
@@ -369,7 +381,7 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies the deployed page can attach the callbacks exercised by these tests.</summary>
     [Fact]
-    public void CampaignEntry_DeclaresInteractiveAutoRenderMode()
+    public void CampaignEntryDeclaresInteractiveAutoRenderMode()
     {
         var attribute = typeof(CampaignEntry).GetCustomAttributes(false).OfType<RenderModeAttribute>().Single();
 
@@ -378,7 +390,7 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies zero players prevent commitment and expose the correction handoff.</summary>
     [Fact]
-    public void CampaignEntry_DisablesOpening_WhenNoActivePlayers()
+    public void CampaignEntryDisablesOpeningWhenNoActivePlayers()
     {
         Register(new CampaignOpeningReadinessResult(10, 0, 0, false,
             [CampaignOpeningBlocker.NoActivePlayers], [CampaignOpeningWarning.NoActiveTeams], null));
@@ -387,13 +399,13 @@ public sealed class CampaignEntryTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("Add an active player before opening"));
         cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue();
-        cut.FindAll("a").Single(link => link.TextContent == "Go to players")
+        cut.FindAll("a").Single(link => string.Equals(link.TextContent, "Go to players", StringComparison.Ordinal))
             .GetAttribute("href").ShouldStartWith("/players?");
     }
 
     /// <summary>Verifies the team warning remains non-blocking after interactive session attachment.</summary>
     [Fact]
-    public void CampaignEntry_AllowsOpening_WhenOnlyTeamsAreMissing()
+    public void CampaignEntryAllowsOpeningWhenOnlyTeamsAreMissing()
     {
         Register(ReadyWithoutTeams());
 
@@ -406,7 +418,7 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies member rendering conceals Draft identity even if a stale service snapshot contains it.</summary>
     [Fact]
-    public void CampaignEntry_ConcealsDraftIdentity_ForOrdinaryMember()
+    public void CampaignEntryConcealsDraftIdentityForOrdinaryMember()
     {
         Register(ReadyWithoutTeams(), isAdmin: false);
 
@@ -419,7 +431,7 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies interactive attachment reuses an authorized prerender snapshot without duplicate reads.</summary>
     [Fact]
-    public void CampaignEntry_ReusesPersistedSnapshot_WhenIdentityMatches()
+    public void CampaignEntryReusesPersistedSnapshotWhenIdentityMatches()
     {
         var (queries, _) = Register(ReadyWithoutTeams());
 
@@ -433,7 +445,7 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies a late request for the previous route cannot replace the newly selected Draft.</summary>
     [Fact]
-    public async Task CampaignEntry_IgnoresStaleDetailCompletion_AfterCampaignChanges()
+    public async Task CampaignEntryIgnoresStaleDetailCompletionAfterCampaignChangesAsync()
     {
         var (queries, _) = Register(ReadyWithoutTeams());
         var pending = new TaskCompletionSource<ServiceResult<CampaignDetailResult>>();
@@ -446,7 +458,7 @@ public sealed class CampaignEntryTests : BunitContext
         var cut = RenderReview();
 
         cut.Render(parameters => parameters.Add(component => component.CampaignId, 11));
-        cut.WaitForAssertion(() => cut.Markup.ShouldContain("New Draft"));
+        await cut.WaitForAssertionAsync(() => cut.Markup.ShouldContain("New Draft"));
         await cut.InvokeAsync(() => pending.SetResult(new ServiceResult<CampaignDetailResult>(DraftDetail(10, "Old Draft"))));
 
         cut.Markup.ShouldContain("New Draft");
@@ -471,7 +483,7 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies a failed pre-commit readiness refresh never dispatches an opening mutation.</summary>
     [Fact]
-    public void CampaignEntry_PreventsOpening_WhenFreshReadinessFails()
+    public void CampaignEntryPreventsOpeningWhenFreshReadinessFails()
     {
         var (queries, lifecycle) = Register(ReadyWithoutTeams());
         var cut = RenderReview();
@@ -487,16 +499,16 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies corrected contextual metadata errors do not block the next valid submission.</summary>
     [Fact]
-    public void CampaignEntry_ResubmitsMetadata_AfterCorrectingServerValidation()
+    public void CampaignEntryResubmitsMetadataAfterCorrectingServerValidation()
     {
         Register(ReadyWithoutTeams());
         var metadata = Services.GetRequiredService<ICampaignMetadataService>();
         metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.Validation(
-                new Dictionary<string, string[]> { ["StartDate"] = ["Start date is outside the season."] })));
+                new Dictionary<string, string[]>(StringComparer.Ordinal) { ["StartDate"] = ["Start date is outside the season."] })));
         var cut = RenderReview();
         cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
-        cut.FindAll("button").Single(button => button.TextContent == "Edit").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent, "Edit", StringComparison.Ordinal)).Click();
         cut.Find("#edit-campaign-start-date").Change("2025-12-01");
         cut.Find("form").Submit();
         cut.WaitForAssertion(() => cut.FindAll(".validation-message")
@@ -508,14 +520,17 @@ public sealed class CampaignEntryTests : BunitContext
         cut.FindAll(".validation-message").ShouldNotContain(message => message.TextContent == "Start date is outside the season.");
         cut.Find("form").Submit();
 
-        cut.WaitForAssertion(() => metadata.Received(1).UpdateAsync(
-            Arg.Is<UpdateCampaignMetadataInput>(input => input.StartDate == new DateOnly(2026, 6, 2)), Arg.Any<CancellationToken>()));
+        cut.WaitForAssertion(() =>
+        {
+            _ = metadata.Received(1).UpdateAsync(
+            Arg.Is<UpdateCampaignMetadataInput>(input => input.StartDate == new DateOnly(2026, 6, 2)), Arg.Any<CancellationToken>());
+        });
         _ = metadata.Received(2).UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Verifies initial and recovery submissions cannot bypass failed operation persistence.</summary>
     [Fact]
-    public void CampaignEntry_RetriesStorageBeforeOpening_WithTheSameOperation()
+    public void CampaignEntryRetriesStorageBeforeOpeningWithTheSameOperation()
     {
         var storageFails = true;
         var (_, lifecycle) = Register(ReadyWithoutTeams(), failOpeningStorageWrite: () => storageFails);
@@ -534,17 +549,17 @@ public sealed class CampaignEntryTests : BunitContext
         storageFails = false;
         cut.Find("button.draft-commit").Click();
         cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.ShouldEndWith("/campaigns/10/roster"));
-        var attempts = JSInterop.Invocations.Where(invocation => invocation.Identifier == "write"
-            && invocation.Arguments.Contains("open:10")).Select(invocation => (string)invocation.Arguments[2]!).ToList();
+        var attempts = JSInterop.Invocations.Where(invocation => string.Equals(invocation.Identifier, "write"
+, StringComparison.Ordinal) && invocation.Arguments.Contains("open:10")).Select(invocation => (string)invocation.Arguments[2]!).ToList();
         attempts.Count.ShouldBe(3);
-        attempts.Distinct().Count().ShouldBe(1);
+        attempts.Distinct(StringComparer.Ordinal).Count().ShouldBe(1);
         _ = lifecycle.Received(1).OpenAsync(10,
             Arg.Is<OpenCampaignInput>(input => input.OperationId == Guid.Parse(attempts[0])), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Verifies an uncertain opening retries the original operation and uses the actual receipt count.</summary>
     [Fact]
-    public void CampaignEntry_ReusesOpeningOperation_WhenResponseIsAmbiguous()
+    public void CampaignEntryReusesOpeningOperationWhenResponseIsAmbiguous()
     {
         var (_, lifecycle) = Register(ReadyWithoutTeams());
         var operations = new List<Guid>();
@@ -568,14 +583,14 @@ public sealed class CampaignEntryTests : BunitContext
         operations.Count.ShouldBe(2);
         operations[0].ShouldNotBe(Guid.Empty);
         operations[1].ShouldBe(operations[0]);
-        var receipt = JSInterop.Invocations.Where(invocation => invocation.Identifier == "write")
+        var receipt = JSInterop.Invocations.Where(invocation => string.Equals(invocation.Identifier, "write", StringComparison.Ordinal))
             .SelectMany(invocation => invocation.Arguments).OfType<OpenCampaignResult>().Single();
         receipt.EnrolledPlayerCount.ShouldBe(4);
     }
 
     /// <summary>Verifies reload recovers the saved opening operation even after the campaign became Active.</summary>
     [Fact]
-    public void CampaignEntry_ReplaysPersistedOpening_AfterCampaignAlreadyOpened()
+    public void CampaignEntryReplaysPersistedOpeningAfterCampaignAlreadyOpened()
     {
         var operationId = Guid.NewGuid();
         var (queries, lifecycle) = Register(ReadyWithoutTeams(), persistedOpeningId: operationId);
@@ -591,7 +606,7 @@ public sealed class CampaignEntryTests : BunitContext
         cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.ShouldContain("/campaigns/10/roster"));
         _ = lifecycle.Received(1).OpenAsync(10, Arg.Is<OpenCampaignInput>(input => input.OperationId == operationId), Arg.Any<CancellationToken>());
         _ = queries.DidNotReceive().GetOpeningReadinessAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
-        var receipt = JSInterop.Invocations.Where(invocation => invocation.Identifier == "write")
+        var receipt = JSInterop.Invocations.Where(invocation => string.Equals(invocation.Identifier, "write", StringComparison.Ordinal))
             .SelectMany(invocation => invocation.Arguments).OfType<OpenCampaignResult>().Single();
         receipt.EnrolledPlayerCount.ShouldBe(4);
         JSInterop.Invocations.ShouldContain(invocation => invocation.Identifier == "remove"
@@ -600,7 +615,7 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies a competing administrator's opening navigates to current work without inventing a receipt.</summary>
     [Fact]
-    public void CampaignEntry_DoesNotClaimOpeningReceipt_WhenAnotherAdministratorOpened()
+    public void CampaignEntryDoesNotClaimOpeningReceiptWhenAnotherAdministratorOpened()
     {
         var (queries, lifecycle) = Register(ReadyWithoutTeams());
         var cut = RenderReview();
@@ -613,7 +628,7 @@ public sealed class CampaignEntryTests : BunitContext
         cut.Find("button.draft-commit").Click();
 
         cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.ShouldContain("/campaigns/10/roster"));
-        JSInterop.Invocations.Where(invocation => invocation.Identifier == "write")
+        JSInterop.Invocations.Where(invocation => string.Equals(invocation.Identifier, "write", StringComparison.Ordinal))
             .SelectMany(invocation => invocation.Arguments).OfType<OpenCampaignResult>().ShouldBeEmpty();
         JSInterop.Invocations.ShouldContain(invocation => invocation.Identifier == "remove"
             && invocation.Arguments.Contains("open:10"));
@@ -624,7 +639,7 @@ public sealed class CampaignEntryTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(ServiceProblemKind.NotFound)]
     [InlineData(ServiceProblemKind.Forbidden)]
-    public void CampaignEntry_ConcealsDraft_WhenRecoveryLosesAccessAndStorageRemovalFails(ServiceProblemKind kind)
+    public void CampaignEntryConcealsDraftWhenRecoveryLosesAccessAndStorageRemovalFails(ServiceProblemKind kind)
     {
         var (queries, lifecycle) = Register(ReadyWithoutTeams(), persistedOpeningId: Guid.NewGuid(), failStorageRemoval: true);
         queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
@@ -644,7 +659,7 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies reload reconciles a completed Draft deletion through its tombstone despite missing detail.</summary>
     [Fact]
-    public void CampaignEntry_ReplaysPendingDeletion_WhenDetailIsAlreadyNotFound()
+    public void CampaignEntryReplaysPendingDeletionWhenDetailIsAlreadyNotFound()
     {
         var (queries, lifecycle) = Register(ReadyWithoutTeams(), persistedDeletion: true);
         queries.GetCampaignDetailAsync(Arg.Any<GetCampaignDetailInput>(), Arg.Any<CancellationToken>())
@@ -660,7 +675,7 @@ public sealed class CampaignEntryTests : BunitContext
 
     /// <summary>Verifies Retry restores mutation controls after a transient recovery-storage read failure.</summary>
     [Fact]
-    public void CampaignEntry_RetriesStorage_AfterTransientReadFailure()
+    public void CampaignEntryRetriesStorageAfterTransientReadFailure()
     {
         var failRead = true;
         Register(ReadyWithoutTeams(), storageReadFails: () => failRead);
@@ -669,7 +684,7 @@ public sealed class CampaignEntryTests : BunitContext
         cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeTrue();
 
         failRead = false;
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Retry").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Retry", StringComparison.Ordinal)).Click();
 
         cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
         cut.Markup.ShouldNotContain("Recovery storage is unavailable");
@@ -680,21 +695,21 @@ public sealed class CampaignEntryTests : BunitContext
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(false)]
     [InlineData(true)]
-    public void CampaignEntry_ClearsFieldValidation_WhenStartingAnotherEdit(bool switchToTeam)
+    public void CampaignEntryClearsFieldValidationWhenStartingAnotherEdit(bool switchToTeam)
     {
         Register(ReadyWithoutTeams());
         var metadata = Services.GetRequiredService<ICampaignMetadataService>();
         metadata.UpdateAsync(Arg.Any<UpdateCampaignMetadataInput>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceResult<UpdateCampaignMetadataResult>(ServiceProblem.Validation(
-                new Dictionary<string, string[]> { ["Name"] = ["This name was rejected by the server."] })));
+                new Dictionary<string, string[]>(StringComparer.Ordinal) { ["Name"] = ["This name was rejected by the server."] })));
         var cut = RenderReview();
         cut.WaitForAssertion(() => cut.Find("button.draft-commit").HasAttribute("disabled").ShouldBeFalse());
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Edit", StringComparison.Ordinal)).Click();
         cut.Find("button[type='submit']").Click();
         cut.WaitForAssertion(() => cut.Markup.ShouldContain("This name was rejected by the server."));
 
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == (switchToTeam ? "Create team" : "Cancel")).Click();
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Edit").Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), switchToTeam ? "Create team" : "Cancel", StringComparison.Ordinal)).Click();
+        cut.FindAll("button").Single(button => string.Equals(button.TextContent.Trim(), "Edit", StringComparison.Ordinal)).Click();
 
         cut.WaitForAssertion(() => cut.Find("#edit-campaign-name").GetAttribute("value").ShouldBe("Summer Draft"));
         cut.Markup.ShouldNotContain("This name was rejected by the server.");
@@ -726,7 +741,9 @@ public sealed class CampaignEntryTests : BunitContext
     /// <param name="incompatibleKey">The incompatible marker key.</param>
     /// <param name="incompatibleException">The typed deserialization failure.</param>
     /// <returns>The query and lifecycle doubles available for scenario-specific behavior.</returns>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private (ICampaignQueryService Queries, ICampaignLifecycleService Lifecycle) Register(CampaignOpeningReadinessResult readiness, bool isAdmin = true, Guid? persistedOpeningId = null, bool failStorageRemoval = false, Func<bool>? failOpeningStorageWrite = null, bool persistedDeletion = false, Func<bool>? storageReadFails = null, Func<bool>? incompatibleRead = null, string? incompatibleKey = null, Exception? incompatibleException = null)
+#pragma warning restore MA0051
     {
         ComponentFactories.AddStub<CampaignWorkspace>();
         var queries = Substitute.For<ICampaignQueryService>();
@@ -761,7 +778,7 @@ public sealed class CampaignEntryTests : BunitContext
         module.Mode = JSRuntimeMode.Loose;
         if (incompatibleRead is not null)
         {
-            if (incompatibleKey == "open:10")
+            if (string.Equals(incompatibleKey, "open:10", StringComparison.Ordinal))
             {
                 module.Setup<string?>("read", invocation => incompatibleRead() && invocation.Arguments.Contains(incompatibleKey)).SetException(incompatibleException!);
             }
@@ -788,7 +805,7 @@ public sealed class CampaignEntryTests : BunitContext
         }
         if (persistedOpeningId is { } saved)
         {
-            module.Setup<string?>("read", invocation => hasPendingOpening && !(incompatibleKey == "open:10" && incompatibleRead?.Invoke() == true)
+            module.Setup<string?>("read", invocation => hasPendingOpening && !(string.Equals(incompatibleKey, "open:10", StringComparison.Ordinal) && incompatibleRead?.Invoke() == true)
                 && invocation.Arguments.Contains("open:10")).SetResult(saved.ToString());
         }
         if (persistedOpeningId is not null || persistedDeletion)
@@ -826,7 +843,9 @@ public sealed class CampaignEntryTests : BunitContext
     /// <param name="authentication">The current identity.</param>
     /// <param name="navigation">The test navigation service.</param>
     /// <param name="js">The session interop service.</param>
+#pragma warning disable CA1812 // The test framework constructs this type through bUnit rendering, DI, or reflection.
     private sealed class PersistedCampaignEntry(ICampaignQueryService queries, ICampaignLifecycleService lifecycle,
+#pragma warning restore CA1812
         ICampaignMetadataService metadata, ITeamManagementService teams, AuthenticationStateProvider authentication,
         NavigationManager navigation, IJSRuntime js)
         : CampaignEntry(queries, lifecycle, metadata, teams, authentication, navigation, js)

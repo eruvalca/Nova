@@ -47,7 +47,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// bootstrap-icons font family, and the Manage/Logout controls on the right.
     /// </summary>
     [Fact]
-    public async Task Navbar_Authenticated_ShowsIconFirstItemsWithBootstrapIcons()
+    public async Task NavbarAuthenticatedShowsIconFirstItemsWithBootstrapIconsAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -102,7 +102,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// the previously-active item returns to outline with no layout jump).
     /// </summary>
     [Fact]
-    public async Task Navbar_ActiveItem_ShowsKelpTealEdgeRail()
+    public async Task NavbarActiveItemShowsKelpTealEdgeRailAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -122,7 +122,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var campaigns = nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true });
         await AssertKelpTealEdgeRailAsync(campaigns);
         await AssertActiveFillGlyphAsync(campaigns, "bi-calendar-check-fill", "bi-calendar-check");
-        await Expect(dashboard).Not.ToHaveClassAsync(new Regex("\\bactive\\b"));
+        await Expect(dashboard).Not.ToHaveClassAsync(new Regex("\\bactive\\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         // The previously-active link returned to its outline glyph (fill overlay off).
         await AssertInactiveOutlineGlyphAsync(dashboard, "bi-house-fill", "bi-house");
     }
@@ -131,7 +131,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// NB3: the Manage link navigates to /Account/Manage.
     /// </summary>
     [Fact]
-    public async Task Navbar_ManageLink_NavigatesToAccountManage()
+    public async Task NavbarManageLinkNavigatesToAccountManageAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -150,7 +150,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// where the unauthenticated navbar shows only the Login link.
     /// </summary>
     [Fact]
-    public async Task Navbar_Logout_PostsAndReturnsToLogin()
+    public async Task NavbarLogoutPostsAndReturnsToLoginAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
@@ -171,9 +171,9 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// primary nav — so no icon-first items leak to unauthenticated users.
     /// </summary>
     [Fact]
-    public async Task Navbar_Unauthenticated_ShowsPublicLanding_WithNoIconLinks()
+    public async Task NavbarUnauthenticatedShowsPublicLandingWithNoIconLinksAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var context = await fixture.NewAnonymousContextAsync();
         var page = context.Pages[0];
 
@@ -197,14 +197,14 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// (icon beside label), and the brand lockup is visible.
     /// </summary>
     [Fact]
-    public async Task Navbar_Desktop_RendersAsLeftRail()
+    public async Task NavbarDesktopRendersAsLeftRailAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            DashboardSeed.Password,
-            viewport: new ViewportSize { Width = 1280, Height = 800 });
+                    seed.AdminEmail,
+                    DashboardSeed.Password,
+                    viewport: new ViewportSize { Width = 1280, Height = 800 });
         var page = context.Pages[0];
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -214,8 +214,8 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         // The nav is fixed to the left edge at 15rem on md+.
         var navBox = await nav.BoundingBoxAsync();
         navBox.ShouldNotBeNull();
-        ((double)navBox!.X).ShouldBe(0, 1.0, "the rail must be fixed to the left edge at md+");
-        ((double)navBox!.Width).ShouldBeInRange(239.0, 241.0, "the rail must keep its 15rem (240px) width at md+");
+        ((double)navBox.X).ShouldBe(0, 1.0, "the rail must be fixed to the left edge at md+");
+        ((double)navBox.Width).ShouldBeInRange(239.0, 241.0, "the rail must keep its 15rem (240px) width at md+");
 
         // The brand lockup is visible at md+.
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Nova dashboard" })).ToBeVisibleAsync();
@@ -247,14 +247,16 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// asserted via computed background-color equality.
     /// </summary>
     [Fact]
-    public async Task Navbar_Mobile_RestShowsBrandAndToggle_MenuSheetListsEveryRoute()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task NavbarMobileRestShowsBrandAndToggleMenuSheetListsEveryRouteAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            DashboardSeed.Password,
-            viewport: new ViewportSize { Width = 480, Height = 800 });
+                    seed.AdminEmail,
+                    DashboardSeed.Password,
+                    viewport: new ViewportSize { Width = 480, Height = 800 });
         var page = context.Pages[0];
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -265,7 +267,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var navBox = await nav.BoundingBoxAsync();
         navBox.ShouldNotBeNull();
         var viewportHeight = await page.EvaluateAsync<int>("() => window.innerHeight");
-        Math.Abs((double)navBox!.Y + (double)navBox.Height - viewportHeight).ShouldBeLessThanOrEqualTo(1.0, "the bar must be fixed to the bottom edge at <md");
+        Math.Abs((double)navBox.Y + (double)navBox.Height - viewportHeight).ShouldBeLessThanOrEqualTo(1.0, "the bar must be fixed to the bottom edge at <md");
 
         // The collapse is the menu container; at rest it is display:none so no route (primary or
         // account) is in the accessibility tree — the bar must never show five shrinking tabs.
@@ -280,8 +282,8 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await Expect(toggler).ToBeVisibleAsync();
         var togglerBox = await toggler.BoundingBoxAsync();
         togglerBox.ShouldNotBeNull();
-        ((double)togglerBox!.Height).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
-        ((double)togglerBox!.Width).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
+        ((double)togglerBox.Height).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
+        ((double)togglerBox.Width).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
 
         // No route is reachable visually (or in the accessibility tree) until the menu opens.
         foreach (var label in new[] { "Dashboard", clubName, "Campaigns", "Players", "Teams" })
@@ -294,7 +296,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
         // Opening the menu (Bootstrap collapse) reveals every route in the rising sheet.
         await toggler.ClickAsync();
-        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         await Expect(toggler).ToHaveAttributeAsync("aria-expanded", "true");
 
         // Issue #159 report A regression guard: the opened sheet must read as one continuous
@@ -364,14 +366,14 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// hamburger state instead of leaving the route list visible as a horizontal strip.
     /// </summary>
     [Fact]
-    public async Task Navbar_Mobile_CollapsesAfterEnhancedNavigation()
+    public async Task NavbarMobileCollapsesAfterEnhancedNavigationAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            DashboardSeed.Password,
-            viewport: new ViewportSize { Width = 480, Height = 800 });
+                    seed.AdminEmail,
+                    DashboardSeed.Password,
+                    viewport: new ViewportSize { Width = 480, Height = 800 });
         var page = context.Pages[0];
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -381,7 +383,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var collapse = nav.Locator(".navbar-collapse");
 
         await toggler.ClickAsync();
-        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         await page.EvaluateAsync("() => window.__novaEnhancedNavigationProbe = true");
 
         await nav.GetByRole(AriaRole.Link, new() { Name = "Campaigns", Exact = true }).ClickAsync();
@@ -401,14 +403,14 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// geometry and surface instead of flashing as an unstyled in-flow navigation strip.
     /// </summary>
     [Fact]
-    public async Task Navbar_Mobile_ToggleKeepsSheetGeometryDuringCollapseTransition()
+    public async Task NavbarMobileToggleKeepsSheetGeometryDuringCollapseTransitionAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            DashboardSeed.Password,
-            viewport: new ViewportSize { Width = 480, Height = 800 });
+                    seed.AdminEmail,
+                    DashboardSeed.Password,
+                    viewport: new ViewportSize { Width = 480, Height = 800 });
         var page = context.Pages[0];
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -433,9 +435,9 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
             """);
 
         await toggler.ClickAsync();
-        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         await toggler.ClickAsync();
-        await Expect(collapse).Not.ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await Expect(collapse).Not.ToHaveClassAsync(new Regex(@"\bshow\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
 
         var transitionStates = await page.EvaluateAsync<string[]>(
             "() => window.__novaCollapseTransitionStates");
@@ -455,21 +457,21 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// primary routes in the opened mobile sheet.
     /// </summary>
     [Fact]
-    public async Task Navbar_Mobile_AccountRoutesMatchPrimaryRowRhythm()
+    public async Task NavbarMobileAccountRoutesMatchPrimaryRowRhythmAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            DashboardSeed.Password,
-            viewport: new ViewportSize { Width = 480, Height = 800 });
+                    seed.AdminEmail,
+                    DashboardSeed.Password,
+                    viewport: new ViewportSize { Width = 480, Height = 800 });
         var page = context.Pages[0];
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
 
         var nav = page.Locator("nav[aria-label='Primary']");
         await nav.Locator(".navbar-toggler").ClickAsync();
-        await Expect(nav.Locator(".navbar-collapse")).ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await Expect(nav.Locator(".navbar-collapse")).ToHaveClassAsync(new Regex(@"\bshow\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
 
         var teamsBox = await nav.GetByRole(AriaRole.Link, new() { Name = "Teams", Exact = true }).BoundingBoxAsync();
         var manageBox = await nav.GetByRole(AriaRole.Link, new() { Name = "Manage", Exact = false }).BoundingBoxAsync();
@@ -478,10 +480,10 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         manageBox.ShouldNotBeNull();
         logoutBox.ShouldNotBeNull();
 
-        var sectionGap = manageBox!.Y - (teamsBox!.Y + teamsBox.Height);
+        var sectionGap = manageBox.Y - (teamsBox.Y + teamsBox.Height);
         sectionGap.ShouldBeInRange(3.5f, 9.5f, "the account separator must not create an oversized gap");
 
-        var accountRowGap = logoutBox!.Y - (manageBox.Y + manageBox.Height);
+        var accountRowGap = logoutBox.Y - (manageBox.Y + manageBox.Height);
         accountRowGap.ShouldBeInRange(3.5f, 4.5f, "Manage and Logout must use the same compact row gap as primary routes");
         Math.Abs(manageBox.Height - logoutBox.Height).ShouldBeLessThanOrEqualTo(
             1.0f,
@@ -493,14 +495,14 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// rail is still flush with the rail's left edge.
     /// </summary>
     [Fact]
-    public async Task Navbar_ManageActive_EdgeRailAndAvatarLarger()
+    public async Task NavbarManageActiveEdgeRailAndAvatarLargerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            DashboardSeed.Password,
-            viewport: new ViewportSize { Width = 1280, Height = 800 });
+                    seed.AdminEmail,
+                    DashboardSeed.Password,
+                    viewport: new ViewportSize { Width = 1280, Height = 800 });
         var page = context.Pages[0];
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -531,14 +533,16 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// so it rendered under the bare MainLayout with no account-hall frame.
     /// </summary>
     [Fact]
-    public async Task Account_ManageProfilePhoto_RendersInsideAccountHallFrame()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task AccountManageProfilePhotoRendersInsideAccountHallFrameAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            DashboardSeed.Password,
-            viewport: new ViewportSize { Width = 1280, Height = 800 });
+                    seed.AdminEmail,
+                    DashboardSeed.Password,
+                    viewport: new ViewportSize { Width = 1280, Height = 800 });
         var page = context.Pages[0];
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Manage/ProfilePhoto").ToString());
@@ -562,13 +566,13 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         // The Profile photo panel in the directory wall is the active (punched) one.
         var profilePhotoPanel = wall.GetByRole(AriaRole.Link, new() { Name = "Profile photo" });
         await Expect(profilePhotoPanel).ToHaveCountAsync(1);
-        await Expect(profilePhotoPanel).ToHaveClassAsync(new Regex("\\bactive\\b"));
+        await Expect(profilePhotoPanel).ToHaveClassAsync(new Regex("\\bactive\\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
 
         // The other panels are not active.
         await Expect(wall.GetByRole(AriaRole.Link, new() { Name = "Profile", Exact = true }))
-            .Not.ToHaveClassAsync(new Regex("\\bactive\\b"));
+            .Not.ToHaveClassAsync(new Regex("\\bactive\\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         await Expect(wall.GetByRole(AriaRole.Link, new() { Name = "Email", Exact = true }))
-            .Not.ToHaveClassAsync(new Regex("\\bactive\\b"));
+            .Not.ToHaveClassAsync(new Regex("\\bactive\\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
 
         // Move the island to WebAssembly before driving the file input: InteractiveAuto attaches on
         // WASM once the runtime has booted, and the file-upload round trip over the InteractiveServer
@@ -625,12 +629,29 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
             // the save endpoint must refresh the profile-photo claim and return to the manage page.
             var savePhoto = hall.GetByRole(AriaRole.Button, new() { Name = "Save photo", Exact = true });
             await Expect(savePhoto).ToBeEnabledAsync(new() { Timeout = 30_000 });
-            await InteractionHelpers.ClickUntilAsync(
-                page,
-                savePhoto,
-                () => Task.FromResult(new Uri(page.Url).AbsolutePath.Equals(
-                    "/Account/Manage",
-                    StringComparison.OrdinalIgnoreCase)));
+            var browserErrors = new System.Collections.Concurrent.ConcurrentQueue<string>();
+            page.PageError += (_, error) => browserErrors.Enqueue(error);
+            page.Console += (_, message) =>
+            {
+                if (string.Equals(message.Type, "error", StringComparison.Ordinal))
+                {
+                    browserErrors.Enqueue(message.Text);
+                }
+            };
+            try
+            {
+                await InteractionHelpers.ClickUntilAsync(
+                    page,
+                    savePhoto,
+                    () => Task.FromResult(new Uri(page.Url).AbsolutePath.Equals(
+                        "/Account/Manage",
+                        StringComparison.OrdinalIgnoreCase)));
+            }
+            catch (TimeoutException exception)
+            {
+                var errors = await page.Locator(".photo-editor-errors").AllTextContentsAsync();
+                throw new TimeoutException($"Photo save did not return to account management. URL: {page.Url}. Errors: {string.Join("; ", errors)}. Browser errors: {string.Join("; ", browserErrors)}", exception);
+            }
             await page.WaitForURLAsync(
                 url => new Uri(url).AbsolutePath.Equals("/Account/Manage", StringComparison.OrdinalIgnoreCase),
                 new() { WaitUntil = WaitUntilState.Commit });
@@ -647,14 +668,14 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// rail items remain comfortably tappable.
     /// </summary>
     [Fact]
-    public async Task Navbar_NavItems_MeetTouchTargetMinimum()
+    public async Task NavbarNavItemsMeetTouchTargetMinimumAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            DashboardSeed.Password,
-            viewport: new ViewportSize { Width = 1280, Height = 800 });
+                    seed.AdminEmail,
+                    DashboardSeed.Password,
+                    viewport: new ViewportSize { Width = 1280, Height = 800 });
         var page = context.Pages[0];
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -664,7 +685,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         {
             var box = await nav.GetByRole(AriaRole.Link, new() { Name = label, Exact = true }).BoundingBoxAsync();
             box.ShouldNotBeNull();
-            ((double)box!.Height).ShouldBeGreaterThanOrEqualTo(43.5, $"the {label} link must keep its 2.75rem touch target");
+            ((double)box.Height).ShouldBeGreaterThanOrEqualTo(43.5, $"the {label} link must keep its 2.75rem touch target");
         }
     }
 
@@ -677,11 +698,11 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// account-routes list is not collapsed, and the toggler computes to <c>display: none</c>.
     /// </summary>
     [Fact]
-    public async Task Navbar_Mobile_Anonymous_SingleLoginStaysInline_AndHamburgerHidden()
+    public async Task NavbarMobileAnonymousSingleLoginStaysInlineAndHamburgerHiddenAsync()
     {
-        var cancellationToken = TestContext.Current.CancellationToken;
+
         await using var context = await fixture.NewAnonymousContextAsync(
-            viewport: new ViewportSize { Width = 480, Height = 800 });
+                    viewport: new ViewportSize { Width = 480, Height = 800 });
         var page = context.Pages[0];
 
         await page.GotoAsync(new Uri(fixture.BaseUri, "/Account/Login").ToString());
@@ -697,7 +718,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
         // The anonymous state is computed server-side and emitted as the account-routes-single
         // marker class on the nav, so the contract does not depend on :has() support.
-        await Expect(nav).ToHaveClassAsync(new Regex("\\baccount-routes-single\\b"));
+        await Expect(nav).ToHaveClassAsync(new Regex("\\baccount-routes-single\\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
 
         // The single-item exception keeps the account-routes list rendered inline (display: flex),
         // not collapsed into the sheet (display: none).
@@ -725,13 +746,13 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// items never overflow unreadably.
     /// </summary>
     [Fact]
-    public async Task Navbar_Mobile_NoJavaScript_AccountItemsStayInlineAndReachable()
+    public async Task NavbarMobileNoJavaScriptAccountItemsStayInlineAndReachableAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewAnonymousContextAsync(
-            viewport: new ViewportSize { Width = 480, Height = 800 },
-            javaScriptEnabled: false);
+                    viewport: new ViewportSize { Width = 480, Height = 800 },
+                    javaScriptEnabled: false);
         var page = context.Pages[0];
 
         // Signs in through the real login form. The SSR EditForm posts natively (no enhanced
@@ -792,15 +813,17 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// from /Account/Manage.
     /// </summary>
     [Fact]
-    public async Task Navbar_Mobile_Menu_AllItemsVisibleWithFullLabels_AvatarNeverOverlapsLabel()
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
+    public async Task NavbarMobileMenuAllItemsVisibleWithFullLabelsAvatarNeverOverlapsLabelAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            DashboardSeed.Password,
-            viewport: new ViewportSize { Width = 480, Height = 800 },
-            javaScriptEnabled: true);
+                    seed.AdminEmail,
+                    DashboardSeed.Password,
+                    viewport: new ViewportSize { Width = 480, Height = 800 },
+                    javaScriptEnabled: true);
 
         var page = context.Pages[0];
         // Start on the Account/Manage area so the club crest + Manage avatar are both rendered
@@ -815,7 +838,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         await Expect(toggler).ToBeVisibleAsync();
         await toggler.ClickAsync();
         var collapse = nav.Locator(".navbar-collapse");
-        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
 
         var clubName = await GetClubNameAsync(seed.ClubId, cancellationToken);
 
@@ -843,13 +866,13 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var clubLabelBox = await clubLink.Locator("span.nav-label").BoundingBoxAsync();
         avatarBox.ShouldNotBeNull();
         clubLabelBox.ShouldNotBeNull();
-        ((double)avatarBox!.Width).ShouldBeInRange(31.5, 32.5, "the club crest must keep its 2rem (32px) width");
-        ((double)avatarBox!.Height).ShouldBeInRange(31.5, 32.5, "the club crest must keep its 2rem (32px) height");
-        ((double)avatarBox!.X + (double)avatarBox.Width).ShouldBeLessThanOrEqualTo((double)clubLabelBox!.X + 1.0, "the club crest avatar must not overlap the club label");
+        ((double)avatarBox.Width).ShouldBeInRange(31.5, 32.5, "the club crest must keep its 2rem (32px) width");
+        ((double)avatarBox.Height).ShouldBeInRange(31.5, 32.5, "the club crest must keep its 2rem (32px) height");
+        ((double)avatarBox.X + (double)avatarBox.Width).ShouldBeLessThanOrEqualTo((double)clubLabelBox.X + 1.0, "the club crest avatar must not overlap the club label");
         // Side-by-side row: the label sits on the avatar's vertical center line (never above or
         // below the row it belongs to).
-        var avatarCenterY = (double)avatarBox!.Y + (avatarBox.Height / 2);
-        var labelCenterY = (double)clubLabelBox!.Y + (clubLabelBox.Height / 2);
+        var avatarCenterY = (double)avatarBox.Y + (avatarBox.Height / 2);
+        var labelCenterY = (double)clubLabelBox.Y + (clubLabelBox.Height / 2);
         Math.Abs(avatarCenterY - labelCenterY).ShouldBeLessThanOrEqualTo(2.0, "the avatar and club label must stay vertically centered in the row");
 
         // The Manage avatar (profile photo) is also 2rem and must not overlap the Manage label.
@@ -859,8 +882,8 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var manageLabelBox = await manage.Locator("span.nav-label").BoundingBoxAsync();
         manageAvatarBox.ShouldNotBeNull();
         manageLabelBox.ShouldNotBeNull();
-        ((double)manageAvatarBox!.Width).ShouldBeInRange(31.5, 32.5, "the Manage avatar must keep its 2rem (32px) width");
-        ((double)manageAvatarBox!.X + (double)manageAvatarBox.Width).ShouldBeLessThanOrEqualTo((double)manageLabelBox!.X + 1.0, "the Manage avatar must not overlap the Manage label");
+        ((double)manageAvatarBox.Width).ShouldBeInRange(31.5, 32.5, "the Manage avatar must keep its 2rem (32px) width");
+        ((double)manageAvatarBox.X + (double)manageAvatarBox.Width).ShouldBeLessThanOrEqualTo((double)manageLabelBox.X + 1.0, "the Manage avatar must not overlap the Manage label");
 
         // Each visible menu row meets the ≥2.75rem touch target and has a full-size label that
         // is not ellipsized (legibility, defect-2 regression guard).
@@ -886,15 +909,15 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// rest with no inline scroll strip.
     /// </summary>
     [Fact]
-    public async Task Navbar_Mobile_JavaScriptEnabled_HoldsSheetContractAcrossResize()
+    public async Task NavbarMobileJavaScriptEnabledHoldsSheetContractAcrossResizeAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var seed = await DashboardSeed.SeedAsync(fixture.AppHost, cancellationToken);
         await using var context = await fixture.NewSignedInContextAsync(
-            seed.AdminEmail,
-            DashboardSeed.Password,
-            viewport: new ViewportSize { Width = 1280, Height = 800 },
-            javaScriptEnabled: true);
+                    seed.AdminEmail,
+                    DashboardSeed.Password,
+                    viewport: new ViewportSize { Width = 1280, Height = 800 },
+                    javaScriptEnabled: true);
         var page = context.Pages[0];
 
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Club operations" })).ToBeVisibleAsync();
@@ -930,7 +953,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         // 4. The menu still opens and lists routes after the resizes (the collapse is functional,
         //    not merely styled into hiding).
         await toggler.ClickAsync();
-        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b"));
+        await Expect(collapse).ToHaveClassAsync(new Regex(@"\bshow\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         await Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true })).ToBeVisibleAsync();
     }
 
@@ -951,15 +974,15 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
 
         var togglerBox = await toggler.BoundingBoxAsync();
         togglerBox.ShouldNotBeNull();
-        ((double)togglerBox!.Height).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
-        ((double)togglerBox!.Width).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
+        ((double)togglerBox.Height).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
+        ((double)togglerBox.Width).ShouldBeGreaterThanOrEqualTo(43.5, "the toggler must keep a 2.75rem touch target");
 
         var collapseDisplay = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).display");
         collapseDisplay.ShouldBe("none", "the collapse must be hidden at rest at <md with JS enabled");
 
         var overflowX = await collapse.EvaluateAsync<string>("(el) => getComputedStyle(el).overflowX");
-        overflowX.ShouldNotBe("auto", "the JS-enabled collapse must never become an inline horizontal scroll strip");
-        overflowX.ShouldNotBe("scroll", "the JS-enabled collapse must never become an inline horizontal scroll strip");
+        overflowX.ShouldNotBe("auto", StringComparer.Ordinal, "the JS-enabled collapse must never become an inline horizontal scroll strip");
+        overflowX.ShouldNotBe("scroll", StringComparer.Ordinal, "the JS-enabled collapse must never become an inline horizontal scroll strip");
 
         // The routes are not in the accessibility tree while the sheet is closed — proving the
         // strip is not implicitly showing inline tabs.
@@ -982,7 +1005,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var leadingBox = await GetLeadingSlotBoxAsync(link, expectedIconSlotSize);
         var labelBox = await link.Locator("span.nav-label").BoundingBoxAsync();
         labelBox.ShouldNotBeNull();
-        leadingBox!.X.ShouldBeLessThan(labelBox!.X, "the icon must sit beside the label in the inline row");
+        leadingBox!.X.ShouldBeLessThan(labelBox.X, "the icon must sit beside the label in the inline row");
         var iconCenterY = (double)leadingBox.Y + (leadingBox.Height / 2);
         var labelCenterY = (double)labelBox.Y + (labelBox.Height / 2);
         Math.Abs(iconCenterY - labelCenterY).ShouldBeLessThanOrEqualTo(2.0, "the icon and label must stay vertically centered");
@@ -1003,15 +1026,15 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         {
             var avatarBox = await avatarSlot.BoundingBoxAsync();
             avatarBox.ShouldNotBeNull();
-            ((double)avatarBox!.Width).ShouldBeInRange(31.5, 32.5, "the avatar slot must keep its 2rem (32px) width");
-            ((double)avatarBox!.Height).ShouldBeInRange(31.5, 32.5, "the avatar slot must keep its 2rem (32px) height");
+            ((double)avatarBox.Width).ShouldBeInRange(31.5, 32.5, "the avatar slot must keep its 2rem (32px) width");
+            ((double)avatarBox.Height).ShouldBeInRange(31.5, 32.5, "the avatar slot must keep its 2rem (32px) height");
             return avatarBox;
         }
 
         var iconBox = await link.Locator("span.nav-icon-slot").BoundingBoxAsync();
         iconBox.ShouldNotBeNull();
-        ((double)iconBox!.Width).ShouldBeInRange(expectedIconSlotSize - 0.5, expectedIconSlotSize + 0.5, "the icon slot must keep its committed lane width");
-        ((double)iconBox!.Height).ShouldBeInRange(expectedIconSlotSize - 0.5, expectedIconSlotSize + 0.5, "the icon slot must keep its committed lane height");
+        ((double)iconBox.Width).ShouldBeInRange(expectedIconSlotSize - 0.5, expectedIconSlotSize + 0.5, "the icon slot must keep its committed lane width");
+        ((double)iconBox.Height).ShouldBeInRange(expectedIconSlotSize - 0.5, expectedIconSlotSize + 0.5, "the icon slot must keep its committed lane height");
         return iconBox;
     }
 
@@ -1044,7 +1067,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         {
             var box = await GetLeadingSlotBoxAsync(row.Link, 32.0);
             box.ShouldNotBeNull();
-            leadingBoxes.Add((box!.X, box.Width, box.Height, row.Name));
+            leadingBoxes.Add((box.X, box.Width, box.Height, row.Name));
         }
 
         var first = leadingBoxes[0];
@@ -1082,7 +1105,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     private static async Task AssertColorNotEqualsAsync(ILocator element, string otherColor, string customMessage)
     {
         var actualColor = await element.EvaluateAsync<string>("(el) => getComputedStyle(el).backgroundColor");
-        NormalizeRgbColor(actualColor).ShouldNotBe(NormalizeRgbColor(otherColor), customMessage);
+        NormalizeRgbColor(actualColor).ShouldNotBe(NormalizeRgbColor(otherColor), StringComparer.Ordinal, customMessage);
     }
 
     /// <summary>
@@ -1097,24 +1120,24 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         color = color.Trim();
 
         // Transparent / fully transparent colors: any alpha of 0 is the same visual color.
-        var alphaMatch = Regex.Match(color, @"(?:^|,)\s*(?:0(?:\.0+)?|\.0+)\s*\)$");
+        var alphaMatch = Regex.Match(color, @"(?:^|,)\s*(?:0(?:\.0+)?|\.0+)\s*\)$", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
         if (alphaMatch.Success || color.Equals("transparent", StringComparison.OrdinalIgnoreCase))
         {
             return "rgba(0, 0, 0, 0)";
         }
 
         // color(srgb r g b) — modern serialization of color-mix() results.
-        var srgbMatch = Regex.Match(color, @"^color\(\s*srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$", RegexOptions.IgnoreCase);
+        var srgbMatch = Regex.Match(color, @"^color\(\s*srgb\s+(?<red>[\d.]+)\s+(?<green>[\d.]+)\s+(?<blue>[\d.]+)\s*\)$", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
         if (srgbMatch.Success)
         {
-            var r = Math.Round(double.Parse(srgbMatch.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) * 255.0);
-            var g = Math.Round(double.Parse(srgbMatch.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture) * 255.0);
-            var b = Math.Round(double.Parse(srgbMatch.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture) * 255.0);
+            var r = Math.Round(double.Parse(srgbMatch.Groups["red"].Value, System.Globalization.CultureInfo.InvariantCulture) * 255.0);
+            var g = Math.Round(double.Parse(srgbMatch.Groups["green"].Value, System.Globalization.CultureInfo.InvariantCulture) * 255.0);
+            var b = Math.Round(double.Parse(srgbMatch.Groups["blue"].Value, System.Globalization.CultureInfo.InvariantCulture) * 255.0);
             return $"rgb({r:0}, {g:0}, {b:0})";
         }
 
         // Legacy rgb(r, g, b) — leave as-is but canonicalize whitespace.
-        return Regex.Replace(color, @"\s*,\s*", ", ");
+        return Regex.Replace(color, @"\s*,\s*", ", ", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
     }
 
     /// <summary>
@@ -1129,7 +1152,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         flexDirection.ShouldBe("row", "the sheet row must be an inline row, not a stacked tab");
         var box = await row.BoundingBoxAsync();
         box.ShouldNotBeNull();
-        ((double)box!.Height).ShouldBeGreaterThanOrEqualTo(43.5, "the sheet row must keep the 2.75rem touch target");
+        ((double)box.Height).ShouldBeGreaterThanOrEqualTo(43.5, "the sheet row must keep the 2.75rem touch target");
         ((double)box.Width).ShouldBeGreaterThanOrEqualTo(150.0, "the sheet row must be full-width, not a shrink-to-fit tab");
 
         var labelBox = await row.Locator("span.nav-label").BoundingBoxAsync();
@@ -1137,7 +1160,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var labelFontSize = await row.Locator("span.nav-label").EvaluateAsync<string>("(el) => getComputedStyle(el).fontSize");
         labelFontSize.ShouldBe("14px", "the sheet label must render at the 0.875rem menu size");
         var textOverflow = await row.Locator("span.nav-label").EvaluateAsync<string>("(el) => getComputedStyle(el).textOverflow");
-        textOverflow.ShouldNotBe("ellipsis", "the sheet label must never be ellipsized");
+        textOverflow.ShouldNotBe("ellipsis", StringComparer.Ordinal, "the sheet label must never be ellipsized");
     }
 
     /// <summary>
@@ -1156,7 +1179,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var leadingBox = await GetLeadingSlotBoxAsync(link);
         var labelBox = await link.Locator("span.nav-label").BoundingBoxAsync();
         labelBox.ShouldNotBeNull();
-        leadingBox!.Y.ShouldBeLessThan(labelBox!.Y, "the icon must sit above the label in the stacked tab");
+        leadingBox!.Y.ShouldBeLessThan(labelBox.Y, "the icon must sit above the label in the stacked tab");
         var iconCenterX = (double)leadingBox.X + (leadingBox.Width / 2);
         var labelCenterX = (double)labelBox.X + (labelBox.Width / 2);
         Math.Abs(iconCenterX - labelCenterX).ShouldBeLessThanOrEqualTo(2.0, "the icon and label must stay horizontally centered");
@@ -1168,7 +1191,7 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
     /// </summary>
     private static async Task AssertKelpTealEdgeRailAsync(ILocator link)
     {
-        await Expect(link).ToHaveClassAsync(new Regex("\\bactive\\b"));
+        await Expect(link).ToHaveClassAsync(new Regex("\\bactive\\b", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1)));
         var indicatorColor = await link.EvaluateAsync<string>(
             "(el) => getComputedStyle(el, '::after').backgroundColor");
         indicatorColor.ShouldBe(ExpectedKelpTealRgb);
@@ -1191,8 +1214,8 @@ public sealed class NavbarBrowserTests(BrowserSuiteFixture fixture)
         var avatarBox = await avatar.BoundingBoxAsync();
         avatarBox.ShouldNotBeNull();
         // 2rem = 32px border-box; the range allows only for sub-pixel rounding.
-        ((double)avatarBox!.Width).ShouldBeInRange(31.5, 32.5, "the avatar must render at its 2rem (32px) target width");
-        ((double)avatarBox!.Height).ShouldBeInRange(31.5, 32.5, "the avatar must render at its 2rem (32px) target height");
+        ((double)avatarBox.Width).ShouldBeInRange(31.5, 32.5, "the avatar must render at its 2rem (32px) target width");
+        ((double)avatarBox.Height).ShouldBeInRange(31.5, 32.5, "the avatar must render at its 2rem (32px) target height");
         var borderRadius = await avatar.EvaluateAsync<string>("(el) => getComputedStyle(el).borderRadius");
         borderRadius.ShouldContain("50%");
     }

@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Activity;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -19,6 +19,7 @@ namespace Nova.Unit.Tests.Activity;
 /// </summary>
 public sealed class ClubActivityQueryServiceTests : IDisposable
 {
+    private static readonly JsonSerializerOptions _camelCaseJsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private const long ClubAId = 100;
     private const long ClubBId = 200;
     private const long ClubAMemberId = 300;
@@ -36,7 +37,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies an unsigned-in caller cannot read the club feed.</summary>
     [Fact]
-    public async Task GetClubActivity_ReturnsForbidden_WhenNotSignedIn()
+    public async Task GetClubActivityReturnsForbiddenWhenNotSignedInAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -51,7 +52,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies a signed-in user without a club cannot read the club feed.</summary>
     [Fact]
-    public async Task GetClubActivity_ReturnsForbidden_WhenUserHasNoClub()
+    public async Task GetClubActivityReturnsForbiddenWhenUserHasNoClubAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = null;
@@ -66,7 +67,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies cross-tenant events are invisible through the read filter.</summary>
     [Fact]
-    public async Task GetClubActivity_ReturnsNoCrossTenantEvents()
+    public async Task GetClubActivityReturnsNoCrossTenantEventsAsync()
     {
         SeedEvents(ClubAId, [
             EventSpec(ActivityEventKind.CampaignOpened, ClubAAdminId, "Admin A", new CampaignLifecycleContext
@@ -97,7 +98,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies members never see administrator-only rows.</summary>
     [Fact]
-    public async Task GetClubActivity_HidesAdminOnlyEvents_FromMembers()
+    public async Task GetClubActivityHidesAdminOnlyEventsFromMembersAsync()
     {
         SeedEvents(ClubAId, [
             EventSpec(ActivityEventKind.JoinRequestSubmitted, ClubAAdminId, "Admin A", new JoinRequestContext
@@ -127,7 +128,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies administrators see administrator-only rows alongside public ones.</summary>
     [Fact]
-    public async Task GetClubActivity_IncludesAdminOnlyEvents_ForAdministrators()
+    public async Task GetClubActivityIncludesAdminOnlyEventsForAdministratorsAsync()
     {
         SeedEvents(ClubAId, [
             EventSpec(ActivityEventKind.CampaignOpened, ClubAAdminId, "Admin A", new CampaignLifecycleContext
@@ -157,7 +158,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies stored actor snapshots survive actor removal.</summary>
     [Fact]
-    public async Task GetClubActivity_ReturnsStoredActorSnapshot_ForRemovedActor()
+    public async Task GetClubActivityReturnsStoredActorSnapshotForRemovedActorAsync()
     {
         SeedEvents(ClubAId, [
             EventSpec(ActivityEventKind.CampaignOpened, MissingActorUserId, "Former member", new CampaignLifecycleContext
@@ -182,7 +183,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies a deleted-draft event remains readable from its payload snapshot.</summary>
     [Fact]
-    public async Task GetClubActivity_ReturnsDeletedDraftEvent_FromPayloadSnapshot()
+    public async Task GetClubActivityReturnsDeletedDraftEventFromPayloadSnapshotAsync()
     {
         SeedEvents(ClubAId, [
             EventSpec(ActivityEventKind.CampaignDraftDeleted, ClubAAdminId, "Admin A", new CampaignLifecycleContext
@@ -209,7 +210,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies pages are of the fixed size and the cursor yields an exclusive continuation.</summary>
     [Fact]
-    public async Task GetClubActivity_PagesDeterministically_WithContinuationCursor()
+    public async Task GetClubActivityPagesDeterministicallyWithContinuationCursorAsync()
     {
         var baseTime = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
         var seeds = Enumerable.Range(0, GetClubActivityInput.PageSize + 5)
@@ -264,7 +265,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies the newest page honors the newest-first ordering with equal-time tie-breaking.</summary>
     [Fact]
-    public async Task GetClubActivity_OrdersEvents_NewestFirstWithIdTieBreak()
+    public async Task GetClubActivityOrdersEventsNewestFirstWithIdTieBreakAsync()
     {
         var equalTime = new DateTimeOffset(2026, 10, 2, 9, 0, 0, TimeSpan.Zero);
         var entities = SeedEvents(ClubAId, [
@@ -299,7 +300,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies malformed payloads are skipped rather than surfaced and the page stays aligned.</summary>
     [Fact]
-    public async Task GetClubActivity_SkipsMalformedPayloads_AndContinuesPaging()
+    public async Task GetClubActivitySkipsMalformedPayloadsAndContinuesPagingAsync()
     {
         var adminOnly = RawEventSpec(ActivityEventKind.JoinRequestRejected, ClubAAdminId, "Admin A", "{ not json }", Time(10, 0));
         var publicEvent = EventSpec(ActivityEventKind.CampaignOpened, ClubAAdminId, "Admin A", new CampaignLifecycleContext
@@ -324,7 +325,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies both-or-neither cursor validation.</summary>
     [Fact]
-    public async Task GetClubActivity_ReturnsValidation_ForCursorWithoutTime()
+    public async Task GetClubActivityReturnsValidationForCursorWithoutTimeAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -339,7 +340,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
 
     /// <summary>Verifies non-positive cursor identifiers are rejected before any query.</summary>
     [Fact]
-    public async Task GetClubActivity_ReturnsValidation_ForNegativeCursorId()
+    public async Task GetClubActivityReturnsValidationForNegativeCursorIdAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -384,7 +385,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
     /// <param name="clubId">The owning club identifier.</param>
     /// <param name="specs">The event specifications to persist.</param>
     /// <returns>The persisted event entities in seed order.</returns>
-    private IReadOnlyList<ActivityEventEntity> SeedEvents(
+    private List<ActivityEventEntity> SeedEvents(
         long clubId,
         IReadOnlyList<IEventSpec> specs)
     {
@@ -411,7 +412,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
     /// <param name="context">The family-shaped context to serialize with the polymorphic discriminator.</param>
     /// <param name="createdAt">The occurrence time.</param>
     /// <returns>The event specification.</returns>
-    private static IEventSpec EventSpec(
+    private static EventSpecRecord EventSpec(
         ActivityEventKind kind,
         long actorUserId,
         string actorDisplayName,
@@ -421,7 +422,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
             kind,
             actorUserId,
             actorDisplayName,
-            JsonSerializer.Serialize(context, typeof(ClubActivityContext), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+            JsonSerializer.Serialize<ClubActivityContext>(context, _camelCaseJsonOptions),
             createdAt);
 
     /// <summary>Builds an event specification with an explicit raw payload string.</summary>
@@ -431,7 +432,7 @@ public sealed class ClubActivityQueryServiceTests : IDisposable
     /// <param name="payloadJson">The raw payload.</param>
     /// <param name="createdAt">The occurrence time.</param>
     /// <returns>The event specification.</returns>
-    private static IEventSpec RawEventSpec(
+    private static EventSpecRecord RawEventSpec(
         ActivityEventKind kind,
         long actorUserId,
         string actorDisplayName,

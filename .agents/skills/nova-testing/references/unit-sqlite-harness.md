@@ -43,7 +43,7 @@ private void ActAs(long? userId, long? clubId, bool isClubAdmin = false)
 
 ```csharp
 [Fact]
-public void TenantContext_ReturnsOnlyCurrentClubsRows()
+public void TenantContextReturnsOnlyCurrentClubsRows()
 {
     ActAs(ClubAMember1Id, ClubAId);
     using var context = _harness.CreateTenantContext();
@@ -57,8 +57,8 @@ public void TenantContext_ReturnsOnlyCurrentClubsRows()
 
 ## Conventions and gotchas
 
-- One behavior per test; name `Subject_Outcome_Condition` style (e.g.
-  `Interceptor_Throws_OnCrossTenantAdd`). Use Shouldly (`ShouldBe`, `Should.Throw<T>`),
+- One behavior per test; use `SubjectOutcomeCondition` names (append `Async` for async methods), e.g.
+  `InterceptorThrowsOnCrossTenantAdd`. Use Shouldly (`ShouldBe`, `Should.Throw<T>`),
   `[Theory]`/`[InlineData]` for case matrices.
 - xUnit v4: fixtures implement `IAsyncLifetime` with `ValueTask`; test classes get fixtures via
   primary-constructor injection.

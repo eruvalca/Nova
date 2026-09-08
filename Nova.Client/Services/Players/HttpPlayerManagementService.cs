@@ -1,7 +1,7 @@
 ﻿using System.Net.Http.Json;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
+using Nova.SharedKernel.Results;
 
 namespace Nova.Client.Services.Players;
 
@@ -10,7 +10,7 @@ namespace Nova.Client.Services.Players;
 /// server's minimal API endpoints over HTTP.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpPlayerManagementService(HttpClient http) : IPlayerManagementService
+internal sealed class HttpPlayerManagementService(HttpClient http) : IPlayerManagementService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<PlayerDto>> CreateAsync(

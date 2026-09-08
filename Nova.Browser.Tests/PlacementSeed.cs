@@ -3,9 +3,9 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Nova.Integration.Tests.Data;
 using Nova.Integration.Tests.Http;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Clubs;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Browser.Tests;
@@ -26,7 +26,7 @@ namespace Nova.Browser.Tests;
 /// <param name="EligibleTeamId">An active team eligible for the youngest seeded player.</param>
 /// <param name="EligibleTeamName">The eligible team's display name (with cutoff suffix).</param>
 /// <param name="IneligibleTeamName">An active team whose cutoff exceeds every seeded graduation year.</param>
-public sealed record SeededPlacementWorkspace(
+internal sealed record SeededPlacementWorkspace(
     long ClubId,
     long CampaignId,
     long ClosedCampaignId,
@@ -47,7 +47,7 @@ public sealed record SeededPlacementWorkspace(
 /// Undecided participants (two roster pages at the default page size of 50), four active teams with
 /// different graduation-year cutoffs, and a closed campaign with final placements.
 /// </summary>
-public static class PlacementSeed
+internal static class PlacementSeed
 {
     /// <summary>The password shared by every seeded user.</summary>
     public const string Password = "Test#Passw0rd!";
@@ -61,7 +61,9 @@ public static class PlacementSeed
     /// <param name="fixture">The shared AppHost fixture.</param>
     /// <param name="cancellationToken">The test cancellation token.</param>
     /// <returns>The seeded placement workspace.</returns>
+#pragma warning disable MA0051 // Keep this complete browser scenario or DOM measurement together so the setup and asserted behavior remain reviewable.
     public static async Task<SeededPlacementWorkspace> SeedAsync(
+#pragma warning restore MA0051
         NovaAppHostFixture fixture,
         CancellationToken cancellationToken)
     {
@@ -90,15 +92,23 @@ public static class PlacementSeed
         long adminUserId;
         long secondAdminUserId;
         long evaluatorUserId;
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             adminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             secondAdminUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == secondAdminEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
+#pragma warning disable CA1862 // This normalized Identity lookup is translated to SQL; StringComparison overloads are not translatable.
             evaluatorUserId = (await context.Users.SingleAsync(user => user.NormalizedEmail == evaluatorEmail.ToUpperInvariant(), cancellationToken)).Id;
+#pragma warning restore CA1862
         }
 
         using (var promotion = await adminClient.PostAsync(
-                   ClubEndpoints.PromoteMemberUrl(secondAdminUserId), null, cancellationToken))
+                   new Uri(ClubEndpoints.PromoteMemberUrl(secondAdminUserId), UriKind.RelativeOrAbsolute), null, cancellationToken))
         {
             promotion.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         }
@@ -107,7 +117,9 @@ public static class PlacementSeed
         // Active campaign: 60 Undecided participants across two pages.
         var active = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
             fixture, club.ClubId, adminEmail, "Placement", ParticipantCount, PlacementOutcome.Undecided, cancellationToken);
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var assignments = await context.PlayerCampaignAssignments
                 .Where(assignment => assignment.CampaignId == active.CampaignId)
@@ -135,7 +147,9 @@ public static class PlacementSeed
         // Closed campaign: final placements and a Closed lifecycle status.
         var closed = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
             fixture, club.ClubId, adminEmail, "Closed", 3, PlacementOutcome.NotSelected, cancellationToken);
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var campaign = await context.Campaigns.SingleAsync(candidate => candidate.CampaignId == closed.CampaignId, cancellationToken);
             campaign.Status = CampaignStatus.Closed;
@@ -148,7 +162,9 @@ public static class PlacementSeed
         // unresolved-only placements view is empty while the summary reports zero undecided.
         var allResolved = await SeedingHelpers.SeedCampaignWithParticipantsAsync(
             fixture, club.ClubId, adminEmail, "Resolved", 3, PlacementOutcome.NotSelected, cancellationToken);
+#pragma warning disable MA0004 // Await disposal in this original variable scope while retaining the test runner context.
         await using (var context = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var allResolvedCampaign = await context.Campaigns.SingleAsync(
                 candidate => candidate.CampaignId == allResolved.CampaignId,

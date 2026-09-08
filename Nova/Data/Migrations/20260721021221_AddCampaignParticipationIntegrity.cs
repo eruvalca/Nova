@@ -5,7 +5,7 @@
 namespace Nova.Data.Migrations;
 
 /// <inheritdoc />
-public partial class AddCampaignParticipationIntegrity : Migration
+internal partial class AddCampaignParticipationIntegrity : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)

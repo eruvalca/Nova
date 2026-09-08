@@ -6,11 +6,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Nova.Entities;
 using Nova.Integration.Tests.Data;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Http;
@@ -33,7 +33,9 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     [InlineData(PlacementOutcome.Withdrawn, true, HttpStatusCode.OK)]
     [InlineData(PlacementOutcome.Assigned, false, HttpStatusCode.OK)]
     [InlineData(PlacementOutcome.NotSelected, false, HttpStatusCode.OK)]
-    public async Task CampaignPlacementUpdate_EnforcesPriorWithdrawalAuthority_AndPreservesHistory(
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task CampaignPlacementUpdateEnforcesPriorWithdrawalAuthorityAndPreservesHistoryAsync(
+#pragma warning restore MA0051
         PlacementOutcome priorOutcome, bool isAdmin, HttpStatusCode expectedStatus)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -97,7 +99,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.Withdrawn, PlacementOutcome.NotSelected, HttpStatusCode.Conflict)]
     [InlineData(PlacementOutcome.Undecided, PlacementOutcome.Undecided, HttpStatusCode.BadRequest)]
-    public async Task CampaignPlacementUpdate_RejectsTerminalWithdrawalAndEnrollmentInput(
+    public async Task CampaignPlacementUpdateRejectsTerminalWithdrawalAndEnrollmentInputAsync(
         PlacementOutcome initialOutcome, PlacementOutcome requestedOutcome, HttpStatusCode expectedStatus)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -131,49 +133,52 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// <returns>The earlier participation identifier.</returns>
     private async Task<long> SeedPriorDecisionAsync(long targetId, long teamId, PlacementOutcome outcome, CancellationToken cancellationToken)
     {
-        await using var db = fixture.CreateAdminContext();
-        var target = await db.PlayerCampaignAssignments.Include(row => row.Campaign)
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+            var target = await db.PlayerCampaignAssignments.Include(row => row.Campaign)
             .SingleAsync(row => row.PlayerCampaignAssignmentId == targetId, cancellationToken);
-        target.Campaign.SeasonOpeningSequence = 2;
-        await db.SaveChangesAsync(cancellationToken);
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Earlier placement {Guid.NewGuid():N}",
-            StartDate = new DateOnly(2026, 5, 1),
-            Status = CampaignStatus.Closed,
-            SeasonId = target.Campaign.SeasonId,
-            ClubId = target.ClubId,
-            CreatedById = target.CreatedById,
-            SeasonOpeningSequence = 1,
-            ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
-            ClosedById = target.CreatedById
-        };
-        db.Campaigns.Add(campaign);
-        await db.SaveChangesAsync(cancellationToken);
-        var prior = new PlayerCampaignAssignmentEntity
-        {
-            CampaignId = campaign.CampaignId,
-            PlayerId = target.PlayerId,
-            ClubId = target.ClubId,
-            CreatedById = target.CreatedById,
-            PlacementOutcome = outcome,
-            TeamId = outcome == PlacementOutcome.Assigned ? teamId : null,
-            DecisionRecordedAt = DateTimeOffset.UtcNow.AddDays(-2),
-            DecisionRecordedById = target.CreatedById,
-            DecisionActorDisplayName = "Earlier recorder",
-            ConcurrencyToken = Guid.NewGuid()
-        };
-        db.PlayerCampaignAssignments.Add(prior);
-        await db.SaveChangesAsync(cancellationToken);
-        return prior.PlayerCampaignAssignmentId;
+            target.Campaign.SeasonOpeningSequence = 2;
+            await db.SaveChangesAsync(cancellationToken);
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Earlier placement {Guid.NewGuid():N}",
+                StartDate = new DateOnly(2026, 5, 1),
+                Status = CampaignStatus.Closed,
+                SeasonId = target.Campaign.SeasonId,
+                ClubId = target.ClubId,
+                CreatedById = target.CreatedById,
+                SeasonOpeningSequence = 1,
+                ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
+                ClosedById = target.CreatedById
+            };
+            db.Campaigns.Add(campaign);
+            await db.SaveChangesAsync(cancellationToken);
+            var prior = new PlayerCampaignAssignmentEntity
+            {
+                CampaignId = campaign.CampaignId,
+                PlayerId = target.PlayerId,
+                ClubId = target.ClubId,
+                CreatedById = target.CreatedById,
+                PlacementOutcome = outcome,
+                TeamId = outcome == PlacementOutcome.Assigned ? teamId : null,
+                DecisionRecordedAt = DateTimeOffset.UtcNow.AddDays(-2),
+                DecisionRecordedById = target.CreatedById,
+                DecisionActorDisplayName = "Earlier recorder",
+                ConcurrencyToken = Guid.NewGuid()
+            };
+            db.PlayerCampaignAssignments.Add(prior);
+            await db.SaveChangesAsync(cancellationToken);
+            return prior.PlayerCampaignAssignmentId;
+        }
     }
 
     /// <summary>
     /// Verifies anonymous callers receive an unauthorized response for placement updates.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsUnauthorized_ForAnonymousCaller()
+    public async Task CampaignPlacementUpdateReturnsUnauthorizedForAnonymousCallerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
@@ -190,7 +195,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies an approved club member can update a placement and receives a replacement concurrency token.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsOk_WithReplacementToken_AndPersistsPlacement_ForClubMember()
+    public async Task CampaignPlacementUpdateReturnsOkWithReplacementTokenAndPersistsPlacementForClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -229,7 +234,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies an authenticated user without a club receives a forbidden response for placement updates.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsForbidden_ForAuthenticatedUserWithoutClub()
+    public async Task CampaignPlacementUpdateReturnsForbiddenForAuthenticatedUserWithoutClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var adminClient = fixture.CreateNovaHttpClient();
@@ -258,7 +263,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies a club administrator can update a placement and receives a replacement concurrency token.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsOk_WithReplacementToken_AndPersistsPlacement_ForClubAdmin()
+    public async Task CampaignPlacementUpdateReturnsOkWithReplacementTokenAndPersistsPlacementForClubAdminAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -291,7 +296,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies a route/body identifier mismatch is rejected with a bad-request problem.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsBadRequest_WhenRouteAndBodyAssignmentIdsDiffer()
+    public async Task CampaignPlacementUpdateReturnsBadRequestWhenRouteAndBodyAssignmentIdsDifferAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -319,7 +324,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies an Assigned outcome without a team is rejected by endpoint validation.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsValidationProblem_WhenAssignedOutcomeLacksTeam()
+    public async Task CampaignPlacementUpdateReturnsValidationProblemWhenAssignedOutcomeLacksTeamAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -346,7 +351,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// to a 400 ProblemDetails response.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsBadRequest_ForUnparseableJsonBody()
+    public async Task CampaignPlacementUpdateReturnsBadRequestForUnparseableJsonBodyAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -357,9 +362,10 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
         var (assignmentId, _, _) = await SeedPlacementDataAsync(club.ClubId, email, cancellationToken);
 
+        using var malformedContent = new StringContent("{ not json", Encoding.UTF8, "application/json");
         using var response = await client.PutAsync(
-            CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId),
-            new StringContent("{ not json", Encoding.UTF8, "application/json"),
+new Uri(CampaignEndpoints.UpdateCampaignPlacementUrl(assignmentId), UriKind.RelativeOrAbsolute),
+            malformedContent,
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -377,7 +383,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies another club's participation is hidden behind a not-found response.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsNotFound_ForCrossTenantAssignment()
+    public async Task CampaignPlacementUpdateReturnsNotFoundForCrossTenantAssignmentAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -409,7 +415,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies a team identifier from another club is hidden behind a non-disclosing not-found.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsNotFound_ForCrossTenantTeam()
+    public async Task CampaignPlacementUpdateReturnsNotFoundForCrossTenantTeamAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var ownerClient = fixture.CreateNovaHttpClient();
@@ -450,8 +456,8 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
                 continue;
             }
 
-            property.Value.ToString().ShouldNotBe(foreignTeamId.ToString());
-            property.Value.ToString().ShouldNotBe(otherClub.ClubId.ToString());
+            property.Value.ToString().ShouldNotBe(foreignTeamId.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparer.Ordinal);
+            property.Value.ToString().ShouldNotBe(otherClub.ClubId.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparer.Ordinal);
         }
     }
 
@@ -459,7 +465,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies archived teams cannot receive new placement decisions.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsConflict_ForArchivedTeam()
+    public async Task CampaignPlacementUpdateReturnsConflictForArchivedTeamAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -491,7 +497,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     [Theory(IncludeTestCaseIndex = true)]
     [InlineData(PlacementOutcome.NotSelected)]
     [InlineData(PlacementOutcome.Withdrawn)]
-    public async Task CampaignPlacementUpdate_ClearsTeam_ForNonAssignedOutcomes(PlacementOutcome outcome)
+    public async Task CampaignPlacementUpdateClearsTeamForNonAssignedOutcomesAsync(PlacementOutcome outcome)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -500,7 +506,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
-        var (assignmentId, teamId, token) = await SeedPlacementDataAsync(
+        var (assignmentId, _, token) = await SeedPlacementDataAsync(
             club.ClubId,
             email,
             cancellationToken,
@@ -527,7 +533,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies a stale concurrency token conflicts and never overwrites the winning update.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsConflict_AndPreservesWinner_WhenTokenIsStale()
+    public async Task CampaignPlacementUpdateReturnsConflictAndPreservesWinnerWhenTokenIsStaleAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -539,7 +545,9 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var (assignmentId, teamId, token) = await SeedPlacementDataAsync(club.ClubId, email, cancellationToken);
 
         var newerToken = Guid.NewGuid();
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var update = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             var participation = await update.PlayerCampaignAssignments
                 .SingleAsync(assignment => assignment.PlayerCampaignAssignmentId == assignmentId, cancellationToken);
@@ -572,7 +580,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies a closed campaign rejects placement mutations with a conflict.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsConflict_ForClosedCampaign()
+    public async Task CampaignPlacementUpdateReturnsConflictForClosedCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -581,7 +589,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         await UpdateUserAsync(email, clubId: null, cancellationToken);
         var club = await CreateClubAsync(client, cancellationToken);
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
-        var (assignmentId, teamId, token) = await SeedPlacementDataAsync(
+        var (assignmentId, _, token) = await SeedPlacementDataAsync(
             club.ClubId, email, cancellationToken, campaignStatus: CampaignStatus.Closed);
 
         using var response = await client.PutAsJsonAsync(
@@ -601,7 +609,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies a Draft campaign rejects placement mutations without changing the assignment.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsConflict_AndDoesNotWrite_ForDraftCampaign()
+    public async Task CampaignPlacementUpdateReturnsConflictAndDoesNotWriteForDraftCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -645,7 +653,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies an archived player rejects placement mutations with a conflict.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsConflict_ForArchivedPlayer()
+    public async Task CampaignPlacementUpdateReturnsConflictForArchivedPlayerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -674,7 +682,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies an ineligible team is rejected with a validation problem naming the team field.
     /// </summary>
     [Fact]
-    public async Task CampaignPlacementUpdate_ReturnsValidationProblem_ForIneligibleTeam()
+    public async Task CampaignPlacementUpdateReturnsValidationProblemForIneligibleTeamAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -701,7 +709,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// persisted fields needed for a placement update.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ReturnsOrderedPage_ForCurrentClubMember()
+    public async Task GetPlacementRosterReturnsOrderedPageForCurrentClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -713,12 +721,12 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var seeded = await SeedPlacementQueryDataAsync(club.ClubId, email, cancellationToken);
 
         using var response = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
-            {
-                CampaignId = seeded.CampaignId,
-                Page = 1,
-                PageSize = 50
-            }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
+{
+    CampaignId = seeded.CampaignId,
+    Page = 1,
+    PageSize = 50
+}), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -743,7 +751,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         assigned.GraduationYear.ShouldBe(2028);
         assigned.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
         assigned.Team.ShouldNotBeNull();
-        assigned.Team!.TeamId.ShouldBe(seeded.TeamId);
+        assigned.Team.TeamId.ShouldBe(seeded.TeamId);
         assigned.ConcurrencyToken.ShouldNotBe(Guid.Empty);
 
         roster.Items.ShouldAllBe(item => item.ConcurrencyToken != Guid.Empty);
@@ -754,7 +762,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies the graduation-year and unresolved-only filters compose and bound the page.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ComposesGraduationYearAndUnresolvedOnlyFilters()
+    public async Task GetPlacementRosterComposesGraduationYearAndUnresolvedOnlyFiltersAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -766,13 +774,13 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var seeded = await SeedPlacementQueryDataAsync(club.ClubId, email, cancellationToken);
 
         using var byYearResponse = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
-            {
-                CampaignId = seeded.CampaignId,
-                GraduationYear = 2028,
-                Page = 1,
-                PageSize = 50
-            }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
+{
+    CampaignId = seeded.CampaignId,
+    GraduationYear = 2028,
+    Page = 1,
+    PageSize = 50
+}), UriKind.RelativeOrAbsolute),
             cancellationToken);
         byYearResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var byYear = await byYearResponse.Content.ReadFromJsonAsync<PagedResult<CampaignPlacementRosterItem>>(cancellationToken);
@@ -781,13 +789,13 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         byYear.Items.ShouldAllBe(item => item.GraduationYear == 2028);
 
         using var unresolvedResponse = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
-            {
-                CampaignId = seeded.CampaignId,
-                UnresolvedOnly = true,
-                Page = 1,
-                PageSize = 50
-            }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
+{
+    CampaignId = seeded.CampaignId,
+    UnresolvedOnly = true,
+    Page = 1,
+    PageSize = 50
+}), UriKind.RelativeOrAbsolute),
             cancellationToken);
         unresolvedResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var unresolved = await unresolvedResponse.Content.ReadFromJsonAsync<PagedResult<CampaignPlacementRosterItem>>(cancellationToken);
@@ -796,14 +804,14 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         unresolved.Items.ShouldAllBe(item => item.PlacementOutcome == PlacementOutcome.Undecided);
 
         using var composedResponse = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
-            {
-                CampaignId = seeded.CampaignId,
-                GraduationYear = 2028,
-                UnresolvedOnly = true,
-                Page = 1,
-                PageSize = 50
-            }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
+{
+    CampaignId = seeded.CampaignId,
+    GraduationYear = 2028,
+    UnresolvedOnly = true,
+    Page = 1,
+    PageSize = 50
+}), UriKind.RelativeOrAbsolute),
             cancellationToken);
         composedResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var composed = await composedResponse.Content.ReadFromJsonAsync<PagedResult<CampaignPlacementRosterItem>>(cancellationToken);
@@ -816,7 +824,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies paging slices the deterministic ordering with stable total counts.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_PagesDeterministicallyAcrossPages()
+    public async Task GetPlacementRosterPagesDeterministicallyAcrossPagesAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -828,12 +836,12 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var seeded = await SeedPlacementQueryDataAsync(club.ClubId, email, cancellationToken);
 
         using var firstResponse = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
-            {
-                CampaignId = seeded.CampaignId,
-                Page = 1,
-                PageSize = 2
-            }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
+{
+    CampaignId = seeded.CampaignId,
+    Page = 1,
+    PageSize = 2
+}), UriKind.RelativeOrAbsolute),
             cancellationToken);
         firstResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var first = await firstResponse.Content.ReadFromJsonAsync<PagedResult<CampaignPlacementRosterItem>>(cancellationToken);
@@ -844,12 +852,12 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
             .ShouldBe([seeded.ZoeAdamsAssignedId, seeded.ZoeAdamsUndecidedId]);
 
         using var secondResponse = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
-            {
-                CampaignId = seeded.CampaignId,
-                Page = 2,
-                PageSize = 2
-            }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
+{
+    CampaignId = seeded.CampaignId,
+    Page = 2,
+    PageSize = 2
+}), UriKind.RelativeOrAbsolute),
             cancellationToken);
         secondResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var second = await secondResponse.Content.ReadFromJsonAsync<PagedResult<CampaignPlacementRosterItem>>(cancellationToken);
@@ -859,12 +867,12 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
             .ShouldBe([seeded.AmyBrownId, seeded.CaraChenId]);
 
         using var thirdResponse = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
-            {
-                CampaignId = seeded.CampaignId,
-                Page = 3,
-                PageSize = 2
-            }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput
+{
+    CampaignId = seeded.CampaignId,
+    Page = 3,
+    PageSize = 2
+}), UriKind.RelativeOrAbsolute),
             cancellationToken);
         thirdResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var third = await thirdResponse.Content.ReadFromJsonAsync<PagedResult<CampaignPlacementRosterItem>>(cancellationToken);
@@ -877,7 +885,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies the summary reports accurate whole-campaign counts independent of roster filters.
     /// </summary>
     [Fact]
-    public async Task GetPlacementSummary_ReturnsWholeCampaignCounts_IndependentOfRosterFilters()
+    public async Task GetPlacementSummaryReturnsWholeCampaignCountsIndependentOfRosterFiltersAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -889,7 +897,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var seeded = await SeedPlacementQueryDataAsync(club.ClubId, email, cancellationToken);
 
         using var response = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementSummaryUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.GetCampaignPlacementSummaryUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -906,7 +914,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies a least-privileged club member without the ClubAdmin role can read both placement routes.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoutes_ReturnPayload_ForLeastPrivilegedClubMember()
+    public async Task GetPlacementRoutesReturnPayloadForLeastPrivilegedClubMemberAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -926,7 +934,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var seeded = await SeedPlacementQueryDataAsync(club.ClubId, memberEmail, cancellationToken);
 
         using var rosterResponse = await memberClient.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = seeded.CampaignId }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = seeded.CampaignId }), UriKind.RelativeOrAbsolute),
             cancellationToken);
         rosterResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var roster = await rosterResponse.Content.ReadFromJsonAsync<PagedResult<CampaignPlacementRosterItem>>(cancellationToken);
@@ -934,7 +942,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         roster.TotalCount.ShouldBe(5);
 
         using var summaryResponse = await memberClient.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementSummaryUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.GetCampaignPlacementSummaryUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         summaryResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
         var summary = await summaryResponse.Content.ReadFromJsonAsync<CampaignPlacementSummaryDto>(cancellationToken);
@@ -946,18 +954,18 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies anonymous callers receive unauthorized responses for both placement routes.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoutes_ReturnUnauthorized_ForAnonymousCaller()
+    public async Task GetPlacementRoutesReturnUnauthorizedForAnonymousCallerAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var anonymousClient = fixture.CreateNovaHttpClient();
 
         using var rosterResponse = await anonymousClient.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = 1 }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = 1 }), UriKind.RelativeOrAbsolute),
             cancellationToken);
         rosterResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         using var summaryResponse = await anonymousClient.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementSummaryUrl(1),
+new Uri(CampaignEndpoints.GetCampaignPlacementSummaryUrl(1), UriKind.RelativeOrAbsolute),
             cancellationToken);
         summaryResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
@@ -966,7 +974,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies authenticated callers without a club receive forbidden responses for both routes.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoutes_ReturnForbidden_ForAuthenticatedUserWithoutClub()
+    public async Task GetPlacementRoutesReturnForbiddenForAuthenticatedUserWithoutClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -976,12 +984,12 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         using var rosterResponse = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = 1 }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = 1 }), UriKind.RelativeOrAbsolute),
             cancellationToken);
         rosterResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         using var summaryResponse = await client.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementSummaryUrl(1),
+new Uri(CampaignEndpoints.GetCampaignPlacementSummaryUrl(1), UriKind.RelativeOrAbsolute),
             cancellationToken);
         summaryResponse.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
@@ -990,7 +998,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies cross-tenant campaign reads are rejected with non-disclosing not-found ProblemDetails.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoutes_ReturnNotFound_ForCrossTenantCampaign()
+    public async Task GetPlacementRoutesReturnNotFoundForCrossTenantCampaignAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var currentClient = fixture.CreateNovaHttpClient();
@@ -1009,7 +1017,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var seeded = await SeedPlacementQueryDataAsync(otherClub.ClubId, otherEmail, cancellationToken);
 
         using var rosterResponse = await currentClient.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = seeded.CampaignId }),
+new Uri(CampaignEndpoints.GetCampaignPlacementRosterUrl(new GetCampaignPlacementRosterInput { CampaignId = seeded.CampaignId }), UriKind.RelativeOrAbsolute),
             cancellationToken);
         rosterResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         using var rosterDocument = await JsonDocument.ParseAsync(
@@ -1019,7 +1027,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         rosterDocument.RootElement.GetProperty("traceId").GetString().ShouldNotBeNullOrWhiteSpace();
 
         using var summaryResponse = await currentClient.GetAsync(
-            CampaignEndpoints.GetCampaignPlacementSummaryUrl(seeded.CampaignId),
+new Uri(CampaignEndpoints.GetCampaignPlacementSummaryUrl(seeded.CampaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         summaryResponse.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         using var summaryDocument = await JsonDocument.ParseAsync(
@@ -1033,7 +1041,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies invalid explicit query values are rejected with validation ProblemDetails before the handler runs.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ReturnsValidationProblem_ForInvalidExplicitQueryValues()
+    public async Task GetPlacementRosterReturnsValidationProblemForInvalidExplicitQueryValuesAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -1044,7 +1052,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         using var response = await client.GetAsync(
-            "/api/campaigns/1/placements?graduationYear=0&pageSize=101",
+new Uri("/api/campaigns/1/placements?graduationYear=0&pageSize=101", UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -1059,7 +1067,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies an overflowing page offset is rejected by endpoint input validation.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ReturnsValidationProblem_ForOverflowingPageOffset()
+    public async Task GetPlacementRosterReturnsValidationProblemForOverflowingPageOffsetAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -1070,7 +1078,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         await RefreshClubMembershipCookieAsync(client, cancellationToken);
 
         using var response = await client.GetAsync(
-            $"/api/campaigns/1/placements?page={int.MaxValue}&pageSize=2",
+new Uri($"/api/campaigns/1/placements?page={int.MaxValue}&pageSize=2", UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -1088,7 +1096,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// Verifies default paging applies when both query values are omitted at the endpoint boundary.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_AppliesDefaultPaging_WhenPageAndPageSizeAreOmitted()
+    public async Task GetPlacementRosterAppliesDefaultPagingWhenPageAndPageSizeAreOmittedAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var client = fixture.CreateNovaHttpClient();
@@ -1100,7 +1108,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var seeded = await SeedPlacementQueryDataAsync(club.ClubId, email, cancellationToken);
 
         using var response = await client.GetAsync(
-            $"/api/campaigns/{seeded.CampaignId}/placements",
+new Uri($"/api/campaigns/{seeded.CampaignId}/placements", UriKind.RelativeOrAbsolute),
             cancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -1121,7 +1129,9 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// <param name="archivedPlayer">Whether the player should be seeded as archived.</param>
     /// <param name="teamGraduationYear">The team graduation-year cutoff.</param>
     /// <returns>The seeded assignment id, team id, and assignment concurrency token.</returns>
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
     private async Task<(long AssignmentId, long TeamId, Guid ConcurrencyToken)> SeedPlacementDataAsync(
+#pragma warning restore MA0051
         long clubId,
         string adminEmail,
         CancellationToken cancellationToken,
@@ -1131,81 +1141,86 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         bool archivedTeam = false,
         PlacementOutcome initialOutcome = PlacementOutcome.Undecided)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+            var user = await context.Users.SingleAsync(
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
             candidate => candidate.NormalizedEmail == adminEmail.ToUpperInvariant(), cancellationToken);
-        var suffix = Guid.NewGuid().ToString("N");
-        var season = new SeasonEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Placement Season {suffix}",
-            StartDate = new DateOnly(2026, 1, 1),
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        var campaign = new CampaignEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Placement Campaign {suffix}",
-            StartDate = new DateOnly(2026, 6, 1),
-            Status = campaignStatus,
-            ClosedAt = campaignStatus == CampaignStatus.Closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ClosedById = campaignStatus == CampaignStatus.Closed ? user.Id : null,
-            Season = season,
-            SeasonId = 0,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        var player = new PlayerEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            FirstName = "Place",
-            LastName = $"Player {suffix}",
-            DateOfBirth = new DateOnly(2012, 1, 1),
-            GraduationYear = 2030,
-            LifecycleStatus = archivedPlayer ? LifecycleStatus.Archived : LifecycleStatus.Active,
-            ArchivedAt = archivedPlayer ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ArchivedById = archivedPlayer ? user.Id : null,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
-        var team = new TeamEntity
-        {
-            CreationOperationId = Guid.NewGuid(),
-            Name = $"Team {suffix}",
-            GraduationYear = teamGraduationYear,
-            LifecycleStatus = archivedTeam ? LifecycleStatus.Archived : LifecycleStatus.Active,
-            ArchivedAt = archivedTeam ? DateTimeOffset.UtcNow.AddDays(-1) : null,
-            ArchivedById = archivedTeam ? user.Id : null,
-            ClubId = clubId,
-            CreatedById = user.Id
-        };
+#pragma warning restore CA1862
+            var suffix = Guid.NewGuid().ToString("N");
+            var season = new SeasonEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Placement Season {suffix}",
+                StartDate = new DateOnly(2026, 1, 1),
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            var campaign = new CampaignEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Placement Campaign {suffix}",
+                StartDate = new DateOnly(2026, 6, 1),
+                Status = campaignStatus,
+                ClosedAt = campaignStatus == CampaignStatus.Closed ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+                ClosedById = campaignStatus == CampaignStatus.Closed ? user.Id : null,
+                Season = season,
+                SeasonId = 0,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            var player = new PlayerEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                FirstName = "Place",
+                LastName = $"Player {suffix}",
+                DateOfBirth = new DateOnly(2012, 1, 1),
+                GraduationYear = 2030,
+                LifecycleStatus = archivedPlayer ? LifecycleStatus.Archived : LifecycleStatus.Active,
+                ArchivedAt = archivedPlayer ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+                ArchivedById = archivedPlayer ? user.Id : null,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
+            var team = new TeamEntity
+            {
+                CreationOperationId = Guid.NewGuid(),
+                Name = $"Team {suffix}",
+                GraduationYear = teamGraduationYear,
+                LifecycleStatus = archivedTeam ? LifecycleStatus.Archived : LifecycleStatus.Active,
+                ArchivedAt = archivedTeam ? DateTimeOffset.UtcNow.AddDays(-1) : null,
+                ArchivedById = archivedTeam ? user.Id : null,
+                ClubId = clubId,
+                CreatedById = user.Id
+            };
 
-        context.AddRange(season, campaign, player, team);
-        await context.SaveChangesAsync(cancellationToken);
-        var club = await context.Clubs.SingleAsync(row => row.ClubId == clubId, cancellationToken);
-        club.CurrentSeasonId = season.SeasonId;
-        await context.SaveChangesAsync(cancellationToken);
+            context.AddRange(season, campaign, player, team);
+            await context.SaveChangesAsync(cancellationToken);
+            var club = await context.Clubs.SingleAsync(row => row.ClubId == clubId, cancellationToken);
+            club.CurrentSeasonId = season.SeasonId;
+            await context.SaveChangesAsync(cancellationToken);
 
-        var concurrencyToken = Guid.NewGuid();
-        var assignment = new PlayerCampaignAssignmentEntity
-        {
-            PlayerId = player.PlayerId,
-            CampaignId = campaign.CampaignId,
-            ClubId = clubId,
-            CreatedById = user.Id,
-            PlacementOutcome = initialOutcome,
-            DecisionRecordedAt = initialOutcome == PlacementOutcome.Undecided ? null : DateTimeOffset.UtcNow,
-            DecisionRecordedById = initialOutcome == PlacementOutcome.Undecided ? null : user.Id,
-            DecisionActorDisplayName = initialOutcome == PlacementOutcome.Undecided ? null : "Seed recorder",
-            TeamId = initialOutcome == PlacementOutcome.Assigned ? team.TeamId : null,
-            TryoutNumber = 7,
-            ConcurrencyToken = concurrencyToken
-        };
-        context.Add(assignment);
-        await context.SaveChangesAsync(cancellationToken);
+            var concurrencyToken = Guid.NewGuid();
+            var assignment = new PlayerCampaignAssignmentEntity
+            {
+                PlayerId = player.PlayerId,
+                CampaignId = campaign.CampaignId,
+                ClubId = clubId,
+                CreatedById = user.Id,
+                PlacementOutcome = initialOutcome,
+                DecisionRecordedAt = initialOutcome == PlacementOutcome.Undecided ? null : DateTimeOffset.UtcNow,
+                DecisionRecordedById = initialOutcome == PlacementOutcome.Undecided ? null : user.Id,
+                DecisionActorDisplayName = initialOutcome == PlacementOutcome.Undecided ? null : "Seed recorder",
+                TeamId = initialOutcome == PlacementOutcome.Assigned ? team.TeamId : null,
+                TryoutNumber = 7,
+                ConcurrencyToken = concurrencyToken
+            };
+            context.Add(assignment);
+            await context.SaveChangesAsync(cancellationToken);
 
-        return (assignment.PlayerCampaignAssignmentId, team.TeamId, concurrencyToken);
+            return (assignment.PlayerCampaignAssignmentId, team.TeamId, concurrencyToken);
+        }
     }
 
     /// <summary>
@@ -1217,39 +1232,44 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// <returns>The seeded campaign, team, and assignment identifiers.</returns>
     private async Task<PlacementSeedData> SeedPlacementQueryDataAsync(long clubId, string email, CancellationToken cancellationToken)
     {
-        await using var context = fixture.CreateAdminContext();
-        var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+        var context = fixture.CreateAdminContext();
+        await using (context)
+        {
+#pragma warning disable CA1862 // Compare normalized values in SQL; EF does not translate StringComparison overloads.
+            var user = await context.Users.SingleAsync(candidate => candidate.NormalizedEmail == email.ToUpperInvariant(), cancellationToken);
+#pragma warning restore CA1862
 
-        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "Placement Season", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
-        var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Placement Campaign", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = user.Id };
-        var team = new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = "Alpha", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+            var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = "Placement Season", StartDate = new DateOnly(2026, 1, 1), ClubId = clubId, CreatedById = user.Id };
+            var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = "Placement Campaign", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, Season = season, SeasonId = 0, ClubId = clubId, CreatedById = user.Id };
+            var team = new TeamEntity { CreationOperationId = Guid.NewGuid(), Name = "Alpha", GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
 
-        var zoeAdamsAssigned = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Zoe", LastName = "Adams", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
-        var zoeAdamsUndecided = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Zoe", LastName = "Adams", DateOfBirth = new DateOnly(2010, 2, 2), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
-        var amyBrown = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Amy", LastName = "Brown", DateOfBirth = new DateOnly(2011, 3, 3), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
-        var caraChen = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Cara", LastName = "Chen", DateOfBirth = new DateOnly(2011, 4, 4), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
-        var drewDavis = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Drew", LastName = "Davis", DateOfBirth = new DateOnly(2012, 5, 5), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+            var zoeAdamsAssigned = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Zoe", LastName = "Adams", DateOfBirth = new DateOnly(2010, 1, 1), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+            var zoeAdamsUndecided = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Zoe", LastName = "Adams", DateOfBirth = new DateOnly(2010, 2, 2), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+            var amyBrown = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Amy", LastName = "Brown", DateOfBirth = new DateOnly(2011, 3, 3), GraduationYear = 2028, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+            var caraChen = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Cara", LastName = "Chen", DateOfBirth = new DateOnly(2011, 4, 4), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
+            var drewDavis = new PlayerEntity { CreationOperationId = Guid.NewGuid(), FirstName = "Drew", LastName = "Davis", DateOfBirth = new DateOnly(2012, 5, 5), GraduationYear = 2029, LifecycleStatus = LifecycleStatus.Active, ClubId = clubId, CreatedById = user.Id };
 
-        context.AddRange(season, campaign, team, zoeAdamsAssigned, zoeAdamsUndecided, amyBrown, caraChen, drewDavis);
-        await context.SaveChangesAsync(cancellationToken);
+            context.AddRange(season, campaign, team, zoeAdamsAssigned, zoeAdamsUndecided, amyBrown, caraChen, drewDavis);
+            await context.SaveChangesAsync(cancellationToken);
 
-        var assignment1 = new PlayerCampaignAssignmentEntity { PlayerId = zoeAdamsAssigned.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.Assigned, TeamId = team.TeamId };
-        var assignment2 = new PlayerCampaignAssignmentEntity { PlayerId = zoeAdamsUndecided.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.Undecided };
-        var assignment3 = new PlayerCampaignAssignmentEntity { PlayerId = amyBrown.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.Undecided };
-        var assignment4 = new PlayerCampaignAssignmentEntity { PlayerId = caraChen.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.NotSelected };
-        var assignment5 = new PlayerCampaignAssignmentEntity { PlayerId = drewDavis.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.Withdrawn };
+            var assignment1 = new PlayerCampaignAssignmentEntity { PlayerId = zoeAdamsAssigned.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.Assigned, TeamId = team.TeamId };
+            var assignment2 = new PlayerCampaignAssignmentEntity { PlayerId = zoeAdamsUndecided.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.Undecided };
+            var assignment3 = new PlayerCampaignAssignmentEntity { PlayerId = amyBrown.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.Undecided };
+            var assignment4 = new PlayerCampaignAssignmentEntity { PlayerId = caraChen.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.NotSelected };
+            var assignment5 = new PlayerCampaignAssignmentEntity { PlayerId = drewDavis.PlayerId, CampaignId = campaign.CampaignId, ClubId = clubId, CreatedById = user.Id, PlacementOutcome = PlacementOutcome.Withdrawn };
 
-        context.AddRange(assignment1, assignment2, assignment3, assignment4, assignment5);
-        await context.SaveChangesAsync(cancellationToken);
+            context.AddRange(assignment1, assignment2, assignment3, assignment4, assignment5);
+            await context.SaveChangesAsync(cancellationToken);
 
-        return new PlacementSeedData(
-            campaign.CampaignId,
-            team.TeamId,
-            assignment1.PlayerCampaignAssignmentId,
-            assignment2.PlayerCampaignAssignmentId,
-            assignment3.PlayerCampaignAssignmentId,
-            assignment4.PlayerCampaignAssignmentId,
-            assignment5.PlayerCampaignAssignmentId);
+            return new PlacementSeedData(
+                campaign.CampaignId,
+                team.TeamId,
+                assignment1.PlayerCampaignAssignmentId,
+                assignment2.PlayerCampaignAssignmentId,
+                assignment3.PlayerCampaignAssignmentId,
+                assignment4.PlayerCampaignAssignmentId,
+                assignment5.PlayerCampaignAssignmentId);
+        }
     }
 
     /// <summary>
@@ -1288,10 +1308,11 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// <returns>The created club.</returns>
     private static async Task<ClubDto> CreateClubAsync(HttpClient client, CancellationToken cancellationToken)
     {
+        using var responseRequestContent = SeedingHelpers.CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX");
         using var response = await client.PostAsync(
-            ClubEndpoints.Create,
-            SeedingHelpers.CreateClubMultipartContent($"Club {Guid.NewGuid():N}", "X", "TX"),
-            cancellationToken);
+        new Uri(ClubEndpoints.Create, UriKind.RelativeOrAbsolute),
+                    responseRequestContent,
+                    cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<ClubDto>(cancellationToken))!;
     }
@@ -1303,7 +1324,7 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
     /// <param name="cancellationToken">The test cancellation token.</param>
     private static async Task RefreshClubMembershipCookieAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"{ClubEndpoints.Complete}?returnUrl=/dashboard", cancellationToken);
+        using var response = await client.GetAsync(new Uri($"{ClubEndpoints.Complete}?returnUrl=/dashboard", UriKind.RelativeOrAbsolute), cancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.Found);
     }
 
@@ -1323,6 +1344,6 @@ public sealed class CampaignPlacementHttpTests(NovaAppHostFixture fixture)
         var errors = document.RootElement.GetProperty("errors");
         return errors.EnumerateObject().ToDictionary(
             property => property.Name,
-            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+            property => property.Value.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray(), StringComparer.Ordinal);
     }
 }

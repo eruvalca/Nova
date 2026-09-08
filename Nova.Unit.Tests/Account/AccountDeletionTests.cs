@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Account;
-using Nova.Shared.Features.Clubs;
+﻿using Nova.SharedKernel.Features.Account;
+using Nova.SharedKernel.Features.Clubs;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Account;
@@ -16,7 +16,7 @@ public class AccountDeletionTests
     #region AccountDeletionScenario Enum Tests
 
     [Fact]
-    public void AccountDeletionScenario_Value_NoClubOrNonAdmin()
+    public void AccountDeletionScenarioValueNoClubOrNonAdmin()
     {
         // Arrange & Act
         var value = AccountDeletionScenario.NoClubOrNonAdmin;
@@ -26,7 +26,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void AccountDeletionScenario_Value_OnlyClubMember()
+    public void AccountDeletionScenarioValueOnlyClubMember()
     {
         // Arrange & Act
         var value = AccountDeletionScenario.OnlyClubMember;
@@ -36,7 +36,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void AccountDeletionScenario_Value_SoleClubAdmin()
+    public void AccountDeletionScenarioValueSoleClubAdmin()
     {
         // Arrange & Act
         var value = AccountDeletionScenario.SoleClubAdmin;
@@ -50,7 +50,7 @@ public class AccountDeletionTests
     #region AccountDeletionPreviewDto Tests
 
     [Fact]
-    public void AccountDeletionPreviewDto_EqualsOtherInstance_WithSameValues()
+    public void AccountDeletionPreviewDtoEqualsOtherInstanceWithSameValues()
     {
         // Arrange
         var preview1 = new AccountDeletionPreviewDto(
@@ -68,7 +68,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void AccountDeletionPreviewDto_NotEqualsOtherInstance_WithDifferentScenario()
+    public void AccountDeletionPreviewDtoNotEqualsOtherInstanceWithDifferentScenario()
     {
         // Arrange
         var preview1 = new AccountDeletionPreviewDto(
@@ -86,7 +86,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void AccountDeletionPreviewDto_NotEqualsOtherInstance_WithDifferentClubName()
+    public void AccountDeletionPreviewDtoNotEqualsOtherInstanceWithDifferentClubName()
     {
         // Arrange
         var preview1 = new AccountDeletionPreviewDto(
@@ -104,7 +104,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void AccountDeletionPreviewDto_NotEqualsOtherInstance_WithDifferentOtherMemberCount()
+    public void AccountDeletionPreviewDtoNotEqualsOtherInstanceWithDifferentOtherMemberCount()
     {
         // Arrange
         var preview1 = new AccountDeletionPreviewDto(
@@ -122,7 +122,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void AccountDeletionPreviewDto_Deconstructs_Correctly()
+    public void AccountDeletionPreviewDtoDeconstructsCorrectly()
     {
         // Arrange
         var preview = new AccountDeletionPreviewDto(
@@ -140,7 +140,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void AccountDeletionPreviewDto_Deconstructs_WithNullValues()
+    public void AccountDeletionPreviewDtoDeconstructsWithNullValues()
     {
         // Arrange
         var preview = new AccountDeletionPreviewDto(
@@ -162,7 +162,7 @@ public class AccountDeletionTests
     #region ClubMemberDto Tests
 
     [Fact]
-    public void ClubMemberDto_EqualsOtherInstance_WithSameValues()
+    public void ClubMemberDtoEqualsOtherInstanceWithSameValues()
     {
         // Arrange
         var member1 = new ClubMemberDto(UserId: 42, FullName: "John Smith");
@@ -174,7 +174,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void ClubMemberDto_NotEqualsOtherInstance_WithDifferentUserId()
+    public void ClubMemberDtoNotEqualsOtherInstanceWithDifferentUserId()
     {
         // Arrange
         var member1 = new ClubMemberDto(UserId: 42, FullName: "John Smith");
@@ -186,7 +186,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void ClubMemberDto_NotEqualsOtherInstance_WithDifferentFullName()
+    public void ClubMemberDtoNotEqualsOtherInstanceWithDifferentFullName()
     {
         // Arrange
         var member1 = new ClubMemberDto(UserId: 42, FullName: "John Smith");
@@ -198,7 +198,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void ClubMemberDto_Deconstructs_Correctly()
+    public void ClubMemberDtoDeconstructsCorrectly()
     {
         // Arrange
         var member = new ClubMemberDto(UserId: 88, FullName: "Alice Johnson");
@@ -217,7 +217,7 @@ public class AccountDeletionTests
     #region ClubEndpoints Constants Tests
 
     [Fact]
-    public void ClubEndpoints_GetMembersRelative_EqualsExpectedValue()
+    public void ClubEndpointsGetMembersRelativeEqualsExpectedValue()
     {
         // Arrange & Act
         var value = ClubEndpoints.GetMembersRelative;
@@ -227,7 +227,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void ClubEndpoints_GetMembers_EqualsExpectedValue()
+    public void ClubEndpointsGetMembersEqualsExpectedValue()
     {
         // Arrange & Act
         var value = ClubEndpoints.GetMembers;
@@ -237,7 +237,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void ClubEndpoints_PromoteMemberUrl_EqualsExpectedValue()
+    public void ClubEndpointsPromoteMemberUrlEqualsExpectedValue()
     {
         // Arrange & Act
         var value = ClubEndpoints.PromoteMemberUrl(42);
@@ -247,7 +247,7 @@ public class AccountDeletionTests
     }
 
     [Fact]
-    public void ClubEndpoints_LeaveClub_EqualsExpectedValue()
+    public void ClubEndpointsLeaveClubEqualsExpectedValue()
     {
         // Arrange & Act
         var value = ClubEndpoints.LeaveClub;

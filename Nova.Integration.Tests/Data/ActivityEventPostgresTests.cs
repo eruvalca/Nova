@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Activity;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -23,12 +23,14 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
     /// so a page crosses many rows with a stable cursor and sub-second order ties.
     /// </summary>
     [Fact]
-    public async Task GetClubActivity_Postgres_TranslatesKeysetPage_AndOrdersByPolicy()
+    public async Task GetClubActivityPostgresTranslatesKeysetPageAndOrdersByPolicyAsync()
     {
         var seed = await SeedAsync();
         ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: false);
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             foreach (var (index, kind) in new[]
             {
@@ -75,12 +77,14 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
     /// when more than a page of newer admin-only rows would otherwise fill the page first.
     /// </summary>
     [Fact]
-    public async Task GetClubActivity_Postgres_FiltersAdminOnlyBeforePaging_ForMember()
+    public async Task GetClubActivityPostgresFiltersAdminOnlyBeforePagingForMemberAsync()
     {
         var seed = await SeedAsync();
         ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: false);
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             // One public row seeded first (oldest, lowest id), then a full page plus one of newer
             // admin-only rows. If paging ran before the visibility filter, the member's page would
@@ -110,12 +114,14 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
     /// resume via <c>CreatedAt &lt; cursor.OccurredAt</c> rather than the id tie-break.
     /// </summary>
     [Fact]
-    public async Task GetClubActivity_Postgres_CursorResumesAcrossTimestampBoundary()
+    public async Task GetClubActivityPostgresCursorResumesAcrossTimestampBoundaryAsync()
     {
         var seed = await SeedAsync();
         ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: true);
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             // Older batch: one public row. The interceptor stamps CreatedAt once per SaveChanges,
             // so a later batch carries a distinct (newer) timestamp.
@@ -147,8 +153,8 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
         var secondPage = await service.GetClubActivityAsync(
             new GetClubActivityInput
             {
-                BeforeActivityEventId = firstPage.Value.NextCursor!.ActivityEventId,
-                BeforeOccurredAt = firstPage.Value.NextCursor!.OccurredAt
+                BeforeActivityEventId = firstPage.Value.NextCursor.ActivityEventId,
+                BeforeOccurredAt = firstPage.Value.NextCursor.OccurredAt
             },
             TestContext.Current.CancellationToken);
 
@@ -164,12 +170,16 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
     /// predicate compose in SQL and return the deterministic policy order.
     /// </summary>
     [Fact]
-    public async Task GetClubActivity_Postgres_AdminSeesAdminOnlyRows_AndCursorResumes()
+#pragma warning disable MA0051 // Keep this test scenario's setup, action, and assertions together so its invariant is reviewable.
+    public async Task GetClubActivityPostgresAdminSeesAdminOnlyRowsAndCursorResumesAsync()
+#pragma warning restore MA0051
     {
         var seed = await SeedAsync();
         ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: true);
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             // Seed 21 rows: 20 fill the first page, the last forces HasMore and a continuation
             // cursor. Rows carry the same timestamp tie so the (CreatedAt, ActivityEventId)
@@ -215,8 +225,8 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
         var secondPage = await service.GetClubActivityAsync(
             new GetClubActivityInput
             {
-                BeforeActivityEventId = firstPage.Value.NextCursor!.ActivityEventId,
-                BeforeOccurredAt = firstPage.Value.NextCursor!.OccurredAt
+                BeforeActivityEventId = firstPage.Value.NextCursor.ActivityEventId,
+                BeforeOccurredAt = firstPage.Value.NextCursor.OccurredAt
             },
             TestContext.Current.CancellationToken);
 
@@ -231,12 +241,14 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
     /// the join-request context shape used by the feed projection.
     /// </summary>
     [Fact]
-    public async Task GetClubActivity_Postgres_JoinRequestContextRoundTrips()
+    public async Task GetClubActivityPostgresJoinRequestContextRoundTripsAsync()
     {
         var seed = await SeedAsync();
         ActAs(seed.MemberUserId, seed.ClubId, isClubAdmin: true);
 
+#pragma warning disable MA0004 // Dispose within the original test scope and retain the test runner synchronization context.
         await using (var db = fixture.CreateAdminContext())
+#pragma warning restore MA0004
         {
             db.ActivityEvents.Add(new ActivityEventEntity
             {
@@ -245,9 +257,7 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
                 IsAdminOnly = true,
                 ActorUserId = seed.MemberUserId,
                 ActorDisplayName = "Requester",
-                PayloadJson = JsonSerializer.Serialize(
-                    new JoinRequestContext { JoinRequestId = 41, RequesterDisplayName = "Requester" },
-                    typeof(ClubActivityContext)),
+                PayloadJson = JsonSerializer.Serialize<ClubActivityContext>(new JoinRequestContext { JoinRequestId = 41, RequesterDisplayName = "Requester" }),
                 CreatedById = seed.MemberUserId
             });
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -314,36 +324,26 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
         {
             ActivityEventKind.CampaignOpened
                 or ActivityEventKind.CampaignClosed
-                or ActivityEventKind.CampaignReopened => JsonSerializer.Serialize(
-                    new CampaignLifecycleContext { CampaignId = campaignId, CampaignName = "Campaign" },
-                    typeof(ClubActivityContext)),
+                or ActivityEventKind.CampaignReopened => JsonSerializer.Serialize<ClubActivityContext>(new CampaignLifecycleContext { CampaignId = campaignId, CampaignName = "Campaign" }),
             ActivityEventKind.JoinRequestSubmitted
                 or ActivityEventKind.JoinRequestCancelled
-                or ActivityEventKind.JoinRequestRejected => JsonSerializer.Serialize(
-                    new JoinRequestContext { JoinRequestId = 41, RequesterDisplayName = "Requester" },
-                    typeof(ClubActivityContext)),
+                or ActivityEventKind.JoinRequestRejected => JsonSerializer.Serialize<ClubActivityContext>(new JoinRequestContext { JoinRequestId = 41, RequesterDisplayName = "Requester" }),
             ActivityEventKind.MemberJoined
                 or ActivityEventKind.MemberRemoved
-                or ActivityEventKind.MemberLeft => JsonSerializer.Serialize(
-                    new MembershipContext { MemberUserId = 99, MemberDisplayName = "Member", ApprovedByActorName = null },
-                    typeof(ClubActivityContext)),
+                or ActivityEventKind.MemberLeft => JsonSerializer.Serialize<ClubActivityContext>(new MembershipContext { MemberUserId = 99, MemberDisplayName = "Member", ApprovedByActorName = null }),
             ActivityEventKind.MemberPromoted
-                or ActivityEventKind.MemberDemoted => JsonSerializer.Serialize(
-                    new MemberRoleContext { MemberUserId = 1, MemberDisplayName = "Member", Role = "Captain" },
-                    typeof(ClubActivityContext)),
-            _ => JsonSerializer.Serialize(
-                new PlacementContext
-                {
-                    CampaignId = campaignId,
-                    CampaignName = "Campaign",
-                    PlayerCampaignAssignmentId = 7,
-                    PlayerDisplayName = "Member",
-                    PreviousOutcome = null,
-                    Outcome = PlacementOutcome.Assigned,
-                    PreviousTeamName = null,
-                    TeamName = "Alpha"
-                },
-                typeof(ClubActivityContext))
+                or ActivityEventKind.MemberDemoted => JsonSerializer.Serialize<ClubActivityContext>(new MemberRoleContext { MemberUserId = 1, MemberDisplayName = "Member", Role = "Captain" }),
+            _ => JsonSerializer.Serialize<ClubActivityContext>(new PlacementContext
+            {
+                CampaignId = campaignId,
+                CampaignName = "Campaign",
+                PlayerCampaignAssignmentId = 7,
+                PlayerDisplayName = "Member",
+                PreviousOutcome = null,
+                Outcome = PlacementOutcome.Assigned,
+                PreviousTeamName = null,
+                TeamName = "Alpha"
+            })
         };
 
     /// <summary>Seeds one club, member, season, campaign, players, and assignment.</summary>
@@ -351,27 +351,32 @@ public sealed class ActivityEventPostgresTests(NovaAppHostFixture fixture)
     private async Task<ActivityEventSeed> SeedAsync()
     {
         ActAs(userId: null, clubId: null, isClubAdmin: false);
-        await using var db = fixture.CreateAdminContext();
-        var suffix = Guid.NewGuid().ToString("N");
-        var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+        var db = fixture.CreateAdminContext();
+        await using (db)
+        {
+            var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
+            var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
 
-        var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Activity Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
-        db.Clubs.Add(club);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var club = new ClubEntity { CreationOperationId = Guid.NewGuid(), Name = $"Activity Club {suffix}", City = "Austin", State = "TX", CreatedById = actorUserId };
+            db.Clubs.Add(club);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
-        db.Users.Add(member);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var member = new NovaUserEntity { FirstName = "M", LastName = "Member", ClubId = club.ClubId };
+            db.Users.Add(member);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Activity Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
-        db.Seasons.Add(season);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var season = new SeasonEntity { CreationOperationId = Guid.NewGuid(), Name = $"Activity Season {suffix}", StartDate = new DateOnly(2026, 1, 1), ClubId = club.ClubId, CreatedById = actorUserId };
+            db.Seasons.Add(season);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = $"Activity Campaign {suffix}", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = actorUserId };
-        db.Campaigns.Add(campaign);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var campaign = new CampaignEntity { CreationOperationId = Guid.NewGuid(), Name = $"Activity Campaign {suffix}", StartDate = new DateOnly(2026, 6, 1), Status = CampaignStatus.Active, SeasonId = season.SeasonId, ClubId = club.ClubId, CreatedById = actorUserId };
+            db.Campaigns.Add(campaign);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        return new ActivityEventSeed(club.ClubId, member.Id, campaign.CampaignId);
+            return new ActivityEventSeed(club.ClubId, member.Id, campaign.CampaignId);
+        }
     }
 
     /// <summary>Identifiers produced by the activity PostgreSQL seed.</summary>

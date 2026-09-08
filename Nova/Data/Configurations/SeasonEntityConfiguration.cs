@@ -7,7 +7,7 @@ namespace Nova.Data.Configurations;
 /// <summary>
 /// Configures EF Core mapping for Season Entity Configuration.
 /// </summary>
-public class SeasonEntityConfiguration : IEntityTypeConfiguration<SeasonEntity>
+internal class SeasonEntityConfiguration : IEntityTypeConfiguration<SeasonEntity>
 {
     /// <summary>
     /// Executes the Configure operation.

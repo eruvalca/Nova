@@ -1,6 +1,6 @@
-﻿using Nova.Features.Shared;
-using Nova.Shared.Features.Teams;
-using Nova.Shared.Security;
+﻿using Nova.Features.Common;
+using Nova.SharedKernel.Features.Teams;
+using Nova.SharedKernel.Security;
 
 namespace Nova.Features.Teams;
 
@@ -20,7 +20,7 @@ internal static class TeamDetailEndpointRouteBuilderExtensions
             ArgumentNullException.ThrowIfNull(endpoints);
 
             endpoints.MapGroup(TeamEndpoints.GroupPrefix)
-                .MapGet(TeamEndpoints.GetDetailRelative, GetTeamDetailHandler)
+                .MapGet(TeamEndpoints.GetDetailRelative, GetTeamDetailHandlerAsync)
                 .Produces<TeamDetailDto>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -40,7 +40,7 @@ internal static class TeamDetailEndpointRouteBuilderExtensions
     /// <param name="teamDetailService">The team detail service.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
     /// <returns>The team detail result or a ProblemDetails response.</returns>
-    private static async Task<IResult> GetTeamDetailHandler(
+    private static async Task<IResult> GetTeamDetailHandlerAsync(
         long teamId,
         ITeamDetailService teamDetailService,
         CancellationToken cancellationToken)

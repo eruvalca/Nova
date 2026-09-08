@@ -1,8 +1,8 @@
 ﻿using System.Text.Json;
 using Nova.Data;
 using Nova.Entities;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
 
 namespace Nova.Features.Activity;
 
@@ -20,7 +20,7 @@ internal static class ActivityEventWriter
     /// The JSON options used to serialize family-shaped payloads, matching the camel-case contract
     /// the feed projection reads back.
     /// </summary>
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
@@ -181,7 +181,7 @@ internal static class ActivityEventWriter
     {
         // Serialize through the polymorphic base type so System.Text.Json emits the "type"
         // discriminator the feed's projection requires to read the row back.
-        var payloadJson = JsonSerializer.Serialize(context, typeof(ClubActivityContext), JsonOptions);
+        var payloadJson = JsonSerializer.Serialize<ClubActivityContext>(context, _jsonOptions);
 
         db.ActivityEvents.Add(new ActivityEventEntity
         {

@@ -1,12 +1,13 @@
-﻿using System.Globalization;
+﻿#pragma warning disable CA1055, CA1056 // Razor bindings and NavigationManager consume these relative route strings.
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Attention;
-using Nova.Shared.Features.Dashboard;
-using Nova.Shared.Results;
-using Nova.Shared.Security;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Attention;
+using Nova.SharedKernel.Features.Dashboard;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Security;
 using Nova.UI.Components;
 using Nova.UI.Features.Campaigns.Services;
 
@@ -150,7 +151,9 @@ public partial class ClubDashboard(
     /// forbidden callers to the access-denied page.
     /// </summary>
     /// <returns>A task that completes when the loads finish and state is updated.</returns>
+#pragma warning disable MA0051 // Keep this UI operation together so its request ownership, recovery, and final state transitions can be reviewed in execution order.
     private async Task LoadDashboardAsync()
+#pragma warning restore MA0051
     {
         _pageError = null;
 
@@ -259,3 +262,6 @@ public partial class ClubDashboard(
     private static string ProblemMessage(ServiceProblem problem, string fallback)
         => string.IsNullOrWhiteSpace(problem.Detail) ? fallback : problem.Detail;
 }
+
+
+#pragma warning restore CA1055, CA1056

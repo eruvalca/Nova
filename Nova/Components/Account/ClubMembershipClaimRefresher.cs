@@ -8,11 +8,11 @@ namespace Nova.Components.Account;
 
 /// <summary>
 /// Helper for refreshing a user's authentication cookie after their club membership changes,
-/// so the <see cref="Nova.Shared.Security.NovaClaimTypes.ClubId"/> claim (and roles) are rebuilt.
+/// so the <see cref="Nova.SharedKernel.Security.NovaClaimTypes.ClubId"/> claim (and roles) are rebuilt.
 /// </summary>
 /// <param name="userManager">The user Manager.</param>
 /// <param name="signInManager">The sign In Manager.</param>
-public sealed class ClubMembershipClaimRefresher(UserManager<NovaUserEntity> userManager, SignInManager<NovaUserEntity> signInManager)
+internal sealed class ClubMembershipClaimRefresher(UserManager<NovaUserEntity> userManager, SignInManager<NovaUserEntity> signInManager)
 {
     /// <summary>Reissues the current user's cookie after its stamp was changed transactionally.</summary>
     /// <param name="user">A fresh, no-tracking snapshot of the acting user after commit.</param>

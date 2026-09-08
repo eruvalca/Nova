@@ -1,5 +1,5 @@
-﻿using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Validation;
 using Shouldly;
 
 namespace Nova.Unit.Tests.Campaigns;
@@ -13,7 +13,7 @@ public sealed class CreateCampaignInputValidationTests
     /// Verifies a request selecting one existing season passes structural validation.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsNoErrors_ForExistingSeasonChoice()
+    public void ValidateReturnsNoErrorsForExistingSeasonChoice()
     {
         var errors = InputValidator.Validate(ValidInput() with { ExistingSeasonId = 42 });
 
@@ -24,7 +24,7 @@ public sealed class CreateCampaignInputValidationTests
     /// Verifies a request defining one valid inline season passes structural validation.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsNoErrors_ForInlineSeasonChoice()
+    public void ValidateReturnsNoErrorsForInlineSeasonChoice()
     {
         var errors = InputValidator.Validate(ValidInput() with
         {
@@ -43,7 +43,7 @@ public sealed class CreateCampaignInputValidationTests
     /// Verifies omitting both season choices is rejected on both choice fields.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsChoiceErrors_WhenNoSeasonIsSelected()
+    public void ValidateReturnsChoiceErrorsWhenNoSeasonIsSelected()
     {
         var errors = InputValidator.Validate(ValidInput());
 
@@ -55,7 +55,7 @@ public sealed class CreateCampaignInputValidationTests
     /// Verifies selecting both season choices is rejected on both choice fields.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsChoiceErrors_WhenBothSeasonsAreSelected()
+    public void ValidateReturnsChoiceErrorsWhenBothSeasonsAreSelected()
     {
         var errors = InputValidator.Validate(ValidInput() with
         {
@@ -75,7 +75,7 @@ public sealed class CreateCampaignInputValidationTests
     /// Verifies an empty caller operation identifier is rejected.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsOperationIdError_WhenOperationIdIsEmpty()
+    public void ValidateReturnsOperationIdErrorWhenOperationIdIsEmpty()
     {
         var errors = InputValidator.Validate(ValidInput() with
         {
@@ -90,7 +90,7 @@ public sealed class CreateCampaignInputValidationTests
     /// Verifies a default campaign start date is rejected structurally.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsStartDateError_WhenCampaignStartDateIsDefault()
+    public void ValidateReturnsStartDateErrorWhenCampaignStartDateIsDefault()
     {
         var errors = InputValidator.Validate(ValidInput() with
         {
@@ -105,7 +105,7 @@ public sealed class CreateCampaignInputValidationTests
     /// Verifies a default inline-season start date is rejected with its qualified member name.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsQualifiedStartDateError_WhenInlineSeasonStartDateIsDefault()
+    public void ValidateReturnsQualifiedStartDateErrorWhenInlineSeasonStartDateIsDefault()
     {
         var errors = InputValidator.Validate(ValidInput() with
         {
@@ -124,7 +124,7 @@ public sealed class CreateCampaignInputValidationTests
     /// Verifies open-ended campaign and inline-season dates remain structurally valid.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsNoErrors_ForOpenEndedInlineSeason()
+    public void ValidateReturnsNoErrorsForOpenEndedInlineSeason()
     {
         var errors = InputValidator.Validate(ValidInput() with
         {
@@ -144,7 +144,7 @@ public sealed class CreateCampaignInputValidationTests
     /// Verifies campaign and inline-season end dates cannot precede their starts.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsDateErrors_WhenEndDatesPrecedeStarts()
+    public void ValidateReturnsDateErrorsWhenEndDatesPrecedeStarts()
     {
         var errors = InputValidator.Validate(ValidInput() with
         {
@@ -166,7 +166,7 @@ public sealed class CreateCampaignInputValidationTests
     /// Verifies inline-season property annotations are included in parent validation results.
     /// </summary>
     [Fact]
-    public void Validate_ReturnsQualifiedInlineSeasonErrors_WhenInlineSeasonFieldsAreInvalid()
+    public void ValidateReturnsQualifiedInlineSeasonErrorsWhenInlineSeasonFieldsAreInvalid()
     {
         var errors = InputValidator.Validate(ValidInput() with
         {

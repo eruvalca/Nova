@@ -2,9 +2,9 @@
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -44,7 +44,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies an unauthenticated caller cannot read placement results.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ReturnsForbidden_WhenNotSignedIn()
+    public async Task GetPlacementRosterReturnsForbiddenWhenNotSignedInAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -61,7 +61,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies a signed-in user without a club cannot read placement results.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ReturnsForbidden_WhenUserHasNoClub()
+    public async Task GetPlacementRosterReturnsForbiddenWhenUserHasNoClubAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = null;
@@ -78,7 +78,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies another club's campaign is non-disclosing not-found.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task GetPlacementRosterReturnsNotFoundForCrossTenantCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubBMemberId;
         _harness.CurrentUser.ClubId = ClubBId;
@@ -100,7 +100,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     [InlineData(0, 50)]
     [InlineData(1, 0)]
     [InlineData(1, 101)]
-    public async Task GetPlacementRoster_ReturnsValidation_ForInvalidPagingValues(int page, int pageSize)
+    public async Task GetPlacementRosterReturnsValidationForInvalidPagingValuesAsync(int page, int pageSize)
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -122,7 +122,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies rows are ordered by display name with assignment-id tie-breaking.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ReturnsRowsOrderedByDisplayNameWithAssignmentTieBreak()
+    public async Task GetPlacementRosterReturnsRowsOrderedByDisplayNameWithAssignmentTieBreakAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -148,7 +148,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies each row carries the persisted fields needed for a placement update.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ReturnsRowFieldsAndConcurrencyTokens()
+    public async Task GetPlacementRosterReturnsRowFieldsAndConcurrencyTokensAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -166,7 +166,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
         assigned.GraduationYear.ShouldBe(2028);
         assigned.PlacementOutcome.ShouldBe(PlacementOutcome.Assigned);
         assigned.Team.ShouldNotBeNull();
-        assigned.Team!.TeamId.ShouldBeGreaterThan(0);
+        assigned.Team.TeamId.ShouldBeGreaterThan(0);
         assigned.Team.TeamName.ShouldNotBeNullOrWhiteSpace();
         assigned.ConcurrencyToken.ShouldBe(_tokens[0]);
         var decision = assigned.SavedDecision.ShouldNotBeNull();
@@ -191,7 +191,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies the graduation-year and unresolved-only filters compose.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ComposesGraduationYearAndUnresolvedOnlyFilters()
+    public async Task GetPlacementRosterComposesGraduationYearAndUnresolvedOnlyFiltersAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -232,7 +232,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies paging is bounded in SQL and total count covers the whole filtered set.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_PagesBoundedResultsWithStableOrdering()
+    public async Task GetPlacementRosterPagesBoundedResultsWithStableOrderingAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -269,7 +269,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies a member sees only their club's rows and never another club's assignments.
     /// </summary>
     [Fact]
-    public async Task GetPlacementRoster_ExcludesCrossTenantRows()
+    public async Task GetPlacementRosterExcludesCrossTenantRowsAsync()
     {
         _harness.CurrentUser.UserId = ClubBMemberId;
         _harness.CurrentUser.ClubId = ClubBId;
@@ -287,7 +287,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies the summary reports accurate whole-campaign outcome counts.
     /// </summary>
     [Fact]
-    public async Task GetPlacementSummary_ReturnsAccurateWholeCampaignCounts()
+    public async Task GetPlacementSummaryReturnsAccurateWholeCampaignCountsAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -308,7 +308,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies the summary is tenant-scoped.
     /// </summary>
     [Fact]
-    public async Task GetPlacementSummary_CountsOnlyOwnTenant()
+    public async Task GetPlacementSummaryCountsOnlyOwnTenantAsync()
     {
         _harness.CurrentUser.UserId = ClubBMemberId;
         _harness.CurrentUser.ClubId = ClubBId;
@@ -326,7 +326,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies another club's campaign summary is non-disclosing not-found.
     /// </summary>
     [Fact]
-    public async Task GetPlacementSummary_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task GetPlacementSummaryReturnsNotFoundForCrossTenantCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubBMemberId;
         _harness.CurrentUser.ClubId = ClubBId;
@@ -343,7 +343,7 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// Verifies a signed-in user without a club cannot read the summary.
     /// </summary>
     [Fact]
-    public async Task GetPlacementSummary_ReturnsForbidden_WhenUserHasNoClub()
+    public async Task GetPlacementSummaryReturnsForbiddenWhenUserHasNoClubAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = null;
@@ -369,7 +369,9 @@ public sealed class CampaignPlacementQueryServiceTests : IDisposable
     /// <summary>
     /// Seeds two clubs with campaigns, teams, and mixed-outcome participations.
     /// </summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var db = _harness.CreateAdminContext();
 

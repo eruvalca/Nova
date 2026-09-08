@@ -2,8 +2,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Nova.Entities;
 using Nova.Features.Players;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Players;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Players;
 using Shouldly;
 
 namespace Nova.Integration.Tests.Data;
@@ -20,11 +20,13 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
     /// identifier.
     /// </summary>
     [Fact]
-    public async Task CreationOperationId_RejectsDuplicateWithinClub()
+    public async Task CreationOperationIdRejectsDuplicateWithinClubAsync()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         var creationOperationId = Guid.CreateVersion7();
 
         ActAs(userId: null, clubId: null, isAdmin: false);
@@ -53,11 +55,15 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
     /// recognized by its stable operation identifier and is not replayed as a duplicate insert.
     /// </summary>
     [Fact]
-    public async Task Create_VerifiesCommittedOperation_AfterAmbiguousCommitFailure()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task CreateVerifiesCommittedOperationAfterAmbiguousCommitFailureAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         long clubId;
         long activeCampaignId;
 
@@ -151,11 +157,15 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
     /// fresh context and transaction.
     /// </summary>
     [Fact]
-    public async Task Create_RetriesWithFreshContext_AfterTransientSaveFailure()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task CreateRetriesWithFreshContextAfterTransientSaveFailureAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         long clubId;
         long activeCampaignId;
 
@@ -249,11 +259,15 @@ public sealed class PlayerManagementRetryTests(NovaAppHostFixture fixture)
     /// fresh context and transaction.
     /// </summary>
     [Fact]
-    public async Task Update_RetriesWithFreshContext_AfterTransientSaveFailure()
+#pragma warning disable MA0051 // Keep this complete setup, operation, and assertion sequence together as one regression scenario.
+    public async Task UpdateRetriesWithFreshContextAfterTransientSaveFailureAsync()
+#pragma warning restore MA0051
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var suffix = Guid.NewGuid().ToString("N");
+#pragma warning disable CA5394 // Random identifiers isolate test fixtures; they are not passwords, keys, or security tokens.
         var actorUserId = Random.Shared.NextInt64(1, long.MaxValue);
+#pragma warning restore CA5394
         long clubId;
         long playerId;
 

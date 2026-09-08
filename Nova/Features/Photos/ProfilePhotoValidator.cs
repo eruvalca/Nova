@@ -1,4 +1,4 @@
-﻿using Nova.Shared.Features.Photos;
+﻿using Nova.SharedKernel.Features.Photos;
 
 namespace Nova.Features.Photos;
 
@@ -6,7 +6,7 @@ namespace Nova.Features.Photos;
 /// Validates profile photo uploads server-side: enforces the size limit and verifies the
 /// actual image format by sniffing magic bytes instead of trusting the supplied content type.
 /// </summary>
-public static class ProfilePhotoValidator
+internal static class ProfilePhotoValidator
 {
     /// <summary>
     /// Validates the supplied upload against <see cref="ProfilePhotoConstraints"/>.

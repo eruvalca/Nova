@@ -11,7 +11,7 @@ using Nova.Components.Account.Pages;
 using Nova.Components.Account.Pages.Manage;
 using Nova.Entities;
 
-namespace Microsoft.AspNetCore.Routing;
+namespace Nova.Components.Account;
 
 /// <summary>
 /// Extension methods for registering Identity-specific minimal API endpoints.
@@ -26,7 +26,9 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
     extension(IEndpointRouteBuilder endpoints)
     {
         // These endpoints are required by the Identity Razor components defined in the /Components/Account/Pages directory of this project.
+#pragma warning disable MA0051 // Keep the endpoint group registration and its metadata together; request handlers are separate.
         public IEndpointConventionBuilder MapAdditionalIdentityEndpoints()
+#pragma warning restore MA0051
         {
             ArgumentNullException.ThrowIfNull(endpoints);
 
@@ -118,9 +120,7 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
                 return TypedResults.Challenge(properties, [provider]);
             });
 
-            var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
-            // Source-generated logging is not applicable here: this handler runs inside a static extension class with no DI-injected ILogger<T>. The logger is resolved from the request-scoped ILoggerFactory per the documented fallback in csharp-conventions.instructions.md.
-            var downloadLogger = loggerFactory.CreateLogger("DownloadPersonalData");
+            var downloadLogger = new IdentityEndpointLogger(endpoints.ServiceProvider.GetRequiredService<ILogger<IdentityEndpointLogger>>());
 
             manageGroup.MapPost("/DownloadPersonalData", async (
                 HttpContext context,
@@ -134,10 +134,10 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
                 }
 
                 var userId = await userManager.GetUserIdAsync(user);
-                downloadLogger.LogInformation("User with ID '{UserId}' asked for their personal data.", userId);
+                downloadLogger.LogPersonalDataRequested(userId);
 
                 // Only include personal data for download
-                var personalData = new Dictionary<string, string>();
+                var personalData = new Dictionary<string, string>(StringComparer.Ordinal);
                 var personalDataProps = typeof(NovaUserEntity).GetProperties().Where(
                     prop => Attribute.IsDefined(prop, typeof(PersonalDataAttribute)));
                 foreach (var p in personalDataProps)

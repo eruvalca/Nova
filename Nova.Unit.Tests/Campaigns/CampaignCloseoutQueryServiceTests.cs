@@ -2,9 +2,9 @@
 using Nova.Data;
 using Nova.Entities;
 using Nova.Features.Campaigns;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
 using Nova.Unit.Tests.Account;
 using Nova.Unit.Tests.Data;
 using Shouldly;
@@ -31,7 +31,6 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
     private long _ineligibleCampaignId;
     private long _archivedCampaignId;
     private long _multiCampaignId;
-    private long _campaignBId;
 
     private long _undecidedFirstId;
     private long _undecidedSecondId;
@@ -49,7 +48,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies an unsigned-in caller cannot read closeout readiness.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsForbidden_WhenNotSignedIn()
+    public async Task GetCloseoutReadinessReturnsForbiddenWhenNotSignedInAsync()
     {
         _harness.CurrentUser.UserId = null;
         _harness.CurrentUser.ClubId = null;
@@ -64,7 +63,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies a signed-in user without a club cannot read closeout readiness.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsForbidden_WhenUserHasNoClub()
+    public async Task GetCloseoutReadinessReturnsForbiddenWhenUserHasNoClubAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = null;
@@ -79,7 +78,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies invalid campaign identifiers are rejected before any query.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsValidation_ForNonPositiveCampaignId()
+    public async Task GetCloseoutReadinessReturnsValidationForNonPositiveCampaignIdAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -94,7 +93,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies a missing campaign returns a non-disclosing not-found.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsNotFound_ForMissingCampaign()
+    public async Task GetCloseoutReadinessReturnsNotFoundForMissingCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -109,7 +108,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies another club's campaign is invisible to the current tenant.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsNotFound_ForCrossTenantCampaign()
+    public async Task GetCloseoutReadinessReturnsNotFoundForCrossTenantCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubBMemberId;
         _harness.CurrentUser.ClubId = ClubBId;
@@ -124,7 +123,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies a ready campaign carries a true verdict, zero blockers, and the composed summary.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsReady_WhenNoBlockerExists()
+    public async Task GetCloseoutReadinessReturnsReadyWhenNoBlockerExistsAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -147,7 +146,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies a Closed campaign reports ready with zero blockers.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsReady_ForClosedCampaign()
+    public async Task GetCloseoutReadinessReturnsReadyForClosedCampaignAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -165,7 +164,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies the undecided-only blocker carries exact counts and assignment ids.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsUndecidedBlocker_WithIds()
+    public async Task GetCloseoutReadinessReturnsUndecidedBlockerWithIdsAsync()
     {
         SetOnlyActiveCampaign(_undecidedCampaignId);
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -186,7 +185,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies the eligibility-only blocker carries exact counts and assignment ids.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsEligibilityBlocker_WithIds()
+    public async Task GetCloseoutReadinessReturnsEligibilityBlockerWithIdsAsync()
     {
         SetOnlyActiveCampaign(_ineligibleCampaignId);
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -206,7 +205,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies the archived-team-only blocker carries exact counts and assignment ids.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsArchivedTeamBlocker_WithIds()
+    public async Task GetCloseoutReadinessReturnsArchivedTeamBlockerWithIdsAsync()
     {
         SetOnlyActiveCampaign(_archivedCampaignId);
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -226,7 +225,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
 
     /// <summary>Verifies multi-condition blockers are ordered by the shared constants with exact ids.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_ReturnsAllBlockers_InStableOrder()
+    public async Task GetCloseoutReadinessReturnsAllBlockersInStableOrderAsync()
     {
         SetOnlyActiveCampaign(_multiCampaignId);
         _harness.CurrentUser.UserId = ClubAMemberId;
@@ -246,19 +245,19 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
                 CloseoutBlockerConditions.ArchivedTeams
             ]);
 
-        var undecided = result.Value.Blockers.Single(blocker => blocker.Condition == CloseoutBlockerConditions.Outcomes);
+        var undecided = result.Value.Blockers.Single(blocker => string.Equals(blocker.Condition, CloseoutBlockerConditions.Outcomes, StringComparison.Ordinal));
         undecided.AssignmentIds.ShouldBe([_multiUndecidedId]);
 
-        var eligibility = result.Value.Blockers.Single(blocker => blocker.Condition == CloseoutBlockerConditions.Eligibility);
+        var eligibility = result.Value.Blockers.Single(blocker => string.Equals(blocker.Condition, CloseoutBlockerConditions.Eligibility, StringComparison.Ordinal));
         eligibility.AssignmentIds.ShouldBe([_multiIneligibleId]);
 
-        var archived = result.Value.Blockers.Single(blocker => blocker.Condition == CloseoutBlockerConditions.ArchivedTeams);
+        var archived = result.Value.Blockers.Single(blocker => string.Equals(blocker.Condition, CloseoutBlockerConditions.ArchivedTeams, StringComparison.Ordinal));
         archived.AssignmentIds.ShouldBe([_multiArchivedId]);
     }
 
     /// <summary>Verifies the readiness summary is the composed placement summary, not a re-derived count.</summary>
     [Fact]
-    public async Task GetCloseoutReadiness_EmbedsPlacementSummaryVerbatim()
+    public async Task GetCloseoutReadinessEmbedsPlacementSummaryVerbatimAsync()
     {
         _harness.CurrentUser.UserId = ClubAMemberId;
         _harness.CurrentUser.ClubId = ClubAId;
@@ -296,7 +295,9 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
             NullLogger<CampaignPlacementQueryService>.Instance);
 
     /// <summary>Seeds clubs, users, seasons, teams, campaigns, players, and assignments.</summary>
+#pragma warning disable MA0051 // Keep the complete arrangement, operation, and assertions together as one regression scenario.
     private void Seed()
+#pragma warning restore MA0051
     {
         using var admin = _harness.CreateAdminContext();
 
@@ -381,7 +382,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
         _ineligibleCampaignId = ineligibleCampaign.CampaignId;
         _archivedCampaignId = archivedCampaign.CampaignId;
         _multiCampaignId = multiCampaign.CampaignId;
-        _campaignBId = campaignB.CampaignId;
+        _ = campaignB.CampaignId;
 
         _undecidedFirstId = undecidedFirstAssignment.PlayerCampaignAssignmentId;
         _undecidedSecondId = undecidedSecondAssignment.PlayerCampaignAssignmentId;
@@ -410,7 +411,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
     /// <param name="graduationYear">The player graduation year.</param>
     /// <param name="suffix">A stable name suffix.</param>
     /// <returns>The new player entity.</returns>
-    private PlayerEntity CreatePlayer(long clubId, int graduationYear, string suffix)
+    private static PlayerEntity CreatePlayer(long clubId, int graduationYear, string suffix)
         => new()
         {
             CreationOperationId = Guid.NewGuid(),
@@ -430,7 +431,7 @@ public sealed class CampaignCloseoutQueryServiceTests : IDisposable
     /// <param name="outcome">The placement outcome.</param>
     /// <param name="teamId">The optional assigned team identifier.</param>
     /// <returns>The new assignment entity.</returns>
-    private PlayerCampaignAssignmentEntity CreateAssignment(
+    private static PlayerCampaignAssignmentEntity CreateAssignment(
         PlayerEntity player,
         CampaignEntity campaign,
         long clubId,

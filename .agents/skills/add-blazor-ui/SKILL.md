@@ -1,30 +1,29 @@
 ---
 name: add-blazor-ui
 description: >-
-  Recipe for building Nova Blazor pages and components: placement, page-vs-component,
-  render-mode decision tree, lifecycle selection, prerender/persisted state, parameters,
-  EventCallbacks, binding, and EditForm validation.
-  USE FOR: add a Blazor page or component, new .razor file, choose render mode, @onclick not
-  firing, page vs component, [Parameter], string literal vs expression, EventCallback vs Action,
-  @bind / @bind:after, EditForm, duplicate data load, [PersistentState], StateHasChanged,
-  OnInitializedAsync vs OnParametersSet vs OnAfterRenderAsync, code-behind, CSS isolation,
-  JS interop, collocated .razor.js module.
-  DO NOT USE FOR: server services/ServiceResult (use add-feature-slice), HTTP endpoints or WASM
-  services (use add-api-endpoint), entities/EF/migrations (use add-domain-persistence),
-  writing tests only (use nova-testing).
-  INVOKES: nova-testing (component test step).
+  Add, change, debug, or review Nova Blazor pages and components, including existing forms,
+  asynchronous state, navigation, authentication changes, and command recovery. Guides placement,
+  render modes, lifecycle/prerender state, parameters, EventCallbacks, binding, EditForm validation,
+  CSS isolation, and collocated JS interop. Use for non-firing handlers and corrected form retries.
+  Server services use add-feature-slice; endpoints/HTTP clients use add-api-endpoint;
+  persistence uses add-domain-persistence; tests-only work uses nova-testing.
 ---
 
 # Add Blazor UI
 
-Use this skill when creating or changing a Nova page or component. It resolves the four decisions
-agents most often get wrong — **where it goes**, **page or component**, **which render mode**, and
-**which lifecycle method** — before any markup is written.
+Use this skill when creating, changing, debugging, or reviewing a Nova page or component. Resolve
+placement, render mode, lifecycle, and state ownership for the affected behavior before editing.
+For existing UI, inspect its current composition and sibling paths; apply the relevant checklist
+steps without recreating unrelated structure.
 
 Always-on rules live in `.github/instructions/blazor-architecture.instructions.md`. This skill is the
 procedure; that file is the rulebook. Where both apply, they agree — do not contradict either.
 
-## Canonical Nova examples
+## Scoped implementation examples
+
+Examples establish the named pattern only. Inspect their relevant regression before copying
+behavior; the [transition coverage reference](../nova-testing/references/blazor-component-tests.md#transition-coverage)
+pairs forms, identity, recovery, and URL patterns with tests. No entire page is a universal template.
 
 | Pattern | File |
 | --- | --- |
@@ -38,7 +37,7 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
 | Debounce + `DisposeAsyncCore` cleanup | `Nova.UI\Features\Clubs\Components\ClubSearchPanel.razor.cs` |
 | Collocated JS module + lazy import + module disposal | `Nova.UI\Features\Campaigns\Components\CampaignParticipantDrawer.razor(.js/.cs)` |
 | Listener attach/detach + replace-on-attach | `Nova.UI\Features\Campaigns\Pages\CampaignWorkspace.razor(.js/.cs)` |
-| Cross-feature shared component | `Nova.UI\Shared\ConfirmDeleteDialog.razor(.cs)` |
+| Cross-feature shared component | `Nova.UI\Common\ConfirmDeleteDialog.razor(.cs)` |
 | Per-instance interactive island on a static SSR page | `Nova\Components\Account\Pages\Manage\DeletePersonalData.razor` |
 
 `Nova.UI\_Imports.razor` already provides `@inherits Nova.UI.Components.NovaComponentBase` and
@@ -69,24 +68,30 @@ procedure; that file is the rulebook. Where both apply, they agree — do not co
 7. **Style to the design system** (`DESIGN.md` / `.github/instructions/ui-design.instructions.md`):
    component-specific rules go in `{Name}.razor.css` using `rem` units. No global stylesheet edits
    for feature UI, no user-controlled strings in inline `style`.
-8. **Add JavaScript only if needed**: collocated `{Component}.razor.js` ES module, lazy
-   `Lazy<Task<IJSObjectReference>>` import, `ElementReference` arguments, listener detach in
-   `DisposeAsyncCore()`. See [js-interop.md](references/js-interop.md).
+8. **Add JavaScript only if needed**: use a collocated `{Component}.razor.js` ES module and the
+   appropriate C# interop or browser-native lifecycle in [js-interop.md](references/js-interop.md).
 9. **Test** — invoke the `nova-testing` skill and use its
-   [Blazor component tests reference](../nova-testing/references/blazor-component-tests.md). An
-   interactive page needs a render-mode assertion: bUnit fires callbacks even when the deployed page
-   would render as static SSR, so a passing callback test does **not** prove the button works.
+   [Blazor component tests reference](../nova-testing/references/blazor-component-tests.md). Verify
+   effective interactivity through the actual page/host and call sites, including inherited or
+   per-instance render modes. A local attribute assertion covers only a mode owned by that component;
+   bUnit callback success does not prove deployed interaction.
+10. **Complete the changed behavior** — select the applicable transitions in that reference, inspect
+    sibling forms/loads/mutations for the same invariant, and record the outcomes actually proved.
+    Apply the separate-review requirement in root `AGENTS.md` before PR creation.
 
 ## Self-check before finishing
 
-- The component has an effective interactive render mode if it has **any** `@onclick`,
-  `@onchange`, `@bind`, timer, or JS interop. (Silent-failure #1.)
-- If interactive, the file lives in `Nova.UI` or `Nova.Client` — never in `Nova`.
-- Every async service call receives `ComponentCancellationToken`.
-- Data comes from a feature service; no `DbContext` and no `HttpContext` in the component.
+- Placement and effective render mode follow the [placement rules](references/placement-and-page-vs-component.md)
+  and [render-mode decision](references/render-mode-decision.md), including static form-post binding,
+  the Auto/WebAssembly project limits, and inherited or per-instance interactivity.
+- Nova's cancellable APIs receive `ComponentCancellationToken`; framework calls use their supported
+  overloads, including Identity operations without a token parameter.
+- Data comes from a feature service; no direct `DbContext`. `HttpContext` stays within server-host
+  static SSR request/response behavior, as defined by the architecture rules.
 - No `@code` block; markup and logic are in the `.razor` / `.razor.cs` pair.
-- Any JS is a collocated `.razor.js` module consumed via `OnAfterRenderAsync` with module disposal
-  in `DisposeAsyncCore()` — no `window.*` globals, no helpers in `Nova/wwwroot/js/`.
+- JS follows the [interop reference](references/js-interop.md): C# interop uses the interactive
+  component lifecycle; browser-native static SSR enhancements retain explicit loading and element
+  cleanup. Both use collocated modules, scoped listeners, and no arbitrary `window.*` globals.
 - If it loads data and is interactive, prerender double-loading is handled and derived state is
   rebuilt on restore.
 - `StateHasChanged` is present only where genuinely required (see the lifecycle reference).

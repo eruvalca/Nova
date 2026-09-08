@@ -7,11 +7,11 @@ using Nova.Entities;
 using Nova.Extensions.Clubs;
 using Nova.Features.Account;
 using Nova.Features.Activity;
-using Nova.Features.Shared;
-using Nova.Shared.Enums;
-using Nova.Shared.Features.Activity;
-using Nova.Shared.Features.Clubs;
-using Nova.Shared.Results;
+using Nova.Features.Common;
+using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Activity;
+using Nova.SharedKernel.Features.Clubs;
+using Nova.SharedKernel.Results;
 using OneOf.Types;
 
 namespace Nova.Features.Clubs;
@@ -19,7 +19,7 @@ namespace Nova.Features.Clubs;
 /// <summary>
 /// Server-side implementation of <see cref="IClubJoinRequestService"/>: manages club join requests.
 /// </summary>
-public sealed partial class ClubJoinRequestService(
+internal sealed partial class ClubJoinRequestService(
     IDbContextFactory<NovaDbContext> dbContextFactory,
     IDbContextFactory<NovaReadDbContext> readDbContextFactory,
     IDbContextFactory<NovaAdminDbContext> adminDbContextFactory,
@@ -52,7 +52,9 @@ public sealed partial class ClubJoinRequestService(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     public async Task<ServiceResult<ClubJoinRequestDto>> CreateJoinRequestAsync(long clubId, CancellationToken cancellationToken = default)
+#pragma warning restore MA0051
     {
         if (currentUserProvider.UserId is not long userId)
         {
@@ -90,7 +92,7 @@ public sealed partial class ClubJoinRequestService(
         // Resolve the requester's display name for the event snapshot. The requester is
         // club-less, so the tenant-filtered write context cannot see them; UserManager is
         // the established route for club-less users.
-        var requesterName = (await userManager.FindByIdAsync(userId.ToString()))?.FullName ?? "Unknown user";
+        var requesterName = (await userManager.FindByIdAsync(userId.ToString(System.Globalization.CultureInfo.InvariantCulture)))?.FullName ?? "Unknown user";
 
         // Create join request. The request id is identity-generated, so the durable event is
         // appended after the first save but inside the same transaction: the request and its
@@ -237,7 +239,9 @@ public sealed partial class ClubJoinRequestService(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     public async Task<ServiceResult<Success>> CancelJoinRequestAsync(long requestId, CancellationToken cancellationToken = default)
+#pragma warning restore MA0051
     {
         if (currentUserProvider.UserId is not long userId)
         {
@@ -268,7 +272,7 @@ public sealed partial class ClubJoinRequestService(
 
         // Resolve the requester display name for the event snapshot. The requester is club-less
         // at cancel time, so UserManager is required (tenant filter excludes club-less users).
-        var requesterName = (await userManager.FindByIdAsync(request.RequestingUserId.ToString()))?.FullName ?? "Unknown user";
+        var requesterName = (await userManager.FindByIdAsync(request.RequestingUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)))?.FullName ?? "Unknown user";
 
         // The probe resolves the request identity, validates ownership/status up front, and
         // snapshots the names used by the durable event; the execution-strategy delegate re-runs
@@ -327,7 +331,9 @@ public sealed partial class ClubJoinRequestService(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     public async Task<ServiceResult<Success>> ApproveJoinRequestAsync(
+#pragma warning restore MA0051
         long requestId,
         CancellationToken cancellationToken = default)
     {
@@ -399,7 +405,9 @@ public sealed partial class ClubJoinRequestService(
     }
 
     /// <inheritdoc />
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     public async Task<ServiceResult<Success>> RejectJoinRequestAsync(
+#pragma warning restore MA0051
         long requestId,
         CancellationToken cancellationToken = default)
     {
@@ -434,7 +442,7 @@ public sealed partial class ClubJoinRequestService(
         // per the attention brief). The requester is club-less, so UserManager resolves the
         // snapshot; the rejecting admin is tenant-visible via the write context.
         var adminUserId = currentUserProvider.UserId ?? 0;
-        var requesterName = (await userManager.FindByIdAsync(request.RequestingUserId.ToString()))?.FullName ?? "Unknown user";
+        var requesterName = (await userManager.FindByIdAsync(request.RequestingUserId.ToString(System.Globalization.CultureInfo.InvariantCulture)))?.FullName ?? "Unknown user";
         var adminName = (await probeDb.Users
             .Where(user => user.Id == adminUserId)
             .Select(user => user.FirstName + " " + user.LastName)
@@ -475,7 +483,9 @@ public sealed partial class ClubJoinRequestService(
     /// <param name="commitAttempted">The tracker marked immediately before this attempt commits.</param>
     /// <param name="cancellationToken">A token that cancels the database work.</param>
     /// <returns>The approval outcome.</returns>
+#pragma warning disable MA0051 // Keep the guards, effects, and recovery result for this operation together.
     private async Task<ServiceResult<Success>> PersistApprovalAsync(
+#pragma warning restore MA0051
         NovaAdminDbContext db,
         ApprovalState state,
         CommitAttemptTracker commitAttempted,
@@ -491,7 +501,9 @@ public sealed partial class ClubJoinRequestService(
         await db.AcquireJoinRequestLockAsync(state.RequestId, cancellationToken);
 
         var administratorRoleId = await db.Roles
-            .Where(role => role.NormalizedName == Nova.Shared.Security.Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning disable CA1862 // Preserve SQL-translatable comparison against normalized data; StringComparison overloads are not translated by EF.
+            .Where(role => role.NormalizedName == SharedKernel.Security.Roles.ClubAdmin.ToUpperInvariant())
+#pragma warning restore CA1862
             .Select(role => (long?)role.Id)
             .SingleOrDefaultAsync(cancellationToken);
         var administratorIsCurrent = administratorRoleId is not null

@@ -7,7 +7,7 @@ namespace Nova.Data.Configurations;
 /// <summary>
 /// Configures EF Core mapping for <see cref="ClubEntity"/>: primary key and auto-generated <see cref="ClubEntity.ClubId"/>.
 /// </summary>
-public class ClubEntityConfiguration : IEntityTypeConfiguration<ClubEntity>
+internal class ClubEntityConfiguration : IEntityTypeConfiguration<ClubEntity>
 {
     /// <summary>
     /// Configures the <see cref="ClubEntity"/> entity type: sets <see cref="ClubEntity.ClubId"/> as the

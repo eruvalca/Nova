@@ -1,7 +1,7 @@
-﻿using Nova.Shared.Enums;
-using Nova.Shared.Features.Campaigns;
-using Nova.Shared.Results;
-using Nova.Shared.Validation;
+﻿using Nova.SharedKernel.Enums;
+using Nova.SharedKernel.Features.Campaigns;
+using Nova.SharedKernel.Results;
+using Nova.SharedKernel.Validation;
 
 namespace Nova.Client.Services.Campaigns;
 
@@ -9,7 +9,7 @@ namespace Nova.Client.Services.Campaigns;
 /// WebAssembly HTTP implementation of <see cref="ICampaignCloseoutQueryService"/>.
 /// </summary>
 /// <param name="http">The HTTP client configured with the application base address.</param>
-public sealed class HttpCampaignCloseoutQueryService(HttpClient http) : ICampaignCloseoutQueryService
+internal sealed class HttpCampaignCloseoutQueryService(HttpClient http) : ICampaignCloseoutQueryService
 {
     /// <inheritdoc />
     public async Task<ServiceResult<CampaignCloseoutReadinessDto>> GetCloseoutReadinessAsync(
@@ -23,7 +23,7 @@ public sealed class HttpCampaignCloseoutQueryService(HttpClient http) : ICampaig
         }
 
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetCampaignCloseoutReadinessUrl(input.CampaignId),
+new Uri(CampaignEndpoints.GetCampaignCloseoutReadinessUrl(input.CampaignId), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -50,7 +50,7 @@ public sealed class HttpCampaignCloseoutQueryService(HttpClient http) : ICampaig
         var limit = input.Limit ?? GetCampaignActivityInput.DefaultLimit;
 
         using var response = await http.GetAsync(
-            CampaignEndpoints.GetCampaignActivityUrl(input),
+new Uri(CampaignEndpoints.GetCampaignActivityUrl(input), UriKind.RelativeOrAbsolute),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -76,7 +76,7 @@ public sealed class HttpCampaignCloseoutQueryService(HttpClient http) : ICampaig
             && result.Blockers is not null
             && result.Blockers.All(blocker => blocker is not null)
             && result.IsReady == (result.Blockers.Count == 0)
-            && result.Blockers.Select(blocker => blocker.Condition).Distinct().Count() == result.Blockers.Count
+            && result.Blockers.Select(blocker => blocker.Condition).Distinct(StringComparer.Ordinal).Count() == result.Blockers.Count
             && result.Blockers.All(IsValidBlocker);
 
     /// <summary>
@@ -98,9 +98,9 @@ public sealed class HttpCampaignCloseoutQueryService(HttpClient http) : ICampaig
     /// <param name="condition">The condition key.</param>
     /// <returns><see langword="true"/> when the key is known.</returns>
     private static bool IsKnownCondition(string condition)
-        => condition == CloseoutBlockerConditions.Outcomes
-            || condition == CloseoutBlockerConditions.Eligibility
-            || condition == CloseoutBlockerConditions.ArchivedTeams;
+        => string.Equals(condition, CloseoutBlockerConditions.Outcomes
+, StringComparison.Ordinal) || string.Equals(condition, CloseoutBlockerConditions.Eligibility
+, StringComparison.Ordinal) || string.Equals(condition, CloseoutBlockerConditions.ArchivedTeams, StringComparison.Ordinal);
 
     /// <summary>
     /// Validates that a decoded placement summary carries internally consistent, non-negative counts.
